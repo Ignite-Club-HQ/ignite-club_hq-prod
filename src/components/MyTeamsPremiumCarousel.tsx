@@ -984,7 +984,27 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   }
 
   const createClubCard = showCreateClub ? (
-...
+    <Card
+      className="min-w-[200px] max-w-[200px] snap-start cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all shrink-0"
+      onClick={() => navigate("/clubs", { state: { fromCreateClub: true } })}
+    >
+      <CardContent className="p-4 flex flex-col items-center justify-center gap-2 h-full text-center">
+        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+          <Building2 className="h-5 w-5 text-primary" />
+        </div>
+        <p className="text-sm font-medium">Create a Club</p>
+        <p className="text-[11px] text-muted-foreground leading-tight">Start a new organisation</p>
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const renderedCompetitionItems = [
+    ...competitionItems,
+    ...displayItems.filter((item) =>
+      item.type === "competition" && !competitionItems.some((c) => c.id === item.id),
+    ),
+  ];
+
   // Re-sort by upcoming activity once nextEvents resolves (without re-fetching)
   const sortedItems = displayItems.filter((item) => item.type !== "competition").sort((a, b) => {
     if (a.canManage && !b.canManage) return -1;
