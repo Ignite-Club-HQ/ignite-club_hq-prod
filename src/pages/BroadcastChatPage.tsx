@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
@@ -201,22 +202,10 @@ export default function BroadcastChatPage() {
     return cancel;
   }, [targetMessageId, targetParentId, targetJumpNonce]);
 
-  // Check if user is app admin
-  const { data: isAppAdmin } = useQuery({
-    queryKey: ["is-app-admin", user?.id],
-    queryFn: async () => {
-      const uid = user?.id;
-      if (!uid) return false;
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", uid)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      return !!data;
-    },
-    enabled: authReady && !!user?.id,
-  });
+  // Check if user is app admin — shared authoritative hook so this page can
+  // never own the `["is-app-admin", userId]` cache entry with a stricter
+  // enablement gate than the rest of the app.
+  const { isAppAdmin } = useIsAppAdmin();
 
   const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
     [isAppAdmin, replyingTo?.id, editingMessage?.id],
