@@ -907,6 +907,9 @@ export default function TeamChatPage() {
       );
       const previousOnly = (prev || []).filter((message) => {
         if (incomingIds.has(message.id)) return false;
+        // A realtime soft-delete already removed this row from the incoming
+        // cache snapshot — never carry it over from the previous render state.
+        if (isTombstoned(reconcileScope, message.id)) return false;
         if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
           const key = `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`;
           if (realByAuthorText.has(key)) return false;
