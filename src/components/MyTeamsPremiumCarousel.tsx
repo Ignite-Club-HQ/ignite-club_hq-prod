@@ -970,35 +970,23 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
 
   const showCreateClub = !activeClubFilter;
 
+  // Fall back to the last-known-good snapshot when the fresh query transiently
+  // resolves to `[]` — e.g. on app resume after inactivity, when a refetch can
+  // race a stale auth token or a momentary RLS hiccup and return zero rows.
+  // Without this fallback the carousel vanishes until relaunch. The snapshot
+  // write effect already refuses to overwrite the cache with an empty list,
+  // so this only ever shows genuinely stale-but-real data during the blip.
+  const displayItems = items.length > 0 ? items : (snapshot?.items ?? []);
+
   // Empty state: onboarding with clear paths
-  if (items.length === 0) {
+  if (displayItems.length === 0) {
     return null;
   }
 
   const createClubCard = showCreateClub ? (
-    <Card
-      className="min-w-[200px] max-w-[200px] snap-start cursor-pointer border border-dashed border-primary/30 bg-card/50 hover:border-primary/60 hover:bg-accent/30 transition-all shrink-0"
-      onClick={() => navigate("/clubs", { state: { fromCreateClub: true } })}
-    >
-      <CardContent className="p-4 flex flex-col items-center justify-center gap-2 h-full text-center">
-        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-          <Building2 className="h-5 w-5 text-primary" />
-        </div>
-        <p className="text-sm font-medium">Create a Club</p>
-        <p className="text-[11px] text-muted-foreground leading-tight">Start a new organisation</p>
-      </CardContent>
-    </Card>
-  ) : null;
-
-  const renderedCompetitionItems = [
-    ...competitionItems,
-    ...items.filter((item) =>
-      item.type === "competition" && !competitionItems.some((c) => c.id === item.id),
-    ),
-  ];
-
+...
   // Re-sort by upcoming activity once nextEvents resolves (without re-fetching)
-  const sortedItems = items.filter((item) => item.type !== "competition").sort((a, b) => {
+  const sortedItems = displayItems.filter((item) => item.type !== "competition").sort((a, b) => {
     if (a.canManage && !b.canManage) return -1;
     if (!a.canManage && b.canManage) return 1;
     const aDate = nextEvents[a.id]?.eventDate;
