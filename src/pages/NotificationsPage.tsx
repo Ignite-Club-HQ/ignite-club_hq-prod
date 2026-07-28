@@ -26,6 +26,13 @@ import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import {
+  chatTargetPath,
+  resolveChatTargetForMessageId,
+  NOTIFICATION_FALLBACK_PATH,
+  type ChatTarget,
+} from "@/lib/notificationChatRouting";
+
 
 /**
  * Belt-and-braces: when navigating from a notification tap to a chat that
