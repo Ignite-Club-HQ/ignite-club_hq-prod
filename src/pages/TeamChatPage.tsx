@@ -1374,13 +1374,14 @@ export default function TeamChatPage() {
         },
         (payload) => {
           const deletedId = (payload.old as any).id;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            return {
-              ...(old || {}),
-              messages: existingMessages.filter(m => m.id !== deletedId),
-            };
-          });
+          if (!deletedId) return;
+          // Tombstone so an older in-flight fetch cannot resurrect the row.
+          recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
+          queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+            ...(old || {}),
+            messages: removeMessage((old?.messages || []) as Message[], deletedId),
+          }));
+          setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
       .on(
@@ -1393,20 +1394,27 @@ export default function TeamChatPage() {
         },
         (payload) => {
           const updated = payload.new as any;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            // If message was soft-deleted, remove it from the list
-            if (updated.deleted_at) {
-              return { ...(old || {}), messages: existingMessages.filter(m => m.id !== updated.id) };
-            }
-            // Otherwise update the message content
-            return {
+          if (!updated?.id) return;
+          // Record first so any query response already in flight is reconciled
+          // when it lands (stale-fetch resurrection guard). Idempotent.
+          const outcome = recordRealtimeMutation(reconcileScope, updated);
+
+          if (outcome === "deleted") {
+            queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
               ...(old || {}),
-              messages: existingMessages.map(m =>
-                m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url, is_club_announcement: updated.is_club_announcement ?? m.is_club_announcement, club_announcement_name: updated.club_announcement_name ?? m.club_announcement_name } : m
-              ),
-            };
-          });
+              messages: removeMessage((old?.messages || []) as Message[], updated.id),
+            }));
+            setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
+            return;
+          }
+
+          // Apply the edit to BOTH stores with the same pure helper so they
+          // can never diverge. Fields absent from the payload are preserved.
+          queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+            ...(old || {}),
+            messages: applyMessageUpdate((old?.messages || []) as Message[], updated),
+          }));
+          setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
       .on(
