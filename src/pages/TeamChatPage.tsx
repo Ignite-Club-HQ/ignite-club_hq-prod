@@ -749,6 +749,9 @@ export default function TeamChatPage() {
     },
   });
 
+  // Scope key for the realtime edit/soft-delete reconciliation registry.
+  const reconcileScope = `team:${teamId ?? "none"}`;
+
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
@@ -756,10 +759,14 @@ export default function TeamChatPage() {
       ? messagesData
       : (messagesData as any).messages || [];
     // Sort by created_at to ensure proper ordering
-    return [...msgList].sort((a, b) => 
+    const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
-  }, [messagesData]);
+    // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
+    // after a realtime UPDATE must never restore pre-edit text or resurrect a
+    // deleted row.
+    return reconcileMessages(reconcileScope, sorted) as Message[];
+  }, [messagesData, reconcileScope]);
 
   // Local copy used for rendering so optimistic updates are instant.
   // A 1-item cache is almost certainly a notification preload, not real
