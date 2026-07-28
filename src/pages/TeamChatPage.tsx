@@ -1234,7 +1234,7 @@ export default function TeamChatPage() {
         (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
 
-      setLocalMessages(anchoredWindow);
+      setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as Message[]);
       setHasOlderMessages(windowRows.length >= 13);
       setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
     };
@@ -1244,7 +1244,7 @@ export default function TeamChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [targetMessageId, targetJumpNonce, teamId, authReady]);
+  }, [targetMessageId, targetJumpNonce, teamId, authReady, reconcileScope]);
 
   // Free-tier polling switch (based on parent club's Pro status).
   const { mode: teamRealtimeMode, intervalMs: teamPollIntervalMs } = useClubRealtimeMode(team?.club_id ?? null);
