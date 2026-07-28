@@ -19,9 +19,28 @@ const messages = Array.from({ length: 90 }, (_, i) => ({
 
 function json(route: Route, body: unknown, status = 200) { return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }); }
 type BellCase = { type: string; table: string; scopeColumn: string; scopeId: string; expectedPath: string; targetExists?: boolean };
+type HarnessBehavior = {
+  insert?: "success" | "failure" | "deferred-success" | "deferred-failure";
+  edit?: "success" | "failure";
+  paginated?: boolean;
+  deferOlderPage?: boolean;
+};
+type HarnessState = {
+  inserts: Record<string, unknown>[];
+  patches: Array<{ body: Record<string, unknown>; id: string | null }>;
+  olderRequests: number;
+  olderResponses: number;
+  releaseInsert: () => void;
+  releaseOlderPage: () => void;
+};
 const defaultBell: BellCase = { type: "team_message", table: "team_messages", scopeColumn: "team_id", scopeId: teamId, expectedPath: `/messages/${teamId}` };
 
-async function install(page: Page, bell: BellCase = defaultBell) {
+async function install(page: Page, bell: BellCase = defaultBell, behavior: HarnessBehavior = {}): Promise<HarnessState> {
+  let insertRelease!: () => void;
+  let olderRelease!: () => void;
+  const insertGate = new Promise<void>(resolve => { insertRelease = resolve; });
+  const olderGate = new Promise<void>(resolve => { olderRelease = resolve; });
+  const state: HarnessState = { inserts: [], patches: [], olderRequests: 0, olderResponses: 0, releaseInsert: insertRelease, releaseOlderPage: olderRelease };
   await page.addInitScript(({ user, userId }) => {
     const enc = (v: object) => btoa(JSON.stringify(v)).replaceAll("=", "");
     const token = `${enc({ alg: "HS256", typ: "JWT" })}.${enc({ sub: userId, role: "authenticated", exp: 4102444800 })}.synthetic`;
@@ -43,10 +62,24 @@ async function install(page: Page, bell: BellCase = defaultBell) {
     if (url.pathname === "/rest/v1/clubs") return json(route, singular ? { id: clubId, name: "Synthetic Club", is_pro: true } : [{ id: clubId, name: "Synthetic Club", is_pro: true }]);
     if (url.pathname === "/rest/v1/profiles") {
       const rows = [{ id: userId, display_name: "Synthetic Member", avatar_url: null, active_club_id: clubId }, { id: "00000000-0000-4000-8000-000000009099", display_name: "Alex Member", avatar_url: null, active_club_id: clubId }];
-      return json(route, singular ? rows.find(row => url.searchParams.get("id")?.includes(row.id)) ?? rows[0] : rows);
+      const exactId = url.searchParams.get("id")?.startsWith("eq.") ? url.searchParams.get("id")!.slice(3) : null;
+      return json(route, singular || exactId ? rows.find(row => row.id === exactId) ?? rows[0] : rows);
     }
     if (url.pathname === "/rest/v1/user_roles") return json(route, [{ user_id: userId, role: "player", club_id: clubId, team_id: teamId }]);
     if (url.pathname === "/rest/v1/team_messages") {
+      if (req.method() === "POST") {
+        state.inserts.push((req.postDataJSON() ?? {}) as Record<string, unknown>);
+        if (behavior.insert?.startsWith("deferred")) await insertGate;
+        if (behavior.insert === "failure" || behavior.insert === "deferred-failure") {
+          return json(route, { code: "42501", message: "synthetic insert denied" }, 403);
+        }
+        return json(route, [], 201);
+      }
+      if (req.method() === "PATCH") {
+        state.patches.push({ body: (req.postDataJSON() ?? {}) as Record<string, unknown>, id: url.searchParams.get("id")?.replace("eq.", "") ?? null });
+        if (behavior.edit === "failure") return json(route, { code: "42501", message: "synthetic update denied" }, 403);
+        return json(route, [], 204);
+      }
       const requested = url.searchParams.get("id")?.replace("eq.", "");
       const isHistorySearch = [...url.searchParams.keys()].some(key => key === "text") &&
         [...url.searchParams.getAll("text")].some(value => value.includes("ilike"));
@@ -56,8 +89,16 @@ async function install(page: Page, bell: BellCase = defaultBell) {
         text: "Needle from archived synthetic history",
         created_at: "2025-01-01T09:00:00.000Z",
       };
+      const isOlderPage = !!url.searchParams.get("created_at")?.startsWith("lt.");
+      if (isOlderPage) state.olderRequests += 1;
+      if (isOlderPage && behavior.deferOlderPage) await olderGate;
+      if (isOlderPage) state.olderResponses += 1;
       const rows = isHistorySearch
         ? [olderSearchMessage]
+        : behavior.paginated && isOlderPage
+          ? messages.slice(0, 39).reverse()
+          : behavior.paginated && !requested
+            ? messages.slice(39)
         : requested
           ? (bell.targetExists === false ? [] : messages.filter(m => m.id === requested))
           : messages;
@@ -73,6 +114,7 @@ async function install(page: Page, bell: BellCase = defaultBell) {
     if (url.pathname.startsWith("/functions/v1/")) return json(route, {});
     return json(route, {});
   });
+  return state;
 }
 
 test.beforeEach(async ({ page }) => install(page));
@@ -106,6 +148,109 @@ test("full-history search finds an older message outside the initially loaded pa
   await expect(result).toBeVisible();
   await expect(page.getByText("Synthetic history message 0", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Type a message..." })).toBeVisible();
+});
+
+test("send is optimistic, keeps exact scope, and never renders a duplicate while the insert settles", async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, { insert: "deferred-success" });
+  await page.goto(`/messages/${teamId}`);
+  const composer = page.getByRole("textbox", { name: "Type a message..." });
+  await composer.fill("Synthetic optimistic send");
+  await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+
+  await expect(page.getByText("Synthetic optimistic send", { exact: true })).toBeVisible();
+  await expect(page.getByText("Synthetic optimistic send", { exact: true })).toHaveCount(1);
+  await expect.poll(() => state.inserts.length).toBe(1);
+  expect(state.inserts[0]).toMatchObject({ team_id: teamId, author_id: userId, text: "Synthetic optimistic send", reply_to_id: null });
+
+  state.releaseInsert();
+  await expect(page.getByText("Synthetic optimistic send", { exact: true })).toHaveCount(1);
+});
+
+test("failed send removes the optimistic row, reports the error, and restores the unsent draft", async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, { insert: "deferred-failure" });
+  await page.goto(`/messages/${teamId}`);
+  const composer = page.getByRole("textbox", { name: "Type a message..." });
+  await composer.fill("Draft that must survive denial");
+  await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+  const optimisticBubble = page.locator('div[id^="message-"]').filter({ hasText: "Draft that must survive denial" });
+  await expect(optimisticBubble).toHaveCount(1);
+
+  state.releaseInsert();
+  await expect(page.getByText("Failed to send message", { exact: true })).toBeVisible();
+  await expect(optimisticBubble).toHaveCount(0);
+  await expect(composer).toHaveValue("Draft that must survive denial");
+});
+
+test("loading older history preserves the visible anchor and avoids duplicate boundary rows", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, { paginated: true, deferOlderPage: true });
+  await page.goto(`/messages/${teamId}`);
+  await expect(page.getByRole("heading", { name: "Synthetic Messaging Team" })).toBeVisible({ timeout: 15_000 });
+  const scroller = page.getByTestId("virtuoso-scroller");
+  await expect(scroller).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Synthetic history message 68", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await page.waitForTimeout(1_200);
+  await scroller.dispatchEvent("wheel", { deltaY: -120 });
+  await scroller.evaluate(element => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeLessThanOrEqual(4);
+  // A second upward gesture while already pinned at the edge exercises the
+  // explicit edge-pull fallback used by touch devices and Chromium alike.
+  await scroller.dispatchEvent("wheel", { deltaY: -120 });
+  await expect.poll(() => state.olderRequests).toBeGreaterThan(0);
+
+  const anchor = page.getByText("Synthetic history message 39", { exact: true });
+  await expect(anchor).toBeVisible();
+  const before = await anchor.evaluate(element => element.getBoundingClientRect().top);
+  state.releaseOlderPage();
+  await expect.poll(() => state.olderResponses, { timeout: 15_000 }).toBeGreaterThan(0);
+  const after = await anchor.evaluate(element => element.getBoundingClientRect().top);
+  expect(Math.abs(after - before)).toBeLessThanOrEqual(2);
+  await expect(page.getByText("Synthetic history message 39", { exact: true })).toHaveCount(1);
+});
+
+test("reply focuses the composer and sends the immutable parent message id", async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, { insert: "success" });
+  await page.goto(`/messages/${teamId}`);
+  const target = page.locator(`#message-${messages[28].id}`);
+  await expect(target).toBeVisible({ timeout: 15_000 });
+  await target.click({ button: "right" });
+  await page.getByRole("button", { name: "Reply", exact: true }).click();
+
+  const composer = page.getByRole("textbox", { name: "Type a message..." });
+  await expect(page.getByText("Replying to Alex Member", { exact: true })).toBeVisible();
+  await expect(composer).toBeFocused();
+  await composer.fill("Synthetic threaded reply");
+  await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+  await expect.poll(() => state.inserts.length).toBe(1);
+  expect(state.inserts[0]).toMatchObject({ text: "Synthetic threaded reply", reply_to_id: messages[28].id });
+  await expect(page.getByText("Replying to Alex Member", { exact: true })).toHaveCount(0);
+});
+
+test("editing updates the existing own message instead of inserting a replacement", async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, { edit: "success" });
+  await page.goto(`/messages/${teamId}`);
+  const own = page.locator(`#message-${messages[29].id}`);
+  await expect(own).toBeVisible({ timeout: 15_000 });
+  await own.click({ button: "right" });
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+
+  const composer = page.getByRole("textbox", { name: "Type a message..." });
+  await expect(page.getByText("Editing message", { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue("Synthetic history message 29");
+  await composer.fill("Corrected synthetic message");
+  await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+  await expect.poll(() => state.patches.length).toBe(1);
+  expect(state.patches[0]).toEqual({ body: { text: "Corrected synthetic message" }, id: messages[29].id });
+  expect(state.inserts).toHaveLength(0);
 });
 
 test("notification bell resolves a team notification to its exact message", async ({ page }) => {
