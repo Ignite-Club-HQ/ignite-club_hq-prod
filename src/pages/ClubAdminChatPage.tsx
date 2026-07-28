@@ -45,6 +45,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
+import {
+  recordRealtimeMutation,
+  reconcileMessages,
+  applyMessageUpdate,
+  removeMessage,
+  clearReconciliationScope,
+} from "@/lib/chatMessageReconciliation";
+
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
@@ -344,15 +352,21 @@ export default function ClubAdminChatPage() {
     placeholderData: (prev: any) => prev,
   });
 
+  // Scope key for the realtime edit/soft-delete reconciliation registry.
+  const reconcileScope = `club-admin:${conversationId ?? "none"}`;
+
   const messages = useMemo(() => {
     if (!messagesData) return [];
     const msgList = Array.isArray(messagesData)
       ? messagesData
       : (messagesData as any).messages || [];
-    return [...msgList].sort((a, b) =>
+    const sorted = [...msgList].sort((a, b) =>
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
-  }, [messagesData]);
+    // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
+    // restore pre-edit text or resurrect a deleted row.
+    return (reconcileMessages(reconcileScope, sorted) ?? []) as ClubAdminMessage[];
+  }, [messagesData, reconcileScope]);
 
   // Guard: never seed from a 1-item cache — that is the push-notification
   // preload and would render a lone message stranded at the top of the
@@ -422,8 +436,17 @@ export default function ClubAdminChatPage() {
       return;
     }
     const cached = getCachedClubAdminMessages(conversationId);
-    setLocalMessages(cached && cached.length >= 2 ? cached : undefined);
-  }, [conversationId]);
+    setLocalMessages(
+      cached && cached.length >= 2
+        ? ((reconcileMessages(reconcileScope, cached) ?? []) as ClubAdminMessage[])
+        : undefined,
+    );
+
+    return () => {
+      // Tombstones/patches are per-thread; drop them when leaving the thread.
+      clearReconciliationScope(`club-admin:${conversationId ?? "none"}`);
+    };
+  }, [conversationId, reconcileScope]);
 
   // Sync localMessages with fetched messages
   useLayoutEffect(() => {
@@ -784,18 +807,25 @@ export default function ClubAdminChatPage() {
         { event: "UPDATE", schema: "public", table: "club_admin_messages", filter: `conversation_id=eq.${conversationId}` },
         (payload) => {
           const updated = payload.new as any;
-          queryClient.setQueryData(queryKey, (old: any) => {
-            if (!old) return old;
-            if (updated.deleted_at) {
-              return { ...old, messages: old.messages.filter((m: any) => m.id !== updated.id) };
-            }
-            return {
-              ...old,
-              messages: old.messages.map((m: any) =>
-                m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m
-              ),
-            };
-          });
+          if (!updated?.id) return;
+          // Record first so any query response already in flight is reconciled
+          // when it lands (stale-fetch resurrection guard). Idempotent.
+          const outcome = recordRealtimeMutation(reconcileScope, updated);
+
+          if (outcome === "deleted") {
+            queryClient.setQueryData(queryKey, (old: any) =>
+              old ? { ...old, messages: removeMessage(old.messages || [], updated.id) } : old,
+            );
+            setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
+            return;
+          }
+
+          // Apply the edit to BOTH stores with the same pure helper so they
+          // can never diverge. Fields absent from the payload are preserved.
+          queryClient.setQueryData(queryKey, (old: any) =>
+            old ? { ...old, messages: applyMessageUpdate(old.messages || [], updated) } : old,
+          );
+          setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
       .on(
@@ -870,7 +900,7 @@ export default function ClubAdminChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`club-admin-chat-${conversationId}`);
     };
-  }, [conversationId, queryClient, queryKey, user?.id]);
+  }, [conversationId, queryClient, queryKey, user?.id, reconcileScope]);
 
   // Visibility change handler
   useEffect(() => {
