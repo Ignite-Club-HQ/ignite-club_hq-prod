@@ -1134,14 +1134,28 @@ export default function TeamChatPage() {
       // Prepend older messages to cache + restore scroll anchor synchronously
       // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
       // in the same task, so the user never sees the intermediate state.
+      // Functional merge keyed by message id — never replace the collection.
+      const mergeOlder = (existing: Message[] | undefined): Message[] => {
+        const byId = new Map<string, Message>();
+        olderMessages.forEach((m) => byId.set(m.id, m));
+        (existing || []).forEach((m) => byId.set(m.id, m)); // current state wins on boundary duplicates
+        return [...byId.values()].sort(
+          (a, b) =>
+            (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) ||
+            a.id.localeCompare(b.id),
+        );
+      };
+
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-          const existingMessages: Message[] = old?.messages || [];
-          if (!existingMessages.length) {
-            return { ...(old || {}), messages: olderMessages, hasOlderMessages: hasMore };
-          }
-          return { ...(old || {}), messages: [...olderMessages, ...existingMessages], hasOlderMessages: hasMore };
-        });
+        queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+          ...(old || {}),
+          messages: mergeOlder(old?.messages as Message[] | undefined),
+          hasOlderMessages: hasMore,
+        }));
+        // Also converge the rendered local window on the same merged result —
+        // the cache→local sync can otherwise be short-circuited by an in-flight
+        // refetch replacing the cache with only the latest page.
+        setLocalMessages((prev) => mergeOlder(prev));
       });
     } catch (err) {
       clearTimeout(timeoutId);
