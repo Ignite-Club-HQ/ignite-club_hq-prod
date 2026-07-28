@@ -1337,7 +1337,9 @@ function CompactCard({ event }: { event: EventItem }) {
       return data;
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
 
