@@ -6,12 +6,13 @@ const teamId = "00000000-0000-4000-8000-000000009002";
 const clubId = "00000000-0000-4000-8000-000000009003";
 const targetId = "00000000-0000-4000-8000-000000009020";
 const olderSearchId = "00000000-0000-4000-8000-000000009021";
+const syntheticImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='30'%3E%3Crect width='40' height='30' fill='%23007acc'/%3E%3C/svg%3E";
 const user = { id: userId, aud: "authenticated", role: "authenticated", email: "synthetic.messaging@local.invalid", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" };
 const messages = Array.from({ length: 90 }, (_, i) => ({
   id: i === 18 ? targetId : `00000000-0000-4000-8000-${String(9100 + i).padStart(12, "0")}`,
   team_id: teamId, author_id: i % 2 ? userId : "00000000-0000-4000-8000-000000009099",
   text: i === 18 ? "Exact synthetic notification target" : `Synthetic history message ${i}`,
-  image_url: null, reply_to_id: null, deleted_at: null, is_club_announcement: false,
+  image_url: i === 28 ? syntheticImage : null, reply_to_id: null, deleted_at: null, is_club_announcement: false,
   club_announcement_name: null, is_system_message: false, forwarded_from_user_id: null,
   forwarded_at: null, forwarded_source_label: null,
   created_at: new Date(Date.UTC(2026, 6, 27, 10, i)).toISOString(),
@@ -22,12 +23,15 @@ type BellCase = { type: string; table: string; scopeColumn: string; scopeId: str
 type HarnessBehavior = {
   insert?: "success" | "failure" | "deferred-success" | "deferred-failure";
   edit?: "success" | "failure";
+  delete?: "success" | "failure";
   paginated?: boolean;
   deferOlderPage?: boolean;
+  mockRealtime?: boolean;
 };
 type HarnessState = {
   inserts: Record<string, unknown>[];
   patches: Array<{ body: Record<string, unknown>; id: string | null }>;
+  deletes: string[];
   olderRequests: number;
   olderResponses: number;
   releaseInsert: () => void;
@@ -40,7 +44,73 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
   let olderRelease!: () => void;
   const insertGate = new Promise<void>(resolve => { insertRelease = resolve; });
   const olderGate = new Promise<void>(resolve => { olderRelease = resolve; });
-  const state: HarnessState = { inserts: [], patches: [], olderRequests: 0, olderResponses: 0, releaseInsert: insertRelease, releaseOlderPage: olderRelease };
+  const state: HarnessState = { inserts: [], patches: [], deletes: [], olderRequests: 0, olderResponses: 0, releaseInsert: insertRelease, releaseOlderPage: olderRelease };
+  if (behavior.mockRealtime) {
+    await page.addInitScript(() => {
+      const NativeWebSocket = window.WebSocket;
+      const sockets: any[] = [];
+      (window as any).__syntheticRealtimeSockets = sockets;
+      class SyntheticRealtimeSocket {
+        static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
+        CONNECTING = 0; OPEN = 1; CLOSING = 2; CLOSED = 3;
+        readyState = 0; protocol = ""; extensions = ""; bufferedAmount = 0; binaryType: BinaryType = "blob";
+        onopen: ((event: Event) => void) | null = null;
+        onclose: ((event: CloseEvent) => void) | null = null;
+        onerror: ((event: Event) => void) | null = null;
+        onmessage: ((event: MessageEvent) => void) | null = null;
+        url: string; channels: Array<{ topic: string; bindings: Array<{ id: number; table: string; event: string }> }> = [];
+        constructor(url: string | URL) {
+          this.url = String(url); sockets.push(this);
+          setTimeout(() => { this.readyState = 1; this.onopen?.(new Event("open")); }, 0);
+        }
+        addEventListener(type: string, listener: EventListener) { (this as any)[`on${type}`] = listener; }
+        removeEventListener(type: string, listener: EventListener) { if ((this as any)[`on${type}`] === listener) (this as any)[`on${type}`] = null; }
+        dispatchEvent() { return true; }
+        send(raw: string) {
+          const parsed = JSON.parse(String(raw));
+          const message = Array.isArray(parsed)
+            ? { join_ref: parsed[0], ref: parsed[1], topic: parsed[2], event: parsed[3], payload: parsed[4] }
+            : parsed;
+          if (message.event === "phx_join") {
+            const changes = message.payload?.config?.postgres_changes ?? [];
+            const bindings = changes.map((change: any, index: number) => ({ id: index + 1, ...change }));
+            this.channels = [...this.channels.filter(channel => channel.topic !== message.topic), { topic: message.topic, bindings }];
+            this.reply(message, { status: "ok", response: { postgres_changes: bindings } });
+          } else if (message.event === "heartbeat" || message.event === "access_token") {
+            this.reply(message, { status: "ok", response: {} });
+          } else if (message.event === "phx_leave") {
+            this.reply(message, { status: "ok", response: {} });
+          }
+        }
+        reply(message: any, payload: any) {
+          setTimeout(() => this.onmessage?.(new MessageEvent("message", { data: JSON.stringify({
+            join_ref: message.join_ref, ref: message.ref, topic: message.topic, event: "phx_reply", payload,
+          }) })), 0);
+        }
+        close() { this.readyState = 3; this.onclose?.(new CloseEvent("close", { code: 1000, wasClean: true })); }
+      }
+      (window as any).WebSocket = function(url: string | URL, protocols?: string | string[]) {
+        if (String(url).includes("/realtime/")) return new SyntheticRealtimeSocket(url);
+        return new NativeWebSocket(url, protocols as any);
+      } as any;
+      Object.assign((window as any).WebSocket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+      (window as any).__emitSyntheticPostgresChange = (table: string, type: string, next: any, old: any = {}) => {
+        for (const socket of sockets) {
+          for (const channel of socket.channels) {
+            const ids = channel.bindings.filter((binding: any) => binding.table === table && (binding.event === "*" || binding.event === type)).map((binding: any) => binding.id);
+            if (!ids.length) continue;
+            socket.onmessage?.(new MessageEvent("message", { data: JSON.stringify({
+              join_ref: null, ref: null, topic: channel.topic, event: "postgres_changes", payload: { ids, data: {
+              schema: "public", table, commit_timestamp: new Date().toISOString(), type,
+              columns: Object.keys({ ...old, ...next }).map(name => ({ name, type: "text" })),
+              record: next, old_record: old, errors: null,
+              } },
+            }) }));
+          }
+        }
+      };
+    });
+  }
   await page.addInitScript(({ user, userId }) => {
     const enc = (v: object) => btoa(JSON.stringify(v)).replaceAll("=", "");
     const token = `${enc({ alg: "HS256", typ: "JWT" })}.${enc({ sub: userId, role: "authenticated", exp: 4102444800 })}.synthetic`;
@@ -78,6 +148,11 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       if (req.method() === "PATCH") {
         state.patches.push({ body: (req.postDataJSON() ?? {}) as Record<string, unknown>, id: url.searchParams.get("id")?.replace("eq.", "") ?? null });
         if (behavior.edit === "failure") return json(route, { code: "42501", message: "synthetic update denied" }, 403);
+        return json(route, [], 204);
+      }
+      if (req.method() === "DELETE") {
+        state.deletes.push(url.searchParams.get("id")?.replace("eq.", "") ?? "");
+        if (behavior.delete === "failure") return json(route, { code: "42501", message: "synthetic delete denied" }, 403);
         return json(route, [], 204);
       }
       const requested = url.searchParams.get("id")?.replace("eq.", "");
@@ -251,6 +326,69 @@ test("editing updates the existing own message instead of inserting a replacemen
   await expect.poll(() => state.patches.length).toBe(1);
   expect(state.patches[0]).toEqual({ body: { text: "Corrected synthetic message" }, id: messages[29].id });
   expect(state.inserts).toHaveLength(0);
+});
+
+test("an image message opens the exact attachment without triggering gallery publication", async ({ page }) => {
+  await page.goto(`/messages/${teamId}`);
+  const imageMessage = page.locator(`#message-${messages[28].id}`);
+  await expect(imageMessage).toBeVisible({ timeout: 15_000 });
+  await expect(imageMessage.getByRole("img", { name: "Attachment" })).toBeVisible();
+
+  await imageMessage.click({ button: "right" });
+  await page.getByRole("button", { name: "More…" }).click();
+  await page.getByRole("button", { name: "View Image" }).click();
+
+  const viewer = page.getByRole("img", { name: "Attachment" }).last();
+  await expect(viewer).toBeVisible();
+  await expect(page.getByText("Added to media gallery", { exact: true })).toHaveCount(0);
+});
+
+test("a denied delete restores the exact message and reports the moderation failure", async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, { delete: "failure" });
+  await page.goto(`/messages/${teamId}`);
+  const own = page.locator(`#message-${messages[29].id}`);
+  await expect(own).toBeVisible({ timeout: 15_000 });
+
+  await own.click({ button: "right" });
+  await page.getByRole("button", { name: "More…" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Delete message?" })).toBeVisible();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+
+  await expect.poll(() => state.deletes).toEqual([messages[29].id]);
+  await expect(page.getByText("Failed to delete message", { exact: true })).toBeVisible();
+  await expect(own).toBeVisible();
+});
+
+test("a mounted chat reconciles incoming realtime messages and reactions", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { mockRealtime: true });
+  await page.goto(`/messages/${teamId}`);
+  await expect(page.getByRole("heading", { name: "Synthetic Messaging Team" })).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => page.evaluate(() => (window as any).__syntheticRealtimeSockets
+    .flatMap((socket: any) => socket.channels.flatMap((channel: any) => channel.bindings))
+    .filter((binding: any) => binding.table === "team_messages").length)).toBeGreaterThan(0);
+  // The mock records bindings as soon as it receives phx_join. Allow the
+  // client's asynchronous join-reply handler to move the channel to SUBSCRIBED
+  // before delivering database changes.
+  await page.waitForTimeout(250);
+  const realtimeId = "00000000-0000-4000-8000-000000009777";
+  const reactionId = "00000000-0000-4000-8000-000000009778";
+  const row = {
+    ...messages[0], id: realtimeId, text: "Realtime mounted insert", created_at: "2026-07-27T10:15:30.000Z",
+  };
+
+  await page.evaluate(({ row }) => (window as any).__emitSyntheticPostgresChange("team_messages", "INSERT", row), { row });
+  const bubble = page.locator(`#message-${realtimeId}`);
+  await expect(bubble).toContainText("Realtime mounted insert", { timeout: 15_000 });
+
+  await page.evaluate(({ reactionId, realtimeId, otherId }) => (window as any).__emitSyntheticPostgresChange("message_reactions", "INSERT", {
+    id: reactionId, team_message_id: realtimeId, user_id: otherId, reaction_type: "like",
+  }), { reactionId, realtimeId, otherId: "00000000-0000-4000-8000-000000009099" });
+  await expect(bubble.getByRole("button", { name: "1 like reaction" })).toBeVisible({ timeout: 15_000 });
+
 });
 
 test("notification bell resolves a team notification to its exact message", async ({ page }) => {

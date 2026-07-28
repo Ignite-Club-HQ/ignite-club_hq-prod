@@ -72,6 +72,7 @@ function eventUpdateChannel(client: SupabaseClient, name: string, eventId: strin
 realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
   let fixture: SecurityFixture;
   let eventA: string;
+  let teamMessageA: string;
   const channels: Array<{ client: SupabaseClient; channel: RealtimeChannel }> = [];
 
   beforeAll(async () => {
@@ -87,6 +88,13 @@ realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
     }).select("id").single();
     if (event.error) throw event.error;
     eventA = event.data.id;
+    const message = await service.from("team_messages").insert({
+      team_id: fixture.teamA,
+      author_id: fixture.adminA.id,
+      text: "Synthetic mounted realtime message",
+    }).select("id").single();
+    if (message.error) throw message.error;
+    teamMessageA = message.data.id;
   });
 
   afterAll(async () => {
@@ -114,7 +122,7 @@ realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
 
   it("does not deliver another club's change to an unauthorized subscriber", async () => {
     const authorized = deferred<void>();
-    const unauthorized = deferred<void>();
+    const unauthorized = deferred<any>();
     const allowedChannel = track(fixture.adminA.client, eventUpdateChannel(
       fixture.adminA.client, `positive-control-${crypto.randomUUID()}`, eventA, () => authorized.resolve(),
     ));
@@ -136,6 +144,83 @@ realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
     await subscribe(channel);
     await service.from("events").update({ description: "different row" }).eq("id", eventA);
     await expectNoEvent(received.promise);
+  });
+
+  it.each(["UPDATE", "DELETE"] as const)("delivers a scoped team-message %s to an authorised chat only", async (event) => {
+    const authorized = deferred<void>();
+    const unauthorized = deferred<any>();
+    const filter = { event, schema: "public", table: "team_messages", filter: `team_id=eq.${fixture.teamA}` } as const;
+    const allowedChannel = track(fixture.memberA.client, fixture.memberA.client
+      .channel(`message-${event.toLowerCase()}-${crypto.randomUUID()}`)
+      .on("postgres_changes", filter, () => authorized.resolve()));
+    const deniedChannel = track(fixture.outsiderB.client, fixture.outsiderB.client
+      .channel(`message-denied-${event.toLowerCase()}-${crypto.randomUUID()}`)
+      .on("postgres_changes", filter, payload => unauthorized.resolve(payload)));
+    await Promise.all([subscribe(allowedChannel), subscribe(deniedChannel)]);
+
+    if (event === "UPDATE") {
+      expect((await service.from("team_messages").update({ text: "Realtime update" }).eq("id", teamMessageA)).error).toBeNull();
+    } else {
+      expect((await service.from("team_messages").delete().eq("id", teamMessageA)).error).toBeNull();
+    }
+    await expectEvent(authorized.promise);
+
+    if (event === "DELETE") {
+      // Supabase cannot apply row-level authorization after a row is gone.
+      // DELETE broadcasts may therefore reach a filtered subscriber, but RLS
+      // must redact the old record to its primary key only.
+      const payload = await Promise.race([
+        unauthorized.promise,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Expected redacted DELETE event")), 5_000)),
+      ]);
+      expect(Object.keys(payload.old).sort()).toEqual(["id"]);
+      const replacement = await service.from("team_messages").insert({
+        team_id: fixture.teamA, author_id: fixture.adminA.id, text: "Synthetic replacement",
+      }).select("id").single();
+      expect(replacement.error).toBeNull();
+      teamMessageA = replacement.data!.id;
+    } else {
+      await expectNoEvent(unauthorized.promise);
+    }
+  });
+
+  it("delivers reaction add/change/remove only to a member with access to the parent message", async () => {
+    const parent = await fixture.memberA.client.from("team_messages").insert({
+      team_id: fixture.teamA,
+      author_id: fixture.memberA.id,
+      text: "Synthetic reaction parent",
+    }).select("id").single();
+    expect(parent.error).toBeNull();
+    const events: string[] = [];
+    const unauthorized = deferred<void>();
+    const allowedChannel = track(fixture.memberA.client, fixture.memberA.client
+      .channel(`reaction-lifecycle-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, payload => {
+        events.push(payload.eventType);
+      }));
+    const deniedChannel = track(fixture.outsiderB.client, fixture.outsiderB.client
+      .channel(`reaction-denied-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, payload => unauthorized.resolve(payload)));
+    await Promise.all([subscribe(allowedChannel), subscribe(deniedChannel)]);
+
+    const inserted = await fixture.memberA.client.from("message_reactions").insert({
+      user_id: fixture.memberA.id,
+      team_message_id: parent.data!.id,
+      reaction_type: "heart",
+    }).select("id").single();
+    expect(inserted.error).toBeNull();
+    await expect.poll(() => events, { timeout: 5_000 }).toEqual(["INSERT"]);
+    expect((await fixture.memberA.client.from("message_reactions").update({ reaction_type: "clap" }).eq("id", inserted.data!.id)).error).toBeNull();
+    await expect.poll(() => events, { timeout: 5_000 }).toEqual(["INSERT", "UPDATE"]);
+    expect((await fixture.memberA.client.from("message_reactions").delete().eq("id", inserted.data!.id)).error).toBeNull();
+
+    await expect.poll(() => events, { timeout: 5_000 }).toEqual(["INSERT", "UPDATE", "DELETE"]);
+    const redacted = await Promise.race([
+      unauthorized.promise,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Expected redacted reaction DELETE event")), 5_000)),
+    ]);
+    expect(redacted.eventType).toBe("DELETE");
+    expect(Object.keys(redacted.old).sort()).toEqual(["id"]);
   });
 
   it("removes database row access immediately when membership is revoked", async () => {
