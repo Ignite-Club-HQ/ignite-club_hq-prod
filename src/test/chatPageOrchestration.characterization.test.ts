@@ -89,7 +89,7 @@ describe("six-surface messaging refactor contracts", () => {
 
   it("preserves app-admin authorization for Broadcast sending", () => {
     const text = page("BroadcastChatPage.tsx");
-    expect(text).toContain('role", "app_admin"');
-    expect(text).toContain("isAppAdmin");
+    expect(text).toContain('useIsAppAdmin');
+    expect(text).toContain('const { isAppAdmin } = useIsAppAdmin()');
   });
 });

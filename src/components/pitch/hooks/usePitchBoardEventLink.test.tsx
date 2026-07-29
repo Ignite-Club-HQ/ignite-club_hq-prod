@@ -146,11 +146,16 @@ describe("usePitchBoardEventLink", () => {
   });
 
   it.each([
-    [{ opponent: "Riverside FC", title: "Round 3", start_time: "2026-07-27T12:00:00Z" }, "Riverside FC"],
-    [{ opponent: null, title: "U10 Blue vs Hills United", start_time: "2026-07-27T12:00:00Z" }, "Hills United"],
-    [{ opponent: null, title: "Training game", start_time: "2026-07-27T12:00:00Z" }, "Opponent"],
+    [{ opponent: "Riverside FC", title: "Round 3" }, "Riverside FC"],
+    [{ opponent: null, title: "U10 Blue vs Hills United" }, "Hills United"],
+    [{ opponent: null, title: "Training game" }, "Opponent"],
   ])("derives a stable opponent label from linked event data", async (event, expected) => {
-    tableData.set("events", event);
+    // Opponent parsing is independent of fixture expiry. Use a fresh kickoff so
+    // this contract cannot age past the intentional 24-hour auto-unlink boundary.
+    tableData.set("events", {
+      ...event,
+      start_time: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    });
     const { result } = renderHook(
       () => usePitchBoardEventLink(args({ initialLinkedEventId: "event-1" })),
       { wrapper: createWrapper() },

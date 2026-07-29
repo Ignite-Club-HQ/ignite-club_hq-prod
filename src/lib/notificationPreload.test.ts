@@ -122,6 +122,7 @@ describe("notification message preloading", () => {
       },
       reactions: [],
       reply_to: null,
+      __notification_preload: true,
     });
   });
 
