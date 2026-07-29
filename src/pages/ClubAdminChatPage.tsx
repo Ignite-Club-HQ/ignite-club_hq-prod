@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Users, Search, BarChart3 } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Users, Search, BarChart3, RefreshCw } from "lucide-react";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
