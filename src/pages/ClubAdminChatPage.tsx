@@ -1031,7 +1031,7 @@ export default function ClubAdminChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`club-admin-chat-${conversationId}`);
     };
-  }, [conversationId, queryClient, queryKey, user?.id, reconcileScope]);
+  }, [conversationId, conversation?.club_id, queryClient, queryKey, user?.id, reconcileScope]);
 
   // Visibility change handler
   useEffect(() => {
