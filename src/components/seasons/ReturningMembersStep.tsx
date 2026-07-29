@@ -219,20 +219,18 @@ export function ReturningMembersStep({
             return (
               <div key={teamName} className="space-y-1">
                 <div className="flex items-center gap-2 px-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(groupPlayers)}
-                    className="flex items-center gap-2 flex-1 min-w-0 py-1 rounded hover:bg-muted text-left"
-                  >
+                  <div className="flex items-center gap-2 flex-1 min-w-0 py-1 rounded">
                     <Checkbox
                       checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                      className="pointer-events-none"
+                      onCheckedChange={() => toggleGroup(groupPlayers)}
+                      aria-label={`Select all players from ${teamName}`}
                     />
                     <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground truncate">
                       {teamName}
                     </span>
                     <span className="text-xs text-muted-foreground">{groupPlayers.length}</span>
-                  </button>
+                  </div>
+
                   <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <Select
                     value={groupValue}
