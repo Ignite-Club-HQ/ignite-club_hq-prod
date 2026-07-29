@@ -9,7 +9,13 @@ import {
   Image as ImageIcon,
   Repeat,
   AlertTriangle,
+  WifiOff,
 } from "lucide-react";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import {
+  classifyScheduledBanner,
+  shouldShowInlineRefreshWarning,
+} from "@/lib/scheduledMessagesBannerState";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -50,6 +56,7 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
     refetch,
     isFetching,
   } = useThreadScheduledMessages(target);
+  const { isOnline } = useOnlineStatus();
   const [expanded, setExpanded] = useState(false);
   const [editingRow, setEditingRow] = useState<ScheduledMessageRow | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -64,11 +71,33 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
   const cancellingIdRef = useRef<string | null>(null);
   const cancelMut = useCancelScheduledMessage();
 
-  // If the fetch failed and we have no cached rows to show, still surface a
-  // non-blocking warning so the user knows their previously scheduled
-  // messages may still send. Never imply the list is empty on error.
-  if (rows.length === 0) {
-    if (!isError) return null;
+  const bannerInput = {
+    hasRows: rows.length > 0,
+    isError,
+    isFetching,
+    isOnline,
+  };
+  const bannerState = classifyScheduledBanner(bannerInput);
+  const showInlineRefreshWarning = shouldShowInlineRefreshWarning(bannerInput);
+
+  // Nothing loaded yet. Only shout when the query genuinely failed while the
+  // device was online and the built-in retries were exhausted — a transient
+  // resume/offline blip must not imply the schedule is broken.
+  if (bannerState === "hidden") return null;
+
+  if (bannerState === "offline") {
+    return (
+      <div className="bg-muted/50 border-b border-border px-3 py-2 flex items-center gap-2">
+        <WifiOff className="h-4 w-4 text-muted-foreground shrink-0" />
+        <p className="text-xs text-muted-foreground flex-1 min-w-0">
+          You're offline. Scheduled messages will refresh when you reconnect —
+          nothing has been cancelled.
+        </p>
+      </div>
+    );
+  }
+
+  if (bannerState === "error") {
     return (
       <div
         role="alert"
@@ -92,6 +121,7 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
       </div>
     );
   }
+
 
   const handleCancel = async () => {
     // Synchronous re-entry guard — must run before any await so a second
@@ -152,7 +182,7 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
           )}
         </button>
 
-        {isError && (
+        {showInlineRefreshWarning && (
           <div
             role="alert"
             className="mt-2 flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/40 px-2 py-1.5"
