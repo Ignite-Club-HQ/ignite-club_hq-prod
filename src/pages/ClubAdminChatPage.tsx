@@ -561,7 +561,7 @@ export default function ClubAdminChatPage() {
     }
     const cached = getCachedClubAdminMessages(conversationId);
     setLocalMessages(
-      cached && cached.length >= 2
+      isUsableCachedThread(cached as any)
         ? ((reconcileMessages(reconcileScope, cached) ?? []) as ClubAdminMessage[])
         : undefined,
     );
