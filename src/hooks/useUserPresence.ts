@@ -116,10 +116,19 @@ function attachVisibilityHandlers() {
   if (visibilityHandlerAttached || typeof window === "undefined") return;
   visibilityHandlerAttached = true;
 
+  // One physical Android resume can fire visibilitychange + appStateChange +
+  // resume + focus within the same tick. Coalesce them so we emit exactly one
+  // presence heartbeat per foreground transition instead of four.
+  let foregroundTimer: ReturnType<typeof setTimeout> | null = null;
   const onForeground = () => {
     if (!currentUserId) return;
-    // Re-broadcast presence on foreground / network recovery.
-    trackSelf();
+    if (foregroundTimer) return;
+    foregroundTimer = setTimeout(() => {
+      foregroundTimer = null;
+      if (!currentUserId) return;
+      // Re-broadcast presence on foreground / network recovery.
+      trackSelf();
+    }, 250);
   };
 
   window.addEventListener("focus", onForeground);
@@ -127,6 +136,7 @@ function attachVisibilityHandlers() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") onForeground();
   });
+
 
   // Native (Capacitor) lifecycle: websockets drop when an iOS/Android app
   // is backgrounded, so we must explicitly re-track on foreground.
