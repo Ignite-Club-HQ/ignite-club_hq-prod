@@ -617,6 +617,15 @@ export default function ClubChatPage() {
     (!authReady && !hasMeaningfulLocal) ||
     (isLoading && !messagesData && !hasMeaningfulLocal);
 
+  // Android resume escape hatch: abort zombie GETs + re-issue the gating
+  // queries while the page is stuck on a skeleton.
+  useChatStuckWatchdog(
+    (!!clubId && ((isLoadingClubSubscription && !club) || showLoading)),
+    [["club-subscription", clubId], ["club-chat", clubId], ["club-messages", clubId]],
+    "club-chat",
+  );
+
+
   // Cold-start stage marks (chat_mount + chat_query_return).
   useChatPerfMarks(messagesData);
 
