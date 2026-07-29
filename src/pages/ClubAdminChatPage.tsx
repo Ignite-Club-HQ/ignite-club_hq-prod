@@ -1120,6 +1120,17 @@ export default function ClubAdminChatPage() {
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : showThreadError ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+            <p className="text-sm font-medium text-foreground">Messages could not be loaded</p>
+            <p className="text-sm text-muted-foreground">
+              Check your connection and try again — nothing has been lost.
+            </p>
+            <Button variant="outline" size="sm" onClick={handleManualRetry}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Retry
+            </Button>
+          </div>
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
