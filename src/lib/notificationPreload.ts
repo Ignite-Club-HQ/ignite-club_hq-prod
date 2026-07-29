@@ -76,7 +76,11 @@ function parsePayload(data: any): ParsedPreload | null {
       : null,
     reactions: [],
     reply_to: null,
+    // Marks this row as an incomplete notification-only preload so chat
+    // pages can distinguish it from a genuine cached one-message thread.
+    [NOTIFICATION_PRELOAD_FLAG]: true,
   };
+
 
   return { kind, targetId, message };
 }
