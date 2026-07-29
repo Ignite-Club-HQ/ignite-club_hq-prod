@@ -280,7 +280,7 @@ export function ReturningMembersStep({
                             setAssignment(p.club_player_id, v === UNASSIGNED ? null : v)
                           }
                         >
-                          <SelectTrigger className="h-8 w-[150px] text-xs shrink-0">
+                          <SelectTrigger className="h-8 w-[150px] text-xs shrink-0" aria-label={`New team for ${p.display_name}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
