@@ -251,10 +251,18 @@ export default function ClubAdminChatPage() {
     const inboxQueries = queryClient.getQueriesData<any[]>({ queryKey: ["club-admin-inbox"] });
     for (const [, rows] of inboxQueries) {
       const match = Array.isArray(rows) ? rows.find((r) => r?.id === conversationId) : null;
-      if (match) return { name: match.member_name as string | null, avatar: match.member_avatar as string | null };
+      if (match)
+        return {
+          name: match.member_name as string | null,
+          avatar: match.member_avatar as string | null,
+          // Inbox rows only exist for conversations that already have at least
+          // one message — proof that an empty thread response is inconsistent.
+          hasMessage: !!(match.last_created_at || match.last_text || match.last_image),
+        };
     }
     return null;
   }, [conversationId, queryClient, conversation?.member_user_id]);
+
 
   const cachedMemberProfile = useMemo(() => {
     if (!conversation?.member_user_id) return null;
