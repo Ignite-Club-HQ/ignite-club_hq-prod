@@ -222,7 +222,8 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
         setOnline(status.connected);
         if (status.connected) {
           clearProbe();
-          if (!wasOnline) recoverErroredQueries('network-reconnect');
+          // Genuine offline→online transition (guarded by !wasOnline).
+          if (!wasOnline) recoverErroredQueries('network-reconnect', { refetchActive: true });
         } else {
           scheduleProbeIfOffline();
         }
@@ -254,9 +255,9 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
               if (status.connected) {
                 onlineManager.setOnline(true);
                 clearProbe();
-                // Kick any queries that errored while we were backgrounded.
-                // refetchOnWindowFocus is `false` globally, so the focusManager
-                // path alone won't refire them.
+                // Resume is NOT a reconnect: revive only broken queries.
+                // Blanket-refetching every observed query here is what
+                // saturated the connection pool and froze the UI.
                 recoverErroredQueries('app-resume');
               } else {
                 // OS says offline — but verify with a probe before trusting it.
