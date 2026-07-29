@@ -9,7 +9,13 @@ import {
   Image as ImageIcon,
   Repeat,
   AlertTriangle,
+  WifiOff,
 } from "lucide-react";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import {
+  classifyScheduledBanner,
+  shouldShowInlineRefreshWarning,
+} from "@/lib/scheduledMessagesBannerState";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
