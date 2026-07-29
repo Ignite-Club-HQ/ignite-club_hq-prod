@@ -109,6 +109,55 @@ const teamRoleOptions: { value: TeamRole; label: string }[] = [
   { value: "team_admin", label: "Team Admin" },
 ];
 
+export function resolveTeamDetailAccess(
+  userRoles: string[],
+  isAppAdmin: boolean,
+  isClubAdmin: boolean,
+  hasNearbySubsManagerDuty = false,
+) {
+  const userRole = userRoles.includes("team_admin") ? "team_admin"
+    : userRoles.includes("coach") ? "coach"
+    : userRoles[0] ?? null;
+  const isCoachOrAdmin = userRole === "team_admin" || userRole === "coach" || isAppAdmin;
+  const canManageTeam = isCoachOrAdmin || isClubAdmin;
+  const isMember = userRoles.length > 0 || isAppAdmin || isClubAdmin;
+  return {
+    userRole,
+    isCoachOrAdmin,
+    canManageTeam,
+    isMember,
+    canAccessPitchBoard: isMember,
+    canEditPitchBoard: isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty,
+  };
+}
+
+type ProFlags = {
+  is_pro?: boolean | null;
+  is_pro_football?: boolean | null;
+  admin_pro_override?: boolean | null;
+  admin_pro_football_override?: boolean | null;
+  is_trial?: boolean | null;
+};
+
+export function resolveTeamDetailEntitlements(
+  team: (ProFlags & { pro_expires_at?: string | null }) | null | undefined,
+  teamSubscription: ProFlags | null | undefined,
+  clubSubscription: ProFlags | null | undefined,
+  isLoading: boolean,
+) {
+  const clubHasPro = !!(clubSubscription?.is_pro || clubSubscription?.is_pro_football ||
+    clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override);
+  const teamHasIndividualPro = !!(teamSubscription?.is_pro || teamSubscription?.is_pro_football ||
+    teamSubscription?.admin_pro_override || teamSubscription?.admin_pro_football_override || team?.is_pro);
+  const clubHasProFootball = !!(clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override);
+  const teamHasIndividualProFootball = !!(teamSubscription?.is_pro_football || teamSubscription?.admin_pro_football_override);
+  return {
+    isTeamPro: isLoading ? true : (clubHasPro || (!clubHasPro && teamHasIndividualPro)),
+    hasProFootball: isLoading ? true : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball)),
+    isOnTrial: !!(teamSubscription?.is_trial || clubSubscription?.is_trial || (team?.is_pro && team?.pro_expires_at)),
+  };
+}
+
 export default function TeamDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -282,27 +331,11 @@ export default function TeamDetailPage() {
   // Pro Access Logic:
   // 1. If club has Pro → ALL teams inherit Pro (clubSubscription takes precedence)
   // 2. If club does NOT have Pro → check team's individual subscription
-  const clubHasPro = clubSubscription?.is_pro || clubSubscription?.is_pro_football || 
-                     clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override;
-  
-  const teamHasIndividualPro = teamSubscription?.is_pro || teamSubscription?.is_pro_football ||
-                                (teamSubscription as any)?.admin_pro_override || (teamSubscription as any)?.admin_pro_football_override ||
-                                team?.is_pro;
-  
-  // Team has Pro if: club has Pro (inherited) OR (club is free AND team has individual Pro)
-  // IMPORTANT: During loading, assume Pro access (optimistic) to avoid flashing Pro locks
-  const isTeamPro = isSubscriptionLoading ? true : (clubHasPro || (!clubHasPro && teamHasIndividualPro));
-  
-  const clubHasProFootball = clubSubscription?.is_pro_football || clubSubscription?.admin_pro_football_override;
-  const teamHasIndividualProFootball = teamSubscription?.is_pro_football || (teamSubscription as any)?.admin_pro_football_override;
-  // During loading, assume Pro access to avoid flashing Pro locks
-  const hasProFootball = isSubscriptionLoading ? true : (clubHasProFootball || (!clubHasProFootball && teamHasIndividualProFootball));
-
-  // Trial detection: team is on trial if subscription says so OR if team.is_pro with pro_expires_at (website signup)
-  const isOnTrial = !!(
-    teamSubscription?.is_trial ||
-    clubSubscription?.is_trial ||
-    (team?.is_pro && (team as any)?.pro_expires_at)
+  const { isTeamPro, hasProFootball, isOnTrial } = resolveTeamDetailEntitlements(
+    team as any,
+    teamSubscription as any,
+    clubSubscription as any,
+    isSubscriptionLoading,
   );
 
   // Note: refetchOnMount: 'always' on the queries ensures fresh data
@@ -511,10 +544,6 @@ export default function TeamDetailPage() {
   });
   
   // Get primary role for display - prioritize admin roles
-  const userRole = userRoles.includes("team_admin") ? "team_admin" 
-    : userRoles.includes("coach") ? "coach"
-    : userRoles[0] ?? null;
-
   const { data: isAppAdmin, isLoading: isAppAdminLoading } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
@@ -529,12 +558,9 @@ export default function TeamDetailPage() {
     enabled: !!user,
   });
 
-  const isCoachOrAdmin = userRole === "team_admin" || userRole === "coach" || isAppAdmin;
+  const baseAccess = resolveTeamDetailAccess(userRoles, !!isAppAdmin, !!isClubAdmin);
+  const { userRole, isCoachOrAdmin, canManageTeam, isMember, canAccessPitchBoard } = baseAccess;
   const isAdmin = isCoachOrAdmin;
-  // Club admins should have the same team-management actions in the team menu
-  const canManageTeam = isAdmin || isClubAdmin;
-  // isMember includes club admins - they have implicit access to all teams in their club
-  const isMember = userRoles.length > 0 || isAppAdmin || isClubAdmin;
   const { data: nearbySubsManagerEventId } = useQuery({
     queryKey: ["nearby-subs-manager-event", id, user?.id],
     queryFn: async () => {
@@ -559,8 +585,12 @@ export default function TeamDetailPage() {
   
   // All team members can view pitch board (read-only); only team admins/coaches can edit
   // Subs Manager duty check is done dynamically when the pitch board opens with a linkedEventId
-  const canAccessPitchBoard = isMember;
-  const canEditPitchBoard = isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty; // Club admins, team admins, coaches, and match Subs Managers can edit
+  const canEditPitchBoard = resolveTeamDetailAccess(
+    userRoles,
+    !!isAppAdmin,
+    !!isClubAdmin,
+    hasNearbySubsManagerDuty,
+  ).canEditPitchBoard;
 
   // Check if user has "Subs Manager" duty for the linked event
   const { data: isSubsManager } = useQuery({
