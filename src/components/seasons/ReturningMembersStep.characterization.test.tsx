@@ -93,11 +93,10 @@ describe("ReturningMembersStep characterization", () => {
 
   it("selects and deselects a complete previous-team group without affecting others", () => {
     render(<Harness initialSelected={new Set(["player-3"])} />);
-    const groupButton = screen.getAllByText("U12 Blue")[0].closest("button");
-    expect(groupButton).not.toBeNull();
-    fireEvent.click(groupButton!);
+    const groupCheckbox = screen.getByRole("checkbox", { name: "Select all players from U12 Blue" });
+    fireEvent.click(groupCheckbox);
     expect(JSON.parse(screen.getByTestId("selected").textContent || "[]")).toEqual(["player-1", "player-2", "player-3"]);
-    fireEvent.click(groupButton!);
+    fireEvent.click(groupCheckbox);
     expect(JSON.parse(screen.getByTestId("selected").textContent || "[]")).toEqual(["player-3"]);
   });
 
