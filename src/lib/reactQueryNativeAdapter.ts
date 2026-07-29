@@ -84,7 +84,8 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       if (res) {
         onlineManager.setOnline(true);
         clearProbe();
-        recoverErroredQueries('probe-recovered');
+        // Probe succeeded after being offline — a genuine reconnect.
+        recoverErroredQueries('probe-recovered', { refetchActive: true });
         return;
       }
     } finally {
@@ -97,18 +98,24 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     }
   };
 
-  // Refetch any query that a mounted component is observing, plus anything
-  // stuck in error / paused / hung-pending state. Built-in
-  // `refetchOnReconnect: "always"` only refires queries with status
-  // `success`; errored/paused queries (offlineFirst + network drop) stay
-  // dead until something explicitly invalidates them, and success queries
-  // whose fetch never resolved (mid-flight during the drop) can sit forever
-  // in `pending/fetching` inside the WebView. On reconnect/resume we
-  // therefore hit BOTH surfaces:
-  //   1. every active (observed) query → refetch — recovers Messages,
-  //      Schedule, Media, reward points, sponsor/ad tile, etc.
-  //   2. every errored/paused/idle-non-success query → invalidate — recovers
-  //      inactive-but-cached queries the next time they mount.
+  // Recovery on reconnect / resume. Two DIFFERENT surfaces, deliberately
+  // kept separate — conflating them is what caused the resume freeze:
+  //
+  //   A. `refetchActive: true` — refetch EVERY actively-observed query.
+  //      ONLY valid after a genuine offline→online transition, where we must
+  //      assume mounted queries hold data fetched while the network was down.
+  //      Expensive: the Inbox alone mounts ~25-30 active queries and Android
+  //      WebView allows ~6 connections per origin, so this is dripped in
+  //      batches, never fired in one tick.
+  //
+  //   B. `refetchActive: false` (DEFAULT) — only revive queries that are
+  //      genuinely broken (error / paused / idle-non-success), plus the
+  //      theme/club keys. This is what a plain app resume gets.
+  //
+  // A resume is NOT a reconnect. Healthy queries still hold valid data, and
+  // blanket-refetching them on every resume saturated the connection pool;
+  // if any slot was held by a zombie socket the rest queued behind it and
+  // the page sat on skeletons until a force-quit.
   let lastRecoveryAt = 0;
   // When the app went to background. Used to decide whether in-flight REST
   // GETs are worth keeping on resume (see LONG_BACKGROUND_MS).
@@ -127,39 +134,37 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     } catch { /* noop */ }
   };
 
-  const recoverErroredQueries = (reason: string) => {
+  const recoverErroredQueries = (
+    reason: string,
+    opts?: { refetchActive?: boolean },
+  ) => {
     if (!queryClient) return;
     const now = Date.now();
     if (now - lastRecoveryAt < 2000) return; // throttle bursty triggers
     lastRecoveryAt = now;
+    const refetchActive = opts?.refetchActive === true;
     try {
-      // 1. Refetch every actively-observed query. This is the sledgehammer
-      //    that unsticks Messages/Schedule/Media/rewards/sponsor tiles on
-      //    reconnect. `type: 'active'` scopes it to queries with mounted
-      //    observers so we don't stampede the DB with hundreds of refetches.
-      //
-      //    IMPORTANT: this is DRIPPED, not fired in one tick. The Inbox alone
-      //    mounts ~25-30 active queries; refetching them simultaneously
-      //    saturates Android WebView's ~6-connection-per-origin pool and
-      //    floods the main thread with response/cache-write work at exactly
-      //    the moment the user taps a thread — the tap appears to do nothing
-      //    and the UI stalls. Batches of 6, 120ms apart, keeps the pool busy
-      //    but never starves input handling.
-      try {
-        const active = queryClient.getQueryCache().findAll({ type: 'active' });
-        const BATCH = 6;
-        for (let i = 0; i < active.length; i += BATCH) {
-          const slice = active.slice(i, i + BATCH);
-          const delay = (i / BATCH) * 120;
-          setTimeout(() => {
-            slice.forEach((q) => {
-              try {
-                queryClient.refetchQueries({ queryKey: q.queryKey, exact: true });
-              } catch { /* noop */ }
-            });
-          }, delay);
-        }
-      } catch { /* noop */ }
+      // A. Blanket refetch of observed queries — reconnect only. Dripped in
+      //    batches of 6, 120ms apart, so we never saturate the ~6-connection
+      //    pool or flood the main thread at the moment the user taps.
+      if (refetchActive) {
+        try {
+          const active = queryClient.getQueryCache().findAll({ type: 'active' });
+          const BATCH = 6;
+          for (let i = 0; i < active.length; i += BATCH) {
+            const slice = active.slice(i, i + BATCH);
+            const delay = (i / BATCH) * 120;
+            setTimeout(() => {
+              slice.forEach((q) => {
+                try {
+                  queryClient.refetchQueries({ queryKey: q.queryKey, exact: true });
+                } catch { /* noop */ }
+              });
+            }, delay);
+          }
+        } catch { /* noop */ }
+      }
+
 
 
       // 2. Also invalidate errored/paused/idle-non-success queries so they
@@ -217,7 +222,8 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
         setOnline(status.connected);
         if (status.connected) {
           clearProbe();
-          if (!wasOnline) recoverErroredQueries('network-reconnect');
+          // Genuine offline→online transition (guarded by !wasOnline).
+          if (!wasOnline) recoverErroredQueries('network-reconnect', { refetchActive: true });
         } else {
           scheduleProbeIfOffline();
         }
@@ -249,9 +255,9 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
               if (status.connected) {
                 onlineManager.setOnline(true);
                 clearProbe();
-                // Kick any queries that errored while we were backgrounded.
-                // refetchOnWindowFocus is `false` globally, so the focusManager
-                // path alone won't refire them.
+                // Resume is NOT a reconnect: revive only broken queries.
+                // Blanket-refetching every observed query here is what
+                // saturated the connection pool and froze the UI.
                 recoverErroredQueries('app-resume');
               } else {
                 // OS says offline — but verify with a probe before trusting it.
