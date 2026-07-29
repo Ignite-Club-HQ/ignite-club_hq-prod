@@ -109,6 +109,23 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
   //   2. every errored/paused/idle-non-success query → invalidate — recovers
   //      inactive-but-cached queries the next time they mount.
   let lastRecoveryAt = 0;
+  // When the app went to background. Used to decide whether in-flight REST
+  // GETs are worth keeping on resume (see LONG_BACKGROUND_MS).
+  let backgroundedAt = 0;
+  const LONG_BACKGROUND_MS = 20_000;
+
+  // Requests that were in flight when Android suspended the WebView are
+  // almost always sitting on a dead socket, and their abort timers were
+  // frozen — so they never fail, never resolve, and hold connection slots.
+  // Release them BEFORE the recovery refetch, otherwise the refetch queues
+  // behind zombies and the screen stays on skeletons until a force-quit.
+  const abortZombieRequests = (reason: string) => {
+    try {
+      const n = abortAllInFlightRestGets(reason);
+      if (n > 0) console.log(`[NativeAdapter] aborted ${n} in-flight REST GET(s) on ${reason}`);
+    } catch { /* noop */ }
+  };
+
   const recoverErroredQueries = (reason: string) => {
     if (!queryClient) return;
     const now = Date.now();
