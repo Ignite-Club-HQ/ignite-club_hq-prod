@@ -34,6 +34,7 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/
 import { useIsMobile } from "@/hooks/use-mobile";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
