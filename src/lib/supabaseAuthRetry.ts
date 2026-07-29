@@ -137,8 +137,18 @@ export function installSupabaseAuthRetry() {
     if (!isAuthShaped) return response;
 
     try {
-      const { data, error } = await supabase.auth.refreshSession();
+      // Time-box the refresh. On a half-dead socket after Android Doze /
+      // iOS suspension this promise can hang forever, and every queryFn
+      // that hit a 401 hangs behind it — the page stays "loading" with no
+      // error and the app looks frozen. 10s then fall through.
+      const refreshed = await Promise.race([
+        supabase.auth.refreshSession(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+      ]);
+      if (!refreshed) return response;
+      const { data, error } = refreshed;
       if (error || !data.session) return response;
+
 
       // Rebuild the request with the fresh token. Supabase-js sets the
       // Authorization header on its own internal fetch — for storage/PostgREST
