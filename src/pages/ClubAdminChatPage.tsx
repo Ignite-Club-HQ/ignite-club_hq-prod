@@ -292,7 +292,14 @@ export default function ClubAdminChatPage() {
   const queryKey = useMemo(() => ["club-admin-messages", conversationId], [conversationId]);
 
   // Fetch messages
-  const { data: messagesData, isLoading: messagesLoading } = useQuery({
+  const {
+    data: messagesData,
+    isLoading: messagesLoading,
+    isError: messagesIsError,
+    status: messagesStatus,
+    fetchStatus: messagesFetchStatus,
+    refetch: refetchMessages,
+  } = useQuery({
     queryKey,
     queryFn: async () => {
       const { data: rawMessages, error } = await supabase
