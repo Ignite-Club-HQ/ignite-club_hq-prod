@@ -974,6 +974,8 @@ export default function MediaPage() {
   useEffect(() => {
     if (!user?.id) return;
     const onVisible = () => {
+      // Native: leave resume refetching to the adapter's staggered drip.
+      if (isNativeRuntime()) return;
       if (document.visibilityState === "visible") {
         queryClient.invalidateQueries({ queryKey: ["photo-comments", user.id] });
         queryClient.invalidateQueries({ queryKey: ["photo-reactions", user.id] });
