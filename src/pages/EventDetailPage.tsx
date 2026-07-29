@@ -336,6 +336,28 @@ export default function EventDetailPage() {
     refetchOnReconnect: "always",
   });
 
+  // Watchdog: after an Android WebView background freeze the event fetch can
+  // stay permanently pending (its abort timer was frozen), leaving this page
+  // stuck on skeletons until a force-quit. While we have no event and are
+  // still loading, abort zombie REST GETs and re-issue every 6s.
+  const isStuckOnEventSpinner = !event && isLoading;
+  useEffect(() => {
+    if (!isStuckOnEventSpinner || !id) return;
+    const kick = () => {
+      const aborted = abortAllInFlightRestGets("event-detail-watchdog");
+      console.warn("[EventDetailPage] watchdog-refetch", {
+        t: new Date().toISOString(),
+        eventId: id,
+        abortedInFlight: aborted,
+      });
+      queryClient.refetchQueries({ queryKey: ["event", id] });
+    };
+    const timer = setInterval(kick, 6000);
+    return () => clearInterval(timer);
+  }, [isStuckOnEventSpinner, id, queryClient]);
+
+
+
 
   const { data: rsvps } = useQuery({
     queryKey: ["event-rsvps", id],
