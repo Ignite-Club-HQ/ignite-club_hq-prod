@@ -128,7 +128,11 @@ export function setupWebViewWake() {
 
   const onVisibility = () => {
     if (document.visibilityState === "visible") kick();
+    // Going hidden mid-kick is exactly when the rAF gets dropped. Settle
+    // immediately so we can never be backgrounded with body hidden.
+    else if (kickScheduled) finishKick();
   };
+
   const onPageShow = () => kick();
   const onFocus = () => kick();
 
