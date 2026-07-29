@@ -133,39 +133,37 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     } catch { /* noop */ }
   };
 
-  const recoverErroredQueries = (reason: string) => {
+  const recoverErroredQueries = (
+    reason: string,
+    opts?: { refetchActive?: boolean },
+  ) => {
     if (!queryClient) return;
     const now = Date.now();
     if (now - lastRecoveryAt < 2000) return; // throttle bursty triggers
     lastRecoveryAt = now;
+    const refetchActive = opts?.refetchActive === true;
     try {
-      // 1. Refetch every actively-observed query. This is the sledgehammer
-      //    that unsticks Messages/Schedule/Media/rewards/sponsor tiles on
-      //    reconnect. `type: 'active'` scopes it to queries with mounted
-      //    observers so we don't stampede the DB with hundreds of refetches.
-      //
-      //    IMPORTANT: this is DRIPPED, not fired in one tick. The Inbox alone
-      //    mounts ~25-30 active queries; refetching them simultaneously
-      //    saturates Android WebView's ~6-connection-per-origin pool and
-      //    floods the main thread with response/cache-write work at exactly
-      //    the moment the user taps a thread — the tap appears to do nothing
-      //    and the UI stalls. Batches of 6, 120ms apart, keeps the pool busy
-      //    but never starves input handling.
-      try {
-        const active = queryClient.getQueryCache().findAll({ type: 'active' });
-        const BATCH = 6;
-        for (let i = 0; i < active.length; i += BATCH) {
-          const slice = active.slice(i, i + BATCH);
-          const delay = (i / BATCH) * 120;
-          setTimeout(() => {
-            slice.forEach((q) => {
-              try {
-                queryClient.refetchQueries({ queryKey: q.queryKey, exact: true });
-              } catch { /* noop */ }
-            });
-          }, delay);
-        }
-      } catch { /* noop */ }
+      // A. Blanket refetch of observed queries — reconnect only. Dripped in
+      //    batches of 6, 120ms apart, so we never saturate the ~6-connection
+      //    pool or flood the main thread at the moment the user taps.
+      if (refetchActive) {
+        try {
+          const active = queryClient.getQueryCache().findAll({ type: 'active' });
+          const BATCH = 6;
+          for (let i = 0; i < active.length; i += BATCH) {
+            const slice = active.slice(i, i + BATCH);
+            const delay = (i / BATCH) * 120;
+            setTimeout(() => {
+              slice.forEach((q) => {
+                try {
+                  queryClient.refetchQueries({ queryKey: q.queryKey, exact: true });
+                } catch { /* noop */ }
+              });
+            }, delay);
+          }
+        } catch { /* noop */ }
+      }
+
 
 
       // 2. Also invalidate errored/paused/idle-non-success queries so they
