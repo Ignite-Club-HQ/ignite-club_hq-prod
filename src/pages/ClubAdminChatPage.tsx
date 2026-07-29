@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Users, Search, BarChart3 } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Users, Search, BarChart3, RefreshCw } from "lucide-react";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
@@ -61,6 +61,12 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById } from "@/lib/profileCache";
 import { queueMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages } from "@/lib/messageCache";
+import {
+  classifyChatThreadState,
+  nextEmptyRetryDelay,
+  isUsableCachedThread,
+  NOTIFICATION_PRELOAD_FLAG,
+} from "@/lib/chatThreadLoadState";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useMessageReads } from "@/hooks/useMessageReads";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
@@ -108,6 +114,9 @@ const getCachedClubAdminMessages = (conversationId: string): ClubAdminMessage[] 
     created_at: m.created_at,
     author_id: m.author_id,
     conversation_id: conversationId,
+    // Preserve the notification-preload marker so a genuine one-message
+    // cached thread can be told apart from a push-preload stub.
+    [NOTIFICATION_PRELOAD_FLAG]: (m as any)[NOTIFICATION_PRELOAD_FLAG] === true,
     reply_to_id: m.reply_to_id,
     author: m.profiles
       ? { display_name: m.profiles.display_name, avatar_url: m.profiles.avatar_url }
@@ -251,10 +260,18 @@ export default function ClubAdminChatPage() {
     const inboxQueries = queryClient.getQueriesData<any[]>({ queryKey: ["club-admin-inbox"] });
     for (const [, rows] of inboxQueries) {
       const match = Array.isArray(rows) ? rows.find((r) => r?.id === conversationId) : null;
-      if (match) return { name: match.member_name as string | null, avatar: match.member_avatar as string | null };
+      if (match)
+        return {
+          name: match.member_name as string | null,
+          avatar: match.member_avatar as string | null,
+          // Inbox rows only exist for conversations that already have at least
+          // one message — proof that an empty thread response is inconsistent.
+          hasMessage: !!(match.last_created_at || match.last_text || match.last_image),
+        };
     }
     return null;
   }, [conversationId, queryClient, conversation?.member_user_id]);
+
 
   const cachedMemberProfile = useMemo(() => {
     if (!conversation?.member_user_id) return null;
@@ -284,7 +301,14 @@ export default function ClubAdminChatPage() {
   const queryKey = useMemo(() => ["club-admin-messages", conversationId], [conversationId]);
 
   // Fetch messages
-  const { data: messagesData, isLoading: messagesLoading } = useQuery({
+  const {
+    data: messagesData,
+    isLoading: messagesLoading,
+    isError: messagesIsError,
+    status: messagesStatus,
+    fetchStatus: messagesFetchStatus,
+    refetch: refetchMessages,
+  } = useQuery({
     queryKey,
     queryFn: async () => {
       const { data: rawMessages, error } = await supabase
@@ -355,28 +379,85 @@ export default function ClubAdminChatPage() {
 
   });
 
-  // Belt-and-braces: if the first fetch returned zero messages while auth /
-  // RLS context was still settling (notification-tap or inbox cold start),
-  // retry shortly after. Prevents the "blank club admin thread" bug.
-  const emptyRetriedRef = useRef(false);
-  useEffect(() => {
-    if (emptyRetriedRef.current) return;
-    if (!conversationId || !authReady) return;
-    if (messagesLoading) return;
-    if (!messagesData) return;
+  // Bounded automatic recovery. If the thread fetch returns zero messages (or
+  // errors) while auth/RLS/connectivity is still settling after an Android
+  // resume or a notification tap, retry with bounded backoff (400ms / 1.2s /
+  // 3s) instead of the old single 400ms attempt. Stops on the first non-empty
+  // result, on unmount, on conversation change, or when attempts run out.
+  const recoveryAttemptRef = useRef(0);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [recoveryExhausted, setRecoveryExhausted] = useState(false);
+
+  const fetchedCount = useMemo<number | null>(() => {
+    if (!messagesData) return null;
     const list = Array.isArray(messagesData) ? messagesData : (messagesData as any).messages;
-    if (list && list.length === 0) {
-      emptyRetriedRef.current = true;
-      const t = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] });
-      }, 400);
-      return () => clearTimeout(t);
-    }
-  }, [conversationId, authReady, messagesLoading, messagesData, queryClient]);
+    return Array.isArray(list) ? list.length : null;
+  }, [messagesData]);
 
   useEffect(() => {
-    emptyRetriedRef.current = false;
+    recoveryAttemptRef.current = 0;
+    setRecoveryExhausted(false);
+    if (recoveryTimerRef.current) {
+      clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
   }, [conversationId]);
+
+  useEffect(() => {
+    if (!conversationId || !authReady) return;
+    if (messagesFetchStatus === "fetching") return;
+    // Nothing to recover from: real content arrived.
+    if (fetchedCount !== null && fetchedCount > 0) {
+      recoveryAttemptRef.current = 0;
+      setRecoveryExhausted(false);
+      return;
+    }
+    const needsRecovery = messagesIsError || fetchedCount === 0;
+    if (!needsRecovery) return;
+    if (recoveryTimerRef.current) return; // never overlap retry timers
+
+    const delay = nextEmptyRetryDelay(recoveryAttemptRef.current);
+    if (delay === null) {
+      setRecoveryExhausted(true);
+      return;
+    }
+    recoveryAttemptRef.current += 1;
+    recoveryTimerRef.current = setTimeout(() => {
+      recoveryTimerRef.current = null;
+      void refetchMessages();
+    }, delay);
+
+    return () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+    };
+  }, [
+    conversationId,
+    authReady,
+    fetchedCount,
+    messagesIsError,
+    messagesFetchStatus,
+    refetchMessages,
+  ]);
+
+  useEffect(
+    () => () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const handleManualRetry = useCallback(() => {
+    recoveryAttemptRef.current = 0;
+    setRecoveryExhausted(false);
+    void refetchMessages();
+  }, [refetchMessages]);
+
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `club-admin:${conversationId ?? "none"}`;
@@ -395,15 +476,16 @@ export default function ClubAdminChatPage() {
     return (reconcileMessages(reconcileScope, sorted) ?? []) as ClubAdminMessage[];
   }, [messagesData, reconcileScope]);
 
-  // Guard: never seed from a 1-item cache — that is the push-notification
-  // preload and would render a lone message stranded at the top of the
-  // viewport, then blank/jolt when the real fetch resolves. See
+  // Guard: never seed from a push-notification preload stub (it would render
+  // a lone message stranded at the top, then blank/jolt when the real fetch
+  // resolves). A genuine one-message cached thread IS kept — see
   // mem://technical/notification-preload-single-message-guard.
   const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(() => {
     if (!conversationId) return undefined;
     const cached = getCachedClubAdminMessages(conversationId);
-    return cached && cached.length >= 2 ? cached : undefined;
+    return isUsableCachedThread(cached as any) ? cached : undefined;
   });
+
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
 
@@ -444,12 +526,27 @@ export default function ClubAdminChatPage() {
     );
     return cancel;
   }, [targetMessageId, targetParentId, targetJumpNonce]);
-  // A 1-item local cache must still show the loading state — otherwise the
-  // stranded push-preload paints for a frame before the real fetch resolves.
-  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
-  const showLoading =
-    (!authReady && !hasMeaningfulLocal) ||
-    (messagesLoading && !messagesData && !hasMeaningfulLocal);
+  // A push-preload-only local cache must still show the loading state —
+  // otherwise the stranded stub paints for a frame before the real fetch
+  // resolves. Everything else routes through the shared classifier, which
+  // treats `pending`/`paused` (Android resume) as loading rather than empty.
+  const hasMeaningfulLocal =
+    isUsableCachedThread(localMessages as any) || (localMessages?.length ?? 0) > 0
+      ? isUsableCachedThread(localMessages as any)
+      : false;
+  const threadPhase = classifyChatThreadState({
+    authReady,
+    status: messagesStatus,
+    fetchStatus: messagesFetchStatus,
+    isError: messagesIsError,
+    hasUsableCached: hasMeaningfulLocal,
+    fetchedCount,
+    inboxSaysHasMessage: !!inboxFallback?.hasMessage,
+    recoveryExhausted,
+  });
+  const showLoading = threadPhase === "loading";
+  const showThreadError = threadPhase === "error";
+
 
   const authorIds = useMemo(() => {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
@@ -464,7 +561,7 @@ export default function ClubAdminChatPage() {
     }
     const cached = getCachedClubAdminMessages(conversationId);
     setLocalMessages(
-      cached && cached.length >= 2
+      isUsableCachedThread(cached as any)
         ? ((reconcileMessages(reconcileScope, cached) ?? []) as ClubAdminMessage[])
         : undefined,
     );
@@ -477,15 +574,17 @@ export default function ClubAdminChatPage() {
 
   // Sync localMessages with fetched messages
   useLayoutEffect(() => {
-    // Guard: never replace existing messages with an empty array (transient cache state during resume)
+    // Guard: never replace existing messages with an empty array, and only
+    // commit an empty thread once the classifier says it is authoritatively
+    // empty (not paused/pending/recovering).
     if (messages) {
       if (messages.length > 0) {
         setLocalMessages(messages);
-      } else if (!messagesLoading && (!localMessages || localMessages.length === 0)) {
+      } else if (threadPhase === "empty" && (!localMessages || localMessages.length === 0)) {
         setLocalMessages(messages);
       }
     }
-  }, [messages, messagesLoading]);
+  }, [messages, threadPhase]);
 
   // Persist fetched messages to local cache for instant load next time
   useEffect(() => {
@@ -920,14 +1019,21 @@ export default function ClubAdminChatPage() {
       .subscribe();
     noteChannelSubscribed(`club-admin-chat-${conversationId}`);
     const unregister = user?.id
-      ? registerChannel({ key: `club-admin-chat-${conversationId}`, channel, userId: user.id, scope: { kind: "dm", id: conversationId } })
+      ? registerChannel({
+          key: `club-admin-chat-${conversationId}`,
+          channel,
+          userId: user.id,
+          // Scoped by CLUB id: losing club membership must revoke this channel.
+          scope: { kind: "club_admin", id: conversation?.club_id ?? conversationId },
+          cacheKeys: [["club-admin-messages", conversationId]],
+        })
       : null;
 
     return () => {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`club-admin-chat-${conversationId}`);
     };
-  }, [conversationId, queryClient, queryKey, user?.id, reconcileScope]);
+  }, [conversationId, conversation?.club_id, queryClient, queryKey, user?.id, reconcileScope]);
 
   // Visibility change handler
   useEffect(() => {
@@ -1022,6 +1128,17 @@ export default function ClubAdminChatPage() {
         {showLoading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : showThreadError ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+            <p className="text-sm font-medium text-foreground">Messages could not be loaded</p>
+            <p className="text-sm text-muted-foreground">
+              Check your connection and try again — nothing has been lost.
+            </p>
+            <Button variant="outline" size="sm" onClick={handleManualRetry}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Retry
+            </Button>
           </div>
         ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
