@@ -392,6 +392,11 @@ export default function BroadcastChatPage() {
     (!authReady && !(localMessages?.length)) ||
     (isLoading && !messagesData && !(localMessages?.length));
 
+  // Android resume escape hatch: abort zombie GETs + re-issue the messages
+  // query while the page is stuck on a skeleton.
+  useChatStuckWatchdog(showLoading, [["broadcast-messages"]], "broadcast-chat");
+
+
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
   // gate on as soon as we have any messages so older-page loads can begin.
   const isPinned = true;
