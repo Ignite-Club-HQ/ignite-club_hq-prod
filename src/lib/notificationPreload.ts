@@ -12,6 +12,7 @@
  * stale `placeholderData` render and force a priority refetch.
  */
 import { addMessageToCache, type CachedMessage } from "@/lib/messageCache";
+import { NOTIFICATION_PRELOAD_FLAG } from "@/lib/chatThreadLoadState";
 
 type ChatKind = "dm" | "team" | "club" | "group" | "broadcast" | "club_admin";
 
