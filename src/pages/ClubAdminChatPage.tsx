@@ -61,6 +61,12 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById } from "@/lib/profileCache";
 import { queueMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages } from "@/lib/messageCache";
+import {
+  classifyChatThreadState,
+  nextEmptyRetryDelay,
+  isUsableCachedThread,
+  NOTIFICATION_PRELOAD_FLAG,
+} from "@/lib/chatThreadLoadState";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useMessageReads } from "@/hooks/useMessageReads";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
