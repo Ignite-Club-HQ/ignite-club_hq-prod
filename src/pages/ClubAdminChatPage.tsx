@@ -574,15 +574,17 @@ export default function ClubAdminChatPage() {
 
   // Sync localMessages with fetched messages
   useLayoutEffect(() => {
-    // Guard: never replace existing messages with an empty array (transient cache state during resume)
+    // Guard: never replace existing messages with an empty array, and only
+    // commit an empty thread once the classifier says it is authoritatively
+    // empty (not paused/pending/recovering).
     if (messages) {
       if (messages.length > 0) {
         setLocalMessages(messages);
-      } else if (!messagesLoading && (!localMessages || localMessages.length === 0)) {
+      } else if (threadPhase === "empty" && (!localMessages || localMessages.length === 0)) {
         setLocalMessages(messages);
       }
     }
-  }, [messages, messagesLoading]);
+  }, [messages, threadPhase]);
 
   // Persist fetched messages to local cache for instant load next time
   useEffect(() => {
