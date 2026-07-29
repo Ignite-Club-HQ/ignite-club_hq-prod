@@ -547,6 +547,17 @@ export default function ClubAdminChatPage() {
   const showLoading = threadPhase === "loading";
   const showThreadError = threadPhase === "error";
 
+  // Android resume escape hatch: abort zombie GETs + re-issue the gating
+  // queries while the page is stuck on a skeleton.
+  useChatStuckWatchdog(
+    (!!conversationId && (conversationLoading || showLoading)),
+    [
+      ["club-admin-conversation", conversationId],
+      ["club-admin-messages", conversationId],
+    ],
+    "club-admin-chat",
+  );
+
 
   const authorIds = useMemo(() => {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
