@@ -526,12 +526,27 @@ export default function ClubAdminChatPage() {
     );
     return cancel;
   }, [targetMessageId, targetParentId, targetJumpNonce]);
-  // A 1-item local cache must still show the loading state — otherwise the
-  // stranded push-preload paints for a frame before the real fetch resolves.
-  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
-  const showLoading =
-    (!authReady && !hasMeaningfulLocal) ||
-    (messagesLoading && !messagesData && !hasMeaningfulLocal);
+  // A push-preload-only local cache must still show the loading state —
+  // otherwise the stranded stub paints for a frame before the real fetch
+  // resolves. Everything else routes through the shared classifier, which
+  // treats `pending`/`paused` (Android resume) as loading rather than empty.
+  const hasMeaningfulLocal =
+    isUsableCachedThread(localMessages as any) || (localMessages?.length ?? 0) > 0
+      ? isUsableCachedThread(localMessages as any)
+      : false;
+  const threadPhase = classifyChatThreadState({
+    authReady,
+    status: messagesStatus,
+    fetchStatus: messagesFetchStatus,
+    isError: messagesIsError,
+    hasUsableCached: hasMeaningfulLocal,
+    fetchedCount,
+    inboxSaysHasMessage: !!inboxFallback?.hasMessage,
+    recoveryExhausted,
+  });
+  const showLoading = threadPhase === "loading";
+  const showThreadError = threadPhase === "error";
+
 
   const authorIds = useMemo(() => {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
