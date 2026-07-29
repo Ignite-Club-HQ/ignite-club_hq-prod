@@ -843,8 +843,30 @@ export default function MediaPage() {
   const proQueryShouldBeEnabled = !!user && (roleClubIds.length > 0 || roleTeamIds.length > 0 || !!activeClubFilter);
   const proQueryNotYetResolved = proQueryShouldBeEnabled && hasProClub === undefined && !hasProAccessQueryFailed;
   const waitingOnRolesWithoutFallback = !!user && !userRoles && !activeClubFilter;
+
+  // Escape hatch: the pro-access gate must never hold the page forever. On
+  // Android resume the underlying request can be a zombie (dead socket, frozen
+  // abort timer), which used to leave Media stuck on skeletons until a
+  // force-quit. After 6s we abort in-flight reads, refetch, and stop letting
+  // this gate block rendering — cached photos show while pro state settles.
+  const [proGateTimedOut, setProGateTimedOut] = useState(false);
+  const proGateStuck = loadingProAccess || activeClubProLoading || proQueryNotYetResolved;
+  useEffect(() => {
+    if (!proGateStuck) {
+      setProGateTimedOut(false);
+      return;
+    }
+    const timer = setInterval(() => {
+      const aborted = abortAllInFlightRestGets("media-pro-watchdog");
+      console.warn("[MediaDiag] pro-gate-watchdog", { t: new Date().toISOString(), abortedInFlight: aborted });
+      setProGateTimedOut(true);
+      queryClient.refetchQueries({ queryKey: ["has-pro-access"] });
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [proGateStuck, queryClient]);
+
   // Only show loading state on initial resolution — never on refetch/resume
-  const isCheckingProAccess = !proAccessEverResolved.current && (!user || loadingProAccess || activeClubProLoading || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
+  const isCheckingProAccess = !proAccessEverResolved.current && !proGateTimedOut && (!user || loadingProAccess || activeClubProLoading || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
