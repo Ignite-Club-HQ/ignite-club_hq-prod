@@ -23,7 +23,15 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type ScopeKind = "team" | "club" | "group" | "dm" | "user" | "global";
+/**
+ * `club_admin` covers member↔club-admin conversations. Its scope id is the
+ * CLUB id (not the conversation id) so that losing club membership revokes
+ * every club-admin thread channel for that club. Modelling these as `dm`
+ * was wrong: their ids never appear in `dmConversationIds`, so revocation
+ * could never match them.
+ */
+export type ScopeKind = "team" | "club" | "group" | "dm" | "club_admin" | "user" | "global";
+
 
 export interface Scope {
   kind: ScopeKind;
