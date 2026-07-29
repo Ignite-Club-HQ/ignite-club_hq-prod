@@ -1242,7 +1242,10 @@ export default function MediaPage() {
     photoCommentsMap.get(photoId) || [], [photoCommentsMap]);
 
   // Show skeletons only if we have no cached data and are loading
-  const showSkeletons = (loadingPhotos || loadingProAccess) && allPhotos.length === 0;
+  // Show skeletons only if we have no cached data and are loading. The
+  // pro-access gate is dropped once the watchdog has timed it out so a hung
+  // pro check can never hold the whole page on skeletons.
+  const showSkeletons = (loadingPhotos || (loadingProAccess && !proGateTimedOut)) && allPhotos.length === 0;
 
   // Diagnostic: log what's blocking the skeleton from clearing.
   useEffect(() => {
