@@ -681,22 +681,27 @@ export default function EventsPage() {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFiredRef = useRef(false);
 
-  // Watchdog: if stuck on the initial spinner for >8s (likely a dropped
-  // resume event after Android WebView background freeze leaving react-query
-  // with a cancelled in-flight fetch), force a refetch of the gating queries.
+  // Watchdog: if stuck on the initial spinner (likely a dropped resume event
+  // after Android WebView background freeze leaving react-query with a
+  // permanently-pending in-flight fetch), abort the zombie requests and force
+  // a refetch of the gating queries. Repeats every 6s while still stuck — a
+  // single one-shot attempt can itself queue behind a dead socket.
   useEffect(() => {
     if (!isStuckOnSpinner) return;
-    const timer = setTimeout(() => {
+    const kick = () => {
+      const aborted = abortAllInFlightRestGets("schedule-watchdog");
       console.warn("[ScheduleDiag] watchdog-refetch", {
         t: new Date().toISOString(),
         membershipsLoading,
         eventsLoading: isLoading,
         hasMemberships: !!userMemberships,
+        abortedInFlight: aborted,
       });
       queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] });
       queryClient.refetchQueries({ queryKey: ["events"] });
-    }, 8000);
-    return () => clearTimeout(timer);
+    };
+    const timer = setInterval(kick, 6000);
+    return () => clearInterval(timer);
   }, [isStuckOnSpinner, queryClient, user?.id, membershipsLoading, isLoading, userMemberships]);
 
   // Schedule perf: mark query return + log first paint. "First paint" = the
