@@ -236,7 +236,8 @@ export function ReturningMembersStep({
                     value={groupValue}
                     onValueChange={(v) => moveGroup(groupPlayers, v === UNASSIGNED ? null : v)}
                   >
-                    <SelectTrigger className="h-8 w-[150px] text-xs shrink-0">
+                    <SelectTrigger className="h-8 w-[150px] text-xs shrink-0" aria-label={`Move all players from ${teamName} to a new team`}>
+
                       <SelectValue placeholder="Move all to…" />
                     </SelectTrigger>
                     <SelectContent>
