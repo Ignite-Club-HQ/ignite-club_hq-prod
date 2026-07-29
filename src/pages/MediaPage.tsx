@@ -58,6 +58,10 @@ import { MediaHeaderSponsorStrip } from "@/components/media/MediaHeaderSponsorSt
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { usePhotoViewCounts, useRecordPhotoView, usePhotoViewRealtime } from "@/hooks/usePhotoViews";
+
+/** True inside the Capacitor native shell (Android/iOS WebView). */
+const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
+
 import {
   AlertDialog,
   AlertDialogAction,
