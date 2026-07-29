@@ -123,12 +123,20 @@ export function useThreadScheduledMessages(target: ScheduleTarget | null) {
     enabled: !!user?.id && !!target,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
+    // Transient failures dominate here: an Android resume aborts in-flight
+    // GETs and a flaky mobile connection fails the first attempt. Retry a few
+    // times with backoff, and always re-run on reconnect, before the UI is
+    // allowed to claim the schedule couldn't be loaded.
+    retry: 3,
+    retryDelay: (attempt) => Math.min(800 * 2 ** attempt, 6000),
+    refetchOnReconnect: "always",
     // Keep previously loaded rows visible during a background refetch that
     // fails, so a transient error doesn't blank the banner and tempt users
     // into recreating the same message.
     placeholderData: keepPreviousData,
   });
 }
+
 
 /**
  * All of the user's scheduled messages, optionally filtered by status.
