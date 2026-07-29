@@ -476,15 +476,16 @@ export default function ClubAdminChatPage() {
     return (reconcileMessages(reconcileScope, sorted) ?? []) as ClubAdminMessage[];
   }, [messagesData, reconcileScope]);
 
-  // Guard: never seed from a 1-item cache — that is the push-notification
-  // preload and would render a lone message stranded at the top of the
-  // viewport, then blank/jolt when the real fetch resolves. See
+  // Guard: never seed from a push-notification preload stub (it would render
+  // a lone message stranded at the top, then blank/jolt when the real fetch
+  // resolves). A genuine one-message cached thread IS kept — see
   // mem://technical/notification-preload-single-message-guard.
   const [localMessages, setLocalMessages] = useState<ClubAdminMessage[] | undefined>(() => {
     if (!conversationId) return undefined;
     const cached = getCachedClubAdminMessages(conversationId);
-    return cached && cached.length >= 2 ? cached : undefined;
+    return isUsableCachedThread(cached as any) ? cached : undefined;
   });
+
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
 
