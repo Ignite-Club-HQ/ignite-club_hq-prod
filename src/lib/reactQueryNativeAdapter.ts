@@ -271,4 +271,24 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       };
     });
   });
+
+  // Belt-and-braces: Android WebView sometimes delivers `visibilitychange`
+  // without a matching `appStateChange`. Track hidden time here too so the
+  // zombie abort still runs on those resumes. The recovery refetch itself is
+  // left to the appStateChange path / nudge so we don't double-fire it.
+  try {
+    let hiddenAt = 0;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      const hiddenFor = hiddenAt ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+      if (hiddenFor >= LONG_BACKGROUND_MS) {
+        abortZombieRequests('visibility-resume');
+        recoverErroredQueries('visibility-resume');
+      }
+    });
+  } catch { /* noop */ }
 }
