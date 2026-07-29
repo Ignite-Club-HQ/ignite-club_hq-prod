@@ -75,6 +75,7 @@ import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
+import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
@@ -390,6 +391,11 @@ export default function BroadcastChatPage() {
   const showLoading =
     (!authReady && !(localMessages?.length)) ||
     (isLoading && !messagesData && !(localMessages?.length));
+
+  // Android resume escape hatch: abort zombie GETs + re-issue the messages
+  // query while the page is stuck on a skeleton.
+  useChatStuckWatchdog(showLoading, [["broadcast-messages"]], "broadcast-chat");
+
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
   // gate on as soon as we have any messages so older-page loads can begin.
