@@ -108,6 +108,9 @@ const getCachedClubAdminMessages = (conversationId: string): ClubAdminMessage[] 
     created_at: m.created_at,
     author_id: m.author_id,
     conversation_id: conversationId,
+    // Preserve the notification-preload marker so a genuine one-message
+    // cached thread can be told apart from a push-preload stub.
+    [NOTIFICATION_PRELOAD_FLAG]: (m as any)[NOTIFICATION_PRELOAD_FLAG] === true,
     reply_to_id: m.reply_to_id,
     author: m.profiles
       ? { display_name: m.profiles.display_name, avatar_url: m.profiles.avatar_url }
