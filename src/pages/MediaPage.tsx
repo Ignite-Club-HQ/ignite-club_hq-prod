@@ -33,6 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
+import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -57,6 +58,10 @@ import { MediaHeaderSponsorStrip } from "@/components/media/MediaHeaderSponsorSt
 import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { usePhotoViewCounts, useRecordPhotoView, usePhotoViewRealtime } from "@/hooks/usePhotoViews";
+
+/** True inside the Capacitor native shell (Android/iOS WebView). */
+const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -195,6 +200,10 @@ export default function MediaPage() {
     hydrate();
 
     const onVisible = () => {
+      // On native the adapter's resume drip is the single source of resume
+      // refetching — a page-local listener fires at the same moment and
+      // competes for the WebView's ~6-connection pool.
+      if (isNativeRuntime()) return;
       if (document.visibilityState === "visible") hydrate();
     };
     window.addEventListener("online", hydrate);
@@ -843,8 +852,30 @@ export default function MediaPage() {
   const proQueryShouldBeEnabled = !!user && (roleClubIds.length > 0 || roleTeamIds.length > 0 || !!activeClubFilter);
   const proQueryNotYetResolved = proQueryShouldBeEnabled && hasProClub === undefined && !hasProAccessQueryFailed;
   const waitingOnRolesWithoutFallback = !!user && !userRoles && !activeClubFilter;
+
+  // Escape hatch: the pro-access gate must never hold the page forever. On
+  // Android resume the underlying request can be a zombie (dead socket, frozen
+  // abort timer), which used to leave Media stuck on skeletons until a
+  // force-quit. After 6s we abort in-flight reads, refetch, and stop letting
+  // this gate block rendering — cached photos show while pro state settles.
+  const [proGateTimedOut, setProGateTimedOut] = useState(false);
+  const proGateStuck = loadingProAccess || activeClubProLoading || proQueryNotYetResolved;
+  useEffect(() => {
+    if (!proGateStuck) {
+      setProGateTimedOut(false);
+      return;
+    }
+    const timer = setInterval(() => {
+      const aborted = abortAllInFlightRestGets("media-pro-watchdog");
+      console.warn("[MediaDiag] pro-gate-watchdog", { t: new Date().toISOString(), abortedInFlight: aborted });
+      setProGateTimedOut(true);
+      queryClient.refetchQueries({ queryKey: ["has-pro-access"] });
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [proGateStuck, queryClient]);
+
   // Only show loading state on initial resolution — never on refetch/resume
-  const isCheckingProAccess = !proAccessEverResolved.current && (!user || loadingProAccess || activeClubProLoading || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
+  const isCheckingProAccess = !proAccessEverResolved.current && !proGateTimedOut && (!user || loadingProAccess || activeClubProLoading || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
@@ -943,6 +974,8 @@ export default function MediaPage() {
   useEffect(() => {
     if (!user?.id) return;
     const onVisible = () => {
+      // Native: leave resume refetching to the adapter's staggered drip.
+      if (isNativeRuntime()) return;
       if (document.visibilityState === "visible") {
         queryClient.invalidateQueries({ queryKey: ["photo-comments", user.id] });
         queryClient.invalidateQueries({ queryKey: ["photo-reactions", user.id] });
@@ -1209,7 +1242,10 @@ export default function MediaPage() {
     photoCommentsMap.get(photoId) || [], [photoCommentsMap]);
 
   // Show skeletons only if we have no cached data and are loading
-  const showSkeletons = (loadingPhotos || loadingProAccess) && allPhotos.length === 0;
+  // Show skeletons only if we have no cached data and are loading. The
+  // pro-access gate is dropped once the watchdog has timed it out so a hung
+  // pro check can never hold the whole page on skeletons.
+  const showSkeletons = (loadingPhotos || (loadingProAccess && !proGateTimedOut)) && allPhotos.length === 0;
 
   // Diagnostic: log what's blocking the skeleton from clearing.
   useEffect(() => {

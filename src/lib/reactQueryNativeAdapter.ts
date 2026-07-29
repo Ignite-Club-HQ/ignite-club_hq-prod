@@ -1,5 +1,6 @@
 import { onlineManager, focusManager, type QueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
+import { abortAllInFlightRestGets } from '@/lib/supabaseAuthRetry';
 
 /**
  * Configures React Query's onlineManager and focusManager for Capacitor
@@ -109,6 +110,23 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
   //   2. every errored/paused/idle-non-success query → invalidate — recovers
   //      inactive-but-cached queries the next time they mount.
   let lastRecoveryAt = 0;
+  // When the app went to background. Used to decide whether in-flight REST
+  // GETs are worth keeping on resume (see LONG_BACKGROUND_MS).
+  let backgroundedAt = 0;
+  const LONG_BACKGROUND_MS = 20_000;
+
+  // Requests that were in flight when Android suspended the WebView are
+  // almost always sitting on a dead socket, and their abort timers were
+  // frozen — so they never fail, never resolve, and hold connection slots.
+  // Release them BEFORE the recovery refetch, otherwise the refetch queues
+  // behind zombies and the screen stays on skeletons until a force-quit.
+  const abortZombieRequests = (reason: string) => {
+    try {
+      const n = abortAllInFlightRestGets(reason);
+      if (n > 0) console.log(`[NativeAdapter] aborted ${n} in-flight REST GET(s) on ${reason}`);
+    } catch { /* noop */ }
+  };
+
   const recoverErroredQueries = (reason: string) => {
     if (!queryClient) return;
     const now = Date.now();
@@ -218,6 +236,11 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       const listenerPromise = App.addListener('appStateChange', ({ isActive }) => {
         isForeground = isActive;
         if (isActive) {
+          const hiddenFor = backgroundedAt ? Date.now() - backgroundedAt : 0;
+          backgroundedAt = 0;
+          // Abort-then-refetch. Must happen before handleFocus/recovery so the
+          // connection pool is free when the recovery drip starts.
+          if (hiddenFor >= LONG_BACKGROUND_MS) abortZombieRequests('app-resume');
           handleFocus();
           // On resume, re-check connectivity rather than trusting the cached
           // value (Low Power Mode / Doze can have left it stale).
@@ -238,6 +261,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
             });
           });
         } else {
+          backgroundedAt = Date.now();
           clearProbe();
         }
       });
@@ -247,4 +271,24 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       };
     });
   });
+
+  // Belt-and-braces: Android WebView sometimes delivers `visibilitychange`
+  // without a matching `appStateChange`. Track hidden time here too so the
+  // zombie abort still runs on those resumes. The recovery refetch itself is
+  // left to the appStateChange path / nudge so we don't double-fire it.
+  try {
+    let hiddenAt = 0;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      const hiddenFor = hiddenAt ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+      if (hiddenFor >= LONG_BACKGROUND_MS) {
+        abortZombieRequests('visibility-resume');
+        recoverErroredQueries('visibility-resume');
+      }
+    });
+  } catch { /* noop */ }
 }
