@@ -182,7 +182,7 @@ export function ScheduledMessagesBanner({ target }: ScheduledMessagesBannerProps
           )}
         </button>
 
-        {isError && (
+        {showInlineRefreshWarning && (
           <div
             role="alert"
             className="mt-2 flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/40 px-2 py-1.5"
