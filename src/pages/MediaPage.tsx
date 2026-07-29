@@ -33,6 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
+import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useClubTheme } from "@/hooks/useClubTheme";
