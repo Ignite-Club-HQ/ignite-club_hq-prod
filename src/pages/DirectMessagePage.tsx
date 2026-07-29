@@ -580,7 +580,10 @@ export default function DirectMessagePage() {
     // Gate on `authReady` (user + initialized) — firing before auth is fully
     // restored on notification-tap cold starts caused RLS to return 0 rows,
     // leaving the thread visibly blank until a manual navigation.
-    enabled: !!conversationId && authReady,
+    // Session token is sufficient (same as Team/Club/Group) — waiting on the
+    // full profile fetch (`authReady`) strands the thread when auth is still
+    // settling after an Android resume.
+    enabled: !!conversationId && !!user?.id,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: "always", // Force refetch on every mount (true is a no-op while staleTime is unmet) so reactions/messages added while away are picked up
