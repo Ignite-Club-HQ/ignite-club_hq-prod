@@ -1017,7 +1017,14 @@ export default function ClubAdminChatPage() {
       .subscribe();
     noteChannelSubscribed(`club-admin-chat-${conversationId}`);
     const unregister = user?.id
-      ? registerChannel({ key: `club-admin-chat-${conversationId}`, channel, userId: user.id, scope: { kind: "dm", id: conversationId } })
+      ? registerChannel({
+          key: `club-admin-chat-${conversationId}`,
+          channel,
+          userId: user.id,
+          // Scoped by CLUB id: losing club membership must revoke this channel.
+          scope: { kind: "club_admin", id: conversation?.club_id ?? conversationId },
+          cacheKeys: [["club-admin-messages", conversationId]],
+        })
       : null;
 
     return () => {
