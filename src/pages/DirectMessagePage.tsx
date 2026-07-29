@@ -659,6 +659,19 @@ export default function DirectMessagePage() {
     (!authReady && !hasMeaningfulLocal) ||
     (messagesLoading && !messagesData && !hasMeaningfulLocal);
 
+  // Android resume escape hatch: abort zombie GETs + re-issue the gating
+  // queries while the page is stuck on a skeleton.
+  useChatStuckWatchdog(
+    (!!conversationId && (conversationLoading || checkingCanDM || showLoading)),
+    [
+      ["dm-conversation", conversationId],
+      ["can-dm", otherUserId],
+      ["dm-messages", conversationId],
+    ],
+    "dm-chat",
+  );
+
+
   // Cold-start stage marks (chat_mount + chat_query_return).
   useChatPerfMarks(messagesData);
 
