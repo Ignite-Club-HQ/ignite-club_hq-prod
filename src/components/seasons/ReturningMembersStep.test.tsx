@@ -5,6 +5,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { ReturningMembersStep, type ReturningPlayer } from "./ReturningMembersStep";
 
+// jsdom lacks ResizeObserver, which Radix ScrollArea requires.
+if (!("ResizeObserver" in globalThis)) {
+  (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
+
 const players: ReturningPlayer[] = [
   {
     club_player_id: "p1",
