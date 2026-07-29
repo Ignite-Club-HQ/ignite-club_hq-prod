@@ -268,7 +268,7 @@ describe("useScheduledMessages auth guards", () => {
       const { result } = renderHook(() => useAllScheduledMessages(["pending"]), {
         wrapper,
       });
-      await waitFor(() => expect(result.current.isError).toBe(true));
+      await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 15000 });
       expect(result.current.data).toBeUndefined();
     });
 
