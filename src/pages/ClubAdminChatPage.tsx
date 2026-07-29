@@ -312,64 +312,87 @@ export default function ClubAdminChatPage() {
   } = useQuery({
     queryKey,
     queryFn: async () => {
-      const { data: rawMessages, error } = await supabase
-        .from("club_admin_messages")
-        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at")
-        .eq("conversation_id", conversationId)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(MESSAGES_PER_PAGE + 1);
-      if (error) throw error;
+      // 15s wall budget (mirrors TeamChatPage) so a socket left half-dead by an
+      // Android background freeze can never leave this thread pending forever.
+      const budget = createChatFetchBudget(15_000);
+      try {
+        const { data: rawMessages, error } = await supabase
+          .from("club_admin_messages")
+          .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at")
+          .eq("conversation_id", conversationId)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(MESSAGES_PER_PAGE + 1)
+          .abortSignal(budget.signal);
+        if (error) throw error;
 
-      if (!rawMessages?.length) {
-        return { messages: [] as ClubAdminMessage[], hasOlderMessages: false };
+        if (!rawMessages?.length) {
+          return { messages: [] as ClubAdminMessage[], hasOlderMessages: false };
+        }
+
+        const hasMore = rawMessages.length > MESSAGES_PER_PAGE;
+        const dataToDisplay = hasMore ? rawMessages.slice(0, MESSAGES_PER_PAGE) : rawMessages;
+
+        const messageIds = dataToDisplay.map((m) => m.id);
+        const replyToIds = dataToDisplay.filter((m) => m.reply_to_id).map((m) => m.reply_to_id as string);
+        const authorIds = [...new Set(dataToDisplay.map((m) => m.author_id))];
+
+        // allSettled (not all): a hung/failed reactions or profile lookup must
+        // degrade to empty enrichment, never block the message body.
+        const [reactionsSettled, replyToSettled, profilesSettled] = await Promise.allSettled([
+          supabase
+            .from("message_reactions")
+            .select("id, user_id, reaction_type, club_admin_message_id")
+            .in("club_admin_message_id", messageIds)
+            .abortSignal(budget.signal),
+          replyToIds.length > 0
+            ? supabase
+                .from("club_admin_messages")
+                .select("id, text, author_id")
+                .in("id", replyToIds)
+                .abortSignal(budget.signal)
+            : Promise.resolve({ data: [] as any[] }),
+          fetchProfilesWithCache(authorIds),
+        ]);
+
+        const reactionsResult: any =
+          reactionsSettled.status === "fulfilled" ? reactionsSettled.value : { data: [] };
+        const replyToResult: any =
+          replyToSettled.status === "fulfilled" ? replyToSettled.value : { data: [] };
+        const profilesMap: Map<string, any> =
+          profilesSettled.status === "fulfilled" ? profilesSettled.value : new Map();
+
+        const replyToMap = new Map(
+          (replyToResult.data || []).map((r: any) => [r.id, {
+            ...r,
+            author: profilesMap.get(r.author_id) ? { display_name: profilesMap.get(r.author_id)?.display_name } : null,
+          }])
+        );
+
+        const messages = dataToDisplay.map((msg: any) => {
+          const replyToData = msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null;
+          const msgProfile = profilesMap.get(msg.author_id);
+          const msgReactions = (reactionsResult.data || [])
+            .filter((r: any) => r.club_admin_message_id === msg.id)
+            .map((r: any) => ({ id: r.id, user_id: r.user_id, reaction_type: r.reaction_type }));
+          return {
+            ...msg,
+            author: msgProfile ? { display_name: msgProfile.display_name, avatar_url: msgProfile.avatar_url } : null,
+            reply_to: replyToData,
+            reactions: msgReactions,
+          };
+        }) as ClubAdminMessage[];
+
+        return { messages, hasOlderMessages: hasMore };
+      } finally {
+        budget.done();
       }
-
-      const hasMore = rawMessages.length > MESSAGES_PER_PAGE;
-      const dataToDisplay = hasMore ? rawMessages.slice(0, MESSAGES_PER_PAGE) : rawMessages;
-
-      const messageIds = dataToDisplay.map((m) => m.id);
-      const replyToIds = dataToDisplay.filter((m) => m.reply_to_id).map((m) => m.reply_to_id as string);
-      const authorIds = [...new Set(dataToDisplay.map((m) => m.author_id))];
-
-      const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
-        supabase
-          .from("message_reactions")
-          .select("id, user_id, reaction_type, club_admin_message_id")
-          .in("club_admin_message_id", messageIds),
-        replyToIds.length > 0
-          ? supabase
-              .from("club_admin_messages")
-              .select("id, text, author_id")
-              .in("id", replyToIds)
-          : Promise.resolve({ data: [] as any[] }),
-        fetchProfilesWithCache(authorIds),
-      ]);
-
-      const replyToMap = new Map(
-        (replyToResult.data || []).map((r: any) => [r.id, {
-          ...r,
-          author: profilesMap.get(r.author_id) ? { display_name: profilesMap.get(r.author_id)?.display_name } : null,
-        }])
-      );
-
-      const messages = dataToDisplay.map((msg: any) => {
-        const replyToData = msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null;
-        const msgProfile = profilesMap.get(msg.author_id);
-        const msgReactions = (reactionsResult.data || [])
-          .filter((r: any) => r.club_admin_message_id === msg.id)
-          .map((r: any) => ({ id: r.id, user_id: r.user_id, reaction_type: r.reaction_type }));
-        return {
-          ...msg,
-          author: msgProfile ? { display_name: msgProfile.display_name, avatar_url: msgProfile.avatar_url } : null,
-          reply_to: replyToData,
-          reactions: msgReactions,
-        };
-      }) as ClubAdminMessage[];
-
-      return { messages, hasOlderMessages: hasMore };
     },
-    enabled: !!conversationId && authReady,
+    // Session token is sufficient — waiting on the full profile fetch
+    // (`authReady`) is exactly what strands this thread when auth is still
+    // settling after an Android resume.
+    enabled: !!conversationId && !!user?.id,
+
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: "always", // Force refetch on every mount so reactions/messages added while away are picked up (true is a no-op while staleTime is unmet)
