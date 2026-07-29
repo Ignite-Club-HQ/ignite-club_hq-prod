@@ -34,6 +34,7 @@ import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { QueryErrorBanner } from "@/components/QueryErrorBanner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
+import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
 import { filterRecurringEvents } from "@/lib/filterRecurringEvents";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
