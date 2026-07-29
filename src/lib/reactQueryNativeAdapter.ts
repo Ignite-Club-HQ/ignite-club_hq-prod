@@ -1,5 +1,6 @@
 import { onlineManager, focusManager, type QueryClient } from '@tanstack/react-query';
 import { Capacitor } from '@capacitor/core';
+import { abortAllInFlightRestGets } from '@/lib/supabaseAuthRetry';
 
 /**
  * Configures React Query's onlineManager and focusManager for Capacitor
