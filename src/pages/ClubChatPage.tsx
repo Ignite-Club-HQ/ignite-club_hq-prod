@@ -622,7 +622,7 @@ export default function ClubChatPage() {
   // queries while the page is stuck on a skeleton.
   useChatStuckWatchdog(
     (!!clubId && ((isLoadingClubSubscription && !club) || showLoading)),
-    [["club-subscription", clubId], ["club-chat", clubId], ["club-messages", clubId]],
+    [["club-subscription", clubId], ["club", clubId], ["club-messages", clubId]],
     "club-chat",
   );
 
