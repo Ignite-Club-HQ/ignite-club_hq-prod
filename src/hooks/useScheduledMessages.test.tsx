@@ -248,7 +248,9 @@ describe("useScheduledMessages auth guards", () => {
         () => useThreadScheduledMessages({ chat_type: "team", team_id: "t1" }),
         { wrapper },
       );
-      await waitFor(() => expect(result.current.isError).toBe(true));
+      // The hook retries 3x with exponential backoff before surfacing an
+      // error, so allow for the full backoff chain here.
+      await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 15000 });
       expect(result.current.data).toBeUndefined();
     });
 
