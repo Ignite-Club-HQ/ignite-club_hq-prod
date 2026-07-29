@@ -10833,6 +10833,15 @@ export type Database = {
         }
         Returns: string
       }
+      create_team_with_creator_admin: {
+        Args: {
+          p_club_id: string
+          p_default_rsvp_audience?: string
+          p_level_age?: string
+          p_name: string
+        }
+        Returns: string
+      }
       decrypt_sensitive_data: {
         Args: { encrypted_data: string }
         Returns: string

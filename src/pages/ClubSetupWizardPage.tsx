@@ -182,17 +182,15 @@ export default function ClubSetupWizardPage() {
         .from("teams")
         .select("id, name, level_age")
         .eq("club_id", clubId!)
+        .is("deleted_at", null)
         .order("created_at", { ascending: true });
       return data ?? [];
     },
     enabled: !!clubId,
   });
 
-  const hydratedFromDbRef = useRef(false);
   useEffect(() => {
-    if (hydratedFromDbRef.current) return;
     if (!existingTeams || existingTeams.length === 0) return;
-    hydratedFromDbRef.current = true;
     setTeams((prev) => {
       const alreadySavedIds = new Set(prev.filter(t => t.createdTeamId).map(t => t.createdTeamId));
       const missing = existingTeams
@@ -223,7 +221,6 @@ export default function ClubSetupWizardPage() {
   }, [storageKey, teams, committee, groups, teamInvites]);
 
   const savedTeams = teams.filter((t) => t.createdTeamId);
-  const canDoTeamInvites = savedTeams.length > 0;
 
 
   // ---------- team creation ----------
@@ -231,29 +228,20 @@ export default function ClubSetupWizardPage() {
   const saveTeamMutation = useMutation({
     mutationFn: async (draft: DraftTeam) => {
       if (!draft.name.trim()) throw new Error("Team name is required");
-      const { data: team, error } = await supabase
-        .from("teams")
-        .insert({
-          name: draft.name.trim(),
-          club_id: clubId!,
-          level_age: draft.levelAge.trim() || null,
-          team_type: "mixed",
-          created_by: user!.id,
-          default_rsvp_audience: defaultRsvpAudienceForTeam(
+      const { data: teamId, error } = await supabase.rpc(
+        "create_team_with_creator_admin",
+        {
+          p_club_id: clubId!,
+          p_name: draft.name.trim(),
+          p_level_age: draft.levelAge.trim() || null,
+          p_default_rsvp_audience: defaultRsvpAudienceForTeam(
             draft.name,
             draft.levelAge,
           ),
-        } as any)
-        .select("id")
-        .single();
+        },
+      );
       if (error) throw error;
-      await supabase.from("user_roles").insert({
-        user_id: user!.id,
-        role: "team_admin",
-        club_id: clubId,
-        team_id: team.id,
-      });
-      return team.id as string;
+      return teamId as string;
     },
     onSuccess: (teamId, draft) => {
       setTeams((prev) =>
@@ -435,29 +423,46 @@ export default function ClubSetupWizardPage() {
   };
 
   const [savingTeams, setSavingTeams] = useState(false);
+  const savingTeamsRef = useRef(false);
+  const continueInProgressRef = useRef(false);
+
+  useEffect(() => {
+    continueInProgressRef.current = false;
+  }, [safeStepIndex]);
 
   const goNext = async () => {
+    if (savingTeamsRef.current || continueInProgressRef.current) return;
+    continueInProgressRef.current = true;
+    const createdTeamIds: string[] = [];
+    const hadSavedTeamsAtStart = teams.some((t) => !!t.createdTeamId);
+
     // Auto-save any unsaved teams that have a name — no per-row Save needed.
     if (step.id === "teams") {
       const unsaved = teams.filter(
         (t) => t.name.trim() && !t.createdTeamId,
       );
       if (unsaved.length > 0) {
+        savingTeamsRef.current = true;
         setSavingTeams(true);
         try {
           for (const t of unsaved) {
-            await saveTeamMutation.mutateAsync(t);
+            const teamId = await saveTeamMutation.mutateAsync(t);
+            createdTeamIds.push(teamId);
           }
         } catch {
+          savingTeamsRef.current = false;
+          continueInProgressRef.current = false;
           setSavingTeams(false);
           return; // toast surfaced by mutation onError
         }
+        savingTeamsRef.current = false;
         setSavingTeams(false);
       }
     }
     if (safeStepIndex < STEPS.length - 1) {
       // Skip team-invites step if no teams (jump straight to next step)
-      if (STEPS[safeStepIndex + 1].id === "teaminvites" && !canDoTeamInvites) {
+      const canInviteTeams = hadSavedTeamsAtStart || createdTeamIds.length > 0;
+      if (STEPS[safeStepIndex + 1].id === "teaminvites" && !canInviteTeams) {
         setStepIndex((i) => i + 2);
         return;
       }
