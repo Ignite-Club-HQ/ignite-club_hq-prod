@@ -132,6 +132,8 @@ export function useAuthorizedScopes(): AuthorizedScopes {
 
     for (const id of diff(prev.clubIds, query.data.clubIds)) {
       revokeScope(userId, { kind: "club", id });
+      // Club-admin conversation channels are scoped by club id.
+      revokeScope(userId, { kind: "club_admin", id });
     }
     for (const id of diff(prev.teamIds, query.data.teamIds)) {
       revokeScope(userId, { kind: "team", id });

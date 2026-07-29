@@ -119,9 +119,30 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       //    that unsticks Messages/Schedule/Media/rewards/sponsor tiles on
       //    reconnect. `type: 'active'` scopes it to queries with mounted
       //    observers so we don't stampede the DB with hundreds of refetches.
+      //
+      //    IMPORTANT: this is DRIPPED, not fired in one tick. The Inbox alone
+      //    mounts ~25-30 active queries; refetching them simultaneously
+      //    saturates Android WebView's ~6-connection-per-origin pool and
+      //    floods the main thread with response/cache-write work at exactly
+      //    the moment the user taps a thread — the tap appears to do nothing
+      //    and the UI stalls. Batches of 6, 120ms apart, keeps the pool busy
+      //    but never starves input handling.
       try {
-        queryClient.refetchQueries({ type: 'active' });
+        const active = queryClient.getQueryCache().findAll({ type: 'active' });
+        const BATCH = 6;
+        for (let i = 0; i < active.length; i += BATCH) {
+          const slice = active.slice(i, i + BATCH);
+          const delay = (i / BATCH) * 120;
+          setTimeout(() => {
+            slice.forEach((q) => {
+              try {
+                queryClient.refetchQueries({ queryKey: q.queryKey, exact: true });
+              } catch { /* noop */ }
+            });
+          }, delay);
+        }
       } catch { /* noop */ }
+
 
       // 2. Also invalidate errored/paused/idle-non-success queries so they
       //    come back to life the next time their component mounts.
