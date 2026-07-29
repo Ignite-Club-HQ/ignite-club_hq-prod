@@ -25,9 +25,80 @@
 
 const REST_GET_TIMEOUT_MS = 25_000;
 
+/**
+ * How often we sweep the in-flight registry looking for GETs whose wall-clock
+ * deadline has passed. Cheap: the set is normally empty or tiny.
+ */
+const SWEEP_INTERVAL_MS = 5_000;
 
 import { supabase } from "@/integrations/supabase/client";
 import { maybeLogSlowFetch } from "@/lib/clientPerfLog";
+
+/**
+ * Registry of in-flight PostgREST GETs.
+ *
+ * `setTimeout` is not a reliable abort mechanism on Android WebView: timers are
+ * frozen while the app is backgrounded, so a GET that was in flight at suspend
+ * never times out. It stays pending forever on a dead socket, holds one of the
+ * ~6 per-origin connection slots, and any query gated on it never resolves —
+ * which is why Schedule/Media came back stuck on skeletons until a force-quit.
+ *
+ * We therefore also track a wall-clock `deadlineAt` per request and sweep the
+ * registry (interval + explicitly on resume), so frozen timers can't hide a
+ * dead request.
+ */
+type InFlightRestGet = { controller: AbortController; deadlineAt: number; url: string };
+const inFlightRestGets = new Set<InFlightRestGet>();
+let sweepTimer: ReturnType<typeof setInterval> | null = null;
+
+function abortEntry(entry: InFlightRestGet, reason: string) {
+  inFlightRestGets.delete(entry);
+  try { entry.controller.abort(); } catch { /* ignore */ }
+  if (import.meta.env.DEV) {
+    console.warn(`[supabaseAuthRetry] aborted stale REST GET (${reason}):`, entry.url);
+  }
+}
+
+/** Abort any in-flight PostgREST GET whose wall-clock deadline has passed. */
+export function abortStaleRestGets(reason = "sweep"): number {
+  const now = Date.now();
+  let aborted = 0;
+  for (const entry of Array.from(inFlightRestGets)) {
+    if (entry.deadlineAt <= now) {
+      abortEntry(entry, reason);
+      aborted++;
+    }
+  }
+  return aborted;
+}
+
+/**
+ * Abort every in-flight PostgREST GET regardless of deadline.
+ *
+ * Called on resume after a long background stint: those sockets are almost
+ * certainly dead, and releasing them BEFORE the recovery refetch means the
+ * refetch isn't queued behind zombies for the connection pool.
+ */
+export function abortAllInFlightRestGets(reason = "resume"): number {
+  const count = inFlightRestGets.size;
+  for (const entry of Array.from(inFlightRestGets)) {
+    abortEntry(entry, reason);
+  }
+  return count;
+}
+
+/** Test/diagnostic helper. */
+export function getInFlightRestGetCount(): number {
+  return inFlightRestGets.size;
+}
+
+function ensureSweeper() {
+  if (sweepTimer !== null) return;
+  if (typeof setInterval !== "function") return;
+  sweepTimer = setInterval(() => {
+    if (inFlightRestGets.size > 0) abortStaleRestGets("sweep");
+  }, SWEEP_INTERVAL_MS);
+}
 
 let installed = false;
 
