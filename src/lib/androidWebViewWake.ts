@@ -31,6 +31,20 @@ export function setupWebViewWake() {
   const isNative = Capacitor.isNativePlatform();
 
   let kickScheduled = false;
+  let watchdog: ReturnType<typeof setTimeout> | null = null;
+
+  // Hard reset used by both the rAF path and the watchdog. Idempotent:
+  // removing the inline properties always converges to "visible".
+  const finishKick = () => {
+    if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+    try {
+      const html = document.documentElement;
+      const body = document.body;
+      if (body) body.style.removeProperty("visibility");
+      html.style.removeProperty("transform");
+    } catch { /* ignore */ }
+    kickScheduled = false;
+  };
 
   const kick = () => {
     // Coalesce overlapping resume signals (appStateChange + visibilitychange
@@ -40,6 +54,15 @@ export function setupWebViewWake() {
     // page to hidden — leaving a black, unresponsive screen until cold start.
     if (kickScheduled) return;
     kickScheduled = true;
+
+    // CRITICAL watchdog. If the app is re-backgrounded (or the compositor is
+    // starved) between setting `visibility: hidden` and the rAF callback,
+    // that rAF may NEVER fire. Previously that left `body` permanently
+    // hidden AND `kickScheduled` latched at `true`, so every later resume
+    // kick silently no-oped: the app rendered a dead/frozen screen and taps
+    // did nothing until the user force-quit. The timer is not frame-gated,
+    // so it always recovers.
+    watchdog = setTimeout(finishKick, 1000);
 
     try {
       const html = document.documentElement;
@@ -51,15 +74,14 @@ export function setupWebViewWake() {
       html.style.transform = "translateZ(0)";
       void html.offsetHeight; // reflow
       requestAnimationFrame(() => {
-        if (body) body.style.removeProperty("visibility");
-        html.style.removeProperty("transform");
+        finishKick();
         try { window.scrollBy(0, 0); } catch { /* ignore */ }
         try { window.dispatchEvent(new Event("resize")); } catch { /* ignore */ }
-        kickScheduled = false;
       });
     } catch {
-      kickScheduled = false;
+      finishKick();
     }
+
     [60, 200, 600, 1500].forEach((d) => {
       setTimeout(() => {
         try { window.dispatchEvent(new Event("resize")); } catch { /* ignore */ }
