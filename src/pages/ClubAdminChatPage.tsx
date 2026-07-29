@@ -349,7 +349,10 @@ export default function ClubAdminChatPage() {
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: "always", // Force refetch on every mount so reactions/messages added while away are picked up (true is a no-op while staleTime is unmet)
     refetchOnWindowFocus: false,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
     placeholderData: (prev: any) => prev,
+
   });
 
   // Belt-and-braces: if the first fetch returned zero messages while auth /
