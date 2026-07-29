@@ -84,7 +84,8 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       if (res) {
         onlineManager.setOnline(true);
         clearProbe();
-        recoverErroredQueries('probe-recovered');
+        // Probe succeeded after being offline — a genuine reconnect.
+        recoverErroredQueries('probe-recovered', { refetchActive: true });
         return;
       }
     } finally {
