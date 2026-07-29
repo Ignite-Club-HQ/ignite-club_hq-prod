@@ -196,6 +196,10 @@ export default function MediaPage() {
     hydrate();
 
     const onVisible = () => {
+      // On native the adapter's resume drip is the single source of resume
+      // refetching — a page-local listener fires at the same moment and
+      // competes for the WebView's ~6-connection pool.
+      if (isNativeRuntime()) return;
       if (document.visibilityState === "visible") hydrate();
     };
     window.addEventListener("online", hydrate);
