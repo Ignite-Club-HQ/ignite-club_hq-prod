@@ -732,7 +732,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 </div>
               )}
               {selectedUsers.length > 0 && (
-                <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/10 p-2.5 shadow-sm shadow-primary/10">
+                <div className="sticky top-0 z-20 space-y-2 rounded-xl border border-primary/30 bg-background p-2.5 shadow-sm shadow-primary/10">
                   <div className="flex flex-wrap gap-1.5">
                     {selectedUsers.map(u => (
                       <Badge key={u.id} variant="secondary" className="gap-1 pr-1 rounded-full">
