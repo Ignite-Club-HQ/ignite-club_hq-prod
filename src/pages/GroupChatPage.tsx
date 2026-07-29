@@ -741,6 +741,15 @@ export default function GroupChatPage() {
     (!authReady && !hasMeaningfulLocal) ||
     (messagesLoading && !messagesData && !hasMeaningfulLocal);
 
+  // Android resume escape hatch: abort zombie GETs + re-issue the gating
+  // queries while the page is stuck on a skeleton.
+  useChatStuckWatchdog(
+    (!!groupId && (groupLoading || showLoading)),
+    [["chat-group", groupId], ["group-messages", groupId]],
+    "group-chat",
+  );
+
+
   // Cold-start stage marks (chat_mount + chat_query_return).
   useChatPerfMarks(messagesData);
 
