@@ -164,6 +164,9 @@ export function useAllScheduledMessages(statuses: ScheduledMessageStatus[] = ["p
     },
     enabled: !!user?.id,
     staleTime: 30 * 1000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(800 * 2 ** attempt, 6000),
+    refetchOnReconnect: "always",
     placeholderData: keepPreviousData,
   });
 }
