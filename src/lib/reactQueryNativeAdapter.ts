@@ -236,6 +236,11 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       const listenerPromise = App.addListener('appStateChange', ({ isActive }) => {
         isForeground = isActive;
         if (isActive) {
+          const hiddenFor = backgroundedAt ? Date.now() - backgroundedAt : 0;
+          backgroundedAt = 0;
+          // Abort-then-refetch. Must happen before handleFocus/recovery so the
+          // connection pool is free when the recovery drip starts.
+          if (hiddenFor >= LONG_BACKGROUND_MS) abortZombieRequests('app-resume');
           handleFocus();
           // On resume, re-check connectivity rather than trusting the cached
           // value (Low Power Mode / Doze can have left it stale).
@@ -256,6 +261,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
             });
           });
         } else {
+          backgroundedAt = Date.now();
           clearProbe();
         }
       });
