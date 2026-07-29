@@ -114,6 +114,7 @@ const AddMiniLeagueMemberSheet = lazy(() => import("@/components/AddMiniLeagueMe
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
+import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
@@ -739,6 +740,15 @@ export default function GroupChatPage() {
   const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
     (messagesLoading && !messagesData && !hasMeaningfulLocal);
+
+  // Android resume escape hatch: abort zombie GETs + re-issue the gating
+  // queries while the page is stuck on a skeleton.
+  useChatStuckWatchdog(
+    (!!groupId && (groupLoading || showLoading)),
+    [["chat-group", groupId], ["group-messages", groupId]],
+    "group-chat",
+  );
+
 
   // Cold-start stage marks (chat_mount + chat_query_return).
   useChatPerfMarks(messagesData);

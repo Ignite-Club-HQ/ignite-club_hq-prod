@@ -22,22 +22,20 @@ export async function ensureFreshSession(bufferSeconds = 30): Promise<string> {
   const nowSec = Math.floor(Date.now() / 1000);
 
   if (expiresAt - nowSec <= bufferSeconds) {
-    // Only bound the refresh when the page is visible — a hanging refresh
-    // on resume (half-dead socket after long inactivity) was leaving read
-    // queries like has-pro-access spinning forever. On timeout we degrade
-    // to the existing session id and let downstream requests 401 naturally;
-    // the global auth-retry interceptor (supabaseAuthRetry.ts) will then
-    // trigger a fresh refresh cycle on the retry.
-    const isVisible = typeof document === "undefined" || document.visibilityState === "visible";
+    // ALWAYS bound the refresh — including when the document is hidden.
+    // A refresh started while backgrounded on Android can hang forever on a
+    // half-dead socket, and every query gated on it (has-pro-access on Media,
+    // user-memberships on Schedule) then spins until a force-quit. Bounding
+    // only while visible was exactly the hole. On timeout we degrade to the
+    // existing session id and let downstream requests 401 naturally; the
+    // global auth-retry interceptor (supabaseAuthRetry.ts) triggers a fresh
+    // refresh cycle on the retry.
     const REFRESH_TIMEOUT_MS = 12_000;
 
-    const refreshPromise = supabase.auth.refreshSession();
-    const raced = isVisible
-      ? await Promise.race([
-          refreshPromise,
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), REFRESH_TIMEOUT_MS)),
-        ])
-      : await refreshPromise;
+    const raced = await Promise.race([
+      supabase.auth.refreshSession(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), REFRESH_TIMEOUT_MS)),
+    ]);
 
     if (raced === null) {
       // Timed out — return existing user id. The stale token may still be

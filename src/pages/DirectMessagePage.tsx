@@ -84,6 +84,7 @@ import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
+import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
@@ -579,7 +580,10 @@ export default function DirectMessagePage() {
     // Gate on `authReady` (user + initialized) — firing before auth is fully
     // restored on notification-tap cold starts caused RLS to return 0 rows,
     // leaving the thread visibly blank until a manual navigation.
-    enabled: !!conversationId && authReady,
+    // Session token is sufficient (same as Team/Club/Group) — waiting on the
+    // full profile fetch (`authReady`) strands the thread when auth is still
+    // settling after an Android resume.
+    enabled: !!conversationId && !!user?.id,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: "always", // Force refetch on every mount (true is a no-op while staleTime is unmet) so reactions/messages added while away are picked up
@@ -657,6 +661,19 @@ export default function DirectMessagePage() {
   const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
     (messagesLoading && !messagesData && !hasMeaningfulLocal);
+
+  // Android resume escape hatch: abort zombie GETs + re-issue the gating
+  // queries while the page is stuck on a skeleton.
+  useChatStuckWatchdog(
+    (!!conversationId && (conversationLoading || checkingCanDM || showLoading)),
+    [
+      ["dm-conversation", conversationId],
+      ["can-dm", otherUserId],
+      ["dm-messages", conversationId],
+    ],
+    "dm-chat",
+  );
+
 
   // Cold-start stage marks (chat_mount + chat_query_return).
   useChatPerfMarks(messagesData);
