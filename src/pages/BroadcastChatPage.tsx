@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
@@ -51,6 +52,15 @@ const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
+import {
+  recordRealtimeMutation,
+  reconcileMessages,
+  applyMessageUpdate,
+  removeMessage,
+  isTombstoned,
+  clearReconciliationScope,
+} from "@/lib/chatMessageReconciliation";
+
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
 import { useMessageReads } from "@/hooks/useMessageReads";
@@ -201,22 +211,10 @@ export default function BroadcastChatPage() {
     return cancel;
   }, [targetMessageId, targetParentId, targetJumpNonce]);
 
-  // Check if user is app admin
-  const { data: isAppAdmin } = useQuery({
-    queryKey: ["is-app-admin", user?.id],
-    queryFn: async () => {
-      const uid = user?.id;
-      if (!uid) return false;
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", uid)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      return !!data;
-    },
-    enabled: authReady && !!user?.id,
-  });
+  // Check if user is app admin — shared authoritative hook so this page can
+  // never own the `["is-app-admin", userId]` cache entry with a stricter
+  // enablement gate than the rest of the app.
+  const { isAppAdmin } = useIsAppAdmin();
 
   const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
     [isAppAdmin, replyingTo?.id, editingMessage?.id],
@@ -361,6 +359,10 @@ export default function BroadcastChatPage() {
     },
   });
 
+  // Scope key for the realtime edit/soft-delete reconciliation registry.
+  // Broadcast is a single global thread, so the scope is constant.
+  const reconcileScope = "broadcast";
+
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
@@ -368,13 +370,21 @@ export default function BroadcastChatPage() {
       ? messagesData 
       : (messagesData as any).messages || [];
     // Sort by created_at to ensure proper ordering
-    return [...msgList].sort((a, b) => 
+    const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
-  }, [messagesData]);
+    // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
+    // restore pre-edit text or resurrect a deleted row.
+    return reconcileMessages(reconcileScope, sorted) as Message[];
+  }, [messagesData, reconcileScope]);
 
   // Local copy used for rendering so optimistic updates are instant
-  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() => getCachedBroadcastMessages());
+  const [localMessages, setLocalMessages] = useState<Message[] | undefined>(
+    () => reconcileMessages(reconcileScope, getCachedBroadcastMessages()) as Message[],
+  );
+
+  // Tombstones/patches are per-thread; drop them when leaving the chat.
+  useEffect(() => () => clearReconciliationScope(reconcileScope), [reconcileScope]);
  
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   const showLoading =
@@ -423,6 +433,9 @@ export default function BroadcastChatPage() {
       );
       const previousOnly = (prev || []).filter((message: any) => {
         if (incomingIds.has(message.id)) return false;
+        // A soft-deleted row is absent from `messages`; without this guard the
+        // fail-open branch below would re-add it on every sync.
+        if (isTombstoned(reconcileScope, message.id)) return false;
         if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
           const key = `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`;
           if (realByAuthorText.has(key)) return false;
@@ -455,9 +468,12 @@ export default function BroadcastChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
-      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
-      );
+      const mergedMessages = (reconcileMessages(
+        reconcileScope,
+        [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+        ),
+      ) ?? []) as Message[];
 
       cacheMessages("broadcast", "broadcast", mergedMessages.map((m) => ({
         id: m.id,
@@ -596,11 +612,14 @@ export default function BroadcastChatPage() {
         // Continue without reactions/replies if they timeout
       }
 
-      const olderMessages = reversedOlder.map((msg) => ({
-        ...msg,
-        reactions: reactionsData.filter((r) => r.broadcast_message_id === msg.id) || [],
-        reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
-      })) as Message[];
+      const olderMessages = (reconcileMessages(
+        reconcileScope,
+        reversedOlder.map((msg) => ({
+          ...msg,
+          reactions: reactionsData.filter((r) => r.broadcast_message_id === msg.id) || [],
+          reply_to: replyToData.find((r) => r.id === msg.reply_to_id) || null,
+        })) as Message[],
+      ) ?? []) as Message[];
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
       queueAnchoredPrepend(() => {
@@ -619,7 +638,7 @@ export default function BroadcastChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
+  }, [queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -702,11 +721,15 @@ export default function BroadcastChatPage() {
           table: "broadcast_messages",
         },
         (payload) => {
-          const deletedId = (payload.old as any).id;
+          const deletedId = (payload.old as any)?.id;
+          if (!deletedId) return;
+          // Tombstone so an older in-flight fetch cannot resurrect the row.
+          recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
           queryClient.setQueryData(["broadcast-messages"], (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
-            return { ...old, messages: existingMessages.filter(m => m.id !== deletedId) };
+            return { ...old, messages: removeMessage(existingMessages, deletedId) };
           });
+          setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
       .on(
@@ -718,18 +741,27 @@ export default function BroadcastChatPage() {
         },
         (payload) => {
           const updated = payload.new as any;
+          if (!updated?.id) return;
+          // Record first so any query response already in flight is reconciled
+          // when it lands (stale-fetch resurrection guard). Idempotent.
+          const outcome = recordRealtimeMutation(reconcileScope, updated);
+
+          if (outcome === "deleted") {
+            queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+              const existingMessages: Message[] = old?.messages || [];
+              return { ...old, messages: removeMessage(existingMessages, updated.id) };
+            });
+            setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
+            return;
+          }
+
+          // Apply the edit to BOTH stores with the same pure helper so they
+          // can never diverge. Fields absent from the payload are preserved.
           queryClient.setQueryData(["broadcast-messages"], (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
-            // If message was soft-deleted, remove it from the list
-            if (updated.deleted_at) {
-              return { ...old, messages: existingMessages.filter(m => m.id !== updated.id) };
-            }
-            // Otherwise update the message content
-            return {
-              ...old,
-              messages: existingMessages.map(m => m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m),
-            };
+            return { ...old, messages: applyMessageUpdate(existingMessages, updated) };
           });
+          setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
       .on(
@@ -818,7 +850,7 @@ export default function BroadcastChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved("broadcast-messages-realtime");
     };
-  }, [queryClient, user?.id]);
+  }, [queryClient, user?.id, reconcileScope]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)

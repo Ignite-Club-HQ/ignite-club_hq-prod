@@ -1102,47 +1102,14 @@ export default function MediaPage() {
 
   const deletePhotoMutation = useMutation({
     mutationFn: async ({ photoId, deleteFromVault }: { photoId: string; deleteFromVault: boolean }) => {
-      const now = new Date().toISOString();
-      if (deleteFromVault) {
-        // Soft delete in photos table
-        const { error } = await supabase
-          .from("photos")
-          .update({ 
-            deleted_at: now,
-            show_in_feed: false
-          })
-          .eq("id", photoId);
-        if (error) throw error;
-
-        // Also soft delete the corresponding vault_files record so it appears in Vault trash
-        // First get the photo's file_url to find the matching vault_files record
-        const { data: photoData } = await supabase
-          .from("photos")
-          .select("file_url, image_url")
-          .eq("id", photoId)
-          .single();
-        
-        if (photoData) {
-          const fileUrl = photoData.file_url || photoData.image_url;
-          if (fileUrl) {
-            await supabase
-              .from("vault_files")
-              .update({ 
-                deleted_at: now,
-                deleted_by: user?.id 
-              })
-              .eq("file_url", fileUrl);
-          }
-        }
-      } else {
-        // Just hide from feed by setting show_in_feed to false
-        const { error } = await supabase
-          .from("photos")
-          .update({ show_in_feed: false })
-          .eq("id", photoId);
-        if (error) throw error;
-      }
+      const { deleteMediaPhoto } = await import("@/lib/mediaPhotoDeletion");
+      await deleteMediaPhoto(supabase, {
+        photoId,
+        mode: deleteFromVault ? "feed_and_vault" : "feed_only",
+        callerId: user?.id ?? null,
+      });
     },
+
     onMutate: async ({ photoId }) => {
       // Set deleting state for UI feedback
       setDeletingPhotoId(photoId);

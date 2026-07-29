@@ -49,6 +49,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
+import {
+  recordRealtimeMutation,
+  reconcileMessages,
+  applyMessageUpdate,
+  removeMessage,
+  isTombstoned,
+  clearReconciliationScope,
+} from "@/lib/chatMessageReconciliation";
+
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { format, isSameDay } from "date-fns";
@@ -166,8 +175,13 @@ const cacheDirectMessages = (conversationId: string, messages: DirectMessage[]) 
 const mergeDirectMessages = (
   incomingMessages: DirectMessage[],
   previousMessages?: DirectMessage[] | null,
+  reconcileScope?: string,
 ): DirectMessage[] => {
-  if (!previousMessages?.length) return incomingMessages;
+  if (!previousMessages?.length) {
+    return (reconcileScope
+      ? reconcileMessages(reconcileScope, incomingMessages) ?? []
+      : incomingMessages) as DirectMessage[];
+  }
 
   const incomingIds = new Set(incomingMessages.map((message) => message.id));
   const realByAuthorText = new Set(
@@ -177,6 +191,9 @@ const mergeDirectMessages = (
   );
   const previousOnly = previousMessages.filter((message) => {
     if (incomingIds.has(message.id)) return false;
+    // A soft-deleted row is absent from `incomingMessages`; without this guard
+    // the fail-open branch below would re-add it on every sync.
+    if (reconcileScope && isTombstoned(reconcileScope, message.id)) return false;
     if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
       const key = `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`;
       if (realByAuthorText.has(key)) return false;
@@ -207,9 +224,12 @@ const mergeDirectMessages = (
     };
   });
 
-  return [...previousOnly, ...mergedIncoming].sort((a, b) =>
+  const merged = [...previousOnly, ...mergedIncoming].sort((a, b) =>
     (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
   );
+  return (reconcileScope
+    ? reconcileMessages(reconcileScope, merged) ?? []
+    : merged) as DirectMessage[];
 };
 
 export default function DirectMessagePage() {
@@ -608,15 +628,21 @@ export default function DirectMessagePage() {
     }
   }, [conversationId, authReady, messagesLoading, messagesData, queryClient]);
 
+  // Scope key for the realtime edit/soft-delete reconciliation registry.
+  const reconcileScope = `dm:${conversationId ?? "none"}`;
+
   const messages = useMemo(() => {
     if (!messagesData) return [];
     const msgList = Array.isArray(messagesData) 
       ? messagesData 
       : (messagesData as any).messages || [];
-    return [...msgList].sort((a, b) => 
+    const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
-  }, [messagesData]);
+    // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
+    // restore pre-edit text or resurrect a deleted row.
+    return (reconcileMessages(reconcileScope, sorted) ?? []) as DirectMessage[];
+  }, [messagesData, reconcileScope]);
 
   // 1-item cache = notification preload; don't seed from it.
   const [localMessages, setLocalMessages] = useState<DirectMessage[] | undefined>(() => {
@@ -682,10 +708,19 @@ export default function DirectMessagePage() {
     // This prevents stale cache (missing reactions etc.) from overwriting
     // fresher query results that were merged by the useLayoutEffect above.
     if (!messagesData) {
-      setLocalMessages(conversationId ? getCachedDirectMessages(conversationId) : undefined);
+      setLocalMessages(
+        conversationId
+          ? ((reconcileMessages(reconcileScope, getCachedDirectMessages(conversationId)) ?? []) as DirectMessage[])
+          : undefined,
+      );
     }
     setInfiniteScrollEnabled(false);
-  }, [conversationId, messagesData]);
+
+    return () => {
+      // Tombstones/patches are per-thread; drop them when leaving the thread.
+      clearReconciliationScope(`dm:${conversationId ?? "none"}`);
+    };
+  }, [conversationId, messagesData, reconcileScope]);
 
   const isPinned = true;
   useEffect(() => {
@@ -719,7 +754,7 @@ export default function DirectMessagePage() {
 
       const prevLen = prev?.length ?? 0;
       const previousLastId = prev?.[prevLen - 1]?.id ?? null;
-      const mergedMessages = mergeDirectMessages(messages, prev);
+      const mergedMessages = mergeDirectMessages(messages, prev, reconcileScope);
       const nextLastId = mergedMessages[mergedMessages.length - 1]?.id ?? null;
 
       cacheDirectMessages(conversationId, mergedMessages);
@@ -735,7 +770,7 @@ export default function DirectMessagePage() {
 
       return mergedMessages;
     });
-  }, [messages, messagesLoading, conversationId]);
+  }, [messages, messagesLoading, conversationId, reconcileScope]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
@@ -838,11 +873,13 @@ export default function DirectMessagePage() {
         };
       });
 
+      const reconciledOlder = (reconcileMessages(reconcileScope, olderMessages) ?? []) as DirectMessage[];
+
       queryClient.setQueryData(
         dmQueryKey,
         (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
           const existing = old?.messages || [];
-          const merged = [...olderMessages, ...existing];
+          const merged = [...reconciledOlder, ...existing];
           cacheDirectMessages(conversationId, merged);
           return { ...(old || {}), messages: merged, hasOlderMessages: hasMore };
         },
@@ -853,7 +890,7 @@ export default function DirectMessagePage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [conversationId, isLoadingOlder, hasOlderMessages, queryClient, dmQueryKey]);
+  }, [conversationId, isLoadingOlder, hasOlderMessages, queryClient, dmQueryKey, reconcileScope]);
 
   useEffect(() => {
     loadOlderMessagesRef.current = loadOlderMessages;
@@ -1188,14 +1225,18 @@ export default function DirectMessagePage() {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          const deletedId = (payload.old as any).id;
+          const deletedId = (payload.old as any)?.id;
+          if (!deletedId) return;
+          // Tombstone so an older in-flight fetch cannot resurrect the row.
+          recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
           queryClient.setQueryData(
             ["dm-messages", conversationId],
             (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
               if (!old) return old;
-              return { ...old, messages: old.messages.filter(m => m.id !== deletedId) };
+              return { ...old, messages: removeMessage(old.messages, deletedId) };
             }
           );
+          setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
       .on(
@@ -1208,21 +1249,29 @@ export default function DirectMessagePage() {
         },
         (payload) => {
           const updated = payload.new as any;
+          if (!updated?.id) return;
+          // Record first so any query response already in flight is reconciled
+          // when it lands (stale-fetch resurrection guard). Idempotent.
+          const outcome = recordRealtimeMutation(reconcileScope, updated);
+
+          if (outcome === "deleted") {
+            queryClient.setQueryData(
+              ["dm-messages", conversationId],
+              (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) =>
+                old ? { ...old, messages: removeMessage(old.messages, updated.id) } : old,
+            );
+            setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
+            return;
+          }
+
+          // Apply the edit to BOTH stores with the same pure helper so they
+          // can never diverge. Fields absent from the payload are preserved.
           queryClient.setQueryData(
             ["dm-messages", conversationId],
-            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
-              if (!old) return old;
-              if (updated.deleted_at) {
-                return { ...old, messages: old.messages.filter(m => m.id !== updated.id) };
-              }
-              return {
-                ...old,
-                messages: old.messages.map(m =>
-                  m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url } : m
-                ),
-              };
-            }
+            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) =>
+              old ? { ...old, messages: applyMessageUpdate(old.messages, updated) } : old,
           );
+          setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
       .on(
@@ -1324,7 +1373,7 @@ export default function DirectMessagePage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`dm-${conversationId}`);
     };
-  }, [conversationId, queryClient, user?.id]);
+  }, [conversationId, queryClient, user?.id, reconcileScope]);
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
     searchQuery,

@@ -81,6 +81,14 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
+import {
+  recordRealtimeMutation,
+  reconcileMessages,
+  applyMessageUpdate,
+  removeMessage,
+  isTombstoned,
+  clearReconciliationScope,
+} from "@/lib/chatMessageReconciliation";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -741,6 +749,9 @@ export default function TeamChatPage() {
     },
   });
 
+  // Scope key for the realtime edit/soft-delete reconciliation registry.
+  const reconcileScope = `team:${teamId ?? "none"}`;
+
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
@@ -748,10 +759,14 @@ export default function TeamChatPage() {
       ? messagesData
       : (messagesData as any).messages || [];
     // Sort by created_at to ensure proper ordering
-    return [...msgList].sort((a, b) => 
+    const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
-  }, [messagesData]);
+    // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
+    // after a realtime UPDATE must never restore pre-edit text or resurrect a
+    // deleted row.
+    return reconcileMessages(reconcileScope, sorted) as Message[];
+  }, [messagesData, reconcileScope]);
 
   // Local copy used for rendering so optimistic updates are instant.
   // A 1-item cache is almost certainly a notification preload, not real
@@ -842,10 +857,16 @@ export default function TeamChatPage() {
         : cachedQueryData?.messages || []
     ).sort((a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id));
 
-    setLocalMessages(inMemoryMessages.length > 0 ? inMemoryMessages : getCachedTeamMessages(teamId));
+    const seed = inMemoryMessages.length > 0 ? inMemoryMessages : getCachedTeamMessages(teamId);
+    setLocalMessages((reconcileMessages(reconcileScope, seed) ?? []) as Message[]);
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
-  }, [teamId, queryClient]);
+
+    return () => {
+      // Tombstones/patches are per-thread; drop them when leaving the thread.
+      clearReconciliationScope(`team:${teamId}`);
+    };
+  }, [teamId, queryClient, reconcileScope]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
   // gate on as soon as we have any messages so older-page loads can begin.
@@ -892,6 +913,9 @@ export default function TeamChatPage() {
       );
       const previousOnly = (prev || []).filter((message) => {
         if (incomingIds.has(message.id)) return false;
+        // A realtime soft-delete already removed this row from the incoming
+        // cache snapshot — never carry it over from the previous render state.
+        if (isTombstoned(reconcileScope, message.id)) return false;
         if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
           const key = `${message.author_id}::${message.text ?? ""}::${message.image_url ?? ""}`;
           if (realByAuthorText.has(key)) return false;
@@ -935,9 +959,12 @@ export default function TeamChatPage() {
               reactions: [...incomingReactions, ...missingFromIncoming],
             };
           });
-      const mergedMessages = [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
-      );
+      const mergedMessages = (reconcileMessages(
+        reconcileScope,
+        [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+        ),
+      ) ?? []) as Message[];
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,
@@ -956,7 +983,7 @@ export default function TeamChatPage() {
 
       return mergedMessages;
     });
-  }, [messages, teamId]);
+  }, [messages, teamId, reconcileScope]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
@@ -1134,14 +1161,30 @@ export default function TeamChatPage() {
       // Prepend older messages to cache + restore scroll anchor synchronously
       // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
       // in the same task, so the user never sees the intermediate state.
+      // Functional merge keyed by message id — never replace the collection.
+      const mergeOlder = (existing: Message[] | undefined): Message[] => {
+        const byId = new Map<string, Message>();
+        olderMessages.forEach((m) => byId.set(m.id, m));
+        (existing || []).forEach((m) => byId.set(m.id, m)); // current state wins on boundary duplicates
+        const sorted = [...byId.values()].sort(
+          (a, b) =>
+            (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) ||
+            a.id.localeCompare(b.id),
+        );
+        // An UPDATE received while this page was in flight must survive.
+        return (reconcileMessages(reconcileScope, sorted) ?? []) as Message[];
+      };
+
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-          const existingMessages: Message[] = old?.messages || [];
-          if (!existingMessages.length) {
-            return { ...(old || {}), messages: olderMessages, hasOlderMessages: hasMore };
-          }
-          return { ...(old || {}), messages: [...olderMessages, ...existingMessages], hasOlderMessages: hasMore };
-        });
+        queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+          ...(old || {}),
+          messages: mergeOlder(old?.messages as Message[] | undefined),
+          hasOlderMessages: hasMore,
+        }));
+        // Also converge the rendered local window on the same merged result —
+        // the cache→local sync can otherwise be short-circuited by an in-flight
+        // refetch replacing the cache with only the latest page.
+        setLocalMessages((prev) => mergeOlder(prev));
       });
     } catch (err) {
       clearTimeout(timeoutId);
@@ -1197,7 +1240,7 @@ export default function TeamChatPage() {
         (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
 
-      setLocalMessages(anchoredWindow);
+      setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as Message[]);
       setHasOlderMessages(windowRows.length >= 13);
       setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
     };
@@ -1207,7 +1250,7 @@ export default function TeamChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [targetMessageId, targetJumpNonce, teamId, authReady]);
+  }, [targetMessageId, targetJumpNonce, teamId, authReady, reconcileScope]);
 
   // Free-tier polling switch (based on parent club's Pro status).
   const { mode: teamRealtimeMode, intervalMs: teamPollIntervalMs } = useClubRealtimeMode(team?.club_id ?? null);
@@ -1339,13 +1382,14 @@ export default function TeamChatPage() {
         },
         (payload) => {
           const deletedId = (payload.old as any).id;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            return {
-              ...(old || {}),
-              messages: existingMessages.filter(m => m.id !== deletedId),
-            };
-          });
+          if (!deletedId) return;
+          // Tombstone so an older in-flight fetch cannot resurrect the row.
+          recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
+          queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+            ...(old || {}),
+            messages: removeMessage((old?.messages || []) as Message[], deletedId),
+          }));
+          setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
       .on(
@@ -1358,20 +1402,27 @@ export default function TeamChatPage() {
         },
         (payload) => {
           const updated = payload.new as any;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            // If message was soft-deleted, remove it from the list
-            if (updated.deleted_at) {
-              return { ...(old || {}), messages: existingMessages.filter(m => m.id !== updated.id) };
-            }
-            // Otherwise update the message content
-            return {
+          if (!updated?.id) return;
+          // Record first so any query response already in flight is reconciled
+          // when it lands (stale-fetch resurrection guard). Idempotent.
+          const outcome = recordRealtimeMutation(reconcileScope, updated);
+
+          if (outcome === "deleted") {
+            queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
               ...(old || {}),
-              messages: existingMessages.map(m =>
-                m.id === updated.id ? { ...m, text: updated.text, image_url: updated.image_url, is_club_announcement: updated.is_club_announcement ?? m.is_club_announcement, club_announcement_name: updated.club_announcement_name ?? m.club_announcement_name } : m
-              ),
-            };
-          });
+              messages: removeMessage((old?.messages || []) as Message[], updated.id),
+            }));
+            setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
+            return;
+          }
+
+          // Apply the edit to BOTH stores with the same pure helper so they
+          // can never diverge. Fields absent from the payload are preserved.
+          queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+            ...(old || {}),
+            messages: applyMessageUpdate((old?.messages || []) as Message[], updated),
+          }));
+          setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
       .on(
@@ -1474,7 +1525,7 @@ export default function TeamChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient, teamRealtimeMode, user?.id]);
+  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -1525,10 +1576,13 @@ export default function TeamChatPage() {
 
       await queryClient.cancelQueries({ queryKey: ["team-messages", teamId] });
 
-      const previousData = queryClient.getQueryData(["team-messages", teamId]);
+      // Mutation-specific temp id so overlapping sends can be rolled back
+      // independently (Date.now() alone collides on rapid double-sends).
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const previousReplyingTo = replyingTo;
 
       const optimisticMessage: Message = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         team_id: teamId!,
         author_id: user!.id,
         text,
@@ -1565,15 +1619,30 @@ export default function TeamChatPage() {
       // would otherwise leave the new bubble below the visible area).
       virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
-      return { previousData };
+      return { tempId, previousReplyingTo, sentText: text, sentImageUrl: image_url ?? null };
     },
     onError: (err, variables, context) => {
       // If offline, don't revert - message is queued
       if (!navigator.onLine) return;
-      
-      if (context?.previousData) {
-        queryClient.setQueryData(["team-messages", teamId], context.previousData);
+
+      const tempId = context?.tempId;
+      if (tempId) {
+        // Remove ONLY this mutation's optimistic row, regardless of whether a
+        // previous cache snapshot existed. Never restore a whole snapshot —
+        // that would discard newer realtime rows / concurrent optimistic sends.
+        queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+          if (!old) return old;
+          const existingMessages: Message[] = old?.messages || [];
+          return { ...old, messages: existingMessages.filter((m) => m.id !== tempId) };
+        });
+        setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== tempId) : prev));
       }
+
+      // Restore the unsent content only if the user hasn't typed since.
+      setMessage((current) => (current.trim().length === 0 ? (context?.sentText ?? "") : current));
+      if (context?.sentImageUrl) setImageUrl((current) => current ?? context.sentImageUrl!);
+      if (context?.previousReplyingTo) setReplyingTo((current) => current ?? context.previousReplyingTo!);
+
       console.error("Failed to send team message", err);
       toast.error("Failed to send message");
     },

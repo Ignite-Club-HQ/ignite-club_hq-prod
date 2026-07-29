@@ -49,6 +49,14 @@ Deno.serve(async (req) => {
     return json({ error: "at least one club_id is required" }, 400);
   }
 
+  // Deduplicate requested club ids before any database lookup or insertion.
+  const requestedClubIds = Array.from(
+    new Set(body.club_ids.filter((c): c is string => typeof c === "string" && c.length > 0)),
+  );
+  if (requestedClubIds.length === 0) {
+    return json({ error: "at least one club_id is required" }, 400);
+  }
+
   // Authorise: caller must be a club_admin of the association.
   const { data: isAdmin } = await supabase.rpc("is_club_admin", {
     _user_id: callerId,
@@ -70,52 +78,50 @@ Deno.serve(async (req) => {
   const { data: members } = await supabase
     .from("clubs")
     .select("id")
-    .in("id", body.club_ids)
+    .in("id", requestedClubIds)
     .eq("parent_org_id", body.association_id);
   const allowedClubIds = new Set((members ?? []).map((c) => c.id));
-  const invitedClubIds = body.club_ids.filter((c) => allowedClubIds.has(c));
+  const invitedClubIds = requestedClubIds.filter((c) => allowedClubIds.has(c));
   if (invitedClubIds.length === 0) {
     return json({ error: "no invited clubs belong to this association" }, 400);
   }
 
-  const eventBase = {
-    title: body.title,
-    description: body.description ?? null,
-    event_date: body.event_date,
-    start_time: body.start_time ?? null,
-    end_time: body.end_time ?? null,
-    location_name: body.location_name ?? null,
-    address: body.address ?? null,
-    type: "social" as const,
-    created_by: callerId,
-    association_id: body.association_id,
-    allow_guests: body.allow_guests ?? true,
+  // Single atomic RPC: parent + all child events are created in one transaction,
+  // or none at all. created_by is derived from the verified bearer token.
+  const { data: result, error: rpcErr } = await supabase.rpc(
+    "create_association_club_event_atomic",
+    {
+      _caller_id: callerId,
+      _association_id: body.association_id,
+      _club_ids: invitedClubIds,
+      _title: body.title,
+      _description: body.description ?? null,
+      _event_date: body.event_date,
+      _start_time: body.start_time ?? null,
+      _end_time: body.end_time ?? null,
+      _location_name: body.location_name ?? null,
+      _address: body.address ?? null,
+      _allow_guests: body.allow_guests ?? true,
+    },
+  );
+
+  if (rpcErr || !result) {
+    // Never leak internal PostgreSQL errors or credentials to the client.
+    console.error("create_association_club_event_atomic failed:", rpcErr?.message);
+    return json({ error: "Failed to create association event" }, 500);
+  }
+
+  const payload = result as {
+    parent_event_id: string;
+    child_event_ids: string[];
+    invited_clubs: number;
   };
-
-  // 1. Parent event lives on the association's own clubs row.
-  const { data: parent, error: parentErr } = await supabase
-    .from("events")
-    .insert({ ...eventBase, club_id: body.association_id })
-    .select("id")
-    .single();
-  if (parentErr || !parent) return json({ error: parentErr?.message ?? "parent insert failed" }, 500);
-
-  // 2. Fan out one child event per invited club.
-  const childRows = invitedClubIds.map((clubId) => ({
-    ...eventBase,
-    club_id: clubId,
-    association_event_id: parent.id,
-  }));
-  const { error: childErr, data: children } = await supabase
-    .from("events")
-    .insert(childRows)
-    .select("id, club_id");
-  if (childErr) return json({ error: childErr.message, parent_event_id: parent.id }, 500);
 
   return json({
     ok: true,
-    parent_event_id: parent.id,
-    invited_clubs: invitedClubIds.length,
-    child_event_ids: (children ?? []).map((c) => c.id),
+    parent_event_id: payload.parent_event_id,
+    invited_clubs: payload.invited_clubs,
+    child_event_ids: payload.child_event_ids ?? [],
   });
 });
+

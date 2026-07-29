@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SwipeableDropdownContent } from "@/components/ui/swipeable-dropdown-content";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useLogoAccentColor } from "@/hooks/useLogoAccentColor";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -427,20 +428,8 @@ export function AppHeader() {
     return () => observer.disconnect();
   }, [resolvedTheme]);
 
-  // Check if user is app admin
-  const { data: isAppAdmin } = useQuery({
-    queryKey: ["is-app-admin", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      return !!data;
-    },
-    enabled: !!user?.id,
-  });
+  // Check if user is app admin (shared authoritative hook)
+  const { isAppAdmin } = useIsAppAdmin();
 
   // Check if user has any vault-eligible club role (club_admin, league_admin, committee_member)
   const { data: hasVaultRole } = useQuery({

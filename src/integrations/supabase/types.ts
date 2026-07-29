@@ -2070,6 +2070,8 @@ export type Database = {
           is_pro: boolean
           is_pro_football: boolean
           is_trial: boolean
+          last_stripe_event_at: string | null
+          last_stripe_event_id: string | null
           member_payments_enabled: boolean
           member_subscription_amount: number | null
           plan: Database["public"]["Enums"]["club_subscription_plan"]
@@ -2099,6 +2101,8 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean
+          last_stripe_event_at?: string | null
+          last_stripe_event_id?: string | null
           member_payments_enabled?: boolean
           member_subscription_amount?: number | null
           plan?: Database["public"]["Enums"]["club_subscription_plan"]
@@ -2128,6 +2132,8 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean
+          last_stripe_event_at?: string | null
+          last_stripe_event_id?: string | null
           member_payments_enabled?: boolean
           member_subscription_amount?: number | null
           plan?: Database["public"]["Enums"]["club_subscription_plan"]
@@ -8490,6 +8496,108 @@ export type Database = {
           },
         ]
       }
+      stripe_notification_outbox: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          purpose: string
+          stripe_event_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          purpose: string
+          stripe_event_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          purpose?: string
+          stripe_event_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      stripe_subscription_event_state: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          last_event_at: string
+          last_event_id: string
+          last_event_type: string
+          stripe_subscription_id: string
+          subscription_state: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          last_event_at: string
+          last_event_id: string
+          last_event_type: string
+          stripe_subscription_id: string
+          subscription_state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          last_event_at?: string
+          last_event_id?: string
+          last_event_type?: string
+          stripe_subscription_id?: string
+          subscription_state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stripe_webhook_events: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          event_type: string
+          last_error: string | null
+          status: string
+          stripe_event_id: string
+          stripe_object_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          event_type: string
+          last_error?: string | null
+          status?: string
+          stripe_event_id: string
+          stripe_object_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          event_type?: string
+          last_error?: string | null
+          status?: string
+          stripe_event_id?: string
+          stripe_object_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       system_messages: {
         Row: {
           created_at: string
@@ -9021,6 +9129,8 @@ export type Database = {
           is_pro: boolean
           is_pro_football: boolean
           is_trial: boolean | null
+          last_stripe_event_at: string | null
+          last_stripe_event_id: string | null
           max_spread_minutes: number
           minutes_per_half: number | null
           pitch_notify_coach: boolean
@@ -9030,6 +9140,7 @@ export type Database = {
           rotation_speed: number | null
           show_lineup_picker: boolean
           show_match_header: boolean | null
+          stripe_subscription_id: string | null
           team_id: string
           team_size: number | null
           trial_ends_at: string | null
@@ -9055,6 +9166,8 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean | null
+          last_stripe_event_at?: string | null
+          last_stripe_event_id?: string | null
           max_spread_minutes?: number
           minutes_per_half?: number | null
           pitch_notify_coach?: boolean
@@ -9064,6 +9177,7 @@ export type Database = {
           rotation_speed?: number | null
           show_lineup_picker?: boolean
           show_match_header?: boolean | null
+          stripe_subscription_id?: string | null
           team_id: string
           team_size?: number | null
           trial_ends_at?: string | null
@@ -9089,6 +9203,8 @@ export type Database = {
           is_pro?: boolean
           is_pro_football?: boolean
           is_trial?: boolean | null
+          last_stripe_event_at?: string | null
+          last_stripe_event_id?: string | null
           max_spread_minutes?: number
           minutes_per_half?: number | null
           pitch_notify_coach?: boolean
@@ -9098,6 +9214,7 @@ export type Database = {
           rotation_speed?: number | null
           show_lineup_picker?: boolean
           show_match_header?: boolean | null
+          stripe_subscription_id?: string | null
           team_id?: string
           team_size?: number | null
           trial_ends_at?: string | null
@@ -9675,6 +9792,57 @@ export type Database = {
           },
         ]
       }
+      vault_deletion_jobs: {
+        Row: {
+          attempts: number
+          bucket: string | null
+          club_id: string | null
+          created_at: string
+          deletion_type: string
+          id: string
+          kind: string
+          last_error_code: string | null
+          object_path: string | null
+          record_id: string
+          requested_by: string
+          status: string
+          team_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          bucket?: string | null
+          club_id?: string | null
+          created_at?: string
+          deletion_type?: string
+          id?: string
+          kind: string
+          last_error_code?: string | null
+          object_path?: string | null
+          record_id: string
+          requested_by: string
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          bucket?: string | null
+          club_id?: string | null
+          created_at?: string
+          deletion_type?: string
+          id?: string
+          kind?: string
+          last_error_code?: string | null
+          object_path?: string | null
+          record_id?: string
+          requested_by?: string
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       vault_drive_links: {
         Row: {
           club_id: string
@@ -9786,6 +9954,8 @@ export type Database = {
           is_external_link: boolean | null
           mini_league_id: string | null
           name: string
+          storage_bucket: string | null
+          storage_path: string | null
           team_id: string | null
           updated_at: string
           uploaded_by: string | null
@@ -9805,6 +9975,8 @@ export type Database = {
           is_external_link?: boolean | null
           mini_league_id?: string | null
           name: string
+          storage_bucket?: string | null
+          storage_path?: string | null
           team_id?: string | null
           updated_at?: string
           uploaded_by?: string | null
@@ -9824,6 +9996,8 @@ export type Database = {
           is_external_link?: boolean | null
           mini_league_id?: string | null
           name?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
           team_id?: string | null
           updated_at?: string
           uploaded_by?: string | null
@@ -9946,6 +10120,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vault_storage_reservations: {
+        Row: {
+          bytes: number
+          club_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          bytes: number
+          club_id: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          bytes?: number
+          club_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       web_vitals: {
         Row: {
@@ -10144,6 +10348,28 @@ export type Database = {
         Args: { p_club_ids?: string[] }
         Returns: Json
       }
+      apply_stripe_storage_addon: {
+        Args: {
+          p_club_id: string
+          p_event_id: string
+          p_storage_gb: number
+          p_user_id: string
+        }
+        Returns: string
+      }
+      apply_stripe_subscription_transition: {
+        Args: {
+          p_entity_id?: string
+          p_entity_type?: string
+          p_event_at: string
+          p_event_id: string
+          p_event_type: string
+          p_params?: Json
+          p_subscription_id: string
+          p_transition: string
+        }
+        Returns: Json
+      }
       apply_verified_iap_purchase: { Args: { p_facts: Json }; Returns: Json }
       approve_chat_group_join_request: {
         Args: { _request_id: string }
@@ -10154,6 +10380,45 @@ export type Database = {
         Returns: undefined
       }
       archive_season: { Args: { _season_id: string }; Returns: undefined }
+      authorize_storage_objects: {
+        Args: { _items: Json; _user_id: string }
+        Returns: {
+          allowed: boolean
+          bucket: string
+          path: string
+        }[]
+      }
+      authorize_vault_deletion: {
+        Args: { _caller_id: string; _kind: string; _record_id: string }
+        Returns: {
+          authorized: boolean
+          created_at: string
+          effective_club_id: string
+          file_size: number
+          file_url: string
+          image_url: string
+          mini_league_id: string
+          owner_id: string
+          reason: string
+          storage_bucket: string
+          storage_path: string
+          team_id: string
+        }[]
+      }
+      begin_vault_deletion: {
+        Args: {
+          _bucket: string
+          _caller_id: string
+          _deletion_type?: string
+          _kind: string
+          _object_path: string
+          _record_id: string
+        }
+        Returns: {
+          job_id: string
+          status: string
+        }[]
+      }
       can_access_chat: {
         Args: { _chat_id: string; _chat_type: string }
         Returns: boolean
@@ -10244,6 +10509,10 @@ export type Database = {
           _source_season_id: string
           _target_season_id: string
         }
+        Returns: number
+      }
+      carry_over_players_to_teams: {
+        Args: { _assignments: Json; _target_season_id: string }
         Returns: number
       }
       check_password_reset_rate_limit: {
@@ -10367,6 +10636,15 @@ export type Database = {
           team_id: string
         }[]
       }
+      claim_stripe_webhook_event: {
+        Args: {
+          p_event_id: string
+          p_event_type: string
+          p_object_id?: string
+          p_stale_after?: string
+        }
+        Returns: string
+      }
       cleanup_expired_chat_summaries: { Args: never; Returns: number }
       cleanup_fcm_token_for_user: {
         Args: { p_token: string; p_user_id: string }
@@ -10447,6 +10725,10 @@ export type Database = {
           team_msgs: number
         }[]
       }
+      complete_stripe_webhook_event: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
       confirm_eoi_placement: {
         Args: { _submission_id: string }
         Returns: {
@@ -10493,6 +10775,22 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_association_club_event_atomic: {
+        Args: {
+          _address: string
+          _allow_guests: boolean
+          _association_id: string
+          _caller_id: string
+          _club_ids: string[]
+          _description: string
+          _end_time: string
+          _event_date: string
+          _location_name: string
+          _start_time: string
+          _title: string
+        }
+        Returns: Json
+      }
       create_child_for_parent_on_team: {
         Args: {
           p_name: string
@@ -10535,9 +10833,28 @@ export type Database = {
         }
         Returns: string
       }
+      create_team_with_creator_admin: {
+        Args: {
+          p_club_id: string
+          p_default_rsvp_audience?: string
+          p_level_age?: string
+          p_name: string
+        }
+        Returns: string
+      }
       decrypt_sensitive_data: {
         Args: { encrypted_data: string }
         Returns: string
+      }
+      delete_media_photo: {
+        Args: { _mode: string; _photo_id: string }
+        Returns: {
+          already_deleted: boolean
+          mode: string
+          photo_id: string
+          vault_file_id: string
+          vault_updated: boolean
+        }[]
       }
       deny_role_request: { Args: { p_request_id: string }; Returns: undefined }
       derive_notification_club_id: {
@@ -10628,6 +10945,15 @@ export type Database = {
         Args: { message_text: string }
         Returns: string[]
       }
+      fail_stripe_webhook_event: {
+        Args: { p_error?: string; p_event_id: string }
+        Returns: undefined
+      }
+      fail_vault_deletion: {
+        Args: { _error_code: string; _job_id: string }
+        Returns: string
+      }
+      finalize_vault_deletion: { Args: { _job_id: string }; Returns: string }
       format_message_preview: {
         Args: { _has_image?: boolean; _text: string }
         Returns: string
@@ -11584,7 +11910,32 @@ export type Database = {
       }
       require_app_admin: { Args: never; Returns: boolean }
       require_club_admin: { Args: { p_club_id: string }; Returns: boolean }
+      reserve_vault_storage: {
+        Args: { _bytes: number; _club_id: string }
+        Returns: {
+          limit_bytes: number
+          reservation_id: string
+          used_bytes: number
+        }[]
+      }
       resolve_invite_short_code: { Args: { _code: string }; Returns: string }
+      resolve_vault_record_scope: {
+        Args: { _kind: string; _record_id: string }
+        Returns: {
+          created_at: string
+          effective_club_id: string
+          file_size: number
+          file_url: string
+          found: boolean
+          image_url: string
+          mini_league_id: string
+          owner_id: string
+          reason: string
+          storage_bucket: string
+          storage_path: string
+          team_id: string
+        }[]
+      }
       search_competition_coordinator_candidates: {
         Args: { _competition_id: string; _query?: string }
         Returns: {
@@ -11711,12 +12062,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      settle_vault_storage: {
+        Args: { _committed: boolean; _reservation_id: string }
+        Returns: string
+      }
       shares_team_or_club_with: {
         Args: { _profile_id: string; _viewer_id: string }
         Returns: boolean
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      stripe_event_is_stale: {
+        Args: { p_event_at: string; p_subscription_id: string }
+        Returns: boolean
+      }
       suggest_eoi_teams: {
         Args: { _season_id: string }
         Returns: {

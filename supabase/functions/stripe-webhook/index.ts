@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14.21.0";
+import { verifyStripeSignature } from "../_shared/stripeSignature.ts";
+
 
 // Auto-cancel + refund a Stripe subscription that has no matching DB row.
 // This is the safety net that guarantees a club never gets charged again
@@ -77,55 +79,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
 };
 
-// HMAC-SHA256 signature verification for Stripe webhooks
-async function verifyStripeSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): Promise<boolean> {
-  const parts = signature.split(",");
-  let timestamp: string | null = null;
-  let v1Signature: string | null = null;
+/** Best-effort extraction of the Stripe object id for support diagnostics. */
+function stripeObjectId(event: any): string | null {
+  const obj = event?.data?.object;
+  return typeof obj?.id === "string" ? obj.id : null;
+}
 
-  for (const part of parts) {
-    const [key, value] = part.split("=");
-    if (key === "t") timestamp = value;
-    if (key === "v1") v1Signature = value;
-  }
-
-  if (!timestamp || !v1Signature) {
-    console.error("Missing timestamp or signature in stripe-signature header");
-    return false;
-  }
-
-  // Verify timestamp is within tolerance (5 minutes)
-  const timestampAge = Math.floor(Date.now() / 1000) - parseInt(timestamp);
-  if (timestampAge > 300) {
-    console.error("Webhook timestamp too old:", timestampAge, "seconds");
-    return false;
-  }
-
-  const signedPayload = `${timestamp}.${payload}`;
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signatureBytes = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(signedPayload)
-  );
-
-  const expectedSignature = Array.from(new Uint8Array(signatureBytes))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  return expectedSignature === v1Signature;
+/** Stripe event creation time (seconds) → ISO string, for out-of-order safety. */
+function stripeEventAt(event: any): string | null {
+  const created = event?.created;
+  if (typeof created !== "number" || !Number.isFinite(created)) return null;
+  return new Date(created * 1000).toISOString();
 }
 
 serve(async (req) => {
@@ -134,58 +98,124 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // ---------------------------------------------------------------------
+  // SECURITY GATE — everything below must happen BEFORE we create a
+  // service-role Supabase client or touch the database in any way.
+  // ---------------------------------------------------------------------
+  const signature = req.headers.get("stripe-signature");
+  const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+  const body = await req.text();
+
+  if (!webhookSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET not configured — rejecting all webhook requests");
+    return new Response(
+      JSON.stringify({ error: "Webhook not configured" }),
+      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  if (!signature) {
+    console.error("Missing stripe-signature header - rejecting request");
+    return new Response(
+      JSON.stringify({ error: "Missing stripe-signature header" }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const verification = await verifyStripeSignature(body, signature, webhookSecret);
+  if (!verification.valid) {
+    // Reason is a fixed enum — never contains the secret, signature or payload.
+    console.error("Rejecting Stripe webhook:", verification.reason);
+    return new Response(
+      JSON.stringify({ error: "Invalid webhook signature" }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Signed, but possibly malformed JSON.
+  let event: any;
   try {
-    const signature = req.headers.get("stripe-signature");
-    const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-    const body = await req.text();
+    event = JSON.parse(body);
+  } catch {
+    console.error("Signed Stripe webhook body was not valid JSON");
+    return new Response(
+      JSON.stringify({ error: "Invalid payload" }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 
-    // SECURITY: signature verification is mandatory.
-    if (!webhookSecret) {
-      console.error("STRIPE_WEBHOOK_SECRET not configured — rejecting all webhook requests");
-      return new Response(
-        JSON.stringify({ error: "Webhook not configured" }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    if (!signature) {
-      console.error("Missing stripe-signature header - rejecting request");
-      return new Response(
-        JSON.stringify({ error: "Missing stripe-signature header" }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    const isValid = await verifyStripeSignature(body, signature, webhookSecret);
-    if (!isValid) {
-      console.error("Invalid webhook signature - rejecting request");
-      return new Response(
-        JSON.stringify({ error: "Invalid webhook signature" }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    console.log("Stripe webhook signature verified successfully");
+  const eventId: string | null = typeof event?.id === "string" ? event.id : null;
+  const eventType: string = typeof event?.type === "string" ? event.type : "unknown";
+  console.log('Received Stripe webhook event:', eventType);
 
-    const event = JSON.parse(body);
-    console.log('Received Stripe webhook event:', event.type);
+  // Create Supabase client with service role (only after verification).
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
 
-    // Create Supabase client with service role
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  // ---------------------------------------------------------------------
+  // IDEMPOTENCY — claim the event before any business mutation.
+  // ---------------------------------------------------------------------
+  let claimed = false;
+  if (eventId) {
+    const { data: claimResult, error: claimError } = await supabase.rpc(
+      'claim_stripe_webhook_event',
+      {
+        p_event_id: eventId,
+        p_event_type: eventType,
+        p_object_id: stripeObjectId(event),
+      },
     );
 
+    if (claimError) {
+      console.error('Failed to claim Stripe webhook event — asking Stripe to retry');
+      return new Response(
+        JSON.stringify({ error: 'Webhook claim failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (claimResult === 'duplicate_completed') {
+      // Already fully processed: acknowledge without repeating any work.
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (claimResult === 'in_progress') {
+      // Another processor holds the claim. Do not double-apply; let Stripe
+      // retry later so the event is never silently dropped.
+      return new Response(
+        JSON.stringify({ error: 'Event already being processed' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    claimed = true;
+  }
+
+  const eventAt = stripeEventAt(event);
+  // True when a transactional RPC already marked the ledger completed inside
+  // the same transaction as the business mutation.
+  let ledgerCompletedInTransaction = false;
+
+  try {
     // Handle different event types
-    switch (event.type) {
+    switch (eventType) {
       case 'checkout.session.completed': {
         const session = event.data.object;
         const metadata = session.metadata || {};
         
         // Check if this is a storage addon purchase
         if (metadata.type === 'storage_addon') {
-          await handleStorageAddonPurchase(supabase, session, metadata);
+          // Atomic: increment + notification + ledger completion in one txn.
+          await handleStorageAddonPurchase(supabase, session, metadata, eventId);
+          ledgerCompletedInTransaction = Boolean(eventId);
         } else if (metadata.type === 'member_subscription') {
           await handleMemberSubscriptionPayment(supabase, metadata);
         } else if (session.mode === 'subscription') {
-          await handleSubscriptionCreated(supabase, session, metadata);
+          const outcome = await handleSubscriptionCreated(supabase, session, metadata, eventId, eventAt);
+          ledgerCompletedInTransaction = outcome.ledgerCompleted;
         } else {
           // Handle one-time event payments (existing logic)
           await handleEventPayment(supabase, metadata);
@@ -197,7 +227,8 @@ serve(async (req) => {
         // Handle subscription renewal
         const invoice = event.data.object;
         if (invoice.subscription) {
-          await handleSubscriptionRenewal(supabase, invoice);
+          const outcome = await handleSubscriptionRenewal(supabase, invoice, eventId, eventAt);
+          ledgerCompletedInTransaction = outcome.ledgerCompleted;
         }
         break;
       }
@@ -214,27 +245,55 @@ serve(async (req) => {
       case 'customer.subscription.deleted': {
         // Handle subscription cancellation
         const subscription = event.data.object;
-        await handleSubscriptionCancelled(supabase, subscription);
+        const outcome = await handleSubscriptionCancelled(supabase, subscription, eventId, eventAt);
+        ledgerCompletedInTransaction = outcome.ledgerCompleted;
         break;
       }
 
       case 'customer.subscription.updated': {
         // Handle subscription updates (e.g., plan changes)
         const subscription = event.data.object;
-        await handleSubscriptionUpdated(supabase, subscription);
+        const outcome = await handleSubscriptionUpdated(supabase, subscription, eventId, eventAt);
+        ledgerCompletedInTransaction = outcome.ledgerCompleted;
         break;
       }
 
       default:
-        console.log('Unhandled event type:', event.type);
+        // Unknown but validly signed events are acknowledged with no mutations.
+        console.log('Unhandled event type:', eventType);
     }
+
+    if (claimed && !ledgerCompletedInTransaction) {
+      // The ledger MUST be committed before we acknowledge. If it is not, a
+      // Stripe retry would re-run the handler against a non-idempotent path,
+      // so refuse to acknowledge and let Stripe retry instead.
+      const { error: completeError } = await supabase.rpc('complete_stripe_webhook_event', {
+        p_event_id: eventId,
+      });
+      if (completeError) {
+        console.error('Failed to complete Stripe webhook ledger entry for', eventType);
+        throw new RetriableWebhookError('ledger_completion_failed');
+      }
+    }
+
 
     return new Response(JSON.stringify({ received: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error in stripe-webhook:', error);
-    // Never expose internal error details in webhook responses
+    // Never expose internal error details, credentials or Stripe secrets.
+    console.error('Error in stripe-webhook while processing', eventType);
+    if (claimed) {
+      // Mark failed so a Stripe retry can safely re-claim and re-run.
+      try {
+        await supabase.rpc('fail_stripe_webhook_event', {
+          p_event_id: eventId,
+          p_error: String((error as any)?.message ?? 'processing error').slice(0, 200),
+        });
+      } catch {
+        // Ledger update failure must not change the response contract.
+      }
+    }
     return new Response(
       JSON.stringify({ error: 'Webhook processing failed' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff' } }
@@ -242,13 +301,109 @@ serve(async (req) => {
   }
 });
 
-async function handleSubscriptionCreated(supabase: any, session: any, metadata: any) {
+
+/**
+ * What a handler did with the webhook ledger. When a transition ran inside the
+ * transactional RPC the ledger was already completed in that same transaction,
+ * so the entry point must not complete it again.
+ */
+interface HandlerOutcome {
+  ledgerCompleted: boolean;
+}
+
+/** Raised when the event must not be acknowledged — Stripe should retry. */
+class RetriableWebhookError extends Error {
+  constructor(code: string) {
+    super(code);
+    this.name = 'RetriableWebhookError';
+  }
+}
+
+interface TransitionArgs {
+  eventId: string | null;
+  eventType: string;
+  eventAt: string | null;
+  subscriptionId: string | null | undefined;
+  transition: 'activate' | 'renew' | 'update' | 'cancel';
+  entityType?: 'club' | 'team' | null;
+  entityId?: string | null;
+  params?: Record<string, unknown>;
+}
+
+interface TransitionOutcome {
+  result: 'applied' | 'stale' | 'already_applied' | 'skipped';
+  ledgerCompleted: boolean;
+  entityType?: string | null;
+  entityId?: string | null;
+  ownerUserId?: string | null;
+  entityName?: string | null;
+}
+
+/**
+ * Single atomic entitlement transition.
+ *
+ * The RPC locks the durable ordering record for the Stripe subscription,
+ * rejects stale/duplicate events, applies the entitlement change, updates the
+ * watermark, creates the uniquely-keyed notification and completes the webhook
+ * ledger — all in one transaction. Any RPC failure is fail-closed: we throw so
+ * the webhook returns non-2xx and Stripe retries.
+ */
+async function applySubscriptionTransition(
+  supabase: any,
+  args: TransitionArgs,
+): Promise<TransitionOutcome> {
+  if (!args.subscriptionId || !args.eventId || !args.eventAt) {
+    // Without a stable subscription id, event id and event timestamp we cannot
+    // establish ordering. Never mutate entitlement state blind.
+    throw new RetriableWebhookError('subscription_transition_ordering_unavailable');
+  }
+
+  const { data, error } = await supabase.rpc('apply_stripe_subscription_transition', {
+    p_event_id: args.eventId,
+    p_event_type: args.eventType,
+    p_event_at: args.eventAt,
+    p_subscription_id: args.subscriptionId,
+    p_transition: args.transition,
+    p_entity_type: args.entityType ?? null,
+    p_entity_id: args.entityId ?? null,
+    p_params: args.params ?? {},
+  });
+
+  if (error) {
+    // Fail closed — no entitlement mutation, no acknowledgement.
+    console.error('Stripe subscription transition failed:', args.transition);
+    throw new RetriableWebhookError('subscription_transition_failed');
+  }
+
+  const result = (data?.result ?? 'applied') as TransitionOutcome['result'];
+  if (result === 'stale') {
+    console.log('Skipping out-of-order', args.transition, 'for subscription');
+  }
+
+  return {
+    result,
+    // Every RPC return path (applied / stale / already_applied) completes the
+    // ledger inside the same transaction.
+    ledgerCompleted: true,
+    entityType: data?.entity_type ?? null,
+    entityId: data?.entity_id ?? null,
+    ownerUserId: data?.owner_user_id ?? null,
+    entityName: data?.entity_name ?? null,
+  };
+}
+
+async function handleSubscriptionCreated(
+  supabase: any,
+  session: any,
+  metadata: any,
+  stripeEventId: string | null = null,
+  eventAt: string | null = null,
+): Promise<HandlerOutcome> {
   const subscriptionType = metadata.subscription_type;
   const entityId = metadata.entity_id;
   const tier = metadata.tier;
   const plan = metadata.plan;
-  const teamLimit = metadata.team_limit === 'null' ? null : parseInt(metadata.team_limit);
-  const userId = metadata.user_id;
+  const teamLimit = metadata.team_limit === 'null' ? null : metadata.team_limit;
   const isAnnual = metadata.is_annual === 'true';
   const stripeSubscriptionId = session.subscription;
 
@@ -256,88 +411,48 @@ async function handleSubscriptionCreated(supabase: any, session: any, metadata: 
 
   // Calculate expiry date
   const now = new Date();
-  const expiresAt = isAnnual 
+  const expiresAt = isAnnual
     ? new Date(now.setFullYear(now.getFullYear() + 1))
     : new Date(now.setMonth(now.getMonth() + 1));
 
-  if (subscriptionType === 'team') {
-    // Update team subscription table
-    const { error: subError } = await supabase
-      .from('team_subscriptions')
-      .upsert({
-        team_id: entityId,
-        is_pro: true,
-        is_pro_football: tier === 'pro_football',
-        stripe_subscription_id: stripeSubscriptionId,
-        activated_at: new Date().toISOString(),
-        expires_at: expiresAt.toISOString(),
-        is_trial: metadata.with_trial === 'true',
-        trial_ends_at: metadata.with_trial === 'true' ? expiresAt.toISOString() : null,
-      }, { onConflict: 'team_id' });
+  const withTrial = metadata.with_trial === 'true';
 
-    if (subError) {
-      console.error('Error updating team subscription:', subError);
-      throw subError;
-    }
+  // Activation is ordered against the durable watermark: an activation that
+  // predates a newer update/cancellation is skipped without touching state.
+  const outcome = await applySubscriptionTransition(supabase, {
+    eventId: stripeEventId,
+    eventType: 'checkout.session.completed',
+    eventAt,
+    subscriptionId: stripeSubscriptionId,
+    transition: 'activate',
+    entityType: subscriptionType === 'team' ? 'team' : 'club',
+    entityId,
+    params: {
+      expires_at: expiresAt.toISOString(),
+      is_pro_football: tier === 'pro_football',
+      plan: plan ?? null,
+      team_limit: teamLimit ?? null,
+      is_trial: withTrial,
+      trial_ends_at: withTrial ? expiresAt.toISOString() : null,
+    },
+  });
 
-    // Also update the teams table directly for backward compatibility
-    await supabase
-      .from('teams')
-      .update({
-        is_pro: true,
-        pro_expires_at: expiresAt.toISOString(),
-        stripe_subscription_id: stripeSubscriptionId,
-      })
-      .eq('id', entityId);
-
-    // Notify user
-    await supabase.from('notifications').insert({
-      user_id: userId,
-      type: 'subscription_activated',
-      message: `Your ${tier === 'pro' ? 'Pro' : 'Pro Football'} subscription has been activated!`,
-      related_id: entityId,
-    });
-
-    console.log('Team subscription activated:', entityId);
-  } else {
-    // Update club subscription
-    const { error: subError } = await supabase
-      .from('club_subscriptions')
-      .upsert({
-        club_id: entityId,
-        is_pro: true,
-        is_pro_football: tier === 'pro_football',
-        plan: plan,
-        team_limit: teamLimit,
-        stripe_subscription_id: stripeSubscriptionId,
-        activated_at: new Date().toISOString(),
-        expires_at: expiresAt.toISOString(),
-      }, { onConflict: 'club_id' });
-
-    if (subError) {
-      console.error('Error updating club subscription:', subError);
-      throw subError;
-    }
-
-    // Update club is_pro flag
-    await supabase
-      .from('clubs')
-      .update({ is_pro: true })
-      .eq('id', entityId);
-
-    // Notify user
-    await supabase.from('notifications').insert({
-      user_id: userId,
-      type: 'subscription_activated',
-      message: `Your Club ${tier === 'pro' ? 'Pro' : 'Pro Football'} subscription has been activated!`,
-      related_id: entityId,
-    });
-
-    console.log('Club subscription activated:', entityId);
+  if (outcome.result === 'applied') {
+    console.log('Subscription activated:', subscriptionType, entityId);
   }
+
+  return { ledgerCompleted: outcome.ledgerCompleted };
 }
 
-async function handleSubscriptionRenewal(supabase: any, invoice: any) {
+
+
+
+async function handleSubscriptionRenewal(
+  supabase: any,
+  invoice: any,
+  stripeEventId: string | null,
+  eventAt: string | null,
+): Promise<HandlerOutcome> {
   const subscriptionId = invoice.subscription;
   console.log('Processing subscription renewal for:', subscriptionId);
 
@@ -354,23 +469,30 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
     .maybeSingle();
 
   if (teamSub) {
-    await supabase
-      .from('team_subscriptions')
-      .update({ expires_at: periodEnd.toISOString(), is_trial: false, trial_ends_at: null })
-      .eq('stripe_subscription_id', subscriptionId);
-    
-    // Also update teams table
-    await supabase
-      .from('teams')
-      .update({ pro_expires_at: periodEnd.toISOString() })
-      .eq('id', teamSub.team_id);
-    
+    const outcome = await applySubscriptionTransition(supabase, {
+      eventId: stripeEventId,
+      eventType: 'invoice.paid',
+      eventAt,
+      subscriptionId,
+      transition: 'renew',
+      entityType: 'team',
+      entityId: teamSub.team_id,
+      params: {
+        expires_at: periodEnd.toISOString(),
+        is_pro_football: Boolean(teamSub.is_pro_football),
+      },
+    });
+
+    if (outcome.result !== 'applied') {
+      return { ledgerCompleted: outcome.ledgerCompleted };
+    }
+
     console.log('Team subscription renewed:', teamSub.team_id);
 
     // Send email notification to team admins
     const tierName = teamSub.is_pro_football ? 'Pro Football' : 'Pro';
     const teamName = teamSub.teams?.name || 'Your Team';
-    
+
     // Get team admins
     const { data: teamAdmins } = await supabase
       .from('user_roles')
@@ -386,7 +508,7 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
       for (const admin of teamAdmins) {
         const email = emails?.find((e: any) => e.id === admin.user_id)?.email;
         const profile = profiles?.find((p: any) => p.id === admin.user_id);
-        
+
         if (email) {
           try {
             await supabase.functions.invoke('send-email', {
@@ -413,16 +535,7 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
       }
     }
 
-    // Create notification
-    if (teamSub.teams?.created_by) {
-      await supabase.from('notifications').insert({
-        user_id: teamSub.teams.created_by,
-        type: 'subscription_renewed',
-        message: `Your ${tierName} subscription for ${teamName} has been renewed!`,
-        related_id: teamSub.team_id,
-      });
-    }
-    return;
+    return { ledgerCompleted: outcome.ledgerCompleted };
   }
 
   // Try to find club subscription
@@ -451,73 +564,78 @@ async function handleSubscriptionRenewal(supabase: any, invoice: any) {
         note: 'Stripe charged a customer for a subscription with no matching club_subscriptions/team_subscriptions row. The webhook auto-cancelled the subscription and attempted a refund. Verify in Stripe.',
       },
     });
-    return;
+    return { ledgerCompleted: false };
   }
 
-  if (clubSub) {
-    await supabase
-      .from('club_subscriptions')
-      .update({ expires_at: periodEnd.toISOString() })
-      .eq('stripe_subscription_id', subscriptionId);
-    console.log('Club subscription renewed:', clubSub.club_id);
+  const outcome = await applySubscriptionTransition(supabase, {
+    eventId: stripeEventId,
+    eventType: 'invoice.paid',
+    eventAt,
+    subscriptionId,
+    transition: 'renew',
+    entityType: 'club',
+    entityId: clubSub.club_id,
+    params: {
+      expires_at: periodEnd.toISOString(),
+      is_pro_football: Boolean(clubSub.is_pro_football),
+    },
+  });
 
-    // Send email notification to club admins
-    const tierName = clubSub.is_pro_football ? 'Pro Football' : 'Pro';
-    const clubName = clubSub.clubs?.name || 'Your Club';
-    
-    // Get club admins
-    const { data: clubAdmins } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('club_id', clubSub.club_id)
-      .eq('role', 'club_admin');
+  if (outcome.result !== 'applied') {
+    return { ledgerCompleted: outcome.ledgerCompleted };
+  }
 
-    if (clubAdmins && clubAdmins.length > 0) {
-      const adminUserIds = clubAdmins.map((a: any) => a.user_id);
-      const { data: emails } = await supabase.rpc('get_user_emails_by_ids', { user_ids: adminUserIds });
-      const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', adminUserIds);
+  console.log('Club subscription renewed:', clubSub.club_id);
 
-      for (const admin of clubAdmins) {
-        const email = emails?.find((e: any) => e.id === admin.user_id)?.email;
-        const profile = profiles?.find((p: any) => p.id === admin.user_id);
-        
-        if (email) {
-          try {
-            await supabase.functions.invoke('send-email', {
-              body: {
-                to: email,
-                subject: `✅ Your ${clubName} subscription has been renewed`,
-                template: 'subscription-renewed',
-                templateData: {
-                  recipientName: profile?.display_name,
-                  entityName: clubName,
-                  entityType: 'club',
-                  tierName,
-                  renewalDate,
-                  nextBillingDate,
-                  manageLink: `https://igniteclubhq.app/club/${clubSub.club_id}/upgrade`,
-                },
+  // Send email notification to club admins
+  const tierName = clubSub.is_pro_football ? 'Pro Football' : 'Pro';
+  const clubName = clubSub.clubs?.name || 'Your Club';
+
+  // Get club admins
+  const { data: clubAdmins } = await supabase
+    .from('user_roles')
+    .select('user_id')
+    .eq('club_id', clubSub.club_id)
+    .eq('role', 'club_admin');
+
+  if (clubAdmins && clubAdmins.length > 0) {
+    const adminUserIds = clubAdmins.map((a: any) => a.user_id);
+    const { data: emails } = await supabase.rpc('get_user_emails_by_ids', { user_ids: adminUserIds });
+    const { data: profiles } = await supabase.from('profiles').select('id, display_name').in('id', adminUserIds);
+
+    for (const admin of clubAdmins) {
+      const email = emails?.find((e: any) => e.id === admin.user_id)?.email;
+      const profile = profiles?.find((p: any) => p.id === admin.user_id);
+
+      if (email) {
+        try {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              to: email,
+              subject: `✅ Your ${clubName} subscription has been renewed`,
+              template: 'subscription-renewed',
+              templateData: {
+                recipientName: profile?.display_name,
+                entityName: clubName,
+                entityType: 'club',
+                tierName,
+                renewalDate,
+                nextBillingDate,
+                manageLink: `https://igniteclubhq.app/club/${clubSub.club_id}/upgrade`,
               },
-            });
-            console.log(`Renewal email sent to club admin: ${email}`);
-          } catch (err) {
-            console.error('Error sending renewal email:', err);
-          }
+            },
+          });
+          console.log(`Renewal email sent to club admin: ${email}`);
+        } catch (err) {
+          console.error('Error sending renewal email:', err);
         }
       }
     }
-
-    // Create notification
-    if (clubSub.clubs?.created_by) {
-      await supabase.from('notifications').insert({
-        user_id: clubSub.clubs.created_by,
-        type: 'subscription_renewed',
-        message: `Your Club ${tierName} subscription for ${clubName} has been renewed!`,
-        related_id: clubSub.club_id,
-      });
-    }
   }
+
+  return { ledgerCompleted: outcome.ledgerCompleted };
 }
+
 
 async function handlePaymentFailed(supabase: any, invoice: any) {
   const subscriptionId = invoice.subscription;
@@ -646,123 +764,97 @@ async function handlePaymentFailed(supabase: any, invoice: any) {
   }
 }
 
-async function handleSubscriptionCancelled(supabase: any, subscription: any) {
-  const subscriptionId = subscription.id;
-  console.log('Processing subscription cancellation for:', subscriptionId);
-
-  // Deactivate team subscription
+/**
+ * Resolve the entity a Stripe subscription id belongs to. Returns nulls when
+ * nothing is addressable (already-cancelled / legacy rows) — the transition
+ * RPC still records a durable watermark in that case.
+ */
+async function resolveSubscriptionEntity(
+  supabase: any,
+  subscriptionId: string,
+): Promise<{ entityType: 'team' | 'club' | null; entityId: string | null }> {
   const { data: teamSub } = await supabase
     .from('team_subscriptions')
-    .update({ 
-      is_pro: false, 
-      is_pro_football: false,
-      stripe_subscription_id: null,
-      is_trial: false,
-      trial_ends_at: null,
-    })
+    .select('team_id')
     .eq('stripe_subscription_id', subscriptionId)
-    .select('team_id, teams(created_by)')
     .maybeSingle();
+  if (teamSub?.team_id) return { entityType: 'team', entityId: teamSub.team_id };
 
-  if (teamSub) {
-    // Also update the teams table directly
-    await supabase
-      .from('teams')
-      .update({
-        is_pro: false,
-        pro_expires_at: null,
-        stripe_subscription_id: null,
-      })
-      .eq('id', teamSub.team_id);
-
-    if (teamSub.teams?.created_by) {
-      await supabase.from('notifications').insert({
-        user_id: teamSub.teams.created_by,
-        type: 'subscription_cancelled',
-        message: 'Your subscription has been cancelled.',
-        related_id: teamSub.team_id,
-      });
-    }
-    return;
-  }
-
-  // Deactivate club subscription
   const { data: clubSub } = await supabase
     .from('club_subscriptions')
-    .delete()
+    .select('club_id')
     .eq('stripe_subscription_id', subscriptionId)
-    .select('club_id, clubs!club_id(created_by)')
     .maybeSingle();
+  if (clubSub?.club_id) return { entityType: 'club', entityId: clubSub.club_id };
 
-  if (clubSub) {
-    // Update club is_pro flag
-    await supabase
-      .from('clubs')
-      .update({ is_pro: false, stripe_subscription_id: null })
-      .eq('id', clubSub.club_id);
-
-    if (clubSub.clubs?.created_by) {
-      await supabase.from('notifications').insert({
-        user_id: clubSub.clubs.created_by,
-        type: 'subscription_cancelled',
-        message: 'Your club subscription has been cancelled.',
-        related_id: clubSub.club_id,
-      });
-    }
-    return;
-  }
-
-  // Legacy fallback: no club_subscriptions row exists, but a club may still
-  // hold this Stripe subscription id in the legacy clubs.stripe_subscription_id
-  // column. Clear it so future audits and cancel paths don't see a stale live
-  // sub id on a free club.
   const { data: legacyClub } = await supabase
     .from('clubs')
-    .update({ is_pro: false, stripe_subscription_id: null })
+    .select('id')
     .eq('stripe_subscription_id', subscriptionId)
-    .select('id, created_by')
     .maybeSingle();
+  if (legacyClub?.id) return { entityType: 'club', entityId: legacyClub.id };
 
-  if (legacyClub) {
-    console.log('Legacy clubs.stripe_subscription_id cleared on cancel:', subscriptionId, 'club:', legacyClub.id);
-    await supabase.from('admin_alerts').insert({
-      alert_type: 'legacy_club_subscription_cleared',
-      details: {
-        club_id: legacyClub.id,
-        stripe_subscription_id: subscriptionId,
-        note: 'Stripe reported this subscription as cancelled. It only lived on the legacy clubs.stripe_subscription_id column (no club_subscriptions row). Field has been cleared.',
-      },
-    });
-    if (legacyClub.created_by) {
-      await supabase.from('notifications').insert({
-        user_id: legacyClub.created_by,
-        type: 'subscription_cancelled',
-        message: 'Your club subscription has been cancelled.',
-        related_id: legacyClub.id,
-      });
-    }
-  }
+  return { entityType: null, entityId: null };
 }
 
-async function handleSubscriptionUpdated(supabase: any, subscription: any) {
-  const subscriptionId = subscription.id;
+async function handleSubscriptionCancelled(
+  supabase: any,
+  subscription: any,
+  stripeEventId: string | null,
+  eventAt: string | null,
+): Promise<HandlerOutcome> {
+  const subscriptionId = subscription?.id;
+  console.log('Processing subscription cancellation for:', subscriptionId);
+
+  const { entityType, entityId } = await resolveSubscriptionEntity(supabase, subscriptionId);
+
+  // Cancellation must ALWAYS write a durable watermark, even when the active
+  // row is deleted or its Stripe id is cleared, so a late activation/renewal
+  // can never restore Pro access.
+  const outcome = await applySubscriptionTransition(supabase, {
+    eventId: stripeEventId,
+    eventType: 'customer.subscription.deleted',
+    eventAt,
+    subscriptionId,
+    transition: 'cancel',
+    entityType,
+    entityId,
+  });
+
+  if (entityType === null && outcome.result === 'applied') {
+    console.log('Cancellation watermark recorded with no addressable entity:', subscriptionId);
+  }
+
+  return { ledgerCompleted: outcome.ledgerCompleted };
+}
+
+async function handleSubscriptionUpdated(
+  supabase: any,
+  subscription: any,
+  stripeEventId: string | null,
+  eventAt: string | null,
+): Promise<HandlerOutcome> {
+  const subscriptionId = subscription?.id;
   console.log('Processing subscription update for:', subscriptionId);
 
-  // Update expiry based on current period end
-  const periodEnd = new Date(subscription.current_period_end * 1000);
+  const periodEnd =
+    typeof subscription?.current_period_end === 'number'
+      ? new Date(subscription.current_period_end * 1000).toISOString()
+      : null;
 
-  // Update team subscription if exists
-  await supabase
-    .from('team_subscriptions')
-    .update({ expires_at: periodEnd.toISOString() })
-    .eq('stripe_subscription_id', subscriptionId);
+  const outcome = await applySubscriptionTransition(supabase, {
+    eventId: stripeEventId,
+    eventType: 'customer.subscription.updated',
+    eventAt,
+    subscriptionId,
+    transition: 'update',
+    params: periodEnd ? { expires_at: periodEnd } : {},
+  });
 
-  // Update club subscription if exists
-  await supabase
-    .from('club_subscriptions')
-    .update({ expires_at: periodEnd.toISOString() })
-    .eq('stripe_subscription_id', subscriptionId);
+  return { ledgerCompleted: outcome.ledgerCompleted };
 }
+
+
 
 async function handleEventPayment(supabase: any, metadata: any) {
   const eventId = metadata.event_id;
@@ -821,7 +913,12 @@ async function handleEventPayment(supabase: any, metadata: any) {
   }
 }
 
-async function handleStorageAddonPurchase(supabase: any, session: any, metadata: any) {
+async function handleStorageAddonPurchase(
+  supabase: any,
+  session: any,
+  metadata: any,
+  stripeEventId: string | null,
+) {
   const clubId = metadata.club_id;
   const storageGb = parseInt(metadata.storage_gb);
   const userId = metadata.user_id;
@@ -833,7 +930,24 @@ async function handleStorageAddonPurchase(supabase: any, session: any, metadata:
     throw new Error('Missing required metadata for storage addon');
   }
 
-  // Get current purchased storage
+  if (stripeEventId) {
+    // Atomic path: storage increment + notification + ledger completion all
+    // succeed or all roll back, so a Stripe retry can never double-increment.
+    const { data, error } = await supabase.rpc('apply_stripe_storage_addon', {
+      p_event_id: stripeEventId,
+      p_club_id: clubId,
+      p_storage_gb: storageGb,
+      p_user_id: userId,
+    });
+    if (error) {
+      console.error('Atomic storage addon application failed');
+      throw new Error('storage_addon_apply_failed');
+    }
+    console.log('Storage addon result:', data, { clubId, storageGb });
+    return;
+  }
+
+  // Legacy fallback (no Stripe event id available).
   const { data: subscription, error: subError } = await supabase
     .from('club_subscriptions')
     .select('storage_purchased_gb')
@@ -858,6 +972,8 @@ async function handleStorageAddonPurchase(supabase: any, session: any, metadata:
     console.error('Error updating storage:', updateError);
     throw updateError;
   }
+
+
 
   // Get club name for notification
   const { data: club } = await supabase

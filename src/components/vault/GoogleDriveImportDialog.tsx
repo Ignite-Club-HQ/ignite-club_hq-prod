@@ -354,7 +354,7 @@ export function GoogleDriveImportDialog({
 
       const importDriveBatch = async (batch: typeof preparedFiles) => {
         const importResponse = await fetch(
-          `https://yabcfiuntwqjwvschnji.supabase.co/functions/v1/google-drive-import?action=import-file`,
+          `${String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')}/functions/v1/google-drive-import?action=import-file`,
           {
             method: 'POST',
             headers: {

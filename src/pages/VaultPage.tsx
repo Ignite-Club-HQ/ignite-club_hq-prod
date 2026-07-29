@@ -46,6 +46,15 @@ import { StoragePurchaseDialog } from "@/components/StoragePurchaseDialog";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import {
+  buildVaultStorageUrl,
+  compensateVaultUpload,
+  reserveVaultStorage,
+  settleVaultStorage,
+} from "@/lib/vaultUpload";
+import { permanentlyDeleteVaultItems } from "@/lib/vaultDelete";
+
+
+import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
@@ -1736,14 +1745,6 @@ export default function VaultPage() {
   // This keeps vault photos separate from the media gallery
   const uploadPhotoMutation = useMutation({
     mutationFn: async (file: File) => {
-      // Check storage limit
-      if (!isAppAdmin && hasProClub) {
-        const newTotal = totalClubStorageUsed + file.size;
-        if (newTotal > PRO_STORAGE_LIMIT) {
-          throw new Error(`Storage limit reached. Delete files or purchase more storage.`);
-        }
-      }
-
       const fileExt = file.name.split(".").pop();
       const timestamp = Date.now();
       const randomSuffix = Math.random().toString(36).substring(7);
@@ -1760,20 +1761,30 @@ export default function VaultPage() {
         storagePath = `unassigned/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       }
 
+      // Reserve quota atomically before any bytes are written.
+      const reservationId = await reserveVaultStorage(
+        "clubId" in currentView ? currentView.clubId ?? null : null,
+        file.size,
+      );
+
+
       const { error: uploadError } = await supabase.storage
         .from("photos")
         .upload(storagePath, file, { cacheControl: "31536000" });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        await settleVaultStorage(reservationId, false);
+        throw uploadError;
+      }
 
-      // Store the Supabase storage URL format (will be converted to signed URL when displayed)
-      const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
-      const storageUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+      const storageUrl = buildVaultStorageUrl(storagePath);
 
       // Insert into vault_files instead of photos table
       // This keeps vault photos private and separate from the media gallery
       const insertData: any = {
         file_url: storageUrl,
+        storage_bucket: "photos",
+        storage_path: storagePath,
         uploaded_by: user!.id,
         name: file.name,
         folder_id: getCurrentFolderId(),
@@ -1792,8 +1803,15 @@ export default function VaultPage() {
       }
 
       const { error: insertError } = await supabase.from("vault_files").insert(insertData);
-      if (insertError) throw insertError;
+      if (insertError) {
+        // Compensate: never leave an orphaned object billed against the club.
+        await compensateVaultUpload(storagePath);
+        await settleVaultStorage(reservationId, false);
+        throw insertError;
+      }
+      await settleVaultStorage(reservationId, true);
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
@@ -1808,14 +1826,6 @@ export default function VaultPage() {
 
   const uploadFileMutation = useMutation({
     mutationFn: async ({ file, customFileName }: { file: File; customFileName?: string }) => {
-      // Check storage limit
-      if (!isAppAdmin && hasProClub) {
-        const newTotal = totalClubStorageUsed + file.size;
-        if (newTotal > PRO_STORAGE_LIMIT) {
-          throw new Error(`Storage limit reached. Delete files or purchase more storage.`);
-        }
-      }
-
       const fileExt = file.name.split(".").pop();
       const timestamp = Date.now();
       const randomSuffix = Math.random().toString(36).substring(7);
@@ -1832,18 +1842,27 @@ export default function VaultPage() {
         storagePath = `unassigned/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
       }
 
+      // Reserve quota atomically before any bytes are written.
+      const reservationId = await reserveVaultStorage(
+        "clubId" in currentView ? currentView.clubId ?? null : null,
+        file.size,
+      );
+
       const { error: uploadError } = await supabase.storage
         .from("photos")
         .upload(storagePath, file, { cacheControl: "31536000" });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        await settleVaultStorage(reservationId, false);
+        throw uploadError;
+      }
 
-      // Store the Supabase storage URL format (will be converted to signed URL when displayed)
-      const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
-      const storageUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+      const storageUrl = buildVaultStorageUrl(storagePath);
 
       const insertData: any = {
         file_url: storageUrl,
+        storage_bucket: "photos",
+        storage_path: storagePath,
         uploaded_by: user!.id,
         name: customFileName || fileName || file.name,
         folder_id: getCurrentFolderId(),
@@ -1861,10 +1880,17 @@ export default function VaultPage() {
       }
 
       const { error: insertError } = await supabase.from("vault_files").insert(insertData);
-      if (insertError) throw insertError;
+      if (insertError) {
+        // Compensate: never leave an orphaned object billed against the club.
+        await compensateVaultUpload(storagePath);
+        await settleVaultStorage(reservationId, false);
+        throw insertError;
+      }
+      await settleVaultStorage(reservationId, true);
 
       // Note: Storage tracking is now per team, handled by the storage breakdown query
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
@@ -2099,15 +2125,15 @@ export default function VaultPage() {
         }
       }
       
-      const response = await supabase.functions.invoke("permanent-delete-photos", {
-        body: {
-          photoIds: photoTableIds,
-          fileIds: [...allPhotoIds, ...allFileIds],
-          deletionType: "permanent",
-        },
+      const result = await permanentlyDeleteVaultItems({
+        photoIds: photoTableIds,
+        fileIds: [...allPhotoIds, ...allFileIds],
       });
-      
-      if (response.error) throw new Error(response.error.message);
+
+      if (result.failed.length > 0) {
+        toast.error(`${result.failed.length} item(s) could not be deleted`);
+      }
+
       
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
@@ -2300,15 +2326,15 @@ export default function VaultPage() {
       const fileItems = itemsToDelete.filter(i => i.type === 'file');
       
       // Use the permanent delete edge function to handle storage cleanup + audit
-      const response = await supabase.functions.invoke("permanent-delete-photos", {
-        body: {
-          photoIds: photoItems.map(p => p.id),
-          fileIds: fileItems.map(f => f.id),
-          deletionType: "permanent",
-        },
+      const result = await permanentlyDeleteVaultItems({
+        photoIds: photoItems.map(p => p.id),
+        fileIds: fileItems.map(f => f.id),
       });
-      
-      if (response.error) throw new Error(response.error.message);
+
+      if (result.failed.length > 0) {
+        toast.error(`${result.failed.length} file(s) could not be deleted`);
+      }
+
       
       // Calculate total freed space
       const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
