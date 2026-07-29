@@ -38,8 +38,9 @@ describe("chat resume watchdog coverage", () => {
     it(`${page} installs the stuck watchdog`, () => {
       const src = read(`../pages/${page}.tsx`);
       expect(src).toMatch(
-        /import \{ useChatStuckWatchdog \} from "@\/lib\/chatStuckWatchdog"/
+        /import \{[^}]*useChatStuckWatchdog[^}]*\} from "@\/lib\/chatStuckWatchdog"/
       );
+
       expect(src).toMatch(/useChatStuckWatchdog\(/);
     });
   }
