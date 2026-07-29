@@ -219,26 +219,25 @@ export function ReturningMembersStep({
             return (
               <div key={teamName} className="space-y-1">
                 <div className="flex items-center gap-2 px-1">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(groupPlayers)}
-                    className="flex items-center gap-2 flex-1 min-w-0 py-1 rounded hover:bg-muted text-left"
-                  >
+                  <div className="flex items-center gap-2 flex-1 min-w-0 py-1 rounded">
                     <Checkbox
                       checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                      className="pointer-events-none"
+                      onCheckedChange={() => toggleGroup(groupPlayers)}
+                      aria-label={`Select all players from ${teamName}`}
                     />
                     <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground truncate">
                       {teamName}
                     </span>
                     <span className="text-xs text-muted-foreground">{groupPlayers.length}</span>
-                  </button>
+                  </div>
+
                   <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <Select
                     value={groupValue}
                     onValueChange={(v) => moveGroup(groupPlayers, v === UNASSIGNED ? null : v)}
                   >
-                    <SelectTrigger className="h-8 w-[150px] text-xs shrink-0">
+                    <SelectTrigger className="h-8 w-[150px] text-xs shrink-0" aria-label={`Move all players from ${teamName} to a new team`}>
+
                       <SelectValue placeholder="Move all to…" />
                     </SelectTrigger>
                     <SelectContent>
@@ -263,7 +262,9 @@ export function ReturningMembersStep({
                         <Checkbox
                           checked={checked}
                           onCheckedChange={() => toggle(p.club_player_id)}
+                          aria-label={`Select ${p.display_name}`}
                         />
+
                         <span className="text-sm flex-1 truncate">{p.display_name}</span>
                         {p.age_years != null && (
                           <Badge variant="outline" className="text-xs h-5 shrink-0">
@@ -279,7 +280,7 @@ export function ReturningMembersStep({
                             setAssignment(p.club_player_id, v === UNASSIGNED ? null : v)
                           }
                         >
-                          <SelectTrigger className="h-8 w-[150px] text-xs shrink-0">
+                          <SelectTrigger className="h-8 w-[150px] text-xs shrink-0" aria-label={`New team for ${p.display_name}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
