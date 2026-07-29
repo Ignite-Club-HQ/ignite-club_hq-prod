@@ -140,6 +140,7 @@ export function installSupabaseAuthRetry() {
 
     let timeoutInit = init;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let registryEntry: InFlightRestGet | null = null;
     if (isRestGet) {
       const controller = new AbortController();
       // If caller already passed a signal, chain it so their abort still works.
@@ -148,18 +149,28 @@ export function installSupabaseAuthRetry() {
         if (callerSignal.aborted) controller.abort();
         else callerSignal.addEventListener("abort", () => controller.abort(), { once: true });
       }
+      // Foreground fast path: a plain timer. Backed up by the wall-clock
+      // registry sweep below for the case where the timer is frozen.
       timeoutId = setTimeout(() => {
         try { controller.abort(); } catch { /* ignore */ }
       }, REST_GET_TIMEOUT_MS);
+      registryEntry = { controller, deadlineAt: Date.now() + REST_GET_TIMEOUT_MS, url };
+      inFlightRestGets.add(registryEntry);
+      ensureSweeper();
       timeoutInit = { ...(init || {}), signal: controller.signal };
     }
+
+    const cleanupRestGet = () => {
+      if (timeoutId !== null) { clearTimeout(timeoutId); timeoutId = null; }
+      if (registryEntry) { inFlightRestGets.delete(registryEntry); registryEntry = null; }
+    };
 
     let response: Response;
     const startedAt = isRestGet ? performance.now() : 0;
     try {
       response = await origFetch(input, timeoutInit);
     } catch (err) {
-      if (timeoutId !== null) clearTimeout(timeoutId);
+      cleanupRestGet();
       if (isRestGet) {
         const aborted = (err as any)?.name === "AbortError";
         maybeLogSlowFetch({ url, durationMs: performance.now() - startedAt, status: null, aborted });
@@ -173,7 +184,7 @@ export function installSupabaseAuthRetry() {
       try { (window as any).__igniteNudgeNetworkCheck?.("supabase-fetch-throw"); } catch { /* noop */ }
       throw err;
     }
-    if (timeoutId !== null) clearTimeout(timeoutId);
+    cleanupRestGet();
     if (isRestGet) {
       maybeLogSlowFetch({ url, durationMs: performance.now() - startedAt, status: response.status, aborted: false });
     }
