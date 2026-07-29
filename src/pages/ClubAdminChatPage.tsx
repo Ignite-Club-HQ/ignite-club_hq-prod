@@ -370,28 +370,85 @@ export default function ClubAdminChatPage() {
 
   });
 
-  // Belt-and-braces: if the first fetch returned zero messages while auth /
-  // RLS context was still settling (notification-tap or inbox cold start),
-  // retry shortly after. Prevents the "blank club admin thread" bug.
-  const emptyRetriedRef = useRef(false);
-  useEffect(() => {
-    if (emptyRetriedRef.current) return;
-    if (!conversationId || !authReady) return;
-    if (messagesLoading) return;
-    if (!messagesData) return;
+  // Bounded automatic recovery. If the thread fetch returns zero messages (or
+  // errors) while auth/RLS/connectivity is still settling after an Android
+  // resume or a notification tap, retry with bounded backoff (400ms / 1.2s /
+  // 3s) instead of the old single 400ms attempt. Stops on the first non-empty
+  // result, on unmount, on conversation change, or when attempts run out.
+  const recoveryAttemptRef = useRef(0);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [recoveryExhausted, setRecoveryExhausted] = useState(false);
+
+  const fetchedCount = useMemo<number | null>(() => {
+    if (!messagesData) return null;
     const list = Array.isArray(messagesData) ? messagesData : (messagesData as any).messages;
-    if (list && list.length === 0) {
-      emptyRetriedRef.current = true;
-      const t = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] });
-      }, 400);
-      return () => clearTimeout(t);
-    }
-  }, [conversationId, authReady, messagesLoading, messagesData, queryClient]);
+    return Array.isArray(list) ? list.length : null;
+  }, [messagesData]);
 
   useEffect(() => {
-    emptyRetriedRef.current = false;
+    recoveryAttemptRef.current = 0;
+    setRecoveryExhausted(false);
+    if (recoveryTimerRef.current) {
+      clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
   }, [conversationId]);
+
+  useEffect(() => {
+    if (!conversationId || !authReady) return;
+    if (messagesFetchStatus === "fetching") return;
+    // Nothing to recover from: real content arrived.
+    if (fetchedCount !== null && fetchedCount > 0) {
+      recoveryAttemptRef.current = 0;
+      setRecoveryExhausted(false);
+      return;
+    }
+    const needsRecovery = messagesIsError || fetchedCount === 0;
+    if (!needsRecovery) return;
+    if (recoveryTimerRef.current) return; // never overlap retry timers
+
+    const delay = nextEmptyRetryDelay(recoveryAttemptRef.current);
+    if (delay === null) {
+      setRecoveryExhausted(true);
+      return;
+    }
+    recoveryAttemptRef.current += 1;
+    recoveryTimerRef.current = setTimeout(() => {
+      recoveryTimerRef.current = null;
+      void refetchMessages();
+    }, delay);
+
+    return () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+    };
+  }, [
+    conversationId,
+    authReady,
+    fetchedCount,
+    messagesIsError,
+    messagesFetchStatus,
+    refetchMessages,
+  ]);
+
+  useEffect(
+    () => () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const handleManualRetry = useCallback(() => {
+    recoveryAttemptRef.current = 0;
+    setRecoveryExhausted(false);
+    void refetchMessages();
+  }, [refetchMessages]);
+
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `club-admin:${conversationId ?? "none"}`;
