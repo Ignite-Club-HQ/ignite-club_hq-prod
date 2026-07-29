@@ -97,18 +97,24 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     }
   };
 
-  // Refetch any query that a mounted component is observing, plus anything
-  // stuck in error / paused / hung-pending state. Built-in
-  // `refetchOnReconnect: "always"` only refires queries with status
-  // `success`; errored/paused queries (offlineFirst + network drop) stay
-  // dead until something explicitly invalidates them, and success queries
-  // whose fetch never resolved (mid-flight during the drop) can sit forever
-  // in `pending/fetching` inside the WebView. On reconnect/resume we
-  // therefore hit BOTH surfaces:
-  //   1. every active (observed) query → refetch — recovers Messages,
-  //      Schedule, Media, reward points, sponsor/ad tile, etc.
-  //   2. every errored/paused/idle-non-success query → invalidate — recovers
-  //      inactive-but-cached queries the next time they mount.
+  // Recovery on reconnect / resume. Two DIFFERENT surfaces, deliberately
+  // kept separate — conflating them is what caused the resume freeze:
+  //
+  //   A. `refetchActive: true` — refetch EVERY actively-observed query.
+  //      ONLY valid after a genuine offline→online transition, where we must
+  //      assume mounted queries hold data fetched while the network was down.
+  //      Expensive: the Inbox alone mounts ~25-30 active queries and Android
+  //      WebView allows ~6 connections per origin, so this is dripped in
+  //      batches, never fired in one tick.
+  //
+  //   B. `refetchActive: false` (DEFAULT) — only revive queries that are
+  //      genuinely broken (error / paused / idle-non-success), plus the
+  //      theme/club keys. This is what a plain app resume gets.
+  //
+  // A resume is NOT a reconnect. Healthy queries still hold valid data, and
+  // blanket-refetching them on every resume saturated the connection pool;
+  // if any slot was held by a zombie socket the rest queued behind it and
+  // the page sat on skeletons until a force-quit.
   let lastRecoveryAt = 0;
   // When the app went to background. Used to decide whether in-flight REST
   // GETs are worth keeping on resume (see LONG_BACKGROUND_MS).
