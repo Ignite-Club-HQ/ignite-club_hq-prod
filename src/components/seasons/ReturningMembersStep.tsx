@@ -261,7 +261,9 @@ export function ReturningMembersStep({
                         <Checkbox
                           checked={checked}
                           onCheckedChange={() => toggle(p.club_player_id)}
+                          aria-label={`Select ${p.display_name}`}
                         />
+
                         <span className="text-sm flex-1 truncate">{p.display_name}</span>
                         {p.age_years != null && (
                           <Badge variant="outline" className="text-xs h-5 shrink-0">
