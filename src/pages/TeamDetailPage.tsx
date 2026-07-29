@@ -996,7 +996,7 @@ export default function TeamDetailPage() {
       )}
 
       {/* Soft-deleted banner */}
-      {(team as any)?.deleted_at && isAdmin && (
+      {(team as any)?.deleted_at && canManageTeam && (
         <Card className="border-destructive/40 bg-destructive/5">
           <CardContent className="p-3 space-y-3">
             <div className="flex items-center gap-3">
