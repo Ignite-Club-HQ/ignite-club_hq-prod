@@ -1955,12 +1955,20 @@ export default function MessagesPage() {
     };
     // Run once on mount so the cached preview is reconciled with the server.
     refreshPreviews();
+    // NATIVE: `reactQueryNativeAdapter` is the single owner of foreground
+    // recovery (it refetches active queries on appStateChange). Running this
+    // six-query invalidation batch as well produced overlapping refresh
+    // storms that saturated the Android WebView main thread — the inbox
+    // rendered but taps on conversation rows did nothing until force-quit.
+    // Web/PWA keeps the visibility refresh since it has no native adapter.
+    if (isNativeRuntime()) return;
     const onVisibility = () => {
       if (document.visibilityState === 'visible') refreshPreviews();
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [user?.id, queryClient]);
+
 
 
 

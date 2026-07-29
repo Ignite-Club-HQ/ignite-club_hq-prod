@@ -349,11 +349,38 @@ export default function ClubAdminChatPage() {
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: "always", // Force refetch on every mount so reactions/messages added while away are picked up (true is a no-op while staleTime is unmet)
     refetchOnWindowFocus: false,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
     placeholderData: (prev: any) => prev,
+
   });
+
+  // Belt-and-braces: if the first fetch returned zero messages while auth /
+  // RLS context was still settling (notification-tap or inbox cold start),
+  // retry shortly after. Prevents the "blank club admin thread" bug.
+  const emptyRetriedRef = useRef(false);
+  useEffect(() => {
+    if (emptyRetriedRef.current) return;
+    if (!conversationId || !authReady) return;
+    if (messagesLoading) return;
+    if (!messagesData) return;
+    const list = Array.isArray(messagesData) ? messagesData : (messagesData as any).messages;
+    if (list && list.length === 0) {
+      emptyRetriedRef.current = true;
+      const t = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] });
+      }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [conversationId, authReady, messagesLoading, messagesData, queryClient]);
+
+  useEffect(() => {
+    emptyRetriedRef.current = false;
+  }, [conversationId]);
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `club-admin:${conversationId ?? "none"}`;
+
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
