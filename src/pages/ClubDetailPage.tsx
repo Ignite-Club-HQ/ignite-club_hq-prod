@@ -337,17 +337,19 @@ export default function ClubDetailPage() {
     queryFn: async () => {
       const teamIds = teams?.map(t => t.id) || [];
       if (teamIds.length === 0) return [];
-      
-      const { data } = await supabase
+
+      const { data, error } = await supabase
         .from("user_roles")
         .select("team_id")
         .eq("user_id", user!.id)
         .in("team_id", teamIds);
-      
-      return [...new Set(data?.map(r => r.team_id) || [])];
+      if (error) throw error;
+
+      return [...new Set((data || []).map(r => r.team_id).filter(Boolean))];
     },
     enabled: !!user && !!teams && teams.length > 0,
   });
+
 
   // Fetch team folders
   const { data: teamFolders = [] } = useQuery({
