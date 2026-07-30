@@ -1957,10 +1957,13 @@ export default function EventDetailPage() {
       }
       return { outcome: "completed" as const };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
-      toast({ title: "Duty completed!" });
+      if (result?.outcome === "completed") {
+        toast({ title: "Duty completed!" });
+      }
     },
+
     onError: (error) => {
       if (error instanceof DutyNotificationPartialError) {
         // The duty IS completed — never roll back or reopen it, and never
