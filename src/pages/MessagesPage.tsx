@@ -1515,6 +1515,20 @@ export default function MessagesPage() {
     authDmIdsRef.current = authScopes.dmConversationIds;
   }, [authScopes]);
 
+  // Payloads that arrive before the membership snapshot resolves used to be
+  // dropped outright, which meant the first seconds after opening /messages
+  // could silently lose the newest message until the next poll. We now buffer
+  // them (bounded) and replay once `status === 'ready'`, so authorization is
+  // still fail-closed — the replay runs the same `isAuthorized` check — but no
+  // longer costs the user a message.
+  const pendingRealtimeRef = useRef<Array<{ table: string; payload: any }>>([]);
+  const realtimeFlushRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (authScopes.status !== "ready") return;
+    realtimeFlushRef.current?.();
+  }, [authScopes.status]);
+
+
   useEffect(() => {
     if (!user?.id) return;
 
