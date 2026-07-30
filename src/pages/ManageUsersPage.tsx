@@ -933,7 +933,7 @@ export default function ManageUsersPage() {
                             <div className="space-y-4 py-4">
                               <div className="space-y-2">
                                 <label className="text-sm font-medium">Role</label>
-                                <Select value={bulkRole || undefined} onValueChange={(v) => {
+                                <Select value={bulkRole} onValueChange={(v) => {
                                   setBulkRole(v as AppRole);
                                   setBulkClubId("");
                                   setBulkTeamId("");
@@ -964,7 +964,7 @@ export default function ManageUsersPage() {
                                   <label className="text-sm font-medium">
                                     Club <span className="text-destructive">*</span>
                                   </label>
-                                  <Select value={bulkClubId || undefined} onValueChange={(v) => {
+                                  <Select value={bulkClubId} onValueChange={(v) => {
                                     setBulkClubId(v);
                                     setBulkTeamId("");
                                   }}>
@@ -987,7 +987,7 @@ export default function ManageUsersPage() {
                                   <label className="text-sm font-medium">
                                     Team <span className="text-destructive">*</span>
                                   </label>
-                                  <Select value={bulkTeamId || undefined} onValueChange={setBulkTeamId}>
+                                  <Select value={bulkTeamId} onValueChange={setBulkTeamId}>
                                     <SelectTrigger className="w-full">
                                       <SelectValue placeholder="Select a team" />
                                     </SelectTrigger>
@@ -1039,11 +1039,11 @@ export default function ManageUsersPage() {
                                     <span className="font-medium">You are about to:</span>
                                   </div>
                                   <div className="pl-7 space-y-2 text-sm">
-                                    <p>
+                                    <div>
                                       Assign <Badge variant="secondary" className="capitalize mx-1">
                                         {bulkRole?.replace('_', ' ')}
                                       </Badge> role to <strong>{selectedUsers.size}</strong> user(s)
-                                    </p>
+                                    </div>
                                     {bulkClubId && (
                                       <p className="text-muted-foreground">
                                         Club: {allClubs?.find(c => c.id === bulkClubId)?.name}
@@ -1176,11 +1176,11 @@ export default function ManageUsersPage() {
                                     <span className="font-medium">You are about to:</span>
                                   </div>
                                   <div className="pl-7 space-y-2 text-sm">
-                                    <p>
+                                    <div>
                                       Remove <Badge variant="secondary" className="capitalize mx-1">
                                         {bulkRole?.replace('_', ' ')}
                                       </Badge> role from <strong>{selectedUsers.size}</strong> user(s)
-                                    </p>
+                                    </div>
                                     {bulkClubId && (
                                       <p className="text-muted-foreground">
                                         Club: {allClubs?.find(c => c.id === bulkClubId)?.name}
