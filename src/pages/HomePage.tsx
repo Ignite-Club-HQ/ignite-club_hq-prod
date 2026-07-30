@@ -1920,37 +1920,6 @@ export default function HomePage() {
 
 
 
-  const clubRequestMutation = useMutation({
-    mutationFn: async () => {
-      // Use activeClubFilter if in club mode, otherwise use selectedClub
-      const clubToJoin = activeClubFilter || selectedClub;
-      if (!clubToJoin) throw new Error("No club selected");
-      
-      const { error } = await supabase.from("role_requests").insert({
-        user_id: user!.id,
-        club_id: clubToJoin,
-        role: selectedClubRole,
-        status: "pending",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Request Submitted",
-        description: "Your club join request has been submitted for review.",
-      });
-      setClubDialogOpen(false);
-      setSelectedClub("");
-      queryClient.invalidateQueries({ queryKey: ["role-requests"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
 
   // Fetch children on the selected team for parent linking
   const showChildLinker = !isLeagueSelected && selectedTeam && selectedTeamRole === "parent";
