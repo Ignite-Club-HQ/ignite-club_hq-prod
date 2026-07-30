@@ -735,49 +735,78 @@ export default function TeamDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
+    if (isDeleting) return; // prevent duplicate submission
     setIsDeleting(true);
-    // Get all team members to notify them
-    const { data: teamMembers } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("team_id", id!);
-    
-    // Send notifications to all members (except current user)
-    if (teamMembers && teamMembers.length > 0) {
-      const notifications = teamMembers
-        .filter(m => m.user_id !== user?.id)
-        .map(m => ({
-          user_id: m.user_id,
-          type: "membership",
-          message: `${team?.name || "A team"} has been deleted`,
-          related_id: team?.club_id,
-        }));
-      
-      if (notifications.length > 0) {
-        await supabase.from("notifications").insert(notifications);
+    try {
+      // 1. Load + dedupe intended notification recipients (excluding initiator)
+      const { data: teamMembers } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", id!);
+
+      const recipientIds = Array.from(
+        new Set(
+          (teamMembers || [])
+            .map((m) => m.user_id)
+            .filter((uid): uid is string => !!uid && uid !== user?.id),
+        ),
+      );
+
+      // 2. Attempt the soft-delete FIRST — nobody is contacted until it commits.
+      const { error: deleteError } = await supabase.from("teams").update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user?.id,
+      } as any).eq("id", id!);
+
+      if (deleteError) {
+        // Deletion failed: no notifications, no navigation, dialog stays open.
+        toast({
+          title: "Error",
+          description: "Failed to delete team.",
+          variant: "destructive",
+        });
+        return;
       }
+
+      // 3. Deletion committed — now notify.
+      let notificationError: string | null = null;
+      if (recipientIds.length > 0) {
+        const { error: notifyError } = await supabase.from("notifications").insert(
+          recipientIds.map((uid) => ({
+            user_id: uid,
+            type: "membership",
+            message: `${team?.name || "A team"} has been deleted`,
+            related_id: team?.club_id,
+          })),
+        );
+        if (notifyError) notificationError = notifyError.message;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["team", id] });
+      if (team?.club_id) {
+        queryClient.invalidateQueries({ queryKey: ["club", team.club_id] });
+        queryClient.invalidateQueries({ queryKey: ["club-teams", team.club_id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["my-teams"] });
+
+      setShowDeleteDialog(false);
+
+      if (notificationError) {
+        toast({
+          title: "Team deleted — notifications failed",
+          description: `The team was deleted, but some members may not have been notified. ${notificationError}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Team deleted", description: "You can restore it within 30 days." });
+      }
+
+      navigate(`/clubs/${team?.club_id}`);
+    } finally {
+      setIsDeleting(false);
     }
-
-    // Soft-delete: set deleted_at instead of hard delete
-    const { error } = await supabase.from("teams").update({
-      deleted_at: new Date().toISOString(),
-      deleted_by: user?.id,
-    } as any).eq("id", id!);
-
-    setIsDeleting(false);
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete team.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setShowDeleteDialog(false);
-    toast({ title: "Team deleted", description: "You can restore it within 30 days." });
-    navigate(`/clubs/${team?.club_id}`);
   };
+
 
   const handleRestoreTeam = async () => {
     const { error } = await supabase.from("teams").update({
