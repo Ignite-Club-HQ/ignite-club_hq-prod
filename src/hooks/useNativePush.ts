@@ -14,7 +14,9 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { queueChatInvalidation } from '@/lib/chatInvalidationQueue';
+
 import { mark as coldMark } from '@/lib/coldStartMarks';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
