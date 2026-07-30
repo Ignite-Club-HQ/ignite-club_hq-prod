@@ -2436,59 +2436,6 @@ export default function HomePage() {
       </LazyMount>
 
 
-      <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
-        <ResponsiveDialogContent>
-          <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Request to Join Club</ResponsiveDialogTitle>
-            <ResponsiveDialogDescription>
-              Select a club and role to request membership.
-            </ResponsiveDialogDescription>
-          </ResponsiveDialogHeader>
-          <div className="space-y-4 pt-4">
-            {/* Only show club selector if not in club mode */}
-            {!activeClubFilter ? (
-              <MobileCardSelect
-                value={selectedClub}
-                onValueChange={setSelectedClub}
-                options={clubs?.map((club) => ({
-                  value: club.id,
-                  label: club.name,
-                  icon: <span>{getSportEmoji(club.sport)}</span>,
-                })) || []}
-                label={`Select Club ${clubs ? `(${clubs.length} available)` : "(loading...)"}`}
-                placeholder="Choose a club..."
-                searchable
-                searchPlaceholder="Search clubs..."
-                emptyMessage={clubsLoading ? "Loading clubs..." : clubsError ? `Error: ${clubsError.message}` : "No clubs found."}
-              />
-            ) : (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Club</label>
-                <div className="flex items-center gap-2 p-4 rounded-xl border-2 border-primary bg-primary/5">
-                  <span>{getSportEmoji(clubs?.find(c => c.id === activeClubFilter)?.sport)}</span>
-                  <span className="font-medium">{clubs?.find(c => c.id === activeClubFilter)?.name}</span>
-                </div>
-              </div>
-            )}
-            <MobileCardSelect
-              value={selectedClubRole}
-              onValueChange={(v) => setSelectedClubRole(v as ClubRole)}
-              options={clubRoleOptions}
-              label="Select Role"
-              placeholder="Choose a role..."
-            />
-          </div>
-          <ResponsiveDialogFooter>
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => clubRequestMutation.mutate()}
-              disabled={!(activeClubFilter || selectedClub) || clubRequestMutation.isPending}
-            >
-              {clubRequestMutation.isPending ? "Submitting..." : "Submit Request"}
-            </Button>
-          </ResponsiveDialogFooter>
-        </ResponsiveDialogContent>
-      </ResponsiveDialog>
 
       <ResponsiveDialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
         <ResponsiveDialogContent>
