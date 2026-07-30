@@ -264,10 +264,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
                 // connection pool and froze the UI.
                 // Genuine offline→online resume (wasOnline === false): perform
                 // exactly one controlled active-query recovery.
-                recoverErroredQueries(
-                  'app-resume',
-                  wasOnline ? undefined : { refetchActive: true },
-                );
+                recoverErroredQueries('app-resume', wasOnline ? undefined : { refetchActive: true });
 
               } else {
                 // OS says offline — but verify with a probe before trusting it.
