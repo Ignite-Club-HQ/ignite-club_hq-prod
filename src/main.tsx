@@ -169,7 +169,7 @@ try {
 
 // Register service worker - SKIP on native platforms (Capacitor bundles locally)
 const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined> => {
-  return new Promise(async (resolve) => {
+  return new Promise((resolve) => {
     // Native apps don't use service workers
     if (isNative) {
       console.log('[Main] Native platform - skipping SW registration');
@@ -183,14 +183,14 @@ const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined>
       return;
     }
 
-    const hasServiceWorkerScript = await isServiceWorkerScriptAvailable();
-    if (!hasServiceWorkerScript) {
-      console.info('[Main] SW script unavailable - skipping registration');
-      resolve(undefined);
-      return;
-    }
+    isServiceWorkerScriptAvailable().then((hasServiceWorkerScript) => {
+      if (!hasServiceWorkerScript) {
+        console.info('[Main] SW script unavailable - skipping registration');
+        resolve(undefined);
+        return;
+      }
 
-    navigator.serviceWorker.register(`/sw.js?v=${SW_VERSION}`, { scope: '/' })
+      navigator.serviceWorker.register(`/sw.js?v=${SW_VERSION}`, { scope: '/' })
       .then((registration) => {
         console.log('[Main] SW registered, scope:', registration.scope, 'version:', SW_VERSION);
         
@@ -224,6 +224,10 @@ const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined>
         console.error('[Main] SW registration failed:', err);
         resolve(undefined);
       });
+    }).catch((err) => {
+      console.warn('[Main] SW availability check failed:', err);
+      resolve(undefined);
+    });
       
     navigator.serviceWorker.ready.then((registration) => {
       if (!window.__swRegistration) {
