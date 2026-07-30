@@ -106,6 +106,21 @@ declare global {
 }
 
 const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+const SW_VERSION = '4.0.2';
+
+const isServiceWorkerScriptAvailable = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`/sw.js?v=${SW_VERSION}`, {
+      method: 'HEAD',
+      cache: 'no-store',
+    });
+    const contentType = response.headers.get('content-type') || '';
+    return response.ok && /(?:javascript|ecmascript)/i.test(contentType);
+  } catch (err) {
+    console.warn('[Main] SW availability check failed:', err);
+    return false;
+  }
+};
 
 // Initialize Crashlytics FIRST on native (dynamic import, no React dependency)
 if (isNative) {
@@ -154,7 +169,7 @@ try {
 
 // Register service worker - SKIP on native platforms (Capacitor bundles locally)
 const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined> => {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
     // Native apps don't use service workers
     if (isNative) {
       console.log('[Main] Native platform - skipping SW registration');
@@ -168,7 +183,13 @@ const registerServiceWorker = (): Promise<ServiceWorkerRegistration | undefined>
       return;
     }
 
-    const SW_VERSION = '4.0.2';
+    const hasServiceWorkerScript = await isServiceWorkerScriptAvailable();
+    if (!hasServiceWorkerScript) {
+      console.info('[Main] SW script unavailable - skipping registration');
+      resolve(undefined);
+      return;
+    }
+
     navigator.serviceWorker.register(`/sw.js?v=${SW_VERSION}`, { scope: '/' })
       .then((registration) => {
         console.log('[Main] SW registered, scope:', registration.scope, 'version:', SW_VERSION);
