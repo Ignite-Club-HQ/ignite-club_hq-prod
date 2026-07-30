@@ -1084,6 +1084,8 @@ export default function HomePage() {
     },
 
     onSuccess: () => {
+      redeemAttemptKeyRef.current = null;
+
       queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
       queryClient.invalidateQueries({ queryKey: ["user-children-home"] });
       queryClient.invalidateQueries({ queryKey: ["user-club-points"] });
