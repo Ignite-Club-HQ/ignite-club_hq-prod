@@ -1696,6 +1696,9 @@ export default function ManageUsersPage() {
         open={!!deleteTarget} 
         onOpenChange={(open) => {
           if (!open) {
+            // Never let the dialog close while a deletion request is in flight,
+            // otherwise a failure leaves the admin with no way to retry.
+            if (deleteAccountMutation.isPending) return;
             setDeleteTarget(null);
             setConfirmText("");
             setDeleteType("scheduled");
@@ -1789,9 +1792,12 @@ export default function ManageUsersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogCancel disabled={deleteAccountMutation.isPending}>Cancel</AlertDialogCancel>
+            {/* Plain Button (not AlertDialogAction): the primitive auto-closes the
+                dialog on click, which would detach a failed request from its UI. */}
+            <Button
               onClick={() => {
+                if (deleteAccountMutation.isPending) return;
                 const requiredText = deleteType === "gdpr" ? "gdpr delete" : deleteType === "immediate" ? "delete permanently" : "delete";
                 if (deleteTarget && confirmText.toLowerCase() === requiredText) {
                   deleteAccountMutation.mutate({ 
@@ -1801,7 +1807,7 @@ export default function ManageUsersPage() {
                   });
                 }
               }}
-              className="bg-destructive text-destructive-foreground"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={
                 deleteAccountMutation.isPending || 
                 confirmText.toLowerCase() !== (deleteType === "gdpr" ? "gdpr delete" : deleteType === "immediate" ? "delete permanently" : "delete")
@@ -1811,7 +1817,7 @@ export default function ManageUsersPage() {
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : null}
               {deleteType === "gdpr" ? "GDPR Delete All Data" : deleteType === "immediate" ? "Delete Permanently" : "Schedule Deletion"}
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
