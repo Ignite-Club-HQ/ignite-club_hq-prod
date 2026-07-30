@@ -1,0 +1,96 @@
+name: Actual Android OS resume regression
+
+on:
+  push:
+    branches: [codespaces-review]
+    paths:
+      - "src/lib/reactQueryNativeAdapter.ts"
+      - "src/lib/supabaseAuthRetry.ts"
+      - "src/lib/androidWebViewWake.ts"
+      - "tests/android-os/**"
+      - ".github/workflows/android-os-resume.yml"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+concurrency:
+  group: android-os-resume-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  android-os-resume:
+    name: Capacitor on Android System WebView
+    if: github.ref_name == 'codespaces-review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      TZ: UTC
+
+    steps:
+      - name: Check out tested commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install pinned Android compile SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify isolated Android test configuration
+        run: node tests/android-os/verify-safety.mjs
+
+      - name: Build synthetic WebView harness
+        run: npx vite build --config tests/android-os/vite.config.ts
+
+      - name: Generate disposable Capacitor Android project
+        working-directory: tests/android-os/workspace
+        run: |
+          set -euo pipefail
+          ../../../node_modules/.bin/cap add android
+          ../../../node_modules/.bin/cap sync android
+          test -d .generated/android
+          grep -Fq 'app.igniteclubhq.androidosresumetest' .generated/android/app/build.gradle
+
+      - name: Run on actual Android OS and System WebView
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          script: |
+            cd tests/android-os/workspace/.generated/android
+            ./gradlew assembleDebug
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            cd "$GITHUB_WORKSPACE"
+            bash tests/android-os/run-emulator-test.sh
+
+      - name: Upload Android diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-os-resume-${{ github.run_id }}
+          path: test-results/android-os/
+          if-no-files-found: warn
+          retention-days: 14

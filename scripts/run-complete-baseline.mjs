@@ -29,6 +29,10 @@ const DB_CONTAINER = `supabase_db_${LOCAL_PROJECT}`;
 const KONG_CONTAINER = `supabase_kong_${LOCAL_PROJECT}`;
 const commandLineSessionApproved = hasExplicitLocalSessionApproval(process.argv.slice(2));
 const isGitHubActions = process.env.GITHUB_ACTIONS === "true";
+const includeLoad = process.argv.includes("--include-load");
+const loadProfile = process.argv
+  .find((arg) => arg.startsWith("--load-profile="))
+  ?.slice("--load-profile=".length) ?? "smoke";
 
 // Hosted Supabase configuration is never inherited by lifecycle or test children.
 const safeEnvironment = Object.fromEntries(
@@ -286,6 +290,19 @@ try {
     LOCAL_SUPABASE_REALTIME_ENABLED: "true",
     LOCAL_SUPABASE_EDGE_ENABLED: "true",
   });
+  if (includeLoad) {
+    runStage(
+      `Local synthetic load (${loadProfile})`,
+      "node",
+      ["scripts/local-load-test.mjs", `--profile=${loadProfile}`],
+      {
+        ...safeEnvironment,
+        LOCAL_SUPABASE_URL: LOCAL_URL,
+        LOCAL_SUPABASE_ANON_KEY: localKeys.publishableKey,
+        LOCAL_SUPABASE_SERVICE_ROLE_KEY: localKeys.secretKey,
+      },
+    );
+  }
 } catch (error) {
   console.error(`Local baseline infrastructure failure: ${error instanceof Error ? error.message : error}`);
   results.push({ name: "Local Supabase readiness", status: 2, skipped: !localReady });

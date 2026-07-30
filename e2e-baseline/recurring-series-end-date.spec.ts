@@ -62,6 +62,8 @@ test("club admin extends a recurring series end date from the edit journey", asy
     occurrence("51000000-0000-4000-8000-000000000006", "2099-08-15", parentId),
   ];
   const writes: Array<{ method: string; body: any; search: string }> = [];
+  let rejectSeriesUpdate = false;
+  let seriesUpdateAttempts = 0;
 
   await page.addInitScript(({ user, userId }) => {
     const encode = (value: object) => btoa(JSON.stringify(value)).replaceAll("=", "");
@@ -102,6 +104,17 @@ test("club admin extends a recurring series end date from the edit journey", asy
       const select = url.searchParams.get("select") ?? "";
       if (select === "club_id") return json([{ club_id: clubId }]);
       if (select === "team_id") return json([{ team_id: teamId }]);
+      if (select.includes("team_id") && select.includes("teams(")) {
+        return json([{
+          team_id: teamId,
+          teams: {
+            id: teamId,
+            name: "Synthetic U10",
+            club_id: clubId,
+            default_match_arrival_minutes: null,
+          },
+        }]);
+      }
       return json([{
         id: "synthetic-admin-role",
         role: "club_admin",
@@ -157,6 +170,13 @@ test("club admin extends a recurring series end date from the edit journey", asy
       // fields is valid PostgREST JSON and keeps this fake behaviour-focused.
       return json(singular ? result[0] ?? null : result);
     }
+    if (url.pathname === "/rest/v1/rpc/update_event_series") {
+      seriesUpdateAttempts += 1;
+      if (rejectSeriesUpdate) {
+        return json({ code: "42501", message: "synthetic series update denied" }, 403);
+      }
+      return json(null);
+    }
     if (url.pathname === "/rest/v1/profiles") {
       return json([{ id: userId, display_name: "Synthetic Series Admin" }]);
     }
@@ -208,4 +228,14 @@ test("club admin extends a recurring series end date from the edit journey", asy
       }),
     ]),
   );
+
+  rejectSeriesUpdate = true;
+  await page.goto(`/events/${parentId}/edit`);
+  await page.getByLabel("Event Title").fill("Must not update the series");
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page.getByRole("heading", { name: /Apply changes to/i })).toBeVisible();
+  await page.getByRole("button", { name: "Entire Series" }).click();
+  await expect.poll(() => seriesUpdateAttempts).toBe(1);
+  await expect(page).toHaveURL(`/events/${parentId}/edit`);
+  await expect(page.getByText(/failed to update event/i)).toBeVisible();
 });

@@ -15,7 +15,31 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      grepInvert: /^(Android|iOS)/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      // Runs only explicitly Android-labelled lifecycle journeys in a
+      // touch/mobile Chromium profile. This is Android-like coverage; the
+      // genuine Capacitor WebView/Doze layer belongs in Android device CI.
+      name: "android-webview-like",
+      grep: /Android/,
+      use: {
+        ...devices["Pixel 7"],
+      },
+    },
+    {
+      // Runs only explicitly iOS-labelled lifecycle journeys with an iPhone
+      // touch profile and Capacitor's iOS branch selected by the fixture.
+      // A genuine WKWebView/iOS lifecycle run still requires macOS simulator CI.
+      name: "ios-webview-like",
+      grep: /iOS/,
+      use: {
+        ...devices["iPhone 15"],
+      },
+    },
   ],
   webServer: {
     command:

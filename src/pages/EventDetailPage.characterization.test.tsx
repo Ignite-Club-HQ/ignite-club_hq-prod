@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,6 +27,14 @@ const mocks = vi.hoisted(() => ({
   rsvps: [] as any[],
   duties: [] as any[],
   invoke: vi.fn(),
+  payments: [] as any[],
+  createCheckout: vi.fn(),
+  listenForPayment: vi.fn(),
+  paymentCallback: null as null | ((status: "paid" | "failed", payload?: any) => void),
+  paymentCleanup: vi.fn(),
+  isNative: false,
+  safeOpenUrl: vi.fn(),
+  queries: [] as any[],
 }));
 
 const mutationNames = [
@@ -46,6 +54,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
       refetchQueries: mocks.refetchQueries,
     }),
     useQuery: (options: any) => {
+      mocks.queries.push(options);
       const key = options.queryKey?.[0];
       const values: Record<string, any> = {
         event: mocks.eventData,
@@ -58,13 +67,13 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
         "mini-league-players-for-event": [], "mini-league-adults-for-event": [],
         "my-mini-league-players-for-event": [], "mini-league-duty-assignees-session": [],
         "children-on-team": [], "targeted-event-roster": [],
-        "child-guardians-on-team": [], "event-payments": [],
+        "child-guardians-on-team": [], "event-payments": mocks.payments,
         "match-captain": null, "player-of-match": null, "match-goalkeepers": [],
         "event-recent-reminders": new Map(),
       };
       return {
         data: values[key], error: key === "event" ? mocks.eventError : null,
-        isLoading: false, isFetching: false, isFetched: true, refetch: vi.fn(),
+        isLoading: false, isFetching: false, isFetched: true, isSuccess: true, refetch: vi.fn(),
       };
     },
     useMutation: (options: any) => {
@@ -124,6 +133,14 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "user-1", email: "person@example.test" }, profile: { display_name: "Test Person" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
+vi.mock("@/lib/memberCheckout", () => ({
+  createMemberCheckout: mocks.createCheckout,
+  listenForPaymentStatus: mocks.listenForPayment,
+}));
+vi.mock("@capacitor/core", () => ({
+  Capacitor: { isNativePlatform: () => mocks.isNative },
+}));
+vi.mock("@/lib/safeOpenUrl", () => ({ safeOpenUrl: mocks.safeOpenUrl }));
 vi.mock("@/lib/rsvpQueue", () => ({ queueRsvp: mocks.queueRsvp }));
 vi.mock("@/lib/earlyRsvpPoints", () => ({ awardEarlyRsvpPoints: mocks.awardPoints }));
 vi.mock("@/hooks/useEventGroupMap", () => ({ useEventGroupMap: () => ({ isActive: false, orderedGroups: [], groupOf: () => null }) }));
@@ -160,14 +177,19 @@ async function renderPage() {
     </MemoryRouter>
   );
   const { default: Page } = await import("./EventDetailPage");
-  render(<Page />, { wrapper });
+  const view = render(<Page />, { wrapper });
   // Child components also use mutations. Parent hooks are registered first and
   // are the stable contract this suite exercises.
   await waitFor(() => expect(mocks.mutations.length).toBeGreaterThanOrEqual(mutationNames.length));
+  return view;
 }
 
 function mutation(name: string) {
   return mocks.mutations[mutationNames.indexOf(name)];
+}
+
+function latestQuery(name: string) {
+  return [...mocks.queries].reverse().find((query) => query.queryKey?.[0] === name);
 }
 
 describe("EventDetailPage business-operation characterization", () => {
@@ -182,6 +204,17 @@ describe("EventDetailPage business-operation characterization", () => {
     mocks.rsvps = [];
     mocks.duties = [];
     mocks.invoke.mockResolvedValue({ data: { success: true }, error: null });
+    mocks.payments = [];
+    mocks.createCheckout.mockResolvedValue({ error: "checkout unavailable", url: "", payment_id: "" });
+    mocks.paymentCallback = null;
+    mocks.paymentCleanup.mockReset();
+    mocks.listenForPayment.mockImplementation((_paymentId: string, callback: any) => {
+      mocks.paymentCallback = callback;
+      return mocks.paymentCleanup;
+    });
+    mocks.isNative = false;
+    mocks.safeOpenUrl.mockResolvedValue(undefined);
+    mocks.queries = [];
     mocks.awardPoints.mockResolvedValue(undefined);
   });
 
@@ -446,5 +479,330 @@ describe("EventDetailPage business-operation characterization", () => {
         notificationType: "event_invite",
       }),
     });
+  });
+
+  it("offers checkout only to an unpaid attendee of a paid social event", async () => {
+    mocks.eventData = { ...baseEvent, type: "social", amount: 12.5 };
+    mocks.rsvps = [{ id: "rsvp-1", event_id: "event-1", user_id: "user-1", child_id: null, status: "going" }];
+    const paidView = await renderPage();
+    expect(screen.getByText("Payment Required")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pay Now" })).toBeInTheDocument();
+    paidView.unmount();
+
+    mocks.eventData = { ...baseEvent, type: "social", amount: 0 };
+    mocks.mutations = [];
+    await renderPage();
+    expect(screen.getByText("Synthetic match")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pay Now" })).not.toBeInTheDocument();
+  });
+
+  it("builds the exact web checkout contract and remains retryable after provider failure", async () => {
+    mocks.eventData = { ...baseEvent, type: "social", amount: 19.95 };
+    mocks.rsvps = [{ id: "rsvp-1", event_id: "event-1", user_id: "user-1", child_id: null, status: "going" }];
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Pay Now" }));
+
+    await waitFor(() => expect(mocks.createCheckout).toHaveBeenCalledWith({
+      club_id: "club-1",
+      title: "Synthetic match",
+      amount_cents: 1995,
+      type: "event",
+      payer_email: "person@example.test",
+      description: "Event payment: Synthetic match",
+      success_url: `${window.location.origin}/events/event-1?payment=success`,
+      cancel_url: `${window.location.origin}/events/event-1?payment=cancelled`,
+      metadata: { event_id: "event-1", club_id: "club-1", team_id: "team-1" },
+    }));
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Payment Error",
+      description: "checkout unavailable",
+      variant: "destructive",
+    });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Pay Now" })).toBeEnabled());
+  });
+
+  it("prevents repeated taps from creating multiple checkout sessions", async () => {
+    let release!: (value: any) => void;
+    mocks.createCheckout.mockImplementation(() => new Promise(resolve => { release = resolve; }));
+    mocks.eventData = { ...baseEvent, type: "social", amount: 8 };
+    mocks.rsvps = [{ id: "rsvp-1", event_id: "event-1", user_id: "user-1", child_id: null, status: "going" }];
+    await renderPage();
+    const button = screen.getByRole("button", { name: "Pay Now" });
+    fireEvent.click(button);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Processing..." })).toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Processing..." }));
+    expect(mocks.createCheckout).toHaveBeenCalledTimes(1);
+    release({ error: "stopped", url: "", payment_id: "" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Pay Now" })).toBeEnabled());
+  });
+
+  it("uses native deep links, registers one listener and opens the returned URL safely", async () => {
+    mocks.isNative = true;
+    mocks.createCheckout.mockResolvedValue({
+      url: "https://checkout.example.test/session-1",
+      payment_id: "payment-1",
+    });
+    mocks.eventData = { ...baseEvent, type: "social", amount: 11 };
+    mocks.rsvps = [{ id: "rsvp-1", event_id: "event-1", user_id: "user-1", child_id: null, status: "going" }];
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Pay Now" }));
+
+    await waitFor(() => expect(mocks.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+      success_url: "igniteclubhq://payment-success",
+      cancel_url: "igniteclubhq://payment-cancel",
+    })));
+    expect(mocks.listenForPayment).toHaveBeenCalledTimes(1);
+    expect(mocks.listenForPayment).toHaveBeenCalledWith("payment-1", expect.any(Function));
+    await waitFor(() => expect(mocks.safeOpenUrl).toHaveBeenCalledWith("https://checkout.example.test/session-1"));
+  });
+
+  it("confirms a paid callback with the exact event contract and refreshes payment state", async () => {
+    mocks.isNative = true;
+    mocks.createCheckout.mockResolvedValue({ url: "https://checkout.example.test/session-2", payment_id: "payment-2" });
+    mocks.eventData = { ...baseEvent, type: "social", amount: 14.75 };
+    mocks.rsvps = [{ id: "rsvp-1", event_id: "event-1", user_id: "user-1", child_id: null, status: "going" }];
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Pay Now" }));
+    await waitFor(() => expect(mocks.paymentCallback).not.toBeNull());
+    await mocks.paymentCallback!("paid");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("confirm-event-payment", {
+      body: { event_id: "event-1", amount: 14.75, payment_id: "payment-2" },
+    });
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["event-payments", "event-1"] });
+    expect(mocks.toast).toHaveBeenCalledWith({ title: "Payment successful!" });
+  });
+
+  it("reports a failed terminal callback without confirming or refreshing success state", async () => {
+    mocks.isNative = true;
+    mocks.createCheckout.mockResolvedValue({ url: "https://checkout.example.test/session-3", payment_id: "payment-3" });
+    mocks.eventData = { ...baseEvent, type: "social", amount: 7 };
+    mocks.rsvps = [{ id: "rsvp-1", event_id: "event-1", user_id: "user-1", child_id: null, status: "going" }];
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Pay Now" }));
+    await waitFor(() => expect(mocks.paymentCallback).not.toBeNull());
+    await mocks.paymentCallback!("failed");
+
+    expect(mocks.invoke).not.toHaveBeenCalledWith("confirm-event-payment", expect.anything());
+    expect(mocks.toast).toHaveBeenCalledWith({ title: "Payment failed", variant: "destructive" });
+  });
+
+  it("does not report payment success when server-side event confirmation returns an error", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.isNative = true;
+    mocks.createCheckout.mockResolvedValue({ url: "https://checkout.example.test/session-confirm-error", payment_id: "payment-confirm-error" });
+    mocks.invoke.mockResolvedValue({ data: null, error: { message: "confirmation denied", code: "42501" } });
+    mocks.eventData = { ...baseEvent, type: "social", amount: 16 };
+    mocks.rsvps = [{ id: "rsvp-1", event_id: "event-1", user_id: "user-1", child_id: null, status: "going" }];
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Pay Now" }));
+    await waitFor(() => expect(mocks.paymentCallback).not.toBeNull());
+    await mocks.paymentCallback!("paid");
+
+    expect(mocks.toast).not.toHaveBeenCalledWith({ title: "Payment successful!" });
+    expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["event-payments", "event-1"] });
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Payment confirmation incomplete",
+      description: "Your payment may have been received, but we could not update the event. Please contact your club before trying again.",
+      variant: "destructive",
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      "Failed to confirm event payment server-side:",
+      { message: "confirmation denied", code: "42501" },
+    );
+    consoleError.mockRestore();
+  });
+
+  it("reports a missing provider URL and restores checkout so the attendee can retry", async () => {
+    mocks.createCheckout.mockResolvedValue({ error: undefined, url: "", payment_id: "payment-without-url" });
+    mocks.eventData = { ...baseEvent, type: "social", amount: 6 };
+    mocks.rsvps = [{ id: "rsvp-1", event_id: "event-1", user_id: "user-1", child_id: null, status: "going" }];
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Pay Now" }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Payment Error",
+      description: "No checkout URL returned",
+      variant: "destructive",
+    }));
+    expect(mocks.listenForPayment).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Pay Now" })).toBeEnabled();
+  });
+
+  it("disposes the active payment listener when Event Detail unmounts", async () => {
+    mocks.isNative = true;
+    mocks.createCheckout.mockResolvedValue({ url: "https://checkout.example.test/session-4", payment_id: "payment-4" });
+    mocks.eventData = { ...baseEvent, type: "social", amount: 9 };
+    mocks.rsvps = [{ id: "rsvp-1", event_id: "event-1", user_id: "user-1", child_id: null, status: "going" }];
+    const view = await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Pay Now" }));
+    await waitFor(() => expect(mocks.listenForPayment).toHaveBeenCalledTimes(1));
+    view.unmount();
+    expect(mocks.paymentCleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("enables the scoped roster only for an administrator of a targeted club-wide event", async () => {
+    mocks.eventData = {
+      ...baseEvent,
+      team_id: null,
+      teams: null,
+      target_team_ids: ["team-3", "team-2"],
+      rsvp_grouping: "team",
+    };
+    mocks.isAdmin = true;
+    await renderPage();
+
+    expect(latestQuery("targeted-event-roster")).toMatchObject({
+      queryKey: ["targeted-event-roster", "event-1"],
+      enabled: true,
+    });
+    expect(latestQuery("all-children-on-team")).toMatchObject({
+      queryKey: ["all-children-on-team", null, "team-2,team-3"],
+      enabled: true,
+    });
+    expect(latestQuery("event-payments").enabled).toBe(true);
+  });
+
+  it("does not enable manager-only roster or payment reads for an ordinary attendee", async () => {
+    mocks.eventData = {
+      ...baseEvent,
+      team_id: null,
+      teams: null,
+      target_team_ids: ["team-2"],
+      rsvp_grouping: "level",
+    };
+    mocks.isAdmin = false;
+    await renderPage();
+
+    expect(latestQuery("targeted-event-roster").enabled).toBe(false);
+    expect(latestQuery("event-payments").enabled).toBe(false);
+    expect(screen.queryByText("Delete Event")).not.toBeInTheDocument();
+    expect(screen.queryByText("Resend Invites")).not.toBeInTheDocument();
+  });
+
+  it("scopes mini-league attendance and duty reads to the current league and event", async () => {
+    mocks.eventData = {
+      ...baseEvent,
+      team_id: null,
+      teams: null,
+      mini_league_id: "league-7",
+    };
+    await renderPage();
+
+    expect(latestQuery("mini-league-players-for-event")).toMatchObject({
+      queryKey: ["mini-league-players-for-event", "league-7"],
+      enabled: true,
+    });
+    expect(latestQuery("my-mini-league-players-for-event")).toMatchObject({
+      queryKey: ["my-mini-league-players-for-event", "league-7", "user-1"],
+      enabled: true,
+    });
+    expect(latestQuery("mini-league-duty-assignees-session")).toMatchObject({
+      queryKey: ["mini-league-duty-assignees-session", "league-7", "event-1"],
+      enabled: true,
+    });
+  });
+
+  it("reopens and deletes only the selected duty, propagating denied writes", async () => {
+    await renderPage();
+    await mutation("uncompleteDuty").mutationFn("duty-4");
+    expect(mocks.operations.at(-1)).toEqual({
+      table: "duties",
+      kind: "update",
+      payload: { status: "open", completed_at: null },
+      filters: [["id", "duty-4"]],
+    });
+
+    mocks.operations = [];
+    const failure = { message: "duty deletion denied", code: "42501" };
+    mocks.results["duties:delete"] = [{ data: null, error: failure }];
+    await expect(mutation("deleteDuty").mutationFn("duty-9")).rejects.toEqual(failure);
+    expect(mocks.operations).toEqual([{
+      table: "duties",
+      kind: "delete",
+      filters: [["id", "duty-9"]],
+    }]);
+  });
+
+  it("deletes one event only after the undo window expires", async () => {
+    await renderPage();
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await mutation("deleteEvent").mutationFn("single");
+      });
+      expect(mocks.operations).toEqual([]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_999);
+      });
+      expect(mocks.operations).toEqual([]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(mocks.operations).toEqual([{
+        table: "events",
+        kind: "delete",
+        filters: [["id", "event-1"]],
+      }]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("deletes recurring children before their root and stops if the first write is denied", async () => {
+    mocks.eventData = { ...baseEvent, is_recurring: true };
+    await renderPage();
+    mocks.results["events:delete"] = [{ data: null, error: { message: "children denied", code: "42501" } }];
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await mutation("deleteEvent").mutationFn("series");
+        await vi.advanceTimersByTimeAsync(6_000);
+      });
+      expect(mocks.operations).toEqual([{
+        table: "events",
+        kind: "delete",
+        filters: [["parent_event_id", "event-1"]],
+      }]);
+      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+        variant: "destructive",
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports a delayed single-event deletion failure instead of leaving the success message uncorrected", async () => {
+    await renderPage();
+    mocks.results["events:delete"] = [{ data: null, error: { message: "event deletion denied", code: "42501" } }];
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await mutation("deleteEvent").mutationFn("single");
+        await vi.advanceTimersByTimeAsync(6_000);
+      });
+      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+        title: expect.stringMatching(/delete|deletion/i),
+        description: expect.stringContaining("event deletion denied"),
+        variant: "destructive",
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("coalesces repeated delete requests during the undo window into one database operation", async () => {
+    await renderPage();
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await mutation("deleteEvent").mutationFn("single");
+        await mutation("deleteEvent").mutationFn("single");
+        await vi.advanceTimersByTimeAsync(6_000);
+      });
+      expect(mocks.operations.filter((operation) => operation.table === "events")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

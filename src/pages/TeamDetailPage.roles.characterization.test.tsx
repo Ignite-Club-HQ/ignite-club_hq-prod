@@ -287,7 +287,12 @@ describe("TeamDetailPage role-aware rendering", () => {
 
     const rolesFailure = { message: "roles unavailable", code: "42501" };
     mocks.results["user_roles:select"] = [{ data: null, error: rolesFailure }];
-    await expect(latest("team-roles").queryFn()).rejects.toEqual(rolesFailure);
+    await expect(latest("team-roles").queryFn()).rejects.toMatchObject({
+      name: "FriendlyQueryError",
+      message: expect.stringContaining("team member list"),
+      technicalMessage: "roles unavailable",
+      cause: rolesFailure,
+    });
 
     const childrenFailure = { message: "children unavailable", code: "42501" };
     mocks.rpc.mockResolvedValueOnce({ data: null, error: childrenFailure });
@@ -304,7 +309,12 @@ describe("TeamDetailPage role-aware rendering", () => {
 
     const clubFailure = { message: "club subscription denied", code: "42501" };
     mocks.results["club_subscriptions:select"] = [{ data: null, error: clubFailure }];
-    await expect(latest("club-subscription").queryFn()).rejects.toEqual(clubFailure);
+    await expect(latest("club-subscription").queryFn()).rejects.toMatchObject({
+      name: "FriendlyQueryError",
+      message: expect.stringContaining("club's subscription details"),
+      technicalMessage: "club subscription denied",
+      cause: clubFailure,
+    });
   });
 
   it("does not convert a denied club-admin check into a confirmed role revocation", async () => {
@@ -312,6 +322,11 @@ describe("TeamDetailPage role-aware rendering", () => {
     const latest = (prefix: string) => [...mocks.queries].reverse().find(q => q.queryKey?.[0] === prefix);
     const failure = { message: "admin check denied", code: "42501" };
     mocks.results["user_roles:select"] = [{ data: null, error: failure }];
-    await expect(latest("is-club-admin").queryFn()).rejects.toEqual(failure);
+    await expect(latest("is-club-admin").queryFn()).rejects.toMatchObject({
+      name: "FriendlyQueryError",
+      message: expect.stringContaining("club admin permissions"),
+      technicalMessage: "admin check denied",
+      cause: failure,
+    });
   });
 });

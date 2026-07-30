@@ -13,6 +13,9 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   test.setTimeout(30_000);
   let grouping: "level" | "team" = "level";
   let targetTeamIds: string[] | null = null;
+  let deniedDutyWrites = 0;
+  let deferredCreateAttempts = 0;
+  let exposeExistingDuty = false;
   const writes: Array<{ method: string; body: any }> = [];
   const teams = [
     { id: "team-u8-blue", club_id: clubId, name: "U8 Blue", age_group: "U8" },
@@ -105,6 +108,14 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
       };
       const singular = request.headers()["accept"]?.includes("application/vnd.pgrst.object");
       return json(singular ? event : [event]);
+    }
+    if (url.pathname === "/rest/v1/duties" && request.method() === "GET") {
+      return json(exposeExistingDuty ? [{
+        id: "duty-existing",
+        event_id: eventId,
+        name: "Existing scorer",
+        assigned_to: null,
+      }] : []);
     }
     if (url.pathname === "/rest/v1/profiles") return json([{
       id: userId, display_name: "Synthetic Admin",
@@ -249,4 +260,132 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   );
   await page.reload();
   await expect(page.getByRole("alert")).toContainText(/grouped attendance (?:couldn.t be loaded|could not be loaded|is unavailable)/i);
+
+  // A denied edit must not navigate away or replace the last committed event
+  // with a false success state. This exercises the real form and mutation
+  // boundary rather than only validating a helper payload.
+  await page.unroute("**/rest/v1/rpc/get_targeted_event_attendance_roster*");
+  await page.route("**/rest/v1/events*", async route => {
+    if (route.request().method() !== "PATCH") return route.fallback();
+    await route.fulfill({
+      status: 403,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "42501", message: "synthetic event update denied" }),
+    });
+  });
+  await page.goto(`/events/${eventId}/edit`);
+  await page.getByLabel("Event Title").fill("Must not be committed");
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect(page).toHaveURL(`/events/${eventId}/edit`);
+  await expect(page.getByText(/failed to update event/i)).toBeVisible();
+  expect(grouping).toBe("team");
+  expect(writes.filter(write => write.method === "PATCH")).toHaveLength(1);
+
+  await page.route("**/rest/v1/events*", async route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    await route.fulfill({
+      status: 403,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "42501", message: "synthetic event creation denied" }),
+    });
+  });
+  const postsBeforeDeniedCreate = writes.filter(write => write.method === "POST").length;
+  await page.goto("/events/new");
+  await page.getByRole("button", { name: /Game/ }).click();
+  await page.getByLabel("Event Title").fill("Denied synthetic event");
+  await page.getByLabel("Date & Time").fill("2099-09-01T10:00");
+  await page.getByPlaceholder("Search for address...").fill("Synthetic Oval");
+  await page.getByRole("button", { name: "Create Event" }).click();
+  await expect(page).toHaveURL("/events/new");
+  await expect(page.getByText(/failed to create event/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create Event" })).toBeEnabled();
+  expect(writes.filter(write => write.method === "POST")).toHaveLength(postsBeforeDeniedCreate);
+
+  await page.unroute("**/rest/v1/events*");
+  await page.route("**/rest/v1/duties*", async route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    deniedDutyWrites += 1;
+    await route.fulfill({
+      status: 403,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "42501", message: "synthetic duty creation denied" }),
+    });
+  });
+  await page.goto("/events/new");
+  await page.getByRole("button", { name: /Game/ }).click();
+  await page.getByLabel("Event Title").fill("Event with denied duty");
+  await page.getByLabel("Date & Time").fill("2099-10-01T10:00");
+  await page.getByPlaceholder("Search for address...").fill("Synthetic Oval");
+  const dutyInput = page.getByPlaceholder("e.g., BBQ duty, Scorer, First Aid");
+  await dutyInput.fill("First Aid");
+  await dutyInput.press("Enter");
+  await page.getByRole("button", { name: "Create Event" }).click();
+  await expect.poll(() => deniedDutyWrites).toBe(1);
+  await expect(page).toHaveURL("/events/new");
+  await expect(page.getByText(/duty.*(?:failed|not saved)|failed.*duty/i)).toBeVisible();
+
+  await page.unroute("**/rest/v1/duties*");
+  let releaseDeferredCreate!: () => void;
+  const deferredCreate = new Promise<void>(resolve => { releaseDeferredCreate = resolve; });
+  await page.route("**/rest/v1/events*", async route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    deferredCreateAttempts += 1;
+    await deferredCreate;
+    const body = route.request().postDataJSON();
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify([{ ...body, id: eventId, is_cancelled: false }]),
+    });
+  });
+  const createWhilePending = page.getByRole("button", { name: "Create Event" });
+  const firstClick = createWhilePending.click();
+  await expect.poll(() => deferredCreateAttempts).toBe(1);
+  await expect(createWhilePending).toBeDisabled();
+  await createWhilePending.click({ force: true });
+  expect(deferredCreateAttempts).toBe(1);
+  releaseDeferredCreate();
+  await firstClick;
+  await expect(page).toHaveURL(`/events/${eventId}`);
+  expect(deferredCreateAttempts).toBe(1);
+
+  let deniedEditDutyWrites = 0;
+  await page.route("**/rest/v1/duties*", async route => {
+    if (route.request().method() !== "POST") return route.fallback();
+    deniedEditDutyWrites += 1;
+    await route.fulfill({
+      status: 403,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "42501", message: "synthetic edited duty denied" }),
+    });
+  });
+  await page.goto(`/events/${eventId}/edit`);
+  const editDutyInput = page.getByPlaceholder("e.g., BBQ duty, Scorer, First Aid");
+  await editDutyInput.fill("Ground marshal");
+  await editDutyInput.press("Enter");
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect.poll(() => deniedEditDutyWrites).toBe(1);
+  await expect(page).toHaveURL(`/events/${eventId}/edit`);
+  await expect(page.getByText(/duty.*(?:failed|not saved)|failed.*duty/i)).toBeVisible();
+
+  await page.unroute("**/rest/v1/duties*");
+  exposeExistingDuty = true;
+  let deniedDutyDeletes = 0;
+  await page.route("**/rest/v1/duties*", async route => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    deniedDutyDeletes += 1;
+    await route.fulfill({
+      status: 403,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "42501", message: "synthetic duty deletion denied" }),
+    });
+  });
+  await page.goto(`/events/${eventId}/edit`);
+  const existingDuty = page.getByText("Existing scorer", { exact: true });
+  await expect(existingDuty).toBeVisible();
+  await existingDuty.locator("..").getByRole("button").click();
+  await page.getByRole("button", { name: "Save Changes" }).click();
+  await expect.poll(() => deniedDutyDeletes).toBe(1);
+  await expect(page).toHaveURL(`/events/${eventId}/edit`);
+  await expect(page.getByText(/duty.*(?:failed|not saved)|failed.*duty/i)).toBeVisible();
 });
