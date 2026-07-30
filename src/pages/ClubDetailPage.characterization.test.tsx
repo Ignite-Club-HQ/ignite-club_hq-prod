@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type Write = { table: string; kind: "insert" | "update" | "delete"; payload?: any; filters: Array<[string, any]> };
+type Write = { table: string; kind: "insert" | "update" | "delete"; payload?: any; filters: any[] };
 
 const mocks = vi.hoisted(() => ({
   queries: [] as any[], mutations: [] as any[], writes: [] as Write[],
@@ -12,8 +12,11 @@ const mocks = vi.hoisted(() => ({
   isAppAdmin: false,
   teams: [] as any[],
   clubSubscription: null as any,
+  clubDeletedAt: null as string | null,
   invalidateQueries: vi.fn(),
   toast: vi.fn(),
+  operations: [] as string[],
+  invoke: vi.fn(),
 }));
 
 const mutationNames = ["moveTeam", "createFolder", "updateFolder", "deleteFolder", "requestRole", "toggleClubPro"];
@@ -27,7 +30,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
       mocks.queries.push(options);
       const key = options.queryKey?.[0];
       const values: Record<string, any> = {
-        club: { id: "club-1", name: "Synthetic Club", sport: "soccer", logo_url: null, deleted_at: null },
+        club: { id: "club-1", name: "Synthetic Club", sport: "soccer", logo_url: null, deleted_at: mocks.clubDeletedAt },
         "club-members-count": { adults: 3, juniors: 4, total: 7, newThisMonth: 1 },
         "club-members-roles": [],
         "club-teams": mocks.teams,
@@ -62,11 +65,11 @@ function queryFor(table: string) {
   let write: Write | null = null;
   const query: any = {};
   query.select = vi.fn((...args: any[]) => { mocks.queryCalls.push({ table, method: "select", args }); return query; });
-  query.insert = vi.fn((payload: any) => { write = { table, kind: "insert", payload, filters: [] }; mocks.writes.push(write); return query; });
-  query.update = vi.fn((payload: any) => { write = { table, kind: "update", payload, filters: [] }; mocks.writes.push(write); return query; });
-  query.delete = vi.fn(() => { write = { table, kind: "delete", filters: [] }; mocks.writes.push(write); return query; });
+  query.insert = vi.fn((payload: any) => { write = { table, kind: "insert", payload, filters: [] }; mocks.writes.push(write); mocks.operations.push(`${table}:insert`); return query; });
+  query.update = vi.fn((payload: any) => { write = { table, kind: "update", payload, filters: [] }; mocks.writes.push(write); mocks.operations.push(`${table}:update`); return query; });
+  query.delete = vi.fn(() => { write = { table, kind: "delete", filters: [] }; mocks.writes.push(write); mocks.operations.push(`${table}:delete`); return query; });
   query.eq = vi.fn((column: string, value: any) => { mocks.queryCalls.push({ table, method: "eq", args: [column, value] }); write?.filters.push([column, value]); return query; });
-  for (const method of ["in", "is", "order", "limit", "or"]) query[method] = vi.fn((...args: any[]) => { mocks.queryCalls.push({ table, method, args }); return query; });
+  for (const method of ["in", "is", "order", "limit", "or"]) query[method] = vi.fn((...args: any[]) => { mocks.queryCalls.push({ table, method, args }); write?.filters.push([method, ...args]); return query; });
   const resolve = () => nextResult(table, write?.kind ?? "select");
   query.single = vi.fn(async () => resolve());
   query.maybeSingle = vi.fn(async () => resolve());
@@ -75,13 +78,32 @@ function queryFor(table: string) {
 }
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: vi.fn(queryFor), functions: { invoke: vi.fn() } },
+  supabase: { from: vi.fn(queryFor), functions: { invoke: mocks.invoke } },
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "user-1", email: "synthetic@example.test" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
 vi.mock("@/hooks/useClubProAccess", () => ({ useClubProAccess: () => ({ hasPro: true, hasProFootball: true, isLoading: false }) }));
 vi.mock("@/lib/profileCache", () => ({ selectCachedProfileById: async () => ({ data: null }) }));
 vi.mock("@/lib/scheduleBroadcast", () => ({ sendScheduleBroadcast: vi.fn() }));
+vi.mock("@/lib/clubSetupLocalState", () => ({ clearClubSetupLocalState: vi.fn() }));
+vi.mock("@/components/ui/dropdown-menu", async () => {
+  const React = await import("react");
+  return {
+    DropdownMenu: ({ children }: any) => <div>{children}</div>,
+    DropdownMenuTrigger: ({ children }: any) => <>{children}</>,
+    DropdownMenuContent: ({ children }: any) => <div>{children}</div>,
+    DropdownMenuItem: React.forwardRef<HTMLButtonElement, any>(({ children, onClick }, ref) => (
+      <button ref={ref} onClick={onClick}>{children}</button>
+    )),
+  };
+});
+vi.mock("@/components/ConfirmDeleteDialog", () => ({
+  ConfirmDeleteDialog: ({ open, entityType, onConfirm, isLoading, permanent }: any) => open ? (
+    <button disabled={isLoading} onClick={onConfirm}>
+      {permanent ? `Confirm permanent ${entityType} deletion` : `Confirm ${entityType} deletion`}
+    </button>
+  ) : null,
+}));
 vi.mock("@/components/club/ClubSetupProgressCard", () => ({ ClubSetupProgressCard: () => null }));
 vi.mock("@/components/SponsorsManager", () => ({ SponsorsManager: () => null }));
 vi.mock("@/components/ClubRewardsManager", () => ({ default: () => null }));
@@ -104,7 +126,10 @@ async function renderPage() {
   const { default: ClubDetailPage } = await import("./ClubDetailPage");
   render(
     <MemoryRouter initialEntries={["/clubs/club-1"]}>
-      <Routes><Route path="/clubs/:id" element={<ClubDetailPage />} /></Routes>
+      <Routes>
+        <Route path="/clubs/:id" element={<ClubDetailPage />} />
+        <Route path="/clubs" element={<div>Clubs destination</div>} />
+      </Routes>
     </MemoryRouter>,
   );
   await waitFor(() => expect(mocks.mutations.length).toBeGreaterThanOrEqual(mutationNames.length));
@@ -116,6 +141,11 @@ function mutation(name: string) {
 
 function query(key: string) {
   return [...mocks.queries].reverse().find((options) => options.queryKey?.[0] === key);
+}
+
+async function beginClubDeletion() {
+  fireEvent.click(await screen.findByText("Delete Club"));
+  fireEvent.click(await screen.findByRole("button", { name: "Confirm club deletion" }));
 }
 
 describe("ClubDetailPage administration characterization", () => {
@@ -130,6 +160,9 @@ describe("ClubDetailPage administration characterization", () => {
     mocks.isAppAdmin = false;
     mocks.teams = [];
     mocks.clubSubscription = null;
+    mocks.clubDeletedAt = null;
+    mocks.operations = [];
+    mocks.invoke.mockResolvedValue({ data: { success: true }, error: null });
   });
 
   it("loads only non-deleted teams belonging to the current club and surfaces query failures", async () => {
@@ -239,5 +272,139 @@ describe("ClubDetailPage administration characterization", () => {
     const failure = { message: "app admin required", code: "42501" };
     mocks.results["club_subscriptions:insert"] = [{ data: null, error: failure }];
     await expect(mutation("toggleClubPro").mutationFn({ isPro: true, isProFootball: false })).rejects.toEqual(failure);
+  });
+
+  it("cancels billing and commits the club before sending one notification per unique member", async () => {
+    mocks.userRole = "club_admin";
+    mocks.results["teams:select"] = [{ data: [{ id: "team-1" }, { id: "team-2" }], error: null }];
+    mocks.results["user_roles:select"] = [
+      { data: [{ user_id: "user-1" }, { user_id: "member-2" }], error: null },
+      { data: [{ user_id: "member-2" }, { user_id: "member-3" }], error: null },
+    ];
+    await renderPage();
+    await beginClubDeletion();
+
+    await waitFor(() => expect(mocks.operations).toContain("clubs:update"));
+    expect(mocks.invoke).toHaveBeenCalledWith("cancel-subscription", {
+      body: { subscription_type: "club", entity_id: "club-1" },
+    });
+    expect(mocks.operations.indexOf("clubs:update")).toBeLessThan(mocks.operations.indexOf("notifications:insert"));
+    expect(mocks.writes.find(write => write.table === "notifications")?.payload).toEqual([
+      { user_id: "member-2", type: "membership", message: "Synthetic Club has been deleted", related_id: null },
+      { user_id: "member-3", type: "membership", message: "Synthetic Club has been deleted", related_id: null },
+    ]);
+  });
+
+  it("does not notify or cascade when the club soft-delete is denied", async () => {
+    mocks.userRole = "club_admin";
+    mocks.results["teams:select"] = [{ data: [{ id: "team-1" }], error: null }];
+    mocks.results["user_roles:select"] = [
+      { data: [{ user_id: "member-2" }], error: null },
+      { data: [], error: null },
+    ];
+    mocks.results["clubs:update"] = [{ data: null, error: { message: "club delete denied", code: "42501" } }];
+    await renderPage();
+    await beginClubDeletion();
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Error",
+      description: "Failed to delete club: club delete denied",
+      variant: "destructive",
+    }));
+    expect(mocks.writes.some(write => write.table === "notifications")).toBe(false);
+    expect(mocks.writes.some(write => write.table === "teams" && write.kind === "update")).toBe(false);
+    expect(mocks.writes.some(write => write.table === "chat_groups")).toBe(false);
+  });
+
+  it("stops deletion when subscription cancellation cannot be confirmed", async () => {
+    mocks.userRole = "club_admin";
+    mocks.results["teams:select"] = [{ data: [], error: null }];
+    mocks.results["user_roles:select"] = [{ data: [], error: null }];
+    mocks.invoke.mockRejectedValue(new Error("Stripe unavailable"));
+    await renderPage();
+    await beginClubDeletion();
+
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("cancel-subscription", expect.anything()));
+    expect(mocks.writes.some(write => write.table === "clubs" && write.kind === "update")).toBe(false);
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Club deletion blocked",
+      description: expect.stringContaining("Stripe unavailable"),
+      variant: "destructive",
+    }));
+  });
+
+  it("uses one deletion marker and scopes team and chat cleanup to this club", async () => {
+    mocks.userRole = "club_admin";
+    mocks.results["teams:select"] = [{ data: [{ id: "team-1" }, { id: "team-2" }], error: null }];
+    mocks.results["user_roles:select"] = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+    await renderPage();
+    await beginClubDeletion();
+
+    await waitFor(() => expect(mocks.writes.some(write => write.table === "chat_groups")).toBe(true));
+    const clubWrite = mocks.writes.find(write => write.table === "clubs" && write.kind === "update")!;
+    const teamWrite = mocks.writes.find(write => write.table === "teams" && write.kind === "update")!;
+    const chatWrite = mocks.writes.find(write => write.table === "chat_groups" && write.kind === "update")!;
+    expect(teamWrite.payload.deleted_at).toBe(clubWrite.payload.deleted_at);
+    expect(chatWrite.payload.deleted_at).toBe(clubWrite.payload.deleted_at);
+    expect(teamWrite.filters).toContainEqual(["in", "id", ["team-1", "team-2"]]);
+    expect(chatWrite.filters).toContainEqual(["or", "club_id.eq.club-1,team_id.in.(team-1,team-2)"]);
+    expect(chatWrite.filters).toContainEqual(["is", "deleted_at", null]);
+  });
+
+  it("restores only rows carrying the club's original deletion marker", async () => {
+    mocks.userRole = "club_admin";
+    mocks.clubDeletedAt = "2026-07-30T01:02:03.000Z";
+    mocks.results["teams:select"] = [{ data: [{ id: "team-1" }], error: null }];
+    await renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Restore" }));
+
+    await waitFor(() => expect(mocks.writes.some(write => write.table === "chat_groups")).toBe(true));
+    const teamRestore = mocks.writes.find(write => write.table === "teams" && write.payload?.deleted_at === null)!;
+    const chatRestore = mocks.writes.find(write => write.table === "chat_groups" && write.payload?.deleted_at === null)!;
+    expect(teamRestore.filters).toEqual(expect.arrayContaining([
+      ["club_id", "club-1"],
+      ["deleted_at", "2026-07-30T01:02:03.000Z"],
+    ]));
+    expect(chatRestore.filters).toContainEqual(["deleted_at", "2026-07-30T01:02:03.000Z"]);
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["club", "club-1"] });
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["club-teams", "club-1"] });
+  });
+
+  it("reports team-cleanup failure as partial deletion rather than complete success", async () => {
+    mocks.userRole = "club_admin";
+    mocks.results["teams:select"] = [{ data: [{ id: "team-1" }], error: null }];
+    mocks.results["user_roles:select"] = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+    mocks.results["teams:update"] = [{ data: null, error: { message: "team cleanup denied", code: "42501" } }];
+    await renderPage();
+    await beginClubDeletion();
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Club deleted — cleanup incomplete",
+      description: expect.stringContaining("team cleanup denied"),
+      variant: "destructive",
+    })));
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Club deleted" }));
+  });
+
+  it("invokes permanent deletion with the exact club boundary", async () => {
+    mocks.userRole = "club_admin";
+    mocks.clubDeletedAt = "2026-07-30T01:02:03.000Z";
+    await renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Permanently Delete" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm permanent club deletion" }));
+
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("permanent-delete-entity", {
+      body: { entityType: "club", entityId: "club-1" },
+    }));
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Club permanently deleted",
+      description: "All data has been removed.",
+    });
   });
 });
