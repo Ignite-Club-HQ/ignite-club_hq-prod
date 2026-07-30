@@ -548,11 +548,23 @@ export default function HomePage() {
           : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
       ]);
 
+      // Validate every parallel result before using any of it. A transient
+      // failure (token refresh, RLS race, network blip) must throw so React
+      // Query keeps its last good cache instead of caching an empty/partial
+      // membership snapshot. Legitimate empty arrays stay successful.
+      if ((teamsResult as any).error) throw (teamsResult as any).error;
+      if (!teamsResult.data) throw new Error("teams fetch returned null data");
+      if ((playerLeaguesResult as any).error) throw (playerLeaguesResult as any).error;
+      if (!playerLeaguesResult.data) throw new Error("mini_league_players fetch returned null data");
+      if ((adminLeaguesResult as any).error) throw (adminLeaguesResult as any).error;
+      if (!adminLeaguesResult.data) throw new Error("mini_leagues fetch returned null data");
       // Same protection on the events fetch — if it failed (RLS race on
       // resume), throw so React Query preserves the previous Next Up data
       // instead of replacing it with an empty list.
       if ((eventsResult as any).error) throw (eventsResult as any).error;
       if (!eventsResult.data) throw new Error("events fetch returned null data");
+      if ((activeClubsResult as any).error) throw (activeClubsResult as any).error;
+      if (!activeClubsResult.data) throw new Error("clubs fetch returned null data");
 
       // Drop soft-deleted role-club ids from the membership sets.
       const activeClubIdSet = new Set(((activeClubsResult as any).data || []).map((c: any) => c.id as string));
