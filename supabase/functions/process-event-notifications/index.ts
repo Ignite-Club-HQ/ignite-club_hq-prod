@@ -110,6 +110,33 @@ Deno.serve(async (req) => {
     let dedupeVersion: string | null = null;
     const notificationUrl = `/events/${eventId}`;
 
+    /**
+     * RSVP-derived audience (cancellations / updates). Paginated and
+     * fail-closed through the same helper as invite fan-out: an unpaginated
+     * read silently truncated at the PostgREST row cap, and a read error
+     * became an empty audience, so a >1,000-RSVP event could under-notify.
+     */
+    const rsvpRecipients = () =>
+      paginateColumn(
+        () =>
+          supabase
+            .from("rsvps")
+            .select("user_id")
+            .eq("event_id", eventId)
+            .not("user_id", "is", null),
+        "user_id",
+        "rsvps",
+      );
+
+    const audienceFailure = () => {
+      console.error("[EVENT-NOTIFY] Aborting fan-out: audience lookup failed");
+      return new Response(
+        JSON.stringify({ error: "event_audience_lookup_failed" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    };
+
+
     if (action === "event_created") {
       if (eventRow.parent_event_id || eventRow.is_cancelled) {
         return new Response(JSON.stringify({ message: "Not eligible for invite" }), {
