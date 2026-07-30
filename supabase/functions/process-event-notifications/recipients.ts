@@ -1,15 +1,18 @@
 /**
- * Recipient resolution for event fan-out. Extracted verbatim from
- * `index.ts` so it can be characterization-tested with a fake Supabase
- * client. Behaviour MUST stay byte-for-byte identical — the audience of
- * team / mini-league / club-wide / targeted events is a safety-critical
- * contract (see docs/PROMOTION_CHECKLIST.md).
+ * Recipient resolution for event fan-out. Extracted from `index.ts` so it can
+ * be characterization-tested with a fake Supabase client. Behaviour is a
+ * safety-critical contract (see docs/PROMOTION_CHECKLIST.md):
+ *
+ *  - every recipient-producing query is paginated deterministically, so no
+ *    audience is silently truncated by the PostgREST per-request row cap;
+ *  - every recipient-source read error aborts resolution (fail closed) rather
+ *    than degrading into an empty or partial audience.
  */
 
 /**
- * Thrown when the authoritative stored-event audience lookup fails. Callers
- * MUST abort the fan-out: an empty recipient list is a valid success result,
- * so failures need a distinguishable signal.
+ * Thrown when any authoritative recipient-source lookup fails. Callers MUST
+ * abort the fan-out: an empty recipient list is a valid success result, so
+ * failures need a distinguishable signal.
  */
 export class AudienceResolutionError extends Error {
   readonly code = "event_audience_lookup_failed";
@@ -19,7 +22,63 @@ export class AudienceResolutionError extends Error {
   }
 }
 
-// Resolve recipients for team/club/mini-league scoped events
+/**
+ * Conservative page size. Must stay well below any plausible PostgREST
+ * max-rows setting (observed < 409 on this project) — see the Kings Cup
+ * fan-out incident where 8 club members were silently dropped.
+ */
+export const PAGE_SIZE = 200;
+
+/** Bounded chunk size for `.in(...)` argument lists. */
+const CHUNK_SIZE = 200;
+
+/** Hard stop so a misbehaving backend cannot spin forever. */
+const MAX_PAGES = 10_000;
+
+/**
+ * Paginate a recipient-source query to completion.
+ *
+ * `build` is a factory so every page starts from a fresh query builder.
+ * Ordering is explicit and stable; ranges are explicit. Any error throws
+ * `AudienceResolutionError` — partial rows are never returned.
+ */
+export async function paginateColumn(
+  build: () => any,
+  column: string,
+  label: string,
+): Promise<string[]> {
+  const out: string[] = [];
+  let offset = 0;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { data, error } = await build()
+      .order(column, { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) {
+      // Sanitised log only — never surface DB text to callers.
+      console.error(
+        "[EVENT-NOTIFY] Recipient source read failed",
+        label,
+        (error as any)?.code ?? "",
+      );
+      throw new AudienceResolutionError();
+    }
+    const rows = data || [];
+    for (const r of rows) {
+      const v = r?.[column];
+      if (v) out.push(v as string);
+    }
+    if (rows.length < PAGE_SIZE) return out;
+    offset += PAGE_SIZE;
+  }
+  console.error("[EVENT-NOTIFY] Recipient pagination exceeded page limit", label);
+  throw new AudienceResolutionError();
+}
+
+function chunk<T>(items: T[], size = CHUNK_SIZE): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
 
 export async function resolveRecipients(
   supabase: any,
@@ -35,89 +94,78 @@ export async function resolveRecipients(
     // - mini_league_admins for this league
     // - league_admin role-holders for this club
     // Club-wide coaches/club_admins are intentionally excluded.
-    const [playersResult, leagueAdminResult, roleAdminResult] = await Promise.all([
-      supabase
-        .from('mini_league_players')
-        .select('parent_user_id')
-        .eq('mini_league_id', miniLeagueId)
-        .not('parent_user_id', 'is', null),
-      supabase
-        .from('mini_league_admins')
-        .select('user_id')
-        .eq('mini_league_id', miniLeagueId),
-      supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'league_admin')
-        .eq('club_id', clubId),
+    const [parentIds, leagueAdminIds, roleAdminIds] = await Promise.all([
+      paginateColumn(
+        () =>
+          supabase
+            .from("mini_league_players")
+            .select("parent_user_id")
+            .eq("mini_league_id", miniLeagueId)
+            .not("parent_user_id", "is", null),
+        "parent_user_id",
+        "mini_league_players",
+      ),
+      paginateColumn(
+        () =>
+          supabase
+            .from("mini_league_admins")
+            .select("user_id")
+            .eq("mini_league_id", miniLeagueId),
+        "user_id",
+        "mini_league_admins",
+      ),
+      paginateColumn(
+        () =>
+          supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("role", "league_admin")
+            .eq("club_id", clubId),
+        "user_id",
+        "user_roles(league_admin)",
+      ),
     ]);
-    const parentIds = (playersResult.data || []).map((p: any) => p.parent_user_id);
-    const leagueAdminIds = (leagueAdminResult.data || []).map((a: any) => a.user_id);
-    const roleAdminIds = (roleAdminResult.data || []).map((a: any) => a.user_id);
-    return [...new Set([...parentIds, ...leagueAdminIds, ...roleAdminIds])].filter(id => id !== excludeUserId);
-  }
-
-  // Paginate every branch deterministically. PostgREST has a per-request row cap
-  // (project-configured, observed < 409 on this project) that silently truncates
-  // un-ordered .range() queries — see Kings Cup fan-out incident where 8 club
-  // members were silently dropped. Keep PAGE_SIZE well below any plausible cap.
-  const PAGE_SIZE = 200;
-
-  async function paginateUserIds(
-    build: () => any,
-  ): Promise<string[]> {
-    let offset = 0;
-    const ids: string[] = [];
-    while (true) {
-      const { data: page, error } = await build()
-        .order('user_id', { ascending: true })
-        .range(offset, offset + PAGE_SIZE - 1);
-      if (error) {
-        console.error('[EVENT-NOTIFY] Recipient pagination error:', error);
-        break;
-      }
-      const rows = page || [];
-      if (rows.length === 0) break;
-      ids.push(...rows.map((m: any) => m.user_id));
-      if (rows.length < PAGE_SIZE) break;
-      offset += PAGE_SIZE;
-    }
-    return ids;
+    return [...new Set([...parentIds, ...leagueAdminIds, ...roleAdminIds])].filter(
+      (id) => id !== excludeUserId,
+    );
   }
 
   if (teamId) {
-    const ids = await paginateUserIds(() =>
-      supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('team_id', teamId)
-        .neq('user_id', excludeUserId)
+    const ids = await paginateColumn(
+      () =>
+        supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("team_id", teamId)
+          .neq("user_id", excludeUserId),
+      "user_id",
+      "user_roles(team)",
     );
     return [...new Set(ids)];
   }
 
   // Club-wide. If the event is role-restricted, only invite those roles plus club admins.
   const { data: eventRow, error: eventError } = await supabase
-    .from('events')
-    .select('restricted_to_roles, target_team_ids')
-    .eq('id', eventId)
+    .from("events")
+    .select("restricted_to_roles, target_team_ids")
+    .eq("id", eventId)
     .maybeSingle();
   if (eventError) {
     // FAIL CLOSED. Falling through here would treat a targeted or
     // role-restricted event as an unrestricted club-wide event and notify
     // members who were never invited. Sanitised log only.
     console.error(
-      '[EVENT-NOTIFY] Audience lookup failed',
-      (eventError as any)?.code ?? '',
+      "[EVENT-NOTIFY] Audience lookup failed",
+      (eventError as any)?.code ?? "",
     );
-    throw new AudienceResolutionError('event_audience_lookup_failed');
+    throw new AudienceResolutionError("event_audience_lookup_failed");
   }
 
   const restrictedRoles = Array.isArray(eventRow?.restricted_to_roles)
     ? eventRow.restricted_to_roles
     : [];
   const rolesToInvite = restrictedRoles.length > 0
-    ? [...new Set([...restrictedRoles, 'club_admin'])]
+    ? [...new Set([...restrictedRoles, "club_admin"])]
     : null;
 
   // Targeted club-wide events: only fan out to members/coaches/team_admins
@@ -127,54 +175,87 @@ export async function resolveRecipients(
     ? eventRow.target_team_ids
     : [];
   if (targetTeamIds.length > 0) {
-    const [teamRoleIds, adminIds, guardianIds] = await Promise.all([
-      paginateUserIds(() =>
-        supabase
-          .from('user_roles')
-          .select('user_id')
-          .in('team_id', targetTeamIds)
-          .neq('user_id', excludeUserId),
+    const teamIdChunks = chunk(targetTeamIds);
+
+    const [teamRoleIdLists, adminIds, guardianIds] = await Promise.all([
+      Promise.all(
+        teamIdChunks.map((ids) =>
+          paginateColumn(
+            () =>
+              supabase
+                .from("user_roles")
+                .select("user_id")
+                .in("team_id", ids)
+                .neq("user_id", excludeUserId),
+            "user_id",
+            "user_roles(targeted teams)",
+          )
+        ),
       ),
-      paginateUserIds(() =>
-        supabase
-          .from('user_roles')
-          .select('user_id')
-          .eq('club_id', clubId)
-          .in('role', ['club_admin', 'committee_member'])
-          .neq('user_id', excludeUserId),
+      paginateColumn(
+        () =>
+          supabase
+            .from("user_roles")
+            .select("user_id")
+            .eq("club_id", clubId)
+            .in("role", ["club_admin", "committee_member"])
+            .neq("user_id", excludeUserId),
+        "user_id",
+        "user_roles(club admins)",
       ),
       (async () => {
-        // Guardians of children assigned to any targeted team.
-        const { data: assigns, error } = await supabase
-          .from('child_team_assignments')
-          .select('child_id')
-          .in('team_id', targetTeamIds);
-        if (error || !assigns?.length) return [] as string[];
-        const childIds = [...new Set(assigns.map((a: any) => a.child_id))];
-        const out: string[] = [];
-        // Chunk to keep .in() list reasonable.
-        for (let i = 0; i < childIds.length; i += 200) {
-          const chunk = childIds.slice(i, i + 200);
-          const { data: guardians } = await supabase
-            .from('child_guardians')
-            .select('guardian_id')
-            .in('child_id', chunk);
-          if (guardians) out.push(...guardians.map((g: any) => g.guardian_id));
-        }
-        return out.filter((id) => id && id !== excludeUserId);
+        // Guardians of children assigned to any targeted team. Every read here
+        // is paginated and fail-closed: a partial guardian list would silently
+        // drop invited families.
+        const assignLists = await Promise.all(
+          teamIdChunks.map((ids) =>
+            paginateColumn(
+              () =>
+                supabase
+                  .from("child_team_assignments")
+                  .select("child_id")
+                  .in("team_id", ids),
+              "child_id",
+              "child_team_assignments",
+            )
+          ),
+        );
+        const childIds = [...new Set(assignLists.flat())];
+        if (childIds.length === 0) return [] as string[];
+        const guardianLists = await Promise.all(
+          chunk(childIds).map((ids) =>
+            paginateColumn(
+              () =>
+                supabase
+                  .from("child_guardians")
+                  .select("guardian_id")
+                  .in("child_id", ids),
+              "guardian_id",
+              "child_guardians",
+            )
+          ),
+        );
+        return guardianLists.flat().filter((id) => id && id !== excludeUserId);
       })(),
     ]);
-    return [...new Set([...teamRoleIds, ...adminIds, ...guardianIds])];
+
+    return [
+      ...new Set([...teamRoleIdLists.flat(), ...adminIds, ...guardianIds]),
+    ];
   }
 
-  const ids = await paginateUserIds(() => {
-    let query = supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('club_id', clubId)
-      .neq('user_id', excludeUserId);
-    if (rolesToInvite) query = query.in('role', rolesToInvite);
-    return query;
-  });
+  const ids = await paginateColumn(
+    () => {
+      let query = supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", clubId)
+        .neq("user_id", excludeUserId);
+      if (rolesToInvite) query = query.in("role", rolesToInvite);
+      return query;
+    },
+    "user_id",
+    "user_roles(club)",
+  );
   return [...new Set(ids)];
 }
