@@ -2117,22 +2117,61 @@ export default function EventDetailPage() {
     },
   });
 
+  // Thrown when a recurring-series cancellation committed only one of its two
+  // writes. Records explicitly which mutation committed — never inferred from
+  // error text.
+  class SeriesCancellationPartialError extends Error {
+    constructor(
+      public childrenCommitted: boolean,
+      public parentCommitted: boolean,
+      public underlying: string,
+    ) {
+      super(underlying);
+      this.name = "SeriesCancellationPartialError";
+    }
+  }
+
   const cancelEventMutation = useMutation({
     mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { cancelType: 'single' | 'series'; customMessage?: string; sendPushNotification?: boolean }) => {
       console.log("[CancelEvent] Starting cancel mutation", { cancelType, eventId: id, miniLeagueId: event?.mini_league_id });
-      
-      if (cancelType === 'series' && event?.parent_event_id) {
-        // Cancel parent and all children
-        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", event.parent_event_id);
-        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", event.parent_event_id);
-        if (err1) { console.error("[CancelEvent] Error cancelling children:", err1); throw err1; }
-        if (err2) { console.error("[CancelEvent] Error cancelling parent:", err2); throw err2; }
-      } else if (cancelType === 'series' && event?.is_recurring) {
-        // This is the parent - cancel all children and this event
-        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", id!);
-        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", id!);
-        if (err1) { console.error("[CancelEvent] Error cancelling children:", err1); throw err1; }
-        if (err2) { console.error("[CancelEvent] Error cancelling this event:", err2); throw err2; }
+
+      const isSeries =
+        cancelType === 'series' && (!!event?.parent_event_id || !!event?.is_recurring);
+
+      if (isSeries) {
+        // Either arrangement: current event is a child (use its parent id) or
+        // the current event IS the recurring parent (use its own id).
+        const seriesRootId = event?.parent_event_id || id!;
+
+        const { error: childrenError } = await supabase
+          .from("events")
+          .update({ is_cancelled: true, chat_cancel_post_handled: true })
+          .eq("parent_event_id", seriesRootId);
+        const { error: parentError } = await supabase
+          .from("events")
+          .update({ is_cancelled: true, chat_cancel_post_handled: true })
+          .eq("id", seriesRootId);
+
+        const childrenCancellationSucceeded = !childrenError;
+        const parentCancellationSucceeded = !parentError;
+
+        if (childrenError) console.error("[CancelEvent] Error cancelling children:", childrenError);
+        if (parentError) console.error("[CancelEvent] Error cancelling parent:", parentError);
+
+        // A. Neither write succeeded — complete failure, no chat message.
+        if (!childrenCancellationSucceeded && !parentCancellationSucceeded) {
+          throw childrenError ?? parentError;
+        }
+
+        // C. Exactly one write succeeded — partial state, no chat message.
+        if (!childrenCancellationSucceeded || !parentCancellationSucceeded) {
+          throw new SeriesCancellationPartialError(
+            childrenCancellationSucceeded,
+            parentCancellationSucceeded,
+            (childrenError ?? parentError)!.message,
+          );
+        }
+        // B. Both succeeded — fall through to normal success behaviour.
       } else {
         // Just cancel this single event
         console.log("[CancelEvent] Cancelling single event:", id);
@@ -2143,6 +2182,7 @@ export default function EventDetailPage() {
           throw error;
         }
       }
+
 
       // Get member count for notifications - handle mini-league events differently
       let uniqueMembers: string[] = [];
