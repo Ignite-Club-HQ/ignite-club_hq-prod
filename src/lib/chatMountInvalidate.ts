@@ -29,7 +29,7 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 const FRESH_WINDOW_MS = 3_000;
-const REVISIBLE_GRACE_MS = 2_000;
+const REVISIBLE_GRACE_MS = 8_000;
 
 let lastBecameVisibleAt = 0;
 let visibilityListenerInstalled = false;

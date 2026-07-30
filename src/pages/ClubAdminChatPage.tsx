@@ -62,6 +62,7 @@ import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById } from "@/lib/profileCache";
 import { queueMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages } from "@/lib/messageCache";
+import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import {
   classifyChatThreadState,
   nextEmptyRetryDelay,
@@ -147,6 +148,9 @@ export default function ClubAdminChatPage() {
   const { user, profile, initialized } = useAuth();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
+  const openedFromNotificationRef = useRef<number | null>(
+    conversationId ? consumeFromNotificationFlag("club_admin", conversationId) : null,
+  );
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = conversationId
@@ -399,9 +403,36 @@ export default function ClubAdminChatPage() {
     refetchOnWindowFocus: false,
     retry: 3,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
-    placeholderData: (prev: any) => prev,
+    placeholderData: (prev: any) => {
+      if (!conversationId) return prev;
+      const cached = getCachedClubAdminMessages(conversationId);
+      if (openedFromNotificationRef.current && prev) {
+        const prevMessages: ClubAdminMessage[] = Array.isArray(prev) ? prev : (prev.messages || []);
+        const merged = [...prevMessages];
+        for (const cachedMessage of cached) {
+          if (!merged.some((message) => message.id === cachedMessage.id)) merged.push(cachedMessage);
+        }
+        merged.sort((a, b) =>
+          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
+        );
+        return Array.isArray(prev) ? merged : { ...prev, messages: merged, fromCache: true };
+      }
+      if (openedFromNotificationRef.current && isUsableCachedThread(cached as any)) {
+        return { messages: cached, hasOlderMessages: false, fromCache: true };
+      }
+      if (prev) return prev;
+      return isUsableCachedThread(cached as any)
+        ? { messages: cached, hasOlderMessages: false, fromCache: true }
+        : undefined;
+    },
 
   });
+
+  useEffect(() => {
+    if (!openedFromNotificationRef.current) return;
+    if (!conversationId || !user?.id) return;
+    queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] });
+  }, [conversationId, user?.id, queryClient]);
 
   // Bounded automatic recovery. If the thread fetch returns zero messages (or
   // errors) while auth/RLS/connectivity is still settling after an Android
