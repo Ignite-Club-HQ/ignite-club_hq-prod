@@ -10,7 +10,10 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   toast: vi.fn(),
   inserts: [] as Array<{ table: string; payload: any }>,
+  updates: [] as Array<{ table: string; payload: any }>,
   inviteError: null as any,
+  writeErrors: {} as Record<string, any>,
+  invitableEmailMatch: null as any,
   deferInvite: false,
   releaseInvite: null as null | (() => void),
 }));
@@ -24,6 +27,9 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "admin-1" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
+vi.mock("@/lib/inviteEmailDedupe", () => ({
+  lookupInvitableUserByEmail: vi.fn(async () => mocks.invitableEmailMatch),
+}));
 vi.mock("@/components/invite/TeamJoinLinkCard", () => ({ default: () => <div data-testid="join-link-card" /> }));
 
 import AddTeamMemberSheet from "./AddTeamMemberSheet";
@@ -41,7 +47,10 @@ function tableQuery(table: string) {
     mocks.inserts.push({ table, payload });
     return query;
   });
-  query.update = vi.fn(() => query);
+  query.update = vi.fn((payload: any) => {
+    mocks.updates.push({ table, payload });
+    return query;
+  });
   Object.defineProperty(query, "then", {
     value: async (resolve: any, reject: any) => {
       if (table === "pending_invites" && mocks.inserts.some(row => row.table === table)) {
@@ -49,6 +58,9 @@ function tableQuery(table: string) {
         return Promise.resolve(mocks.inviteError
           ? { data: null, error: mocks.inviteError }
           : { data: { id: "invite-1", short_code: "ABC123" }, error: null, count: 1 }).then(resolve, reject);
+      }
+      if (mocks.writeErrors[table] && mocks.inserts.some(row => row.table === table)) {
+        return Promise.resolve({ data: null, error: mocks.writeErrors[table] }).then(resolve, reject);
       }
       const data = table === "clubs"
         ? { id: "club-1", name: "Synthetic Club", logo_url: null, contact_email: null }
@@ -100,7 +112,10 @@ describe("AddTeamMemberSheet characterization — membership workflow boundary",
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.inserts = [];
+    mocks.updates = [];
     mocks.inviteError = null;
+    mocks.writeErrors = {};
+    mocks.invitableEmailMatch = null;
     mocks.deferInvite = false;
     mocks.releaseInvite = null;
     mocks.from.mockImplementation(tableQuery);
@@ -193,5 +208,138 @@ describe("AddTeamMemberSheet characterization — membership workflow boundary",
       mocks.releaseInvite?.();
     });
     await waitFor(() => expect(screen.getByText("Member Added")).toBeInTheDocument());
+  });
+
+  it("adds an in-scope existing account directly without creating a duplicate pending invite", async () => {
+    mocks.invitableEmailMatch = {
+      user_id: "existing-user-1",
+      display_name: "Existing Member",
+      already_in_team: false,
+    };
+    const { invalidate } = renderSheet("senior");
+    advanceSeniorToDelivery();
+    selectEmailDelivery();
+    fireEvent.change(screen.getByPlaceholderText("e.g., john@example.com"), {
+      target: { value: " Existing@Example.COM " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Invite" }));
+
+    await waitFor(() => expect(mocks.inserts.some(row => row.table === "user_roles")).toBe(true));
+    expect(mocks.inserts.filter(row => row.table === "pending_invites")).toEqual([]);
+    expect(mocks.inserts.find(row => row.table === "user_roles")?.payload).toEqual({
+      user_id: "existing-user-1",
+      team_id: "team-1",
+      club_id: "club-1",
+      role: "player",
+    });
+    expect(mocks.inserts.find(row => row.table === "notifications")?.payload).toEqual({
+      user_id: "existing-user-1",
+      type: "membership",
+      message: "You have been added to Synthetic Team as Adult Player",
+      related_id: "team-1",
+    });
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["team-roles", "team-1"] }));
+  });
+
+  it("rejects an email already belonging to this team without writing a role, invite or notification", async () => {
+    mocks.invitableEmailMatch = {
+      user_id: "existing-user-1",
+      display_name: "Existing Member",
+      already_in_team: true,
+    };
+    renderSheet("senior");
+    advanceSeniorToDelivery();
+    selectEmailDelivery();
+    fireEvent.change(screen.getByPlaceholderText("e.g., john@example.com"), {
+      target: { value: "existing@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Invite" }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Failed to add member",
+      description: "Existing Member is already on this team.",
+      variant: "destructive",
+    })));
+    expect(mocks.inserts).toEqual([]);
+  });
+
+  it("stops before notification and success state when direct role assignment is denied", async () => {
+    mocks.invitableEmailMatch = {
+      user_id: "existing-user-1",
+      display_name: "Existing Member",
+      already_in_team: false,
+    };
+    mocks.writeErrors.user_roles = { message: "role insert denied", code: "42501" };
+    const { invalidate } = renderSheet("senior");
+    advanceSeniorToDelivery();
+    selectEmailDelivery();
+    fireEvent.change(screen.getByPlaceholderText("e.g., john@example.com"), {
+      target: { value: "existing@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Invite" }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Failed to add member",
+      description: "role insert denied",
+      variant: "destructive",
+    })));
+    expect(mocks.inserts.filter(row => row.table === "notifications")).toEqual([]);
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["team-roles", "team-1"] });
+  });
+
+  it("reports partial success when a direct role is saved but its membership notification fails", async () => {
+    mocks.invitableEmailMatch = {
+      user_id: "existing-user-1",
+      display_name: "Existing Member",
+      already_in_team: false,
+    };
+    mocks.writeErrors.notifications = { message: "notification insert denied", code: "42501" };
+    const { invalidate } = renderSheet("senior");
+    advanceSeniorToDelivery();
+    selectEmailDelivery();
+    fireEvent.change(screen.getByPlaceholderText("e.g., john@example.com"), {
+      target: { value: "existing@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Invite" }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Member added — notification failed",
+      description: expect.stringContaining("notification insert denied"),
+      variant: "destructive",
+    })));
+    expect(mocks.inserts.filter(row => row.table === "user_roles")).toHaveLength(1);
+    expect(mocks.inserts.filter(row => row.table === "pending_invites")).toEqual([]);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["team-roles", "team-1"] });
+  });
+
+  it("preserves a created invite and records delivery failure when the email provider rejects it", async () => {
+    mocks.invoke.mockResolvedValue({
+      data: { success: false, verified: false, error: "provider unavailable" },
+      error: null,
+    });
+    const { invalidate } = renderSheet("senior");
+    advanceSeniorToDelivery();
+    selectEmailDelivery();
+    fireEvent.change(screen.getByPlaceholderText("e.g., john@example.com"), {
+      target: { value: "new.member@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create Invite" }));
+
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(1));
+    expect(mocks.inserts.filter(row => row.table === "pending_invites")).toHaveLength(1);
+    await waitFor(() => expect(mocks.updates).toContainEqual({
+      table: "pending_invites",
+      payload: expect.objectContaining({
+        email_sent_at: null,
+        email_id: null,
+        email_error: "provider unavailable",
+      }),
+    }));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Member added",
+      description: "Could not send email, but invite has been created",
+    }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["pending-invites", "team-1", null] });
   });
 });
