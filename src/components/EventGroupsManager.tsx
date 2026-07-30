@@ -813,45 +813,18 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       player1Id: string; player1GroupId: string; player1Team: "a" | "b"; 
       player2Id: string; player2GroupId: string; player2Team: "a" | "b";
     }) => {
-      if (player1GroupId === player2GroupId) {
-        // Same group: just swap teams
-        const { error: e1 } = await supabase
-          .from("event_group_players")
-          .update({ team: player2Team })
-          .eq("group_id", player1GroupId)
-          .eq("player_id", player1Id);
-        if (e1) throw e1;
-        const { error: e2 } = await supabase
-          .from("event_group_players")
-          .update({ team: player1Team })
-          .eq("group_id", player2GroupId)
-          .eq("player_id", player2Id);
-        if (e2) throw e2;
-      } else {
-        // Different groups: move each to the other's group+team.
-        // Every write is checked; we stop at the first failure so the UI never
-        // reports success after a denied or failed write.
-        const { error: d1 } = await supabase
-          .from("event_group_players")
-          .delete()
-          .eq("group_id", player1GroupId)
-          .eq("player_id", player1Id);
-        if (d1) throw d1;
-        const { error: d2 } = await supabase
-          .from("event_group_players")
-          .delete()
-          .eq("group_id", player2GroupId)
-          .eq("player_id", player2Id);
-        if (d2) throw d2;
-        const { error: i1 } = await supabase
-          .from("event_group_players")
-          .insert({ group_id: player2GroupId, player_id: player1Id, team: player2Team });
-        if (i1) throw i1;
-        const { error: i2 } = await supabase
-          .from("event_group_players")
-          .insert({ group_id: player1GroupId, player_id: player2Id, team: player1Team });
-        if (i2) throw i2;
-      }
+      // Single atomic RPC: all writes commit together or none do, so a
+      // failure part-way can never leave a player removed but not re-added.
+      const { error } = await supabase.rpc("swap_event_group_players", {
+        p_player1_id: player1Id,
+        p_player1_group_id: player1GroupId,
+        p_player1_team: player1Team,
+        p_player2_id: player2Id,
+        p_player2_group_id: player2GroupId,
+        p_player2_team: player2Team,
+      });
+      if (error) throw error;
+
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });
