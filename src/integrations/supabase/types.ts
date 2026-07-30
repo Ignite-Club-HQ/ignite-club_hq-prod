@@ -11737,6 +11737,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      move_event_group_player: {
+        Args: {
+          p_from_group_id: string
+          p_player_id: string
+          p_to_group_id: string
+          p_to_team: string
+        }
+        Returns: undefined
+      }
       move_member_to_team: {
         Args: {
           p_club_id: string
@@ -11922,6 +11931,14 @@ export type Database = {
           candidate_count: number
           queued_count: number
         }[]
+      }
+      replace_event_groups: {
+        Args: {
+          p_delete_existing?: boolean
+          p_event_id: string
+          p_groups: Json
+        }
+        Returns: string[]
       }
       request_join_chat_group: {
         Args: { _group_id: string; _message?: string }
