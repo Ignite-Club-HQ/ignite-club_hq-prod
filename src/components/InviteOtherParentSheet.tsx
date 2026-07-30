@@ -43,9 +43,12 @@ export default function InviteOtherParentSheet({
   const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
   const [sent, setSent] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [emailDelivery, setEmailDelivery] = useState<EmailDeliveryState>("not_requested");
+  const [sentToEmail, setSentToEmail] = useState<string | null>(null);
   const [resolvedClubName, setResolvedClubName] = useState("");
   const [resolvedTeamName, setResolvedTeamName] = useState("");
   const [selectedUser, setSelectedUser] = useState<{ id: string; display_name: string | null; avatar_url: string | null } | null>(null);
+
 
   const debouncedName = useDebounce(parentName, 300);
 
