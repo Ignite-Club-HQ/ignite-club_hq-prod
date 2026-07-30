@@ -317,15 +317,24 @@ export default function InviteOtherParentSheet({
             </ResponsiveDialogHeader>
 
             <div className="space-y-4 py-4">
-              <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+              <div
+                className={`p-4 rounded-xl border ${
+                  emailDelivery === "failed"
+                    ? "bg-destructive/5 border-destructive/30"
+                    : "bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20"
+                }`}
+              >
                 <p className="font-medium mb-1">{parentName}</p>
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <Mail className="h-3.5 w-3.5" />
-                  {deliveryMethod === "email" && parentEmail
-                    ? `Invite sent to ${parentEmail}`
-                    : "Invite link created — share it with them"}
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  {emailDelivery === "sent" && sentToEmail
+                    ? `Invite sent to ${sentToEmail}`
+                    : emailDelivery === "failed"
+                      ? "Invite link created — email could not be sent. Share the link manually."
+                      : "Invite link created — share it with them"}
                 </p>
               </div>
+
 
               {/* Share invite via other channels */}
               <div className="space-y-2">
