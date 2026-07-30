@@ -95,7 +95,7 @@ import { cn } from "@/lib/utils";
 import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import TeamCompetitionsSection from "@/components/competitions/TeamCompetitionsSection";
 import { PlayHQTeamLinkCard } from "@/components/PlayHQTeamLinkCard";
-import { friendlyQueryError } from "@/lib/friendlyQueryError";
+import { friendlyQueryError, friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";

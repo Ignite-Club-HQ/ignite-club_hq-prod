@@ -100,7 +100,7 @@ import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
 import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
-import { friendlyQueryError } from "@/lib/friendlyQueryError";
+import { friendlyQueryError, friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 
 
 type ClubRole = "club_admin";
