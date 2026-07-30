@@ -1031,121 +1031,58 @@ export default function HomePage() {
 
   // Redeem mutation
   const redeemMutation = useMutation({
-    mutationFn: async ({ reward, forChildId }: { reward: any; forChildId: string | null }) => {
-      let pointsSource: { id: string; points: number; isChild: boolean };
-      let childName: string | null = null;
-      const rewardClubId: string = reward.club_id;
+    mutationFn: async ({
+      reward,
+      forChildId,
+      idempotencyKey,
+    }: { reward: any; forChildId: string | null; idempotencyKey?: string }) => {
+      // Single authoritative transaction: authorisation, balance lock, deduction,
+      // redemption row and points history all commit or roll back together.
+      const { data, error } = await (supabase as any).rpc("redeem_club_reward", {
+        _reward_id: reward.id,
+        _child_id: forChildId,
+        _idempotency_key: idempotencyKey ?? null,
+      });
 
-      if (forChildId) {
-        const child = userChildren.find(c => c.id === forChildId);
-        if (!child) throw new Error("Child not found");
-        // Always check the per-club balance for the reward's club, regardless
-        // of which club is currently selected in the header.
-        const { data: childBalance } = await supabase.rpc(
-          "get_child_club_points",
-          { _child_id: forChildId, _club_id: rewardClubId },
-        );
-        const childPoints = (childBalance as number | null) ?? 0;
-        if (childPoints < reward.points_required) {
-          throw new Error(`${child.name} doesn't have enough points`);
-        }
-        pointsSource = { id: forChildId, points: childPoints, isChild: true };
-        childName = child.name;
-      } else {
-        const { data: userBalance } = await supabase.rpc(
-          "get_user_club_points",
-          { _user_id: user!.id, _club_id: rewardClubId },
-        );
-        const currentPoints = (userBalance as number | null) ?? 0;
-        if (currentPoints < reward.points_required) {
-          throw new Error("Not enough points");
-        }
-        pointsSource = { id: user!.id, points: currentPoints, isChild: false };
-      }
+      if (error) throw error;
 
-      const { error: redemptionError } = await supabase
-        .from("reward_redemptions")
-        .insert({
-          user_id: user!.id,
-          reward_id: reward.id,
-          club_id: rewardClubId,
-          points_spent: reward.points_required,
-          child_id: forChildId,
-        });
+      const result = (data ?? {}) as {
+        redemption_id: string;
+        reward_id: string;
+        club_id: string;
+        points_spent: number;
+        remaining_points: number;
+        child_id: string | null;
+        child_name: string | null;
+      };
 
-      if (redemptionError) throw redemptionError;
-
-      const remainingPoints = pointsSource.points - reward.points_required;
-
-      if (pointsSource.isChild) {
-        // Decrement per-club balance via RPC (also keeps legacy mirror in sync).
-        const { error: rpcError } = await supabase.rpc(
-          "increment_child_ignite_points",
-          {
-            _child_id: pointsSource.id,
-            _amount: -reward.points_required,
-            _club_id: rewardClubId,
-          } as any,
-        );
-        if (rpcError) throw rpcError;
-
-        await recordPointsHistory({
-          childId: pointsSource.id,
-          clubId: rewardClubId,
-          amount: -reward.points_required,
-          balanceAfter: remainingPoints,
-          sourceType: 'redemption',
-          sourceId: reward.id,
-          description: `Redeemed: ${reward.name}`,
-        });
-      } else {
-        const { error: rpcError } = await supabase.rpc(
-          "increment_ignite_points",
-          {
-            _user_id: pointsSource.id,
-            _amount: -reward.points_required,
-            _club_id: rewardClubId,
-          } as any,
-        );
-        if (rpcError) throw rpcError;
-
-        await recordPointsHistory({
-          userId: user!.id,
-          clubId: rewardClubId,
-          amount: -reward.points_required,
-          balanceAfter: remainingPoints,
-          sourceType: 'redemption',
-          sourceId: reward.id,
-          description: `Redeemed: ${reward.name}`,
-        });
-      }
-
-      // Get club details for email
-      const { data: club } = await supabase
-        .from("clubs")
-        .select("name, logo_url")
-        .eq("id", reward.club_id)
-        .single();
-
-      // Send email notification
+      // Best-effort email — never rolls back the committed redemption.
       try {
+        const { data: club } = await supabase
+          .from("clubs")
+          .select("name, logo_url")
+          .eq("id", result.club_id)
+          .maybeSingle();
+
         await supabase.rpc('send_reward_redeemed_email_rpc', {
           _reward_name: reward.name,
-          _points_spent: reward.points_required,
-          _remaining_points: remainingPoints,
+          _points_spent: result.points_spent,
+          _remaining_points: result.remaining_points,
           _club_name: club?.name || 'Your Club',
           _reward_description: reward.description ?? null,
           _sponsor_name: reward.sponsors?.name ?? null,
           _show_qr_code: !!reward.show_qr_code,
           _club_logo_url: club?.logo_url ?? null,
           _reward_logo_url: reward.logo_url ?? null,
-          _redeemed_for_child_name: childName || null,
+          _redeemed_for_child_name: result.child_name || null,
         });
       } catch (emailErr) {
         console.error("Failed to send reward redeemed email:", emailErr);
-        // Don't throw - redemption was still successful
       }
+
+      return result;
     },
+
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
       queryClient.invalidateQueries({ queryKey: ["user-children-home"] });
