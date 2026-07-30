@@ -328,7 +328,7 @@ jobs:
               end \$\$;" >/dev/null
             echo "✅ Vault service_role_key seeded from GitHub secret."
           else
-            echo "ℹ️  SUPABASE_PROD_SERVICE_ROLE_KEY not set — relying on an existing Vault entry."
+            echo "ℹ️  No service-role key secret set — relying on an existing Vault entry."
           fi
 
           echo "=== Push delivery prerequisite report (no secret values) ==="
