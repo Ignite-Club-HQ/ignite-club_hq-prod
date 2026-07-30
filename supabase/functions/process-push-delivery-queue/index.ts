@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
           notificationId: job.notification_id,
           tag: job.payload.tag,
           notificationType: job.payload.notificationType,
+          data: job.payload.data,
         }),
       });
       let body: any = null;
