@@ -893,20 +893,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentInviteLink = `${window.location.origin}/join/p/${secondToken}`;
       }
 
-      // Send notification
-      await supabase.from("notifications").insert({
+      // Send notification (role is already committed — a failure here is a
+      // partial success, not a failed add)
+      const { error: notifyErr } = await supabase.from("notifications").insert({
         user_id: selectedUser.id,
         type: "membership",
         message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === selectedRole)?.label}`,
         related_id: teamId,
       });
 
-      return { secondParentInviteLink, secondParentAddedDirectly, roleWasDuplicate };
+      return {
+        secondParentInviteLink,
+        secondParentAddedDirectly,
+        roleWasDuplicate,
+        notificationFailed: !!notifyErr,
+        notificationError: notifyErr?.message ?? null,
+      };
     },
     onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
-      
-      if (result?.roleWasDuplicate) {
+      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
+
+      if (result?.notificationFailed) {
+        toast({
+          variant: "destructive",
+          title: "Member added — notification failed",
+          description: `${selectedUser?.display_name} was added to ${teamName}, but we couldn't notify them in the app. Please tell them manually.${result.notificationError ? ` (${result.notificationError})` : ""}`,
+        });
+      } else if (result?.roleWasDuplicate) {
+
         const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
         void toastInviteSuccess({
           title: "Already a member",
