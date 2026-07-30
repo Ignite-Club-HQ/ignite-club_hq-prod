@@ -2890,7 +2890,17 @@ export default function HomePage() {
               onClick={() => {
                 if (selectedReward) {
                   const forChildId = selectedRedeemFor === "myself" ? null : selectedRedeemFor;
-                  redeemMutation.mutate({ reward: selectedReward, forChildId });
+                  if (!redeemAttemptKeyRef.current) {
+                    redeemAttemptKeyRef.current =
+                      typeof crypto !== "undefined" && "randomUUID" in crypto
+                        ? crypto.randomUUID()
+                        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                  }
+                  redeemMutation.mutate({
+                    reward: selectedReward,
+                    forChildId,
+                    idempotencyKey: redeemAttemptKeyRef.current,
+                  });
                 }
               }}
               disabled={redeemMutation.isPending}
