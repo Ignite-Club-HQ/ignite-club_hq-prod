@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -82,6 +82,11 @@ function queryFor(table: string) {
   }
   query.insert = vi.fn((payload: any) => {
     operation = "insert";
+    mocks.writes.push({ table, operation, payload, filters });
+    return query;
+  });
+  query.update = vi.fn((payload: any) => {
+    operation = "update";
     mocks.writes.push({ table, operation, payload, filters });
     return query;
   });
@@ -340,5 +345,99 @@ describe("HomePage reward redemption orchestration", () => {
     expect(mocks.writes).toEqual([]);
     expect(mocks.recordPointsHistory).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalledWith("send_reward_redeemed_email_rpc", expect.anything());
+  });
+});
+
+describe("HomePage reward fulfilment orchestration", () => {
+  const redemption = {
+    id: "redemption-1",
+    club_id: "club-1",
+    reward_name: "Synthetic Reward",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.capturedMutations = [];
+    mocks.queryCalls = [];
+    mocks.writes = [];
+    mocks.writeError = null;
+    mocks.userChildren = [];
+    mocks.from.mockImplementation(queryFor);
+    mocks.tableResults = {
+      user_roles: {
+        data: [
+          { user_id: "user-1" },
+          { user_id: "admin-2" },
+          { user_id: "admin-3" },
+        ],
+        error: null,
+      },
+    };
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+  });
+
+  async function getClaimMutation() {
+    await renderHome();
+    const mutation = mocks.capturedMutations.find((item) =>
+      String(item?.mutationFn).includes('from("reward_redemptions")')
+      && String(item?.mutationFn).includes('status: "fulfilled"'),
+    );
+    if (!mutation) throw new Error("Home reward fulfilment mutation was not registered");
+    return mutation;
+  }
+
+  it("fulfils only the selected redemption and records the authenticated verifier", async () => {
+    const mutation = await getClaimMutation();
+    await mutation.mutationFn(redemption);
+
+    expect(mocks.writes).toContainEqual(expect.objectContaining({
+      table: "reward_redemptions",
+      operation: "update",
+      payload: expect.objectContaining({ status: "fulfilled", verified_by: "user-1" }),
+      filters: expect.arrayContaining([["eq", "id", "redemption-1"]]),
+    }));
+  });
+
+  it("notifies other club admins once without notifying the claimant", async () => {
+    const mutation = await getClaimMutation();
+    await mutation.mutationFn(redemption);
+
+    const notificationWrite = mocks.writes.find((write) =>
+      write.table === "notifications" && write.operation === "insert",
+    );
+    expect(notificationWrite?.payload).toEqual([
+      expect.objectContaining({ user_id: "admin-2", related_id: "redemption-1" }),
+      expect.objectContaining({ user_id: "admin-3", related_id: "redemption-1" }),
+    ]);
+    expect(notificationWrite?.payload).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ user_id: "user-1" }),
+    ]));
+  });
+
+  it("does not query or notify admins when fulfilment fails", async () => {
+    mocks.writeError = { table: "reward_redemptions", operation: "update", message: "fulfilment denied" };
+    const mutation = await getClaimMutation();
+
+    await expect(mutation.mutationFn(redemption)).rejects.toEqual({ message: "fulfilment denied" });
+    expect(mocks.queryCalls.some((call) => call.table === "user_roles")).toBe(false);
+    expect(mocks.writes.some((write) => write.table === "notifications")).toBe(false);
+  });
+
+  it("surfaces notification insertion failure instead of reporting complete success", async () => {
+    mocks.writeError = { table: "notifications", operation: "insert", message: "notification write failed" };
+    const mutation = await getClaimMutation();
+
+    await expect(mutation.mutationFn(redemption)).rejects.toMatchObject({
+      message: "The reward was marked as fulfilled, but administrator notifications failed: notification write failed",
+      fulfilmentSucceeded: true,
+    });
+  });
+
+  it("invalidates pending redemptions only after successful fulfilment orchestration", async () => {
+    const mutation = await getClaimMutation();
+    await mutation.mutationFn(redemption);
+    await act(async () => mutation.onSuccess());
+
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["pending-redemptions-home"] });
   });
 });
