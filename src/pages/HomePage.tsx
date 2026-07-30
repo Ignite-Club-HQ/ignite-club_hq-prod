@@ -7,14 +7,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SoccerBall from "@/components/pitch/SoccerBall";
 import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 // Lazy-loaded to keep them out of the HomePage critical path. Each is only
 // mounted when the user opens a specific dialog / lands on a banner-eligible
 // state, so the chunk fetch happens on demand.
 const RewardClaimQRDialog = lazy(() => import("@/components/RewardClaimQRDialog").then(m => ({ default: m.RewardClaimQRDialog })));
-const RecurringEventActionDialog = lazy(() => import("@/components/RecurringEventActionDialog").then(m => ({ default: m.RecurringEventActionDialog })));
-const CancelEventConfirmDialog = lazy(() => import("@/components/CancelEventConfirmDialog").then(m => ({ default: m.CancelEventConfirmDialog })));
-const RecurringCancelEventDialog = lazy(() => import("@/components/RecurringCancelEventDialog").then(m => ({ default: m.RecurringCancelEventDialog })));
 const AccountRecoveryBanner = lazy(() => import("@/components/AccountRecoveryBanner").then(m => ({ default: m.AccountRecoveryBanner })));
 const NativeAppDownloadBanner = lazy(() => import("@/components/NativeAppDownloadBanner").then(m => ({ default: m.NativeAppDownloadBanner })));
 const HomeInviteFlow = lazy(() => import("@/components/HomeInviteFlow"));
@@ -24,9 +20,6 @@ const QuickRSVPDialog = lazy(() => import("@/components/QuickRSVPDialog").then(m
 // idle callback keeps this off the critical path.
 if (typeof window !== "undefined") {
   const warm = () => {
-    void import("@/components/CancelEventConfirmDialog").catch(() => {});
-    void import("@/components/RecurringCancelEventDialog").catch(() => {});
-    void import("@/components/RecurringEventActionDialog").catch(() => {});
     void import("@/components/HomeInviteFlow").catch(() => {});
     void import("@/components/NativeAppDownloadBanner").catch(() => {});
     void import("@/components/AccountRecoveryBanner").catch(() => {});
@@ -41,7 +34,6 @@ if (typeof window !== "undefined") {
 }
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -118,7 +110,6 @@ import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
-type ClubRole = "club_admin";
 type LeagueRole = "league_admin" | "parent";
 
 function HomeMyTeamsSkeleton() {
@@ -239,10 +230,6 @@ const teamRoleOptions: { value: TeamRole; label: string }[] = [
   { value: "parent", label: "Parent" },
   { value: "coach", label: "Coach" },
   { value: "team_admin", label: "Team Admin" },
-];
-
-const clubRoleOptions: { value: ClubRole; label: string }[] = [
-  { value: "club_admin", label: "Club Admin" },
 ];
 
 const leagueRoleOptions: { value: LeagueRole; label: string }[] = [
