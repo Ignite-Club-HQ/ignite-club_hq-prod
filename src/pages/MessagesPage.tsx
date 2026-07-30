@@ -27,6 +27,8 @@ import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { queueChatInvalidation } from "@/lib/chatInvalidationQueue";
+
 import { useMessagesPageBootstrap, isMessagesBootstrapEnabled } from "@/hooks/useMessagesPageBootstrap";
 import { useAuthorizedScopes } from "@/hooks/useAuthorizedScopes";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
