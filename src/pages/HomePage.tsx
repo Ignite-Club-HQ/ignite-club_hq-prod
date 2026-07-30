@@ -319,9 +319,17 @@ export function selectVisibleHomeEvents(
   limit = 10,
 ) {
   if (!allEvents) return [];
-  const freshEvents = allEvents.filter((event) => isStillUpcomingForNextUp(event, nowMs));
-  if (!activeClubFilter) return freshEvents.slice(0, limit);
-  return freshEvents.filter((event) => event.club_id === activeClubFilter).slice(0, limit);
+  const freshEvents = allEvents.filter((event) =>
+    isStillUpcomingForNextUp(event, nowMs)
+  );
+
+  if (!activeClubFilter) {
+    return freshEvents.slice(0, limit);
+  }
+
+  return freshEvents
+    .filter((event) => event.club_id === activeClubFilter)
+    .slice(0, limit);
 }
 
 export default function HomePage() {
