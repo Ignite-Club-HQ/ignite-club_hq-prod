@@ -1253,3 +1253,63 @@ workflows:
       - tests/android-os/workspace/.generated/android/app/build/reports/**
       - tests/android-os/workspace/.generated/android/app/build/outputs/apk/debug/app-debug.apk
       - /tmp/emulator.log
+
+  ios-os-resume-test:
+    name: Actual iOS Simulator resume regression
+    max_build_duration: 35
+    instance_type: mac_mini_m2
+    environment:
+      node: 22
+      xcode: latest
+      vars:
+        IOS_OS_TEST_APP_ID: "app.igniteclubhq.iososresumetest"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: codespaces-review
+          include: true
+          source: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Safety guard - no Supabase, database or signing credentials
+        script: |
+          set -e
+          node tests/ios-os/verify-safety.mjs
+      - name: Install repository dependencies
+        script: npm ci --no-audit --no-fund
+      - name: Harness isolation guard test
+        script: npx vitest run src/test/iosOsHarness.guard.test.ts
+      - name: Resume/reconnect unit guard tests
+        script: |
+          npx vitest run \
+            src/test/resumeVsReconnectRecovery.guard.test.ts \
+            src/test/androidResumeZombieRequests.guard.test.ts \
+            src/test/androidInboxResume.guard.test.ts \
+            src/test/chatResumeWatchdog.guard.test.ts
+      - name: Build the synthetic WKWebView bundle
+        script: npm run test:ios-os:build
+      - name: Generate disposable Capacitor iOS project
+        script: |
+          set -e
+          cd tests/ios-os/workspace
+          rm -rf .generated
+          ../../../node_modules/.bin/cap add ios
+          ../../../node_modules/.bin/cap sync ios
+      - name: Post-build safety guard
+        script: node tests/ios-os/verify-safety.mjs --post
+      - name: Install Appium and the XCUITest driver
+        script: |
+          set -e
+          npm install --no-save appium@2 webdriverio@9
+          npx appium driver install xcuitest || npx appium driver update xcuitest
+      - name: Run the iOS Simulator resume regression suite
+        script: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          node tests/ios-os/run-simulator-test.mjs
+        # Simulator-only builds are unsigned: CODE_SIGNING_ALLOWED=NO
+      - name: Diagnostics tail
+        script: tail -n 200 test-results/ios-os/appium.log || true
+        ignore_failure: true
+    artifacts:
+      - test-results/ios-os/**
