@@ -14,7 +14,9 @@ const mocks = vi.hoisted(() => ({
   refreshProfile: vi.fn(),
   writes: [] as Array<{ table: string; operation: string; payload?: any; filters: any[] }>,
   writeError: null as null | { table: string; operation: string; message: string },
+  writeErrors: [] as Array<{ table: string; operation: string; message: string; filter: [string, string, any] }>,
   userChildren: [] as any[],
+  primaryData: { memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] }, events: [] } as any,
   tableResults: {} as Record<string, { data: any; error: any }>,
   queryCalls: [] as Array<{ table: string; method: string; args: any[] }>,
 }));
@@ -28,7 +30,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
       if (key === "user-memberships-and-events") {
         mocks.capturedPrimaryQuery = options.queryFn;
         return {
-          data: { memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] }, events: [] },
+          data: mocks.primaryData,
           isLoading: false,
           isFetching: false,
           isFetched: true,
@@ -99,7 +101,18 @@ function queryFor(table: string) {
     value: (resolve: any, reject: any) => {
       const configuredError = mocks.writeError?.table === table && mocks.writeError.operation === operation
         ? { message: mocks.writeError.message }
-        : null;
+        : (() => {
+            const errorIndex = mocks.writeErrors.findIndex((candidate) =>
+              candidate.table === table
+              && candidate.operation === operation
+              && filters.some((filter) => filter[0] === candidate.filter[0]
+                && filter[1] === candidate.filter[1]
+                && filter[2] === candidate.filter[2]),
+            );
+            if (errorIndex < 0) return null;
+            const [matched] = mocks.writeErrors.splice(errorIndex, 1);
+            return { message: matched.message };
+          })();
       const result = operation === "read"
         ? (mocks.tableResults[table] ?? { data: [], error: null })
         : { data: null, error: configuredError };
@@ -125,7 +138,9 @@ describe("HomePage consolidated membership and event orchestration", () => {
     mocks.queryCalls = [];
     mocks.writes = [];
     mocks.writeError = null;
+    mocks.writeErrors = [];
     mocks.userChildren = [];
+    mocks.primaryData = { memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] }, events: [] };
     mocks.from.mockImplementation(queryFor);
     mocks.rpc.mockResolvedValue({ data: null, error: null });
     mocks.recordPointsHistory.mockResolvedValue(undefined);
@@ -249,7 +264,9 @@ describe("HomePage reward redemption orchestration", () => {
     mocks.queryCalls = [];
     mocks.writes = [];
     mocks.writeError = null;
+    mocks.writeErrors = [];
     mocks.userChildren = [];
+    mocks.primaryData = { memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] }, events: [] };
     mocks.from.mockImplementation(queryFor);
     mocks.tableResults = { clubs: { data: { name: "Synthetic Club", logo_url: null }, error: null } };
     mocks.recordPointsHistory.mockResolvedValue(undefined);
@@ -361,7 +378,9 @@ describe("HomePage reward fulfilment orchestration", () => {
     mocks.queryCalls = [];
     mocks.writes = [];
     mocks.writeError = null;
+    mocks.writeErrors = [];
     mocks.userChildren = [];
+    mocks.primaryData = { memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] }, events: [] };
     mocks.from.mockImplementation(queryFor);
     mocks.tableResults = {
       user_roles: {
@@ -439,5 +458,137 @@ describe("HomePage reward fulfilment orchestration", () => {
     await act(async () => mutation.onSuccess());
 
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["pending-redemptions-home"] });
+  });
+});
+
+describe("HomePage recurring event deletion orchestration", () => {
+  const parentEvent = {
+    id: "event-parent",
+    title: "Synthetic Series",
+    event_date: "2099-08-01T09:00:00Z",
+    start_time: "2099-08-01T09:00:00Z",
+    club_id: "club-1",
+    team_id: "team-1",
+    mini_league_id: null,
+    type: "training",
+    is_cancelled: false,
+    is_recurring: true,
+    parent_event_id: null,
+  };
+  const childEvent = {
+    id: "event-child",
+    title: "Synthetic Series Child",
+    event_date: "2099-08-08T09:00:00Z",
+    start_time: "2099-08-08T09:00:00Z",
+    club_id: "club-1",
+    team_id: "team-1",
+    mini_league_id: null,
+    type: "training",
+    is_cancelled: false,
+    is_recurring: false,
+    parent_event_id: "event-parent",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.capturedMutations = [];
+    mocks.queryCalls = [];
+    mocks.writes = [];
+    mocks.writeError = null;
+    mocks.writeErrors = [];
+    mocks.userChildren = [];
+    mocks.primaryData = {
+      memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] },
+      events: [parentEvent, childEvent],
+    };
+    mocks.from.mockImplementation(queryFor);
+    mocks.tableResults = {};
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+  });
+
+  async function getDeleteMutation() {
+    await renderHome();
+    const mutation = mocks.capturedMutations.find((item) =>
+      String(item?.mutationFn).includes("deleteType")
+      && String(item?.mutationFn).includes('from("events").delete()'),
+    );
+    if (!mutation) throw new Error("Home event deletion mutation was not registered");
+    return mutation;
+  }
+
+  it("deletes only the selected event for a single-event action", async () => {
+    const mutation = await getDeleteMutation();
+    await mutation.mutationFn({ eventId: "event-child", deleteType: "single" });
+
+    const eventDeletes = mocks.writes.filter((write) => write.table === "events" && write.operation === "delete");
+    expect(eventDeletes).toHaveLength(1);
+    expect(eventDeletes[0].filters).toContainEqual(["eq", "id", "event-child"]);
+    expect(eventDeletes[0].filters).not.toContainEqual(["eq", "parent_event_id", "event-parent"]);
+  });
+
+  it("deletes series children before the parent when initiated from the recurring parent", async () => {
+    const mutation = await getDeleteMutation();
+    await mutation.mutationFn({ eventId: "event-parent", deleteType: "series" });
+
+    const eventDeletes = mocks.writes.filter((write) => write.table === "events" && write.operation === "delete");
+    expect(eventDeletes).toHaveLength(2);
+    expect(eventDeletes[0].filters).toContainEqual(["eq", "parent_event_id", "event-parent"]);
+    expect(eventDeletes[1].filters).toContainEqual(["eq", "id", "event-parent"]);
+  });
+
+  it("resolves the series parent when deletion is initiated from a child", async () => {
+    const mutation = await getDeleteMutation();
+    await mutation.mutationFn({ eventId: "event-child", deleteType: "series" });
+
+    const eventDeletes = mocks.writes.filter((write) => write.table === "events" && write.operation === "delete");
+    expect(eventDeletes).toHaveLength(2);
+    expect(eventDeletes[0].filters).toContainEqual(["eq", "parent_event_id", "event-parent"]);
+    expect(eventDeletes[1].filters).toContainEqual(["eq", "id", "event-parent"]);
+  });
+
+  it("surfaces a child-row deletion failure and does not delete the parent", async () => {
+    mocks.writeErrors = [{
+      table: "events", operation: "delete", message: "child deletion denied",
+      filter: ["eq", "parent_event_id", "event-parent"],
+    }];
+    const mutation = await getDeleteMutation();
+
+    await expect(mutation.mutationFn({ eventId: "event-parent", deleteType: "series" }))
+      .rejects.toEqual({ message: "child deletion denied" });
+    const eventDeletes = mocks.writes.filter((write) => write.table === "events" && write.operation === "delete");
+    expect(eventDeletes).toHaveLength(1);
+    mocks.invalidateQueries.mockClear();
+    await act(async () => mutation.onError({ message: "child deletion denied" }));
+    expect(mocks.invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a parent deletion failure instead of reporting full-series success", async () => {
+    mocks.writeErrors = [{
+      table: "events", operation: "delete", message: "parent deletion denied",
+      filter: ["eq", "id", "event-parent"],
+    }];
+    const mutation = await getDeleteMutation();
+
+    let partialError: any;
+    try {
+      await mutation.mutationFn({ eventId: "event-child", deleteType: "series" });
+    } catch (error) {
+      partialError = error;
+    }
+    expect(partialError).toMatchObject({
+      message: "The repeat occurrences were deleted, but the original recurring event could not be deleted: parent deletion denied",
+      childrenDeleted: true,
+    });
+    mocks.invalidateQueries.mockClear();
+    await act(async () => mutation.onError(partialError));
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["upcoming-events"] });
+  });
+
+  it("invalidates the upcoming event cache only after successful deletion", async () => {
+    const mutation = await getDeleteMutation();
+    await mutation.mutationFn({ eventId: "event-child", deleteType: "single" });
+    await act(async () => mutation.onSuccess());
+
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["upcoming-events"] });
   });
 });
