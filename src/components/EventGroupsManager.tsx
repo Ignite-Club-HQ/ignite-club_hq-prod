@@ -547,9 +547,10 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       if (error) throw error;
 
       // Insert player assignments
+      // event_id is re-derived server-side from the group; sent only to satisfy the NOT NULL column.
       const playerInserts = [
-        ...data.teamAPlayerIds.map(pid => ({ group_id: newGroup.id, player_id: pid, team: "a" as const })),
-        ...data.teamBPlayerIds.map(pid => ({ group_id: newGroup.id, player_id: pid, team: "b" as const })),
+        ...data.teamAPlayerIds.map(pid => ({ event_id: eventId, group_id: newGroup.id, player_id: pid, team: "a" as const })),
+        ...data.teamBPlayerIds.map(pid => ({ event_id: eventId, group_id: newGroup.id, player_id: pid, team: "b" as const })),
       ];
       if (playerInserts.length > 0) {
         const { error: playerError } = await supabase.from("event_group_players").insert(playerInserts);
