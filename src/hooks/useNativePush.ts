@@ -14,10 +14,14 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { queueChatInvalidation } from '@/lib/chatInvalidationQueue';
+
 import { mark as coldMark } from '@/lib/coldStartMarks';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { preloadMessageFromNotification } from '@/lib/notificationPreload';
 import {
   processPendingNotificationNavigation,
   isNotificationNavigationHandled,
@@ -44,6 +48,72 @@ async function loadCapacitorAppModule() {
 let nativePushModule: typeof import('@/lib/nativePush') | null = null;
 let moduleLoadAttempted = false;
 let moduleLoadFailed = false;
+
+const CHAT_NOTIFICATION_TYPES = new Set([
+  'team_message',
+  'club_message',
+  'group_message',
+  'direct_message',
+  'club_admin_message',
+  'broadcast',
+  'message_reply',
+  'message_mention',
+]);
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function invalidateChatFromPush(queryClient: QueryClient, userId: string | undefined, data: any) {
+  const notificationType = asString(data?.notificationType) || asString(data?.type);
+  if (!notificationType || !CHAT_NOTIFICATION_TYPES.has(notificationType)) return;
+
+  try {
+    // Collected, then flushed in bounded dripped batches — a burst of pushes
+    // must never fan out into a connection-pool-saturating refetch storm on
+    // Android WebView. See src/lib/chatInvalidationQueue.ts.
+    const keys: QueryKey[] = [];
+    if (userId) {
+      keys.push(
+        ['unread-message-counts', userId],
+        ['chat-group-unread-cache', userId],
+        ['my-teams-with-messages', userId],
+        ['member-clubs-with-messages', userId],
+        ['my-chat-groups-with-messages', userId],
+        ['dm-conversations', userId],
+        ['club-admin-conversations', userId],
+      );
+    }
+    keys.push(['latest-broadcast']);
+
+    const teamId = asString(data?.team_id) || asString(data?.teamId);
+    const clubId = asString(data?.club_id) || asString(data?.clubId);
+    const groupId = asString(data?.group_id) || asString(data?.groupId);
+    const conversationId = asString(data?.conversation_id) || asString(data?.conversationId);
+    const contextId = asString(data?.context_id) || asString(data?.contextId);
+
+    if (notificationType === 'team_message' && teamId) keys.push(['team-messages', teamId]);
+    if (notificationType === 'club_message' && clubId) keys.push(['club-messages', clubId]);
+    if (notificationType === 'group_message' && groupId) keys.push(['group-messages', groupId]);
+    if (notificationType === 'direct_message' && conversationId) keys.push(['dm-messages', conversationId]);
+    if (notificationType === 'club_admin_message' && (contextId || conversationId)) {
+      keys.push(['club-admin-messages', contextId || conversationId]);
+    }
+    if (notificationType === 'broadcast') keys.push(['broadcast-messages']);
+    if (notificationType === 'message_reply' || notificationType === 'message_mention') {
+      if (teamId) keys.push(['team-messages', teamId]);
+      if (clubId) keys.push(['club-messages', clubId]);
+      if (groupId) keys.push(['group-messages', groupId]);
+      if (conversationId) keys.push(['dm-messages', conversationId]);
+      if (contextId) keys.push(['club-admin-messages', contextId]);
+    }
+
+    queueChatInvalidation(queryClient, keys);
+  } catch (err) {
+    console.warn('[useNativePush] Failed to invalidate chat push caches:', err);
+  }
+}
+
 
 async function loadNativePushModule() {
   if (moduleLoadAttempted) {
@@ -73,6 +143,7 @@ interface UseNativePushOptions {
 export function useNativePush(userId: string | undefined, options: UseNativePushOptions = {}) {
   const { enabled = true } = options;
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const cleanupRef = useRef<(() => void) | null>(null);
   const initializedRef = useRef(false);
   const [isNative, setIsNative] = useState(false);
@@ -238,6 +309,13 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
             cleanupRef.current = mod.setupNativePushListeners(
               // onNotificationReceived - show toast for foreground notifications
               (notification) => {
+                const data = notification?.data || {};
+                try {
+                  preloadMessageFromNotification(data);
+                  invalidateChatFromPush(queryClient, userId, data);
+                } catch (preloadErr) {
+                  console.warn('[useNativePush] Failed to preload foreground push:', preloadErr);
+                }
                 try {
                   toast(notification.title || 'New notification', {
                     description: notification.body,
@@ -276,7 +354,7 @@ export function useNativePush(userId: string | undefined, options: UseNativePush
         cleanupRef.current = null;
       }
     };
-  }, [userId, enabled, handleTokenRefresh]);
+  }, [userId, enabled, handleTokenRefresh, queryClient]);
 
   // Refresh FCM token whenever the native app returns to foreground.
   // Use both Capacitor App resume events and document visibility as a fallback.

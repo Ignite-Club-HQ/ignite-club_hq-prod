@@ -585,7 +585,21 @@ Deno.serve(async (req) => {
   if (__outboundBlocked) return __outboundBlocked;
   
   try {
-    const { userId, title, body, url, notificationId, tag, notificationType, data } = await req.json();
+    const {
+      userId,
+      title,
+      body,
+      url,
+      notificationId,
+      tag,
+      notificationType,
+      data,
+      ...topLevelData
+    } = await req.json();
+    const extraData = {
+      ...(topLevelData || {}),
+      ...((data && typeof data === 'object') ? data : {}),
+    };
     
     console.log(`[PUSH] Starting push notification for user ${userId}, type: ${notificationType || 'unspecified'}`);
 
@@ -708,20 +722,20 @@ Deno.serve(async (req) => {
 
 
       try {
-        let clubId: string | undefined = (data as any)?.club_id;
-        if (!clubId && (data as any)?.team_id) {
+        let clubId: string | undefined = (extraData as any)?.club_id;
+        if (!clubId && (extraData as any)?.team_id) {
           const { data: t } = await supabase
             .from('teams')
             .select('club_id')
-            .eq('id', (data as any).team_id)
+            .eq('id', (extraData as any).team_id)
             .maybeSingle();
           clubId = (t as any)?.club_id;
         }
-        if (!clubId && (data as any)?.group_id) {
+        if (!clubId && (extraData as any)?.group_id) {
           const { data: g } = await supabase
             .from('chat_groups')
             .select('club_id, team_id')
-            .eq('id', (data as any).group_id)
+            .eq('id', (extraData as any).group_id)
             .maybeSingle();
           clubId = (g as any)?.club_id;
           if (!clubId && (g as any)?.team_id) {
@@ -759,7 +773,7 @@ Deno.serve(async (req) => {
       notificationId,
       tag || `notification-${notificationId || Date.now()}`,
       notificationType,
-      data
+      extraData
     );
     
     // Check for web push subscriptions
@@ -830,7 +844,7 @@ Deno.serve(async (req) => {
       tag: tag || `notification-${notificationId || Date.now()}`,
       notificationType,
       type: notificationType,
-      ...(data || {})
+      ...(extraData || {})
     });
     
     let successCount = 0;

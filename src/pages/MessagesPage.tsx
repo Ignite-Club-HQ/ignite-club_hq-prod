@@ -27,6 +27,8 @@ import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useGroupChatUnreadCache } from "@/hooks/useGroupChatUnreadCache";
 import { isIgniteSupportUser } from "@/lib/systemUser";
+import { queueChatInvalidation } from "@/lib/chatInvalidationQueue";
+
 import { useMessagesPageBootstrap, isMessagesBootstrapEnabled } from "@/hooks/useMessagesPageBootstrap";
 import { useAuthorizedScopes } from "@/hooks/useAuthorizedScopes";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
@@ -1515,6 +1517,20 @@ export default function MessagesPage() {
     authDmIdsRef.current = authScopes.dmConversationIds;
   }, [authScopes]);
 
+  // Payloads that arrive before the membership snapshot resolves used to be
+  // dropped outright, which meant the first seconds after opening /messages
+  // could silently lose the newest message until the next poll. We now buffer
+  // them (bounded) and replay once `status === 'ready'`, so authorization is
+  // still fail-closed — the replay runs the same `isAuthorized` check — but no
+  // longer costs the user a message.
+  const pendingRealtimeRef = useRef<Array<{ table: string; payload: any }>>([]);
+  const realtimeFlushRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (authScopes.status !== "ready") return;
+    realtimeFlushRef.current?.();
+  }, [authScopes.status]);
+
+
   useEffect(() => {
     if (!user?.id) return;
 
@@ -1595,9 +1611,8 @@ export default function MessagesPage() {
       return set.has(id);
     };
 
-    const channel = supabase
-      .channel(`messages-inbox-${user.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
+    const handlers: Record<string, (payload: any) => void> = {
+      team_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('team', row?.team_id)) return;
         const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
@@ -1607,22 +1622,22 @@ export default function MessagesPage() {
         });
         schedule('team', () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
         bumpUnread();
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
+      },
+      club_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('club', row?.club_id)) return;
         patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
         schedule('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
         bumpUnread();
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
+      },
+      group_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('group', row?.group_id)) return;
         patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
         schedule('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
         bumpUnread();
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
+      },
+      direct_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('dm', row?.conversation_id)) return;
         queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
@@ -1647,8 +1662,8 @@ export default function MessagesPage() {
         });
         schedule('dm', () => queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] }));
         bumpUnread();
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+      },
+      broadcast_messages: (payload: any) => {
         // Broadcasts have no scope id — RLS on `broadcast_messages` already
         // decides who receives them. Still gate on `ready` so we don't act
         // on a stale channel after sign-out.
@@ -1662,8 +1677,40 @@ export default function MessagesPage() {
         }));
         queryClient.invalidateQueries({ queryKey: ["latest-broadcast"] });
         bumpUnread();
-      })
+      },
+    };
+
+    // Buffer-then-replay: while the membership snapshot is still loading we
+    // hold payloads (bounded to 50, oldest dropped) instead of discarding
+    // them. Once scopes resolve, the flush effect replays them through the
+    // same authorized handlers.
+    const MAX_PENDING = 50;
+    const dispatch = (table: string, payload: any) => {
+      if (authStatusRef.current !== 'ready') {
+        const buf = pendingRealtimeRef.current;
+        buf.push({ table, payload });
+        if (buf.length > MAX_PENDING) buf.splice(0, buf.length - MAX_PENDING);
+        return;
+      }
+      handlers[table]?.(payload);
+    };
+
+    realtimeFlushRef.current = () => {
+      const buffered = pendingRealtimeRef.current;
+      if (buffered.length === 0) return;
+      pendingRealtimeRef.current = [];
+      for (const item of buffered) handlers[item.table]?.(item.payload);
+    };
+
+    const channel = supabase
+      .channel(`messages-inbox-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (p: any) => dispatch('team_messages', p))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (p: any) => dispatch('club_messages', p))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p))
       .subscribe();
+
 
     // Register with the realtime channel registry so it's torn down on
     // membership revocation / sign-out via `revokeAllForUser`.
@@ -1676,6 +1723,8 @@ export default function MessagesPage() {
 
     return () => {
       unregister();
+      realtimeFlushRef.current = null;
+      pendingRealtimeRef.current = [];
       Object.keys(rafState).forEach((k) => { if (rafState[k]) cancelAnimationFrame(rafState[k]); });
     };
   }, [user?.id, queryClient]);
@@ -1946,13 +1995,19 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!user?.id) return;
     const refreshPreviews = () => {
-      queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] });
-      queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] });
-      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] });
-      queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] });
-      queryClient.invalidateQueries({ queryKey: ["latest-broadcast"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts", user.id] });
+      // Dripped in bounded batches rather than 6 concurrent N+1 cascades —
+      // firing them all at once saturated the Android WebView connection pool
+      // and froze the inbox. See src/lib/chatInvalidationQueue.ts.
+      queueChatInvalidation(queryClient, [
+        ["my-teams-with-messages", user.id],
+        ["member-clubs-with-messages", user.id],
+        ["my-chat-groups-with-messages", user.id],
+        ["dm-conversations", user.id],
+        ["latest-broadcast"],
+        ["unread-message-counts", user.id],
+      ]);
     };
+
     // Run once on mount so the cached preview is reconciled with the server.
     refreshPreviews();
     // NATIVE: `reactQueryNativeAdapter` is the single owner of foreground

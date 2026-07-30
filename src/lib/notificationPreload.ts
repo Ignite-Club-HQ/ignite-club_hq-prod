@@ -36,9 +36,19 @@ function parsePayload(data: any): ParsedPreload | null {
 
   // Determine target conversation/chat. Order matters — DM first because some
   // payloads include both conversation_id and team_id (e.g. cross-posts).
+  // Club-admin messages also carry conversation_id, so detect those before DM.
   let kind: ChatKind | null = null;
   let targetId: string | undefined;
-  if (data.conversation_id || data.conversationId) {
+  const notificationType = data.notificationType || data.type;
+  const isAdminThread =
+    notificationType === "club_admin_message" ||
+    data.is_admin_thread === true ||
+    data.is_admin_thread === "true";
+
+  if (isAdminThread && (data.context_id || data.contextId || data.conversation_id || data.conversationId)) {
+    kind = "club_admin";
+    targetId = data.context_id || data.contextId || data.conversation_id || data.conversationId;
+  } else if (data.conversation_id || data.conversationId) {
     kind = "dm";
     targetId = data.conversation_id || data.conversationId;
   } else if (data.group_id || data.groupId) {
@@ -47,12 +57,8 @@ function parsePayload(data: any): ParsedPreload | null {
   } else if (data.team_id || data.teamId) {
     kind = "team";
     targetId = data.team_id || data.teamId;
-  } else if ((data.notificationType || data.type) === "club_admin_message" && (data.context_id || data.contextId)) {
-    kind = "club_admin";
-    targetId = data.context_id || data.contextId;
   } else if (data.club_id || data.clubId) {
     // BUG-7: FCM serializes all data fields as strings, so accept both.
-    const isAdminThread = data.is_admin_thread === true || data.is_admin_thread === "true";
     kind = isAdminThread ? "club_admin" : "club";
     targetId = data.club_id || data.clubId;
   } else if (data.broadcast_id || data.broadcastId) {
@@ -61,6 +67,7 @@ function parsePayload(data: any): ParsedPreload | null {
   }
   if (!kind || !targetId) return null;
 
+  const displayName = data.author_display_name || data.sender_name;
   const message: CachedMessage = {
     id: messageId,
     text: text || "",
@@ -68,9 +75,9 @@ function parsePayload(data: any): ParsedPreload | null {
     created_at: createdAt,
     image_url: data.image_url || null,
     reply_to_id: data.reply_to_id || null,
-    profiles: data.author_display_name
+    profiles: displayName
       ? {
-          display_name: data.author_display_name,
+          display_name: displayName,
           avatar_url: data.author_avatar_url || null,
         }
       : null,
