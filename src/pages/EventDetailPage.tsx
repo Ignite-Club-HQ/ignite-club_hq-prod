@@ -2286,11 +2286,34 @@ export default function EventDetailPage() {
     },
     onError: (error) => {
       console.error("[CancelEvent] Mutation error:", error);
+      if (error instanceof SeriesCancellationPartialError) {
+        // Part of the series IS cancelled — never roll back client-side, and
+        // never report either complete success or complete failure.
+        setCancelDialogOpen(false);
+        queryClient.invalidateQueries({ queryKey: ["event", id] });
+        queryClient.invalidateQueries({ queryKey: ["events"] });
+        queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+        queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+        queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+        const cancelled = error.childrenCommitted
+          ? "The repeat occurrences were cancelled"
+          : "The main recurring event was cancelled";
+        const failed = error.childrenCommitted
+          ? "the main recurring event could not be cancelled"
+          : "the repeat occurrences could not be cancelled";
+        toast({
+          title: "Series cancellation incomplete",
+          description: `${cancelled}, but ${failed}. No cancellation message was posted. ${error.underlying}`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast(friendlyMutationError(error, {
         title: "Failed to cancel event",
         description: (error as any)?.message || "An unexpected error occurred",
       }));
     },
+
   });
 
   const remindMutation = useMutation({
