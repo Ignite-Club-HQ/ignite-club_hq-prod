@@ -758,7 +758,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     mutationFn: async () => {
       const groupIds = groups?.map(g => g.id) || [];
       for (const groupId of groupIds) {
-        await supabase.from("event_groups").delete().eq("id", groupId);
+        const { error } = await supabase.from("event_groups").delete().eq("id", groupId);
+        // Stop at the first failure — never continue deleting or report success.
+        if (error) throw error;
       }
     },
     onSuccess: () => {
