@@ -236,18 +236,18 @@ const leagueRoleOptions: { value: LeagueRole; label: string }[] = [
   { value: "parent", label: "Parent" },
 ];
 
-function formatEventDate(dateStr: string) {
+export function formatEventDate(dateStr: string) {
   const date = parseISO(dateStr);
   if (isToday(date)) return `Today at ${format(date, "h:mm a")}`;
   if (isTomorrow(date)) return `Tomorrow at ${format(date, "h:mm a")}`;
   return format(date, "EEE, MMM d 'at' h:mm a");
 }
 
-function getLocalDateKey(date = new Date()) {
+export function getLocalDateKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function getEventLocalDateKey(dateStr: string) {
+export function getEventLocalDateKey(dateStr: string) {
   // Treat any timestamp with a time component (ISO "T" or Postgres space form
   // like "2026-06-06 23:30:00+00") as an absolute instant and convert to the
   // viewer's local date. Only date-only strings ("YYYY-MM-DD") are taken at
@@ -263,7 +263,7 @@ function getEventLocalDateKey(dateStr: string) {
   return dateStr.slice(0, 10);
 }
 
-function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
+export function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
   // Prefer event_date when it already carries a time component — for recurring
   // occurrences this is the canonical per-instance kickoff. `start_time` on a
   // recurring child often retains the *series template's* original date
@@ -299,7 +299,7 @@ function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
   return Number.isNaN(parsed.getTime()) ? Number.NaN : parsed.getTime();
 }
 
-function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time">, nowMs: number) {
+export function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time">, nowMs: number) {
   const todayKey = getLocalDateKey(new Date(nowMs));
   const eventKey = getEventLocalDateKey(event.event_date);
   if (eventKey < todayKey) return false;
@@ -310,6 +310,27 @@ function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time"
   }
 
   return true;
+}
+
+export function selectVisibleHomeEvents(
+  allEvents: Event[] | undefined,
+  activeClubFilter: string | null,
+  nowMs: number,
+  limit = 10,
+) {
+  if (!allEvents) return [];
+
+  const freshEvents = allEvents.filter((event) =>
+    isStillUpcomingForNextUp(event, nowMs)
+  );
+
+  if (!activeClubFilter) {
+    return freshEvents.slice(0, limit);
+  }
+
+  return freshEvents
+    .filter((event) => event.club_id === activeClubFilter)
+    .slice(0, limit);
 }
 
 export default function HomePage() {
@@ -645,10 +666,7 @@ export default function HomePage() {
 
   // Filter events by active club theme
   const events = useMemo(() => {
-    if (!allEvents) return [];
-    const freshEvents = allEvents.filter((event) => isStillUpcomingForNextUp(event, nowTick));
-    if (!activeClubFilter) return freshEvents.slice(0, 10);
-    return freshEvents.filter(e => e.club_id === activeClubFilter).slice(0, 10);
+    return selectVisibleHomeEvents(allEvents, activeClubFilter, nowTick);
   }, [allEvents, activeClubFilter, nowTick]);
 
   useEffect(() => {
