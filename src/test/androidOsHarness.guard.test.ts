@@ -53,10 +53,13 @@ describe("android-os harness — isolation", () => {
 
   it("does not reuse the production application id", () => {
     const prod = read("capacitor.config.ts");
-    const prodId = /appId:\s*['"]([^'"]+)['"]/.exec(prod)?.[1];
+    const prodId =
+      /appId:\s*['"]([^'"]+)['"]/.exec(prod)?.[1] ??
+      /APP_ID\s*=\s*['"]([^'"]+)['"]/.exec(prod)?.[1];
     expect(prodId).toBeDefined();
     expect(capConfig.appId).not.toBe(prodId);
   });
+
 
   it("declares only the @capacitor/app and @capacitor/network plugins", () => {
     const wsPkg = JSON.parse(read("tests/android-os/workspace/package.json"));
