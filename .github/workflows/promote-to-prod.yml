@@ -305,29 +305,21 @@ jobs:
 
           BASE_URL="https://${PROJECT_REF}.supabase.co"
           run_sql -v base="$BASE_URL" -c "
-            do \$\$
-            declare v_id uuid;
-            begin
-              select id into v_id from vault.secrets where name = 'functions_base_url' limit 1;
-              if v_id is null then
-                perform vault.create_secret(:'base', 'functions_base_url', 'Edge functions base URL');
-              else
-                perform vault.update_secret(v_id, :'base', 'functions_base_url', 'Edge functions base URL');
-              end if;
-            end \$\$;" >/dev/null
+            select vault.create_secret(:'base', 'functions_base_url', 'Edge functions base URL')
+            where not exists (select 1 from vault.secrets where name = 'functions_base_url');
+
+            select vault.update_secret(id, :'base', 'functions_base_url', 'Edge functions base URL')
+            from vault.secrets
+            where name = 'functions_base_url';" >/dev/null
 
           if [ -n "$KEY" ]; then
             run_sql -v key="$KEY" -c "
-              do \$\$
-              declare v_id uuid;
-              begin
-                select id into v_id from vault.secrets where name = 'service_role_key' limit 1;
-                if v_id is null then
-                  perform vault.create_secret(:'key', 'service_role_key', 'Service role key for pg_net dispatch');
-                else
-                  perform vault.update_secret(v_id, :'key', 'service_role_key', 'Service role key for pg_net dispatch');
-                end if;
-              end \$\$;" >/dev/null
+              select vault.create_secret(:'key', 'service_role_key', 'Service role key for pg_net dispatch')
+              where not exists (select 1 from vault.secrets where name = 'service_role_key');
+
+              select vault.update_secret(id, :'key', 'service_role_key', 'Service role key for pg_net dispatch')
+              from vault.secrets
+              where name = 'service_role_key';" >/dev/null
             echo "✅ Vault service_role_key seeded from GitHub secret."
           else
             echo "ℹ️  No service-role key secret set — relying on an existing Vault entry."
