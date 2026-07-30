@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   toast: vi.fn(),
   invalidateRolesCache: vi.fn(),
+  releaseDelete: null as null | (() => void),
   profiles: [
     { id: "admin-1", display_name: "Current Admin", avatar_url: null, scheduled_deletion_at: null },
     { id: "member-1", display_name: "Synthetic Member", avatar_url: null, scheduled_deletion_at: null },
@@ -102,6 +103,7 @@ describe("ManageUsersPage characterization — privileged membership removal", (
     ];
     mocks.from.mockImplementation(queryFor);
     mocks.invoke.mockResolvedValue({ data: { success: true }, error: null });
+    mocks.releaseDelete = null;
   });
 
   it("denies the page to a user without the app_admin role", async () => {
@@ -161,5 +163,70 @@ describe("ManageUsersPage characterization — privileged membership removal", (
     })));
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["search-users-manage"] });
     expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Account scheduled for deletion" }));
+  });
+
+  it("cancels deletion without invoking the privileged Edge Function", async () => {
+    renderPage();
+    await openDeleteDialog();
+    fireEvent.change(screen.getByPlaceholderText("Type 'delete' to confirm"), { target: { value: "delete" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByText(/delete the account for/i)).not.toBeInTheDocument());
+    expect(mocks.invoke).not.toHaveBeenCalledWith("admin-delete-account", expect.anything());
+  });
+
+  it("requires the stronger phrase and sends exact flags for immediate deletion", async () => {
+    renderPage();
+    await openDeleteDialog();
+    fireEvent.click(screen.getByRole("radio", { name: /Delete immediately/ }));
+
+    const action = screen.getByRole("button", { name: "Delete Permanently" });
+    fireEvent.change(screen.getByPlaceholderText("Type 'DELETE PERMANENTLY' to confirm"), { target: { value: "delete" } });
+    expect(action).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText("Type 'DELETE PERMANENTLY' to confirm"), { target: { value: "DELETE PERMANENTLY" } });
+    fireEvent.click(action);
+
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("admin-delete-account", {
+      body: { userId: "member-1", immediate: true, gdprRequest: false },
+    }));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Account permanently deleted" }));
+  });
+
+  it("prevents duplicate destructive requests while deletion is pending", async () => {
+    mocks.invoke.mockImplementation(() => new Promise(resolve => {
+      mocks.releaseDelete = () => resolve({ data: { success: true }, error: null });
+    }));
+    renderPage();
+    await openDeleteDialog();
+    fireEvent.change(screen.getByPlaceholderText("Type 'delete' to confirm"), { target: { value: "delete" } });
+    const action = screen.getByRole("button", { name: "Schedule Deletion" });
+    fireEvent.click(action);
+
+    await waitFor(() => expect(action).toBeDisabled());
+    fireEvent.click(action);
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+
+    await act(async () => mocks.releaseDelete?.());
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Account scheduled for deletion" })));
+  });
+
+  it("keeps the confirmation open and permits retry after a transport failure", async () => {
+    mocks.invoke.mockRejectedValueOnce(new Error("Edge Function unavailable"));
+    renderPage();
+    await openDeleteDialog();
+    fireEvent.change(screen.getByPlaceholderText("Type 'delete' to confirm"), { target: { value: "delete" } });
+    fireEvent.click(screen.getByRole("button", { name: "Schedule Deletion" }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Failed to delete account",
+      description: "Edge Function unavailable",
+      variant: "destructive",
+    })));
+    expect(screen.getByText(/delete the account for/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Schedule Deletion" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Schedule Deletion" }));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Account scheduled for deletion" })));
   });
 });
