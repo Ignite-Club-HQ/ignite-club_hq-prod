@@ -1339,9 +1339,16 @@ export default function HomePage() {
     },
   });
 
-  // Mutation to mark reward as claimed
+  // Mutation to mark reward as claimed.
+  // Failures after the fulfilment update are tagged so the UI never claims the
+  // reward itself failed when only notifications did.
+  class RewardNotificationError extends Error {
+    fulfilmentSucceeded = true;
+  }
+
   const claimMutation = useMutation({
     mutationFn: async (redemption: { id: string; club_id: string; reward_name: string }) => {
+
       const { error } = await supabase
         .from("reward_redemptions")
         .update({
@@ -1357,11 +1364,17 @@ export default function HomePage() {
       const claimerName = profile?.display_name || "Someone";
 
       // Notify club admins about the claim
-      const { data: clubAdmins } = await supabase
+      const { data: clubAdmins, error: adminsError } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("club_id", redemption.club_id)
         .eq("role", "club_admin");
+
+      if (adminsError) {
+        throw new RewardNotificationError(
+          `The reward was marked as fulfilled, but administrators could not be notified: ${adminsError.message}`
+        );
+      }
 
       if (clubAdmins && clubAdmins.length > 0) {
         const notifications = clubAdmins
@@ -1374,7 +1387,14 @@ export default function HomePage() {
           }));
 
         if (notifications.length > 0) {
-          await supabase.from("notifications").insert(notifications);
+          const { error: notifyError } = await supabase
+            .from("notifications")
+            .insert(notifications);
+          if (notifyError) {
+            throw new RewardNotificationError(
+              `The reward was marked as fulfilled, but administrator notifications failed: ${notifyError.message}`
+            );
+          }
         }
       }
     },
@@ -1387,13 +1407,21 @@ export default function HomePage() {
       });
     },
     onError: (error: any) => {
+      const fulfilled = !!error?.fulfilmentSucceeded;
+      if (fulfilled) {
+        // Fulfilment committed — keep the pending list in sync and close the dialog.
+        queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
+        setClaimDialogOpen(false);
+      }
       toast({
-        title: "Failed to claim reward",
-        description: error.message || "Please try again",
+        title: fulfilled ? "Reward fulfilled — notification failed" : "Failed to claim reward",
+        description: error?.message || "Please try again",
         variant: "destructive",
       });
     },
+
   });
+
 
   // Only fetch all clubs/teams/leagues when join dialogs are open (lazy loading)
   const { data: clubs, error: clubsError, isLoading: clubsLoading } = useQuery({
