@@ -3392,7 +3392,10 @@ export default function VaultPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
-                    </div>
+                        </>
+                      }
+                    />
+
                   );
                 })()}
 
