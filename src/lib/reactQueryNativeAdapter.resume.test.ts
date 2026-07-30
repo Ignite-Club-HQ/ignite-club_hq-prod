@@ -145,6 +145,8 @@ describe("reactQueryNativeAdapter — resume vs reconnect", () => {
   });
 
   it("does not refetch active queries when resuming while still offline", async () => {
+    // Keep the connectivity probe genuinely failing so the offline state holds.
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
     seedActive(qc);
     await boot();
     const spy = vi.spyOn(qc, "refetchQueries");
