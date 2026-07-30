@@ -10465,6 +10465,10 @@ export type Database = {
         Returns: boolean
       }
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
+      can_manage_event_groups: {
+        Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_team_roster: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
@@ -10939,6 +10943,10 @@ export type Database = {
       ensure_team_role_folders: {
         Args: { _team_id: string }
         Returns: undefined
+      }
+      event_group_player_scope_ok: {
+        Args: { _group_id: string; _player_id: string }
+        Returns: boolean
       }
       event_has_target_team_restriction: {
         Args: { _event_id: string }
@@ -12095,6 +12103,17 @@ export type Database = {
           player_count: number
           submission_ids: string[]
         }[]
+      }
+      swap_event_group_players: {
+        Args: {
+          p_player1_group_id: string
+          p_player1_id: string
+          p_player1_team: string
+          p_player2_group_id: string
+          p_player2_id: string
+          p_player2_team: string
+        }
+        Returns: undefined
       }
       team_has_club_pro_access: { Args: { _team_id: string }; Returns: boolean }
       team_has_club_pro_football_access: {
