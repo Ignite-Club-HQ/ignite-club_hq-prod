@@ -95,6 +95,7 @@ import { cn } from "@/lib/utils";
 import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import TeamCompetitionsSection from "@/components/competitions/TeamCompetitionsSection";
 import { PlayHQTeamLinkCard } from "@/components/PlayHQTeamLinkCard";
+import { friendlyQueryError, friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -228,11 +229,12 @@ export default function TeamDetailPage() {
   const { data: teamSubscription } = useQuery({
     queryKey: ["team-subscription", id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("team_subscriptions")
         .select("*")
         .eq("team_id", id!)
         .maybeSingle();
+      if (error) throw error;
       return data;
     },
     enabled: !!id,
@@ -241,11 +243,12 @@ export default function TeamDetailPage() {
   const { data: clubSubscription, isLoading: isClubSubscriptionLoading, isFetching: isClubSubscriptionFetching } = useQuery({
     queryKey: ["club-subscription", team?.club_id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("club_subscriptions")
         .select("*")
         .eq("club_id", team!.club_id)
         .maybeSingle();
+      if (error) throw friendlyQueryError(error, "this club's subscription details");
       return data;
     },
     enabled: !!team?.club_id,
@@ -256,18 +259,20 @@ export default function TeamDetailPage() {
   const { data: isClubAdmin, isLoading: isClubAdminLoading, isFetching: isClubAdminFetching } = useQuery({
     queryKey: ["is-club-admin", user?.id, team?.club_id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("user_roles")
         .select("id")
         .eq("user_id", user!.id)
         .eq("club_id", team!.club_id)
         .eq("role", "club_admin")
         .maybeSingle();
+      if (error) throw friendlyQueryError(error, "your club admin permissions");
       return !!data;
     },
     enabled: !!user && !!team?.club_id,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
+
 
   // Note: team folders query and mutation removed - "Move to Folder" no longer in this page
 
@@ -380,14 +385,14 @@ export default function TeamDetailPage() {
   });
 
   // Fetch roles data with profiles - with caching for faster loads
-  const { data: rawMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, refetch: refetchMembers } = useQuery({
+  const { data: rawMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, isError: isMembersError, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ["team-roles", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
         .select("id, user_id, role, profiles (id, display_name, avatar_url)")
         .eq("team_id", id!);
-      if (error) throw error;
+      if (error) throw friendlyQueryError(error, "the team member list");
       
       // Cache profiles for faster future loads
       if (data) {
@@ -1599,7 +1604,17 @@ export default function TeamDetailPage() {
             </div>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-{Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
+{isMembersError && Object.keys(members).length === 0 ? (
+                  <div className="flex flex-col items-center py-6 text-center gap-3">
+                    <p className="text-sm text-muted-foreground max-w-xs">
+                      {friendlyQueryErrorMessage(membersError, "the team member list")}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => refetchMembers()}>
+                      <RefreshCw className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                      Try again
+                    </Button>
+                  </div>
+                ) : Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <div className="flex flex-col items-center py-6 text-center gap-3">
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
                       <UserPlus className="h-6 w-6 text-primary" />

@@ -1392,8 +1392,25 @@ export default function EventDetailPage() {
   // Payment checkout state
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
+  // Active payment-status listener cleanup (CONFIRMED DEFECT 2).
+  // Stored in a ref so a new listener disposes the previous one and unmount
+  // always tears the active listener down exactly once (cleanup is idempotent).
+  const paymentListenerCleanupRef = useRef<(() => void) | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      const dispose = paymentListenerCleanupRef.current;
+      paymentListenerCleanupRef.current = null;
+      dispose?.();
+    };
+  }, []);
+
   const handlePayNow = async () => {
     if (!event || !user || !eventPrice) return;
+
     
     setIsProcessingPayment(true);
     try {
@@ -1425,25 +1442,67 @@ export default function EventDetailPage() {
       }
 
       if (result.url) {
-        listenForPaymentStatus(result.payment_id, async (status) => {
+        // Dispose any listener from a previous Pay Now tap before registering.
+        const previousDispose = paymentListenerCleanupRef.current;
+        paymentListenerCleanupRef.current = null;
+        previousDispose?.();
+
+        const clearActiveListener = () => {
+          const dispose = paymentListenerCleanupRef.current;
+          paymentListenerCleanupRef.current = null;
+          dispose?.();
+        };
+
+        const dispose = listenForPaymentStatus(result.payment_id, async (status) => {
+          // Terminal callback: the listener is done — drop the stored ref.
+          clearActiveListener();
+          if (!isMountedRef.current) return;
+
           if (status === "paid") {
+            // CONFIRMED DEFECT 1: functions.invoke resolves with { data, error }
+            // instead of throwing, so the returned error must be inspected.
+            let confirmError: unknown = null;
             try {
-              await supabase.functions.invoke("confirm-event-payment", {
+              const { error } = await supabase.functions.invoke("confirm-event-payment", {
                 body: {
                   event_id: event.id,
                   amount: eventPrice,
                   payment_id: result.payment_id,
                 },
               });
+              confirmError = error ?? null;
             } catch (err) {
-              console.error("Failed to confirm event payment server-side:", err);
+              confirmError = err;
             }
+
+            if (!isMountedRef.current) return;
+
+            if (confirmError) {
+              console.error("Failed to confirm event payment server-side:", confirmError);
+              toast({
+                title: "Payment confirmation incomplete",
+                description:
+                  "Your payment may have been received, but we could not update the event. Please contact your club before trying again.",
+                variant: "destructive",
+              });
+              return;
+            }
+
             queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
             toast({ title: "Payment successful!" });
           } else {
             toast({ title: "Payment failed", variant: "destructive" });
           }
         });
+
+        // A terminal callback can fire synchronously during registration; only
+        // store the disposer if the listener is still considered active.
+        if (isMountedRef.current) {
+          paymentListenerCleanupRef.current = dispose;
+        } else {
+          dispose();
+        }
+
 
         if (isNative) {
           import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(result.url));
@@ -1877,6 +1936,16 @@ export default function EventDetailPage() {
     },
   });
 
+  // Thrown when the duty row committed as completed but the admin/coach
+  // notification insert failed. Records explicitly that the duty is committed.
+  class DutyNotificationPartialError extends Error {
+    dutyCommitted = true as const;
+    constructor(public underlying: string) {
+      super(underlying);
+      this.name = "DutyNotificationPartialError";
+    }
+  }
+
   // Complete duty mutation
   const completeDutyMutation = useMutation({
     mutationFn: async (dutyId: string) => {
@@ -1903,8 +1972,11 @@ export default function EventDetailPage() {
         .eq("status", "open")
         .select("id")
         .maybeSingle();
+      // Duty update failed outright — no notifications, complete failure.
       if (error) throw error;
-      if (!updatedDuty) return;
+      // No row updated: the duty is no longer open (idempotent/concurrent
+      // outcome). Do not notify; just refresh so current state is displayed.
+      if (!updatedDuty) return { outcome: "noop" as const };
 
       // Notify team/club admins and coaches about duty completion
       if (event && duty) {
@@ -1915,8 +1987,12 @@ export default function EventDetailPage() {
           ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach", "club_admin", "committee_member"])
           : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).in("role", ["club_admin", "committee_member"]);
         
-        const { data: admins } = await roleQuery;
-        
+        const { data: admins, error: adminsError } = await roleQuery;
+
+        if (adminsError) {
+          throw new DutyNotificationPartialError(adminsError.message);
+        }
+
         if (admins && admins.length > 0) {
           const recipientIds = Array.from(
             new Set(admins.map(a => a.user_id).filter((userId): userId is string => !!userId && userId !== user?.id))
@@ -1931,16 +2007,34 @@ export default function EventDetailPage() {
           
           if (notifications.length > 0) {
             const { error: notificationError } = await supabase.from("notifications").insert(notifications);
-            if (notificationError && notificationError.code !== "23505") throw notificationError;
+            // 23505 = duplicate/idempotency conflict, intentionally tolerated.
+            if (notificationError && notificationError.code !== "23505") {
+              throw new DutyNotificationPartialError(notificationError.message);
+            }
           }
         }
       }
+      return { outcome: "completed" as const };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
-      toast({ title: "Duty completed!" });
+      if (result?.outcome === "completed") {
+        toast({ title: "Duty completed!" });
+      }
     },
+
     onError: (error) => {
+      if (error instanceof DutyNotificationPartialError) {
+        // The duty IS completed — never roll back or reopen it, and never
+        // report a total failure.
+        queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+        toast({
+          title: "Duty completed — notification failed",
+          description: `The duty was marked complete, but administrators couldn't be notified. ${error.underlying}`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ 
         title: "Failed to complete duty", 
         description: error.message,
@@ -1948,6 +2042,7 @@ export default function EventDetailPage() {
       });
     },
   });
+
 
   // Undo duty completion (in case of accidental tap)
   const uncompleteDutyMutation = useMutation({
@@ -2081,22 +2176,61 @@ export default function EventDetailPage() {
     },
   });
 
+  // Thrown when a recurring-series cancellation committed only one of its two
+  // writes. Records explicitly which mutation committed — never inferred from
+  // error text.
+  class SeriesCancellationPartialError extends Error {
+    constructor(
+      public childrenCommitted: boolean,
+      public parentCommitted: boolean,
+      public underlying: string,
+    ) {
+      super(underlying);
+      this.name = "SeriesCancellationPartialError";
+    }
+  }
+
   const cancelEventMutation = useMutation({
     mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { cancelType: 'single' | 'series'; customMessage?: string; sendPushNotification?: boolean }) => {
       console.log("[CancelEvent] Starting cancel mutation", { cancelType, eventId: id, miniLeagueId: event?.mini_league_id });
-      
-      if (cancelType === 'series' && event?.parent_event_id) {
-        // Cancel parent and all children
-        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", event.parent_event_id);
-        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", event.parent_event_id);
-        if (err1) { console.error("[CancelEvent] Error cancelling children:", err1); throw err1; }
-        if (err2) { console.error("[CancelEvent] Error cancelling parent:", err2); throw err2; }
-      } else if (cancelType === 'series' && event?.is_recurring) {
-        // This is the parent - cancel all children and this event
-        const { error: err1 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("parent_event_id", id!);
-        const { error: err2 } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", id!);
-        if (err1) { console.error("[CancelEvent] Error cancelling children:", err1); throw err1; }
-        if (err2) { console.error("[CancelEvent] Error cancelling this event:", err2); throw err2; }
+
+      const isSeries =
+        cancelType === 'series' && (!!event?.parent_event_id || !!event?.is_recurring);
+
+      if (isSeries) {
+        // Either arrangement: current event is a child (use its parent id) or
+        // the current event IS the recurring parent (use its own id).
+        const seriesRootId = event?.parent_event_id || id!;
+
+        const { error: childrenError } = await supabase
+          .from("events")
+          .update({ is_cancelled: true, chat_cancel_post_handled: true })
+          .eq("parent_event_id", seriesRootId);
+        const { error: parentError } = await supabase
+          .from("events")
+          .update({ is_cancelled: true, chat_cancel_post_handled: true })
+          .eq("id", seriesRootId);
+
+        const childrenCancellationSucceeded = !childrenError;
+        const parentCancellationSucceeded = !parentError;
+
+        if (childrenError) console.error("[CancelEvent] Error cancelling children:", childrenError);
+        if (parentError) console.error("[CancelEvent] Error cancelling parent:", parentError);
+
+        // A. Neither write succeeded — complete failure, no chat message.
+        if (!childrenCancellationSucceeded && !parentCancellationSucceeded) {
+          throw childrenError ?? parentError;
+        }
+
+        // C. Exactly one write succeeded — partial state, no chat message.
+        if (!childrenCancellationSucceeded || !parentCancellationSucceeded) {
+          throw new SeriesCancellationPartialError(
+            childrenCancellationSucceeded,
+            parentCancellationSucceeded,
+            (childrenError ?? parentError)!.message,
+          );
+        }
+        // B. Both succeeded — fall through to normal success behaviour.
       } else {
         // Just cancel this single event
         console.log("[CancelEvent] Cancelling single event:", id);
@@ -2107,6 +2241,7 @@ export default function EventDetailPage() {
           throw error;
         }
       }
+
 
       // Get member count for notifications - handle mini-league events differently
       let uniqueMembers: string[] = [];
@@ -2210,11 +2345,34 @@ export default function EventDetailPage() {
     },
     onError: (error) => {
       console.error("[CancelEvent] Mutation error:", error);
+      if (error instanceof SeriesCancellationPartialError) {
+        // Part of the series IS cancelled — never roll back client-side, and
+        // never report either complete success or complete failure.
+        setCancelDialogOpen(false);
+        queryClient.invalidateQueries({ queryKey: ["event", id] });
+        queryClient.invalidateQueries({ queryKey: ["events"] });
+        queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+        queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+        queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+        const cancelled = error.childrenCommitted
+          ? "The repeat occurrences were cancelled"
+          : "The main recurring event was cancelled";
+        const failed = error.childrenCommitted
+          ? "the main recurring event could not be cancelled"
+          : "the repeat occurrences could not be cancelled";
+        toast({
+          title: "Series cancellation incomplete",
+          description: `${cancelled}, but ${failed}. No cancellation message was posted. ${error.underlying}`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast(friendlyMutationError(error, {
         title: "Failed to cancel event",
         description: (error as any)?.message || "An unexpected error occurred",
       }));
     },
+
   });
 
   const remindMutation = useMutation({

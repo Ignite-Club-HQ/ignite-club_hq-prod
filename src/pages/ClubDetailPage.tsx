@@ -100,6 +100,7 @@ import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
 import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
+import { friendlyQueryError, friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
 
 
 type ClubRole = "club_admin";
@@ -186,16 +187,17 @@ export default function ClubDetailPage() {
 
 
   // Fast count-only query for the badge - returns adults, juniors, total, and growth
-  const { data: clubMemberCount, isLoading: isMemberCountLoading } = useQuery({
+  const { data: clubMemberCount, isLoading: isMemberCountLoading, isError: isMemberCountError } = useQuery({
     queryKey: ["club-members-count", id],
     queryFn: async () => {
       // Get team IDs for this club (exclude deleted teams)
-      const { data: teamsData } = await supabase
+      const { data: teamsData, error: teamsError } = await supabase
         .from("teams")
         .select("id")
         .eq("club_id", id!)
         .is("deleted_at", null);
-      const teamIds = teamsData?.map(t => t.id) || [];
+      if (teamsError) throw teamsError;
+      const teamIds = (teamsData || []).map(t => t.id);
 
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
@@ -217,10 +219,10 @@ export default function ClubDetailPage() {
           .is("team_id", null),
         teamIds.length > 0
           ? supabase.from("user_roles").select("user_id").in("team_id", teamIds)
-          : Promise.resolve({ data: [] as { user_id: string }[] }),
+          : Promise.resolve({ data: [] as { user_id: string }[], error: null }),
         teamIds.length > 0
           ? supabase.from("child_team_assignments").select("child_id").in("team_id", teamIds)
-          : Promise.resolve({ data: [] as { child_id: string }[] }),
+          : Promise.resolve({ data: [] as { child_id: string }[], error: null }),
         supabase
           .from("user_roles")
           .select("user_id", { count: "exact", head: true })
@@ -232,8 +234,17 @@ export default function ClubDetailPage() {
               .select("user_id", { count: "exact", head: true })
               .in("team_id", teamIds)
               .gte("created_at", monthStart)
-          : Promise.resolve({ count: 0 }),
+          : Promise.resolve({ count: 0, error: null }),
       ]);
+
+      // A failed dependency must never be collapsed into a zero count.
+      const firstError =
+        (clubRolesRes as { error?: unknown }).error ??
+        (teamRolesRes as { error?: unknown }).error ??
+        (childAssignmentsRes as { error?: unknown }).error ??
+        (newClubRolesRes as { error?: unknown }).error ??
+        (newTeamRolesRes as { error?: unknown }).error;
+      if (firstError) throw friendlyQueryError(firstError, "this club's member numbers");
 
       const userIdSet = new Set<string>();
       (clubRolesRes.data || []).forEach((r: any) => userIdSet.add(r.user_id));
@@ -249,6 +260,7 @@ export default function ClubDetailPage() {
 
       return { adults, juniors, total: adults + juniors, newThisMonth };
     },
+
     enabled: !!id,
     staleTime: 5 * 60 * 1000, // 5 min
   });
@@ -258,7 +270,7 @@ export default function ClubDetailPage() {
   const [teamsExpanded, setTeamsExpanded] = useState<boolean | null>(null);
 
   // Full roles data - only fetched when the accordion is expanded
-  const { data: rawClubMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, refetch: refetchClubMembers } = useQuery({
+  const { data: rawClubMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, isError: isMembersError, error: membersError, refetch: refetchClubMembers } = useQuery({
     queryKey: ["club-members-roles", id],
     queryFn: async () => {
       // First get team IDs for this club
@@ -274,7 +286,7 @@ export default function ClubDetailPage() {
         .select("id, user_id, role, team_id, club_id, profiles (id, display_name, avatar_url, ignite_points), teams (id, name)")
         .eq("club_id", id!)
         .is("team_id", null);
-      if (clubError) throw clubError;
+      if (clubError) throw friendlyQueryError(clubError, "the club member list");
 
       // Fetch team-level roles for teams in this club
       let teamRoles: typeof clubRoles = [];
@@ -283,7 +295,7 @@ export default function ClubDetailPage() {
           .from("user_roles")
           .select("id, user_id, role, team_id, club_id, profiles (id, display_name, avatar_url, ignite_points), teams (id, name)")
           .in("team_id", teamIds);
-        if (teamError) throw teamError;
+        if (teamError) throw friendlyQueryError(teamError, "the club member list");
         teamRoles = teamRolesData || [];
       }
 
@@ -337,17 +349,19 @@ export default function ClubDetailPage() {
     queryFn: async () => {
       const teamIds = teams?.map(t => t.id) || [];
       if (teamIds.length === 0) return [];
-      
-      const { data } = await supabase
+
+      const { data, error } = await supabase
         .from("user_roles")
         .select("team_id")
         .eq("user_id", user!.id)
         .in("team_id", teamIds);
-      
-      return [...new Set(data?.map(r => r.team_id) || [])];
+      if (error) throw error;
+
+      return [...new Set((data || []).map(r => r.team_id).filter(Boolean))];
     },
     enabled: !!user && !!teams && teams.length > 0,
   });
+
 
   // Fetch team folders
   const { data: teamFolders = [] } = useQuery({
@@ -1889,10 +1903,17 @@ export default function ClubDetailPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
-                    <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.adults ?? 0} Adults</span>
-                    <span>•</span>
-                    <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.juniors ?? 0} Juniors</span>
+                    {isMemberCountError && !clubMemberCount ? (
+                      <span>Member numbers unavailable — pull to refresh</span>
+                    ) : (
+                      <>
+                        <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.adults ?? 0} Adults</span>
+                        <span>•</span>
+                        <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.juniors ?? 0} Juniors</span>
+                      </>
+                    )}
                   </div>
+
                 </div>
               </div>
             </AccordionTrigger>
@@ -1943,6 +1964,15 @@ export default function ClubDetailPage() {
                       </Card>
                     ))}
                   </>
+                ) : isMembersError && Object.keys(clubMembers).length === 0 ? (
+                  <div className="flex flex-col items-start gap-2 py-2">
+                    <p className="text-sm text-muted-foreground">
+                      {friendlyQueryErrorMessage(membersError, "the club member list")}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => refetchClubMembers()}>
+                      Try again
+                    </Button>
+                  </div>
                 ) : Object.keys(clubMembers).length === 0 && pendingInvites.length === 0 ? (
                   <p className="text-muted-foreground text-sm">No members yet</p>
                 ) : (
