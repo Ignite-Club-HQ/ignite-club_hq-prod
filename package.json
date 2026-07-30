@@ -28,7 +28,11 @@
     "ios:prebuild": "node scripts/bump-ios-version.cjs && node scripts/check-asc-build-number.cjs",
     "version": "node scripts/bump-ios-version.cjs $npm_package_version && git add package.json ios/App/App/Info.plist ios/App/App.xcodeproj/project.pbxproj",
     "install:hooks": "node scripts/install-git-hooks.cjs",
-    "postinstall": "node scripts/apply-patches.cjs"
+    "postinstall": "node scripts/apply-patches.cjs",
+    "test:ios-os:safety": "node tests/ios-os/verify-safety.mjs",
+    "test:ios-os:safety:post": "node tests/ios-os/verify-safety.mjs --post",
+    "test:ios-os:build": "node tests/ios-os/verify-safety.mjs && vite build --config tests/ios-os/vite.config.ts",
+    "test:ios-os:guard": "vitest run src/test/iosOsHarness.guard.test.ts"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",
