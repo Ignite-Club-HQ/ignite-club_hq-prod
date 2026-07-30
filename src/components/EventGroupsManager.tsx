@@ -510,22 +510,24 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       players.forEach((p, idx) => { p.team = idx < teamASize ? "a" : "b"; });
     });
 
-    // Insert player assignments
-    for (let i = 0; i < effectiveNumMatches; i++) {
-      if (matchPlayers[i].length > 0) {
-        const assignments = matchPlayers[i].map(p => ({
-          group_id: matchIds[i],
-          player_id: p.playerId,
-          team: p.team,
-        }));
-        await supabase.from("event_group_players").insert(assignments);
-      }
-    }
+    // Single atomic write: matches + player assignments commit together.
+    const { data: createdIds, error: replaceError } = await supabase.rpc("replace_event_groups", {
+      p_event_id: eventId,
+      p_groups: matchSpecs.map((spec, i) => ({
+        ...spec,
+        players: matchPlayers[i].map(p => ({ player_id: p.playerId, team: p.team })),
+      })),
+      p_delete_existing: false,
+    });
+    if (replaceError) throw replaceError;
+
+    const matchIds = (createdIds as string[] | null) ?? [];
 
     // Auto-distribute event-level duties to matches
     await distributeEventDutiesToMatches(matchIds, matchPlayers.map(mp => mp.map(p => p.playerId)));
 
     return { numCreated: effectiveNumMatches, matchIds, matchPlayerIds: matchPlayers.map(mp => mp.map(p => p.playerId)) };
+
   }, [availablePlayers, miniLeague, showAdvanced, playersPerTeam, numGroups, abilityMode, eventId]);
 
   // Create group mutation - with player assignments
