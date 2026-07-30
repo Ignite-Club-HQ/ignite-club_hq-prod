@@ -12096,6 +12096,17 @@ export type Database = {
           submission_ids: string[]
         }[]
       }
+      swap_event_group_players: {
+        Args: {
+          p_player1_group_id: string
+          p_player1_id: string
+          p_player1_team: string
+          p_player2_group_id: string
+          p_player2_id: string
+          p_player2_team: string
+        }
+        Returns: undefined
+      }
       team_has_club_pro_access: { Args: { _team_id: string }; Returns: boolean }
       team_has_club_pro_football_access: {
         Args: { _team_id: string }
