@@ -2142,16 +2142,10 @@ export default function VaultPage() {
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
 
-      if (failedCount === 0) {
-        toast.success("Trash emptied successfully");
-      } else if (succeededCount > 0) {
-        // Partial success: exactly one accurate warning, never a success toast
-        toast.warning(
-          `Trash partially emptied: ${succeededCount} item(s) deleted, ${failedCount} item(s) could not be deleted`
-        );
-      } else {
-        toast.error(`${failedCount} item(s) could not be deleted`);
-      }
+      // Exactly one toast; never a success message when any item failed
+      const outcome = resolveEmptyTrashOutcome({ succeededCount, failedCount });
+      toast[outcome.kind](outcome.message);
+
     } catch (error: any) {
       toast.error(error.message || "Failed to empty trash");
     } finally {
