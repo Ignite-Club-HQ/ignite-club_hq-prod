@@ -1,12 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { Badge } from "@/components/ui/badge";
+import { getProfileFromCache } from "@/lib/profileCache";
 
 import { formatMessagePreview as stripMentionFormatting, extractEventIds } from "@/lib/messagePreview";
 import { isSystemMessageLike } from "@/lib/systemMessagePatterns";
+
 
 interface TeamChatPreviewProps {
   teamId: string;
