@@ -2846,6 +2846,8 @@ export default function HomePage() {
             if (!open) {
               setSelectedReward(null);
               setSelectedRedeemFor("myself");
+              redeemAttemptKeyRef.current = null;
+
             }
           }
         }}
