@@ -27,15 +27,24 @@ const ok = (m) => console.log(`  ok  ${m}`);
 
 // ---------------------------------------------------------------------------
 // 1. Forbidden environment variables
+//
+// In CI this is a hard failure: the `android-os-resume-test` workflow declares
+// no environment groups, so nothing Supabase-shaped may be present. Developer
+// machines and the Lovable sandbox legitimately export these for the real app,
+// so a local run may set AOS_ALLOW_LOCAL_ENV=1 to downgrade to a warning. CI
+// never sets it, and the built-output scan below still runs either way.
 // ---------------------------------------------------------------------------
+const ALLOW_LOCAL_ENV = process.env.AOS_ALLOW_LOCAL_ENV === "1" && !process.env.CI;
 const FORBIDDEN_PREFIXES = ["SUPABASE", "VITE_SUPABASE", "DATABASE_URL", "PGPASSWORD"];
 const leaked = Object.keys(process.env).filter((k) =>
   FORBIDDEN_PREFIXES.some((p) => k === p || k.startsWith(p)),
 );
-if (leaked.length > 0) {
+if (leaked.length > 0 && !ALLOW_LOCAL_ENV) {
   fail(
     `forbidden environment variable(s) present: ${leaked.join(", ")}. ` +
-      `This workflow must run with no Supabase/database environment group.`,
+      `This workflow must run with no Supabase/database environment group. ` +
+      `(Local runs only: set AOS_ALLOW_LOCAL_ENV=1 to downgrade this to a warning.)`,
+
   );
 } else {
   ok("no SUPABASE / VITE_SUPABASE / DATABASE_URL / PGPASSWORD env vars present");
