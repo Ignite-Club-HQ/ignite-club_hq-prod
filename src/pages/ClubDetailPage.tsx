@@ -190,12 +190,13 @@ export default function ClubDetailPage() {
     queryKey: ["club-members-count", id],
     queryFn: async () => {
       // Get team IDs for this club (exclude deleted teams)
-      const { data: teamsData } = await supabase
+      const { data: teamsData, error: teamsError } = await supabase
         .from("teams")
         .select("id")
         .eq("club_id", id!)
         .is("deleted_at", null);
-      const teamIds = teamsData?.map(t => t.id) || [];
+      if (teamsError) throw teamsError;
+      const teamIds = (teamsData || []).map(t => t.id);
 
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
@@ -217,10 +218,10 @@ export default function ClubDetailPage() {
           .is("team_id", null),
         teamIds.length > 0
           ? supabase.from("user_roles").select("user_id").in("team_id", teamIds)
-          : Promise.resolve({ data: [] as { user_id: string }[] }),
+          : Promise.resolve({ data: [] as { user_id: string }[], error: null }),
         teamIds.length > 0
           ? supabase.from("child_team_assignments").select("child_id").in("team_id", teamIds)
-          : Promise.resolve({ data: [] as { child_id: string }[] }),
+          : Promise.resolve({ data: [] as { child_id: string }[], error: null }),
         supabase
           .from("user_roles")
           .select("user_id", { count: "exact", head: true })
@@ -232,8 +233,17 @@ export default function ClubDetailPage() {
               .select("user_id", { count: "exact", head: true })
               .in("team_id", teamIds)
               .gte("created_at", monthStart)
-          : Promise.resolve({ count: 0 }),
+          : Promise.resolve({ count: 0, error: null }),
       ]);
+
+      // A failed dependency must never be collapsed into a zero count.
+      const firstError =
+        (clubRolesRes as { error?: unknown }).error ??
+        (teamRolesRes as { error?: unknown }).error ??
+        (childAssignmentsRes as { error?: unknown }).error ??
+        (newClubRolesRes as { error?: unknown }).error ??
+        (newTeamRolesRes as { error?: unknown }).error;
+      if (firstError) throw firstError;
 
       const userIdSet = new Set<string>();
       (clubRolesRes.data || []).forEach((r: any) => userIdSet.add(r.user_id));
@@ -249,6 +259,7 @@ export default function ClubDetailPage() {
 
       return { adults, juniors, total: adults + juniors, newThisMonth };
     },
+
     enabled: !!id,
     staleTime: 5 * 60 * 1000, // 5 min
   });
