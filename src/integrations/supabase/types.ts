@@ -10465,6 +10465,10 @@ export type Database = {
         Returns: boolean
       }
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
+      can_manage_event_groups: {
+        Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_team_roster: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
@@ -10939,6 +10943,10 @@ export type Database = {
       ensure_team_role_folders: {
         Args: { _team_id: string }
         Returns: undefined
+      }
+      event_group_player_scope_ok: {
+        Args: { _group_id: string; _player_id: string }
+        Returns: boolean
       }
       event_has_target_team_restriction: {
         Args: { _event_id: string }
