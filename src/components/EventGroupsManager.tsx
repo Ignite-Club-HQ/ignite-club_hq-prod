@@ -758,7 +758,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     mutationFn: async () => {
       const groupIds = groups?.map(g => g.id) || [];
       for (const groupId of groupIds) {
-        await supabase.from("event_groups").delete().eq("id", groupId);
+        const { error } = await supabase.from("event_groups").delete().eq("id", groupId);
+        // Stop at the first failure — never continue deleting or report success.
+        if (error) throw error;
       }
     },
     onSuccess: () => {
@@ -826,13 +828,29 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           .eq("player_id", player2Id);
         if (e2) throw e2;
       } else {
-        // Different groups: move each to the other's group+team
-        // Delete both
-        await supabase.from("event_group_players").delete().eq("group_id", player1GroupId).eq("player_id", player1Id);
-        await supabase.from("event_group_players").delete().eq("group_id", player2GroupId).eq("player_id", player2Id);
-        // Re-insert swapped
-        await supabase.from("event_group_players").insert({ group_id: player2GroupId, player_id: player1Id, team: player2Team });
-        await supabase.from("event_group_players").insert({ group_id: player1GroupId, player_id: player2Id, team: player1Team });
+        // Different groups: move each to the other's group+team.
+        // Every write is checked; we stop at the first failure so the UI never
+        // reports success after a denied or failed write.
+        const { error: d1 } = await supabase
+          .from("event_group_players")
+          .delete()
+          .eq("group_id", player1GroupId)
+          .eq("player_id", player1Id);
+        if (d1) throw d1;
+        const { error: d2 } = await supabase
+          .from("event_group_players")
+          .delete()
+          .eq("group_id", player2GroupId)
+          .eq("player_id", player2Id);
+        if (d2) throw d2;
+        const { error: i1 } = await supabase
+          .from("event_group_players")
+          .insert({ group_id: player2GroupId, player_id: player1Id, team: player2Team });
+        if (i1) throw i1;
+        const { error: i2 } = await supabase
+          .from("event_group_players")
+          .insert({ group_id: player1GroupId, player_id: player2Id, team: player1Team });
+        if (i2) throw i2;
       }
     },
     onSuccess: () => {
