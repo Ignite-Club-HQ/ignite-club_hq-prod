@@ -1604,7 +1604,17 @@ export default function TeamDetailPage() {
             </div>
             <AccordionContent>
               <div className="space-y-4 pt-2">
-{Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
+{isMembersError && Object.keys(members).length === 0 ? (
+                  <div className="flex flex-col items-center py-6 text-center gap-3">
+                    <p className="text-sm text-muted-foreground max-w-xs">
+                      {friendlyQueryErrorMessage(membersError, "the team member list")}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => refetchMembers()}>
+                      <RefreshCw className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                      Try again
+                    </Button>
+                  </div>
+                ) : Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (
                   <div className="flex flex-col items-center py-6 text-center gap-3">
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
                       <UserPlus className="h-6 w-6 text-primary" />

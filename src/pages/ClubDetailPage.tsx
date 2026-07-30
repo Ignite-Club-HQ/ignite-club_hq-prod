@@ -1964,6 +1964,15 @@ export default function ClubDetailPage() {
                       </Card>
                     ))}
                   </>
+                ) : isMembersError && Object.keys(clubMembers).length === 0 ? (
+                  <div className="flex flex-col items-start gap-2 py-2">
+                    <p className="text-sm text-muted-foreground">
+                      {friendlyQueryErrorMessage(membersError, "the club member list")}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => refetchClubMembers()}>
+                      Try again
+                    </Button>
+                  </div>
                 ) : Object.keys(clubMembers).length === 0 && pendingInvites.length === 0 ? (
                   <p className="text-muted-foreground text-sm">No members yet</p>
                 ) : (
