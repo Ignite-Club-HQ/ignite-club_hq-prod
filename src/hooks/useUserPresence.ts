@@ -65,16 +65,45 @@ function clearTimers() {
   }
 }
 
-async function trackSelf() {
-  if (!channel || !currentUserId) return;
+type PresenceChannel = ReturnType<typeof supabase.channel>;
+
+/**
+ * Ownership guard: a callback (subscription status, heartbeat tick, reconnect
+ * timer) may only act if the channel instance AND user that installed it are
+ * still the active ones. Delayed callbacks from replaced/obsolete channels are
+ * ignored completely.
+ */
+function isCurrentChannel(
+  expectedChannel: PresenceChannel | null,
+  expectedUserId: string | null,
+): boolean {
+  return (
+    !!expectedChannel &&
+    !!expectedUserId &&
+    channel === expectedChannel &&
+    currentUserId === expectedUserId
+  );
+}
+
+/**
+ * Track presence for an explicitly-owned channel/user pair. Re-checks
+ * ownership after each await, because a user switch or channel replacement
+ * could have happened while we were suspended.
+ */
+async function trackPresence(
+  expectedChannel: PresenceChannel | null,
+  expectedUserId: string | null,
+) {
+  if (!isCurrentChannel(expectedChannel, expectedUserId)) return;
   try {
-    await channel.track({
-      user_id: currentUserId,
+    await expectedChannel!.track({
+      user_id: expectedUserId,
       online_at: new Date().toISOString(),
     });
   } catch {
     /* ignore — will retry on next heartbeat or reconnect */
   }
+  if (!isCurrentChannel(expectedChannel, expectedUserId)) return;
   // Persist heartbeat to DB so admins can see who is online server-side.
   try {
     const platform =
@@ -91,10 +120,21 @@ async function trackSelf() {
   }
 }
 
-function scheduleReconnect(userId: string) {
+/** Track presence for whatever channel/user is currently active. */
+async function trackSelf() {
+  await trackPresence(channel, currentUserId);
+}
+
+function scheduleReconnect(userId: string, expectedChannel?: PresenceChannel | null) {
   if (reconnectTimer) return;
+  // Reconnect timers retain their expected identity: if ownership changed
+  // before the timer fires, it becomes a harmless no-op.
+  const ownedChannel = expectedChannel === undefined ? channel : expectedChannel;
+  const ownsChannel = expectedChannel !== undefined;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
+    if (currentUserId !== userId) return;
+    if (ownsChannel && ownedChannel && channel !== ownedChannel) return;
     // Force tear-down then re-init
     if (channel) {
       try {
@@ -111,6 +151,7 @@ function scheduleReconnect(userId: string) {
     });
   }, RECONNECT_DELAY_MS);
 }
+
 
 function attachVisibilityHandlers() {
   if (visibilityHandlerAttached || typeof window === "undefined") return;
@@ -188,30 +229,56 @@ async function ensureChannel(userId: string) {
     rebuildFromState(ch.presenceState() as any);
   });
 
+  // Publish ownership BEFORE subscribing so a synchronous status callback
+  // recognises itself as the active channel.
+  channel = ch;
+
+  // Bind subscription work to the exact channel instance + user that created
+  // this callback. Delayed callbacks from obsolete channels are ignored.
+  const expectedChannel = ch;
+  const expectedUserId = userId;
+
   ch.subscribe(async (status) => {
+    if (!isCurrentChannel(expectedChannel, expectedUserId)) {
+      // Obsolete/replaced channel: never track, never touch heartbeats,
+      // never schedule reconnects, never remove the healthy channel.
+      return;
+    }
+
     if (status === "SUBSCRIBED") {
       // Always (re)track on SUBSCRIBED — this fires on initial connect AND
       // after auto-reconnects.
-      await trackSelf();
+      await trackPresence(expectedChannel, expectedUserId);
+      if (!isCurrentChannel(expectedChannel, expectedUserId)) return;
 
-      // Start / restart heartbeat
+      // Exactly one active heartbeat timer, owned by this channel/user.
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       heartbeatTimer = setInterval(() => {
-        trackSelf();
+        if (!isCurrentChannel(expectedChannel, expectedUserId)) {
+          if (heartbeatTimer) {
+            clearInterval(heartbeatTimer);
+            heartbeatTimer = null;
+          }
+          return;
+        }
+        trackPresence(expectedChannel, expectedUserId);
       }, HEARTBEAT_MS);
     } else if (
       status === "CHANNEL_ERROR" ||
       status === "TIMED_OUT" ||
       status === "CLOSED"
     ) {
-      // Lost the channel — clean up and try again.
-      clearTimers();
-      if (currentUserId) scheduleReconnect(currentUserId);
+      // Genuine error on the ACTIVE channel — stop the heartbeat but keep any
+      // already-pending reconnect so repeated errors coalesce into one timer.
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      scheduleReconnect(expectedUserId, expectedChannel);
     }
   });
-
-  channel = ch;
 }
+
 
 async function teardown() {
   clearTimers();
@@ -280,17 +347,34 @@ export function useOnlineCount(
   userIds: string[] | null | undefined,
   excludeUserId?: string | null,
 ): number {
-  const key = (userIds || []).join(",") + "|" + (excludeUserId || "");
+  // Count unique people, not occurrences. Ignore null/empty/malformed IDs and
+  // never mutate the caller's array. Exclusion is applied before counting, so
+  // the result is order-independent.
+  const uniqueIds: string[] = [];
+  {
+    const seen = new Set<string>();
+    for (const id of userIds || []) {
+      if (typeof id !== "string") continue;
+      const trimmed = id.trim();
+      if (!trimmed) continue;
+      if (excludeUserId && trimmed === excludeUserId) continue;
+      if (seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      uniqueIds.push(trimmed);
+    }
+  }
+
+  // Stable key: same unique IDs in any order produce the same key.
+  const key = [...uniqueIds].sort().join(",") + "|" + (excludeUserId || "");
 
   const compute = (set: Set<string>): number => {
-    if (!userIds?.length) return 0;
     let n = 0;
-    for (const id of userIds) {
-      if (id === excludeUserId) continue;
+    for (const id of uniqueIds) {
       if (set.has(id)) n++;
     }
     return n;
   };
+
 
   const [count, setCount] = useState<number>(() => compute(onlineUsers));
 
