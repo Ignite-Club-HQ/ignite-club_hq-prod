@@ -323,7 +323,7 @@ jobs:
               select vault.update_secret(id, :'key', 'service_role_key', 'Service role key for pg_net dispatch')
               from vault.secrets
               where name = 'service_role_key';
-            SQL
+          SQL
             echo "✅ Vault service_role_key seeded from GitHub secret."
           else
             echo "ℹ️  No service-role key secret set — relying on an existing Vault entry."
