@@ -1696,6 +1696,9 @@ export default function ManageUsersPage() {
         open={!!deleteTarget} 
         onOpenChange={(open) => {
           if (!open) {
+            // Never let the dialog close while a deletion request is in flight,
+            // otherwise a failure leaves the admin with no way to retry.
+            if (deleteAccountMutation.isPending) return;
             setDeleteTarget(null);
             setConfirmText("");
             setDeleteType("scheduled");
