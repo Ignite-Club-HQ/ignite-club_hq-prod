@@ -65,16 +65,45 @@ function clearTimers() {
   }
 }
 
-async function trackSelf() {
-  if (!channel || !currentUserId) return;
+type PresenceChannel = ReturnType<typeof supabase.channel>;
+
+/**
+ * Ownership guard: a callback (subscription status, heartbeat tick, reconnect
+ * timer) may only act if the channel instance AND user that installed it are
+ * still the active ones. Delayed callbacks from replaced/obsolete channels are
+ * ignored completely.
+ */
+function isCurrentChannel(
+  expectedChannel: PresenceChannel | null,
+  expectedUserId: string | null,
+): boolean {
+  return (
+    !!expectedChannel &&
+    !!expectedUserId &&
+    channel === expectedChannel &&
+    currentUserId === expectedUserId
+  );
+}
+
+/**
+ * Track presence for an explicitly-owned channel/user pair. Re-checks
+ * ownership after each await, because a user switch or channel replacement
+ * could have happened while we were suspended.
+ */
+async function trackPresence(
+  expectedChannel: PresenceChannel | null,
+  expectedUserId: string | null,
+) {
+  if (!isCurrentChannel(expectedChannel, expectedUserId)) return;
   try {
-    await channel.track({
-      user_id: currentUserId,
+    await expectedChannel!.track({
+      user_id: expectedUserId,
       online_at: new Date().toISOString(),
     });
   } catch {
     /* ignore — will retry on next heartbeat or reconnect */
   }
+  if (!isCurrentChannel(expectedChannel, expectedUserId)) return;
   // Persist heartbeat to DB so admins can see who is online server-side.
   try {
     const platform =
@@ -91,10 +120,21 @@ async function trackSelf() {
   }
 }
 
-function scheduleReconnect(userId: string) {
+/** Track presence for whatever channel/user is currently active. */
+async function trackSelf() {
+  await trackPresence(channel, currentUserId);
+}
+
+function scheduleReconnect(userId: string, expectedChannel?: PresenceChannel | null) {
   if (reconnectTimer) return;
+  // Reconnect timers retain their expected identity: if ownership changed
+  // before the timer fires, it becomes a harmless no-op.
+  const ownedChannel = expectedChannel === undefined ? channel : expectedChannel;
+  const ownsChannel = expectedChannel !== undefined;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
+    if (currentUserId !== userId) return;
+    if (ownsChannel && ownedChannel && channel !== ownedChannel) return;
     // Force tear-down then re-init
     if (channel) {
       try {
@@ -111,6 +151,7 @@ function scheduleReconnect(userId: string) {
     });
   }, RECONNECT_DELAY_MS);
 }
+
 
 function attachVisibilityHandlers() {
   if (visibilityHandlerAttached || typeof window === "undefined") return;
