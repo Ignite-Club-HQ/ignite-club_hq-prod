@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 // VAPID public key - must match the server's VAPID_PUBLIC_KEY
 const VAPID_PUBLIC_KEY = 'BIFKB_ZTDn9fhiF-crB2xQk1eNaKQQg0svSjsMV-KvM21y8L05Q6ZwZwDsqMR7-_1ZoV2J4RXRx56gjJFEhfWOw';
+const SW_VERSION = '4.0.2';
 
 // Use sessionStorage-based mutex to prevent issues across page refreshes
 // This is more reliable than module-level variables which can get stuck
@@ -113,6 +114,20 @@ function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function isServiceWorkerScriptAvailable(): Promise<boolean> {
+  try {
+    const response = await fetch(`/sw.js?v=${SW_VERSION}`, {
+      method: 'HEAD',
+      cache: 'no-store',
+    });
+    const contentType = response.headers.get('content-type') || '';
+    return response.ok && /(?:javascript|ecmascript)/i.test(contentType);
+  } catch (error) {
+    console.warn('[Push] SW availability check failed:', error);
+    return false;
+  }
+}
+
 /**
  * Ensure the service worker controls the page before subscribing
  */
@@ -177,8 +192,13 @@ async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration
     
     if (!registration) {
       console.log('[Push] No existing registration, registering new SW...');
+      const hasServiceWorkerScript = await isServiceWorkerScriptAvailable();
+      if (!hasServiceWorkerScript) {
+        console.info('[Push] SW script unavailable - skipping registration');
+        return null;
+      }
       try {
-        registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        registration = await navigator.serviceWorker.register(`/sw.js?v=${SW_VERSION}`, { scope: '/' });
         console.log('[Push] SW registered, waiting for it to activate...');
         // Safari needs time after registration
         if (safari) {

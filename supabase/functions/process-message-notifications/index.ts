@@ -24,7 +24,7 @@ const corsHeaders = {
  */
 
 interface MessagePayload {
-  messageType: 'team' | 'club' | 'group' | 'broadcast';
+  messageType: 'team' | 'club' | 'group' | 'broadcast' | 'club_admin' | 'dm' | 'direct';
   messageId: string;
   authorId: string;
   messageText: string;
@@ -32,6 +32,7 @@ interface MessagePayload {
   teamId?: string;
   clubId?: string;
   groupId?: string;
+  conversationId?: string;
   replyToId?: string | null;
 }
 

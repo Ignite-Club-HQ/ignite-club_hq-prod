@@ -2,6 +2,24 @@ import { onlineManager, focusManager, type QueryClient } from '@tanstack/react-q
 import { Capacitor } from '@capacitor/core';
 import { abortAllInFlightRestGets } from '@/lib/supabaseAuthRetry';
 
+const CHAT_RESUME_QUERY_KEYS = new Set([
+  'team-messages',
+  'club-messages',
+  'group-messages',
+  'dm-messages',
+  'broadcast-messages',
+  'club-admin-messages',
+  'my-teams-with-messages',
+  'member-clubs-with-messages',
+  'my-chat-groups-with-messages',
+  'dm-conversations',
+  'latest-broadcast',
+  'club-admin-conversations',
+  'team-chat-preview',
+  'unread-message-counts',
+  'chat-group-unread-cache',
+]);
+
 /**
  * Configures React Query's onlineManager and focusManager for Capacitor
  * native environments where browser events don't fire reliably.
@@ -117,6 +135,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
   // if any slot was held by a zombie socket the rest queued behind it and
   // the page sat on skeletons until a force-quit.
   let lastRecoveryAt = 0;
+  let lastChatResumeAt = 0;
   // When the app went to background. Used to decide whether in-flight REST
   // GETs are worth keeping on resume (see LONG_BACKGROUND_MS).
   let backgroundedAt = 0;
@@ -132,6 +151,41 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       const n = abortAllInFlightRestGets(reason);
       if (n > 0) console.log(`[NativeAdapter] aborted ${n} in-flight REST GET(s) on ${reason}`);
     } catch { /* noop */ }
+  };
+
+  const recoverActiveChatQueries = (reason: string) => {
+    if (!queryClient) return;
+    const now = Date.now();
+    if (now - lastChatResumeAt < 2500) return;
+    lastChatResumeAt = now;
+
+    try {
+      const activeChatQueries = queryClient
+        .getQueryCache()
+        .findAll({ type: 'active' })
+        .filter((q) => {
+          const firstKey = q.queryKey[0];
+          return typeof firstKey === 'string' && CHAT_RESUME_QUERY_KEYS.has(firstKey);
+        });
+
+      if (activeChatQueries.length === 0) return;
+      console.log(`[NativeAdapter] Refreshing ${activeChatQueries.length} active chat query/query(s) (${reason})`);
+
+      const BATCH = 4;
+      for (let i = 0; i < activeChatQueries.length; i += BATCH) {
+        const slice = activeChatQueries.slice(i, i + BATCH);
+        const delay = (i / BATCH) * 120;
+        setTimeout(() => {
+          slice.forEach((q) => {
+            try {
+              queryClient.refetchQueries({ queryKey: q.queryKey, exact: true });
+            } catch { /* noop */ }
+          });
+        }, delay);
+      }
+    } catch (e) {
+      console.warn('[NativeAdapter] recoverActiveChatQueries failed:', e);
+    }
   };
 
   const recoverErroredQueries = (
@@ -265,6 +319,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
                 // Genuine offline→online resume (wasOnline === false): perform
                 // exactly one controlled active-query recovery.
                 recoverErroredQueries('app-resume', wasOnline ? undefined : { refetchActive: true });
+                if (hiddenFor > 0) recoverActiveChatQueries(`app-resume:${Math.round(hiddenFor)}ms`);
 
               } else {
                 // OS says offline — but verify with a probe before trusting it.
@@ -287,8 +342,8 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
 
   // Belt-and-braces: Android WebView sometimes delivers `visibilitychange`
   // without a matching `appStateChange`. Track hidden time here too so the
-  // zombie abort still runs on those resumes. The recovery refetch itself is
-  // left to the appStateChange path / nudge so we don't double-fire it.
+  // zombie abort still runs on those resumes. Chat refresh is scoped and
+  // throttled, so it is safe to use here when appStateChange is missing.
   try {
     let hiddenAt = 0;
     document.addEventListener('visibilitychange', () => {
@@ -298,6 +353,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       }
       const hiddenFor = hiddenAt ? Date.now() - hiddenAt : 0;
       hiddenAt = 0;
+      if (hiddenFor > 0) recoverActiveChatQueries(`visibility-resume:${Math.round(hiddenFor)}ms`);
       if (hiddenFor >= LONG_BACKGROUND_MS) {
         abortZombieRequests('visibility-resume');
         recoverErroredQueries('visibility-resume');

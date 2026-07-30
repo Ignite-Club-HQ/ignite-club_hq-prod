@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Users, PlayCircle, Wand2, Loader2, X, Copy, Shirt, RefreshCw, Flame, MoreHorizontal, ChevronDown, ArrowRightLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -418,30 +419,25 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     const sortedPlayers = [...availablePlayers];
     const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
     const matchNames = ["Match 1", "Match 2", "Match 3", "Match 4", "Match 5", "Match 6", "Match 7", "Match 8"];
-    
-    const matchIds: string[] = [];
-    for (let i = 0; i < effectiveNumMatches; i++) {
+
+    // Build the match metadata first; nothing is written until the single
+    // atomic `replace_event_groups` RPC below, so a mid-way failure can never
+    // leave half-created matches behind.
+    const matchSpecs = Array.from({ length: effectiveNumMatches }, (_, i) => {
       const colors = getMatchColors(i, leagueColors);
-      const abilityBand = effectiveAbilityMode === "similar" 
+      const abilityBand = effectiveAbilityMode === "similar"
         ? (["Advanced", "Intermediate", "Beginner"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
         : null;
-      
-      const { data, error } = await supabase
-        .from("event_groups")
-        .insert({
-          event_id: eventId,
-          name: matchNames[i] || `Match ${i + 1}`,
-          ability_band: abilityBand,
-          pitch_name: `Pitch ${i + 1}`,
-          display_order: i + 1,
-          team_a_color: colors.teamA,
-          team_b_color: colors.teamB,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      matchIds.push(data.id);
-    }
+      return {
+        name: matchNames[i] || `Match ${i + 1}`,
+        ability_band: abilityBand,
+        pitch_name: `Pitch ${i + 1}`,
+        display_order: i + 1,
+        team_a_color: colors.teamA,
+        team_b_color: colors.teamB,
+      };
+    });
+
 
     // Calculate target sizes
     const totalPlayerCount = sortedPlayers.length;
@@ -515,22 +511,24 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       players.forEach((p, idx) => { p.team = idx < teamASize ? "a" : "b"; });
     });
 
-    // Insert player assignments
-    for (let i = 0; i < effectiveNumMatches; i++) {
-      if (matchPlayers[i].length > 0) {
-        const assignments = matchPlayers[i].map(p => ({
-          group_id: matchIds[i],
-          player_id: p.playerId,
-          team: p.team,
-        }));
-        await supabase.from("event_group_players").insert(assignments);
-      }
-    }
+    // Single atomic write: matches + player assignments commit together.
+    const { data: createdIds, error: replaceError } = await supabase.rpc("replace_event_groups", {
+      p_event_id: eventId,
+      p_groups: matchSpecs.map((spec, i) => ({
+        ...spec,
+        players: matchPlayers[i].map(p => ({ player_id: p.playerId, team: p.team })),
+      })),
+      p_delete_existing: false,
+    });
+    if (replaceError) throw replaceError;
+
+    const matchIds = (createdIds as string[] | null) ?? [];
 
     // Auto-distribute event-level duties to matches
     await distributeEventDutiesToMatches(matchIds, matchPlayers.map(mp => mp.map(p => p.playerId)));
 
     return { numCreated: effectiveNumMatches, matchIds, matchPlayerIds: matchPlayers.map(mp => mp.map(p => p.playerId)) };
+
   }, [availablePlayers, miniLeague, showAdvanced, playersPerTeam, numGroups, abilityMode, eventId]);
 
   // Create group mutation - with player assignments
@@ -674,57 +672,57 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
         .order("display_order");
       if (groupsError) throw groupsError;
 
-      const newMatchIds: string[] = [];
       const newMatchPlayerIds: string[][] = [];
+      const groupPayload: Json[] = [];
       let skippedCount = 0;
 
       for (const prevGroup of prevGroups || []) {
-        const { data: newGroup, error: createError } = await supabase
-          .from("event_groups")
-          .insert({
-            event_id: eventId,
-            name: prevGroup.name,
-            ability_band: prevGroup.ability_band,
-            pitch_name: prevGroup.pitch_name,
-            display_order: prevGroup.display_order,
-            team_a_color: prevGroup.team_a_color || "#ef4444",
-            team_b_color: prevGroup.team_b_color || "#3b82f6",
-          })
-          .select()
-          .single();
-        if (createError) throw createError;
-
-        newMatchIds.push(newGroup.id);
-
-        const { data: prevPlayers } = await supabase
+        const { data: prevPlayers, error: prevPlayersError } = await supabase
           .from("event_group_players")
           .select("player_id, team")
           .eq("group_id", prevGroup.id);
+        if (prevPlayersError) throw prevPlayersError;
 
         const playerIds: string[] = [];
+        let players: { player_id: string; team: string | null }[] = [];
+
         if (prevPlayers && prevPlayers.length > 0) {
           // Only include players who RSVP'd going to the current session
           const eligiblePlayers = goingPlayerIds.size > 0
             ? prevPlayers.filter(p => goingPlayerIds.has(p.player_id))
             : prevPlayers; // If no RSVPs exist at all, copy all (fallback)
-          
+
           skippedCount += prevPlayers.length - eligiblePlayers.length;
 
-          if (eligiblePlayers.length > 0) {
-            const assignments = eligiblePlayers.map(p => ({
-              group_id: newGroup.id,
-              player_id: p.player_id,
-              team: p.team,
-            }));
-            await supabase.from("event_group_players").insert(assignments);
-            playerIds.push(...eligiblePlayers.map(p => p.player_id));
-          }
+          players = eligiblePlayers.map(p => ({ player_id: p.player_id, team: p.team }));
+          playerIds.push(...eligiblePlayers.map(p => p.player_id));
         }
+
+        groupPayload.push({
+          name: prevGroup.name,
+          ability_band: prevGroup.ability_band,
+          pitch_name: prevGroup.pitch_name,
+          display_order: prevGroup.display_order,
+          team_a_color: prevGroup.team_a_color || "#ef4444",
+          team_b_color: prevGroup.team_b_color || "#3b82f6",
+          players,
+        } as unknown as Json);
         newMatchPlayerIds.push(playerIds);
       }
 
+      // Single atomic write: every copied match + its players, or nothing.
+      const { data: createdIds, error: replaceError } = await supabase.rpc("replace_event_groups", {
+        p_event_id: eventId,
+        p_groups: groupPayload as Json,
+        p_delete_existing: false,
+      });
+      if (replaceError) throw replaceError;
+
+      const newMatchIds = (createdIds as string[] | null) ?? [];
+
       // Auto-distribute event-level duties to copied matches
       await distributeEventDutiesToMatches(newMatchIds, newMatchPlayerIds);
+
       return { skippedCount };
     },
     onSuccess: (result) => {
@@ -758,7 +756,9 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     mutationFn: async () => {
       const groupIds = groups?.map(g => g.id) || [];
       for (const groupId of groupIds) {
-        await supabase.from("event_groups").delete().eq("id", groupId);
+        const { error } = await supabase.from("event_groups").delete().eq("id", groupId);
+        // Stop at the first failure — never continue deleting or report success.
+        if (error) throw error;
       }
     },
     onSuccess: () => {
@@ -778,17 +778,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           .eq("player_id", playerId);
         if (error) throw error;
       } else {
-        const { error: deleteError } = await supabase
-          .from("event_group_players")
-          .delete()
-          .eq("group_id", fromGroupId)
-          .eq("player_id", playerId);
-        if (deleteError) throw deleteError;
-        
-        const { error: insertError } = await supabase
-          .from("event_group_players")
-          .insert({ group_id: toGroupId, player_id: playerId, team: toTeam });
-        if (insertError) throw insertError;
+        // True in-place move (single UPDATE) — no delete/insert window in
+        // which the player could be dropped from every group.
+        const { error } = await supabase.rpc("move_event_group_player", {
+          p_player_id: playerId,
+          p_from_group_id: fromGroupId,
+          p_to_group_id: toGroupId,
+          p_to_team: toTeam,
+        });
+        if (error) throw error;
       }
     },
     onSuccess: () => {
@@ -811,29 +809,18 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       player1Id: string; player1GroupId: string; player1Team: "a" | "b"; 
       player2Id: string; player2GroupId: string; player2Team: "a" | "b";
     }) => {
-      if (player1GroupId === player2GroupId) {
-        // Same group: just swap teams
-        const { error: e1 } = await supabase
-          .from("event_group_players")
-          .update({ team: player2Team })
-          .eq("group_id", player1GroupId)
-          .eq("player_id", player1Id);
-        if (e1) throw e1;
-        const { error: e2 } = await supabase
-          .from("event_group_players")
-          .update({ team: player1Team })
-          .eq("group_id", player2GroupId)
-          .eq("player_id", player2Id);
-        if (e2) throw e2;
-      } else {
-        // Different groups: move each to the other's group+team
-        // Delete both
-        await supabase.from("event_group_players").delete().eq("group_id", player1GroupId).eq("player_id", player1Id);
-        await supabase.from("event_group_players").delete().eq("group_id", player2GroupId).eq("player_id", player2Id);
-        // Re-insert swapped
-        await supabase.from("event_group_players").insert({ group_id: player2GroupId, player_id: player1Id, team: player2Team });
-        await supabase.from("event_group_players").insert({ group_id: player1GroupId, player_id: player2Id, team: player1Team });
-      }
+      // Single atomic RPC: all writes commit together or none do, so a
+      // failure part-way can never leave a player removed but not re-added.
+      const { error } = await supabase.rpc("swap_event_group_players", {
+        p_player1_id: player1Id,
+        p_player1_group_id: player1GroupId,
+        p_player1_team: player1Team,
+        p_player2_id: player2Id,
+        p_player2_group_id: player2GroupId,
+        p_player2_team: player2Team,
+      });
+      if (error) throw error;
+
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-groups", eventId] });

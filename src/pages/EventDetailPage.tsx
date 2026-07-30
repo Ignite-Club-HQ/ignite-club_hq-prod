@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo, lazy, Suspense, useRef } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense, useRef, useCallback } from "react";
+import { performEventDeletion, type EventDeletionOutcome } from "@/lib/eventSeriesDeletion";
+
 import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
 import { Share } from "@capacitor/share";
 import { createMemberCheckout, listenForPaymentStatus } from "@/lib/memberCheckout";
@@ -2114,52 +2116,110 @@ export default function EventDetailPage() {
     },
   });
 
-  const [pendingDeleteTimeout, setPendingDeleteTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [pendingDeleteType, setPendingDeleteType] = useState<'single' | 'series' | null>(null);
+  // ---- Event deletion with six-second undo -------------------------------
+  // All duplicate-prevention and cleanup state lives in refs: two taps can
+  // occur before React re-renders, so `useState` cannot gate scheduling.
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deletePendingRef = useRef(false);
+  const [deletePending, setDeletePending] = useState(false);
 
-  const performActualDelete = async (deleteType: 'single' | 'series') => {
-    if (deleteType === 'series' && event?.parent_event_id) {
-      await supabase.from("events").delete().eq("parent_event_id", event.parent_event_id);
-      await supabase.from("events").delete().eq("id", event.parent_event_id);
-    } else if (deleteType === 'series' && event?.is_recurring) {
-      await supabase.from("events").delete().eq("parent_event_id", id!);
-      await supabase.from("events").delete().eq("id", id!);
-    } else {
-      await supabase.from("events").delete().eq("id", id!);
+  const clearPendingDeletion = useCallback(() => {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+      deleteTimerRef.current = null;
     }
-  };
+    deletePendingRef.current = false;
+    if (isMountedRef.current) setDeletePending(false);
+  }, []);
+
+  // Idempotent unmount cleanup — a delayed callback must never update state
+  // after unmount.
+  useEffect(() => {
+    return () => {
+      if (deleteTimerRef.current) {
+        clearTimeout(deleteTimerRef.current);
+        deleteTimerRef.current = null;
+      }
+      deletePendingRef.current = false;
+    };
+  }, []);
 
   const handleDeleteWithUndo = (deleteType: 'single' | 'series') => {
-    // Navigate away immediately
+    // Exactly one pending deletion at a time — repeated requests during the
+    // undo window are ignored (no extra timer, no extra delete, no new toast).
+    if (deletePendingRef.current) return;
+    if (!event || !id) return;
+
+    const snapshot = {
+      id,
+      is_recurring: event.is_recurring,
+      parent_event_id: event.parent_event_id,
+    };
+
+    deletePendingRef.current = true;
+    setDeletePending(true);
+
     navigate(-1);
-    
-    // Set pending delete type
-    setPendingDeleteType(deleteType);
-    
-    // Show toast with undo option
-    const timeoutId = setTimeout(async () => {
-      await performActualDelete(deleteType);
-      setPendingDeleteTimeout(null);
-      setPendingDeleteType(null);
+
+    const timeoutId = setTimeout(() => {
+      // Never leave an unhandled rejection inside the timer callback.
+      void (async () => {
+        let outcome: EventDeletionOutcome;
+        try {
+          outcome = await performEventDeletion(supabase, snapshot, deleteType);
+        } catch (err: any) {
+          outcome = { kind: "failed", message: err?.message ?? "Unknown error" };
+        }
+
+        if (deleteTimerRef.current === timeoutId) deleteTimerRef.current = null;
+        deletePendingRef.current = false;
+        if (isMountedRef.current) setDeletePending(false);
+
+        if (outcome.kind === "success") {
+          queryClient.invalidateQueries({ queryKey: ["events"] });
+          return;
+        }
+
+        console.error("[EventDelete] deletion failed", {
+          eventId: snapshot.id,
+          deleteType,
+          kind: outcome.kind,
+          error: outcome.message,
+        });
+
+        if (outcome.kind === "partial-series") {
+          toast({
+            title: "Series only partially deleted",
+            description: `The repeating events were removed but the original event could not be deleted. ${outcome.message}`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Event deletion failed",
+            description: `The event was not deleted and still exists. ${outcome.message}`,
+            variant: "destructive",
+          });
+        }
+
+        // Send the user back so they can see the event still exists.
+        navigate(`/events/${snapshot.id}`);
+      })();
     }, 6000);
-    
-    setPendingDeleteTimeout(timeoutId);
-    
+
+    deleteTimerRef.current = timeoutId;
+
     toast({
-      title: "Event deleted",
-      description: deleteType === 'series' ? "Entire series deleted" : "Event deleted",
+      title: "Deleting event…",
+      description:
+        deleteType === 'series'
+          ? "The entire series will be deleted in a few seconds."
+          : "The event will be deleted in a few seconds.",
       action: (
         <ToastAction
           altText="Undo deletion"
           onClick={() => {
-            if (pendingDeleteTimeout) {
-              clearTimeout(pendingDeleteTimeout);
-            }
-            clearTimeout(timeoutId);
-            setPendingDeleteTimeout(null);
-            setPendingDeleteType(null);
-            // Navigate back to the event
-            navigate(`/events/${id}`);
+            clearPendingDeletion();
+            navigate(`/events/${snapshot.id}`);
             toast({ title: "Deletion cancelled" });
           }}
         >
@@ -2175,6 +2235,7 @@ export default function EventDetailPage() {
       handleDeleteWithUndo(deleteType);
     },
   });
+
 
   // Thrown when a recurring-series cancellation committed only one of its two
   // writes. Records explicitly which mutation committed — never inferred from
@@ -2967,7 +3028,7 @@ export default function EventDetailPage() {
             actionVariant="destructive"
             onSingleAction={() => deleteEventMutation.mutate('single')}
             onSeriesAction={() => deleteEventMutation.mutate('series')}
-            isPending={deleteEventMutation.isPending}
+            isPending={deleteEventMutation.isPending || deletePending}
           />
         ) : (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -2982,7 +3043,9 @@ export default function EventDetailPage() {
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction 
                   onClick={() => deleteEventMutation.mutate('single')} 
+                  disabled={deleteEventMutation.isPending || deletePending}
                   className="bg-destructive text-destructive-foreground"
+
                 >
                   Delete
                 </AlertDialogAction>
