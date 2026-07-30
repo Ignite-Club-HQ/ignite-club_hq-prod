@@ -1392,8 +1392,25 @@ export default function EventDetailPage() {
   // Payment checkout state
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
+  // Active payment-status listener cleanup (CONFIRMED DEFECT 2).
+  // Stored in a ref so a new listener disposes the previous one and unmount
+  // always tears the active listener down exactly once (cleanup is idempotent).
+  const paymentListenerCleanupRef = useRef<(() => void) | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      const dispose = paymentListenerCleanupRef.current;
+      paymentListenerCleanupRef.current = null;
+      dispose?.();
+    };
+  }, []);
+
   const handlePayNow = async () => {
     if (!event || !user || !eventPrice) return;
+
     
     setIsProcessingPayment(true);
     try {
