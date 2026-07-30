@@ -1554,46 +1554,50 @@ export default function TeamDetailPage() {
         >
           {/* Members Section */}
           <AccordionItem value="members" className="border rounded-lg px-4">
-            <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <Users className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
-                <div className="flex flex-col min-w-0">
-                  <h2 className="text-base font-semibold leading-tight">Team</h2>
-                  <span className="text-[10px] text-muted-foreground leading-tight">Players, parents & coaches</span>
+            {/* Refresh button is a SIBLING of the trigger — never nested inside it,
+                so no <button> ever descends from another <button>. */}
+            <div className="flex items-center gap-2">
+              <AccordionTrigger className="hover:no-underline flex-1 min-w-0">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <Users className="h-5 w-5 text-primary shrink-0" aria-hidden="true" />
+                  <div className="flex flex-col min-w-0">
+                    <h2 className="text-base font-semibold leading-tight">Team</h2>
+                    <span className="text-[10px] text-muted-foreground leading-tight">Players, parents & coaches</span>
+                  </div>
+                  <div className="flex -space-x-2 ml-auto shrink-0">
+                    {Object.values(members).slice(0, 5).map((member, i) => (
+                      <Avatar key={i} className="h-7 w-7 border-2 border-background">
+                        <AvatarImage src={member.profile?.avatar_url || undefined} />
+                        <AvatarFallback className="bg-primary/20 text-primary text-[9px]">
+                          {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                    ))}
+                    {Object.keys(members).length + teamChildren.length > 5 && (
+                      <Avatar className="h-7 w-7 border-2 border-background">
+                        <AvatarFallback className="bg-muted text-muted-foreground text-[9px]">
+                          +{Object.keys(members).length + teamChildren.length - 5}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                  </div>
                 </div>
-                <div className="flex -space-x-2 ml-auto shrink-0">
-                  {Object.values(members).slice(0, 5).map((member, i) => (
-                    <Avatar key={i} className="h-7 w-7 border-2 border-background">
-                      <AvatarImage src={member.profile?.avatar_url || undefined} />
-                      <AvatarFallback className="bg-primary/20 text-primary text-[9px]">
-                        {member.profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                  ))}
-                  {Object.keys(members).length + teamChildren.length > 5 && (
-                    <Avatar className="h-7 w-7 border-2 border-background">
-                      <AvatarFallback className="bg-muted text-muted-foreground text-[9px]">
-                        +{Object.keys(members).length + teamChildren.length - 5}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-11 w-11"
-                  aria-label="Refresh members list"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    refetchMembers();
-                    refetchChildren();
-                  }}
-                  disabled={isMembersFetching || isChildrenFetching}
-                >
-                  <RefreshCw className={`h-4 w-4 ${isMembersFetching || isChildrenFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
-                </Button>
-              </div>
-            </AccordionTrigger>
+              </AccordionTrigger>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-11 w-11 shrink-0"
+                aria-label="Refresh members list"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  refetchMembers();
+                  refetchChildren();
+                }}
+                disabled={isMembersFetching || isChildrenFetching}
+              >
+                <RefreshCw className={`h-4 w-4 ${isMembersFetching || isChildrenFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
+              </Button>
+            </div>
             <AccordionContent>
               <div className="space-y-4 pt-2">
 {Object.keys(members).length === 0 && teamChildren.length === 0 && pendingInvites.length === 0 && !isMembersLoading && !isChildrenLoading && !isMembersFetching && !isChildrenFetching ? (

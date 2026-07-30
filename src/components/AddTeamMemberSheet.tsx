@@ -2211,7 +2211,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             nativeKbHeight > 0
               ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
               : undefined,
-          transition: 'bottom 200ms ease, height 200ms ease, max-height 200ms ease',
+          // Longhand only — the shared SheetContent also sets transition longhands
+          // (for drag-to-close), and mixing shorthand + longhand triggers a React warning.
+          transitionProperty: 'bottom, height, max-height',
+          transitionDuration: '200ms',
+          transitionTimingFunction: 'ease',
         }}
       >
         <SheetHeader className="mb-3 shrink-0">

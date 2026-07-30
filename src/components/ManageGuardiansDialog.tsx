@@ -10,6 +10,7 @@ import {
   ResponsiveDialogContent,
   ResponsiveDialogHeader,
   ResponsiveDialogTitle,
+  ResponsiveDialogDescription,
   ResponsiveDialogFooter,
 } from "@/components/ui/responsive-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -177,6 +178,9 @@ export default function ManageGuardiansDialog({
             <Users className="h-5 w-5" />
             Guardians for {childName}
           </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription className="sr-only">
+            Add or remove the parents and guardians assigned to this child.
+          </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
         <div className="space-y-4 pt-2">
