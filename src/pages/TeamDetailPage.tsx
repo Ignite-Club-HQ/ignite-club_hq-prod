@@ -385,7 +385,7 @@ export default function TeamDetailPage() {
   });
 
   // Fetch roles data with profiles - with caching for faster loads
-  const { data: rawMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, refetch: refetchMembers } = useQuery({
+  const { data: rawMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, isError: isMembersError, error: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ["team-roles", id],
     queryFn: async () => {
       const { data, error } = await supabase

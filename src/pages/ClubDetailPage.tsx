@@ -187,7 +187,7 @@ export default function ClubDetailPage() {
 
 
   // Fast count-only query for the badge - returns adults, juniors, total, and growth
-  const { data: clubMemberCount, isLoading: isMemberCountLoading } = useQuery({
+  const { data: clubMemberCount, isLoading: isMemberCountLoading, isError: isMemberCountError } = useQuery({
     queryKey: ["club-members-count", id],
     queryFn: async () => {
       // Get team IDs for this club (exclude deleted teams)
@@ -270,7 +270,7 @@ export default function ClubDetailPage() {
   const [teamsExpanded, setTeamsExpanded] = useState<boolean | null>(null);
 
   // Full roles data - only fetched when the accordion is expanded
-  const { data: rawClubMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, refetch: refetchClubMembers } = useQuery({
+  const { data: rawClubMembers = [], isLoading: isMembersLoading, isFetching: isMembersFetching, isError: isMembersError, error: membersError, refetch: refetchClubMembers } = useQuery({
     queryKey: ["club-members-roles", id],
     queryFn: async () => {
       // First get team IDs for this club
@@ -1903,10 +1903,17 @@ export default function ClubDetailPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground font-normal">
-                    <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.adults ?? 0} Adults</span>
-                    <span>•</span>
-                    <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.juniors ?? 0} Juniors</span>
+                    {isMemberCountError && !clubMemberCount ? (
+                      <span>Member numbers unavailable — pull to refresh</span>
+                    ) : (
+                      <>
+                        <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.adults ?? 0} Adults</span>
+                        <span>•</span>
+                        <span>{isMemberCountLoading && !clubMemberCount ? "—" : clubMemberCount?.juniors ?? 0} Juniors</span>
+                      </>
+                    )}
                   </div>
+
                 </div>
               </div>
             </AccordionTrigger>
