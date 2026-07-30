@@ -314,8 +314,8 @@ jobs:
               end if;
             end \$\$;" >/dev/null
 
-          if [ -n "${PROD_SERVICE_ROLE_KEY:-}" ]; then
-            run_sql -v key="$PROD_SERVICE_ROLE_KEY" -c "
+          if [ -n "$KEY" ]; then
+            run_sql -v key="$KEY" -c "
               do \$\$
               declare v_id uuid;
               begin
