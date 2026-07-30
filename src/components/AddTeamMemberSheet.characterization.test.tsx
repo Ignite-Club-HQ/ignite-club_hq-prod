@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -189,6 +189,9 @@ describe("AddTeamMemberSheet characterization — membership workflow boundary",
     await waitFor(() => expect(submit).toBeDisabled());
     fireEvent.click(submit);
     expect(mocks.inserts.filter(row => row.table === "pending_invites")).toHaveLength(1);
-    mocks.releaseInvite?.();
+    await act(async () => {
+      mocks.releaseInvite?.();
+    });
+    await waitFor(() => expect(screen.getByText("Member Added")).toBeInTheDocument());
   });
 });
