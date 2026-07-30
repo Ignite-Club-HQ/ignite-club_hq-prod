@@ -11,6 +11,7 @@ import { describe, it, expect } from "vitest";
 import {
   AudienceResolutionError,
   PAGE_SIZE,
+  paginateColumn,
   resolveRecipients,
 } from "../../supabase/functions/process-event-notifications/recipients.ts";
 import { FakeSupabase } from "../../supabase/functions/process-event-notifications/testFakeSupabase.ts";
@@ -245,5 +246,53 @@ describe("fail-closed on every recipient-source read failure", () => {
     delete db.errors.user_roles;
     const ids = await resolveRecipients(db, EVENT, CLUB, TEAM, null, CREATOR);
     expect([...ids].sort()).toEqual(["u1", "u2"]);
+  });
+});
+
+/**
+ * Cancellation / update fan-out derives its audience from `rsvps` in
+ * `index.ts`. That read now goes through the same paginated, fail-closed
+ * helper, so a >1,000-RSVP event cannot under-notify and a read error cannot
+ * degrade into an empty audience.
+ */
+describe("RSVP-derived audience (cancel / update)", () => {
+  const rsvpQuery = (db: any, eventId: string) =>
+    paginateColumn(
+      () =>
+        db
+          .from("rsvps")
+          .select("user_id")
+          .eq("event_id", eventId)
+          .not("user_id", "is", null),
+      "user_id",
+      "rsvps",
+    );
+
+  for (const n of [PAGE_SIZE - 1, PAGE_SIZE, PAGE_SIZE + 1, 999, 1000, 1001, 1205]) {
+    it(`does not truncate ${n} RSVP recipients`, async () => {
+      const db = capped({
+        rsvps: many(n, "rsvpuser").map((user_id) => ({ event_id: EVENT, user_id })),
+      });
+      const ids = await rsvpQuery(db, EVENT);
+      expect(ids).toHaveLength(n);
+      expect(new Set(ids).size).toBe(n);
+    });
+  }
+
+  it("skips null user_id rows and other events", async () => {
+    const db = capped({
+      rsvps: [
+        { event_id: EVENT, user_id: "u1" },
+        { event_id: EVENT, user_id: null },
+        { event_id: "other", user_id: "u9" },
+      ],
+    });
+    expect(await rsvpQuery(db, EVENT)).toEqual(["u1"]);
+  });
+
+  it("aborts fail-closed when the RSVP read fails", async () => {
+    const db = new FakeSupabase({ rsvps: [] });
+    db.errors.rsvps = { code: "57014", message: "timeout" };
+    await expect(rsvpQuery(db, EVENT)).rejects.toBeInstanceOf(AudienceResolutionError);
   });
 });
