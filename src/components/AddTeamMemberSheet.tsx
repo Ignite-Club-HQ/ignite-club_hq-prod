@@ -893,20 +893,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         secondParentInviteLink = `${window.location.origin}/join/p/${secondToken}`;
       }
 
-      // Send notification
-      await supabase.from("notifications").insert({
+      // Send notification (role is already committed — a failure here is a
+      // partial success, not a failed add)
+      const { error: notifyErr } = await supabase.from("notifications").insert({
         user_id: selectedUser.id,
         type: "membership",
         message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === selectedRole)?.label}`,
         related_id: teamId,
       });
 
-      return { secondParentInviteLink, secondParentAddedDirectly, roleWasDuplicate };
+      return {
+        secondParentInviteLink,
+        secondParentAddedDirectly,
+        roleWasDuplicate,
+        notificationFailed: !!notifyErr,
+        notificationError: notifyErr?.message ?? null,
+      };
     },
     onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
-      
-      if (result?.roleWasDuplicate) {
+      queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
+
+      if (result?.notificationFailed) {
+        toast({
+          variant: "destructive",
+          title: "Member added — notification failed",
+          description: `${selectedUser?.display_name} was added to ${teamName}, but we couldn't notify them in the app. Please tell them manually.${result.notificationError ? ` (${result.notificationError})` : ""}`,
+        });
+      } else if (result?.roleWasDuplicate) {
+
         const roleName = roleOptions.find(r => r.value === selectedRole)?.label || selectedRole;
         void toastInviteSuccess({
           title: "Already a member",
@@ -1112,7 +1127,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           if (roleErr && !roleErr.message?.includes("duplicate")) {
             throw roleErr;
           }
-          await supabase.from("notifications").insert({
+          const { error: notifyErr } = await supabase.from("notifications").insert({
             user_id: match.user_id,
             type: "membership",
             message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === selectedRole)?.label || selectedRole}`,
@@ -1130,8 +1145,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             secondParentAddedDirectly: false,
             existingUserAdded: {
               name: match.display_name || dedupeEmail,
+              notificationFailed: !!notifyErr,
+              notificationError: notifyErr?.message ?? null,
             },
           };
+
         }
       }
 
@@ -1238,20 +1256,31 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
     onSuccess: async (result) => {
       const { link, shareLink: sLink, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly } = result;
-      const existingUserAdded = (result as any).existingUserAdded as { name: string } | undefined;
+      const existingUserAdded = (result as any).existingUserAdded as
+        | { name: string; notificationFailed?: boolean; notificationError?: string | null }
+        | undefined;
 
       // Short-circuit when we attached the role directly to an existing user
       if (existingUserAdded) {
         queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
-        toast({
-          title: "Added to team",
-          description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
-        });
         queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
+        if (existingUserAdded.notificationFailed) {
+          toast({
+            variant: "destructive",
+            title: "Member added — notification failed",
+            description: `${existingUserAdded.name} was added to ${teamName}, but we couldn't notify them in the app. Please tell them manually.${existingUserAdded.notificationError ? ` (${existingUserAdded.notificationError})` : ""}`,
+          });
+        } else {
+          toast({
+            title: "Added to team",
+            description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
+          });
+        }
         setNameInput("");
         setCustomEmail("");
         return;
       }
+
 
       setInviteLink(link);
       setInviteShareLink(sLink);
