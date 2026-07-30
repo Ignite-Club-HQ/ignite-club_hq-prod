@@ -265,9 +265,74 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      - name: Ensure PROD push-delivery prerequisites (extensions + Vault)
+        # The push-delivery migration opens with a preflight DO block that
+        # aborts `db push` if pg_cron / pg_net / supabase_vault are missing or
+        # if the Vault secrets functions_base_url / service_role_key are absent.
+        # Seed them here (idempotent) so promotion is not a manual dashboard chore.
+        # Optional secret: SUPABASE_PROD_SERVICE_ROLE_KEY (Project Settings → API).
+        if: github.event_name == 'push'
+        env:
+          PROD_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_PROD_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+          run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
+
+          run_sql -c "create extension if not exists pg_cron;" >/dev/null || true
+          run_sql -c "create extension if not exists pg_net;" >/dev/null || true
+          run_sql -c "create extension if not exists supabase_vault with schema vault;" >/dev/null || true
+
+          BASE_URL="https://${PROJECT_REF}.supabase.co"
+          run_sql -v base="$BASE_URL" -c "
+            do \$\$
+            declare v_id uuid;
+            begin
+              select id into v_id from vault.secrets where name = 'functions_base_url' limit 1;
+              if v_id is null then
+                perform vault.create_secret(:'base', 'functions_base_url', 'Edge functions base URL');
+              else
+                perform vault.update_secret(v_id, :'base', 'functions_base_url', 'Edge functions base URL');
+              end if;
+            end \$\$;" >/dev/null
+
+          if [ -n "${PROD_SERVICE_ROLE_KEY:-}" ]; then
+            run_sql -v key="$PROD_SERVICE_ROLE_KEY" -c "
+              do \$\$
+              declare v_id uuid;
+              begin
+                select id into v_id from vault.secrets where name = 'service_role_key' limit 1;
+                if v_id is null then
+                  perform vault.create_secret(:'key', 'service_role_key', 'Service role key for pg_net dispatch');
+                else
+                  perform vault.update_secret(v_id, :'key', 'service_role_key', 'Service role key for pg_net dispatch');
+                end if;
+              end \$\$;" >/dev/null
+            echo "✅ Vault service_role_key seeded from GitHub secret."
+          else
+            echo "ℹ️  SUPABASE_PROD_SERVICE_ROLE_KEY not set — relying on an existing Vault entry."
+          fi
+
+          echo "=== Push delivery prerequisite report (no secret values) ==="
+          run_sql -c "
+            select 'pg_cron=' || exists(select 1 from pg_extension where extname='pg_cron')
+              || ' pg_net=' || exists(select 1 from pg_extension where extname='pg_net')
+              || ' supabase_vault=' || exists(select 1 from pg_extension where extname='supabase_vault')
+              || ' functions_base_url_ok=' || coalesce((select decrypted_secret ~ '^https://[a-z0-9.-]+\.supabase\.(co|in)\$'
+                   from vault.decrypted_secrets where name='functions_base_url' limit 1), false)
+              || ' service_role_key_ok=' || coalesce((select length(decrypted_secret) >= 20 and decrypted_secret !~ '\s'
+                   from vault.decrypted_secrets where name='service_role_key' limit 1), false);"
+
+          MISSING=$(run_sql -c "select coalesce((select 1 from vault.decrypted_secrets where name='service_role_key' and length(decrypted_secret) >= 20 limit 1), 0);")
+          if [ "$MISSING" != "1" ]; then
+            echo "::error::PROD Vault secret 'service_role_key' is missing or invalid. Add repository secret SUPABASE_PROD_SERVICE_ROLE_KEY, or create the Vault secret in the Supabase dashboard, then re-run."
+            exit 1
+          fi
+
       - name: Apply migrations to PROD
         if: github.event_name == 'push'
         run: supabase db push --linked
+
 
       - name: Deploy changed edge functions to PROD
         if: github.event_name == 'push'
