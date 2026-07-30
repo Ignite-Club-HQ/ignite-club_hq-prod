@@ -778,17 +778,15 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           .eq("player_id", playerId);
         if (error) throw error;
       } else {
-        const { error: deleteError } = await supabase
-          .from("event_group_players")
-          .delete()
-          .eq("group_id", fromGroupId)
-          .eq("player_id", playerId);
-        if (deleteError) throw deleteError;
-        
-        const { error: insertError } = await supabase
-          .from("event_group_players")
-          .insert({ group_id: toGroupId, player_id: playerId, team: toTeam });
-        if (insertError) throw insertError;
+        // True in-place move (single UPDATE) — no delete/insert window in
+        // which the player could be dropped from every group.
+        const { error } = await supabase.rpc("move_event_group_player", {
+          p_player_id: playerId,
+          p_from_group_id: fromGroupId,
+          p_to_group_id: toGroupId,
+          p_to_team: toTeam,
+        });
+        if (error) throw error;
       }
     },
     onSuccess: () => {
