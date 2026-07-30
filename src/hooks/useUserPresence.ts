@@ -347,17 +347,34 @@ export function useOnlineCount(
   userIds: string[] | null | undefined,
   excludeUserId?: string | null,
 ): number {
-  const key = (userIds || []).join(",") + "|" + (excludeUserId || "");
+  // Count unique people, not occurrences. Ignore null/empty/malformed IDs and
+  // never mutate the caller's array. Exclusion is applied before counting, so
+  // the result is order-independent.
+  const uniqueIds: string[] = [];
+  {
+    const seen = new Set<string>();
+    for (const id of userIds || []) {
+      if (typeof id !== "string") continue;
+      const trimmed = id.trim();
+      if (!trimmed) continue;
+      if (excludeUserId && trimmed === excludeUserId) continue;
+      if (seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      uniqueIds.push(trimmed);
+    }
+  }
+
+  // Stable key: same unique IDs in any order produce the same key.
+  const key = [...uniqueIds].sort().join(",") + "|" + (excludeUserId || "");
 
   const compute = (set: Set<string>): number => {
-    if (!userIds?.length) return 0;
     let n = 0;
-    for (const id of userIds) {
-      if (id === excludeUserId) continue;
+    for (const id of uniqueIds) {
       if (set.has(id)) n++;
     }
     return n;
   };
+
 
   const [count, setCount] = useState<number>(() => compute(onlineUsers));
 
