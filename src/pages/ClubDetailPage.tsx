@@ -747,138 +747,258 @@ export default function ClubDetailPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPermanentDeleteDialog, setShowPermanentDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
-  const handleDelete = async () => {
-    setIsDeleting(true);
-    // Get all club members to notify them (from club-level and team-level roles)
-    const { data: teamsData } = await supabase
-      .from("teams")
-      .select("id")
-      .eq("club_id", id!);
-    const teamIds = teamsData?.map(t => t.id) || [];
-
-    // Get club-level members
-    const { data: clubMembersData } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("club_id", id!);
-    
-    // Get team-level members
-    let teamMembers: { user_id: string }[] = [];
-    if (teamIds.length > 0) {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .in("team_id", teamIds);
-      teamMembers = data || [];
-    }
-
-    // Combine and deduplicate member IDs
-    const allMemberIds = [...new Set([
-      ...(clubMembersData || []).map(m => m.user_id),
-      ...teamMembers.map(m => m.user_id)
-    ])].filter(uid => uid !== user?.id);
-
-    // Send notifications to all members
-    if (allMemberIds.length > 0) {
-      const notifications = allMemberIds.map(uid => ({
-        user_id: uid,
-        type: "membership",
-        message: `${club?.name || "A club"} has been deleted`,
-        related_id: null,
-      }));
-      
-      await supabase.from("notifications").insert(notifications);
-    }
-
-    // Cancel any live Stripe subscription BEFORE soft-deleting. Otherwise the
-    // club's subscription keeps auto-renewing while the club is hidden, and
-    // (because permanent-delete cascades away the DB row) we end up with an
-    // orphan Stripe subscription that silently bills the customer forever.
-    try {
-      await supabase.functions.invoke("cancel-subscription", {
-        body: { subscription_type: "club", entity_id: id! },
-      });
-    } catch (cancelErr) {
-      console.error("Failed to cancel club Stripe subscription before delete:", cancelErr);
-    }
-
-    // Soft-delete: set deleted_at instead of hard delete
-    const deletedAt = new Date().toISOString();
-    const { error } = await supabase.from("clubs").update({
-      deleted_at: deletedAt,
-      deleted_by: user?.id,
-    } as any).eq("id", id!);
-
-    // Also soft-delete all teams in the club
-    if (!error && teamIds.length > 0) {
-      await supabase.from("teams").update({
-        deleted_at: deletedAt,
-        deleted_by: user?.id,
-      } as any).in("id", teamIds);
-    }
-
-    // Also soft-delete chat_groups scoped to this club or any of its teams
-    if (!error) {
-      const orClauses = [`club_id.eq.${id!}`];
-      if (teamIds.length > 0) orClauses.push(`team_id.in.(${teamIds.join(",")})`);
-      await supabase.from("chat_groups").update({
-        deleted_at: deletedAt,
-        deleted_by: user?.id,
-      } as any).or(orClauses.join(",")).is("deleted_at", null);
-    }
-
-    setIsDeleting(false);
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete club.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setShowDeleteDialog(false);
-    clearClubSetupLocalState(id!);
-    toast({ title: "Club deleted", description: "You can restore it within 30 days from the clubs page." });
-    navigate("/clubs");
+  const safeErrMessage = (err: unknown): string => {
+    if (!err) return "Unknown error";
+    if (typeof err === "string") return err;
+    const msg = (err as { message?: unknown }).message;
+    return typeof msg === "string" && msg ? msg : "Unknown error";
   };
 
-  const handleRestoreClub = async () => {
-    const { error } = await supabase.from("clubs").update({
-      deleted_at: null,
-      deleted_by: null,
-    } as any).eq("id", id!);
-
-    // Also restore all teams that were soft-deleted
-    if (!error) {
-      await supabase.from("teams").update({
-        deleted_at: null,
-        deleted_by: null,
-      } as any).eq("club_id", id!);
-
-      // Restore chat_groups scoped to this club or any of its teams
-      const { data: teamRows } = await supabase
+  const handleDelete = async () => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+      // 1. Load the club's team IDs
+      const { data: teamsData, error: teamsErr } = await supabase
         .from("teams")
         .select("id")
         .eq("club_id", id!);
-      const teamIdList = (teamRows || []).map((t: any) => t.id);
-      const orClauses = [`club_id.eq.${id!}`];
-      if (teamIdList.length > 0) orClauses.push(`team_id.in.(${teamIdList.join(",")})`);
-      await supabase.from("chat_groups").update({
-        deleted_at: null,
-        deleted_by: null,
-      } as any).or(orClauses.join(","));
-    }
+      if (teamsErr) {
+        toast({
+          title: "Error",
+          description: `Failed to delete club: ${safeErrMessage(teamsErr)}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      const teamIds = (teamsData || []).map((t) => t.id);
 
-    if (error) {
-      toast({ title: "Error", description: "Failed to restore club.", variant: "destructive" });
-      return;
-    }
+      // 2. Load + dedupe notification recipients (club-level and team-level)
+      const { data: clubMembersData } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", id!);
 
-    toast({ title: "Club restored!" });
-    queryClient.invalidateQueries({ queryKey: ["club", id] });
+      let teamMembers: { user_id: string }[] = [];
+      if (teamIds.length > 0) {
+        const { data } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .in("team_id", teamIds);
+        teamMembers = data || [];
+      }
+
+      const allMemberIds = [
+        ...new Set([
+          ...(clubMembersData || []).map((m) => m.user_id),
+          ...teamMembers.map((m) => m.user_id),
+        ]),
+      ].filter((uid) => uid && uid !== user?.id);
+
+      // 3. Confirm subscription cancellation BEFORE any destructive write.
+      // A club subscription that keeps billing after deletion is unacceptable,
+      // so an unconfirmed cancellation blocks the whole operation.
+      let cancelError: string | null = null;
+      try {
+        const { data: cancelData, error: cancelErr } = await supabase.functions.invoke(
+          "cancel-subscription",
+          { body: { subscription_type: "club", entity_id: id! } },
+        );
+        if (cancelErr) cancelError = safeErrMessage(cancelErr);
+        else if (cancelData && (cancelData as any).error) {
+          cancelError = safeErrMessage((cancelData as any).error);
+        } else if (cancelData && (cancelData as any).success === false) {
+          cancelError = "Cancellation was not confirmed by the billing service.";
+        }
+      } catch (err) {
+        cancelError = safeErrMessage(err);
+      }
+
+      if (cancelError) {
+        toast({
+          title: "Club deletion blocked",
+          description: `Billing cancellation could not be confirmed, so the club was not deleted. ${cancelError}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // 4. Soft-delete the club FIRST. Nothing downstream happens if this fails.
+      const deletedAt = new Date().toISOString();
+      const { error: clubError } = await supabase
+        .from("clubs")
+        .update({ deleted_at: deletedAt, deleted_by: user?.id } as any)
+        .eq("id", id!);
+
+      if (clubError) {
+        toast({
+          title: "Error",
+          description: `Failed to delete club: ${safeErrMessage(clubError)}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Club deletion has committed. Downstream failures are partial success.
+      const outcome: {
+        clubDeletionSucceeded: boolean;
+        teamCleanupError: string | null;
+        chatCleanupError: string | null;
+        notificationError: string | null;
+      } = {
+        clubDeletionSucceeded: true,
+        teamCleanupError: null,
+        chatCleanupError: null,
+        notificationError: null,
+      };
+
+      // 5. Soft-delete only the club's ACTIVE teams (leave already-deleted ones alone)
+      if (teamIds.length > 0) {
+        const { error: teamErr } = await supabase
+          .from("teams")
+          .update({ deleted_at: deletedAt, deleted_by: user?.id } as any)
+          .in("id", teamIds)
+          .is("deleted_at", null);
+        if (teamErr) outcome.teamCleanupError = safeErrMessage(teamErr);
+      }
+
+      // 6. Soft-delete only active chat groups scoped to this club or its teams
+      {
+        const orClauses = [`club_id.eq.${id!}`];
+        if (teamIds.length > 0) orClauses.push(`team_id.in.(${teamIds.join(",")})`);
+        const { error: chatErr } = await supabase
+          .from("chat_groups")
+          .update({ deleted_at: deletedAt, deleted_by: user?.id } as any)
+          .or(orClauses.join(","))
+          .is("deleted_at", null);
+        if (chatErr) outcome.chatCleanupError = safeErrMessage(chatErr);
+      }
+
+      // 7. Notify members only after the club deletion committed
+      if (allMemberIds.length > 0) {
+        const { error: notifyErr } = await supabase.from("notifications").insert(
+          allMemberIds.map((uid) => ({
+            user_id: uid,
+            type: "membership",
+            message: `${club?.name || "A club"} has been deleted`,
+            related_id: null,
+          })),
+        );
+        if (notifyErr) outcome.notificationError = safeErrMessage(notifyErr);
+      }
+
+      setShowDeleteDialog(false);
+      clearClubSetupLocalState(id!);
+      queryClient.invalidateQueries({ queryKey: ["club", id] });
+      queryClient.invalidateQueries({ queryKey: ["club-teams", id] });
+      queryClient.invalidateQueries({ queryKey: ["clubs"] });
+      queryClient.invalidateQueries({ queryKey: ["chat-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["club-members", id] });
+
+      const cleanupFailures: string[] = [];
+      if (outcome.teamCleanupError) cleanupFailures.push(`teams (${outcome.teamCleanupError})`);
+      if (outcome.chatCleanupError) cleanupFailures.push(`chats (${outcome.chatCleanupError})`);
+
+      if (cleanupFailures.length > 0) {
+        const notifPart = outcome.notificationError
+          ? ` Notifications also failed (${outcome.notificationError}).`
+          : "";
+        toast({
+          title: "Club deleted — cleanup incomplete",
+          description: `The club was deleted, but cleanup failed for: ${cleanupFailures.join(", ")}.${notifPart}`,
+          variant: "destructive",
+        });
+      } else if (outcome.notificationError) {
+        toast({
+          title: "Club deleted — notifications failed",
+          description: `The club was deleted, but some members may not have been notified. ${outcome.notificationError}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Club deleted",
+          description: "You can restore it within 30 days from the clubs page.",
+        });
+      }
+
+      navigate("/clubs");
+    } finally {
+      setIsDeleting(false);
+    }
   };
+
+  const handleRestoreClub = async () => {
+    if (isRestoring) return;
+    setIsRestoring(true);
+    try {
+      // Capture the deletion marker BEFORE clearing it so we only restore what
+      // was deleted as part of the same club-deletion operation.
+      const capturedDeletedAt = (club as any)?.deleted_at as string | null | undefined;
+
+      const { error: clubError } = await supabase
+        .from("clubs")
+        .update({ deleted_at: null, deleted_by: null } as any)
+        .eq("id", id!);
+
+      if (clubError) {
+        toast({
+          title: "Error",
+          description: `Failed to restore club: ${safeErrMessage(clubError)}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let teamRestoreError: string | null = null;
+      let chatRestoreError: string | null = null;
+
+      if (capturedDeletedAt) {
+        const { error: teamErr } = await supabase
+          .from("teams")
+          .update({ deleted_at: null, deleted_by: null } as any)
+          .eq("club_id", id!)
+          .eq("deleted_at", capturedDeletedAt);
+        if (teamErr) teamRestoreError = safeErrMessage(teamErr);
+
+        const { data: teamRows } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("club_id", id!);
+        const teamIdList = (teamRows || []).map((t: any) => t.id);
+        const orClauses = [`club_id.eq.${id!}`];
+        if (teamIdList.length > 0) orClauses.push(`team_id.in.(${teamIdList.join(",")})`);
+        const { error: chatErr } = await supabase
+          .from("chat_groups")
+          .update({ deleted_at: null, deleted_by: null } as any)
+          .or(orClauses.join(","))
+          .eq("deleted_at", capturedDeletedAt);
+        if (chatErr) chatRestoreError = safeErrMessage(chatErr);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["club", id] });
+      queryClient.invalidateQueries({ queryKey: ["club-teams", id] });
+      queryClient.invalidateQueries({ queryKey: ["chat-groups"] });
+
+      const failures: string[] = [];
+      if (teamRestoreError) failures.push(`teams (${teamRestoreError})`);
+      if (chatRestoreError) failures.push(`chats (${chatRestoreError})`);
+
+      if (failures.length > 0) {
+        toast({
+          title: "Club restored — restore incomplete",
+          description: `The club was restored, but restoring failed for: ${failures.join(", ")}.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Club restored!" });
+      }
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
 
   const handlePermanentDeleteClub = async () => {
     setIsDeleting(true);
@@ -1034,7 +1154,7 @@ export default function ClubDetailPage() {
                   Removed {new Date((club as any).deleted_at).toLocaleDateString()} · Will be permanently deleted after 30 days
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={handleRestoreClub}>
+              <Button size="sm" variant="outline" onClick={handleRestoreClub} disabled={isRestoring}>
                 <ArchiveRestore className="h-4 w-4 mr-1" />
                 Restore
               </Button>

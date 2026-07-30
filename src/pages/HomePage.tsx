@@ -5,16 +5,12 @@ import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SoccerBall from "@/components/pitch/SoccerBall";
-import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown, ChevronRight } from "lucide-react";
+import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 // Lazy-loaded to keep them out of the HomePage critical path. Each is only
 // mounted when the user opens a specific dialog / lands on a banner-eligible
 // state, so the chunk fetch happens on demand.
 const RewardClaimQRDialog = lazy(() => import("@/components/RewardClaimQRDialog").then(m => ({ default: m.RewardClaimQRDialog })));
-const RecurringEventActionDialog = lazy(() => import("@/components/RecurringEventActionDialog").then(m => ({ default: m.RecurringEventActionDialog })));
-const CancelEventConfirmDialog = lazy(() => import("@/components/CancelEventConfirmDialog").then(m => ({ default: m.CancelEventConfirmDialog })));
-const RecurringCancelEventDialog = lazy(() => import("@/components/RecurringCancelEventDialog").then(m => ({ default: m.RecurringCancelEventDialog })));
 const AccountRecoveryBanner = lazy(() => import("@/components/AccountRecoveryBanner").then(m => ({ default: m.AccountRecoveryBanner })));
 const NativeAppDownloadBanner = lazy(() => import("@/components/NativeAppDownloadBanner").then(m => ({ default: m.NativeAppDownloadBanner })));
 const HomeInviteFlow = lazy(() => import("@/components/HomeInviteFlow"));
@@ -24,9 +20,6 @@ const QuickRSVPDialog = lazy(() => import("@/components/QuickRSVPDialog").then(m
 // idle callback keeps this off the critical path.
 if (typeof window !== "undefined") {
   const warm = () => {
-    void import("@/components/CancelEventConfirmDialog").catch(() => {});
-    void import("@/components/RecurringCancelEventDialog").catch(() => {});
-    void import("@/components/RecurringEventActionDialog").catch(() => {});
     void import("@/components/HomeInviteFlow").catch(() => {});
     void import("@/components/NativeAppDownloadBanner").catch(() => {});
     void import("@/components/AccountRecoveryBanner").catch(() => {});
@@ -41,7 +34,6 @@ if (typeof window !== "undefined") {
 }
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -87,7 +79,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logHomeOpenLatency, resetHomeOpenLog } from "@/lib/homeOpenLatency";
-import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { recordPointsHistory } from "@/lib/pointsHistory";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
@@ -118,7 +109,6 @@ import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
-type ClubRole = "club_admin";
 type LeagueRole = "league_admin" | "parent";
 
 function HomeMyTeamsSkeleton() {
@@ -241,27 +231,23 @@ const teamRoleOptions: { value: TeamRole; label: string }[] = [
   { value: "team_admin", label: "Team Admin" },
 ];
 
-const clubRoleOptions: { value: ClubRole; label: string }[] = [
-  { value: "club_admin", label: "Club Admin" },
-];
-
 const leagueRoleOptions: { value: LeagueRole; label: string }[] = [
   { value: "league_admin", label: "League Admin" },
   { value: "parent", label: "Parent" },
 ];
 
-function formatEventDate(dateStr: string) {
+export function formatEventDate(dateStr: string) {
   const date = parseISO(dateStr);
   if (isToday(date)) return `Today at ${format(date, "h:mm a")}`;
   if (isTomorrow(date)) return `Tomorrow at ${format(date, "h:mm a")}`;
   return format(date, "EEE, MMM d 'at' h:mm a");
 }
 
-function getLocalDateKey(date = new Date()) {
+export function getLocalDateKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function getEventLocalDateKey(dateStr: string) {
+export function getEventLocalDateKey(dateStr: string) {
   // Treat any timestamp with a time component (ISO "T" or Postgres space form
   // like "2026-06-06 23:30:00+00") as an absolute instant and convert to the
   // viewer's local date. Only date-only strings ("YYYY-MM-DD") are taken at
@@ -277,7 +263,7 @@ function getEventLocalDateKey(dateStr: string) {
   return dateStr.slice(0, 10);
 }
 
-function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
+export function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
   // Prefer event_date when it already carries a time component — for recurring
   // occurrences this is the canonical per-instance kickoff. `start_time` on a
   // recurring child often retains the *series template's* original date
@@ -313,7 +299,7 @@ function getEventStartMs(event: Pick<Event, "event_date" | "start_time">) {
   return Number.isNaN(parsed.getTime()) ? Number.NaN : parsed.getTime();
 }
 
-function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time">, nowMs: number) {
+export function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time">, nowMs: number) {
   const todayKey = getLocalDateKey(new Date(nowMs));
   const eventKey = getEventLocalDateKey(event.event_date);
   if (eventKey < todayKey) return false;
@@ -324,6 +310,27 @@ function isStillUpcomingForNextUp(event: Pick<Event, "event_date" | "start_time"
   }
 
   return true;
+}
+
+export function selectVisibleHomeEvents(
+  allEvents: Event[] | undefined,
+  activeClubFilter: string | null,
+  nowMs: number,
+  limit = 10,
+) {
+  if (!allEvents) return [];
+
+  const freshEvents = allEvents.filter((event) =>
+    isStillUpcomingForNextUp(event, nowMs)
+  );
+
+  if (!activeClubFilter) {
+    return freshEvents.slice(0, limit);
+  }
+
+  return freshEvents
+    .filter((event) => event.club_id === activeClubFilter)
+    .slice(0, limit);
 }
 
 export default function HomePage() {
@@ -370,14 +377,11 @@ export default function HomePage() {
     }
   };
   
-  const [clubDialogOpen, setClubDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [installDialogOpen, setInstallDialogOpen] = useState(false);
   const [memberInviteOpen, setMemberInviteOpen] = useState(false);
-  const [selectedClub, setSelectedClub] = useState<string>("");
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [selectedClubForTeam, setSelectedClubForTeam] = useState<string>("");
-  const [selectedClubRole, setSelectedClubRole] = useState<ClubRole>("club_admin");
   const [selectedTeamRole, setSelectedTeamRole] = useState<TeamRole>("parent");
   const [selectedChildForLink, setSelectedChildForLink] = useState<string>("");
   const [newChildName, setNewChildName] = useState<string>("");
@@ -388,20 +392,12 @@ export default function HomePage() {
   const [pitchBoardTeam, setPitchBoardTeam] = useState<{ id: string; name: string; members: Array<{ id: string; user_id: string; role: string; profiles: { display_name: string | null; avatar_url: string | null } | null }>; readOnly: boolean; linkedEventId?: string | null } | null>(null);
   const [pitchBoardLoading, setPitchBoardLoading] = useState(false);
   const [pitchBoardsExpanded, setPitchBoardsExpanded] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [eventToCancel, setEventToCancel] = useState<Event | null>(null);
   const [quickRsvpEvent, setQuickRsvpEvent] = useState<Event | null>(null);
   const [rewardQROpen, setRewardQROpen] = useState(false);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   
   const [selectedUpgradeClub, setSelectedUpgradeClub] = useState<string>("");
-  const [remindDialogOpen, setRemindDialogOpen] = useState(false);
-  const [eventToRemind, setEventToRemind] = useState<Event | null>(null);
-  const [nonRsvpCount, setNonRsvpCount] = useState(0);
-  const [loadingRemindCount, setLoadingRemindCount] = useState(false);
   const [rewardsDialogOpen, setRewardsDialogOpen] = useState(false);
   const [selectedRewardClubId, setSelectedRewardClubId] = useState<string | null>(null);
   const [selectedReward, setSelectedReward] = useState<any>(null);
@@ -670,10 +666,7 @@ export default function HomePage() {
 
   // Filter events by active club theme
   const events = useMemo(() => {
-    if (!allEvents) return [];
-    const freshEvents = allEvents.filter((event) => isStillUpcomingForNextUp(event, nowTick));
-    if (!activeClubFilter) return freshEvents.slice(0, 10);
-    return freshEvents.filter(e => e.club_id === activeClubFilter).slice(0, 10);
+    return selectVisibleHomeEvents(allEvents, activeClubFilter, nowTick);
   }, [allEvents, activeClubFilter, nowTick]);
 
   useEffect(() => {
@@ -1142,187 +1135,18 @@ export default function HomePage() {
     }
   };
 
-  const canManageEvent = (event: Event) => {
-    if (isAppAdmin) return true;
-    return userRoles?.some(r => 
-      (r.role === "club_admin" && r.club_id === event.club_id) ||
-      (r.role === "team_admin" && r.team_id === event.team_id) ||
-      (r.role === "coach" && r.team_id === event.team_id)
-    );
-  };
 
-  const cancelEventMutation = useMutation({
-    mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { 
-      cancelType: 'single' | 'series'; 
-      customMessage?: string; 
-      sendPushNotification?: boolean 
-    }) => {
-      if (!eventToCancel) return;
-      
-      if (cancelType === 'series' && eventToCancel.parent_event_id) {
-        // Cancel all events in the series
-        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", eventToCancel.parent_event_id);
-        await supabase.from("events").update({ is_cancelled: true }).eq("id", eventToCancel.parent_event_id);
-      } else if (cancelType === 'series' && eventToCancel.is_recurring) {
-        // This is the parent - cancel all children and this event
-        await supabase.from("events").update({ is_cancelled: true }).eq("parent_event_id", eventToCancel.id);
-        await supabase.from("events").update({ is_cancelled: true }).eq("id", eventToCancel.id);
-      } else {
-        // Just cancel this single event
-        const { error } = await supabase
-          .from("events")
-          .update({ is_cancelled: true })
-          .eq("id", eventToCancel.id);
-        if (error) throw error;
-      }
-      
-      // TODO: Handle customMessage and sendPushNotification if needed
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
-      setCancelDialogOpen(false);
-      setEventToCancel(null);
-    },
-    onError: (error) => {
-      console.error("[CancelEvent] Mutation error:", error);
-      toast(friendlyMutationError(error, {
-        title: "Failed to cancel event",
-        description: (error as any)?.message || "An unexpected error occurred",
-      }));
-    },
-  });
 
-  const remindMutation = useMutation({
-    mutationFn: async () => {
-      if (!eventToRemind) return;
-      
-      // Get all RSVPs for this event
-      const { data: existingRsvps } = await supabase
-        .from("rsvps")
-        .select("user_id")
-        .eq("event_id", eventToRemind.id);
-      
-      const rsvpUserIds = existingRsvps?.map(r => r.user_id) || [];
-      
-      // Get all members who should RSVP - handle mini-league events differently
-      let allMemberIds: string[] = [];
-      
-      if (eventToRemind.mini_league_id) {
-        // Get mini league to find the club_id
-        const { data: league } = await supabase
-          .from("mini_leagues")
-          .select("club_id")
-          .eq("id", eventToRemind.mini_league_id)
-          .single();
-        
-        if (league) {
-          // Get all parent user IDs from mini league players
-          const { data: playersData } = await supabase
-            .from("mini_league_players")
-            .select("parent_user_id")
-            .eq("mini_league_id", eventToRemind.mini_league_id)
-            .not("parent_user_id", "is", null);
-          
-          const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-          
-          // Get club admins, league admins, and coaches
-          const { data: adminRoles } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("club_id", league.club_id)
-            .in("role", ["club_admin", "league_admin", "coach"]);
-          
-          const adminIds = adminRoles?.map(r => r.user_id) || [];
-          
-          allMemberIds = [...new Set([...parentIds, ...adminIds])];
-        }
-      } else {
-        let memberQuery = supabase.from("user_roles").select("user_id");
-        if (eventToRemind.team_id) {
-          memberQuery = memberQuery.eq("team_id", eventToRemind.team_id);
-        } else {
-          memberQuery = memberQuery.eq("club_id", eventToRemind.club_id);
-        }
-        
-        const { data: allMembers } = await memberQuery;
-        allMemberIds = [...new Set(allMembers?.map(m => m.user_id) || [])];
-      }
-      
-      // Find members who haven't RSVPed
-      const nonRsvpMembers = allMemberIds.filter(memberId => !rsvpUserIds.includes(memberId));
-      
-      if (nonRsvpMembers.length === 0) {
-        throw new Error("Everyone has already RSVPed!");
-      }
-      
-      // Check for existing notifications to avoid duplicates
-      const { data: existingNotifications } = await supabase
-        .from("notifications")
-        .select("user_id")
-        .eq("type", "event_reminder")
-        .eq("related_id", eventToRemind.id)
-        .in("user_id", nonRsvpMembers);
-      
-      const existingNotificationUserIds = existingNotifications?.map(n => n.user_id) || [];
-      const membersToNotify = nonRsvpMembers.filter(memberId => !existingNotificationUserIds.includes(memberId));
-      
-      if (membersToNotify.length === 0) {
-        throw new Error("All members have already been reminded!");
-      }
-      
-      // Create notifications for members who haven't been reminded
-      const notifications = membersToNotify.map(userId => ({
-        user_id: userId,
-        type: "event_reminder",
-        message: `Reminder: Please RSVP for "${eventToRemind.title}"`,
-        related_id: eventToRemind.id,
-      }));
-      
-      const { error } = await supabase.from("notifications").insert(notifications);
-      if (error) throw error;
-      
-      return membersToNotify.length;
-    },
-    onSuccess: (count) => {
-      toast({
-        title: "Reminders sent!",
-        description: count ? `${count} member${count === 1 ? '' : 's'} reminded to RSVP` : "Reminders have been sent",
-      });
-      setRemindDialogOpen(false);
-      setEventToRemind(null);
-    },
-    onError: (error: Error) => {
-      toast({ title: error.message || "Failed to send reminders", variant: "destructive" });
-    },
-  });
+  // Mutation to mark reward as claimed.
+  // Failures after the fulfilment update are tagged so the UI never claims the
+  // reward itself failed when only notifications did.
+  class RewardNotificationError extends Error {
+    fulfilmentSucceeded = true;
+  }
 
-  const deleteEventMutation = useMutation({
-    mutationFn: async ({ eventId, deleteType }: { eventId: string; deleteType: 'single' | 'series' }) => {
-      const event = events?.find(e => e.id === eventId);
-      if (deleteType === 'series' && event?.parent_event_id) {
-        // Delete parent and all children
-        await supabase.from("events").delete().eq("parent_event_id", event.parent_event_id);
-        await supabase.from("events").delete().eq("id", event.parent_event_id);
-      } else if (deleteType === 'series' && event?.is_recurring) {
-        // This is the parent - delete all children first, then this event
-        await supabase.from("events").delete().eq("parent_event_id", eventId);
-        await supabase.from("events").delete().eq("id", eventId);
-      } else {
-        // Just delete this single event
-        const { error } = await supabase.from("events").delete().eq("id", eventId);
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
-      setDeleteDialogOpen(false);
-      setEventToDelete(null);
-    },
-  });
-
-  // Mutation to mark reward as claimed
   const claimMutation = useMutation({
     mutationFn: async (redemption: { id: string; club_id: string; reward_name: string }) => {
+
       const { error } = await supabase
         .from("reward_redemptions")
         .update({
@@ -1338,11 +1162,17 @@ export default function HomePage() {
       const claimerName = profile?.display_name || "Someone";
 
       // Notify club admins about the claim
-      const { data: clubAdmins } = await supabase
+      const { data: clubAdmins, error: adminsError } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("club_id", redemption.club_id)
         .eq("role", "club_admin");
+
+      if (adminsError) {
+        throw new RewardNotificationError(
+          `The reward was marked as fulfilled, but administrators could not be notified: ${adminsError.message}`
+        );
+      }
 
       if (clubAdmins && clubAdmins.length > 0) {
         const notifications = clubAdmins
@@ -1355,7 +1185,14 @@ export default function HomePage() {
           }));
 
         if (notifications.length > 0) {
-          await supabase.from("notifications").insert(notifications);
+          const { error: notifyError } = await supabase
+            .from("notifications")
+            .insert(notifications);
+          if (notifyError) {
+            throw new RewardNotificationError(
+              `The reward was marked as fulfilled, but administrator notifications failed: ${notifyError.message}`
+            );
+          }
         }
       }
     },
@@ -1368,13 +1205,21 @@ export default function HomePage() {
       });
     },
     onError: (error: any) => {
+      const fulfilled = !!error?.fulfilmentSucceeded;
+      if (fulfilled) {
+        // Fulfilment committed — keep the pending list in sync and close the dialog.
+        queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
+        setClaimDialogOpen(false);
+      }
       toast({
-        title: "Failed to claim reward",
-        description: error.message || "Please try again",
+        title: fulfilled ? "Reward fulfilled — notification failed" : "Failed to claim reward",
+        description: error?.message || "Please try again",
         variant: "destructive",
       });
     },
+
   });
+
 
   // Only fetch all clubs/teams/leagues when join dialogs are open (lazy loading)
   const { data: clubs, error: clubsError, isLoading: clubsLoading } = useQuery({
@@ -1392,7 +1237,7 @@ export default function HomePage() {
       if (error) throw error;
       return data as Club[];
     },
-    enabled: !!user && (clubDialogOpen || teamDialogOpen || !!activeClubFilter),
+    enabled: !!user && (teamDialogOpen || !!activeClubFilter),
     staleTime: 1000 * 60 * 5,
     placeholderData: (prev) => prev,
   });
@@ -1854,37 +1699,6 @@ export default function HomePage() {
 
 
 
-  const clubRequestMutation = useMutation({
-    mutationFn: async () => {
-      // Use activeClubFilter if in club mode, otherwise use selectedClub
-      const clubToJoin = activeClubFilter || selectedClub;
-      if (!clubToJoin) throw new Error("No club selected");
-      
-      const { error } = await supabase.from("role_requests").insert({
-        user_id: user!.id,
-        club_id: clubToJoin,
-        role: selectedClubRole,
-        status: "pending",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Request Submitted",
-        description: "Your club join request has been submitted for review.",
-      });
-      setClubDialogOpen(false);
-      setSelectedClub("");
-      queryClient.invalidateQueries({ queryKey: ["role-requests"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
 
   // Fetch children on the selected team for parent linking
   const showChildLinker = !isLeagueSelected && selectedTeam && selectedTeamRole === "parent";
@@ -2370,59 +2184,6 @@ export default function HomePage() {
       </LazyMount>
 
 
-      <ResponsiveDialog open={clubDialogOpen} onOpenChange={setClubDialogOpen}>
-        <ResponsiveDialogContent>
-          <ResponsiveDialogHeader>
-            <ResponsiveDialogTitle>Request to Join Club</ResponsiveDialogTitle>
-            <ResponsiveDialogDescription>
-              Select a club and role to request membership.
-            </ResponsiveDialogDescription>
-          </ResponsiveDialogHeader>
-          <div className="space-y-4 pt-4">
-            {/* Only show club selector if not in club mode */}
-            {!activeClubFilter ? (
-              <MobileCardSelect
-                value={selectedClub}
-                onValueChange={setSelectedClub}
-                options={clubs?.map((club) => ({
-                  value: club.id,
-                  label: club.name,
-                  icon: <span>{getSportEmoji(club.sport)}</span>,
-                })) || []}
-                label={`Select Club ${clubs ? `(${clubs.length} available)` : "(loading...)"}`}
-                placeholder="Choose a club..."
-                searchable
-                searchPlaceholder="Search clubs..."
-                emptyMessage={clubsLoading ? "Loading clubs..." : clubsError ? `Error: ${clubsError.message}` : "No clubs found."}
-              />
-            ) : (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Club</label>
-                <div className="flex items-center gap-2 p-4 rounded-xl border-2 border-primary bg-primary/5">
-                  <span>{getSportEmoji(clubs?.find(c => c.id === activeClubFilter)?.sport)}</span>
-                  <span className="font-medium">{clubs?.find(c => c.id === activeClubFilter)?.name}</span>
-                </div>
-              </div>
-            )}
-            <MobileCardSelect
-              value={selectedClubRole}
-              onValueChange={(v) => setSelectedClubRole(v as ClubRole)}
-              options={clubRoleOptions}
-              label="Select Role"
-              placeholder="Choose a role..."
-            />
-          </div>
-          <ResponsiveDialogFooter>
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => clubRequestMutation.mutate()}
-              disabled={!(activeClubFilter || selectedClub) || clubRequestMutation.isPending}
-            >
-              {clubRequestMutation.isPending ? "Submitting..." : "Submit Request"}
-            </Button>
-          </ResponsiveDialogFooter>
-        </ResponsiveDialogContent>
-      </ResponsiveDialog>
 
       <ResponsiveDialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
         <ResponsiveDialogContent>
@@ -3074,132 +2835,6 @@ export default function HomePage() {
         </Suspense>
       )}
 
-      {/* Delete Event Dialog */}
-      {eventToDelete && (eventToDelete.is_recurring || eventToDelete.parent_event_id) ? (
-        <Suspense fallback={null}>
-          <RecurringEventActionDialog
-            open={deleteDialogOpen}
-            onOpenChange={(open) => {
-              setDeleteDialogOpen(open);
-              if (!open) setEventToDelete(null);
-            }}
-            title={`Delete ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?`}
-            description={`This will permanently delete the ${getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
-            actionLabel="Delete"
-            actionVariant="destructive"
-            onSingleAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })}
-            onSeriesAction={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'series' })}
-            isPending={deleteEventMutation.isPending}
-          />
-        </Suspense>
-      ) : eventToDelete && (
-        <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
-          setDeleteDialogOpen(open);
-          if (!open) setEventToDelete(null);
-        }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete {getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id })}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete this {getEventTypeLabel(eventToDelete?.type, { miniLeagueId: eventToDelete?.mini_league_id }).toLowerCase()} and all RSVPs. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => deleteEventMutation.mutate({ eventId: eventToDelete.id, deleteType: 'single' })} 
-                className="bg-destructive text-destructive-foreground"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-
-      {/* Cancel Event Dialog */}
-      {eventToCancel && (eventToCancel.is_recurring || eventToCancel.parent_event_id) ? (
-        <Suspense fallback={null}>
-          <RecurringCancelEventDialog
-            open={cancelDialogOpen}
-            onOpenChange={(open) => {
-              setCancelDialogOpen(open);
-              if (!open) setEventToCancel(null);
-            }}
-            eventTitle={eventToCancel?.title || ""}
-            teamId={eventToCancel?.team_id}
-            clubId={eventToCancel?.club_id}
-            miniLeagueId={eventToCancel?.mini_league_id}
-            eventType={eventToCancel?.type}
-            onSingleAction={(customMessage, sendPushNotification) =>
-              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-            }
-            onSeriesAction={(customMessage, sendPushNotification) =>
-              cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
-            }
-            isPending={cancelEventMutation.isPending}
-          />
-        </Suspense>
-      ) : eventToCancel && (
-        <Suspense fallback={null}>
-          <CancelEventConfirmDialog
-            open={cancelDialogOpen}
-            onOpenChange={(open) => {
-              setCancelDialogOpen(open);
-              if (!open) setEventToCancel(null);
-            }}
-            eventId={eventToCancel?.id || ""}
-            eventTitle={eventToCancel?.title || ""}
-            teamId={eventToCancel?.team_id}
-            clubId={eventToCancel?.club_id}
-            miniLeagueId={eventToCancel?.mini_league_id}
-            eventType={eventToCancel?.type}
-            onConfirm={(customMessage, sendPushNotification) =>
-              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-            }
-            isPending={cancelEventMutation.isPending}
-          />
-        </Suspense>
-      )}
-
-      {/* Remind Dialog */}
-      <AlertDialog 
-        open={remindDialogOpen} 
-        onOpenChange={(open) => {
-          setRemindDialogOpen(open);
-          if (!open) setEventToRemind(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Send Reminders?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {nonRsvpCount === 0 
-                ? "Everyone has already RSVPed to this event!"
-                : `This will send a reminder notification to ${nonRsvpCount} member${nonRsvpCount === 1 ? '' : 's'} who haven't RSVPed yet.`
-              }
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            {nonRsvpCount !== 0 && (
-              <AlertDialogAction 
-                onClick={() => remindMutation.mutate()}
-                disabled={remindMutation.isPending}
-              >
-                {remindMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Sending...
-                  </>
-                ) : (
-                  "Send Reminders"
-                )}
-              </AlertDialogAction>
-            )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {quickRsvpEvent && (
         <Suspense fallback={null}>

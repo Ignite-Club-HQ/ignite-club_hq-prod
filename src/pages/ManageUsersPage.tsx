@@ -59,6 +59,22 @@ import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
+/**
+ * Thrown when the role write committed but the follow-up membership
+ * notification insert failed. Callers must report partial success and
+ * refresh caches — never pretend the role change failed.
+ */
+export class RoleNotificationError extends Error {
+  roleChangeSucceeded = true;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "RoleNotificationError";
+  }
+}
+
+
+
 interface UserProfile {
   id: string;
   display_name: string | null;
@@ -401,12 +417,13 @@ export default function ManageUsersPage() {
         role: "app_admin",
       });
       if (error) throw error;
-      
-      await supabase.from("notifications").insert({
+
+      const { error: notifyError } = await supabase.from("notifications").insert({
         user_id: userId,
         type: "membership",
         message: "You have been granted App Admin privileges",
       });
+      if (notifyError) throw new RoleNotificationError(notifyError.message);
     },
     onSuccess: (_, { displayName }) => {
       queryClient.invalidateQueries({ queryKey: ["app-admins"] });
@@ -415,7 +432,19 @@ export default function ManageUsersPage() {
       setAdminSearchQuery("");
       setIsAddDialogOpen(false);
     },
-    onError: () => {
+    onError: (error: Error) => {
+      if (error instanceof RoleNotificationError) {
+        queryClient.invalidateQueries({ queryKey: ["app-admins"] });
+        invalidateRolesCache();
+        setAdminSearchQuery("");
+        setIsAddDialogOpen(false);
+        toast({
+          title: "Admin added — notification failed",
+          description: `The role change was saved, but we couldn't notify the user. Please tell them manually. (${error.message})`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ title: "Failed to add admin", variant: "destructive" });
     },
   });
@@ -424,19 +453,30 @@ export default function ManageUsersPage() {
     mutationFn: async ({ roleId, userId }: { roleId: string; userId: string }) => {
       const { error } = await supabase.from("user_roles").delete().eq("id", roleId);
       if (error) throw error;
-      
-      await supabase.from("notifications").insert({
+
+      const { error: notifyError } = await supabase.from("notifications").insert({
         user_id: userId,
         type: "membership",
         message: "Your App Admin privileges have been removed",
       });
+      if (notifyError) throw new RoleNotificationError(notifyError.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["app-admins"] });
       invalidateRolesCache();
       toast({ title: "Admin removed" });
     },
-    onError: () => {
+    onError: (error: Error) => {
+      if (error instanceof RoleNotificationError) {
+        queryClient.invalidateQueries({ queryKey: ["app-admins"] });
+        invalidateRolesCache();
+        toast({
+          title: "Admin removed — notification failed",
+          description: `The role change was saved, but we couldn't notify the user. Please tell them manually. (${error.message})`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ title: "Failed to remove admin", variant: "destructive" });
     },
   });
@@ -464,7 +504,8 @@ export default function ManageUsersPage() {
         type: "membership",
         message: `You have been assigned the ${role.replace('_', ' ')} role`,
       }));
-      await supabase.from("notifications").insert(notifications);
+      const { error: notifyError } = await supabase.from("notifications").insert(notifications);
+      if (notifyError) throw new RoleNotificationError(notifyError.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["search-users-manage"] });
@@ -477,6 +518,21 @@ export default function ManageUsersPage() {
       setSelectedUsers(new Set());
     },
     onError: (error: Error) => {
+      if (error instanceof RoleNotificationError) {
+        queryClient.invalidateQueries({ queryKey: ["search-users-manage"] });
+        invalidateRolesCache();
+        setBulkAssignDialogOpen(false);
+        setBulkRole("");
+        setBulkClubId("");
+        setBulkTeamId("");
+        setSelectedUsers(new Set());
+        toast({
+          title: "Roles assigned — notification failed",
+          description: `The role changes were saved, but we couldn't notify the affected users. Please tell them manually. (${error.message})`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ 
         title: "Failed to assign roles", 
         description: error.message,
@@ -513,7 +569,8 @@ export default function ManageUsersPage() {
         type: "membership",
         message: `Your ${role.replace('_', ' ')} role has been removed`,
       }));
-      await supabase.from("notifications").insert(notifications);
+      const { error: notifyError } = await supabase.from("notifications").insert(notifications);
+      if (notifyError) throw new RoleNotificationError(notifyError.message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["search-users-manage"] });
@@ -526,6 +583,21 @@ export default function ManageUsersPage() {
       setSelectedUsers(new Set());
     },
     onError: (error: Error) => {
+      if (error instanceof RoleNotificationError) {
+        queryClient.invalidateQueries({ queryKey: ["search-users-manage"] });
+        invalidateRolesCache();
+        setBulkRemoveDialogOpen(false);
+        setBulkRole("");
+        setBulkClubId("");
+        setBulkTeamId("");
+        setSelectedUsers(new Set());
+        toast({
+          title: "Roles removed — notification failed",
+          description: `The role changes were saved, but we couldn't notify the affected users. Please tell them manually. (${error.message})`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ 
         title: "Failed to remove roles", 
         description: error.message,
@@ -533,6 +605,7 @@ export default function ManageUsersPage() {
       });
     },
   });
+
 
   const awardPointsMutation = useMutation({
     mutationFn: async ({ userId, userName, points, reason, clubId }: {
