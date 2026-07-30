@@ -100,6 +100,7 @@ import { TodaysClassesDashboard } from "@/components/TodaysClassesDashboard";
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import ClubRecentGames from "@/components/history/ClubRecentGames";
 import ClubCompetitionsSection from "@/components/competitions/ClubCompetitionsSection";
+import { friendlyQueryError } from "@/lib/friendlyQueryError";
 
 
 type ClubRole = "club_admin";
@@ -243,7 +244,7 @@ export default function ClubDetailPage() {
         (childAssignmentsRes as { error?: unknown }).error ??
         (newClubRolesRes as { error?: unknown }).error ??
         (newTeamRolesRes as { error?: unknown }).error;
-      if (firstError) throw firstError;
+      if (firstError) throw friendlyQueryError(firstError, "this club's member numbers");
 
       const userIdSet = new Set<string>();
       (clubRolesRes.data || []).forEach((r: any) => userIdSet.add(r.user_id));

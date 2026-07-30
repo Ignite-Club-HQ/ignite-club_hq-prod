@@ -95,6 +95,7 @@ import { cn } from "@/lib/utils";
 import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import TeamCompetitionsSection from "@/components/competitions/TeamCompetitionsSection";
 import { PlayHQTeamLinkCard } from "@/components/PlayHQTeamLinkCard";
+import { friendlyQueryError } from "@/lib/friendlyQueryError";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -391,7 +392,7 @@ export default function TeamDetailPage() {
         .from("user_roles")
         .select("id, user_id, role, profiles (id, display_name, avatar_url)")
         .eq("team_id", id!);
-      if (error) throw error;
+      if (error) throw friendlyQueryError(error, "the team member list");
       
       // Cache profiles for faster future loads
       if (data) {
