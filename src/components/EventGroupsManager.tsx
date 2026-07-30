@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Users, PlayCircle, Wand2, Loader2, X, Copy, Shirt, RefreshCw, Flame, MoreHorizontal, ChevronDown, ArrowRightLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -169,7 +170,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           team_a_color: group.team_a_color || "#ef4444",
           team_b_color: group.team_b_color || "#3b82f6",
           players,
-        });
+        } as unknown as Json);
       }
       return groupsWithPlayers;
     },
@@ -672,7 +673,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       if (groupsError) throw groupsError;
 
       const newMatchPlayerIds: string[][] = [];
-      const groupPayload: Record<string, unknown>[] = [];
+      const groupPayload: Json[] = [];
       let skippedCount = 0;
 
       for (const prevGroup of prevGroups || []) {
@@ -705,14 +706,14 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           team_a_color: prevGroup.team_a_color || "#ef4444",
           team_b_color: prevGroup.team_b_color || "#3b82f6",
           players,
-        });
+        } as unknown as Json);
         newMatchPlayerIds.push(playerIds);
       }
 
       // Single atomic write: every copied match + its players, or nothing.
       const { data: createdIds, error: replaceError } = await supabase.rpc("replace_event_groups", {
         p_event_id: eventId,
-        p_groups: groupPayload,
+        p_groups: groupPayload as Json,
         p_delete_existing: false,
       });
       if (replaceError) throw replaceError;
