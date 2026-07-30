@@ -1352,8 +1352,8 @@ export default function HomePage() {
         .eq("role", "club_admin");
 
       if (adminsError) {
-        throw new Error(
-          `Reward was marked as fulfilled, but administrators could not be notified: ${adminsError.message}`
+        throw new RewardNotificationError(
+          `The reward was marked as fulfilled, but administrators could not be notified: ${adminsError.message}`
         );
       }
 
@@ -1372,8 +1372,8 @@ export default function HomePage() {
             .from("notifications")
             .insert(notifications);
           if (notifyError) {
-            throw new Error(
-              `Reward was marked as fulfilled, but administrator notifications failed: ${notifyError.message}`
+            throw new RewardNotificationError(
+              `The reward was marked as fulfilled, but administrator notifications failed: ${notifyError.message}`
             );
           }
         }
@@ -1388,16 +1388,19 @@ export default function HomePage() {
       });
     },
     onError: (error: any) => {
-      // Fulfilment may already have succeeded — keep the list in sync either way.
-      queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
-      setClaimDialogOpen(false);
+      const fulfilled = !!error?.fulfilmentSucceeded;
+      if (fulfilled) {
+        // Fulfilment committed — keep the pending list in sync and close the dialog.
+        queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
+        setClaimDialogOpen(false);
+      }
       toast({
-        title: "Reward fulfilled, notification failed",
-        description:
-          error?.message || "The reward was updated but administrators may not have been notified.",
+        title: fulfilled ? "Reward fulfilled — notification failed" : "Failed to claim reward",
+        description: error?.message || "Please try again",
         variant: "destructive",
       });
     },
+
   });
 
 
