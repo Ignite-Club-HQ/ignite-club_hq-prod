@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   releaseDelete: null as null | (() => void),
   writes: [] as Array<{ table: string; operation: string; payload?: any; filters: any[] }>,
   writeError: null as null | { table: string; operation: string; message: string },
+  appAdmins: [] as any[],
   profiles: [
     { id: "admin-1", display_name: "Current Admin", avatar_url: null, scheduled_deletion_at: null },
     { id: "member-1", display_name: "Synthetic Member", avatar_url: null, scheduled_deletion_at: null },
@@ -69,6 +71,9 @@ function queryFor(table: string) {
         && filters.some(([, column, value]) => column === "role" && value === "app_admin");
       let data: any = [];
       if (isAdminCheck) data = mocks.isAdmin ? { id: "admin-role" } : null;
+      else if (table === "user_roles"
+        && filters.some(([, column, value]) => column === "role" && value === "app_admin")
+        && !filters.some(([, column]) => column === "user_id")) data = mocks.appAdmins;
       else if (table === "clubs") data = [{ id: "club-1", name: "Synthetic Club" }];
       else if (table === "teams") data = [{ id: "team-1", name: "Synthetic Team", club_id: "club-1" }];
       else if (table === "profiles" && filters.some(([method]) => method === "ilike")) data = mocks.profiles;
@@ -127,6 +132,21 @@ async function openAwardPointsDialog() {
   if (!(awardButton instanceof HTMLElement)) throw new Error("Award points action was not rendered");
   fireEvent.click(awardButton);
   await screen.findByRole("heading", { name: "Award Points" });
+}
+
+async function openAdminsTab() {
+  await screen.findByRole("heading", { name: "User Management" });
+  const tab = screen.getByRole("tab", { name: "Admins" });
+  await userEvent.click(tab);
+  await waitFor(() => expect(tab).toHaveAttribute("aria-selected", "true"));
+}
+
+async function openAddAdminDialog() {
+  await openAdminsTab();
+  fireEvent.click(await screen.findByRole("button", { name: /Add Admin/i }));
+  await screen.findByRole("heading", { name: "Add App Admin" });
+  fireEvent.change(screen.getByPlaceholderText("Search by name..."), { target: { value: "Synthetic" } });
+  await screen.findByText("Synthetic Member");
 }
 
 describe("ManageUsersPage characterization — privileged membership removal", () => {
@@ -269,6 +289,112 @@ describe("ManageUsersPage characterization — privileged membership removal", (
   });
 });
 
+describe("ManageUsersPage characterization — app-admin role lifecycle", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isAdmin = true;
+    mocks.profiles = [
+      { id: "admin-1", display_name: "Current Admin", avatar_url: null, scheduled_deletion_at: null },
+      { id: "member-1", display_name: "Synthetic Member", avatar_url: null, scheduled_deletion_at: null },
+    ];
+    mocks.appAdmins = [
+      { id: "admin-role", user_id: "admin-1", created_at: "2026-01-01", profiles: { id: "admin-1", display_name: "Current Admin", avatar_url: null } },
+      { id: "member-admin-role", user_id: "member-1", created_at: "2026-01-02", profiles: { id: "member-1", display_name: "Synthetic Member", avatar_url: null } },
+    ];
+    mocks.from.mockImplementation(queryFor);
+    mocks.writes = [];
+    mocks.writeError = null;
+  });
+
+  it("adds exactly one global app-admin role and matching membership notification", async () => {
+    const { invalidate } = renderPage();
+    mocks.appAdmins = [mocks.appAdmins[0]];
+    await openAddAdminDialog();
+    fireEvent.click(screen.getByText("Synthetic Member"));
+
+    await waitFor(() => expect(mocks.writes.some((write) => write.table === "notifications")).toBe(true));
+    expect(mocks.writes.find((write) => write.table === "user_roles")?.payload).toEqual({
+      user_id: "member-1", role: "app_admin",
+    });
+    expect(mocks.writes.find((write) => write.table === "notifications")?.payload).toEqual({
+      user_id: "member-1", type: "membership", message: "You have been granted App Admin privileges",
+    });
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["app-admins"] }));
+    expect(mocks.invalidateRolesCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not notify or report success when app-admin role insertion is denied", async () => {
+    mocks.appAdmins = [mocks.appAdmins[0]];
+    mocks.writeError = { table: "user_roles", operation: "insert", message: "admin assignment denied" };
+    renderPage();
+    await openAddAdminDialog();
+    fireEvent.click(screen.getByText("Synthetic Member"));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Failed to add admin" })));
+    expect(mocks.writes.some((write) => write.table === "notifications")).toBe(false);
+    expect(mocks.invalidateRolesCache).not.toHaveBeenCalled();
+  });
+
+  it("does not report full add-admin success when its notification insert fails", async () => {
+    mocks.appAdmins = [mocks.appAdmins[0]];
+    mocks.writeError = { table: "notifications", operation: "insert", message: "admin notification failed" };
+    renderPage();
+    await openAddAdminDialog();
+    fireEvent.click(screen.getByText("Synthetic Member"));
+
+    await waitFor(() => expect(mocks.writes.some((write) => write.table === "notifications")).toBe(true));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Admin added — notification failed",
+      description: expect.stringContaining("admin notification failed"),
+      variant: "destructive",
+    }));
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Synthetic Member is now an App Admin" }));
+  });
+
+  it("removes only the selected app-admin role ID", async () => {
+    const { invalidate } = renderPage();
+    await openAdminsTab();
+    const memberAdminCard = (await screen.findByText("Synthetic Member")).closest("div.flex")?.parentElement?.parentElement;
+    const removeButton = memberAdminCard?.querySelector("button");
+    if (!(removeButton instanceof HTMLElement)) throw new Error("Remove-admin action was not rendered");
+    fireEvent.click(removeButton);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(mocks.writes.some((write) => write.table === "notifications")).toBe(true));
+    const removal = mocks.writes.find((write) => write.table === "user_roles" && write.operation === "delete")!;
+    expect(removal.filters).toContainEqual(["eq", "id", "member-admin-role"]);
+    expect(removal.filters.some((filter) => filter[1] === "user_id")).toBe(false);
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["app-admins"] }));
+  });
+
+  it("does not offer removal of the currently authenticated app administrator", async () => {
+    renderPage();
+    await openAdminsTab();
+    const currentAdminCard = (await screen.findByText("Current Admin")).closest("div.flex")?.parentElement?.parentElement;
+    expect(currentAdminCard?.textContent).toContain("You");
+    expect(currentAdminCard?.querySelector("button")).toBeNull();
+  });
+
+  it("does not report full removal success when its notification insert fails", async () => {
+    mocks.writeError = { table: "notifications", operation: "insert", message: "removal notification failed" };
+    renderPage();
+    await openAdminsTab();
+    const memberAdminCard = (await screen.findByText("Synthetic Member")).closest("div.flex")?.parentElement?.parentElement;
+    const removeButton = memberAdminCard?.querySelector("button");
+    if (!(removeButton instanceof HTMLElement)) throw new Error("Remove-admin action was not rendered");
+    fireEvent.click(removeButton);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(mocks.writes.some((write) => write.table === "notifications")).toBe(true));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Admin removed — notification failed",
+      description: expect.stringContaining("removal notification failed"),
+      variant: "destructive",
+    }));
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Admin removed" }));
+  });
+});
+
 describe("ManageUsersPage characterization — scoped bulk role operations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -341,6 +467,25 @@ describe("ManageUsersPage characterization — scoped bulk role operations", () 
     expect(mocks.invalidateRolesCache).not.toHaveBeenCalled();
   });
 
+  it("does not report full bulk-assignment success when membership notification insertion fails", async () => {
+    mocks.writeError = { table: "notifications", operation: "insert", message: "bulk assignment notification failed" };
+    renderPage();
+    await selectSyntheticMember();
+    fireEvent.click(screen.getByRole("button", { name: "Assign Role" }));
+    fireEvent.click(screen.getByText("Select a role").closest("button")!);
+    fireEvent.click(await screen.findByRole("option", { name: "Basic User (global)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Assignment" }));
+
+    await waitFor(() => expect(mocks.writes.some((write) => write.table === "notifications")).toBe(true));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Roles assigned — notification failed",
+      description: expect.stringContaining("bulk assignment notification failed"),
+      variant: "destructive",
+    }));
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/Role assigned/) }));
+  });
+
   it("removes only the selected role within its exact club and team scope", async () => {
     renderPage();
     await selectSyntheticMember();
@@ -361,6 +506,25 @@ describe("ManageUsersPage characterization — scoped bulk role operations", () 
     expect(mocks.writes.find(write => write.table === "notifications")?.payload).toEqual([expect.objectContaining({
       user_id: "member-1", message: "Your player role has been removed",
     })]);
+  });
+
+  it("does not report full bulk-removal success when membership notification insertion fails", async () => {
+    mocks.writeError = { table: "notifications", operation: "insert", message: "bulk removal notification failed" };
+    renderPage();
+    await selectSyntheticMember();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Role" }));
+    const matchingRoles = await screen.findAllByText(/player.*Synthetic Team/i);
+    fireEvent.click(matchingRoles[matchingRoles.length - 1]);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Removal" }));
+
+    await waitFor(() => expect(mocks.writes.some((write) => write.table === "notifications")).toBe(true));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Roles removed — notification failed",
+      description: expect.stringContaining("bulk removal notification failed"),
+      variant: "destructive",
+    }));
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/Role removed/) }));
   });
 });
 
