@@ -274,14 +274,28 @@ jobs:
         # aborts `db push` if pg_cron / pg_net / supabase_vault are missing or
         # if the Vault secrets functions_base_url / service_role_key are absent.
         # Seed them here (idempotent) so promotion is not a manual dashboard chore.
-        # Optional secret: SUPABASE_PROD_SERVICE_ROLE_KEY (Project Settings → API).
+        # Key source: SUPABASE_PROD_SERVICE_ROLE_KEY if present, otherwise the
+        # existing SUPABASE_SERVICE_ROLE_KEY secret. A legacy JWT key is checked
+        # against the prod project ref so a dev key can never be seeded here.
         if: github.event_name == 'push'
         env:
           PROD_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_PROD_SERVICE_ROLE_KEY }}
+          FALLBACK_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
+          KEY="${PROD_SERVICE_ROLE_KEY:-${FALLBACK_SERVICE_ROLE_KEY:-}}"
+          if [ -n "$KEY" ] && [ "${KEY:0:2}" = "ey" ]; then
+            PAYLOAD=$(echo "$KEY" | cut -d. -f2 | tr '_-' '/+')
+            while [ $(( ${#PAYLOAD} % 4 )) -ne 0 ]; do PAYLOAD="${PAYLOAD}="; done
+            KEY_REF=$(echo "$PAYLOAD" | base64 -d 2>/dev/null | grep -oE '"ref"[[:space:]]*:[[:space:]]*"[^"]+"' | cut -d'"' -f4 || true)
+            if [ -n "$KEY_REF" ] && [ "$KEY_REF" != "$PROJECT_REF" ]; then
+              echo "::error::Service-role key belongs to project '$KEY_REF', not PROD ('$PROJECT_REF'). Set SUPABASE_PROD_SERVICE_ROLE_KEY to the prod key."
+              exit 1
+            fi
+          fi
           DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
           run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
+
 
           run_sql -c "create extension if not exists pg_cron;" >/dev/null || true
           run_sql -c "create extension if not exists pg_net;" >/dev/null || true
