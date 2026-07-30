@@ -148,26 +148,20 @@ Deno.serve(async (req) => {
       try {
         recipientUserIds = await resolveRecipients(supabase, eventId, clubId, teamId, miniLeagueId, createdBy);
       } catch (e) {
-        if (e instanceof AudienceResolutionError) {
-          // Fail closed: no notifications, no push jobs. Retriable.
-          console.error("[EVENT-NOTIFY] Aborting fan-out: audience lookup failed");
-          return new Response(
-            JSON.stringify({ error: "event_audience_lookup_failed" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
+        // Fail closed: no notifications, no push jobs. Retriable.
+        if (e instanceof AudienceResolutionError) return audienceFailure();
         throw e;
       }
 
     } else if (action === "event_cancelled") {
       notificationType = "event_cancelled";
       message = `Event cancelled: ${title} has been cancelled`;
-      const { data: rsvps } = await supabase
-        .from("rsvps")
-        .select("user_id")
-        .eq("event_id", eventId)
-        .not("user_id", "is", null);
-      recipientUserIds = [...new Set((rsvps || []).map((r: any) => r.user_id))];
+      try {
+        recipientUserIds = [...new Set(await rsvpRecipients())];
+      } catch (e) {
+        if (e instanceof AudienceResolutionError) return audienceFailure();
+        throw e;
+      }
     } else if (action === "event_updated") {
       notificationType = "event_updated";
       if (!changedFields || changedFields.length === 0) {
@@ -177,14 +171,15 @@ Deno.serve(async (req) => {
       }
       message = buildUpdateMessage(title, changedFields);
       dedupeVersion = await changeVersion(changedFields);
-      const { data: rsvps } = await supabase
-        .from("rsvps")
-        .select("user_id")
-        .eq("event_id", eventId)
-        .not("user_id", "is", null);
-      recipientUserIds = [...new Set((rsvps || []).map((r: any) => r.user_id))].filter(
-        (id) => id !== createdBy,
-      );
+      try {
+        recipientUserIds = [...new Set(await rsvpRecipients())].filter(
+          (id) => id !== createdBy,
+        );
+      } catch (e) {
+        if (e instanceof AudienceResolutionError) return audienceFailure();
+        throw e;
+      }
+
     } else {
       return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
         status: 400,
