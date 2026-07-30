@@ -1320,9 +1320,16 @@ export default function HomePage() {
     },
   });
 
-  // Mutation to mark reward as claimed
+  // Mutation to mark reward as claimed.
+  // Failures after the fulfilment update are tagged so the UI never claims the
+  // reward itself failed when only notifications did.
+  class RewardNotificationError extends Error {
+    fulfilmentSucceeded = true;
+  }
+
   const claimMutation = useMutation({
     mutationFn: async (redemption: { id: string; club_id: string; reward_name: string }) => {
+
       const { error } = await supabase
         .from("reward_redemptions")
         .update({
