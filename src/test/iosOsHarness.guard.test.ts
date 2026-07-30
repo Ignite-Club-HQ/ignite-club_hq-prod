@@ -160,7 +160,7 @@ describe("ios-os harness — assertions retained", () => {
   it("keeps warm-resume assertions", () => {
     expect(e2e).toContain("ordinary online warm resume");
     expect(e2e).toContain("driver.background");
-    expect(e2e).not.toMatch(/terminateApp|relaunch/);
+    expect(e2e).not.toMatch(/driver\.(terminateApp|launchApp|reset)\(/);
   });
 
   it("keeps five-cycle protection", () => {
