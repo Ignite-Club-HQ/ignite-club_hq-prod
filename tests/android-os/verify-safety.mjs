@@ -44,11 +44,13 @@ if (leaked.length > 0 && !ALLOW_LOCAL_ENV) {
     `forbidden environment variable(s) present: ${leaked.join(", ")}. ` +
       `This workflow must run with no Supabase/database environment group. ` +
       `(Local runs only: set AOS_ALLOW_LOCAL_ENV=1 to downgrade this to a warning.)`,
-
   );
+} else if (leaked.length > 0) {
+  console.log(`  WARN  local override: ignoring ${leaked.length} Supabase-shaped env var(s)`);
 } else {
   ok("no SUPABASE / VITE_SUPABASE / DATABASE_URL / PGPASSWORD env vars present");
 }
+
 
 // Signing / store credentials must not be present either.
 const FORBIDDEN_SIGNING = [
