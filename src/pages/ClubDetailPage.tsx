@@ -1154,7 +1154,7 @@ export default function ClubDetailPage() {
                   Removed {new Date((club as any).deleted_at).toLocaleDateString()} · Will be permanently deleted after 30 days
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={handleRestoreClub}>
+              <Button size="sm" variant="outline" onClick={handleRestoreClub} disabled={isRestoring}>
                 <ArchiveRestore className="h-4 w-4 mr-1" />
                 Restore
               </Button>
