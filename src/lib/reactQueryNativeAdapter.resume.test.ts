@@ -40,7 +40,7 @@ vi.mock("@capacitor/app", () => ({
   App: {
     addListener: (_event: string, handler: AppHandler) => {
       appListeners.push(handler);
-      return { remove: () => {} };
+      return Promise.resolve({ remove: () => {} });
     },
   },
 }));
