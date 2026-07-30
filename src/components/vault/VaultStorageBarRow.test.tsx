@@ -87,8 +87,9 @@ describe("VaultStorageBarRow", () => {
     screen.getByRole("button", { name: /storage actions/i }).focus();
     await user.keyboard("{Enter}");
     await screen.findByRole("menu");
-    await user.keyboard("{ArrowDown}");
+    await screen.findByText("Rename");
     await user.keyboard("{Enter}");
+
 
     expect(onRename).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Storage details")).not.toBeInTheDocument();
