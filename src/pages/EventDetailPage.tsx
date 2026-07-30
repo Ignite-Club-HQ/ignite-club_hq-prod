@@ -1442,25 +1442,67 @@ export default function EventDetailPage() {
       }
 
       if (result.url) {
-        listenForPaymentStatus(result.payment_id, async (status) => {
+        // Dispose any listener from a previous Pay Now tap before registering.
+        const previousDispose = paymentListenerCleanupRef.current;
+        paymentListenerCleanupRef.current = null;
+        previousDispose?.();
+
+        const clearActiveListener = () => {
+          const dispose = paymentListenerCleanupRef.current;
+          paymentListenerCleanupRef.current = null;
+          dispose?.();
+        };
+
+        const dispose = listenForPaymentStatus(result.payment_id, async (status) => {
+          // Terminal callback: the listener is done — drop the stored ref.
+          clearActiveListener();
+          if (!isMountedRef.current) return;
+
           if (status === "paid") {
+            // CONFIRMED DEFECT 1: functions.invoke resolves with { data, error }
+            // instead of throwing, so the returned error must be inspected.
+            let confirmError: unknown = null;
             try {
-              await supabase.functions.invoke("confirm-event-payment", {
+              const { error } = await supabase.functions.invoke("confirm-event-payment", {
                 body: {
                   event_id: event.id,
                   amount: eventPrice,
                   payment_id: result.payment_id,
                 },
               });
+              confirmError = error ?? null;
             } catch (err) {
-              console.error("Failed to confirm event payment server-side:", err);
+              confirmError = err;
             }
+
+            if (!isMountedRef.current) return;
+
+            if (confirmError) {
+              console.error("Failed to confirm event payment server-side:", confirmError);
+              toast({
+                title: "Payment confirmation incomplete",
+                description:
+                  "Your payment may have been received, but we could not update the event. Please contact your club before trying again.",
+                variant: "destructive",
+              });
+              return;
+            }
+
             queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
             toast({ title: "Payment successful!" });
           } else {
             toast({ title: "Payment failed", variant: "destructive" });
           }
         });
+
+        // A terminal callback can fire synchronously during registration; only
+        // store the disposer if the listener is still considered active.
+        if (isMountedRef.current) {
+          paymentListenerCleanupRef.current = dispose;
+        } else {
+          dispose();
+        }
+
 
         if (isNative) {
           import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(result.url));
