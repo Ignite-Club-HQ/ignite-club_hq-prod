@@ -248,7 +248,7 @@ export default function TeamDetailPage() {
         .select("*")
         .eq("club_id", team!.club_id)
         .maybeSingle();
-      if (error) throw error;
+      if (error) throw friendlyQueryError(error, "this club's subscription details");
       return data;
     },
     enabled: !!team?.club_id,
@@ -266,7 +266,7 @@ export default function TeamDetailPage() {
         .eq("club_id", team!.club_id)
         .eq("role", "club_admin")
         .maybeSingle();
-      if (error) throw error;
+      if (error) throw friendlyQueryError(error, "your club admin permissions");
       return !!data;
     },
     enabled: !!user && !!team?.club_id,

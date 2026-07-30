@@ -286,7 +286,7 @@ export default function ClubDetailPage() {
         .select("id, user_id, role, team_id, club_id, profiles (id, display_name, avatar_url, ignite_points), teams (id, name)")
         .eq("club_id", id!)
         .is("team_id", null);
-      if (clubError) throw clubError;
+      if (clubError) throw friendlyQueryError(clubError, "the club member list");
 
       // Fetch team-level roles for teams in this club
       let teamRoles: typeof clubRoles = [];
@@ -295,7 +295,7 @@ export default function ClubDetailPage() {
           .from("user_roles")
           .select("id, user_id, role, team_id, club_id, profiles (id, display_name, avatar_url, ignite_points), teams (id, name)")
           .in("team_id", teamIds);
-        if (teamError) throw teamError;
+        if (teamError) throw friendlyQueryError(teamError, "the club member list");
         teamRoles = teamRolesData || [];
       }
 
