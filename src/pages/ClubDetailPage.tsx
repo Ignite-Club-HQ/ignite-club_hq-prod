@@ -747,6 +747,7 @@ export default function ClubDetailPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPermanentDeleteDialog, setShowPermanentDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const safeErrMessage = (err: unknown): string => {
     if (!err) return "Unknown error";
