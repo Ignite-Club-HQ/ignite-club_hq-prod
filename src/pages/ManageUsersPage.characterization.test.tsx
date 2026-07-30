@@ -7,9 +7,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   isAdmin: true,
   invoke: vi.fn(),
+  rpc: vi.fn(),
   from: vi.fn(),
   toast: vi.fn(),
   invalidateRolesCache: vi.fn(),
+  recordPointsHistory: vi.fn(),
+  checkRewardThreshold: vi.fn(),
   releaseDelete: null as null | (() => void),
   writes: [] as Array<{ table: string; operation: string; payload?: any; filters: any[] }>,
   writeError: null as null | { table: string; operation: string; message: string },
@@ -22,14 +25,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: mocks.from,
-    rpc: vi.fn(),
+    rpc: mocks.rpc,
     functions: { invoke: mocks.invoke },
   },
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "admin-1" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
 vi.mock("@/lib/rolesCache", () => ({ invalidateRolesCache: mocks.invalidateRolesCache }));
-vi.mock("@/lib/pointsHistory", () => ({ recordPointsHistory: vi.fn() }));
+vi.mock("@/lib/pointsHistory", () => ({ recordPointsHistory: mocks.recordPointsHistory }));
+vi.mock("@/lib/rewardThresholdCheck", () => ({ checkRewardThreshold: mocks.checkRewardThreshold }));
 vi.mock("@/components/GenerateDemoDataButton", () => ({ GenerateDemoDataButton: () => null }));
 vi.mock("@/components/admin/UserAnalyticsTab", () => ({ default: () => null }));
 
@@ -114,6 +118,15 @@ async function selectSyntheticMember() {
   if (!(checkbox instanceof HTMLElement)) throw new Error("Synthetic member checkbox was not rendered");
   fireEvent.click(checkbox);
   await screen.findByText("1 selected");
+}
+
+async function openAwardPointsDialog() {
+  await findSyntheticMember();
+  const memberCard = screen.getByText("Synthetic Member").closest("div.flex-1")?.parentElement;
+  const awardButton = memberCard?.querySelector('button[title="Award Points"]');
+  if (!(awardButton instanceof HTMLElement)) throw new Error("Award points action was not rendered");
+  fireEvent.click(awardButton);
+  await screen.findByRole("heading", { name: "Award Points" });
 }
 
 describe("ManageUsersPage characterization — privileged membership removal", () => {
@@ -348,5 +361,114 @@ describe("ManageUsersPage characterization — scoped bulk role operations", () 
     expect(mocks.writes.find(write => write.table === "notifications")?.payload).toEqual([expect.objectContaining({
       user_id: "member-1", message: "Your player role has been removed",
     })]);
+  });
+});
+
+describe("ManageUsersPage characterization — club-scoped points adjustments", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isAdmin = true;
+    mocks.profiles = [
+      { id: "admin-1", display_name: "Current Admin", avatar_url: null, scheduled_deletion_at: null },
+      { id: "member-1", display_name: "Synthetic Member", avatar_url: null, scheduled_deletion_at: null },
+    ];
+    mocks.from.mockImplementation(queryFor);
+    mocks.invoke.mockResolvedValue({ data: { success: true }, error: null });
+    mocks.rpc.mockResolvedValue({ data: 35, error: null });
+    mocks.recordPointsHistory.mockResolvedValue(undefined);
+    mocks.checkRewardThreshold.mockResolvedValue(undefined);
+    mocks.writes = [];
+    mocks.writeError = null;
+  });
+
+  it("requires a club and a non-zero adjustment before submission", async () => {
+    renderPage();
+    await openAwardPointsDialog();
+    const action = screen.getByRole("button", { name: "Award +10 Points" });
+    expect(action).toBeDisabled();
+
+    const clubSelect = screen.getByText("Select a club").closest("select")!;
+    fireEvent.change(clubSelect, { target: { value: "club-1" } });
+    expect(action).toBeEnabled();
+    const pointsInput = screen.getByRole("spinbutton");
+    fireEvent.change(pointsInput, { target: { value: "0" } });
+    expect(screen.getByRole("button", { name: "Deduct 0 Points" })).toBeDisabled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("records a positive adjustment consistently across RPC, history, notification and email", async () => {
+    renderPage();
+    await openAwardPointsDialog();
+    fireEvent.change(screen.getByText("Select a club").closest("select")!, { target: { value: "club-1" } });
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "15" } });
+    fireEvent.change(screen.getByPlaceholderText("e.g., Extra help at training"), { target: { value: "Helped at training" } });
+    fireEvent.click(screen.getByRole("button", { name: "Award +15 Points" }));
+
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("increment_ignite_points", {
+      _user_id: "member-1", _amount: 15, _club_id: "club-1",
+    }));
+    expect(mocks.recordPointsHistory).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "member-1", clubId: "club-1", amount: 15, balanceAfter: 35,
+      sourceType: "admin_award", description: "Helped at training", createdBy: "admin-1",
+    }));
+    expect(mocks.writes.find(write => write.table === "notifications")?.payload).toEqual(expect.objectContaining({
+      user_id: "member-1", type: "points_awarded", related_id: "club-1",
+      message: 'You received +15 points from Synthetic Club: "Helped at training"',
+    }));
+    expect(mocks.checkRewardThreshold).toHaveBeenCalledWith({
+      userId: "member-1", clubId: "club-1", previousPoints: 20, newPoints: 35,
+    });
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("send-points-notification-email", {
+      body: expect.objectContaining({ recipientUserId: "member-1", pointsAwarded: 15, totalPoints: 35, clubName: "Synthetic Club" }),
+    }));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Points Awarded!" }));
+  });
+
+  it("records deductions without running a positive reward-threshold check", async () => {
+    mocks.rpc.mockResolvedValue({ data: 12, error: null });
+    renderPage();
+    await openAwardPointsDialog();
+    fireEvent.change(screen.getByText("Select a club").closest("select")!, { target: { value: "club-1" } });
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "-8" } });
+    fireEvent.click(screen.getByRole("button", { name: "Deduct -8 Points" }));
+
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("increment_ignite_points", {
+      _user_id: "member-1", _amount: -8, _club_id: "club-1",
+    }));
+    expect(mocks.recordPointsHistory).toHaveBeenCalledWith(expect.objectContaining({ amount: -8, balanceAfter: 12 }));
+    expect(mocks.checkRewardThreshold).not.toHaveBeenCalled();
+    expect(mocks.writes.find(write => write.table === "notifications")?.payload).toEqual(expect.objectContaining({
+      message: "You received -8 points from Synthetic Club",
+    }));
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Points Deducted" }));
+  });
+
+  it("stops all downstream side effects when the points RPC is denied", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "points permission denied" } });
+    renderPage();
+    await openAwardPointsDialog();
+    fireEvent.change(screen.getByText("Select a club").closest("select")!, { target: { value: "club-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Award +10 Points" }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Failed to update points", description: "points permission denied", variant: "destructive",
+    })));
+    expect(mocks.recordPointsHistory).not.toHaveBeenCalled();
+    expect(mocks.writes.some(write => write.table === "notifications")).toBe(false);
+    expect(mocks.invoke).not.toHaveBeenCalledWith("send-points-notification-email", expect.anything());
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Points Awarded!" }));
+  });
+
+  it("keeps email best-effort after the points ledger and notification succeed", async () => {
+    mocks.invoke.mockRejectedValue(new Error("email provider unavailable"));
+    renderPage();
+    await openAwardPointsDialog();
+    fireEvent.change(screen.getByText("Select a club").closest("select")!, { target: { value: "club-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Award +10 Points" }));
+
+    await waitFor(() => expect(mocks.recordPointsHistory).toHaveBeenCalled());
+    expect(mocks.writes.some(write => write.table === "notifications")).toBe(true);
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Points Awarded!" })));
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Failed to update points" }));
   });
 });

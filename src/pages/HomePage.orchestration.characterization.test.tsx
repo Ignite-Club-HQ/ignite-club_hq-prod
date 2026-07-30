@@ -142,4 +142,46 @@ describe("HomePage consolidated membership and event orchestration", () => {
     await waitFor(() => expect(mocks.capturedPrimaryQuery).toBeTypeOf("function"));
     await expect(mocks.capturedPrimaryQuery!()).rejects.toEqual({ message: "resume race" });
   });
+
+  it("throws on active-club validation failure instead of removing every club and protected action", async () => {
+    mocks.tableResults.user_roles.data = [{ role: "club_admin", club_id: "club-active", team_id: null }];
+    mocks.tableResults.clubs = { data: null, error: { message: "club membership unavailable" } };
+    await renderHome();
+    await waitFor(() => expect(mocks.capturedPrimaryQuery).toBeTypeOf("function"));
+    await expect(mocks.capturedPrimaryQuery!()).rejects.toEqual({ message: "club membership unavailable" });
+  });
+
+  it("throws on team validation failure instead of replacing active team membership with an empty set", async () => {
+    mocks.tableResults.user_roles.data = [{ role: "coach", club_id: "club-active", team_id: "team-active" }];
+    mocks.tableResults.teams = { data: null, error: { message: "team membership unavailable" } };
+    mocks.tableResults.clubs.data = [{ id: "club-active" }];
+    await renderHome();
+    await waitFor(() => expect(mocks.capturedPrimaryQuery).toBeTypeOf("function"));
+    await expect(mocks.capturedPrimaryQuery!()).rejects.toEqual({ message: "team membership unavailable" });
+  });
+
+  it("throws on player mini-league failure instead of silently removing league events", async () => {
+    mocks.tableResults.mini_league_players = { data: null, error: { message: "league membership unavailable" } };
+    await renderHome();
+    await waitFor(() => expect(mocks.capturedPrimaryQuery).toBeTypeOf("function"));
+    await expect(mocks.capturedPrimaryQuery!()).rejects.toEqual({ message: "league membership unavailable" });
+  });
+
+  it("throws on league-admin scope failure instead of silently revoking league administration", async () => {
+    mocks.tableResults.user_roles.data = [{ role: "league_admin", club_id: "club-active", team_id: null }];
+    mocks.tableResults.clubs.data = [{ id: "club-active" }];
+    mocks.tableResults.mini_leagues = { data: null, error: { message: "admin league scope unavailable" } };
+    await renderHome();
+    await waitFor(() => expect(mocks.capturedPrimaryQuery).toBeTypeOf("function"));
+    await expect(mocks.capturedPrimaryQuery!()).rejects.toEqual({ message: "admin league scope unavailable" });
+  });
+
+  it("treats null successful dependency data as invalid rather than a legitimate empty membership", async () => {
+    mocks.tableResults.user_roles.data = [{ role: "player", club_id: "club-active", team_id: "team-active" }];
+    mocks.tableResults.teams = { data: null, error: null };
+    mocks.tableResults.clubs.data = [{ id: "club-active" }];
+    await renderHome();
+    await waitFor(() => expect(mocks.capturedPrimaryQuery).toBeTypeOf("function"));
+    await expect(mocks.capturedPrimaryQuery!()).rejects.toThrow(/teams fetch returned null data/i);
+  });
 });
