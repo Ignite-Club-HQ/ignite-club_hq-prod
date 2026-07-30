@@ -1157,3 +1157,99 @@ workflows:
           ./gradlew bundleRelease
     artifacts:
       - android/app/build/outputs/**/*.aab
+
+  # ---------------------------------------------------------------------------
+  # Actual Android OS resume regression test.
+  #
+  # Runs the harness in `tests/android-os/` inside a REAL Android emulator and
+  # drives genuine OS lifecycle transitions (home/recents, lock/unlock, radio
+  # off/on) via adb. It pins the regression from 0ee10f109: a blanket
+  # `refetchQueries({ type: 'active' })` on every resume, which saturated the
+  # WebView's ~6-connection-per-origin pool and froze the app until force-quit.
+  #
+  # SAFETY — this workflow is deliberately inert:
+  #   * no `environment.groups` (so no Supabase / signing / store credentials)
+  #   * isolated package id `app.igniteclubhq.androidosresumetest`
+  #   * debug APK only; never signed, never published
+  #   * `verify-safety.mjs` hard-fails the build if any Supabase, database or
+  #     signing credential or reference is detected, before and after build
+  # ---------------------------------------------------------------------------
+  android-os-resume-test:
+    name: Actual Android OS resume regression
+    max_build_duration: 35
+    instance_type: linux_x2
+    environment:
+      java: 21
+      node: 22
+      vars:
+        AOS_TEST_APP_ID: "app.igniteclubhq.androidosresumetest"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: codespaces-review
+          include: true
+          source: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Safety guard — no Supabase, database or signing credentials
+        script: |
+          set -e
+          node tests/android-os/verify-safety.mjs
+      - name: Install dependencies
+        script: npm ci --no-audit --no-fund
+      - name: Harness isolation guard test
+        script: npx vitest run src/test/androidOsHarness.guard.test.ts
+      - name: Resume/reconnect unit guard tests
+        script: |
+          npx vitest run \
+            src/test/resumeVsReconnectRecovery.guard.test.ts \
+            src/test/androidResumeZombieRequests.guard.test.ts \
+            src/test/androidInboxResume.guard.test.ts \
+            src/test/chatResumeWatchdog.guard.test.ts
+      - name: Build isolated harness web app
+        script: npm run test:android-os:build
+      - name: Generate disposable Capacitor Android project
+        script: |
+          set -e
+          cd tests/android-os/workspace
+          rm -rf .generated
+          ../../../node_modules/.bin/cap add android
+          ../../../node_modules/.bin/cap sync android
+      - name: Post-build safety guard
+        script: node tests/android-os/verify-safety.mjs --post
+      - name: Build unsigned debug APK
+        script: |
+          set -e
+          cd tests/android-os/workspace/.generated/android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+          ls -la app/build/outputs/apk/debug/
+      - name: Boot Android emulator
+        script: |
+          set -e
+          SDK="${ANDROID_SDK_ROOT:-$HOME/programs/android-sdk-macosx}"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64" >/dev/null
+          echo no | "$SDK/cmdline-tools/latest/bin/avdmanager" create avd \
+            -n aos_resume -k "system-images;android-34;google_apis;x86_64" --force
+          nohup "$SDK/emulator/emulator" -avd aos_resume \
+            -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect \
+            -accel auto -memory 2048 >/tmp/emulator.log 2>&1 &
+          adb wait-for-device
+          for i in $(seq 1 120); do
+            [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
+            sleep 5
+          done
+          adb shell input keyevent 82 || true
+          adb devices
+      - name: Run Android OS resume regression suite
+        script: bash tests/android-os/run-emulator-test.sh
+      - name: Emulator log tail (diagnostics)
+        script: tail -n 200 /tmp/emulator.log || true
+        ignore_failure: true
+    artifacts:
+      - test-results/android-os/**
+      - tests/android-os/workspace/.generated/android/app/build/reports/**
+      - tests/android-os/workspace/.generated/android/app/build/outputs/apk/debug/app-debug.apk
+      - /tmp/emulator.log

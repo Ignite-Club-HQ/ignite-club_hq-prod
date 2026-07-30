@@ -1,0 +1,10 @@
+{
+  "name": "android-os-resume-test-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Disposable Capacitor workspace for the Android OS resume regression test. Never published, never signed, never shipped.",
+  "dependencies": {
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/network": "^8.0.1"
+  }
+}
