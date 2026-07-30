@@ -1877,6 +1877,16 @@ export default function EventDetailPage() {
     },
   });
 
+  // Thrown when the duty row committed as completed but the admin/coach
+  // notification insert failed. Records explicitly that the duty is committed.
+  class DutyNotificationPartialError extends Error {
+    dutyCommitted = true as const;
+    constructor(public underlying: string) {
+      super(underlying);
+      this.name = "DutyNotificationPartialError";
+    }
+  }
+
   // Complete duty mutation
   const completeDutyMutation = useMutation({
     mutationFn: async (dutyId: string) => {
@@ -1903,8 +1913,11 @@ export default function EventDetailPage() {
         .eq("status", "open")
         .select("id")
         .maybeSingle();
+      // Duty update failed outright — no notifications, complete failure.
       if (error) throw error;
-      if (!updatedDuty) return;
+      // No row updated: the duty is no longer open (idempotent/concurrent
+      // outcome). Do not notify; just refresh so current state is displayed.
+      if (!updatedDuty) return { outcome: "noop" as const };
 
       // Notify team/club admins and coaches about duty completion
       if (event && duty) {
@@ -1915,8 +1928,12 @@ export default function EventDetailPage() {
           ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach", "club_admin", "committee_member"])
           : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).in("role", ["club_admin", "committee_member"]);
         
-        const { data: admins } = await roleQuery;
-        
+        const { data: admins, error: adminsError } = await roleQuery;
+
+        if (adminsError) {
+          throw new DutyNotificationPartialError(adminsError.message);
+        }
+
         if (admins && admins.length > 0) {
           const recipientIds = Array.from(
             new Set(admins.map(a => a.user_id).filter((userId): userId is string => !!userId && userId !== user?.id))
@@ -1931,16 +1948,31 @@ export default function EventDetailPage() {
           
           if (notifications.length > 0) {
             const { error: notificationError } = await supabase.from("notifications").insert(notifications);
-            if (notificationError && notificationError.code !== "23505") throw notificationError;
+            // 23505 = duplicate/idempotency conflict, intentionally tolerated.
+            if (notificationError && notificationError.code !== "23505") {
+              throw new DutyNotificationPartialError(notificationError.message);
+            }
           }
         }
       }
+      return { outcome: "completed" as const };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
       toast({ title: "Duty completed!" });
     },
     onError: (error) => {
+      if (error instanceof DutyNotificationPartialError) {
+        // The duty IS completed — never roll back or reopen it, and never
+        // report a total failure.
+        queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+        toast({
+          title: "Duty completed — notification failed",
+          description: `The duty was marked complete, but administrators couldn't be notified. ${error.underlying}`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({ 
         title: "Failed to complete duty", 
         description: error.message,
@@ -1948,6 +1980,7 @@ export default function EventDetailPage() {
       });
     },
   });
+
 
   // Undo duty completion (in case of accidental tap)
   const uncompleteDutyMutation = useMutation({
