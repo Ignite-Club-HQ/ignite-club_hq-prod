@@ -21,10 +21,20 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-async function install(page: Page, options: { appAdmin?: boolean; insertFailure?: boolean } = {}) {
+async function install(page: Page, options: {
+  appAdmin?: boolean;
+  insertFailure?: boolean;
+  canDm?: boolean;
+  clubAdminPreviewMessage?: boolean;
+  clubAdminThreadDelayMs?: number;
+  clubAdminTransientEmpty?: boolean;
+  clubAdminThreadResponses?: Array<"empty" | "message" | "error">;
+  seedOneMessageClubAdminCache?: boolean;
+} = {}) {
   const inserts: Array<{ table: string; body: Record<string, unknown> }> = [];
   const uploads: string[] = [];
-  await page.addInitScript(({ user, userId, clubId }) => {
+  let clubAdminThreadReads = 0;
+  await page.addInitScript(({ user, userId, clubId, adminConversationId, otherId, seedOneMessageClubAdminCache }) => {
     const enc = (value: object) => btoa(JSON.stringify(value)).replaceAll("=", "");
     const token = `${enc({ alg: "HS256", typ: "JWT" })}.${enc({ sub: userId, role: "authenticated", exp: 4102444800 })}.synthetic`;
     localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: token, refresh_token: "synthetic", expires_at: 4102444800, expires_in: 3600, token_type: "bearer", user }));
@@ -34,7 +44,23 @@ async function install(page: Page, options: { appAdmin?: boolean; insertFailure?
       profile: { id: userId, display_name: "Synthetic Sender", avatar_url: null, active_club_id: clubId },
     }));
     localStorage.setItem("ios-install-prompt-dismissed", Date.now().toString());
-  }, { user, userId, clubId });
+    if (seedOneMessageClubAdminCache) {
+      localStorage.setItem(`ignite_message_cache_club_admin_${adminConversationId}`, JSON.stringify({
+        timestamp: Date.now(),
+        messages: [{
+          id: "00000000-0000-4000-8000-000000008099",
+          text: "Exact all-admin preview must open in thread",
+          author_id: otherId,
+          created_at: "2026-07-29T07:30:00.000Z",
+          image_url: null,
+          reply_to_id: null,
+          profiles: { display_name: "Synthetic Recipient", avatar_url: null },
+          reactions: [],
+          reply_to: null,
+        }],
+      }));
+    }
+  }, { user, userId, clubId, adminConversationId, otherId, seedOneMessageClubAdminCache: options.seedOneMessageClubAdminCache });
 
   await page.route("**/*", async route => {
     const request = route.request();
@@ -59,7 +85,9 @@ async function install(page: Page, options: { appAdmin?: boolean; insertFailure?
       category: "team", mini_league_id: null, join_policy: "invite_only",
     } : [{ id: groupId, name: "Synthetic Group", club_id: clubId, allowed_roles: [] }]);
     if (url.pathname === "/rest/v1/direct_conversations") return json(route, singular ? { id: conversationId, participant_1: userId, participant_2: otherId, created_at: "2026-01-01T00:00:00Z" } : [{ id: conversationId, participant_1: userId, participant_2: otherId }]);
-    if (url.pathname === "/rest/v1/club_admin_conversations") return json(route, singular ? { id: adminConversationId, club_id: clubId, member_id: userId } : [{ id: adminConversationId, club_id: clubId, member_id: userId }]);
+    if (url.pathname === "/rest/v1/club_admin_conversations") return json(route, singular
+      ? { id: adminConversationId, club_id: clubId, member_user_id: otherId, member_id: otherId, updated_at: "2026-07-29T07:30:00.000Z" }
+      : [{ id: adminConversationId, club_id: clubId, member_user_id: otherId, member_id: otherId, updated_at: "2026-07-29T07:30:00.000Z" }]);
     if (url.pathname === "/rest/v1/user_roles") {
       const isAppAdminLookup = url.searchParams.get("role") === "eq.app_admin";
       return route.fulfill({
@@ -80,6 +108,37 @@ async function install(page: Page, options: { appAdmin?: boolean; insertFailure?
         if (options.insertFailure) return json(route, { code: "42501", message: "synthetic insert denied" }, 403);
         return json(route, [], 201);
       }
+      if (table === "club_admin_messages" && options.clubAdminPreviewMessage) {
+        const row = {
+          id: "00000000-0000-4000-8000-000000008099",
+          conversation_id: adminConversationId,
+          author_id: otherId,
+          text: "Exact all-admin preview must open in thread",
+          image_url: null,
+          reply_to_id: null,
+          deleted_at: null,
+          created_at: "2026-07-29T07:30:00.000Z",
+        };
+        const scopeFilter = url.searchParams.get("conversation_id") ?? "";
+        const isThreadRead = scopeFilter === `eq.${adminConversationId}`;
+        if (isThreadRead) {
+          clubAdminThreadReads += 1;
+          if (options.clubAdminThreadDelayMs) {
+            await new Promise(resolve => setTimeout(resolve, options.clubAdminThreadDelayMs));
+          }
+          if (options.clubAdminTransientEmpty && clubAdminThreadReads === 1) {
+            return json(route, []);
+          }
+          const response = options.clubAdminThreadResponses?.[
+            Math.min(clubAdminThreadReads - 1, options.clubAdminThreadResponses.length - 1)
+          ];
+          if (response === "empty") return json(route, []);
+          if (response === "error") {
+            return json(route, { code: "503", message: "synthetic mobile recovery failure" }, 503);
+          }
+        }
+        return json(route, singular ? row : [row]);
+      }
       return json(route, []);
     }
     if (url.pathname.startsWith("/storage/v1/object/chat-attachments/")) {
@@ -97,13 +156,160 @@ async function install(page: Page, options: { appAdmin?: boolean; insertFailure?
       pro_club_ids: [clubId], pro_team_ids: [teamId], has_any_pro: true,
       admin_clubs: [], club_pro_status: { [clubId]: true },
     });
+    if (url.pathname === "/rest/v1/rpc/can_dm_user") return json(route, options.canDm ?? true);
+    if (url.pathname === "/rest/v1/rpc/dm_attachments_disabled") return json(route, false);
     if (url.pathname.startsWith("/rest/v1/rpc/")) return json(route, 0);
     if (url.pathname.startsWith("/rest/v1/")) return json(route, []);
     if (url.pathname.startsWith("/functions/v1/")) return json(route, {});
     return json(route, {});
   });
-  return { inserts, uploads };
+  return { inserts, uploads, getClubAdminThreadReads: () => clubAdminThreadReads };
 }
+
+test("a user denied DM permission sees the intentional access screen rather than a broken composer", async ({ page }) => {
+  const { inserts } = await install(page, { canDm: false });
+  await page.goto(`/messages/dm/${conversationId}`);
+  await expect(page.getByRole("heading", { name: "Pro Feature" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("textbox", { name: "Type a message..." })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Send message/ })).toHaveCount(0);
+  expect(inserts.filter(row => row.table === "direct_messages")).toHaveLength(0);
+});
+
+test("messages inbox exposes the button that starts a new direct-message flow", async ({ page }) => {
+  await install(page);
+  await page.goto("/messages");
+
+  const newMessage = page.getByRole("button", { name: "New message" });
+  await expect(newMessage).toBeVisible({ timeout: 15_000 });
+  await newMessage.click();
+  const newDm = page.getByRole("button", { name: /New Direct Message/ });
+  await expect(newDm).toBeVisible();
+  await newDm.click();
+  await expect(page.getByRole("heading", { name: /New Direct Message/ })).toBeVisible();
+  await expect(page.getByText("Pick one person to chat 1:1, or several to start a quick group")).toBeVisible();
+});
+
+test("an all-club-admin inbox preview opens the same non-blank message thread", async ({ page }) => {
+  await install(page, { clubAdminPreviewMessage: true });
+  await page.goto("/messages");
+
+  const preview = page.getByText("Exact all-admin preview must open in thread", { exact: false });
+  await expect(preview).toBeVisible({ timeout: 15_000 });
+  await preview.click();
+  await expect(page).toHaveURL(`/messages/club-admin/${adminConversationId}`);
+
+  const threadMessage = page.locator("#message-00000000-0000-4000-8000-000000008099");
+  await expect(threadMessage).toBeVisible({ timeout: 15_000 });
+  await expect(threadMessage).toContainText("Exact all-admin preview must open in thread");
+  await expect(page.getByText(/Start a conversation with/)).toHaveCount(0);
+});
+
+test("a cold all-club-admin thread waits for a delayed response and then renders the previewed message", async ({ page }) => {
+  const harness = await install(page, {
+    clubAdminPreviewMessage: true,
+    clubAdminThreadDelayMs: 1_200,
+  });
+  await page.goto("/messages");
+  await page.getByText("Exact all-admin preview must open in thread", { exact: false }).click();
+
+  await expect(page).toHaveURL(`/messages/club-admin/${adminConversationId}`);
+  await expect(page.locator("#message-00000000-0000-4000-8000-000000008099"))
+    .toContainText("Exact all-admin preview must open in thread", { timeout: 15_000 });
+  // React Strict Mode / refetch-on-mount may perform one replacement read,
+  // but a delayed success must never fan out into a retry storm.
+  expect(harness.getClubAdminThreadReads()).toBeGreaterThanOrEqual(1);
+  expect(harness.getClubAdminThreadReads()).toBeLessThanOrEqual(2);
+  await expect(page.getByText(/Start a conversation with/)).toHaveCount(0);
+});
+
+test("a transient empty all-club-admin response recovers automatically and manual refresh remains available", async ({ page }) => {
+  const harness = await install(page, {
+    clubAdminPreviewMessage: true,
+    clubAdminTransientEmpty: true,
+  });
+  await page.goto("/messages");
+  await page.getByText("Exact all-admin preview must open in thread", { exact: false }).click();
+  await expect(page).toHaveURL(`/messages/club-admin/${adminConversationId}`);
+  await expect.poll(() => harness.getClubAdminThreadReads()).toBeGreaterThanOrEqual(2);
+  await expect(page.locator("#message-00000000-0000-4000-8000-000000008099"))
+    .toContainText("Exact all-admin preview must open in thread", { timeout: 15_000 });
+
+  const readsBeforeManualRefresh = harness.getClubAdminThreadReads();
+  await page.getByRole("button", { name: "More options" }).click();
+  await page.getByRole("menuitem", { name: "Refresh messages" }).click();
+  await expect.poll(() => harness.getClubAdminThreadReads()).toBeGreaterThan(readsBeforeManualRefresh);
+  await expect(page.locator("#message-00000000-0000-4000-8000-000000008099"))
+    .toContainText("Exact all-admin preview must open in thread", { timeout: 15_000 });
+  await expect(page.getByText(/Start a conversation with/)).toHaveCount(0);
+});
+
+test("an inbox-backed club-admin thread automatically survives two transient empty responses", async ({ page }) => {
+  test.setTimeout(30_000);
+  const harness = await install(page, {
+    clubAdminPreviewMessage: true,
+    clubAdminThreadResponses: ["empty", "empty", "message"],
+  });
+  await page.goto("/messages");
+  await page.getByText("Exact all-admin preview must open in thread", { exact: false }).click();
+  await expect(page).toHaveURL(`/messages/club-admin/${adminConversationId}`);
+
+  // The inbox proves this thread is non-empty. A transient RLS/network-shaped
+  // empty must therefore stay in recovery rather than claiming this is a new
+  // conversation while bounded automatic retries are still running.
+  await expect(page.getByText(/Start a conversation with/)).toHaveCount(0);
+  await expect.poll(() => harness.getClubAdminThreadReads(), { timeout: 12_000 }).toBeGreaterThanOrEqual(3);
+  await expect(page.locator("#message-00000000-0000-4000-8000-000000008099"))
+    .toContainText("Exact all-admin preview must open in thread", { timeout: 15_000 });
+});
+
+test("a valid one-message club-admin cache remains visible while the authoritative fetch is delayed", async ({ page }) => {
+  await install(page, {
+    clubAdminPreviewMessage: true,
+    seedOneMessageClubAdminCache: true,
+    clubAdminThreadDelayMs: 10_000,
+  });
+  await page.goto("/messages");
+  await page.getByText("Exact all-admin preview must open in thread", { exact: false }).click();
+  await expect(page).toHaveURL(`/messages/club-admin/${adminConversationId}`);
+
+  // This assertion intentionally completes before the 10s network response.
+  // A real one-message cache is usable content, not a blank notification-only
+  // preload, and must protect a new admin conversation during mobile recovery.
+  await expect(page.locator("#message-00000000-0000-4000-8000-000000008099"))
+    .toContainText("Exact all-admin preview must open in thread", { timeout: 2_500 });
+  await expect(page.getByText(/Start a conversation with/)).toHaveCount(0);
+});
+
+test("exhausted club-admin message failures render an explicit retry action instead of a blank scroller", async ({ page }) => {
+  test.setTimeout(55_000);
+  const harness = await install(page, {
+    clubAdminPreviewMessage: true,
+    clubAdminThreadResponses: ["error"],
+  });
+  await page.goto("/messages");
+  await page.getByText("Exact all-admin preview must open in thread", { exact: false }).click();
+  await expect(page).toHaveURL(`/messages/club-admin/${adminConversationId}`);
+
+  await expect.poll(() => harness.getClubAdminThreadReads(), { timeout: 20_000 }).toBeGreaterThanOrEqual(4);
+  // Each bounded recovery refetch still receives React Query's own retry
+  // policy, so exhaustion is deliberately slower than the first four HTTP
+  // attempts. Wait for the user-facing terminal state, not an implementation
+  // read count.
+  await expect(page.getByText("Messages could not be loaded", { exact: false })).toBeVisible({ timeout: 40_000 });
+  await expect(page.getByRole("button", { name: /Retry/i })).toBeVisible();
+  await expect(page.locator('[data-testid="virtuoso-scroller"]')).toHaveCount(0);
+  await expect(page.getByText(/Start a conversation with/)).toHaveCount(0);
+});
+
+test("an authoritative empty club-admin conversation still shows the intentional empty state", async ({ page }) => {
+  await install(page, {
+    clubAdminPreviewMessage: false,
+    clubAdminThreadResponses: ["empty"],
+  });
+  await page.goto(`/messages/club-admin/${adminConversationId}`);
+  await expect(page.getByText(/Start a conversation with/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-testid="virtuoso-scroller"]')).toHaveCount(0);
+});
 
 for (const surface of surfaces) {
   test(`${surface.name} chat sends through its exact table and scope`, async ({ page }) => {
@@ -124,6 +330,42 @@ for (const surface of surfaces) {
         reply_to_id: null,
       }),
     });
+  });
+}
+
+for (const viewport of [
+  { name: "desktop", width: 1280, height: 800 },
+  { name: "narrow phone", width: 360, height: 740 },
+]) {
+  test(`direct-message send button stays visible and usable on a ${viewport.name} viewport`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const { inserts } = await install(page);
+    await page.goto(`/messages/dm/${conversationId}`);
+
+    const composer = page.getByRole("textbox", { name: "Type a message..." });
+    const send = page.getByRole("button", { name: "Send message (hold to schedule)" });
+    await expect(composer).toBeVisible({ timeout: 15_000 });
+    await expect(send).toBeVisible();
+    await expect(send).toBeDisabled();
+
+    const box = await send.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThanOrEqual(40);
+    expect(box!.height).toBeGreaterThanOrEqual(40);
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+
+    await composer.fill(`Visible ${viewport.name} DM send`);
+    await expect(send).toBeEnabled();
+    await send.click();
+    await expect.poll(() => inserts.filter(row => row.table === "direct_messages").length).toBe(1);
+    expect(inserts.find(row => row.table === "direct_messages")?.body).toEqual(expect.objectContaining({
+      conversation_id: conversationId,
+      author_id: userId,
+      text: `Visible ${viewport.name} DM send`,
+    }));
   });
 }
 

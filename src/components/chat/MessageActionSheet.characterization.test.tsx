@@ -60,6 +60,23 @@ describe("MessageActionSheet characterization — permissions and safety actions
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
+  it("dispatches a granted delete exactly once after closing the sheet", async () => {
+    const actionProps = props();
+    render(<MessageActionSheet {...actionProps} />);
+    await openMore();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(actionProps.onOpenChange).toHaveBeenCalledWith(false);
+    await waitFor(() => expect(actionProps.onDelete).toHaveBeenCalledOnce());
+  });
+
+  it("never exposes or dispatches deletion when the caller denies moderation", async () => {
+    const onDelete = vi.fn();
+    render(<MessageActionSheet {...props({ canDelete: false, onDelete })} />);
+    await openMore();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
   it("never offers report or block for the current user's own message", async () => {
     render(<MessageActionSheet {...props({ isOwn: true })} />);
     await openMore();
@@ -109,6 +126,21 @@ describe("MessageActionSheet characterization — permissions and safety actions
     render(<MessageActionSheet {...props({ canPublishToGallery: true, hasImage: false, onPublishToGallery: vi.fn() })} />);
     await openMore();
     expect(screen.queryByRole("button", { name: /publish to gallery/i })).not.toBeInTheDocument();
+  });
+
+  it("opens only the selected image and keeps gallery publication as a separate action", async () => {
+    const onViewImage = vi.fn();
+    const onPublishToGallery = vi.fn();
+    render(<MessageActionSheet {...props({
+      hasImage: true,
+      onViewImage,
+      canPublishToGallery: true,
+      onPublishToGallery,
+    })} />);
+    await openMore();
+    fireEvent.click(screen.getByRole("button", { name: "View Image" }));
+    await waitFor(() => expect(onViewImage).toHaveBeenCalledOnce());
+    expect(onPublishToGallery).not.toHaveBeenCalled();
   });
 
   it("prevents repeat publication while an image is publishing or already published", async () => {

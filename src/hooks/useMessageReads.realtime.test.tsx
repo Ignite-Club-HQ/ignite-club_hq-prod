@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { channel, removeChannel, from, onAuthStateChange, channels } = vi.hoisted(() => ({
-  channel: vi.fn(), removeChannel: vi.fn(), from: vi.fn(), onAuthStateChange: vi.fn(), channels: new Map<string, any>(),
+const { channel, removeChannel, from, onAuthStateChange, channels, mutationCalls } = vi.hoisted(() => ({
+  channel: vi.fn(), removeChannel: vi.fn(), from: vi.fn(), onAuthStateChange: vi.fn(), channels: new Map<string, any>(), mutationCalls: [] as string[][],
 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { channel, removeChannel, from, auth: { onAuthStateChange, getSession: vi.fn() }, rpc: vi.fn() },
@@ -12,7 +12,7 @@ vi.mock("@/lib/profileCache", () => ({
   selectCachedProfileById: vi.fn().mockResolvedValue({ data: null }),
 }));
 vi.mock("@tanstack/react-query", () => ({
-  useMutation: (options: any) => ({ mutate: vi.fn((ids: string[]) => options.onMutate?.(ids)) }),
+  useMutation: (options: any) => ({ mutate: vi.fn((ids: string[]) => { mutationCalls.push(ids); options.onMutate?.(ids); }) }),
 }));
 
 import { useMessageReads } from "./useMessageReads";
@@ -39,6 +39,7 @@ describe("useMessageReads realtime scoping", () => {
     localStorage.clear();
     vi.clearAllMocks();
     channels.clear();
+    mutationCalls.length = 0;
     channel.mockImplementation(makeChannel);
     from.mockImplementation(() => queryResult());
   });
@@ -81,6 +82,45 @@ describe("useMessageReads realtime scoping", () => {
     await act(async () => record.handler({ new: { team_message_id: "message-1", user_id: "user-1" } }));
     expect(result.current.readCounts).toEqual({ "message-1": 1 });
     expect(result.current.readFrontier).toEqual({});
+  });
+
+  it("batches visible reads once and suppresses duplicate visibility notifications", async () => {
+    vi.useFakeTimers();
+    const { result, unmount } = renderHook(() => useMessageReads(
+      "team", "team-1", ["message-1", "message-2"], "user-batch",
+    ));
+
+    act(() => {
+      result.current.markMessagesAsRead(["message-1", "message-2"]);
+      result.current.markMessagesAsRead(["message-1", "message-2"]);
+      vi.advanceTimersByTime(1_000);
+    });
+
+    expect(mutationCalls).toEqual([["message-1", "message-2"]]);
+    expect(result.current.readCounts).toEqual({ "message-1": 1, "message-2": 1 });
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it("keeps unread state isolated when the authenticated user changes", () => {
+    vi.useFakeTimers();
+    const { result, rerender, unmount } = renderHook(({ userId }) => useMessageReads(
+      "club", "club-1", ["message-1"], userId,
+    ), { initialProps: { userId: "user-a" } });
+
+    act(() => {
+      result.current.markMessagesAsRead(["message-1"]);
+      vi.advanceTimersByTime(1_000);
+    });
+    rerender({ userId: "user-b" });
+    act(() => {
+      result.current.markMessagesAsRead(["message-1"]);
+      vi.advanceTimersByTime(1_000);
+    });
+
+    expect(mutationCalls).toEqual([["message-1"], ["message-1"]]);
+    unmount();
+    vi.useRealTimers();
   });
 
   it("reconciles on subscription and reconnect notifications", async () => {

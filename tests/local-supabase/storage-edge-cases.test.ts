@@ -42,10 +42,10 @@ describe("local Storage: path, upsert and signed URL boundaries", () => {
   it("expires a signed URL after its declared lifetime", async () => {
     const path = `${fixture.clubA}/${fixture.memberA.id}/${crypto.randomUUID()}.jpg`; paths.push(path);
     expect((await fixture.memberA.client.storage.from(bucket).upload(path, image, { contentType: "image/jpeg" })).error).toBeNull();
-    const signed = await fixture.memberA.client.storage.from(bucket).createSignedUrl(path, 1);
+    const signed = await fixture.memberA.client.storage.from(bucket).createSignedUrl(path, 5);
     expect(signed.error).toBeNull();
     expect((await fetch(signed.data!.signedUrl)).status).toBe(200);
-    await new Promise((resolve) => setTimeout(resolve, 1_250));
+    await new Promise((resolve) => setTimeout(resolve, 5_250));
     expect((await fetch(signed.data!.signedUrl)).status).not.toBe(200);
   });
 });

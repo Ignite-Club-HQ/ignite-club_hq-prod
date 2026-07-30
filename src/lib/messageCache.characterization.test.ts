@@ -73,6 +73,20 @@ describe("messageCache characterization — ordering, isolation, and optimistic 
     ]);
   });
 
+  it.each(scopes)("reconciles optimistic, realtime update and delete behaviour for %s", (type, target) => {
+    const optimistic = message("shared-id", 1, "optimistic");
+    addMessageToCache(type, target, optimistic);
+    expect(getCachedMessages(type, target)).toEqual([optimistic]);
+
+    addMessageToCache(type, target, message("shared-id", 1, "server-confirmed"));
+    expect(getCachedMessages(type, target)).toEqual([
+      expect.objectContaining({ id: "shared-id", text: "server-confirmed" }),
+    ]);
+
+    removeMessageFromCache(type, target, "shared-id");
+    expect(getCachedMessages(type, target)).toEqual([]);
+  });
+
   it("removes only the deleted message from the selected conversation", () => {
     cacheMessages("group", "group-1", [message("m1", 1), message("m2", 2)]);
     cacheMessages("team", "team-1", [message("m1", 1)]);

@@ -99,6 +99,17 @@ describe("complete baseline local lifecycle safety", () => {
     ) as { scripts?: Record<string, string> };
     const baselineScript = packageJson.scripts?.["test:baseline"] ?? "";
     expect(baselineScript.match(/--approved-local-session/g)).toHaveLength(1);
+    expect(packageJson.scripts?.baseline).toBe("npm run test:baseline");
+
+    const compatibilityEntryPoint = readFileSync(
+      resolve(process.cwd(), "scripts/run-baseline.sh"),
+      "utf8",
+    );
+    expect(compatibilityEntryPoint).toContain(
+      "exec node scripts/run-complete-baseline.mjs --approved-local-session",
+    );
+    expect(compatibilityEntryPoint).not.toContain("BASELINE_DB_URL");
+    expect(compatibilityEntryPoint).not.toContain("SKIP:");
 
     const workflow = readFileSync(
       resolve(process.cwd(), ".github/workflows/codespaces-review-baseline.yml"),
