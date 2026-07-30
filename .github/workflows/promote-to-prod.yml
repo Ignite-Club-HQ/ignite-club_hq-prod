@@ -16,9 +16,11 @@ name: Promote to Prod
 #   SUPABASE_ACCESS_TOKEN      — https://supabase.com/dashboard/account/tokens
 #   SUPABASE_PROD_PROJECT_REF  — yabcfiuntwqjwvschnji
 #   SUPABASE_DB_PASSWORD       — prod DB password (Project Settings → Database)
-#   SUPABASE_PROD_SERVICE_ROLE_KEY (optional but recommended) — prod service-role
-#                                key, seeded into the prod Vault so the push
-#                                delivery preflight migration can pass.
+#   SUPABASE_SERVICE_ROLE_KEY  — prod service-role key, seeded into the prod
+#                                Vault so the push-delivery preflight migration
+#                                passes. Override with SUPABASE_PROD_SERVICE_ROLE_KEY
+#                                if the generic secret points at another project.
+
 
 
 on:
