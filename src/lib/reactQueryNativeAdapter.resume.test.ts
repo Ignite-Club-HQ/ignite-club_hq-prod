@@ -62,7 +62,7 @@ const seedActive = (qc: QueryClient) => {
       .getQueryCache()
       .find({ queryKey, exact: true })!;
     // Fake an observer so findAll({ type: 'active' }) picks it up.
-    (observer as unknown as { observers: unknown[] }).observers = [{}];
+    (observer as unknown as { observers: unknown[] }).observers = [{ options: { enabled: true } }];
     return observer;
   });
 };
