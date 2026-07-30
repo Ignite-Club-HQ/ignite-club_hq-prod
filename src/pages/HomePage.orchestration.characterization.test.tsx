@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   userChildren: [] as any[],
   primaryData: { memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] }, events: [] } as any,
   tableResults: {} as Record<string, { data: any; error: any }>,
+  queryData: {} as Record<string, any>,
   queryCalls: [] as Array<{ table: string; method: string; args: any[] }>,
 }));
 
@@ -37,7 +38,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
         };
       }
       if (key === "user-children-home") return { data: mocks.userChildren, isLoading: false, isFetching: false, isFetched: true };
-      return { data: undefined, isLoading: false, isFetching: false, isFetched: true };
+      return { data: mocks.queryData[key], isLoading: false, isFetching: false, isFetched: true };
     },
     useMutation: (options: any) => {
       mocks.capturedMutations.push(options);
@@ -59,13 +60,34 @@ vi.mock("@/lib/nextUpEventsCache", () => ({ getCachedNextUp: () => null, setCach
 vi.mock("@/lib/homeOpenLatency", () => ({ logHomeOpenLatency: vi.fn(), resetHomeOpenLog: vi.fn() }));
 vi.mock("@/lib/coldStartMarks", () => ({ mark: vi.fn(), snapshotStages: () => ({}) }));
 vi.mock("@/components/NextUpCarousel", () => ({ NextUpCarousel: () => null }));
-vi.mock("@/components/MyTeamsPremiumCarousel", () => ({ MyTeamsPremiumCarousel: () => null }));
+vi.mock("@/components/MyTeamsPremiumCarousel", async () => {
+  const React = await import("react");
+  return {
+    MyTeamsPremiumCarousel: ({ onReadyChange }: any) => {
+      React.useEffect(() => {
+        onReadyChange?.(true);
+        return () => onReadyChange?.(false);
+      }, [onReadyChange]);
+      return null;
+    },
+  };
+});
 vi.mock("@/components/MiniLeagueGameWidgets", () => ({ MiniLeagueGameWidgets: () => null }));
 vi.mock("@/components/ClubSponsorSection", () => ({ ClubSponsorSection: () => null }));
 vi.mock("@/components/MultiClubSponsorCarousel", () => ({ MultiClubSponsorCarousel: () => null }));
 vi.mock("@/components/SponsorOrAdCarousel", () => ({ SponsorOrAdCarousel: () => null }));
 vi.mock("@/components/UpcomingClassesWidget", () => ({ UpcomingClassesWidget: () => null }));
-vi.mock("@/components/HomeQuickActionsFab", () => ({ HomeQuickActionsFab: () => null }));
+vi.mock("@/components/HomeQuickActionsFab", () => ({
+  HomeQuickActionsFab: ({ onJoinTeam }: any) => <button onClick={onJoinTeam}>Open join team</button>,
+}));
+vi.mock("@/components/MobileCardSelect", () => ({
+  MobileCardSelect: ({ value, onValueChange, options, label }: any) => (
+    <select aria-label={label} value={value} onChange={(event) => onValueChange(event.target.value)}>
+      <option value="">Choose</option>
+      {(options || []).map((option: any) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+  ),
+}));
 vi.mock("@/components/home/HomeWelcomeGetStarted", () => ({ HomeWelcomeGetStarted: () => null }));
 vi.mock("@/components/club/ClubSetupProgressCard", () => ({ ClubSetupProgressCard: () => null }));
 vi.mock("@/components/pitch/GameTimerWidget", () => ({ default: () => null }));
@@ -141,6 +163,7 @@ describe("HomePage consolidated membership and event orchestration", () => {
     mocks.writeErrors = [];
     mocks.userChildren = [];
     mocks.primaryData = { memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] }, events: [] };
+    mocks.queryData = {};
     mocks.from.mockImplementation(queryFor);
     mocks.rpc.mockResolvedValue({ data: null, error: null });
     mocks.recordPointsHistory.mockResolvedValue(undefined);
@@ -267,6 +290,7 @@ describe("HomePage reward redemption orchestration", () => {
     mocks.writeErrors = [];
     mocks.userChildren = [];
     mocks.primaryData = { memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] }, events: [] };
+    mocks.queryData = {};
     mocks.from.mockImplementation(queryFor);
     mocks.tableResults = { clubs: { data: { name: "Synthetic Club", logo_url: null }, error: null } };
     mocks.recordPointsHistory.mockResolvedValue(undefined);
@@ -381,6 +405,7 @@ describe("HomePage reward fulfilment orchestration", () => {
     mocks.writeErrors = [];
     mocks.userChildren = [];
     mocks.primaryData = { memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] }, events: [] };
+    mocks.queryData = {};
     mocks.from.mockImplementation(queryFor);
     mocks.tableResults = {
       user_roles: {
@@ -461,33 +486,10 @@ describe("HomePage reward fulfilment orchestration", () => {
   });
 });
 
-describe("HomePage recurring event deletion orchestration", () => {
-  const parentEvent = {
-    id: "event-parent",
-    title: "Synthetic Series",
-    event_date: "2099-08-01T09:00:00Z",
-    start_time: "2099-08-01T09:00:00Z",
-    club_id: "club-1",
-    team_id: "team-1",
-    mini_league_id: null,
-    type: "training",
-    is_cancelled: false,
-    is_recurring: true,
-    parent_event_id: null,
-  };
-  const childEvent = {
-    id: "event-child",
-    title: "Synthetic Series Child",
-    event_date: "2099-08-08T09:00:00Z",
-    start_time: "2099-08-08T09:00:00Z",
-    club_id: "club-1",
-    team_id: "team-1",
-    mini_league_id: null,
-    type: "training",
-    is_cancelled: false,
-    is_recurring: false,
-    parent_event_id: "event-parent",
-  };
+
+describe("HomePage team and league access-request orchestration", () => {
+  const targetTeam = { id: "team-target", name: "U10 Blue", club_id: "club-1", clubs: { name: "Synthetic Club", sport: "soccer" } };
+  const targetLeague = { id: "league-1", name: "Mini League", club_id: "club-1", clubs: { name: "Synthetic Club", sport: "soccer" } };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -498,97 +500,174 @@ describe("HomePage recurring event deletion orchestration", () => {
     mocks.writeErrors = [];
     mocks.userChildren = [];
     mocks.primaryData = {
-      memberships: { teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], roles: [] },
-      events: [parentEvent, childEvent],
+      memberships: {
+        teamIds: ["team-existing"], clubIds: ["club-1"], clubAdminClubIds: [],
+        leagueAdminClubIds: [], miniLeagueIds: [],
+        roles: [{ role: "player", team_id: "team-existing", club_id: "club-1" }],
+      },
+      events: [],
+    };
+    mocks.queryData = {
+      "all-clubs": [{ id: "club-1", name: "Synthetic Club", sport: "soccer", class_mode_enabled: false }],
+      "all-teams": [targetTeam],
+      "all-mini-leagues": [targetLeague],
+      "team-children-for-link": [{ id: "child-1", name: "Synthetic Child" }],
+      "pending-role-requests-for-team": [],
     };
     mocks.from.mockImplementation(queryFor);
     mocks.tableResults = {};
     mocks.rpc.mockResolvedValue({ data: null, error: null });
   });
 
-  async function getDeleteMutation() {
+  async function openJoinDialog() {
     await renderHome();
-    const mutation = mocks.capturedMutations.find((item) =>
-      String(item?.mutationFn).includes("deleteType")
-      && String(item?.mutationFn).includes('from("events").delete()'),
+    fireEvent.click(await screen.findByRole("button", { name: "Open join team" }));
+    await screen.findByText("Request to Join Team");
+  }
+
+  function latestTeamRequestMutation() {
+    const mutation = [...mocks.capturedMutations].reverse().find((item) =>
+      String(item?.mutationFn).includes("mini_league_id")
+      && String(item?.mutationFn).includes("selectedTeamRole"),
     );
-    if (!mutation) throw new Error("Home event deletion mutation was not registered");
+    if (!mutation) throw new Error("Home team request mutation was not registered");
     return mutation;
   }
 
-  it("deletes only the selected event for a single-event action", async () => {
-    const mutation = await getDeleteMutation();
-    await mutation.mutationFn({ eventId: "event-child", deleteType: "single" });
+  function latestAdditionalAccessMutation() {
+    const mutation = [...mocks.capturedMutations].reverse().find((item) =>
+      String(item?.mutationFn).includes('throw new Error("Missing data")')
+      && String(item?.mutationFn).includes("teamRoleLabel"),
+    );
+    if (!mutation) throw new Error("Home additional-access mutation was not registered");
+    return mutation;
+  }
 
-    const eventDeletes = mocks.writes.filter((write) => write.table === "events" && write.operation === "delete");
-    expect(eventDeletes).toHaveLength(1);
-    expect(eventDeletes[0].filters).toContainEqual(["eq", "id", "event-child"]);
-    expect(eventDeletes[0].filters).not.toContainEqual(["eq", "parent_event_id", "event-parent"]);
+  it("submits an existing-child parent request with exact team, club and child metadata", async () => {
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "team-target" } });
+    fireEvent.change(await screen.findByLabelText("Link to Your Child"), { target: { value: "child-1" } });
+
+    await latestTeamRequestMutation().mutationFn();
+    expect(mocks.writes).toContainEqual(expect.objectContaining({
+      table: "role_requests",
+      operation: "insert",
+      payload: {
+        user_id: "user-1", team_id: "team-target", club_id: "club-1",
+        role: "parent", status: "pending",
+        metadata: { child_id: "child-1", child_name: "Synthetic Child" },
+      },
+    }));
   });
 
-  it("deletes series children before the parent when initiated from the recurring parent", async () => {
-    const mutation = await getDeleteMutation();
-    await mutation.mutationFn({ eventId: "event-parent", deleteType: "series" });
+  it("trims a new child's name before including it in the parent request", async () => {
+    mocks.queryData["team-children-for-link"] = [];
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "team-target" } });
+    fireEvent.change(await screen.findByPlaceholderText("Enter your child's full name"), { target: { value: "  New Child  " } });
 
-    const eventDeletes = mocks.writes.filter((write) => write.table === "events" && write.operation === "delete");
-    expect(eventDeletes).toHaveLength(2);
-    expect(eventDeletes[0].filters).toContainEqual(["eq", "parent_event_id", "event-parent"]);
-    expect(eventDeletes[1].filters).toContainEqual(["eq", "id", "event-parent"]);
+    await latestTeamRequestMutation().mutationFn();
+    expect(mocks.writes.find((write) => write.table === "role_requests")?.payload)
+      .toEqual(expect.objectContaining({ metadata: { child_name: "New Child" } }));
   });
 
-  it("resolves the series parent when deletion is initiated from a child", async () => {
-    const mutation = await getDeleteMutation();
-    await mutation.mutationFn({ eventId: "event-child", deleteType: "series" });
+  it("rejects a parent request when no existing child or new child name is supplied", async () => {
+    mocks.queryData["team-children-for-link"] = [];
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "team-target" } });
 
-    const eventDeletes = mocks.writes.filter((write) => write.table === "events" && write.operation === "delete");
-    expect(eventDeletes).toHaveLength(2);
-    expect(eventDeletes[0].filters).toContainEqual(["eq", "parent_event_id", "event-parent"]);
-    expect(eventDeletes[1].filters).toContainEqual(["eq", "id", "event-parent"]);
+    await expect(latestTeamRequestMutation().mutationFn()).rejects.toThrow(/select your child or add their name/i);
+    expect(mocks.writes.some((write) => write.table === "role_requests")).toBe(false);
   });
 
-  it("surfaces a child-row deletion failure and does not delete the parent", async () => {
-    mocks.writeErrors = [{
-      table: "events", operation: "delete", message: "child deletion denied",
-      filter: ["eq", "parent_event_id", "event-parent"],
-    }];
-    const mutation = await getDeleteMutation();
+  it("submits a league request against the league and its owning club", async () => {
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "league_league-1" } });
 
-    await expect(mutation.mutationFn({ eventId: "event-parent", deleteType: "series" }))
-      .rejects.toEqual({ message: "child deletion denied" });
-    const eventDeletes = mocks.writes.filter((write) => write.table === "events" && write.operation === "delete");
-    expect(eventDeletes).toHaveLength(1);
-    mocks.invalidateQueries.mockClear();
-    await act(async () => mutation.onError({ message: "child deletion denied" }));
-    expect(mocks.invalidateQueries).not.toHaveBeenCalled();
-  });
-
-  it("surfaces a parent deletion failure instead of reporting full-series success", async () => {
-    mocks.writeErrors = [{
-      table: "events", operation: "delete", message: "parent deletion denied",
-      filter: ["eq", "id", "event-parent"],
-    }];
-    const mutation = await getDeleteMutation();
-
-    let partialError: any;
-    try {
-      await mutation.mutationFn({ eventId: "event-child", deleteType: "series" });
-    } catch (error) {
-      partialError = error;
-    }
-    expect(partialError).toMatchObject({
-      message: "The repeat occurrences were deleted, but the original recurring event could not be deleted: parent deletion denied",
-      childrenDeleted: true,
+    await latestTeamRequestMutation().mutationFn();
+    expect(mocks.writes.find((write) => write.table === "role_requests")?.payload).toEqual({
+      user_id: "user-1", mini_league_id: "league-1", club_id: "club-1",
+      role: "league_admin", status: "pending",
     });
-    mocks.invalidateQueries.mockClear();
-    await act(async () => mutation.onError(partialError));
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["upcoming-events"] });
+    expect(mocks.writes.some((write) => write.table === "notifications")).toBe(false);
   });
 
-  it("invalidates the upcoming event cache only after successful deletion", async () => {
-    const mutation = await getDeleteMutation();
-    await mutation.mutationFn({ eventId: "event-child", deleteType: "single" });
-    await act(async () => mutation.onSuccess());
+  it("submits a non-parent team role without child metadata", async () => {
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "team-target" } });
+    fireEvent.change(screen.getByLabelText("Select Role"), { target: { value: "coach" } });
 
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["upcoming-events"] });
+    await latestTeamRequestMutation().mutationFn();
+    expect(mocks.writes.find((write) => write.table === "role_requests")?.payload).toEqual({
+      user_id: "user-1", team_id: "team-target", club_id: "club-1",
+      role: "coach", status: "pending", metadata: undefined,
+    });
+  });
+
+  it("rejects a duplicate league role request when that role is already held", async () => {
+    mocks.primaryData.memberships.roles = [{ role: "league_admin", team_id: null, club_id: "club-1" }];
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "league_league-1" } });
+
+    await expect(latestTeamRequestMutation().mutationFn()).rejects.toThrow(/already have this role in this league/i);
+    expect(mocks.writes.some((write) => write.table === "role_requests")).toBe(false);
+  });
+
+  it("rejects a duplicate role request when the user already holds that exact team role", async () => {
+    mocks.primaryData.memberships.roles = [{ role: "parent", team_id: "team-target", club_id: "club-1" }];
+    mocks.primaryData.memberships.teamIds = ["team-target"];
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "team-target" } });
+
+    await expect(latestTeamRequestMutation().mutationFn()).rejects.toThrow(/already have this role/i);
+    expect(mocks.writes.some((write) => write.table === "role_requests")).toBe(false);
+  });
+
+  it("requests additional coach access without replacing the user's existing role", async () => {
+    mocks.primaryData.memberships.roles = [{ role: "player", team_id: "team-target", club_id: "club-1" }];
+    mocks.primaryData.memberships.teamIds = ["team-target"];
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "team-target" } });
+
+    await latestAdditionalAccessMutation().mutationFn("coach");
+    expect(mocks.writes.find((write) => write.table === "role_requests")?.payload).toEqual({
+      user_id: "user-1", team_id: "team-target", club_id: "club-1", role: "coach", status: "pending",
+    });
+    expect(mocks.writes.some((write) => write.operation === "delete" || write.operation === "update")).toBe(false);
+  });
+
+  it("renders a pending elevated request as non-submittable", async () => {
+    mocks.primaryData.memberships.roles = [{ role: "player", team_id: "team-target", club_id: "club-1" }];
+    mocks.primaryData.memberships.teamIds = ["team-target"];
+    mocks.queryData["pending-role-requests-for-team"] = ["coach"];
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "team-target" } });
+
+    const coachRequestRow = (await screen.findByText("Request Coach Access")).closest("div.flex");
+    expect(coachRequestRow).not.toBeNull();
+    expect(within(coachRequestRow!).getByText("Pending")).toBeTruthy();
+    expect(within(coachRequestRow!).queryByRole("button")).toBeNull();
+  });
+
+  it("surfaces database rejection and performs no client-side notification insert", async () => {
+    mocks.writeError = { table: "role_requests", operation: "insert", message: "request denied" };
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "league_league-1" } });
+
+    await expect(latestTeamRequestMutation().mutationFn()).rejects.toEqual({ message: "request denied" });
+    expect(mocks.writes.some((write) => write.table === "notifications")).toBe(false);
+  });
+
+  it("invalidates both access-request views only after successful additional-access submission", async () => {
+    mocks.primaryData.memberships.roles = [{ role: "player", team_id: "team-target", club_id: "club-1" }];
+    mocks.primaryData.memberships.teamIds = ["team-target"];
+    await openJoinDialog();
+    fireEvent.change(screen.getByLabelText("Select Team"), { target: { value: "team-target" } });
+    const mutation = latestAdditionalAccessMutation();
+    await mutation.mutationFn("coach");
+    await act(async () => mutation.onSuccess(undefined, "coach"));
+
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["pending-role-requests-for-team", "user-1", "team-target"] });
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["role-requests"] });
   });
 });

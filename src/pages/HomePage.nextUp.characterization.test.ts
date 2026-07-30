@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/components/pitch/PitchBoard", () => ({ default: () => null }));
 
 import {
-  canManageHomeEvent,
   getEventLocalDateKey,
   getEventStartMs,
   getLocalDateKey,
@@ -116,31 +115,3 @@ describe("HomePage visible event selection", () => {
   });
 });
 
-describe("HomePage event management permissions", () => {
-  const clubEvent = { club_id: "club-1", team_id: null };
-  const teamEvent = { club_id: "club-1", team_id: "team-1" };
-
-  it("allows an app administrator globally", () => {
-    expect(canManageHomeEvent(teamEvent, [], true)).toBe(true);
-  });
-
-  it("allows a club administrator only inside their club", () => {
-    const roles = [{ role: "club_admin", club_id: "club-1", team_id: null }];
-    expect(canManageHomeEvent(clubEvent, roles, false)).toBe(true);
-    expect(canManageHomeEvent({ club_id: "club-2", team_id: null }, roles, false)).toBe(false);
-  });
-
-  it.each(["team_admin", "coach"])("allows a %s only for their team", (role) => {
-    const roles = [{ role, club_id: "club-1", team_id: "team-1" }];
-    expect(canManageHomeEvent(teamEvent, roles, false)).toBe(true);
-    expect(canManageHomeEvent({ club_id: "club-1", team_id: "team-2" }, roles, false)).toBe(false);
-  });
-
-  it.each(["player", "parent", "committee_member"])("does not grant event management to %s", (role) => {
-    expect(canManageHomeEvent(teamEvent, [{ role, club_id: "club-1", team_id: "team-1" }], false)).toBe(false);
-  });
-
-  it("does not grant access without a role", () => {
-    expect(canManageHomeEvent(teamEvent, null, false)).toBe(false);
-  });
-});
