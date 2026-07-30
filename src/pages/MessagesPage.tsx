@@ -1993,13 +1993,19 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!user?.id) return;
     const refreshPreviews = () => {
-      queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] });
-      queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] });
-      queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] });
-      queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] });
-      queryClient.invalidateQueries({ queryKey: ["latest-broadcast"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts", user.id] });
+      // Dripped in bounded batches rather than 6 concurrent N+1 cascades —
+      // firing them all at once saturated the Android WebView connection pool
+      // and froze the inbox. See src/lib/chatInvalidationQueue.ts.
+      queueChatInvalidation(queryClient, [
+        ["my-teams-with-messages", user.id],
+        ["member-clubs-with-messages", user.id],
+        ["my-chat-groups-with-messages", user.id],
+        ["dm-conversations", user.id],
+        ["latest-broadcast"],
+        ["unread-message-counts", user.id],
+      ]);
     };
+
     // Run once on mount so the cached preview is reconciled with the server.
     refreshPreviews();
     // NATIVE: `reactQueryNativeAdapter` is the single owner of foreground
