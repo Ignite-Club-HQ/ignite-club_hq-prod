@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   eventError: null as any,
   eventData: null as any,
   rsvps: [] as any[],
+  duties: [] as any[],
+  invoke: vi.fn(),
 }));
 
 const mutationNames = [
@@ -47,7 +49,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
       const key = options.queryKey?.[0];
       const values: Record<string, any> = {
         event: mocks.eventData,
-        "event-rsvps": mocks.rsvps, "event-guests": [], "event-duties": [],
+        "event-rsvps": mocks.rsvps, "event-guests": [], "event-duties": mocks.duties,
         "is-app-admin": false, "event-admin-check": mocks.isAdmin,
         "team-pro-football-status": true, "team-pro-status": true,
         "event-subs-manager-direct": false, "is-team-member": true,
@@ -107,6 +109,7 @@ function queryFor(table: string) {
     if (operation && selectedAfterWrite && configured.data == null && !configured.error) {
       return { data: { id: `${table}-synthetic-id` }, error: null };
     }
+    if (configured.data != null || configured.error) return configured;
     if (!operation && table === "user_roles") return { data: [{ user_id: "member-1" }, { user_id: "member-1" }, { user_id: "member-2" }], error: null };
     return configured;
   };
@@ -117,7 +120,7 @@ function queryFor(table: string) {
 }
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: vi.fn(queryFor), rpc: mocks.rpc, functions: { invoke: vi.fn() } },
+  supabase: { from: vi.fn(queryFor), rpc: mocks.rpc, functions: { invoke: mocks.invoke } },
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "user-1", email: "person@example.test" }, profile: { display_name: "Test Person" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
@@ -177,6 +180,8 @@ describe("EventDetailPage business-operation characterization", () => {
     mocks.eventError = null;
     mocks.eventData = { ...baseEvent };
     mocks.rsvps = [];
+    mocks.duties = [];
+    mocks.invoke.mockResolvedValue({ data: { success: true }, error: null });
     mocks.awardPoints.mockResolvedValue(undefined);
   });
 
@@ -267,5 +272,179 @@ describe("EventDetailPage business-operation characterization", () => {
     await expect(mutation("cancelEvent").mutationFn({ cancelType: "single" })).resolves.toBe(2);
     mutation("cancelEvent").onSuccess();
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["event", "event-1"] });
+  });
+
+  it("marks a member paid with the exact event ledger contract and removes only that member's payment", async () => {
+    mocks.eventData = { ...baseEvent, type: "social", amount: 24.5 };
+    await renderPage();
+    await mutation("togglePayment").mutationFn({ userId: "member-2", isPaid: false });
+    expect(mocks.operations.at(-1)).toEqual({
+      table: "event_payments",
+      kind: "insert",
+      payload: expect.objectContaining({
+        event_id: "event-1",
+        user_id: "member-2",
+        amount: 24.5,
+        payment_status: "paid",
+        paid_at: expect.any(String),
+      }),
+      filters: [],
+    });
+
+    mocks.operations = [];
+    await mutation("togglePayment").mutationFn({ userId: "member-2", isPaid: true });
+    expect(mocks.operations).toEqual([{
+      table: "event_payments",
+      kind: "delete",
+      filters: [["event_id", "event-1"], ["user_id", "member-2"]],
+    }]);
+  });
+
+  it("does not invalidate or report payment success when the ledger write is denied", async () => {
+    await renderPage();
+    const failure = { message: "payment update denied", code: "42501" };
+    mocks.results["event_payments:insert"] = [{ data: null, error: failure }];
+    await expect(mutation("togglePayment").mutationFn({ userId: "member-2", isPaid: false })).rejects.toEqual(failure);
+    mutation("togglePayment").onError(failure);
+    expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["event-payments", "event-1"] });
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Failed to update payment",
+      description: "payment update denied",
+      variant: "destructive",
+    });
+  });
+
+  it("claims only the selected duty for the authenticated user", async () => {
+    await renderPage();
+    await mutation("claimDuty").mutationFn("duty-2");
+    expect(mocks.operations).toEqual([{
+      table: "duties",
+      kind: "update",
+      payload: { assigned_to: "user-1" },
+      filters: [["id", "duty-2"]],
+    }]);
+    mutation("claimDuty").onSuccess();
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["event-duties", "event-1"] });
+  });
+
+  it("reports partial success when duty completion commits but its admin notification fails", async () => {
+    mocks.eventData = {
+      ...baseEvent,
+      event_date: "2020-08-10",
+      start_time: "2020-08-10T10:00:00Z",
+      end_time: "2020-08-10T11:00:00Z",
+    };
+    mocks.duties = [{ id: "duty-1", name: "Canteen", status: "open", assigned_to: "user-1" }];
+    await renderPage();
+    mocks.results["duties:update"] = [{ data: { id: "duty-1" }, error: null }];
+    mocks.results["user_roles:select"] = [{
+      data: [{ user_id: "user-1" }, { user_id: "admin-2" }, { user_id: "admin-2" }],
+      error: null,
+    }];
+    mocks.results["notifications:insert"] = [{ data: null, error: { message: "notification denied", code: "42501" } }];
+
+    let caught: any;
+    try {
+      await mutation("completeDuty").mutationFn("duty-1");
+    } catch (error) {
+      caught = error;
+    }
+    mutation("completeDuty").onError(caught);
+    expect(mocks.operations.find(op => op.table === "duties")?.filters).toEqual([
+      ["id", "duty-1"], ["status", "open"],
+    ]);
+    expect(mocks.operations.find(op => op.table === "notifications")?.payload).toEqual([{
+      user_id: "admin-2",
+      type: "duty_completed",
+      message: "Test Person completed Canteen for Synthetic match",
+      related_id: "event-1",
+    }]);
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Duty completed — notification failed",
+      description: expect.stringContaining("notification denied"),
+      variant: "destructive",
+    }));
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["event-duties", "event-1"] });
+  });
+
+  it("reports a recurring cancellation as partial when children commit but the parent update fails", async () => {
+    mocks.eventData = { ...baseEvent, is_recurring: true };
+    await renderPage();
+    mocks.results["events:update"] = [
+      { data: null, error: null },
+      { data: null, error: { message: "parent cancellation denied", code: "42501" } },
+    ];
+    let caught: any;
+    try {
+      await mutation("cancelEvent").mutationFn({ cancelType: "series" });
+    } catch (error) {
+      caught = error;
+    }
+    mutation("cancelEvent").onError(caught);
+
+    expect(mocks.operations.filter(op => op.table === "events")).toEqual([
+      expect.objectContaining({ filters: [["parent_event_id", "event-1"]] }),
+      expect.objectContaining({ filters: [["id", "event-1"]] }),
+    ]);
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Series cancellation incomplete",
+      description: expect.stringContaining("parent cancellation denied"),
+      variant: "destructive",
+    }));
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["event", "event-1"] });
+  });
+
+  it("reminds only unique non-responders who are outside the cooldown window", async () => {
+    await renderPage();
+    mocks.results["rsvps:select"] = [{ data: [{ user_id: "member-1" }], error: null }];
+    mocks.results["user_roles:select"] = [{
+      data: [
+        { user_id: "member-1", role: "player" },
+        { user_id: "member-2", role: "parent" },
+        { user_id: "member-2", role: "coach" },
+        { user_id: "member-3", role: "player" },
+      ],
+      error: null,
+    }];
+    mocks.results["notifications:select"] = [{ data: [{ user_id: "member-3" }], error: null }];
+    const count = await mutation("remind").mutationFn();
+    expect(count).toBe(1);
+    expect(mocks.operations.find(op => op.table === "notifications")?.payload).toEqual([{
+      user_id: "member-2",
+      type: "event_reminder",
+      message: 'Reminder: Please RSVP for "Synthetic match"',
+      related_id: "event-1",
+    }]);
+  });
+
+  it("resends invites only to newly eligible members and pushes only after notification rows commit", async () => {
+    mocks.eventData = { ...baseEvent, created_by: "creator-1" };
+    await renderPage();
+    mocks.results["user_roles:select"] = [{
+      data: [
+        { user_id: "creator-1", role: "team_admin" },
+        { user_id: "member-2", role: "player" },
+        { user_id: "member-2", role: "coach" },
+        { user_id: "member-3", role: "parent" },
+      ],
+      error: null,
+    }];
+    mocks.results["notifications:select"] = [{ data: [{ user_id: "member-3" }], error: null }];
+    const count = await mutation("resendInvites").mutationFn();
+    expect(count).toBe(1);
+    expect(mocks.operations.find(op => op.table === "notifications")?.payload).toEqual([{
+      user_id: "member-2",
+      type: "event_invite",
+      message: "You've been invited to: Synthetic match",
+      related_id: "event-1",
+      skip_push: true,
+    }]);
+    expect(mocks.invoke).toHaveBeenCalledWith("send-push-notification", {
+      body: expect.objectContaining({
+        userId: "member-2",
+        url: "/events/event-1",
+        notificationType: "event_invite",
+      }),
+    });
   });
 });
