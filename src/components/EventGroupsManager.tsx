@@ -170,7 +170,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
           team_a_color: group.team_a_color || "#ef4444",
           team_b_color: group.team_b_color || "#3b82f6",
           players,
-        } as unknown as Json);
+        });
       }
       return groupsWithPlayers;
     },
