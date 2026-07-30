@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
   deletedAt: null as string | null,
   toast: vi.fn(),
   invalidateQueries: vi.fn(),
+  writes: [] as Array<{ table: string; kind: string; payload?: any; filters: any[] }>,
+  operations: [] as string[],
+  results: {} as Record<string, Array<{ data: any; error: any }>>,
+  invoke: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
@@ -32,7 +36,50 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "user-1" } }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: vi.fn(), rpc: vi.fn(), functions: { invoke: vi.fn() } } }));
+function supabaseQuery(table: string) {
+  let kind = "select";
+  let write: { table: string; kind: string; payload?: any; filters: any[] } | null = null;
+  const query: any = {};
+  query.select = vi.fn(() => { kind = "select"; return query; });
+  query.insert = vi.fn((payload: any) => {
+    kind = "insert";
+    write = { table, kind, payload, filters: [] };
+    mocks.writes.push(write);
+    mocks.operations.push(`${table}:insert`);
+    return query;
+  });
+  query.update = vi.fn((payload: any) => {
+    kind = "update";
+    write = { table, kind, payload, filters: [] };
+    mocks.writes.push(write);
+    mocks.operations.push(`${table}:update`);
+    return query;
+  });
+  query.delete = vi.fn(() => {
+    kind = "delete";
+    write = { table, kind, filters: [] };
+    mocks.writes.push(write);
+    mocks.operations.push(`${table}:delete`);
+    return query;
+  });
+  for (const method of ["eq", "in", "gte", "is", "or", "order", "limit"]) {
+    query[method] = vi.fn((...args: any[]) => {
+      write?.filters.push([method, ...args]);
+      return query;
+    });
+  }
+  const resolve = () => mocks.results[`${table}:${kind}`]?.shift() ?? { data: [], error: null };
+  query.single = vi.fn(async () => resolve());
+  query.maybeSingle = vi.fn(async () => resolve());
+  Object.defineProperty(query, "then", {
+    value: (ok: any, fail: any) => Promise.resolve(resolve()).then(ok, fail),
+  });
+  return query;
+}
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { from: vi.fn(supabaseQuery), rpc: vi.fn(), functions: { invoke: mocks.invoke } },
+}));
 vi.mock("@/hooks/useNearbyGameEvent", () => ({ findNearbyGameEvent: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/components/pitch/PitchBoard", () => ({ default: () => null }));
 vi.mock("@/components/team/TeamNextEventCard", () => ({ TeamNextEventCard: () => null }));
@@ -46,13 +93,38 @@ vi.mock("@/components/PrimarySponsorDisplay", () => ({ PrimarySponsorDisplay: ()
 vi.mock("@/components/TeamSponsorSelector", () => ({ TeamSponsorSelector: () => null }));
 vi.mock("@/components/TeamRewardsManager", () => ({ default: () => null }));
 vi.mock("@/components/chat/ChatGroupsList", () => ({ default: () => null }));
+vi.mock("@/components/ui/dropdown-menu", async () => {
+  const React = await import("react");
+  return {
+    DropdownMenu: ({ children }: any) => <div>{children}</div>,
+    DropdownMenuTrigger: ({ children }: any) => <>{children}</>,
+    DropdownMenuContent: ({ children }: any) => <div>{children}</div>,
+    DropdownMenuItem: React.forwardRef<HTMLButtonElement, any>(({ children, onClick }, ref) => (
+      <button ref={ref} onClick={onClick}>{children}</button>
+    )),
+    DropdownMenuSeparator: () => <hr />,
+  };
+});
+vi.mock("@/components/ArchiveTeamDialog", () => ({
+  ArchiveTeamDialog: ({ trigger }: any) => trigger,
+}));
+vi.mock("@/components/ConfirmDeleteDialog", () => ({
+  ConfirmDeleteDialog: ({ open, entityType, onConfirm, isLoading, permanent }: any) => open ? (
+    <button disabled={isLoading} onClick={onConfirm}>
+      {permanent ? `Confirm permanent ${entityType} deletion` : `Confirm ${entityType} deletion`}
+    </button>
+  ) : null,
+}));
 
 import TeamDetailPage from "./TeamDetailPage";
 
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={["/teams/team-1"]}>
-      <Routes><Route path="/teams/:id" element={<TeamDetailPage />} /></Routes>
+      <Routes>
+        <Route path="/teams/:id" element={<TeamDetailPage />} />
+        <Route path="/clubs/:id" element={<div>Club destination</div>} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -64,6 +136,10 @@ describe("TeamDetailPage role-aware rendering", () => {
     mocks.isClubAdmin = false;
     mocks.isAppAdmin = false;
     mocks.deletedAt = null;
+    mocks.writes = [];
+    mocks.operations = [];
+    mocks.results = {};
+    mocks.invoke.mockResolvedValue({ data: { success: true }, error: null });
   });
 
   it("shows a player the team without exposing management actions", async () => {
@@ -101,5 +177,86 @@ describe("TeamDetailPage role-aware rendering", () => {
     renderPage();
     expect(await screen.findByText(/Will be permanently deleted after 30 days/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument();
+  });
+
+  it("restores only the selected team and refreshes its detail cache", async () => {
+    mocks.isClubAdmin = true;
+    mocks.deletedAt = "2026-07-01T00:00:00Z";
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Restore" }));
+
+    await waitFor(() => expect(mocks.writes).toContainEqual({
+      table: "teams",
+      kind: "update",
+      payload: { deleted_at: null, deleted_by: null },
+      filters: [["eq", "id", "team-1"]],
+    }));
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["team", "team-1"] });
+    expect(mocks.toast).toHaveBeenCalledWith({ title: "Team restored!" });
+  });
+
+  it("does not report or cache a restore when the team update is denied", async () => {
+    mocks.isClubAdmin = true;
+    mocks.deletedAt = "2026-07-01T00:00:00Z";
+    mocks.results["teams:update"] = [{ data: null, error: { message: "restore denied", code: "42501" } }];
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Restore" }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Error",
+      description: "Failed to restore team.",
+      variant: "destructive",
+    }));
+    expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["team", "team-1"] });
+  });
+
+  it("does not announce deletion success when the team soft-delete is denied", async () => {
+    mocks.isClubAdmin = true;
+    mocks.results["user_roles:select"] = [{ data: [], error: null }];
+    mocks.results["teams:update"] = [{ data: null, error: { message: "delete denied", code: "42501" } }];
+    renderPage();
+    fireEvent.click(await screen.findByText("Delete Team"));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm team deletion" }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Error",
+      description: "Failed to delete team.",
+      variant: "destructive",
+    }));
+    expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Team deleted" }));
+  });
+
+  it("commits the team deletion before telling members that it was deleted", async () => {
+    mocks.isClubAdmin = true;
+    mocks.results["user_roles:select"] = [{
+      data: [{ user_id: "user-1" }, { user_id: "member-2" }, { user_id: "member-3" }],
+      error: null,
+    }];
+    renderPage();
+    fireEvent.click(await screen.findByText("Delete Team"));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm team deletion" }));
+
+    await waitFor(() => expect(mocks.operations).toContain("teams:update"));
+    expect(mocks.operations.indexOf("teams:update")).toBeLessThan(mocks.operations.indexOf("notifications:insert"));
+    expect(mocks.writes.find(write => write.table === "notifications")?.payload).toEqual([
+      { user_id: "member-2", type: "membership", message: "Synthetic Team has been deleted", related_id: "club-1" },
+      { user_id: "member-3", type: "membership", message: "Synthetic Team has been deleted", related_id: "club-1" },
+    ]);
+  });
+
+  it("invokes permanent deletion with the exact team boundary", async () => {
+    mocks.isClubAdmin = true;
+    mocks.deletedAt = "2026-07-01T00:00:00Z";
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Permanently Delete" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm permanent team deletion" }));
+
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("permanent-delete-entity", {
+      body: { entityType: "team", entityId: "team-1" },
+    }));
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Team permanently deleted",
+      description: "All data has been removed.",
+    });
   });
 });
