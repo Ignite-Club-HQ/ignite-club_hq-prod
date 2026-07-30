@@ -1029,6 +1029,9 @@ export default function HomePage() {
     }
   };
 
+  // Stable per-attempt idempotency key so retries/double taps can't double-spend.
+  const redeemAttemptKeyRef = useRef<string | null>(null);
+
   // Redeem mutation
   const redeemMutation = useMutation({
     mutationFn: async ({
