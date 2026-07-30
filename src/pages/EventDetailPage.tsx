@@ -3028,7 +3028,7 @@ export default function EventDetailPage() {
             actionVariant="destructive"
             onSingleAction={() => deleteEventMutation.mutate('single')}
             onSeriesAction={() => deleteEventMutation.mutate('series')}
-            isPending={deleteEventMutation.isPending}
+            isPending={deleteEventMutation.isPending || deletePending}
           />
         ) : (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -3043,7 +3043,9 @@ export default function EventDetailPage() {
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction 
                   onClick={() => deleteEventMutation.mutate('single')} 
+                  disabled={deleteEventMutation.isPending || deletePending}
                   className="bg-destructive text-destructive-foreground"
+
                 >
                   Delete
                 </AlertDialogAction>
