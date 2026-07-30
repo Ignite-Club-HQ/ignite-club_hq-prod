@@ -7723,6 +7723,7 @@ export type Database = {
           club_id: string | null
           created_at: string
           id: string
+          idempotency_key: string | null
           points_spent: number
           redeemed_at: string | null
           reward_id: string
@@ -7736,6 +7737,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           points_spent: number
           redeemed_at?: string | null
           reward_id: string
@@ -7749,6 +7751,7 @@ export type Database = {
           club_id?: string | null
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           points_spent?: number
           redeemed_at?: string | null
           reward_id?: string
@@ -11880,6 +11883,14 @@ export type Database = {
         Returns: undefined
       }
       record_push_success: { Args: { p_endpoint: string }; Returns: undefined }
+      redeem_club_reward: {
+        Args: {
+          _child_id?: string
+          _idempotency_key?: string
+          _reward_id: string
+        }
+        Returns: Json
+      }
       regenerate_competition_join_token: {
         Args: { p_competition_id: string }
         Returns: string

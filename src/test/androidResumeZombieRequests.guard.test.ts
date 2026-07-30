@@ -55,7 +55,7 @@ describe("native adapter aborts before refetching on resume", () => {
 
   it("aborts zombies before handleFocus / recovery on app resume", () => {
     const abortIdx = adapter.indexOf("abortZombieRequests('app-resume')");
-    const recoverIdx = adapter.indexOf("recoverErroredQueries('app-resume')");
+    const recoverIdx = adapter.indexOf("recoverErroredQueries('app-resume'");
     expect(abortIdx).toBeGreaterThan(-1);
     expect(recoverIdx).toBeGreaterThan(-1);
     expect(abortIdx).toBeLessThan(recoverIdx);
