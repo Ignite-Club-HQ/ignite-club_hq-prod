@@ -6,6 +6,7 @@ import {
   Sheet,
   SheetContent,
   SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 
 interface MessageAction {
@@ -355,6 +356,9 @@ export function MessageActionSheet({
         style={{ zIndex: 100002 }}
       >
         <SheetTitle className="sr-only">Message Actions</SheetTitle>
+        <SheetDescription className="sr-only">
+          Choose an available action for this message.
+        </SheetDescription>
 
         <div className="py-0">
 
