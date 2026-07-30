@@ -1338,11 +1338,17 @@ export default function HomePage() {
       const claimerName = profile?.display_name || "Someone";
 
       // Notify club admins about the claim
-      const { data: clubAdmins } = await supabase
+      const { data: clubAdmins, error: adminsError } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("club_id", redemption.club_id)
         .eq("role", "club_admin");
+
+      if (adminsError) {
+        throw new Error(
+          `Reward was marked as fulfilled, but administrators could not be notified: ${adminsError.message}`
+        );
+      }
 
       if (clubAdmins && clubAdmins.length > 0) {
         const notifications = clubAdmins
@@ -1355,7 +1361,14 @@ export default function HomePage() {
           }));
 
         if (notifications.length > 0) {
-          await supabase.from("notifications").insert(notifications);
+          const { error: notifyError } = await supabase
+            .from("notifications")
+            .insert(notifications);
+          if (notifyError) {
+            throw new Error(
+              `Reward was marked as fulfilled, but administrator notifications failed: ${notifyError.message}`
+            );
+          }
         }
       }
     },
@@ -1368,13 +1381,18 @@ export default function HomePage() {
       });
     },
     onError: (error: any) => {
+      // Fulfilment may already have succeeded — keep the list in sync either way.
+      queryClient.invalidateQueries({ queryKey: ["pending-redemptions-home"] });
+      setClaimDialogOpen(false);
       toast({
-        title: "Failed to claim reward",
-        description: error.message || "Please try again",
+        title: "Reward fulfilled, notification failed",
+        description:
+          error?.message || "The reward was updated but administrators may not have been notified.",
         variant: "destructive",
       });
     },
   });
+
 
   // Only fetch all clubs/teams/leagues when join dialogs are open (lazy loading)
   const { data: clubs, error: clubsError, isLoading: clubsLoading } = useQuery({
