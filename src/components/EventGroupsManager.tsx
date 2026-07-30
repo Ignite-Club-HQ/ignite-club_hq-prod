@@ -418,30 +418,25 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     const sortedPlayers = [...availablePlayers];
     const leagueColors = miniLeague?.bib_colors || DEFAULT_BIB_COLORS;
     const matchNames = ["Match 1", "Match 2", "Match 3", "Match 4", "Match 5", "Match 6", "Match 7", "Match 8"];
-    
-    const matchIds: string[] = [];
-    for (let i = 0; i < effectiveNumMatches; i++) {
+
+    // Build the match metadata first; nothing is written until the single
+    // atomic `replace_event_groups` RPC below, so a mid-way failure can never
+    // leave half-created matches behind.
+    const matchSpecs = Array.from({ length: effectiveNumMatches }, (_, i) => {
       const colors = getMatchColors(i, leagueColors);
-      const abilityBand = effectiveAbilityMode === "similar" 
+      const abilityBand = effectiveAbilityMode === "similar"
         ? (["Advanced", "Intermediate", "Beginner"][Math.floor(i / Math.ceil(effectiveNumMatches / 3))] || null)
         : null;
-      
-      const { data, error } = await supabase
-        .from("event_groups")
-        .insert({
-          event_id: eventId,
-          name: matchNames[i] || `Match ${i + 1}`,
-          ability_band: abilityBand,
-          pitch_name: `Pitch ${i + 1}`,
-          display_order: i + 1,
-          team_a_color: colors.teamA,
-          team_b_color: colors.teamB,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      matchIds.push(data.id);
-    }
+      return {
+        name: matchNames[i] || `Match ${i + 1}`,
+        ability_band: abilityBand,
+        pitch_name: `Pitch ${i + 1}`,
+        display_order: i + 1,
+        team_a_color: colors.teamA,
+        team_b_color: colors.teamB,
+      };
+    });
+
 
     // Calculate target sizes
     const totalPlayerCount = sortedPlayers.length;
