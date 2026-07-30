@@ -2107,6 +2107,7 @@ export default function VaultPage() {
   const [isEmptyingTrash, setIsEmptyingTrash] = useState(false);
   const emptyTrash = async () => {
     if (!trashItems) return;
+    if (isEmptyingTrash) return;
     setIsEmptyingTrash(true);
     try {
       const allPhotoIds = (trashItems.photos || []).map((p: any) => p.id);
@@ -2130,22 +2131,32 @@ export default function VaultPage() {
         fileIds: [...allPhotoIds, ...allFileIds],
       });
 
-      if (result.failed.length > 0) {
-        toast.error(`${result.failed.length} item(s) could not be deleted`);
-      }
+      const succeededCount = (result.photosDeleted ?? 0) + (result.filesDeleted ?? 0);
+      const failedCount = result.failed.length;
 
-      
+      // Always refresh so remaining (failed) items stay visible and counts are accurate
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
-      toast.success("Trash emptied successfully");
+
+      if (failedCount === 0) {
+        toast.success("Trash emptied successfully");
+      } else if (succeededCount > 0) {
+        // Partial success: exactly one accurate warning, never a success toast
+        toast.warning(
+          `Trash partially emptied: ${succeededCount} item(s) deleted, ${failedCount} item(s) could not be deleted`
+        );
+      } else {
+        toast.error(`${failedCount} item(s) could not be deleted`);
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to empty trash");
     } finally {
       setIsEmptyingTrash(false);
     }
   };
+
 
   // Move file to a different folder or team
   const moveFileMutation = useMutation({
