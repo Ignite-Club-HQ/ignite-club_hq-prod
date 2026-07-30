@@ -14,7 +14,9 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { queueChatInvalidation } from '@/lib/chatInvalidationQueue';
+
 import { mark as coldMark } from '@/lib/coldStartMarks';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,16 +69,22 @@ function invalidateChatFromPush(queryClient: QueryClient, userId: string | undef
   if (!notificationType || !CHAT_NOTIFICATION_TYPES.has(notificationType)) return;
 
   try {
+    // Collected, then flushed in bounded dripped batches — a burst of pushes
+    // must never fan out into a connection-pool-saturating refetch storm on
+    // Android WebView. See src/lib/chatInvalidationQueue.ts.
+    const keys: QueryKey[] = [];
     if (userId) {
-      queryClient.invalidateQueries({ queryKey: ['unread-message-counts', userId] });
-      queryClient.invalidateQueries({ queryKey: ['chat-group-unread-cache', userId] });
-      queryClient.invalidateQueries({ queryKey: ['my-teams-with-messages', userId] });
-      queryClient.invalidateQueries({ queryKey: ['member-clubs-with-messages', userId] });
-      queryClient.invalidateQueries({ queryKey: ['my-chat-groups-with-messages', userId] });
-      queryClient.invalidateQueries({ queryKey: ['dm-conversations', userId] });
-      queryClient.invalidateQueries({ queryKey: ['club-admin-conversations', userId] });
+      keys.push(
+        ['unread-message-counts', userId],
+        ['chat-group-unread-cache', userId],
+        ['my-teams-with-messages', userId],
+        ['member-clubs-with-messages', userId],
+        ['my-chat-groups-with-messages', userId],
+        ['dm-conversations', userId],
+        ['club-admin-conversations', userId],
+      );
     }
-    queryClient.invalidateQueries({ queryKey: ['latest-broadcast'] });
+    keys.push(['latest-broadcast']);
 
     const teamId = asString(data?.team_id) || asString(data?.teamId);
     const clubId = asString(data?.club_id) || asString(data?.clubId);
@@ -84,25 +92,28 @@ function invalidateChatFromPush(queryClient: QueryClient, userId: string | undef
     const conversationId = asString(data?.conversation_id) || asString(data?.conversationId);
     const contextId = asString(data?.context_id) || asString(data?.contextId);
 
-    if (notificationType === 'team_message' && teamId) queryClient.invalidateQueries({ queryKey: ['team-messages', teamId] });
-    if (notificationType === 'club_message' && clubId) queryClient.invalidateQueries({ queryKey: ['club-messages', clubId] });
-    if (notificationType === 'group_message' && groupId) queryClient.invalidateQueries({ queryKey: ['group-messages', groupId] });
-    if (notificationType === 'direct_message' && conversationId) queryClient.invalidateQueries({ queryKey: ['dm-messages', conversationId] });
+    if (notificationType === 'team_message' && teamId) keys.push(['team-messages', teamId]);
+    if (notificationType === 'club_message' && clubId) keys.push(['club-messages', clubId]);
+    if (notificationType === 'group_message' && groupId) keys.push(['group-messages', groupId]);
+    if (notificationType === 'direct_message' && conversationId) keys.push(['dm-messages', conversationId]);
     if (notificationType === 'club_admin_message' && (contextId || conversationId)) {
-      queryClient.invalidateQueries({ queryKey: ['club-admin-messages', contextId || conversationId] });
+      keys.push(['club-admin-messages', contextId || conversationId]);
     }
-    if (notificationType === 'broadcast') queryClient.invalidateQueries({ queryKey: ['broadcast-messages'] });
+    if (notificationType === 'broadcast') keys.push(['broadcast-messages']);
     if (notificationType === 'message_reply' || notificationType === 'message_mention') {
-      if (teamId) queryClient.invalidateQueries({ queryKey: ['team-messages', teamId] });
-      if (clubId) queryClient.invalidateQueries({ queryKey: ['club-messages', clubId] });
-      if (groupId) queryClient.invalidateQueries({ queryKey: ['group-messages', groupId] });
-      if (conversationId) queryClient.invalidateQueries({ queryKey: ['dm-messages', conversationId] });
-      if (contextId) queryClient.invalidateQueries({ queryKey: ['club-admin-messages', contextId] });
+      if (teamId) keys.push(['team-messages', teamId]);
+      if (clubId) keys.push(['club-messages', clubId]);
+      if (groupId) keys.push(['group-messages', groupId]);
+      if (conversationId) keys.push(['dm-messages', conversationId]);
+      if (contextId) keys.push(['club-admin-messages', contextId]);
     }
+
+    queueChatInvalidation(queryClient, keys);
   } catch (err) {
     console.warn('[useNativePush] Failed to invalidate chat push caches:', err);
   }
 }
+
 
 async function loadNativePushModule() {
   if (moduleLoadAttempted) {
