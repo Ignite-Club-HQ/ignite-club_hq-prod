@@ -5,7 +5,7 @@ import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import SoccerBall from "@/components/pitch/SoccerBall";
-import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, Pencil, Trash2, XCircle, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown, ChevronRight } from "lucide-react";
+import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 // Lazy-loaded to keep them out of the HomePage critical path. Each is only
 // mounted when the user opens a specific dialog / lands on a banner-eligible
@@ -79,7 +79,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logHomeOpenLatency, resetHomeOpenLog } from "@/lib/homeOpenLatency";
-import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { recordPointsHistory } from "@/lib/pointsHistory";
 import { format, isToday, isTomorrow, parseISO } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
