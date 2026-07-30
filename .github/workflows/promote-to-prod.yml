@@ -304,22 +304,26 @@ jobs:
           run_sql -c "create extension if not exists supabase_vault with schema vault;" >/dev/null || true
 
           BASE_URL="https://${PROJECT_REF}.supabase.co"
-          run_sql -v base="$BASE_URL" -c "
+          # psql does not expand :'var' placeholders reliably inside a -c argument;
+          # feed SQL on stdin so the variables are substituted before Postgres parses it.
+          run_sql -v base="$BASE_URL" <<'SQL' >/dev/null
             select vault.create_secret(:'base', 'functions_base_url', 'Edge functions base URL')
             where not exists (select 1 from vault.secrets where name = 'functions_base_url');
 
             select vault.update_secret(id, :'base', 'functions_base_url', 'Edge functions base URL')
             from vault.secrets
-            where name = 'functions_base_url';" >/dev/null
+            where name = 'functions_base_url';
+SQL
 
           if [ -n "$KEY" ]; then
-            run_sql -v key="$KEY" -c "
+            run_sql -v key="$KEY" <<'SQL' >/dev/null
               select vault.create_secret(:'key', 'service_role_key', 'Service role key for pg_net dispatch')
               where not exists (select 1 from vault.secrets where name = 'service_role_key');
 
               select vault.update_secret(id, :'key', 'service_role_key', 'Service role key for pg_net dispatch')
               from vault.secrets
-              where name = 'service_role_key';" >/dev/null
+              where name = 'service_role_key';
+SQL
             echo "✅ Vault service_role_key seeded from GitHub secret."
           else
             echo "ℹ️  No service-role key secret set — relying on an existing Vault entry."
