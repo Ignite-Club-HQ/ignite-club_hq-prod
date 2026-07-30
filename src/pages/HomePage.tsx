@@ -370,14 +370,11 @@ export default function HomePage() {
     }
   };
   
-  const [clubDialogOpen, setClubDialogOpen] = useState(false);
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [installDialogOpen, setInstallDialogOpen] = useState(false);
   const [memberInviteOpen, setMemberInviteOpen] = useState(false);
-  const [selectedClub, setSelectedClub] = useState<string>("");
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [selectedClubForTeam, setSelectedClubForTeam] = useState<string>("");
-  const [selectedClubRole, setSelectedClubRole] = useState<ClubRole>("club_admin");
   const [selectedTeamRole, setSelectedTeamRole] = useState<TeamRole>("parent");
   const [selectedChildForLink, setSelectedChildForLink] = useState<string>("");
   const [newChildName, setNewChildName] = useState<string>("");
@@ -388,20 +385,12 @@ export default function HomePage() {
   const [pitchBoardTeam, setPitchBoardTeam] = useState<{ id: string; name: string; members: Array<{ id: string; user_id: string; role: string; profiles: { display_name: string | null; avatar_url: string | null } | null }>; readOnly: boolean; linkedEventId?: string | null } | null>(null);
   const [pitchBoardLoading, setPitchBoardLoading] = useState(false);
   const [pitchBoardsExpanded, setPitchBoardsExpanded] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [eventToCancel, setEventToCancel] = useState<Event | null>(null);
   const [quickRsvpEvent, setQuickRsvpEvent] = useState<Event | null>(null);
   const [rewardQROpen, setRewardQROpen] = useState(false);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   
   const [selectedUpgradeClub, setSelectedUpgradeClub] = useState<string>("");
-  const [remindDialogOpen, setRemindDialogOpen] = useState(false);
-  const [eventToRemind, setEventToRemind] = useState<Event | null>(null);
-  const [nonRsvpCount, setNonRsvpCount] = useState(0);
-  const [loadingRemindCount, setLoadingRemindCount] = useState(false);
   const [rewardsDialogOpen, setRewardsDialogOpen] = useState(false);
   const [selectedRewardClubId, setSelectedRewardClubId] = useState<string | null>(null);
   const [selectedReward, setSelectedReward] = useState<any>(null);
@@ -1244,7 +1233,7 @@ export default function HomePage() {
       if (error) throw error;
       return data as Club[];
     },
-    enabled: !!user && (clubDialogOpen || teamDialogOpen || !!activeClubFilter),
+    enabled: !!user && (teamDialogOpen || !!activeClubFilter),
     staleTime: 1000 * 60 * 5,
     placeholderData: (prev) => prev,
   });
