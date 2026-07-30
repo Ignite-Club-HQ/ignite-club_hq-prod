@@ -3758,6 +3758,7 @@ export type Database = {
       event_group_players: {
         Row: {
           created_at: string
+          event_id: string
           group_id: string
           id: string
           player_id: string
@@ -3765,6 +3766,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          event_id: string
           group_id: string
           id?: string
           player_id: string
@@ -3772,12 +3774,20 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          event_id?: string
           group_id?: string
           id?: string
           player_id?: string
           team?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "event_group_players_group_event_fkey"
+            columns: ["group_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id", "event_id"]
+          },
           {
             foreignKeyName: "event_group_players_group_id_fkey"
             columns: ["group_id"]
