@@ -1127,7 +1127,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           if (roleErr && !roleErr.message?.includes("duplicate")) {
             throw roleErr;
           }
-          await supabase.from("notifications").insert({
+          const { error: notifyErr } = await supabase.from("notifications").insert({
             user_id: match.user_id,
             type: "membership",
             message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === selectedRole)?.label || selectedRole}`,
@@ -1145,8 +1145,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             secondParentAddedDirectly: false,
             existingUserAdded: {
               name: match.display_name || dedupeEmail,
+              notificationFailed: !!notifyErr,
+              notificationError: notifyErr?.message ?? null,
             },
           };
+
         }
       }
 
