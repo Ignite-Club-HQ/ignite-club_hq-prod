@@ -17,6 +17,9 @@ interface TeamChatPreviewProps {
 
 export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+
 
   // Latest message reads denormalised columns kept fresh by
   // tg_team_messages_update_parent_preview on the teams row.
