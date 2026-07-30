@@ -1315,17 +1315,39 @@ export default function HomePage() {
     },
   });
 
+  // Series deletion is two non-atomic database operations (children, then the
+  // parent). Both results are inspected; a parent failure after successful
+  // child deletion is tagged so the UI can report the partial state accurately.
+  class SeriesPartialDeleteError extends Error {
+    childrenDeleted = true;
+  }
+
   const deleteEventMutation = useMutation({
     mutationFn: async ({ eventId, deleteType }: { eventId: string; deleteType: 'single' | 'series' }) => {
       const event = events?.find(e => e.id === eventId);
+      const deleteSeries = async (parentId: string) => {
+        // Children first — abort before touching the parent if this fails.
+        const { error: childrenError } = await supabase
+          .from("events")
+          .delete()
+          .eq("parent_event_id", parentId);
+        if (childrenError) throw childrenError;
+
+        const { error: parentError } = await supabase
+          .from("events")
+          .delete()
+          .eq("id", parentId);
+        if (parentError) {
+          throw new SeriesPartialDeleteError(
+            `The repeat occurrences were deleted, but the original recurring event could not be deleted: ${parentError.message}`
+          );
+        }
+      };
+
       if (deleteType === 'series' && event?.parent_event_id) {
-        // Delete parent and all children
-        await supabase.from("events").delete().eq("parent_event_id", event.parent_event_id);
-        await supabase.from("events").delete().eq("id", event.parent_event_id);
+        await deleteSeries(event.parent_event_id);
       } else if (deleteType === 'series' && event?.is_recurring) {
-        // This is the parent - delete all children first, then this event
-        await supabase.from("events").delete().eq("parent_event_id", eventId);
-        await supabase.from("events").delete().eq("id", eventId);
+        await deleteSeries(eventId);
       } else {
         // Just delete this single event
         const { error } = await supabase.from("events").delete().eq("id", eventId);
@@ -1337,7 +1359,23 @@ export default function HomePage() {
       setDeleteDialogOpen(false);
       setEventToDelete(null);
     },
+    onError: (error: Error) => {
+      const partial = (error as SeriesPartialDeleteError)?.childrenDeleted === true;
+      if (partial) {
+        // Children are gone in the database — refresh so the UI matches, but
+        // this is not a successful completion.
+        queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+      }
+      toast({
+        title: partial ? "Series only partly deleted" : "Failed to delete event",
+        description: partial
+          ? error.message
+          : error.message || "Nothing was deleted. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
+
 
   // Mutation to mark reward as claimed.
   // Failures after the fulfilment update are tagged so the UI never claims the
