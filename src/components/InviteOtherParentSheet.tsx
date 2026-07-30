@@ -111,16 +111,24 @@ export default function InviteOtherParentSheet({
 
       const inviteToken = crypto.randomUUID();
 
+      // ---- Authoritative scope resolution (fail closed) --------------------
       let clubId: string | null = null;
       let teamId: string | null = null;
       if (teamIds.length > 0) {
-        teamId = teamIds[0];
-        const { data: team } = await supabase
+        const requestedTeamId = teamIds[0];
+        const { data: team, error: teamError } = await supabase
           .from("teams")
-          .select("club_id")
-          .eq("id", teamId)
-          .single();
-        clubId = team?.club_id || null;
+          .select("id, club_id")
+          .eq("id", requestedTeamId)
+          .maybeSingle();
+
+        if (teamError) throw new InviteScopeResolutionError();
+        if (!team) throw new InviteScopeResolutionError();
+        if (team.id !== requestedTeamId) throw new InviteScopeResolutionError();
+        if (!team.club_id) throw new InviteScopeResolutionError();
+
+        teamId = team.id;
+        clubId = team.club_id;
       }
 
       const trimmedEmail = parentEmail.trim().toLowerCase();
@@ -175,49 +183,84 @@ export default function InviteOtherParentSheet({
       setResolvedClubName(clubName);
       setResolvedTeamName(teamName);
 
-      // Only send email if delivery method is email
+      // ---- Email delivery (verified-only success) --------------------------
+      let delivery: EmailDeliveryState = "not_requested";
       if (deliveryMethod === "email" && trimmedEmail) {
-        await supabase.functions.invoke("send-email", {
-          body: {
-            to: trimmedEmail,
-            subject: `${clubName}: You've been invited as a guardian for ${childName} ⚽`,
-            template: "team-invite",
-            senderName: clubName,
-            replyTo: contactEmail,
-            templateData: {
-              recipientName: parentName.trim(),
-              invitedEmail: trimmedEmail,
-              teamName,
-              clubName,
-              roleName: "Parent",
-              inviteLink: link,
-              clubLogoUrl,
-              childrenNames: [childName],
-            },
-          },
-        });
+        delivery = "failed";
+        setEmailDelivery("sending");
 
-        if (insertedInvite?.id) {
+        let failureReason = "Email delivery could not be verified";
+        try {
+          const { data: emailData, error: emailError } = await supabase.functions.invoke("send-email", {
+            body: {
+              to: trimmedEmail,
+              subject: `${clubName}: You've been invited as a guardian for ${childName} ⚽`,
+              template: "team-invite",
+              senderName: clubName,
+              replyTo: contactEmail,
+              templateData: {
+                recipientName: parentName.trim(),
+                invitedEmail: trimmedEmail,
+                teamName,
+                clubName,
+                roleName: "Parent",
+                inviteLink: link,
+                clubLogoUrl,
+                childrenNames: [childName],
+              },
+            },
+          });
+
+          const payload = (emailData ?? null) as { success?: unknown; verified?: unknown; emailId?: unknown; id?: unknown } | null;
+          if (emailError) {
+            failureReason = emailError.message || "send-email invocation failed";
+          } else if (payload?.success === true && payload?.verified === true) {
+            delivery = "sent";
+            const providerId = typeof payload.emailId === "string" ? payload.emailId
+              : typeof payload.id === "string" ? payload.id
+              : null;
+            if (insertedInvite?.id) {
+              await supabase
+                .from("pending_invites")
+                .update({
+                  email_sent_at: new Date().toISOString(),
+                  ...(providerId ? { email_id: providerId } : {}),
+                } as any)
+                .eq("id", insertedInvite.id);
+            }
+          }
+        } catch (e) {
+          failureReason = e instanceof Error ? e.message : "send-email invocation threw";
+        }
+
+        if (delivery === "failed" && insertedInvite?.id) {
+          // Best-effort failure metadata; never blocks the (valid) invitation.
           await supabase
             .from("pending_invites")
-            .update({
-              email_sent_at: new Date().toISOString(),
-            } as any)
+            .update({ email_error: failureReason.slice(0, 500) } as any)
             .eq("id", insertedInvite.id);
         }
       }
 
-      return { link };
+      return { link, delivery, email: trimmedEmail || null };
     },
     onSuccess: (data) => {
+      if (!data) return;
       queryClient.invalidateQueries({ queryKey: ["child_guardians", childId] });
       queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
-      setInviteLink(data?.link || null);
+      setInviteLink(data.link || null);
+      setEmailDelivery(data.delivery);
+      setSentToEmail(data.email);
       setSent(true);
     },
     onError: (error: Error) => {
       console.error("[InviteOtherParent] Error:", error);
-      toast({ title: "Failed to send invite", variant: "destructive" });
+      setEmailDelivery("not_requested");
+      if (error instanceof InviteScopeResolutionError) {
+        toast({ title: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Failed to create invite", variant: "destructive" });
+      }
     },
   });
 
@@ -229,6 +272,8 @@ export default function InviteOtherParentSheet({
         setDeliveryMethod("share");
         setSent(false);
         setInviteLink(null);
+        setEmailDelivery("not_requested");
+        setSentToEmail(null);
         setResolvedClubName("");
         setResolvedTeamName("");
         setSelectedUser(null);
@@ -236,6 +281,7 @@ export default function InviteOtherParentSheet({
     }
     onOpenChange(open);
   };
+
 
   const buildShareMessage = () => {
     const parts: string[] = [];
