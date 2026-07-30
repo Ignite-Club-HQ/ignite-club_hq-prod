@@ -57,6 +57,50 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
     refetchInterval: 60 * 1000,
   });
 
+  // Realtime patch (both web and native): a single team-filtered subscription
+  // that writes the new preview straight into this query's cache. No
+  // invalidation and no refetch, so it can't contribute to the invalidation
+  // storms that caused the Android WebView freezes — the 60s poll above stays
+  // as a backstop/reconciler for author names and missed events.
+  useEffect(() => {
+    if (!teamId) return;
+    const channel = supabase
+      .channel(`team-chat-preview-${teamId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "team_messages", filter: `team_id=eq.${teamId}` },
+        (payload: any) => {
+          const row = payload.new;
+          if (!row) return;
+          queryClient.setQueryData(["team-chat-preview", teamId], (old: any) => {
+            const isAnnouncement = !!row.is_club_announcement;
+            const authorName = isAnnouncement
+              ? row.club_announcement_name || "Club"
+              : row.author_id === user?.id
+                ? "You"
+                : getProfileFromCache(row.author_id)?.display_name || old?.authorName || "Someone";
+            return {
+              id: row.id,
+              text: row.text ?? "",
+              created_at: row.created_at,
+              author_id: row.author_id ?? null,
+              is_club_announcement: isAnnouncement,
+              club_announcement_name: row.club_announcement_name ?? null,
+              is_system_message: !!row.is_system_message,
+              authorName,
+            };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [teamId, user?.id, queryClient]);
+
+
+
   // Resolve event titles referenced in the latest message so previews
   // show the actual event name instead of a generic "Event" placeholder.
   const referencedEventIds = extractEventIds(latestMessage?.text);
