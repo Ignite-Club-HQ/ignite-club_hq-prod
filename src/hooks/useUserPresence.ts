@@ -229,30 +229,56 @@ async function ensureChannel(userId: string) {
     rebuildFromState(ch.presenceState() as any);
   });
 
+  // Publish ownership BEFORE subscribing so a synchronous status callback
+  // recognises itself as the active channel.
+  channel = ch;
+
+  // Bind subscription work to the exact channel instance + user that created
+  // this callback. Delayed callbacks from obsolete channels are ignored.
+  const expectedChannel = ch;
+  const expectedUserId = userId;
+
   ch.subscribe(async (status) => {
+    if (!isCurrentChannel(expectedChannel, expectedUserId)) {
+      // Obsolete/replaced channel: never track, never touch heartbeats,
+      // never schedule reconnects, never remove the healthy channel.
+      return;
+    }
+
     if (status === "SUBSCRIBED") {
       // Always (re)track on SUBSCRIBED — this fires on initial connect AND
       // after auto-reconnects.
-      await trackSelf();
+      await trackPresence(expectedChannel, expectedUserId);
+      if (!isCurrentChannel(expectedChannel, expectedUserId)) return;
 
-      // Start / restart heartbeat
+      // Exactly one active heartbeat timer, owned by this channel/user.
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       heartbeatTimer = setInterval(() => {
-        trackSelf();
+        if (!isCurrentChannel(expectedChannel, expectedUserId)) {
+          if (heartbeatTimer) {
+            clearInterval(heartbeatTimer);
+            heartbeatTimer = null;
+          }
+          return;
+        }
+        trackPresence(expectedChannel, expectedUserId);
       }, HEARTBEAT_MS);
     } else if (
       status === "CHANNEL_ERROR" ||
       status === "TIMED_OUT" ||
       status === "CLOSED"
     ) {
-      // Lost the channel — clean up and try again.
-      clearTimers();
-      if (currentUserId) scheduleReconnect(currentUserId);
+      // Genuine error on the ACTIVE channel — stop the heartbeat but keep any
+      // already-pending reconnect so repeated errors coalesce into one timer.
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      scheduleReconnect(expectedUserId, expectedChannel);
     }
   });
-
-  channel = ch;
 }
+
 
 async function teardown() {
   clearTimers();
