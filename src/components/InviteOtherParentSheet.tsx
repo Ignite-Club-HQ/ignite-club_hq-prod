@@ -28,6 +28,18 @@ interface InviteOtherParentSheetProps {
   teamIds: string[];
 }
 
+/** Explicit delivery state — never inferred from `deliveryMethod` or the email string. */
+export type EmailDeliveryState = "not_requested" | "sending" | "sent" | "failed";
+
+/** Thrown when the team -> club scope cannot be authoritatively resolved. */
+export class InviteScopeResolutionError extends Error {
+  constructor(message = "We couldn't verify the team and club for this invitation. Please try again.") {
+    super(message);
+    this.name = "InviteScopeResolutionError";
+  }
+}
+
+
 export default function InviteOtherParentSheet({
   open,
   onOpenChange,
