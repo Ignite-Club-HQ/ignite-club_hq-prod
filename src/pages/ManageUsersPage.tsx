@@ -59,6 +59,22 @@ import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
+/**
+ * Thrown when the role write committed but the follow-up membership
+ * notification insert failed. Callers must report partial success and
+ * refresh caches — never pretend the role change failed.
+ */
+export class RoleNotificationError extends Error {
+  roleChangeSucceeded = true;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "RoleNotificationError";
+  }
+}
+
+
+
 interface UserProfile {
   id: string;
   display_name: string | null;
