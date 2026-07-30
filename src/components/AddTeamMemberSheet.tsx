@@ -1256,20 +1256,31 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
     onSuccess: async (result) => {
       const { link, shareLink: sLink, email, childrenCount, childrenNames, secondParentLink, secondParentEmail: secondEmail, secondParentName: secondName, secondParentAddedDirectly } = result;
-      const existingUserAdded = (result as any).existingUserAdded as { name: string } | undefined;
+      const existingUserAdded = (result as any).existingUserAdded as
+        | { name: string; notificationFailed?: boolean; notificationError?: string | null }
+        | undefined;
 
       // Short-circuit when we attached the role directly to an existing user
       if (existingUserAdded) {
         queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
-        toast({
-          title: "Added to team",
-          description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
-        });
         queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
+        if (existingUserAdded.notificationFailed) {
+          toast({
+            variant: "destructive",
+            title: "Member added — notification failed",
+            description: `${existingUserAdded.name} was added to ${teamName}, but we couldn't notify them in the app. Please tell them manually.${existingUserAdded.notificationError ? ` (${existingUserAdded.notificationError})` : ""}`,
+          });
+        } else {
+          toast({
+            title: "Added to team",
+            description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
+          });
+        }
         setNameInput("");
         setCustomEmail("");
         return;
       }
+
 
       setInviteLink(link);
       setInviteShareLink(sLink);
