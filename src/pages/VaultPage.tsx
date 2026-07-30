@@ -36,6 +36,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
 import { VaultFolderCard } from "@/components/vault/VaultFolderCard";
+import { VaultStorageBarRow } from "@/components/vault/VaultStorageBarRow";
+import { resolveEmptyTrashOutcome } from "@/lib/vaultTrashOutcome";
 import { fuzzyFilter } from "@/lib/fuzzySearch";
 import { useDebounce } from "@/hooks/useDebounce";
 import { HighlightedText } from "@/components/vault/HighlightedText";
@@ -2107,6 +2109,7 @@ export default function VaultPage() {
   const [isEmptyingTrash, setIsEmptyingTrash] = useState(false);
   const emptyTrash = async () => {
     if (!trashItems) return;
+    if (isEmptyingTrash) return;
     setIsEmptyingTrash(true);
     try {
       const allPhotoIds = (trashItems.photos || []).map((p: any) => p.id);
@@ -2130,22 +2133,26 @@ export default function VaultPage() {
         fileIds: [...allPhotoIds, ...allFileIds],
       });
 
-      if (result.failed.length > 0) {
-        toast.error(`${result.failed.length} item(s) could not be deleted`);
-      }
+      const succeededCount = (result.photosDeleted ?? 0) + (result.filesDeleted ?? 0);
+      const failedCount = result.failed.length;
 
-      
+      // Always refresh so remaining (failed) items stay visible and counts are accurate
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
-      toast.success("Trash emptied successfully");
+
+      // Exactly one toast; never a success message when any item failed
+      const outcome = resolveEmptyTrashOutcome({ succeededCount, failedCount });
+      toast[outcome.kind](outcome.message);
+
     } catch (error: any) {
       toast.error(error.message || "Failed to empty trash");
     } finally {
       setIsEmptyingTrash(false);
     }
   };
+
 
   // Move file to a different folder or team
   const moveFileMutation = useMutation({
@@ -3321,84 +3328,73 @@ export default function VaultPage() {
           {currentClub && (
             <Collapsible className="w-full">
               <div className="bg-card border rounded-lg p-3">
-                <CollapsibleTrigger className="w-full">
-                  {(() => {
-                    const storagePercentage = PRO_STORAGE_LIMIT > 0 
-                      ? Math.min(100, Math.max(0, (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100))
-                      : 0;
-                    return (
-                      <div className="flex items-center gap-3">
-                        <HardDrive className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <Progress 
-                            value={storagePercentage} 
-                            className={`h-2 w-full bg-white dark:bg-muted ${
-                              storagePercentage >= 90 ? '[&>div]:bg-destructive' 
-                              : storagePercentage >= 70 ? '[&>div]:bg-yellow-500' 
-                              : '[&>div]:bg-primary'
-                            }`}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {formatStorageSize(totalClubStorageUsed)} / {5 + (purchasedStorageGb || 0)} GB
-                        </span>
-                        {isStorageLimitReached && (
-                          <Badge variant="destructive" className="text-xs shrink-0">Full</Badge>
-                        )}
-                        
-                        {/* More Dropdown - shown here when user can't upload (so it's not alone in toolbar) */}
-                        {!canUpload && !selectionMode && !isExporting && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="bg-popover">
-                              {(photos?.length > 0 || files?.length > 0) && !showTrash && (
-                                <DropdownMenuItem onClick={() => setSelectionMode(true)}>
-                                  <CheckSquare className="h-4 w-4 mr-2" />
-                                  Select
+                {(() => {
+                  const storagePercentage = PRO_STORAGE_LIMIT > 0 
+                    ? Math.min(100, Math.max(0, (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100))
+                    : 0;
+                  return (
+                    <VaultStorageBarRow
+                      storagePercentage={storagePercentage}
+                      usageLabel={`${formatStorageSize(totalClubStorageUsed)} / ${5 + (purchasedStorageGb || 0)} GB`}
+                      isStorageLimitReached={isStorageLimitReached}
+                      actions={
+                        <>
+
+
+                      {/* More Dropdown - shown here when user can't upload (so it's not alone in toolbar) */}
+                      {!canUpload && !selectionMode && !isExporting && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Storage actions">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-popover">
+                            {(photos?.length > 0 || files?.length > 0) && !showTrash && (
+                              <DropdownMenuItem onClick={() => setSelectionMode(true)}>
+                                <CheckSquare className="h-4 w-4 mr-2" />
+                                Select
+                              </DropdownMenuItem>
+                            )}
+                            {(photos?.length > 0 || files?.length > 0 || subfolders?.length > 0) && (
+                              <>
+                                <DropdownMenuItem onClick={() => initiateExport('zip')}>
+                                  <FileArchive className="h-4 w-4 mr-2" />
+                                  Export as ZIP
                                 </DropdownMenuItem>
-                              )}
-                              {(photos?.length > 0 || files?.length > 0 || subfolders?.length > 0) && (
-                                <>
-                                  <DropdownMenuItem onClick={() => initiateExport('zip')}>
-                                    <FileArchive className="h-4 w-4 mr-2" />
-                                    Export as ZIP
+                                {(subfolders && subfolders.length > 0) && (
+                                  <DropdownMenuItem onClick={() => initiateExport('zipAll')}>
+                                    <FolderDown className="h-4 w-4 mr-2" />
+                                    ZIP All (with subfolders)
                                   </DropdownMenuItem>
-                                  {(subfolders && subfolders.length > 0) && (
-                                    <DropdownMenuItem onClick={() => initiateExport('zipAll')}>
-                                      <FolderDown className="h-4 w-4 mr-2" />
-                                      ZIP All (with subfolders)
-                                    </DropdownMenuItem>
-                                  )}
-                                </>
-                              )}
-                              {(isClubAdmin || isAppAdmin) && (
-                                <DropdownMenuItem onClick={() => setShowTrash(!showTrash)}>
-                                  {showTrash ? (
-                                    <>
-                                      <FolderOpen className="h-4 w-4 mr-2" />
-                                      View Files
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      View Trash
-                                    </>
-                                  )}
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                        
-                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-data-[state=open]:rotate-180" />
-                      </div>
-                    );
-                  })()}
-                </CollapsibleTrigger>
+                                )}
+                              </>
+                            )}
+                            {(isClubAdmin || isAppAdmin) && (
+                              <DropdownMenuItem onClick={() => setShowTrash(!showTrash)}>
+                                {showTrash ? (
+                                  <>
+                                    <FolderOpen className="h-4 w-4 mr-2" />
+                                    View Files
+                                  </>
+                                ) : (
+                                  <>
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    View Trash
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                        </>
+                      }
+                    />
+
+                  );
+                })()}
+
                 
                 <CollapsibleContent className="mt-3 pt-3 border-t">
                   {/* Expanded storage details */}

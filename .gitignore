@@ -30,3 +30,8 @@ local-supabase-workspace/supabase/.branches/
 *.njsproj
 *.sln
 *.sw?
+
+# iOS OS resume regression harness (generated, never committed)
+tests/ios-os/workspace/.generated/
+tests/ios-os/workspace/www/
+test-results/

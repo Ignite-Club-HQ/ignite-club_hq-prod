@@ -26,6 +26,10 @@
     "test:baseline": "node scripts/run-complete-baseline.mjs --approved-local-session",
     "test:local-supabase": "node scripts/run-local-supabase-tests.mjs",
     "test:stage2": "node -e \"console.error('Disabled: hosted Supabase tests must not be run. Use mocked unit tests or a fresh local-only Supabase stack.'); process.exit(1)\"",
+    "test:android-os:safety": "node tests/android-os/verify-safety.mjs",
+    "test:android-os:safety:post": "node tests/android-os/verify-safety.mjs --post",
+    "test:android-os:build": "vite build --config tests/android-os/vite.config.ts",
+    "test:android-os:guard": "vitest run src/test/androidOsHarness.guard.test.ts",
     "ios:bump": "node scripts/bump-ios-version.cjs",
     "ios:bump:patch": "node scripts/bump-ios-version.cjs patch",
     "ios:bump:minor": "node scripts/bump-ios-version.cjs minor",
@@ -35,7 +39,11 @@
     "ios:prebuild": "node scripts/bump-ios-version.cjs && node scripts/check-asc-build-number.cjs",
     "version": "node scripts/bump-ios-version.cjs $npm_package_version && git add package.json ios/App/App/Info.plist ios/App/App.xcodeproj/project.pbxproj",
     "install:hooks": "node scripts/install-git-hooks.cjs",
-    "postinstall": "node scripts/apply-patches.cjs"
+    "postinstall": "node scripts/apply-patches.cjs",
+    "test:ios-os:safety": "node tests/ios-os/verify-safety.mjs",
+    "test:ios-os:safety:post": "node tests/ios-os/verify-safety.mjs --post",
+    "test:ios-os:build": "node tests/ios-os/verify-safety.mjs && vite build --config tests/ios-os/vite.config.ts",
+    "test:ios-os:guard": "vitest run src/test/iosOsHarness.guard.test.ts"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",

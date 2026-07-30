@@ -1,0 +1,8 @@
+{
+  "appId": "app.igniteclubhq.androidosresumetest",
+  "appName": "AndroidOsResumeTest",
+  "webDir": "dist",
+  "android": {
+    "path": ".generated/android"
+  }
+}

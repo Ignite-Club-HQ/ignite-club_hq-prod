@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>iOS OS Resume Regression Harness</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; background: #101418; color: #e6edf3;
+        font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+      #root { padding: 16px; }
+      h3 { margin: 0 0 8px; font-size: 15px; }
+      #state { white-space: pre-wrap; word-break: break-all; line-height: 1.55; }
+      #spinner { width: 24px; height: 24px; margin-top: 12px; background: #3fb950;
+        border-radius: 4px; }
+      button { -webkit-appearance: none; appearance: none; border: 0; }
+      #ping { margin-top: 14px; width: 100%; height: 120px; border-radius: 12px;
+        background: #1f6feb; color: #fff; font-size: 20px; font-family: inherit;
+        user-select: none; }
+      #saturate { margin-top: 10px; width: 100%; height: 56px; border-radius: 10px;
+        background: #30363d; color: #e6edf3; font-size: 15px; font-family: inherit; }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <h3>iOS OS resume regression harness</h3>
+      <pre id="state" data-testid="state" aria-label="IOS_OS_TEST_STATE">booting…</pre>
+      <div id="spinner"></div>
+      <button id="ping" data-testid="ping" aria-label="PING" name="PING">PING</button>
+      <button id="saturate" data-testid="saturate" aria-label="SATURATE" name="SATURATE">
+        SATURATE
+      </button>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

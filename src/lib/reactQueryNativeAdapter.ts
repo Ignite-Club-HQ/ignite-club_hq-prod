@@ -248,6 +248,10 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
           // connection pool is free when the recovery drip starts.
           if (hiddenFor >= LONG_BACKGROUND_MS) abortZombieRequests('app-resume');
           handleFocus();
+          // Capture the online state BEFORE we mutate it below, so we can tell
+          // an ordinary online resume from a genuine offline→online transition
+          // that Android never announced via `networkStatusChange`.
+          const wasOnline = onlineManager.isOnline();
           // On resume, re-check connectivity rather than trusting the cached
           // value (Low Power Mode / Doze can have left it stale).
           import('@capacitor/network').then(({ Network }) => {
@@ -255,10 +259,13 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
               if (status.connected) {
                 onlineManager.setOnline(true);
                 clearProbe();
-                // Resume is NOT a reconnect: revive only broken queries.
-                // Blanket-refetching every observed query here is what
-                // saturated the connection pool and froze the UI.
-                recoverErroredQueries('app-resume');
+                // Ordinary online resume: revive only broken queries. Blanket-
+                // refetching every observed query here is what saturated the
+                // connection pool and froze the UI.
+                // Genuine offline→online resume (wasOnline === false): perform
+                // exactly one controlled active-query recovery.
+                recoverErroredQueries('app-resume', wasOnline ? undefined : { refetchActive: true });
+
               } else {
                 // OS says offline — but verify with a probe before trusting it.
                 probeDelay = 1000;
