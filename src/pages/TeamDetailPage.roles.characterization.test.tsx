@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   operations: [] as string[],
   results: {} as Record<string, Array<{ data: any; error: any }>>,
   invoke: vi.fn(),
+  queries: [] as any[],
+  rpc: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
@@ -20,6 +22,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
   return {
     ...actual,
     useQuery: (options: any) => {
+      mocks.queries.push(options);
       const key = options.queryKey?.[0];
       if (key === "team") return { data: { id: "team-1", name: "Synthetic Team", club_id: "club-1", team_type: "senior", is_pro: false, deleted_at: mocks.deletedAt, clubs: { id: "club-1", name: "Synthetic Club", sport: "soccer", class_mode_enabled: false } }, isLoading: false, isFetching: false, fetchStatus: "idle" };
       if (key === "user-team-roles") return { data: mocks.teamRoles, isLoading: false, isFetching: false };
@@ -78,7 +81,7 @@ function supabaseQuery(table: string) {
 }
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: vi.fn(supabaseQuery), rpc: vi.fn(), functions: { invoke: mocks.invoke } },
+  supabase: { from: vi.fn(supabaseQuery), rpc: mocks.rpc, functions: { invoke: mocks.invoke } },
 }));
 vi.mock("@/hooks/useNearbyGameEvent", () => ({ findNearbyGameEvent: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/components/pitch/PitchBoard", () => ({ default: () => null }));
@@ -140,6 +143,8 @@ describe("TeamDetailPage role-aware rendering", () => {
     mocks.operations = [];
     mocks.results = {};
     mocks.invoke.mockResolvedValue({ data: { success: true }, error: null });
+    mocks.queries = [];
+    mocks.rpc.mockResolvedValue({ data: [], error: null });
   });
 
   it("shows a player the team without exposing management actions", async () => {
@@ -258,5 +263,55 @@ describe("TeamDetailPage role-aware rendering", () => {
       title: "Team permanently deleted",
       description: "All data has been removed.",
     });
+  });
+
+  it("keys team, role, entitlement and administration reads by team, club and user context", () => {
+    renderPage();
+    const latest = (prefix: string) => [...mocks.queries].reverse().find(q => q.queryKey?.[0] === prefix);
+    expect(latest("team").queryKey).toEqual(["team", "team-1"]);
+    expect(latest("team-subscription").queryKey).toEqual(["team-subscription", "team-1"]);
+    expect(latest("team-roles").queryKey).toEqual(["team-roles", "team-1"]);
+    expect(latest("team-children").queryKey).toEqual(["team-children", "team-1"]);
+    expect(latest("user-team-roles").queryKey).toEqual(["user-team-roles", "team-1", "user-1"]);
+    expect(latest("club-subscription").queryKey).toEqual(["club-subscription", "club-1"]);
+    expect(latest("is-club-admin").queryKey).toEqual(["is-club-admin", "user-1", "club-1"]);
+  });
+
+  it("propagates primary team, member-role and child-roster failures", async () => {
+    renderPage();
+    const latest = (prefix: string) => [...mocks.queries].reverse().find(q => q.queryKey?.[0] === prefix);
+
+    const teamFailure = { message: "team unavailable", code: "42501" };
+    mocks.results["teams:select"] = [{ data: null, error: teamFailure }];
+    await expect(latest("team").queryFn()).rejects.toEqual(teamFailure);
+
+    const rolesFailure = { message: "roles unavailable", code: "42501" };
+    mocks.results["user_roles:select"] = [{ data: null, error: rolesFailure }];
+    await expect(latest("team-roles").queryFn()).rejects.toEqual(rolesFailure);
+
+    const childrenFailure = { message: "children unavailable", code: "42501" };
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: childrenFailure });
+    await expect(latest("team-children").queryFn()).rejects.toEqual(childrenFailure);
+  });
+
+  it("does not convert denied team or club subscription reads into a confirmed free entitlement", async () => {
+    renderPage();
+    const latest = (prefix: string) => [...mocks.queries].reverse().find(q => q.queryKey?.[0] === prefix);
+
+    const teamFailure = { message: "team subscription denied", code: "42501" };
+    mocks.results["team_subscriptions:select"] = [{ data: null, error: teamFailure }];
+    await expect(latest("team-subscription").queryFn()).rejects.toEqual(teamFailure);
+
+    const clubFailure = { message: "club subscription denied", code: "42501" };
+    mocks.results["club_subscriptions:select"] = [{ data: null, error: clubFailure }];
+    await expect(latest("club-subscription").queryFn()).rejects.toEqual(clubFailure);
+  });
+
+  it("does not convert a denied club-admin check into a confirmed role revocation", async () => {
+    renderPage();
+    const latest = (prefix: string) => [...mocks.queries].reverse().find(q => q.queryKey?.[0] === prefix);
+    const failure = { message: "admin check denied", code: "42501" };
+    mocks.results["user_roles:select"] = [{ data: null, error: failure }];
+    await expect(latest("is-club-admin").queryFn()).rejects.toEqual(failure);
   });
 });

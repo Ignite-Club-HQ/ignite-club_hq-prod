@@ -69,7 +69,7 @@ function queryFor(table: string) {
   query.update = vi.fn((payload: any) => { write = { table, kind: "update", payload, filters: [] }; mocks.writes.push(write); mocks.operations.push(`${table}:update`); return query; });
   query.delete = vi.fn(() => { write = { table, kind: "delete", filters: [] }; mocks.writes.push(write); mocks.operations.push(`${table}:delete`); return query; });
   query.eq = vi.fn((column: string, value: any) => { mocks.queryCalls.push({ table, method: "eq", args: [column, value] }); write?.filters.push([column, value]); return query; });
-  for (const method of ["in", "is", "order", "limit", "or"]) query[method] = vi.fn((...args: any[]) => { mocks.queryCalls.push({ table, method, args }); write?.filters.push([method, ...args]); return query; });
+  for (const method of ["in", "is", "gte", "order", "limit", "or"]) query[method] = vi.fn((...args: any[]) => { mocks.queryCalls.push({ table, method, args }); write?.filters.push([method, ...args]); return query; });
   const resolve = () => nextResult(table, write?.kind ?? "select");
   query.single = vi.fn(async () => resolve());
   query.maybeSingle = vi.fn(async () => resolve());
@@ -406,5 +406,48 @@ describe("ClubDetailPage administration characterization", () => {
       title: "Club permanently deleted",
       description: "All data has been removed.",
     });
+  });
+
+  it("keys every club-specific read model by the active club and user context", async () => {
+    await renderPage();
+    const scopedKeys = [
+      "club", "club-members-count", "club-members-roles", "club-teams",
+      "user-team-memberships", "team-folders", "club-mini-leagues",
+      "user-club-role", "pending-invites", "club-team-subscriptions",
+      "club-team-sponsors", "club-subscription", "club-request",
+    ];
+    for (const prefix of scopedKeys) {
+      const key = query(prefix).queryKey;
+      expect(key, `${prefix} must include club-1`).toContain("club-1");
+    }
+    expect(query("user-team-memberships").queryKey).toContain("user-1");
+    expect(query("user-club-role").queryKey).toContain("user-1");
+    expect(query("club-request").queryKey).toContain("user-1");
+  });
+
+  it("propagates folder and mini-league failures instead of presenting valid empty sections", async () => {
+    await renderPage();
+    const folderFailure = { message: "folders unavailable", code: "42501" };
+    mocks.results["team_folders:select"] = [{ data: null, error: folderFailure }];
+    await expect(query("team-folders").queryFn()).rejects.toEqual(folderFailure);
+
+    const leagueFailure = { message: "leagues unavailable", code: "42501" };
+    mocks.results["mini_leagues:select"] = [{ data: null, error: leagueFailure }];
+    await expect(query("club-mini-leagues").queryFn()).rejects.toEqual(leagueFailure);
+  });
+
+  it("does not convert a failed user-team membership read into an empty membership", async () => {
+    mocks.teams = [{ id: "team-1", name: "U10 Blue", is_archived: false }];
+    await renderPage();
+    const failure = { message: "membership read denied", code: "42501" };
+    mocks.results["user_roles:select"] = [{ data: null, error: failure }];
+    await expect(query("user-team-memberships").queryFn()).rejects.toEqual(failure);
+  });
+
+  it("does not cache a zero member count when its team-scope discovery fails", async () => {
+    await renderPage();
+    const failure = { message: "team discovery unavailable", code: "42501" };
+    mocks.results["teams:select"] = [{ data: null, error: failure }];
+    await expect(query("club-members-count").queryFn()).rejects.toEqual(failure);
   });
 });
