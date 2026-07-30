@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -1098,6 +1098,9 @@ function FixturesFilterAndList({
                   </div>
                   <SheetHeader className="px-4 pb-2 text-left">
                     <SheetTitle className="text-base">Filter by team</SheetTitle>
+                    <SheetDescription className="sr-only">
+                      Choose a team to filter the fixture list.
+                    </SheetDescription>
                   </SheetHeader>
                   <div className="max-h-[60vh] overflow-y-auto px-4 pb-6">
                     <div className="space-y-1">
@@ -2029,6 +2032,9 @@ function AddMatchMenuItem(props: { competitionId: string; entries: any[]; divisi
         <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-3xl px-5 pb-8">
           <SheetHeader className="mb-5">
             <SheetTitle className="text-xl font-bold">Add match</SheetTitle>
+            <SheetDescription>
+              Select two different teams and enter the fixture details.
+            </SheetDescription>
           </SheetHeader>
           <AddMatchButton {...props} defaultOpen onSaved={() => setSheetOpen(false)} />
         </SheetContent>
@@ -2472,6 +2478,9 @@ function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisio
                   </div>
                   <SheetHeader className="px-4 pb-2 text-left">
                     <SheetTitle className="text-base">Filter by team</SheetTitle>
+                    <SheetDescription className="sr-only">
+                      Choose a team to filter the fixture list.
+                    </SheetDescription>
                   </SheetHeader>
                   <div className="max-h-[60vh] overflow-y-auto px-4 pb-6">
                     <div className="space-y-1">
