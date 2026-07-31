@@ -10273,6 +10273,7 @@ export type Database = {
     Functions: {
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
+      accept_current_legal_terms: { Args: never; Returns: undefined }
       accept_guardian_parent_invite: {
         Args: { _invite_id: string }
         Returns: Json
@@ -12111,6 +12112,15 @@ export type Database = {
           _sponsor_name?: string
         }
         Returns: undefined
+      }
+      set_legal_reacceptance: {
+        Args: {
+          _confirmation?: string
+          _required: boolean
+          _summary?: string
+          _version?: string
+        }
+        Returns: Json
       }
       settle_vault_storage: {
         Args: { _committed: boolean; _reservation_id: string }
