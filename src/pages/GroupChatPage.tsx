@@ -115,6 +115,8 @@ import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemov
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
+import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
+import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
