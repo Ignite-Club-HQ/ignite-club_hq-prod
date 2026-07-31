@@ -106,6 +106,10 @@ export default function CreateEventPage() {
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  // Partial-write recovery: if the event row was created but its duties failed,
+  // remember the created event id so a retry only re-attempts the duty insert
+  // and never creates a second event.
+  const createdEventIdRef = useRef<string | null>(null);
 
   // End time / duration state
   const [endTime, setEndTime] = useState("");
