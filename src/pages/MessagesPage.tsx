@@ -2080,8 +2080,43 @@ export default function MessagesPage() {
     return () => window.clearTimeout(t);
   }, [sortSourcesSettled]);
 
+  // `freshSortDataReady` describes *initial ordering readiness only*.
   const freshSortDataReady = !isOnline || sortSourcesSettled || sortGateExpired;
-  const showSkeletonLoading = isOnline && (isLoadingFreshData || !freshSortDataReady);
+
+  // FIRST-REVEAL LATCH.
+  // `sortSourcesSettled` depends on `isFetching`, which flips true again for
+  // every ordinary background/Realtime refetch. Using it directly as the
+  // permanent render decision made the whole inbox collapse back to the
+  // full-page skeleton after resume or when a new message arrived. The
+  // ordering gate must therefore apply *only until* the first settled reveal;
+  // afterwards refetching is non-blocking and rows are patched in place.
+  const hasRevealedStableInboxRef = useRef(false);
+  const [hasRevealedStableInbox, setHasRevealedStableInbox] = useState(false);
+
+  // Reset only on a genuine identity change (a new mount starts false anyway).
+  const revealLatchIdentityRef = useRef<string | undefined>(user?.id);
+  if (revealLatchIdentityRef.current !== user?.id) {
+    revealLatchIdentityRef.current = user?.id;
+    hasRevealedStableInboxRef.current = false;
+  }
+
+  const initialRevealBlocked = isOnline && (isLoadingFreshData || !freshSortDataReady);
+
+  useEffect(() => {
+    if (hasRevealedStableInboxRef.current) return;
+    if (initialRevealBlocked) return;
+    hasRevealedStableInboxRef.current = true;
+    setHasRevealedStableInbox(true);
+  }, [initialRevealBlocked, user?.id]);
+
+  useEffect(() => {
+    if (hasRevealedStableInbox && !hasRevealedStableInboxRef.current) {
+      setHasRevealedStableInbox(false);
+    }
+  }, [hasRevealedStableInbox, user?.id]);
+
+  const showSkeletonLoading = isOnline && !hasRevealedStableInboxRef.current && initialRevealBlocked;
+
 
 
 
