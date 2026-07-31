@@ -2198,11 +2198,30 @@ export default function GroupChatPage() {
     ? `${groupBaseSublabel} · ${groupOnlineCount} online`
     : groupBaseSublabel;
 
-  if (groupLoading) {
+  const groupMetadataState = resolveChatMetadataState({
+    data: group,
+    isLoading: groupLoading,
+    isError: groupIsError,
+    fetchStatus: groupFetchStatus,
+    status: groupStatus,
+    isOnline,
+  });
+
+  if (groupMetadataState === "loading") {
     return <ChatPageSkeleton />;
   }
 
-  if (!group) {
+  if (groupMetadataState === "unreachable") {
+    return (
+      <ChatUnreachable
+        label="chat group"
+        onRetry={() => void refetchGroup()}
+        retrying={groupIsFetching}
+      />
+    );
+  }
+
+  if (groupMetadataState === "missing") {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-muted-foreground text-center px-4">This chat group has been removed or is no longer available.</p>
@@ -2212,6 +2231,11 @@ export default function GroupChatPage() {
       </div>
     );
   }
+
+  if (!group) {
+    return <ChatPageSkeleton />;
+  }
+
 
   // Pro gate: club-level role groups (Coaches / Team Admins / Club Committee, etc.)
   // require the club to have Pro, mirroring the club-wide chat gate.
