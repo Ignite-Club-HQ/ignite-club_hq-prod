@@ -1254,7 +1254,15 @@ export default function EventsPage() {
           </TabsContent>
 
           <TabsContent value="past" className="mt-4 space-y-2">
-            {pastEvents?.length === 0 ? (
+            {offlineNoCache ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground">
+                    You're offline and no saved schedule is available yet.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : pastEvents?.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="p-8 text-center">
                   <p className="text-muted-foreground">No past events</p>
