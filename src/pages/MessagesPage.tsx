@@ -2880,6 +2880,13 @@ export default function MessagesPage() {
   return (
     <div className="py-4 space-y-4">
 
+      {!isOnline && (
+        <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <WifiOff className="h-4 w-4 shrink-0" />
+          <span>You're offline — showing saved conversations.</span>
+        </div>
+      )}
+
       {/* Header with search and create group */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
