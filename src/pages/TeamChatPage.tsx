@@ -83,6 +83,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
+import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import {
   recordRealtimeMutation,
   reconcileMessages,
@@ -789,6 +790,13 @@ export default function TeamChatPage() {
     return cached.length >= 2 ? cached : undefined;
   });
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  // Realtime reactions must reach BOTH stores (query cache + localMessages).
+  const reactionQueryKey = useMemo(() => ["team-messages", teamId], [teamId]);
+  const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
+    scopeKey: reconcileScope,
+    queryKey: reactionQueryKey,
+    setLocalMessages,
+  });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
@@ -1438,92 +1446,29 @@ export default function TeamChatPage() {
       )
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "INSERT", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.team_message_id) return;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map((m) => {
-              if (m.id !== reaction.team_message_id) return m;
-
-              const existingTempIdx = m.reactions.findIndex(
-                (r) => r.id.startsWith("temp-") && r.user_id === reaction.user_id
-              );
-              if (m.reactions.some((r) => r.id === reaction.id)) return m;
-
-              const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
-              if (existingTempIdx !== -1) {
-                const newReactions = [...m.reactions];
-                newReactions[existingTempIdx] = newReaction;
-                return { ...m, reactions: newReactions };
-              }
-
-              return {
-                ...m,
-                reactions: [...m.reactions.filter((r) => r.user_id !== reaction.user_id), newReaction],
-              };
-            });
-            return { ...(old || {}), messages: updatedMessages };
-          });
+          if (!reaction?.team_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.team_message_id, reaction);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "UPDATE", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.team_message_id) return;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map((m) => {
-              if (m.id !== reaction.team_message_id) return m;
-
-              const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
-              const hasExistingReaction = m.reactions.some((r) => r.id === reaction.id);
-
-              if (hasExistingReaction) {
-                return {
-                  ...m,
-                  reactions: m.reactions.map((r) => (r.id === reaction.id ? newReaction : r)),
-                };
-              }
-
-              return {
-                ...m,
-                reactions: [...m.reactions.filter((r) => r.user_id !== reaction.user_id), newReaction],
-              };
-            });
-            return { ...(old || {}), messages: updatedMessages };
-          });
+          if (!reaction?.team_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.team_message_id, reaction);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "DELETE", schema: "public", table: "message_reactions" },
         (payload) => {
-          const deletedReaction = payload.old as any;
-          if (!deletedReaction.id) return;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map((m) => ({
-              ...m,
-              reactions: m.reactions.filter((r) => r.id !== deletedReaction.id),
-            }));
-            return { ...(old || {}), messages: updatedMessages };
-          });
+          const deleted = payload.old as any;
+          if (!deleted?.id) return;
+          applyRealtimeReactionDelete(deleted.team_message_id ?? null, deleted.id);
         }
       )
       .subscribe();
@@ -1536,7 +1481,7 @@ export default function TeamChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope]);
+  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)

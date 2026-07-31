@@ -1,3 +1,4 @@
+import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
@@ -657,6 +658,13 @@ export default function DirectMessagePage() {
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  // Realtime reactions must reach BOTH stores (query cache + localMessages).
+  const reactionQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
+  const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<DirectMessage>({
+    scopeKey: reconcileScope,
+    queryKey: reactionQueryKey,
+    setLocalMessages,
+  });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
@@ -1293,91 +1301,29 @@ export default function DirectMessagePage() {
       )
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "INSERT", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.direct_message_id) return;
-          queryClient.setQueryData(
-            ["dm-messages", conversationId],
-            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
-              if (!old) return old;
-              return {
-                ...old,
-                messages: old.messages.map(m => {
-                  if (m.id !== reaction.direct_message_id) return m;
-                  const reactions = m.reactions || [];
-                  if (reactions.some(r => r.id === reaction.id)) return m;
-                  // Replace temp reaction from same user
-                  const filtered = reactions.filter(
-                    r => !(r.id.startsWith('temp-') && r.user_id === reaction.user_id)
-                  );
-                  return {
-                    ...m,
-                    reactions: [...filtered, { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type }],
-                  };
-                }),
-              };
-            }
-          );
+          if (!reaction?.direct_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.direct_message_id, reaction);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "UPDATE", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.direct_message_id) return;
-          queryClient.setQueryData(
-            ["dm-messages", conversationId],
-            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
-              if (!old) return old;
-              return {
-                ...old,
-                messages: old.messages.map(m => {
-                  if (m.id !== reaction.direct_message_id) return m;
-                  const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
-                  const hasExisting = (m.reactions || []).some(r => r.id === reaction.id);
-                  if (hasExisting) {
-                    return { ...m, reactions: (m.reactions || []).map(r => r.id === reaction.id ? newReaction : r) };
-                  }
-                  return { ...m, reactions: [...(m.reactions || []).filter(r => r.user_id !== reaction.user_id), newReaction] };
-                }),
-              };
-            }
-          );
+          if (!reaction?.direct_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.direct_message_id, reaction);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "DELETE", schema: "public", table: "message_reactions" },
         (payload) => {
-          const deletedReaction = payload.old as any;
-          if (!deletedReaction.id) return;
-          queryClient.setQueryData(
-            ["dm-messages", conversationId],
-            (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
-              if (!old) return old;
-              return {
-                ...old,
-                messages: old.messages.map(m => ({
-                  ...m,
-                  reactions: (m.reactions || []).filter(r => r.id !== deletedReaction.id),
-                })),
-              };
-            }
-          );
+          const deleted = payload.old as any;
+          if (!deleted?.id) return;
+          applyRealtimeReactionDelete(deleted.direct_message_id ?? null, deleted.id);
         }
       )
       .subscribe();
@@ -1390,7 +1336,7 @@ export default function DirectMessagePage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`dm-${conversationId}`);
     };
-  }, [conversationId, queryClient, user?.id, reconcileScope]);
+  }, [conversationId, queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
     searchQuery,

@@ -1295,11 +1295,22 @@ export default function MediaPage() {
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">Media</h1>
           {!isOnline ? (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <WifiOff className="h-3 w-3" />
-              {allPhotos.length > 0 ? "Offline — saved photos" : "Offline"}
+            // Single stable hook for tests: the visible copy varies with cache
+            // state, so assert on `data-testid`/aria-label, never on the text
+            // (plain "Offline" is a substring of "Offline — saved photos" and
+            // makes Playwright text locators ambiguous).
+            <span
+              data-testid="media-offline-indicator"
+              aria-label="Offline"
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <WifiOff className="h-3 w-3" aria-hidden="true" />
+              <span data-testid="media-offline-label">
+                {allPhotos.length > 0 ? "Offline — saved photos" : "Offline"}
+              </span>
             </span>
           ) : (isShowingCachedData || isCacheStale) && loadingPhotos && (
+
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
               <span>Updating...</span>
