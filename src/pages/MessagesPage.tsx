@@ -528,7 +528,7 @@ export default function MessagesPage() {
   const latestClubMessages = memberClubsWithMessages?.latestMessages ?? {};
 
   // Get latest broadcast message
-  const { data: latestBroadcast, isFetched: latestBroadcastFetched, isError: latestBroadcastError } = useQuery({
+  const { data: latestBroadcast, isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError } = useQuery({
     queryKey: ["latest-broadcast"],
     refetchOnReconnect: "always",
     queryFn: async () => {
