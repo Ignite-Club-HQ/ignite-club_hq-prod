@@ -1249,7 +1249,9 @@ export default function MediaPage() {
   // Show skeletons only if we have no cached data and are loading. The
   // pro-access gate is dropped once the watchdog has timed it out so a hung
   // pro check can never hold the whole page on skeletons.
-  const showSkeletons = (loadingPhotos || (loadingProAccess && !proGateTimedOut)) && allPhotos.length === 0;
+  // Offline never shows skeletons — we render cached photos or a friendly
+  // offline empty state instead of an indefinite shimmer.
+  const showSkeletons = isOnline && (loadingPhotos || (loadingProAccess && !proGateTimedOut)) && allPhotos.length === 0;
 
   // Diagnostic: log what's blocking the skeleton from clearing.
   useEffect(() => {
