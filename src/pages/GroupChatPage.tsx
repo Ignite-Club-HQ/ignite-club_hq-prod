@@ -1854,7 +1854,7 @@ export default function GroupChatPage() {
 
       // Snapshot of the rendered reaction rows for this message, used to
       // restore local render state (which is fail-open for temp reactions).
-      const previousLocalReactions = (localMessagesRef.current || [])
+      const previousLocalReactions = ((localMessagesRef.current || []) as any[])
         .find((m: any) => m.id === messageId)
         ?.reactions?.map((r: any) => ({ ...r })) as MessageReaction[] | undefined;
 
