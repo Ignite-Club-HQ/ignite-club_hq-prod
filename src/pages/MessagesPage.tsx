@@ -50,6 +50,11 @@ import { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/component
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
+
+// Session-scoped first-reveal latch (per user id). Survives inbox unmount so
+// warm re-entries paint cached rows immediately instead of re-running the
+// initial ordering gate. Reset implicitly on reload / user switch.
+let sessionRevealedInboxUserId: string | null = null;
 import {
   AlertDialog,
   AlertDialogAction,
