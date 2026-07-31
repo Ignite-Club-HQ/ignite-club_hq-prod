@@ -1,3 +1,4 @@
+import { requireServiceRoleAuth } from "../_shared/callerAuth.ts";
 // Hourly export of public.write_audit_log rows to Storage as JSONL.
 // Files: audit-log-exports/YYYY/MM/DD/HH-<batchStart>.jsonl
 // Cursor: app_settings.value.last_id under key 'write_audit_export_cursor'
@@ -9,6 +10,10 @@ const MAX_BATCHES_PER_RUN = 20; // safety cap: 100k rows/run
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const __authError = requireServiceRoleAuth(req, corsHeaders);
+  if (__authError) return __authError;
+
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,

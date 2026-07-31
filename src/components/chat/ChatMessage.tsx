@@ -266,6 +266,30 @@ function ChatMessageInner({
     return (cachedMessage?.reactions || optimisticReactionsRef.current) as Reaction[];
   }, [queryClient, queryKey, id]);
 
+  // Final rollback after retries are exhausted. Restores ONLY this user's
+  // reaction rows for this message (from an immutable pre-mutation snapshot)
+  // so that reactions other users made via realtime while the mutation was in
+  // flight survive, and un-reconciled `temp-` rows are purged from both the
+  // rendered state and the query cache.
+  const rollbackOwnReactions = useCallback((snapshot: Reaction[] | undefined) => {
+    const mine = (snapshot ?? []).filter((r) => r.user_id === currentUserId).map((r) => ({ ...r }));
+
+    const merge = (current: Reaction[]): Reaction[] => [
+      ...(current || []).filter((r) => r.user_id !== currentUserId),
+      ...mine.map((r) => ({ ...r })),
+    ];
+
+    setLocalReactions((prev) => merge(prev));
+    updateReactionMessages((msgs) =>
+      msgs.map((msg: any) => {
+        if (msg.id !== id) return msg;
+        return { ...msg, reactions: merge((msg.reactions || []) as Reaction[]) };
+      })
+    );
+  }, [currentUserId, id, setLocalReactions, updateReactionMessages]);
+
+
+
   const addReactionMutation = useMutation({
     mutationFn: async ({
       reactionType,
@@ -366,7 +390,9 @@ function ChatMessageInner({
       isReactionMutatingRef.current = true;
       void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
-      const previousReactions = optimisticReactionsRef.current;
+      // Immutable snapshot so later optimistic/realtime writes can't mutate
+      // what we roll back to.
+      const previousReactions = (optimisticReactionsRef.current || []).map((r) => ({ ...r }));
 
       if (!currentUserId) {
         return { previousMessages, previousReactions, tempReactionId: null };
@@ -432,13 +458,10 @@ function ChatMessageInner({
     },
     onError: (err, variables, context) => {
       console.error("[Reaction] Mutation error:", err);
-      if (context?.previousMessages) {
-        queryClient.setQueryData(queryKey, context.previousMessages);
-      }
-      if (context?.previousReactions) {
-        setLocalReactions(context.previousReactions);
-      }
-      toast.error("Failed to add reaction");
+      // Fires only after retries are exhausted: single, final rollback scoped
+      // to this user's rows so other users' realtime reactions are preserved.
+      rollbackOwnReactions(context?.previousReactions);
+      toast.error("Couldn't update reaction. Please try again.");
     },
     onSettled: () => {
       isReactionMutatingRef.current = false;
@@ -473,7 +496,7 @@ function ChatMessageInner({
       isReactionMutatingRef.current = true;
       void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
-      const previousReactions = optimisticReactionsRef.current;
+      const previousReactions = (optimisticReactionsRef.current || []).map((r) => ({ ...r }));
 
       setLocalReactions((prev) => prev.filter((reaction) => reaction.id !== reactionId));
       updateReactionMessages((msgs) =>
@@ -489,12 +512,8 @@ function ChatMessageInner({
       return { previousMessages, previousReactions };
     },
     onError: (err, variables, context) => {
-      if (context?.previousMessages) {
-        queryClient.setQueryData(queryKey, context.previousMessages);
-      }
-      if (context?.previousReactions) {
-        setLocalReactions(context.previousReactions);
-      }
+      rollbackOwnReactions(context?.previousReactions);
+      toast.error("Couldn't update reaction. Please try again.");
     },
     onSettled: () => {
       isReactionMutatingRef.current = false;

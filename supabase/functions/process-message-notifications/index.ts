@@ -1,3 +1,4 @@
+import { requireServiceRoleAuth } from "../_shared/callerAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
@@ -136,6 +137,10 @@ Deno.serve(async (req) => {
 
   const __outboundBlocked = outboundBlockedResponse("process-message-notifications");
   if (__outboundBlocked) return __outboundBlocked;
+
+  const __authError = requireServiceRoleAuth(req, corsHeaders);
+  if (__authError) return __authError;
+
 
   const startTime = Date.now();
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus, Clock } from "lucide-react";
@@ -106,6 +106,8 @@ export default function CreateEventPage() {
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  // Event + duties are written atomically by create_event_with_duties, so no
+  // partial-write retry state is needed.
 
   // End time / duration state
   const [endTime, setEndTime] = useState("");
@@ -806,77 +808,46 @@ export default function CreateEventPage() {
           : null,
     } as any;
 
+    // The event row, any recurring occurrences and the duties are written by a
+    // single transactional RPC: either everything commits or nothing does, so a
+    // duty failure can never leave an orphaned event behind.
+    const dutyPayload =
+      type === "game"
+        ? duties.map((duty) => ({ name: duty.name, assigned_to: duty.assignedTo }))
+        : [];
+
     try {
+      let childDates: string[] | null = null;
       if (isRecurring) {
         const endDate = new Date(recurrenceEndDate);
         const dates = generateRecurringDates(parsedDateTime, endDate);
-        
-        const { data: parentEvent, error: parentError } = await supabase
-          .from("events")
-          .insert({
-            ...baseEventData,
-            event_date: parsedDateTime.toISOString(),
-          })
-          .select()
-          .single();
-
-        if (parentError) throw parentError;
-
-        if (dates.length > 1) {
-          const childEvents = dates.slice(1).map((date) => {
-            const childDateTime = new Date(date);
-            childDateTime.setHours(parsedDateTime.getHours(), parsedDateTime.getMinutes());
-            return {
-              ...baseEventData,
-              event_date: childDateTime.toISOString(),
-              parent_event_id: parentEvent.id,
-            };
-          });
-
-          const { error: childError } = await supabase
-            .from("events")
-            .insert(childEvents);
-
-          if (childError) throw childError;
-        }
-
-        // Create duties for parent event if it's a game
-        if (type === "game" && duties.length > 0) {
-          const dutyRecords = duties.map(duty => ({
-            event_id: parentEvent.id,
-            name: duty.name,
-            assigned_to: duty.assignedTo,
-          }));
-          await supabase.from("duties").insert(dutyRecords);
-        }
-
-        navigate(`/events/${parentEvent.id}`);
-      } else {
-        const { data, error } = await supabase
-          .from("events")
-          .insert({
-            ...baseEventData,
-            event_date: parsedDateTime.toISOString(),
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        // Create duties if it's a game event
-        if (type === "game" && duties.length > 0) {
-          const dutyRecords = duties.map(duty => ({
-            event_id: data.id,
-            name: duty.name,
-            assigned_to: duty.assignedTo,
-          }));
-          await supabase.from("duties").insert(dutyRecords);
-        }
-
-        navigate(`/events/${data.id}`);
+        childDates = dates.slice(1).map((date) => {
+          const childDateTime = new Date(date);
+          childDateTime.setHours(parsedDateTime.getHours(), parsedDateTime.getMinutes());
+          return childDateTime.toISOString();
+        });
+        if (childDates.length === 0) childDates = null;
       }
+
+      const { data: newEventId, error } = await supabase.rpc("create_event_with_duties", {
+        p_event: {
+          ...baseEventData,
+          event_date: parsedDateTime.toISOString(),
+        } as any,
+        p_child_dates: childDates,
+        p_duties: dutyPayload as any,
+      });
+
+      if (error) throw error;
+      if (!newEventId) throw new Error("Event could not be created.");
+
+      
+      navigate(`/events/${newEventId}`);
     } catch (error: any) {
       console.error("Error creating event:", error);
+
+
+
 
       const errorBlob = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
 

@@ -521,6 +521,8 @@ export default function EditEventPage() {
   }, [existingDuties]);
 
   const handleSubmit = async (updateSeries: boolean = false) => {
+    // Prevent double-submission while a save is in flight
+    if (saving) return;
     if (!title.trim() || !eventDateTime) {
       toast({
         title: "Missing information",
@@ -713,31 +715,34 @@ export default function EditEventPage() {
         if (error) throw error;
       }
 
-      // Handle duty updates for game events
+      // Duty changes for game events are applied by a single transactional RPC:
+      // every removal, edit and addition either commits together or rolls back,
+      // and the RPC raises when RLS would silently skip a row.
       if (type === "game") {
-        // Delete removed duties
-        if (dutiesToDelete.length > 0) {
-          await supabase.from("duties").delete().in("id", dutiesToDelete);
-        }
+        const { data: syncedRaw, error: dutyError } = await supabase.rpc("sync_event_duties", {
+          p_event_id: id!,
+          p_delete_ids: dutiesToDelete,
+          p_duties: duties.map((duty, idx) => ({
+            idx,
+            id: duty.id ?? null,
+            name: duty.name,
+            assigned_to: duty.assignedTo,
+          })) as any,
+        });
+        if (dutyError) throw Object.assign(dutyError, { __dutyStage: "sync" });
 
-        // Update existing duties and create new ones
-        for (const duty of duties) {
-          if (duty.id) {
-            // Update existing
-            await supabase
-              .from("duties")
-              .update({ name: duty.name, assigned_to: duty.assignedTo })
-              .eq("id", duty.id);
-          } else {
-            // Create new
-            await supabase.from("duties").insert({
-              event_id: id!,
-              name: duty.name,
-              assigned_to: duty.assignedTo,
-            });
-          }
+        setDutiesToDelete([]);
+        const synced = (syncedRaw as { idx: number; id: string }[] | null) ?? [];
+        if (synced.length > 0) {
+          setDuties((prev) =>
+            prev.map((d, idx) => {
+              const match = synced.find((s) => s.idx === idx);
+              return match && !d.id ? { ...d, id: match.id } : d;
+            }),
+          );
         }
       }
+
 
       // Event update notifications are now handled automatically by the
       // on_event_updated DB trigger → process-event-notifications edge function
@@ -752,8 +757,21 @@ export default function EditEventPage() {
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
 
       navigate(`/events/${id}`);
+
     } catch (error: any) {
       console.error("Error updating event:", error);
+      if (error?.__dutyStage) {
+        toast({
+          title: "Event saved, duties not saved",
+          description:
+            (/row-level security|permission|not permitted/i.test(error?.message ?? "")
+              ? "You don't have permission to change the duties on this event. "
+              : `Something went wrong saving the duties: ${error?.message ?? "unknown error"}. `) +
+            "No duty changes were applied. Your event changes were saved — tap Save again to retry the duties.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast(friendlyMutationError(error, { description: "Failed to update event. Please try again." }));
     } finally {
       setSaving(false);

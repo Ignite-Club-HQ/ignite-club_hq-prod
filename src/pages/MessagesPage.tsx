@@ -19,6 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { WifiOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -206,6 +208,7 @@ interface UnifiedConversation {
 
 export default function MessagesPage() {
   const { user, initialized, refreshUnreadCount } = useAuth();
+  const { isOnline } = useOnlineStatus();
   usePageTitle("Messages");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -420,7 +423,7 @@ export default function MessagesPage() {
   });
 
   // Fetch member clubs with their latest messages in a single query
-  const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched, isError: memberClubsError } = useQuery({
+  const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched, isFetching: memberClubsFetching, isError: memberClubsError } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
     refetchOnReconnect: "always",
@@ -525,7 +528,7 @@ export default function MessagesPage() {
   const latestClubMessages = memberClubsWithMessages?.latestMessages ?? {};
 
   // Get latest broadcast message
-  const { data: latestBroadcast, isFetched: latestBroadcastFetched, isError: latestBroadcastError } = useQuery({
+  const { data: latestBroadcast, isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError } = useQuery({
     queryKey: ["latest-broadcast"],
     refetchOnReconnect: "always",
     queryFn: async () => {
@@ -562,7 +565,7 @@ export default function MessagesPage() {
 
 
   // Fetch teams with their latest messages in a single query for efficiency
-  const { data: teamsWithMessages, isLoading: teamsLoading, isFetched: teamsFetched, isError: teamsError } = useQuery({
+  const { data: teamsWithMessages, isLoading: teamsLoading, isFetched: teamsFetched, isFetching: teamsFetching, isError: teamsError } = useQuery({
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
     refetchOnReconnect: "always",
@@ -888,7 +891,7 @@ export default function MessagesPage() {
   });
 
   // Fetch chat groups with their latest messages in a single query
-  const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched, isError: chatGroupsError } = useQuery({
+  const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched, isFetching: chatGroupsFetching, isError: chatGroupsError } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
     refetchOnReconnect: "always",
     queryFn: async () => {
@@ -2050,28 +2053,60 @@ export default function MessagesPage() {
   // initial load leaves `isFetched` false forever, and the inbox is stuck on
   // the skeleton even after coverage returns. The errored query will retry
   // on reconnect (refetchOnReconnect: "always") and rehydrate in place.
-  const freshSortDataReady =
-    (teamsFetched || teamsError) &&
-    (memberClubsFetched || memberClubsError) &&
-    (chatGroupsFetched || chatGroupsError) &&
-    (latestBroadcastFetched || latestBroadcastError) &&
-    (dmFetched || dmError);
-  const showSkeletonLoading = isLoadingFreshData || !freshSortDataReady;
+  // Offline: never wait on remote queries — they can't resolve without a
+  // network, and the user-scoped cache is the authoritative thing to show.
+  //
+  // NATIVE STALE-ORDER FIX: `initialData` (from the user-scoped inbox cache)
+  // makes React Query report `isFetched === true` before the network round
+  // trip returns, so the old gate released on cached `lastActivity` values and
+  // the rows visibly re-sorted a moment later. Requiring `!isFetching` as well
+  // means the first reveal always happens on server-authoritative ordering.
+  // Errored queries still settle (isFetching flips false), and offline/paused
+  // queries also report `isFetching === false`, so neither can wedge the gate.
+  const sortSourcesSettled =
+    (teamsFetched || teamsError) && !teamsFetching &&
+    (memberClubsFetched || memberClubsError) && !memberClubsFetching &&
+    (chatGroupsFetched || chatGroupsError) && !chatGroupsFetching &&
+    (latestBroadcastFetched || latestBroadcastError) && !latestBroadcastFetching &&
+    (dmFetched || dmError) && !dmFetching;
+
+  // Hard ceiling: never hold the skeleton longer than this, even if one query
+  // is pathologically slow. Order may correct in place after this point, but
+  // the inbox is guaranteed to paint.
+  const [sortGateExpired, setSortGateExpired] = useState(false);
+  useEffect(() => {
+    if (sortSourcesSettled) return;
+    const t = window.setTimeout(() => setSortGateExpired(true), 3500);
+    return () => window.clearTimeout(t);
+  }, [sortSourcesSettled]);
+
+  const freshSortDataReady = !isOnline || sortSourcesSettled || sortGateExpired;
+  const showSkeletonLoading = isOnline && (isLoadingFreshData || !freshSortDataReady);
 
 
 
   // Determine which data to display (prefer fresh, fallback to cached)
-  const displayTeams = teams || cachedData?.teams || [];
-  const displayMemberClubs = memberClubs || cachedData?.memberClubs || [];
+  const displayTeams = (teams?.length ? teams : (!isOnline ? (cachedData?.teams as any) : null)) || teams || cachedData?.teams || [];
+  const displayMemberClubs = (memberClubs?.length ? memberClubs : (!isOnline ? (cachedData?.memberClubs as any) : null)) || memberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
-  // Important: an empty fresh chat-group result is authoritative. Falling back
-  // to cached groups when `chatGroups.length === 0` kept soft-deleted/purged
-  // club chats visible forever after the server correctly returned no rows.
-  const allChatGroups = chatGroups ?? (cachedData?.chatGroups as any) ?? [];
+  // Important: an empty fresh chat-group result is authoritative *while
+  // online*. Falling back to cached groups when `chatGroups.length === 0`
+  // kept soft-deleted/purged club chats visible forever after the server
+  // correctly returned no rows. Offline, an empty/failed result carries no
+  // authority, so cached rows stay visible.
+  const allChatGroups = (chatGroups?.length ? chatGroups : (!isOnline ? (cachedData?.chatGroups as any) : null)) ?? chatGroups ?? (cachedData?.chatGroups as any) ?? [];
+
   
   // Filter chat groups by user's roles
   const displayChatGroups = useMemo(() => {
     if (isAppAdmin || isCommitteeMember) return allChatGroups;
+
+    // Offline with no roles loaded: the cached groups were already RLS- and
+    // role-filtered for THIS user when they were written (cache is
+    // user-scoped and cleared on sign-out), so render them rather than
+    // dropping every club/team chat.
+    const rolesUnavailableOffline = !isOnline && !userAllRoles?.length;
+    if (rolesUnavailableOffline) return allChatGroups;
 
     return allChatGroups.filter((group: any) => {
       // Personal/custom groups (no club, team, or mini-league scope) are
@@ -2081,6 +2116,7 @@ export default function MessagesPage() {
       if (isPersonalGroup) return true;
 
       if (!userAllRoles?.length) return false;
+
 
       const allowedRoles: string[] = group.allowed_roles || [];
       if (allowedRoles.length === 0) return true;
@@ -2105,7 +2141,7 @@ export default function MessagesPage() {
         return true;
       });
     });
-  }, [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember]);
+  }, [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember, isOnline]);
 
   const displayLatestBroadcast = latestBroadcast || cachedData?.latestBroadcast;
   const displayLatestTeamMessages = latestTeamMessages || {};
@@ -2311,13 +2347,43 @@ export default function MessagesPage() {
   const allDrafts = useAllChatDrafts();
   const draftFor = (id?: string | null) => (id ? allDrafts[id] : undefined);
 
+  // Offline fallback: when the DM query errors (no network), React Query drops
+  // the placeholder and `dmConversations` is undefined. Rebuild the list from
+  // the user-scoped cache so saved conversations stay selectable offline.
+  const offlineCachedDMs = useMemo(() => {
+    if (!cachedData?.dmConversations?.length) return [];
+    return cachedData.dmConversations.map((conv: any) => ({
+      ...conv,
+      created_at: conv.created_at || conv.updated_at,
+      created_by: conv.created_by || null,
+      last_message: cachedData.latestDMMessages?.[conv.id]
+        ? {
+            text: cachedData.latestDMMessages[conv.id].text,
+            image_url: cachedData.latestDMMessages[conv.id].image_url || null,
+            created_at: cachedData.latestDMMessages[conv.id].created_at,
+            author_id:
+              cachedData.latestDMMessages[conv.id].author === "You"
+                ? user?.id || ""
+                : conv.other_user?.id || "",
+          }
+        : null,
+    })) as any[];
+  }, [cachedData, user?.id]);
+
+  const effectiveDMConversations = useMemo(() => {
+    if (dmConversations?.length) return dmConversations as any[];
+    if (!isOnline && offlineCachedDMs.length) return offlineCachedDMs;
+    return (dmConversations as any[]) ?? [];
+  }, [dmConversations, isOnline, offlineCachedDMs]);
+
   // Filtered DM conversations
   // Hide empty DMs (no messages exchanged) from the list — these are stub
   // conversation rows that get created when someone opens a DM thread without
   // sending anything. They'd otherwise float to the top via `updated_at`.
   const filteredDMs = useMemo(() => {
-    if (!dmConversations) return [];
-    return dmConversations.filter((conv: any) => {
+    if (!effectiveDMConversations.length) return [];
+    return effectiveDMConversations.filter((conv: any) => {
+
       const hiddenAt = hiddenDMMap?.get(conv.id);
       if (hiddenAt) {
         const lastMsgAt = conv.last_message?.created_at;
@@ -2342,7 +2408,7 @@ export default function MessagesPage() {
       const hasDraft = !!allDrafts[conv.id]?.text?.trim();
       return !!conv.last_message || hasDraft;
     });
-  }, [dmConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub]);
+  }, [effectiveDMConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub]);
 
 
   // Check if Ignite Support should show
@@ -2762,7 +2828,7 @@ export default function MessagesPage() {
 
 
   const hasNoResults = query && unifiedConversations.length === 0;
-  const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0;
+  const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0 && filteredDMs.length === 0;
 
   // If a specific club is in scope (active club theme or local filter), use that
   // club's Pro status — otherwise fall back to the global "any Pro" check. This
@@ -2831,6 +2897,13 @@ export default function MessagesPage() {
 
   return (
     <div className="py-4 space-y-4">
+
+      {!isOnline && (
+        <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <WifiOff className="h-4 w-4 shrink-0" />
+          <span>You're offline — showing saved conversations.</span>
+        </div>
+      )}
 
       {/* Header with search and create group */}
       <div className="flex items-center justify-between gap-4">
@@ -3030,7 +3103,7 @@ export default function MessagesPage() {
           has appear, keeping the inbox uncluttered for simple users. Gated on
           ALL inbox queries having resolved so chips pop in together instead of
           Teams → Groups → DMs appearing one-by-one as each query finishes. */}
-      {((teamsFetched || teamsError) && (memberClubsFetched || memberClubsError) && (chatGroupsFetched || chatGroupsError) && (dmFetched || dmError)) && (() => {
+      {(!isOnline || ((teamsFetched || teamsError) && (memberClubsFetched || memberClubsError) && (chatGroupsFetched || chatGroupsError) && (dmFetched || dmError))) && (() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
         const unread = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
@@ -3371,14 +3444,29 @@ export default function MessagesPage() {
         {!showSkeletonLoading && !searchQuery && hasNoMessages && (
           <Card className="border-dashed">
             <CardContent className="p-8 text-center">
-              <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No messages available</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Join a team or club to access chats
-              </p>
+              {isOnline ? (
+                <>
+                  <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No messages available</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Join a team or club to access chats
+                  </p>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    You're offline and no saved conversations are available yet
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Reconnect to load your messages
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         )}
+
 
         {/* Admin Group threads are now merged into the unified sorted list above. */}
 

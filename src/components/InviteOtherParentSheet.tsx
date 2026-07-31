@@ -28,6 +28,18 @@ interface InviteOtherParentSheetProps {
   teamIds: string[];
 }
 
+/** Explicit delivery state — never inferred from `deliveryMethod` or the email string. */
+export type EmailDeliveryState = "not_requested" | "sending" | "sent" | "failed";
+
+/** Thrown when the team -> club scope cannot be authoritatively resolved. */
+export class InviteScopeResolutionError extends Error {
+  constructor(message = "We couldn't verify the team and club for this invitation. Please try again.") {
+    super(message);
+    this.name = "InviteScopeResolutionError";
+  }
+}
+
+
 export default function InviteOtherParentSheet({
   open,
   onOpenChange,
@@ -43,9 +55,12 @@ export default function InviteOtherParentSheet({
   const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
   const [sent, setSent] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [emailDelivery, setEmailDelivery] = useState<EmailDeliveryState>("not_requested");
+  const [sentToEmail, setSentToEmail] = useState<string | null>(null);
   const [resolvedClubName, setResolvedClubName] = useState("");
   const [resolvedTeamName, setResolvedTeamName] = useState("");
   const [selectedUser, setSelectedUser] = useState<{ id: string; display_name: string | null; avatar_url: string | null } | null>(null);
+
 
   const debouncedName = useDebounce(parentName, 300);
 
@@ -96,16 +111,24 @@ export default function InviteOtherParentSheet({
 
       const inviteToken = crypto.randomUUID();
 
+      // ---- Authoritative scope resolution (fail closed) --------------------
       let clubId: string | null = null;
       let teamId: string | null = null;
       if (teamIds.length > 0) {
-        teamId = teamIds[0];
-        const { data: team } = await supabase
+        const requestedTeamId = teamIds[0];
+        const { data: team, error: teamError } = await supabase
           .from("teams")
-          .select("club_id")
-          .eq("id", teamId)
-          .single();
-        clubId = team?.club_id || null;
+          .select("id, club_id")
+          .eq("id", requestedTeamId)
+          .maybeSingle();
+
+        if (teamError) throw new InviteScopeResolutionError();
+        if (!team) throw new InviteScopeResolutionError();
+        if (team.id !== requestedTeamId) throw new InviteScopeResolutionError();
+        if (!team.club_id) throw new InviteScopeResolutionError();
+
+        teamId = team.id;
+        clubId = team.club_id;
       }
 
       const trimmedEmail = parentEmail.trim().toLowerCase();
@@ -160,49 +183,84 @@ export default function InviteOtherParentSheet({
       setResolvedClubName(clubName);
       setResolvedTeamName(teamName);
 
-      // Only send email if delivery method is email
+      // ---- Email delivery (verified-only success) --------------------------
+      let delivery: EmailDeliveryState = "not_requested";
       if (deliveryMethod === "email" && trimmedEmail) {
-        await supabase.functions.invoke("send-email", {
-          body: {
-            to: trimmedEmail,
-            subject: `${clubName}: You've been invited as a guardian for ${childName} ⚽`,
-            template: "team-invite",
-            senderName: clubName,
-            replyTo: contactEmail,
-            templateData: {
-              recipientName: parentName.trim(),
-              invitedEmail: trimmedEmail,
-              teamName,
-              clubName,
-              roleName: "Parent",
-              inviteLink: link,
-              clubLogoUrl,
-              childrenNames: [childName],
-            },
-          },
-        });
+        delivery = "failed";
+        setEmailDelivery("sending");
 
-        if (insertedInvite?.id) {
+        let failureReason = "Email delivery could not be verified";
+        try {
+          const { data: emailData, error: emailError } = await supabase.functions.invoke("send-email", {
+            body: {
+              to: trimmedEmail,
+              subject: `${clubName}: You've been invited as a guardian for ${childName} ⚽`,
+              template: "team-invite",
+              senderName: clubName,
+              replyTo: contactEmail,
+              templateData: {
+                recipientName: parentName.trim(),
+                invitedEmail: trimmedEmail,
+                teamName,
+                clubName,
+                roleName: "Parent",
+                inviteLink: link,
+                clubLogoUrl,
+                childrenNames: [childName],
+              },
+            },
+          });
+
+          const payload = (emailData ?? null) as { success?: unknown; verified?: unknown; emailId?: unknown; id?: unknown } | null;
+          if (emailError) {
+            failureReason = emailError.message || "send-email invocation failed";
+          } else if (payload?.success === true && payload?.verified === true) {
+            delivery = "sent";
+            const providerId = typeof payload.emailId === "string" ? payload.emailId
+              : typeof payload.id === "string" ? payload.id
+              : null;
+            if (insertedInvite?.id) {
+              await supabase
+                .from("pending_invites")
+                .update({
+                  email_sent_at: new Date().toISOString(),
+                  ...(providerId ? { email_id: providerId } : {}),
+                } as any)
+                .eq("id", insertedInvite.id);
+            }
+          }
+        } catch (e) {
+          failureReason = e instanceof Error ? e.message : "send-email invocation threw";
+        }
+
+        if (delivery === "failed" && insertedInvite?.id) {
+          // Best-effort failure metadata; never blocks the (valid) invitation.
           await supabase
             .from("pending_invites")
-            .update({
-              email_sent_at: new Date().toISOString(),
-            } as any)
+            .update({ email_error: failureReason.slice(0, 500) } as any)
             .eq("id", insertedInvite.id);
         }
       }
 
-      return { link };
+      return { link, delivery, email: trimmedEmail || null };
     },
     onSuccess: (data) => {
+      if (!data) return;
       queryClient.invalidateQueries({ queryKey: ["child_guardians", childId] });
       queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
-      setInviteLink(data?.link || null);
+      setInviteLink(data.link || null);
+      setEmailDelivery(data.delivery);
+      setSentToEmail(data.email);
       setSent(true);
     },
     onError: (error: Error) => {
       console.error("[InviteOtherParent] Error:", error);
-      toast({ title: "Failed to send invite", variant: "destructive" });
+      setEmailDelivery("not_requested");
+      if (error instanceof InviteScopeResolutionError) {
+        toast({ title: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Failed to create invite", variant: "destructive" });
+      }
     },
   });
 
@@ -214,6 +272,8 @@ export default function InviteOtherParentSheet({
         setDeliveryMethod("share");
         setSent(false);
         setInviteLink(null);
+        setEmailDelivery("not_requested");
+        setSentToEmail(null);
         setResolvedClubName("");
         setResolvedTeamName("");
         setSelectedUser(null);
@@ -221,6 +281,7 @@ export default function InviteOtherParentSheet({
     }
     onOpenChange(open);
   };
+
 
   const buildShareMessage = () => {
     const parts: string[] = [];
@@ -256,15 +317,24 @@ export default function InviteOtherParentSheet({
             </ResponsiveDialogHeader>
 
             <div className="space-y-4 py-4">
-              <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+              <div
+                className={`p-4 rounded-xl border ${
+                  emailDelivery === "failed"
+                    ? "bg-destructive/5 border-destructive/30"
+                    : "bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20"
+                }`}
+              >
                 <p className="font-medium mb-1">{parentName}</p>
                 <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                  <Mail className="h-3.5 w-3.5" />
-                  {deliveryMethod === "email" && parentEmail
-                    ? `Invite sent to ${parentEmail}`
-                    : "Invite link created — share it with them"}
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  {emailDelivery === "sent" && sentToEmail
+                    ? `Invite sent to ${sentToEmail}`
+                    : emailDelivery === "failed"
+                      ? "Invite link created — email could not be sent. Share the link manually."
+                      : "Invite link created — share it with them"}
                 </p>
               </div>
+
 
               {/* Share invite via other channels */}
               <div className="space-y-2">

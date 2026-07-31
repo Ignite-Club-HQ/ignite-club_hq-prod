@@ -1,6 +1,8 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
+import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
+import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Users, Play, Pause, RotateCcw, Clock, Loader2, Plus, X, Check, UserPlus, Flame } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,8 +45,18 @@ export default function EventGroupPitchPage() {
   const [assignDutyOpen, setAssignDutyOpen] = useState(false);
   const [selectedDuty, setSelectedDuty] = useState<GroupDuty | null>(null);
 
-  // Fetch group details
-  const { data: group, isLoading: groupLoading } = useQuery({
+  // Fetch group details.
+  // `maybeSingle()` so an absent row resolves to `null` on a SUCCESSFUL query —
+  // that's what lets the gate below tell "deleted" apart from "network dropped".
+  const {
+    data: group,
+    isLoading: groupLoading,
+    isError: groupIsError,
+    status: groupStatus,
+    fetchStatus: groupFetchStatus,
+    refetch: refetchGroup,
+    isFetching: groupIsFetching,
+  } = useQuery({
     queryKey: ["event-group", groupId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -54,12 +66,13 @@ export default function EventGroupPitchPage() {
           event:events(id, title, event_date, start_time, end_time, mini_league_id)
         `)
         .eq("id", groupId!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data ?? null;
     },
     enabled: !!groupId,
   });
+
 
   // Fetch group players with team assignment
   const { data: players } = useQuery({
@@ -302,6 +315,29 @@ export default function EventGroupPitchPage() {
     );
   }
 
+  const groupMetadataState = resolveChatMetadataState({
+    data: group,
+    isLoading: groupLoading,
+    isError: groupIsError,
+    fetchStatus: groupFetchStatus,
+    status: groupStatus,
+    isOnline: typeof navigator === "undefined" ? true : navigator.onLine !== false,
+  });
+
+  if (groupMetadataState === "unreachable") {
+    return (
+      <div className="container max-w-4xl py-6">
+        <ChatUnreachable
+          label="match day group"
+          onRetry={() => void refetchGroup()}
+          retrying={groupIsFetching}
+          backTo="/schedule"
+          backLabel="Back to Schedule"
+        />
+      </div>
+    );
+  }
+
   if (!group) {
     return (
       <div className="container max-w-4xl py-6 text-center">
@@ -309,6 +345,7 @@ export default function EventGroupPitchPage() {
       </div>
     );
   }
+
 
   // Convert mini league players to the format expected by PitchBoard
   // PitchBoard expects members in this format for initialization

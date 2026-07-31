@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { PageLoading } from "@/components/ui/page-loading";
+import { LegalReacceptanceAdminCard } from "@/components/admin/LegalReacceptanceAdminCard";
 
 export default function AppSettingsPage() {
   const { user } = useAuth();
@@ -423,6 +424,8 @@ export default function AppSettingsPage() {
             })()}
           </CardContent>
         </Card>
+        <LegalReacceptanceAdminCard />
+
         <div className="text-center text-sm text-muted-foreground pt-4">
           <p>Current status: {isClubCreationLocked ? "Only app admins can create clubs" : "Anyone can create clubs"}</p>
         </div>

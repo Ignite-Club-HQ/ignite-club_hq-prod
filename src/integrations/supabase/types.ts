@@ -3758,6 +3758,7 @@ export type Database = {
       event_group_players: {
         Row: {
           created_at: string
+          event_id: string
           group_id: string
           id: string
           player_id: string
@@ -3765,6 +3766,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          event_id: string
           group_id: string
           id?: string
           player_id: string
@@ -3772,12 +3774,20 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          event_id?: string
           group_id?: string
           id?: string
           player_id?: string
           team?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "event_group_players_group_event_fkey"
+            columns: ["group_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id", "event_id"]
+          },
           {
             foreignKeyName: "event_group_players_group_id_fkey"
             columns: ["group_id"]
@@ -10263,6 +10273,7 @@ export type Database = {
     Functions: {
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
+      accept_current_legal_terms: { Args: never; Returns: undefined }
       accept_guardian_parent_invite: {
         Args: { _invite_id: string }
         Returns: Json
@@ -10805,6 +10816,10 @@ export type Database = {
           p_team_id: string
           p_year_of_birth?: number
         }
+        Returns: string
+      }
+      create_event_with_duties: {
+        Args: { p_child_dates?: string[]; p_duties?: Json; p_event: Json }
         Returns: string
       }
       create_personal_competition: {
@@ -12098,6 +12113,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_legal_reacceptance: {
+        Args: {
+          _confirmation?: string
+          _required: boolean
+          _summary?: string
+          _version?: string
+        }
+        Returns: Json
+      }
       settle_vault_storage: {
         Args: { _committed: boolean; _reservation_id: string }
         Returns: string
@@ -12131,6 +12155,10 @@ export type Database = {
           p_player2_team: string
         }
         Returns: undefined
+      }
+      sync_event_duties: {
+        Args: { p_delete_ids?: string[]; p_duties?: Json; p_event_id: string }
+        Returns: Json
       }
       team_has_club_pro_access: { Args: { _team_id: string }; Returns: boolean }
       team_has_club_pro_football_access: {
