@@ -1,3 +1,4 @@
+import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
@@ -1335,7 +1336,7 @@ export default function DirectMessagePage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`dm-${conversationId}`);
     };
-  }, [conversationId, queryClient, user?.id, reconcileScop, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [conversationId, queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
     searchQuery,

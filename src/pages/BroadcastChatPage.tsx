@@ -1,3 +1,4 @@
+import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
@@ -814,7 +815,7 @@ export default function BroadcastChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved("broadcast-messages-realtime");
     };
-  }, [queryClient, user?.id, reconcileScop, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)

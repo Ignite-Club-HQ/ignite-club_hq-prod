@@ -1,3 +1,4 @@
+import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
@@ -1233,7 +1234,7 @@ export default function ClubChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`club-messages-${clubId}`);
     };
-  }, [clubId, queryClient, clubRealtimeMode, user?.id, reconcileScop, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [clubId, queryClient, clubRealtimeMode, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)

@@ -1,3 +1,4 @@
+import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
@@ -1084,7 +1085,7 @@ export default function ClubAdminChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`club-admin-chat-${conversationId}`);
     };
-  }, [conversationId, conversation?.club_id, queryClient, queryKey, user?.id, reconcileScop, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [conversationId, conversation?.club_id, queryClient, queryKey, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   // Visibility change handler
   useEffect(() => {
