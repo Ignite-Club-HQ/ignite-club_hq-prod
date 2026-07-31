@@ -115,6 +115,8 @@ import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemov
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
+import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
+import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 
 
@@ -436,20 +438,33 @@ export default function GroupChatPage() {
   };
 
   // Fetch group details
-  const { data: group, isLoading: groupLoading } = useQuery({
+  // Fetch group details.
+  // `maybeSingle()` (not `single()`) so an absent/RLS-hidden row resolves to
+  // `null` on a SUCCESSFUL query instead of throwing — that's what lets the
+  // render gate below tell "deleted" apart from "network dropped".
+  const {
+    data: group,
+    isLoading: groupLoading,
+    isError: groupIsError,
+    fetchStatus: groupFetchStatus,
+    status: groupStatus,
+    refetch: refetchGroup,
+    isFetching: groupIsFetching,
+  } = useQuery({
     queryKey: ["chat-group", groupId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chat_groups")
         .select("*")
         .eq("id", groupId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as ChatGroup;
+      return (data as ChatGroup) ?? null;
     },
     enabled: !!groupId,
     staleTime: 5 * 60 * 1000,
   });
+
 
   const { data: miniLeagueInfo } = useQuery({
     queryKey: ["chat-group-mini-league", group?.mini_league_id],
@@ -2185,11 +2200,30 @@ export default function GroupChatPage() {
     ? `${groupBaseSublabel} · ${groupOnlineCount} online`
     : groupBaseSublabel;
 
-  if (groupLoading) {
+  const groupMetadataState = resolveChatMetadataState({
+    data: group,
+    isLoading: groupLoading,
+    isError: groupIsError,
+    fetchStatus: groupFetchStatus,
+    status: groupStatus,
+    isOnline,
+  });
+
+  if (groupMetadataState === "loading") {
     return <ChatPageSkeleton />;
   }
 
-  if (!group) {
+  if (groupMetadataState === "unreachable") {
+    return (
+      <ChatUnreachable
+        label="chat group"
+        onRetry={() => void refetchGroup()}
+        retrying={groupIsFetching}
+      />
+    );
+  }
+
+  if (groupMetadataState === "missing") {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-muted-foreground text-center px-4">This chat group has been removed or is no longer available.</p>
@@ -2199,6 +2233,11 @@ export default function GroupChatPage() {
       </div>
     );
   }
+
+  if (!group) {
+    return <ChatPageSkeleton />;
+  }
+
 
   // Pro gate: club-level role groups (Coaches / Team Admins / Club Committee, etc.)
   // require the club to have Pro, mirroring the club-wide chat gate.
