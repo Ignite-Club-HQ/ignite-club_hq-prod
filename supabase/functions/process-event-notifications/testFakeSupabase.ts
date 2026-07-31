@@ -18,6 +18,8 @@ export class FakeSupabase {
   inserts: Array<{ table: string; rows: any[]; options: any }> = [];
   /** Optional per-table error injection. */
   errors: Record<string, any> = {};
+  /** Optional per-write outcomes, used to model one failed fan-out batch. */
+  writeErrors: Record<string, Array<any | null>> = {};
   /** Row cap applied when no explicit range is given (PostgREST default). */
   defaultLimit = 1000;
 
@@ -68,13 +70,19 @@ export class FakeSupabase {
       },
       upsert(rows: any[], options: any) {
         self.inserts.push({ table, rows, options });
+        const scheduledError = self.writeErrors[table]?.shift() ?? self.errors[table] ?? null;
         const withIds = rows.map((r, i) => ({
           ...r,
           id: r.id || `notif-${self.inserts.length}-${i}`,
         }));
-        self.tables[table] = [...(self.tables[table] || []), ...withIds];
+        if (!scheduledError) {
+          self.tables[table] = [...(self.tables[table] || []), ...withIds];
+        }
         return {
-          select: () => Promise.resolve({ data: withIds, error: self.errors[table] ?? null }),
+          select: () => Promise.resolve({
+            data: scheduledError ? null : withIds,
+            error: scheduledError,
+          }),
         };
       },
       then(resolve: any, reject?: any) {

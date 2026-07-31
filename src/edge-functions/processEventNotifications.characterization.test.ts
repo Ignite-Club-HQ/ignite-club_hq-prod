@@ -267,7 +267,15 @@ describe("event audience resolution — unchanged behaviour", () => {
     const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
     expect(ids).toHaveLength(206);
     expect(ids.filter(id => id === "shared")).toHaveLength(1);
-    expect(db.queries.filter(q => q.table === "child_guardians")).toHaveLength(2);
+    // The first 200-child chunk yields 201 guardian rows (including the
+    // shared guardian), so it correctly needs a second result page. The
+    // remaining five children are queried as a separate child-id chunk.
+    const guardianRanges = db.queries
+      .filter(q => q.table === "child_guardians")
+      .map(q => q.range);
+    expect(guardianRanges).toHaveLength(3);
+    expect(guardianRanges.filter(range => range?.[0] === 0 && range?.[1] === 199)).toHaveLength(2);
+    expect(guardianRanges.filter(range => range?.[0] === 200 && range?.[1] === 399)).toHaveLength(1);
   });
 
   it("ordinary team events never touch the events table and are unaffected", async () => {
@@ -294,6 +302,72 @@ describe("event audience resolution — unchanged behaviour", () => {
     const ids = await resolveRecipients(db, EVENT, CLUB, null, "ml-1", CREATOR);
     expect([...ids].sort()).toEqual(["a1", "la1", "p1"]);
   });
+});
+
+describe("event audience resolution — high-scale and read-failure safety", () => {
+  it("does not silently truncate a mini-league audience above the PostgREST row cap", async () => {
+    const parentCount = 1_205;
+    const db = new FakeSupabase({
+      mini_league_players: Array.from({ length: parentCount }, (_, i) => ({
+        mini_league_id: "ml-large",
+        parent_user_id: `parent-${String(i).padStart(4, "0")}`,
+      })),
+      mini_league_admins: [{ mini_league_id: "ml-large", user_id: "league-admin" }],
+      user_roles: [],
+    });
+
+    const ids = await resolveRecipients(db, EVENT, CLUB, null, "ml-large", CREATOR);
+    expect(ids).toHaveLength(parentCount + 1);
+    expect(new Set(ids)).toHaveLength(parentCount + 1);
+    expect(ids).toContain("parent-1204");
+    expect(ids).toContain("league-admin");
+  });
+
+  it("does not silently truncate guardian discovery above the PostgREST row cap", async () => {
+    const childCount = 1_205;
+    const assignments = Array.from({ length: childCount }, (_, i) => ({
+      team_id: TEAM,
+      child_id: `child-${String(i).padStart(4, "0")}`,
+    }));
+    const db = new FakeSupabase({
+      user_roles: [],
+      child_team_assignments: assignments,
+      child_guardians: assignments.map((assignment, i) => ({
+        child_id: assignment.child_id,
+        guardian_id: `guardian-${String(i).padStart(4, "0")}`,
+      })),
+      events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM] }],
+    });
+
+    const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
+    expect(ids).toHaveLength(childCount);
+    expect(new Set(ids)).toHaveLength(childCount);
+    expect(ids).toContain("guardian-1204");
+  });
+
+  it.each([
+    ["team membership", "user_roles", TEAM, null],
+    ["mini-league membership", "mini_league_players", null, "ml-1"],
+    ["targeted child assignments", "child_team_assignments", null, null],
+    ["targeted guardian relationships", "child_guardians", null, null],
+  ] as const)(
+    "fails closed when the %s read fails",
+    async (_label, failedTable, teamId, miniLeagueId) => {
+      const db = new FakeSupabase({
+        user_roles: roles([["member", "player", TEAM]]),
+        mini_league_players: [{ mini_league_id: "ml-1", parent_user_id: "parent" }],
+        mini_league_admins: [],
+        child_team_assignments: [{ team_id: TEAM, child_id: "child" }],
+        child_guardians: [{ child_id: "child", guardian_id: "guardian" }],
+        events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM] }],
+      });
+      db.errors[failedTable] = { code: "57014", message: "synthetic read timeout" };
+
+      await expect(
+        resolveRecipients(db, EVENT, CLUB, teamId, miniLeagueId, CREATOR),
+      ).rejects.toBeInstanceOf(AudienceResolutionError);
+    },
+  );
 });
 
 describe("event notification fan-out and idempotency", () => {
@@ -328,6 +402,29 @@ describe("event notification fan-out and idempotency", () => {
     await expect(batchInsertNotifications(db, recipients, "event_invite", "Carnival", EVENT))
       .resolves.toEqual({ inserted: 0, ids: [] });
     expect(db.inserts.map(write => write.rows.length)).toEqual([500, 1]);
+  });
+
+  it("continues independent batches and reports only rows actually committed after a middle-batch failure", async () => {
+    const db = new FakeSupabase({ notifications: [] });
+    db.writeErrors.notifications = [
+      null,
+      { code: "57014", message: "synthetic middle-batch timeout" },
+      null,
+    ];
+    const recipients = Array.from({ length: 1_100 }, (_, i) => `u${i}`);
+
+    const result = await batchInsertNotifications(
+      db,
+      recipients,
+      "event_invite",
+      "Carnival",
+      EVENT,
+    );
+
+    expect(db.inserts.map(write => write.rows.length)).toEqual([500, 500, 100]);
+    expect(result.inserted).toBe(600);
+    expect(result.ids).toHaveLength(600);
+    expect(db.tables.notifications).toHaveLength(600);
   });
 
   it("gives retries the same invite/cancellation identity but versions distinct edits", async () => {
