@@ -3103,6 +3103,27 @@ export type Database = {
           },
         ]
       }
+      dispatch_bootstrap_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       dm_attachment_restrictions: {
         Row: {
           club_id: string | null
@@ -6115,6 +6136,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_dispatch_log: {
+        Row: {
+          created_at: string
+          error_detail: string | null
+          id: string
+          message_id: string | null
+          message_type: string
+          request_id: number | null
+          resolved_at: string | null
+          status_code: number | null
+          target_function: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_detail?: string | null
+          id?: string
+          message_id?: string | null
+          message_type: string
+          request_id?: number | null
+          resolved_at?: string | null
+          status_code?: number | null
+          target_function?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_detail?: string | null
+          id?: string
+          message_id?: string | null
+          message_type?: string
+          request_id?: number | null
+          resolved_at?: string | null
+          status_code?: number | null
+          target_function?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       notification_preferences: {
         Row: {
@@ -10433,6 +10493,10 @@ export type Database = {
           status: string
         }[]
       }
+      bootstrap_dispatch_credentials: {
+        Args: { _base_url: string }
+        Returns: number
+      }
       can_access_chat: {
         Args: { _chat_id: string; _chat_type: string }
         Returns: boolean
@@ -10792,6 +10856,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      consume_dispatch_bootstrap_token: {
+        Args: { _token: string }
+        Returns: boolean
       }
       create_association_club_event_atomic: {
         Args: {
@@ -11903,12 +11971,23 @@ export type Database = {
           user_id: string
         }[]
       }
+      reconcile_notification_dispatch_log: { Args: never; Returns: number }
       reconcile_pending_invites: {
         Args: { _club_id?: string; _team_id?: string }
         Returns: {
           reconciled_count: number
           skipped_count: number
         }[]
+      }
+      record_notification_dispatch: {
+        Args: {
+          _error_detail?: string
+          _message_id: string
+          _message_type: string
+          _request_id: number
+          _target_function?: string
+        }
+        Returns: undefined
       }
       record_push_failure: {
         Args: { p_endpoint: string; p_reason?: string }
@@ -12037,6 +12116,7 @@ export type Database = {
           team_name: string
         }[]
       }
+      self_heal_dispatch_credentials: { Args: never; Returns: boolean }
       send_duty_notification_email: {
         Args: {
           p_club_logo_url: string
@@ -12112,6 +12192,10 @@ export type Database = {
           _sponsor_name?: string
         }
         Returns: undefined
+      }
+      set_internal_dispatch_credentials: {
+        Args: { _functions_base_url: string; _service_role_key: string }
+        Returns: Json
       }
       set_legal_reacceptance: {
         Args: {

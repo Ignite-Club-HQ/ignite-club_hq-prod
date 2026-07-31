@@ -32,8 +32,35 @@ Contract enforced by `src/edge-functions/edgeFunctionAuthenticationContract.test
 | send-feedback-email | app FeedbackDialog | authenticated user (identity from token) |
 | send-invite-reminders | pg_cron | service-role |
 | send-welcome-dm | app CompleteProfilePage | authenticated user (self only) or service-role |
+| sync-dispatch-credentials | promotion pipeline, self-heal cron, app-admin UI | service-role, app_admin, or a single-use DB-issued bootstrap token |
 
 Intentionally public: `public-club-events`, `public-club-teams` (read-only).
+
+## Vault key drift (root cause of the 2026-07-31 notification outage)
+
+The Vault copy of `service_role_key` can go stale relative to the key the Edge
+Function gateway accepts — every trigger dispatch then returns `403 Forbidden`
+and no notifications are created.
+
+Repair path (no human ever handles the secret):
+
+1. `public.bootstrap_dispatch_credentials(base_url)` mints a single-use, 2-minute
+   token in `public.dispatch_bootstrap_tokens` and POSTs it to
+   `sync-dispatch-credentials`.
+2. That function writes its **runtime** `SUPABASE_SERVICE_ROLE_KEY` and URL back
+   into Vault via `public.set_internal_dispatch_credentials`.
+3. `self-heal-dispatch-credentials` (cron, every 15 min) runs step 1 automatically
+   whenever `public.notification_dispatch_log` shows recent 401/403 dispatches.
+4. `promote-to-prod.yml` runs step 1 after every promotion.
+
+## Dispatch observability
+
+Every message trigger records its attempt in `public.notification_dispatch_log`
+(app-admin readable). `reconcile-notification-dispatch-log` (cron, every minute)
+joins attempts to `net._http_response`, stores the status code and error body,
+marks responses missing after 10 minutes as lost, and raises a warning when
+failures occurred in the last 5 minutes. Fan-out failures are no longer silent.
+
 
 ## Database-side callers
 
