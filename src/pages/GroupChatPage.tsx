@@ -436,20 +436,33 @@ export default function GroupChatPage() {
   };
 
   // Fetch group details
-  const { data: group, isLoading: groupLoading } = useQuery({
+  // Fetch group details.
+  // `maybeSingle()` (not `single()`) so an absent/RLS-hidden row resolves to
+  // `null` on a SUCCESSFUL query instead of throwing — that's what lets the
+  // render gate below tell "deleted" apart from "network dropped".
+  const {
+    data: group,
+    isLoading: groupLoading,
+    isError: groupIsError,
+    fetchStatus: groupFetchStatus,
+    status: groupStatus,
+    refetch: refetchGroup,
+    isFetching: groupIsFetching,
+  } = useQuery({
     queryKey: ["chat-group", groupId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chat_groups")
         .select("*")
         .eq("id", groupId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as ChatGroup;
+      return (data as ChatGroup) ?? null;
     },
     enabled: !!groupId,
     staleTime: 5 * 60 * 1000,
   });
+
 
   const { data: miniLeagueInfo } = useQuery({
     queryKey: ["chat-group-mini-league", group?.mini_league_id],
