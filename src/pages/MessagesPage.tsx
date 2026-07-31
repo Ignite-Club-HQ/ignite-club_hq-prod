@@ -2390,7 +2390,7 @@ export default function MessagesPage() {
       const hasDraft = !!allDrafts[conv.id]?.text?.trim();
       return !!conv.last_message || hasDraft;
     });
-  }, [dmConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub]);
+  }, [effectiveDMConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub]);
 
 
   // Check if Ignite Support should show
