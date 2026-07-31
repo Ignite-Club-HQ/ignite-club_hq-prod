@@ -1,3 +1,4 @@
+import { authenticateUser } from "../_shared/callerAuth.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
@@ -15,20 +16,50 @@ Deno.serve(async (req: Request) => {
   const __outboundBlocked = outboundBlockedResponse("send-feedback-email");
   if (__outboundBlocked) return __outboundBlocked;
 
+  // Authenticated end users only. The caller's verified identity — not the
+  // request payload — determines who the feedback is attributed to.
+  const __auth = await authenticateUser(req, corsHeaders);
+  if ("response" in __auth) return __auth.response;
+  const __user = __auth.user;
+
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
       throw new Error("RESEND_API_KEY not configured");
     }
 
-    const { type, title, description, userEmail, userName } = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return new Response(
+        JSON.stringify({ error: "Invalid request body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    if (!type || !title) {
+    const ALLOWED_TYPES = new Set(["feature_request", "bug", "other"]);
+    const type = typeof body.type === "string" ? body.type.trim() : "";
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    const rawDescription =
+      typeof body.description === "string" ? body.description.trim() : "";
+    const description = rawDescription ? rawDescription.slice(0, 5000) : null;
+
+    if (!ALLOWED_TYPES.has(type) || !title) {
       return new Response(
         JSON.stringify({ error: "type and title are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    if (title.length > 200) {
+      return new Response(
+        JSON.stringify({ error: "title is too long" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Identity is taken from the verified token, never from the payload.
+    const userEmail = __user.email ?? "unknown";
+    const rawName = typeof body.userName === "string" ? body.userName.trim() : "";
+    const userName = (rawName ? rawName.slice(0, 120) : "") || userEmail;
 
     const resend = new Resend(resendApiKey);
 
