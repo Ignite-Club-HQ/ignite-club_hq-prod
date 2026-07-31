@@ -2055,14 +2055,32 @@ export default function MessagesPage() {
   // on reconnect (refetchOnReconnect: "always") and rehydrate in place.
   // Offline: never wait on remote queries — they can't resolve without a
   // network, and the user-scoped cache is the authoritative thing to show.
-  const freshSortDataReady =
-    !isOnline || (
-      (teamsFetched || teamsError) &&
-      (memberClubsFetched || memberClubsError) &&
-      (chatGroupsFetched || chatGroupsError) &&
-      (latestBroadcastFetched || latestBroadcastError) &&
-      (dmFetched || dmError)
-    );
+  //
+  // NATIVE STALE-ORDER FIX: `initialData` (from the user-scoped inbox cache)
+  // makes React Query report `isFetched === true` before the network round
+  // trip returns, so the old gate released on cached `lastActivity` values and
+  // the rows visibly re-sorted a moment later. Requiring `!isFetching` as well
+  // means the first reveal always happens on server-authoritative ordering.
+  // Errored queries still settle (isFetching flips false), and offline/paused
+  // queries also report `isFetching === false`, so neither can wedge the gate.
+  const sortSourcesSettled =
+    (teamsFetched || teamsError) && !teamsFetching &&
+    (memberClubsFetched || memberClubsError) && !memberClubsFetching &&
+    (chatGroupsFetched || chatGroupsError) && !chatGroupsFetching &&
+    (latestBroadcastFetched || latestBroadcastError) && !latestBroadcastFetching &&
+    (dmFetched || dmError) && !dmFetching;
+
+  // Hard ceiling: never hold the skeleton longer than this, even if one query
+  // is pathologically slow. Order may correct in place after this point, but
+  // the inbox is guaranteed to paint.
+  const [sortGateExpired, setSortGateExpired] = useState(false);
+  useEffect(() => {
+    if (sortSourcesSettled) return;
+    const t = window.setTimeout(() => setSortGateExpired(true), 3500);
+    return () => window.clearTimeout(t);
+  }, [sortSourcesSettled]);
+
+  const freshSortDataReady = !isOnline || sortSourcesSettled || sortGateExpired;
   const showSkeletonLoading = isOnline && (isLoadingFreshData || !freshSortDataReady);
 
 
