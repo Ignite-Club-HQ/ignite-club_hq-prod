@@ -339,11 +339,23 @@ jobs:
               || ' service_role_key_ok=' || coalesce((select length(decrypted_secret) >= 20 and decrypted_secret !~ '\s'
                    from vault.decrypted_secrets where name='service_role_key' limit 1), false);"
 
-          MISSING=$(run_sql -c "select coalesce((select 1 from vault.decrypted_secrets where name='service_role_key' and length(decrypted_secret) >= 20 limit 1), 0);")
-          if [ "$MISSING" != "1" ]; then
+          # Fail closed on BOTH Vault secrets. Edge functions now authenticate
+          # every caller, and DB triggers/cron read these two secrets to build an
+          # authenticated request. If either is missing the triggers skip the call
+          # silently (warn only) — notifications would go quiet with no error.
+          KEY_OK=$(run_sql -c "select coalesce((select 1 from vault.decrypted_secrets where name='service_role_key' and length(decrypted_secret) >= 20 and decrypted_secret !~ '\s' limit 1), 0);")
+          if [ "$KEY_OK" != "1" ]; then
             echo "::error::PROD Vault secret 'service_role_key' is missing or invalid. Add repository secret SUPABASE_PROD_SERVICE_ROLE_KEY, or create the Vault secret in the Supabase dashboard, then re-run."
             exit 1
           fi
+
+          URL_OK=$(run_sql -c "select coalesce((select 1 from vault.decrypted_secrets where name='functions_base_url' and decrypted_secret ~ '^https://[a-z0-9.-]+\.supabase\.(co|in)\$' limit 1), 0);")
+          if [ "$URL_OK" != "1" ]; then
+            echo "::error::PROD Vault secret 'functions_base_url' is missing or malformed. Triggers cannot dispatch authenticated edge-function calls without it."
+            exit 1
+          fi
+          echo "✅ Both Vault secrets present and well-formed."
+
 
       - name: Apply migrations to PROD
         if: github.event_name == 'push'
