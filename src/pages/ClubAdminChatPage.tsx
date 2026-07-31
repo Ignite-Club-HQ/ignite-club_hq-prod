@@ -198,20 +198,31 @@ export default function ClubAdminChatPage() {
   }, []);
 
   // Fetch conversation details
-  const { data: conversation, isLoading: conversationLoading } = useQuery({
+  // `maybeSingle()` so an absent/RLS-hidden row is a successful `null` rather
+  // than a throw — lets the render gate distinguish deleted from unreachable.
+  const {
+    data: conversation,
+    isLoading: conversationLoading,
+    isError: conversationIsError,
+    fetchStatus: conversationFetchStatus,
+    status: conversationStatus,
+    refetch: refetchConversation,
+    isFetching: conversationIsFetching,
+  } = useQuery({
     queryKey: ["club-admin-conversation", conversationId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("club_admin_conversations")
         .select("*")
         .eq("id", conversationId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data ?? null;
     },
     enabled: !!conversationId && authReady,
     staleTime: 5 * 60 * 1000,
   });
+
   const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(
     conversation?.club_id ?? null,
     { enabled: !!conversation?.club_id && authReady }
