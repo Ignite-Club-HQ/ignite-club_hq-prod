@@ -1131,10 +1131,33 @@ export default function ClubAdminChatPage() {
   // a full-page loader would replace the chat tree mid-mount and force Virtuoso
   // to re-pin against a fresh layout, causing a visible jolt. Render the shell
   // immediately when we have cached content; only show the skeleton on true cold load.
-  if (conversationLoading && !(localMessages && localMessages.length > 0)) return <ChatPageSkeleton />;
+  const conversationMetadataState = resolveChatMetadataState({
+    data: conversation,
+    isLoading: conversationLoading,
+    isError: conversationIsError,
+    fetchStatus: conversationFetchStatus,
+    status: conversationStatus,
+    isOnline: typeof navigator === "undefined" ? true : navigator.onLine !== false,
+  });
 
+  if (
+    conversationMetadataState === "loading" &&
+    !(localMessages && localMessages.length > 0)
+  ) {
+    return <ChatPageSkeleton />;
+  }
 
-  if (!conversation && !conversationLoading) {
+  if (conversationMetadataState === "unreachable" && !conversation) {
+    return (
+      <ChatUnreachable
+        label="conversation"
+        onRetry={() => void refetchConversation()}
+        retrying={conversationIsFetching}
+      />
+    );
+  }
+
+  if (conversationMetadataState === "missing") {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <p className="text-muted-foreground">Conversation not found</p>
@@ -1142,6 +1165,9 @@ export default function ClubAdminChatPage() {
       </div>
     );
   }
+
+  if (!conversation) return <ChatPageSkeleton />;
+
 
 
   return (
