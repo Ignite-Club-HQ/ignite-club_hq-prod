@@ -496,7 +496,7 @@ function ChatMessageInner({
       isReactionMutatingRef.current = true;
       void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
-      const previousReactions = optimisticReactionsRef.current;
+      const previousReactions = (optimisticReactionsRef.current || []).map((r) => ({ ...r }));
 
       setLocalReactions((prev) => prev.filter((reaction) => reaction.id !== reactionId));
       updateReactionMessages((msgs) =>
