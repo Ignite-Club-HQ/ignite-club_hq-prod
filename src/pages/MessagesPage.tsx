@@ -2329,13 +2329,43 @@ export default function MessagesPage() {
   const allDrafts = useAllChatDrafts();
   const draftFor = (id?: string | null) => (id ? allDrafts[id] : undefined);
 
+  // Offline fallback: when the DM query errors (no network), React Query drops
+  // the placeholder and `dmConversations` is undefined. Rebuild the list from
+  // the user-scoped cache so saved conversations stay selectable offline.
+  const offlineCachedDMs = useMemo(() => {
+    if (!cachedData?.dmConversations?.length) return [];
+    return cachedData.dmConversations.map((conv: any) => ({
+      ...conv,
+      created_at: conv.created_at || conv.updated_at,
+      created_by: conv.created_by || null,
+      last_message: cachedData.latestDMMessages?.[conv.id]
+        ? {
+            text: cachedData.latestDMMessages[conv.id].text,
+            image_url: cachedData.latestDMMessages[conv.id].image_url || null,
+            created_at: cachedData.latestDMMessages[conv.id].created_at,
+            author_id:
+              cachedData.latestDMMessages[conv.id].author === "You"
+                ? user?.id || ""
+                : conv.other_user?.id || "",
+          }
+        : null,
+    })) as any[];
+  }, [cachedData, user?.id]);
+
+  const effectiveDMConversations = useMemo(() => {
+    if (dmConversations?.length) return dmConversations as any[];
+    if (!isOnline && offlineCachedDMs.length) return offlineCachedDMs;
+    return (dmConversations as any[]) ?? [];
+  }, [dmConversations, isOnline, offlineCachedDMs]);
+
   // Filtered DM conversations
   // Hide empty DMs (no messages exchanged) from the list — these are stub
   // conversation rows that get created when someone opens a DM thread without
   // sending anything. They'd otherwise float to the top via `updated_at`.
   const filteredDMs = useMemo(() => {
-    if (!dmConversations) return [];
-    return dmConversations.filter((conv: any) => {
+    if (!effectiveDMConversations.length) return [];
+    return effectiveDMConversations.filter((conv: any) => {
+
       const hiddenAt = hiddenDMMap?.get(conv.id);
       if (hiddenAt) {
         const lastMsgAt = conv.last_message?.created_at;
