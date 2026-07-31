@@ -21,7 +21,7 @@ import { mark as coldMark } from "@/lib/coldStartMarks";
 const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
 export function AppLayout() {
-  const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized, profileResolved } = useAuth();
+  const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized, profileResolved, sessionRestoration } = useAuth();
   useAdMobInit();
   useActivityTracking();
   useTrackPresence(user?.id);
