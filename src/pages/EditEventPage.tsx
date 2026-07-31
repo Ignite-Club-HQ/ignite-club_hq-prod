@@ -521,6 +521,8 @@ export default function EditEventPage() {
   }, [existingDuties]);
 
   const handleSubmit = async (updateSeries: boolean = false) => {
+    // Prevent double-submission while a save is in flight
+    if (saving) return;
     if (!title.trim() || !eventDateTime) {
       toast({
         title: "Missing information",
