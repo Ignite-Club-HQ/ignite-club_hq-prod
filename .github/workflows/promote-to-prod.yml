@@ -574,6 +574,99 @@ jobs:
           echo "✅ PROD cron callers now authenticate with the Vault service-role key."
 
 
+      # A handful of old PROD trigger functions were created directly in PROD
+      # before their definitions were migration-managed. They still contain an
+      # embedded anon JWT (or read app.supabase_service_role_key via a setting),
+      # so db push cannot repair them. Rewrite only those credential expressions
+      # in place while preserving each function's complete body and attributes.
+      - name: Repair legacy PROD trigger dispatch credentials
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+          run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
+
+          run_sql <<'SQL'
+          do $rewrite$
+          declare
+            fn record;
+            old_source text;
+            new_source text;
+            definition text;
+            fixed integer := 0;
+          begin
+            for fn in
+              select p.oid, p.proname, p.prosrc
+              from pg_proc p
+              join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public'
+                and p.prosrc ilike '%functions/v1/%'
+                and p.prosrc not ilike '%internal_service_role_key%'
+                -- These two functions intentionally use dedicated, single-purpose
+                -- credentials rather than the service-role bearer token.
+                and p.prosrc not ilike '%x-bootstrap-token%'
+                and p.prosrc not ilike '%x-alert-secret%'
+            loop
+              old_source := fn.prosrc;
+              new_source := old_source;
+
+              -- Replace a quoted `Bearer eyJ...` literal with a runtime Vault
+              -- expression. The replacement remains a valid jsonb_build_object
+              -- value expression; no secret is copied into the function body.
+              new_source := regexp_replace(
+                new_source,
+                '''Bearer\s+eyJ[A-Za-z0-9_.\-]+''',
+                '''Bearer '' || public.internal_service_role_key()',
+                'gi'
+              );
+
+              -- Some older functions first assign the JWT to a local variable
+              -- (`anon_key := 'eyJ...'`) and later concatenate that variable into
+              -- the Authorization header. Replace the assignment expression too.
+              new_source := regexp_replace(
+                new_source,
+                '(anon_key\s*:=\s*)''eyJ[A-Za-z0-9_.\-]+''',
+                '\1public.internal_service_role_key()',
+                'gi'
+              );
+
+              -- Replace legacy GUC lookups. Those settings are not reliably set
+              -- in trigger sessions and caused null/401 dispatches in PROD.
+              new_source := regexp_replace(
+                new_source,
+                'current_setting\(\s*''app\.supabase_service_role_key''\s*,\s*true\s*\)',
+                'public.internal_service_role_key()',
+                'gi'
+              );
+
+              if new_source = old_source
+                 or new_source not ilike '%internal_service_role_key%'
+                 or new_source ilike '%eyJ%'
+                 or new_source ilike '%app.supabase_service_role_key%' then
+                raise exception 'Could not safely repair legacy trigger function %', fn.proname;
+              end if;
+
+              -- pg_get_functiondef preserves signature, language, volatility,
+              -- security-definer and SET clauses. Replace only the body text.
+              definition := pg_get_functiondef(fn.oid);
+              definition := replace(definition, old_source, new_source);
+              if definition = pg_get_functiondef(fn.oid) then
+                raise exception 'Could not locate body while rebuilding trigger function %', fn.proname;
+              end if;
+
+              execute definition;
+              fixed := fixed + 1;
+              raise notice 'repaired trigger function %', fn.proname;
+            end loop;
+
+            raise notice 'legacy trigger functions repaired: %', fixed;
+          end
+          $rewrite$;
+          SQL
+
+          echo "✅ Legacy PROD trigger dispatch credentials repaired."
+
+
       - name: Verify PROD callers authenticate to edge functions
         # Every edge function now authenticates its caller, so any cron job or
         # trigger still sending an anon key (or no Authorization header) would
@@ -607,24 +700,30 @@ jobs:
           fi
           echo "✅ All PROD cron callers use the Vault service-role key."
 
-          # Trigger functions that dispatch to edge functions must do the same.
+          # Trigger functions must use either the shared Vault service-role key or
+          # one of the two deliberately narrow credentials accepted by its target:
+          # a single-use bootstrap token or the new-club alert shared secret.
           BAD_FN=$(run_sql -c "
             select count(*) from pg_proc p
             join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'public'
               and p.prosrc ilike '%functions/v1/%'
-              and p.prosrc not ilike '%internal_service_role_key%';")
+              and p.prosrc not ilike '%internal_service_role_key%'
+              and p.prosrc not ilike '%x-bootstrap-token%'
+              and p.prosrc not ilike '%x-alert-secret%';")
           if [ "$BAD_FN" != "0" ]; then
-            echo "::error::$BAD_FN PROD trigger function(s) dispatch to edge functions without public.internal_service_role_key(). Those calls will 401."
+            echo "::error::$BAD_FN PROD trigger function(s) dispatch to edge functions without an approved credential. Those calls will 401."
             run_sql -c "
               select p.proname from pg_proc p
               join pg_namespace n on n.oid = p.pronamespace
               where n.nspname = 'public'
                 and p.prosrc ilike '%functions/v1/%'
-                and p.prosrc not ilike '%internal_service_role_key%';"
+                and p.prosrc not ilike '%internal_service_role_key%'
+                and p.prosrc not ilike '%x-bootstrap-token%'
+                and p.prosrc not ilike '%x-alert-secret%';"
             exit 1
           fi
-          echo "✅ All PROD trigger dispatchers use the Vault service-role key."
+          echo "✅ All PROD trigger dispatchers use an approved server credential."
 
 
       - name: Post-migration state
