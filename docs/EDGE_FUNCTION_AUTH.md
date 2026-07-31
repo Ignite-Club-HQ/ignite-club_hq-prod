@@ -53,3 +53,18 @@ Required Vault secrets (per environment): `service_role_key`, `functions_base_ur
 
 Deploying functions first would cause cron/trigger calls to 401 until the
 migration lands.
+
+## CI enforcement (promote-to-prod)
+
+`.github/workflows/promote-to-prod.yml` gates promotion:
+
+1. **Ensure PROD push-delivery prerequisites** — seeds and then *hard-fails* if
+   either `service_role_key` or `functions_base_url` is missing/malformed in the
+   PROD Vault. Runs **before** `db push` and before any function deploy.
+2. **Apply migrations to PROD** — trigger/cron updates land first.
+3. **Deploy changed edge functions to PROD.**
+4. **Verify PROD callers authenticate to edge functions** — fails the run if any
+   `cron.job` command or `public` trigger function that hits `functions/v1/`
+   does not go through `public.internal_service_role_key()`. This catches a cron
+   job or trigger left on an anon key, which would 401 silently against the
+   hardened functions.
