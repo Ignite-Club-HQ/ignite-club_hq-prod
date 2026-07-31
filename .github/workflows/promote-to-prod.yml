@@ -478,12 +478,17 @@ jobs:
 
               -- jsonb_build_object header shape whose auth value is some other
               -- expression: retarget the Authorization value and drop apikey.
-              new_cmd := regexp_replace(
-                new_cmd,
-                '''Authorization''\s*,\s*''Bearer\s*''\s*\|\|\s*[^,)]+',
-                '''Authorization'', ''Bearer '' || public.internal_service_role_key()',
-                'gi'
-              );
+              -- Only when the Vault key is not already in place -- otherwise the
+              -- `[^,)]+` tail would swallow the opening paren of the existing
+              -- `internal_service_role_key(` call and unbalance the statement.
+              if new_cmd not ilike '%internal_service_role_key%' then
+                new_cmd := regexp_replace(
+                  new_cmd,
+                  '''Authorization''\s*,\s*''Bearer\s*''\s*\|\|\s*[^,)]+',
+                  '''Authorization'', ''Bearer '' || public.internal_service_role_key()',
+                  'gi'
+                );
+              end if;
               new_cmd := regexp_replace(
                 new_cmd,
                 '''apikey''\s*,\s*[^,)]+\s*,\s*',
@@ -491,12 +496,21 @@ jobs:
                 'gi'
               );
 
-              if new_cmd ilike '%internal_service_role_key%' and new_cmd not ilike '%eyJ%' and new_cmd not ilike '%anon%' then
+              -- Never install a command we mangled: parentheses and single quotes
+              -- must still balance, otherwise fall through to a clean rebuild.
+              if new_cmd ilike '%internal_service_role_key%'
+                 and new_cmd not ilike '%eyJ%'
+                 and new_cmd not ilike '%anon%'
+                 and (length(new_cmd) - length(replace(new_cmd, '(', '')))
+                     = (length(new_cmd) - length(replace(new_cmd, ')', '')))
+                 and (length(new_cmd) - length(replace(new_cmd, '''', ''))) % 2 = 0 then
                 perform cron.alter_job(job_id := j.jobid, command := new_cmd);
                 fixed := fixed + 1;
                 raise notice 'rescheduled cron job % onto Vault service-role key', j.jobname;
                 continue;
               end if;
+
+
 
               -- Fallback: the command's auth shape is not one we can patch safely.
               -- Rebuild it from the canonical caller template, preserving the target
