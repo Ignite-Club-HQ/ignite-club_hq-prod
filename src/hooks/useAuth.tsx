@@ -36,6 +36,8 @@ interface AuthContextType {
   profileLoading: boolean;
   profileError: boolean;
   initialized: boolean; // True only after first auth check completes
+  /** 'restoring' until the stored session has been resolved one way or the other. */
+  sessionRestoration: "restoring" | "authenticated" | "signed_out";
   profileResolved: boolean; // True only after profile has been fetched from server at least once
   unreadCount: number;
   unreadMessagesCount: number;
@@ -415,6 +417,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (stableSession && mounted) {
         setSession(stableSession);
         setUser(stableSession.user);
+        setSessionRestoration("authenticated");
       }
       
       // If we have a cached profile for THIS USER with display_name, TRUST IT immediately
@@ -724,6 +727,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log(`[Auth] ${source} - session still valid`);
           setSession(currentData.session);
           setUser(currentData.session.user);
+          setSessionRestoration("authenticated");
           return;
         }
 
@@ -739,6 +743,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log(`[Auth] ${source} - session recovered via refresh`);
           setSession(refreshData.session);
           setUser(refreshData.session.user);
+          setSessionRestoration("authenticated");
           return;
         }
 
@@ -754,6 +759,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log(`[Auth] ${source} - session restored after retry`);
           setSession(retryData.session);
           setUser(retryData.session.user);
+          setSessionRestoration("authenticated");
           return;
         }
 
@@ -764,6 +770,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearRolesCache();
         setUser(null);
         setSession(null);
+        setSessionRestoration("signed_out");
         setProfile(null);
         setCachedProfile(null);
         setUnreadCount(0);
@@ -1075,6 +1082,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null);
     setSession(null);
+    setSessionRestoration("signed_out");
     setProfile(null);
     setCachedProfile(null);
     currentUserIdRef.current = null; // Clear so re-login is treated as fresh (applies theme from DB)
