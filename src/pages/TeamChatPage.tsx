@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect, lazy, Suspense } from "react";
+import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
+import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
