@@ -6,6 +6,17 @@ import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhYmNmaXVudHdxand2c2NobmppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MzI0MjcsImV4cCI6MjA4MzMwODQyN30.ew6qjjYM3BR3S1rYupohNEQmQ_3MeHFFn8zDXhLM4as';
+// Fail fast and loudly at isolate boot if required config is absent, rather than
+// throwing an opaque ReferenceError/401 deep inside a fan-out.
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  const missing = [
+    !SUPABASE_URL ? 'SUPABASE_URL' : null,
+    !SUPABASE_SERVICE_KEY ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
+  ].filter(Boolean).join(', ');
+  console.error(`[NOTIFY] FATAL: missing required environment variable(s): ${missing}`);
+  throw new Error(`process-message-notifications misconfigured: missing ${missing}`);
+}
+
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const corsHeaders = {
