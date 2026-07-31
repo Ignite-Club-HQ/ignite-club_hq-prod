@@ -2158,16 +2158,20 @@ export default function MessagesPage() {
     resetKey: user?.id ?? null,
   });
 
-  // Determine which data to display (prefer fresh, fallback to cached)
-  const displayTeams = (stickyTeams?.length ? stickyTeams : (!isOnline ? (cachedData?.teams as any) : null)) || stickyTeams || cachedData?.teams || [];
-  const displayMemberClubs = (stickyMemberClubs?.length ? stickyMemberClubs : (!isOnline ? (cachedData?.memberClubs as any) : null)) || stickyMemberClubs || cachedData?.memberClubs || [];
+  // Determine which data to display (prefer fresh, fallback to cached).
+  // Cached rows are also used while a source query has not yet completed its
+  // first fetch for this mount (`!isFetched`) — that's what makes a warm inbox
+  // open paint instantly instead of showing an empty list. A *settled* empty
+  // online result stays authoritative.
+  const displayTeams = (stickyTeams?.length ? stickyTeams : ((!isOnline || !teamsFetched) ? (cachedData?.teams as any) : null)) || stickyTeams || cachedData?.teams || [];
+  const displayMemberClubs = (stickyMemberClubs?.length ? stickyMemberClubs : ((!isOnline || !memberClubsFetched) ? (cachedData?.memberClubs as any) : null)) || stickyMemberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
   // Important: an empty fresh chat-group result is authoritative *while
   // online*. Falling back to cached groups when `chatGroups.length === 0`
   // kept soft-deleted/purged club chats visible forever after the server
   // correctly returned no rows. Offline, an empty/failed result carries no
   // authority, so cached rows stay visible.
-  const allChatGroups = (stickyChatGroups?.length ? stickyChatGroups : (!isOnline ? (cachedData?.chatGroups as any) : null)) ?? stickyChatGroups ?? (cachedData?.chatGroups as any) ?? [];
+  const allChatGroups = (stickyChatGroups?.length ? stickyChatGroups : ((!isOnline || !chatGroupsFetched) ? (cachedData?.chatGroups as any) : null)) ?? stickyChatGroups ?? (cachedData?.chatGroups as any) ?? [];
 
 
   
