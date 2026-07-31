@@ -3426,14 +3426,29 @@ export default function MessagesPage() {
         {!showSkeletonLoading && !searchQuery && hasNoMessages && (
           <Card className="border-dashed">
             <CardContent className="p-8 text-center">
-              <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No messages available</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Join a team or club to access chats
-              </p>
+              {isOnline ? (
+                <>
+                  <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No messages available</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Join a team or club to access chats
+                  </p>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    You're offline and no saved conversations are available yet
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Reconnect to load your messages
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         )}
+
 
         {/* Admin Group threads are now merged into the unified sorted list above. */}
 
