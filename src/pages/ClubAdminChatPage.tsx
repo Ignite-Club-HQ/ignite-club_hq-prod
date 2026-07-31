@@ -35,6 +35,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChatStuckWatchdog, createChatFetchBudget } from "@/lib/chatStuckWatchdog";
+import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
+import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
@@ -198,20 +200,31 @@ export default function ClubAdminChatPage() {
   }, []);
 
   // Fetch conversation details
-  const { data: conversation, isLoading: conversationLoading } = useQuery({
+  // `maybeSingle()` so an absent/RLS-hidden row is a successful `null` rather
+  // than a throw — lets the render gate distinguish deleted from unreachable.
+  const {
+    data: conversation,
+    isLoading: conversationLoading,
+    isError: conversationIsError,
+    fetchStatus: conversationFetchStatus,
+    status: conversationStatus,
+    refetch: refetchConversation,
+    isFetching: conversationIsFetching,
+  } = useQuery({
     queryKey: ["club-admin-conversation", conversationId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("club_admin_conversations")
         .select("*")
         .eq("id", conversationId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data ?? null;
     },
     enabled: !!conversationId && authReady,
     staleTime: 5 * 60 * 1000,
   });
+
   const { hasPro: clubHasPro, isLoading: clubProLoading } = useClubProAccess(
     conversation?.club_id ?? null,
     { enabled: !!conversation?.club_id && authReady }
@@ -1120,10 +1133,33 @@ export default function ClubAdminChatPage() {
   // a full-page loader would replace the chat tree mid-mount and force Virtuoso
   // to re-pin against a fresh layout, causing a visible jolt. Render the shell
   // immediately when we have cached content; only show the skeleton on true cold load.
-  if (conversationLoading && !(localMessages && localMessages.length > 0)) return <ChatPageSkeleton />;
+  const conversationMetadataState = resolveChatMetadataState({
+    data: conversation,
+    isLoading: conversationLoading,
+    isError: conversationIsError,
+    fetchStatus: conversationFetchStatus,
+    status: conversationStatus,
+    isOnline: typeof navigator === "undefined" ? true : navigator.onLine !== false,
+  });
 
+  if (
+    conversationMetadataState === "loading" &&
+    !(localMessages && localMessages.length > 0)
+  ) {
+    return <ChatPageSkeleton />;
+  }
 
-  if (!conversation && !conversationLoading) {
+  if (conversationMetadataState === "unreachable" && !conversation) {
+    return (
+      <ChatUnreachable
+        label="conversation"
+        onRetry={() => void refetchConversation()}
+        retrying={conversationIsFetching}
+      />
+    );
+  }
+
+  if (conversationMetadataState === "missing") {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <p className="text-muted-foreground">Conversation not found</p>
@@ -1131,6 +1167,9 @@ export default function ClubAdminChatPage() {
       </div>
     );
   }
+
+  if (!conversation) return <ChatPageSkeleton />;
+
 
 
   return (
