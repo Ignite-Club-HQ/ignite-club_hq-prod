@@ -613,6 +613,13 @@ export default function ClubChatPage() {
     return cached.length >= 2 ? cached : undefined;
   });
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  // Realtime reactions must reach BOTH stores (query cache + localMessages).
+  const reactionQueryKey = useMemo(() => ["club-messages", clubId], [clubId]);
+  const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
+    scopeKey: reconcileScope,
+    queryKey: reactionQueryKey,
+    setLocalMessages,
+  });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
@@ -1191,78 +1198,29 @@ export default function ClubChatPage() {
       )
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "INSERT", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.club_message_id) return;
-          queryClient.setQueryData(["club-messages", clubId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map(m => {
-              if (m.id !== reaction.club_message_id) return m;
-              const existingTempIdx = m.reactions.findIndex(
-                r => r.id.startsWith('temp-') && r.user_id === reaction.user_id
-              );
-              if (m.reactions.some(r => r.id === reaction.id)) return m;
-              
-              const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
-              if (existingTempIdx !== -1) {
-                const newReactions = [...m.reactions];
-                newReactions[existingTempIdx] = newReaction;
-                return { ...m, reactions: newReactions };
-              }
-              return { ...m, reactions: [...m.reactions, newReaction] };
-            });
-            return { ...old, messages: updatedMessages };
-          });
+          if (!reaction?.club_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.club_message_id, reaction);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "UPDATE", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.club_message_id) return;
-          queryClient.setQueryData(["club-messages", clubId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map(m => {
-              if (m.id !== reaction.club_message_id) return m;
-              const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
-              const hasExisting = m.reactions.some((r: any) => r.id === reaction.id);
-              if (hasExisting) {
-                return { ...m, reactions: m.reactions.map((r: any) => r.id === reaction.id ? newReaction : r) };
-              }
-              return { ...m, reactions: [...m.reactions.filter((r: any) => r.user_id !== reaction.user_id), newReaction] };
-            });
-            return { ...old, messages: updatedMessages };
-          });
+          if (!reaction?.club_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.club_message_id, reaction);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "DELETE", schema: "public", table: "message_reactions" },
         (payload) => {
-          const deletedReaction = payload.old as any;
-          if (!deletedReaction.id) return;
-          queryClient.setQueryData(["club-messages", clubId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map(m => ({
-              ...m,
-              reactions: m.reactions.filter(r => r.id !== deletedReaction.id)
-            }));
-            return { ...old, messages: updatedMessages };
-          });
+          const deleted = payload.old as any;
+          if (!deleted?.id) return;
+          applyRealtimeReactionDelete(deleted.club_message_id ?? null, deleted.id);
         }
       )
       .subscribe();
@@ -1275,7 +1233,7 @@ export default function ClubChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`club-messages-${clubId}`);
     };
-  }, [clubId, queryClient, clubRealtimeMode, user?.id, reconcileScope]);
+  }, [clubId, queryClient, clubRealtimeMode, user?.id, reconcileScop, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
