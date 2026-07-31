@@ -50,6 +50,11 @@ import { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/component
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
+
+// Session-scoped first-reveal latch (per user id). Survives inbox unmount so
+// warm re-entries paint cached rows immediately instead of re-running the
+// initial ordering gate. Reset implicitly on reload / user switch.
+let sessionRevealedInboxUserId: string | null = null;
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2091,22 +2096,35 @@ export default function MessagesPage() {
   // full-page skeleton after resume or when a new message arrived. The
   // ordering gate must therefore apply *only until* the first settled reveal;
   // afterwards refetching is non-blocking and rows are patched in place.
-  const hasRevealedStableInboxRef = useRef(false);
-  const [hasRevealedStableInbox, setHasRevealedStableInbox] = useState(false);
+  const hasRevealedStableInboxRef = useRef(sessionRevealedInboxUserId === user?.id && !!user?.id);
+  const [hasRevealedStableInbox, setHasRevealedStableInbox] = useState(hasRevealedStableInboxRef.current);
 
   // Reset only on a genuine identity change (a new mount starts false anyway).
   const revealLatchIdentityRef = useRef<string | undefined>(user?.id);
   if (revealLatchIdentityRef.current !== user?.id) {
     revealLatchIdentityRef.current = user?.id;
-    hasRevealedStableInboxRef.current = false;
+    hasRevealedStableInboxRef.current = sessionRevealedInboxUserId === user?.id && !!user?.id;
   }
 
-  const initialRevealBlocked = isOnline && (isLoadingFreshData || !freshSortDataReady);
+  // WARM-MOUNT CACHE FIX. The ordering gate must only ever apply to the very
+  // first inbox reveal of the session. Previously the latch lived in a mount
+  // ref, so every warm re-entry to /messages started false again — and because
+  // the inbox queries use `refetchOnMount`, `isFetching` was true on that mount,
+  // which held the full-page skeleton and ignored the cached rows we already
+  // had. Now the latch is session-scoped per user, and any already-available
+  // data (React Query cache or the user-scoped local cache) releases the gate
+  // immediately so warm opens paint from cache and patch in place.
+  const initialRevealBlocked =
+    isOnline &&
+    !hasAnyDisplayData &&
+    !hasCachedData &&
+    (isLoadingFreshData || !freshSortDataReady);
 
   useEffect(() => {
     if (hasRevealedStableInboxRef.current) return;
     if (initialRevealBlocked) return;
     hasRevealedStableInboxRef.current = true;
+    if (user?.id) sessionRevealedInboxUserId = user.id;
     setHasRevealedStableInbox(true);
   }, [initialRevealBlocked, user?.id]);
 
@@ -2145,16 +2163,20 @@ export default function MessagesPage() {
     resetKey: user?.id ?? null,
   });
 
-  // Determine which data to display (prefer fresh, fallback to cached)
-  const displayTeams = (stickyTeams?.length ? stickyTeams : (!isOnline ? (cachedData?.teams as any) : null)) || stickyTeams || cachedData?.teams || [];
-  const displayMemberClubs = (stickyMemberClubs?.length ? stickyMemberClubs : (!isOnline ? (cachedData?.memberClubs as any) : null)) || stickyMemberClubs || cachedData?.memberClubs || [];
+  // Determine which data to display (prefer fresh, fallback to cached).
+  // Cached rows are also used while a source query has not yet completed its
+  // first fetch for this mount (`!isFetched`) — that's what makes a warm inbox
+  // open paint instantly instead of showing an empty list. A *settled* empty
+  // online result stays authoritative.
+  const displayTeams = (stickyTeams?.length ? stickyTeams : ((!isOnline || !teamsFetched) ? (cachedData?.teams as any) : null)) || stickyTeams || cachedData?.teams || [];
+  const displayMemberClubs = (stickyMemberClubs?.length ? stickyMemberClubs : ((!isOnline || !memberClubsFetched) ? (cachedData?.memberClubs as any) : null)) || stickyMemberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
   // Important: an empty fresh chat-group result is authoritative *while
   // online*. Falling back to cached groups when `chatGroups.length === 0`
   // kept soft-deleted/purged club chats visible forever after the server
   // correctly returned no rows. Offline, an empty/failed result carries no
   // authority, so cached rows stay visible.
-  const allChatGroups = (stickyChatGroups?.length ? stickyChatGroups : (!isOnline ? (cachedData?.chatGroups as any) : null)) ?? stickyChatGroups ?? (cachedData?.chatGroups as any) ?? [];
+  const allChatGroups = (stickyChatGroups?.length ? stickyChatGroups : ((!isOnline || !chatGroupsFetched) ? (cachedData?.chatGroups as any) : null)) ?? stickyChatGroups ?? (cachedData?.chatGroups as any) ?? [];
 
 
   
