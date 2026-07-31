@@ -631,16 +631,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               console.log('[Auth] Background session retry succeeded');
               setSession(retrySession);
               setUser(retrySession.user);
+              setSessionRestoration("authenticated");
               if (!profileFetched) {
                 await handleSession(retrySession, true, false);
               }
+            } else {
+              setSessionRestoration("signed_out");
             }
-          }).catch(e => console.warn('[Auth] Background session retry failed:', e));
+          }).catch(e => {
+            console.warn('[Auth] Background session retry failed:', e);
+            setSessionRestoration("signed_out");
+          });
         } else {
           console.warn('[Auth] Session check timed out, no cache available');
           setLoading(false);
           setProfileLoading(false);
           setInitialized(true);
+          setSessionRestoration("signed_out");
         }
       }
     }, 10000); // 10 second timeout for slow connections
@@ -655,6 +662,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
+      setSessionRestoration(existingSession?.user ? "authenticated" : "signed_out");
       
       if (existingSession?.user && !profileFetched) {
         // Initial page load - don't apply theme from profile (localStorage is source of truth)
@@ -675,6 +683,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         setProfileLoading(false);
         setInitialized(true); // Mark as initialized even on error
+        // Transient failure with a cached identity: stay in "restoring" so the
+        // route guard shows the auth-check state instead of flashing /auth.
+        // The resume/visibility recovery pass below resolves it either way.
+        setSessionRestoration(cachedUserId ? "restoring" : "signed_out");
       }
     });
 
