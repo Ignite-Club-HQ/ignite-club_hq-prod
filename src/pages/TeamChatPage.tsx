@@ -83,6 +83,7 @@ import { useProfiles } from "@/hooks/useProfiles";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage, getQueuedMessagesForTarget, type QueuedMessage } from "@/lib/messageQueue";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages } from "@/lib/messageCache";
+import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import {
   recordRealtimeMutation,
   reconcileMessages,
@@ -789,6 +790,13 @@ export default function TeamChatPage() {
     return cached.length >= 2 ? cached : undefined;
   });
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
+  // Realtime reactions must reach BOTH stores (query cache + localMessages).
+  const reactionQueryKey = useMemo(() => ["team-messages", teamId], [teamId]);
+  const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
+    scopeKey: reconcileScope,
+    queryKey: reactionQueryKey,
+    setLocalMessages,
+  });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
@@ -1473,7 +1481,7 @@ export default function TeamChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope]);
+  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
