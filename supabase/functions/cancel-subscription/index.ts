@@ -258,7 +258,15 @@ serve(async (req) => {
         .eq('id', entity_id);
 
       if (teamUpdateError) {
-        console.error('Failed to update teams entitlement:', teamUpdateError);
+        console.error('Failed to update teams entitlement');
+        await supabase.from('admin_alerts').insert({
+          alert_type: 'local_entitlement_reconciliation_failed',
+          details: { subscription_type, entity_id, club_id: clubId, stage: 'teams_fallback_update', actor_user_id: user.id },
+        });
+        return new Response(JSON.stringify({
+          error: 'Billing was cancelled, but your account could not be fully updated. Support has been notified.',
+          code: 'local_entitlement_reconciliation_failed',
+        }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
     } else {
       const { error: updateError } = await supabase
@@ -278,7 +286,20 @@ serve(async (req) => {
         });
       }
 
-      await supabase.from('clubs').update({ is_pro: false }).eq('id', entity_id);
+      const { error: clubUpdateError } = await supabase
+        .from('clubs').update({ is_pro: false }).eq('id', entity_id);
+
+      if (clubUpdateError) {
+        console.error('Failed to update clubs entitlement');
+        await supabase.from('admin_alerts').insert({
+          alert_type: 'local_entitlement_reconciliation_failed',
+          details: { subscription_type, entity_id, club_id: clubId, stage: 'clubs_fallback_update', actor_user_id: user.id },
+        });
+        return new Response(JSON.stringify({
+          error: 'Billing was cancelled, but your account could not be fully updated. Support has been notified.',
+          code: 'local_entitlement_reconciliation_failed',
+        }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
     }
 
     // If Stripe didn't recognise the local subscription id, raise an admin
@@ -294,8 +315,11 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error: any) {
-    console.error('Cancel subscription error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('Cancel subscription error:', error instanceof Error ? error.name : 'unknown');
+    return new Response(JSON.stringify({
+      error: 'Subscription cancellation failed',
+      code: 'subscription_cancellation_failed',
+    }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
