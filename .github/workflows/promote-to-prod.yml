@@ -315,7 +315,14 @@ jobs:
             where name = 'functions_base_url';
           SQL
 
-          if [ -n "$KEY" ]; then
+          # NEVER clobber a working PROD Vault key. A hotfix may have written the
+          # canonical runtime service-role key directly into Vault; overwriting it
+          # with a (possibly stale/rotated) GitHub secret would re-break dispatch.
+          # Seed only when the Vault entry is absent or obviously invalid.
+          EXISTING_KEY_OK=$(run_sql -c "select coalesce((select 1 from vault.decrypted_secrets where name='service_role_key' and length(decrypted_secret) >= 20 and decrypted_secret !~ '\s' limit 1), 0);")
+          if [ "$EXISTING_KEY_OK" = "1" ]; then
+            echo "🔒 Existing PROD Vault service_role_key looks valid — leaving it untouched (hotfix-safe)."
+          elif [ -n "$KEY" ]; then
             run_sql -v key="$KEY" <<'SQL' >/dev/null
               select vault.create_secret(:'key', 'service_role_key', 'Service role key for pg_net dispatch')
               where not exists (select 1 from vault.secrets where name = 'service_role_key');
@@ -324,7 +331,7 @@ jobs:
               from vault.secrets
               where name = 'service_role_key';
           SQL
-            echo "✅ Vault service_role_key seeded from GitHub secret."
+            echo "✅ Vault service_role_key seeded from GitHub secret (was missing/invalid)."
           else
             echo "ℹ️  No service-role key secret set — relying on an existing Vault entry."
           fi
