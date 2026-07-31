@@ -686,8 +686,9 @@ export default function NotificationsPage() {
         // Current notifications store the reacted message id. Some older rows
         // stored only the chat/container id, so recover the exact message from
         // the reaction row created at the same instant.
-        const messageTarget = await resolveChatTargetForMessageId(relatedId);
-        if (messageTarget) { navigateToChatTarget(navigate, messageTarget); break; }
+        const reactionResult = await resolveChatTargetResult(relatedId);
+        if (reactionResult.status === "found") { navigateToChatTarget(navigate, reactionResult.target); break; }
+        if (reactionResult.status === "unreachable") { warnUnreachableNotification(); break; }
         const legacyReactionTarget = await resolveLegacyReactionTarget(notification);
         if (legacyReactionTarget) { navigateToChatTarget(navigate, legacyReactionTarget); break; }
         // Backward-compat: old notifications stored container id as related_id.
@@ -706,19 +707,24 @@ export default function NotificationsPage() {
       case "message_reply":
       case "message_mention":
       case "message_forwarded": {
-        // related_id is a message id. resolveChatTargetForMessageId checks all
-        // six message tables under RLS; a deleted or inaccessible message
-        // resolves to null and we route to the safe /messages fallback rather
-        // than stranding the user on /notifications or building a route from
-        // an unverified id.
-        const target = await resolveChatTargetForMessageId(relatedId);
-        if (target) {
-          navigateToChatTarget(navigate, target);
+        // related_id is a message id. resolveChatTargetResult probes all six
+        // message tables under RLS and distinguishes three outcomes:
+        //  - found       → jump to the chat
+        //  - not_found   → deleted / no access; safe /messages fallback
+        //  - unreachable → a probe FAILED (offline, dropped socket). Stay put
+        //                  and tell the user to retry rather than silently
+        //                  dumping them on /messages as if the message were gone.
+        const result = await resolveChatTargetResult(relatedId);
+        if (result.status === "found") {
+          navigateToChatTarget(navigate, result.target);
+        } else if (result.status === "unreachable") {
+          warnUnreachableNotification();
         } else {
           navigate(NOTIFICATION_FALLBACK_PATH);
         }
         break;
       }
+
 
       case "club_message":
         const { data: clubMessage } = await supabase
