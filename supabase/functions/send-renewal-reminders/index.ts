@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { isAuthorizedCronCaller } from "../_shared/cron-auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -46,12 +47,8 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Validate cron secret
-  const cronSecret = req.headers.get('x-cron-secret');
-  const expectedSecret = Deno.env.get('CRON_SECRET');
-  
-  if (!cronSecret || cronSecret !== expectedSecret) {
-    console.error('Unauthorized: Invalid or missing cron secret');
+  if (!(await isAuthorizedCronCaller(req))) {
+    console.error('Unauthorized: caller is not an authorized cron/internal caller');
     return new Response(
       JSON.stringify({ error: 'Unauthorized' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

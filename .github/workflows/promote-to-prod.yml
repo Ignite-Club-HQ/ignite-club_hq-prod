@@ -315,7 +315,14 @@ jobs:
             where name = 'functions_base_url';
           SQL
 
-          if [ -n "$KEY" ]; then
+          # NEVER clobber a working PROD Vault key. A hotfix may have written the
+          # canonical runtime service-role key directly into Vault; overwriting it
+          # with a (possibly stale/rotated) GitHub secret would re-break dispatch.
+          # Seed only when the Vault entry is absent or obviously invalid.
+          EXISTING_KEY_OK=$(run_sql -c "select coalesce((select 1 from vault.decrypted_secrets where name='service_role_key' and length(decrypted_secret) >= 20 and decrypted_secret !~ '\s' limit 1), 0);")
+          if [ "$EXISTING_KEY_OK" = "1" ]; then
+            echo "🔒 Existing PROD Vault service_role_key looks valid — leaving it untouched (hotfix-safe)."
+          elif [ -n "$KEY" ]; then
             run_sql -v key="$KEY" <<'SQL' >/dev/null
               select vault.create_secret(:'key', 'service_role_key', 'Service role key for pg_net dispatch')
               where not exists (select 1 from vault.secrets where name = 'service_role_key');
@@ -324,7 +331,7 @@ jobs:
               from vault.secrets
               where name = 'service_role_key';
           SQL
-            echo "✅ Vault service_role_key seeded from GitHub secret."
+            echo "✅ Vault service_role_key seeded from GitHub secret (was missing/invalid)."
           else
             echo "ℹ️  No service-role key secret set — relying on an existing Vault entry."
           fi
@@ -355,6 +362,42 @@ jobs:
             exit 1
           fi
           echo "✅ Both Vault secrets present and well-formed."
+
+
+      - name: Guard PROD hotfixes are still in the code being promoted
+        # Blocks promotion if the branch would deploy code that reverts a PROD
+        # hotfix. Add a check here for every hotfix applied directly to PROD.
+        run: |
+          set -euo pipefail
+          FAIL=0
+
+          # 1. process-message-notifications must not reference the undefined
+          #    `supabaseServiceKey` in its dispatch Authorization header.
+          if grep -rn "supabaseServiceKey" supabase/functions/process-message-notifications/index.ts; then
+            echo "::error::process-message-notifications references supabaseServiceKey (undefined) — this reverts the PROD hotfix. Use SUPABASE_SERVICE_KEY."
+            FAIL=1
+          fi
+
+          # 2. Shared cron caller auth must exist.
+          if [ ! -f supabase/functions/_shared/cron-auth.ts ]; then
+            echo "::error::supabase/functions/_shared/cron-auth.ts is missing — PROD cron jobs authenticate with a service-role bearer and would 401."
+            FAIL=1
+          fi
+
+          # 3. Every cron-invoked function must authorise via isAuthorizedCronCaller.
+          CRON_FUNCS="notify-game-kickoff send-event-reminders process-duty-points expire-subscriptions auto-purge-trash cleanup-deleted-accounts send-renewal-reminders send-engagement-reminders send-storage-warnings process-weekly-engagement-digest reconcile-legacy-subscriptions"
+          for f in $CRON_FUNCS; do
+            if ! grep -q "isAuthorizedCronCaller" "supabase/functions/$f/index.ts"; then
+              echo "::error::supabase/functions/$f/index.ts does not use isAuthorizedCronCaller — reverts the PROD hotfix (cron calls would 401)."
+              FAIL=1
+            fi
+          done
+
+          if [ "$FAIL" != "0" ]; then
+            echo "Promotion aborted: the branch would overwrite a PROD hotfix."
+            exit 1
+          fi
+          echo "✅ All PROD hotfixes are present in the code being promoted."
 
 
       - name: Apply migrations to PROD
@@ -423,7 +466,10 @@ jobs:
           declare
             j record;
             new_cmd text;
+            slug text;
+            body_expr text;
             fixed int := 0;
+            rebuilt int := 0;
             failed text[] := '{}';
           begin
             for j in
@@ -457,16 +503,108 @@ jobs:
                 'gi'
               );
 
-              if new_cmd ilike '%internal_service_role_key%' and new_cmd not ilike '%eyJ%' then
+              -- Keys sourced indirectly: current_setting('...anon...') or a Vault /
+              -- settings lookup of an anon key. Swap the *expression* for the Vault
+              -- service-role key so the header ends up correct either way.
+              new_cmd := regexp_replace(
+                new_cmd,
+                'current_setting\(\s*''[^'']*anon[^'']*''(\s*,\s*[a-z]+)?\s*\)',
+                'public.internal_service_role_key()',
+                'gi'
+              );
+              new_cmd := regexp_replace(
+                new_cmd,
+                '\(\s*select[^()]*anon[^()]*\)',
+                'public.internal_service_role_key()',
+                'gi'
+              );
+
+              -- jsonb_build_object header shape whose auth value is some other
+              -- expression: retarget the Authorization value and drop apikey.
+              -- Only when the Vault key is not already in place -- otherwise the
+              -- `[^,)]+` tail would swallow the opening paren of the existing
+              -- `internal_service_role_key(` call and unbalance the statement.
+              if new_cmd not ilike '%internal_service_role_key%' then
+                new_cmd := regexp_replace(
+                  new_cmd,
+                  '''Authorization''\s*,\s*''Bearer\s*''\s*\|\|\s*[^,)]+',
+                  '''Authorization'', ''Bearer '' || public.internal_service_role_key()',
+                  'gi'
+                );
+              end if;
+              new_cmd := regexp_replace(
+                new_cmd,
+                '''apikey''\s*,\s*[^,)]+\s*,\s*',
+                '',
+                'gi'
+              );
+
+              -- Never install a command we mangled: parentheses and single quotes
+              -- must still balance, otherwise fall through to a clean rebuild.
+              if new_cmd ilike '%internal_service_role_key%'
+                 and new_cmd not ilike '%eyJ%'
+                 and new_cmd not ilike '%anon%'
+                 -- the Vault key must actually land in an Authorization header
+                 and new_cmd ~* 'authorization''?\s*,\s*''bearer\s*''\s*\|\|\s*public\.internal_service_role_key\(\)'
+
+                 and (length(new_cmd) - length(replace(new_cmd, '(', '')))
+                     = (length(new_cmd) - length(replace(new_cmd, ')', '')))
+                 and (length(new_cmd) - length(replace(new_cmd, '''', ''))) % 2 = 0 then
                 perform cron.alter_job(job_id := j.jobid, command := new_cmd);
                 fixed := fixed + 1;
                 raise notice 'rescheduled cron job % onto Vault service-role key', j.jobname;
-              else
-                failed := failed || j.jobname;
+                continue;
               end if;
+
+
+
+              -- Fallback: the command's auth shape is not one we can patch safely.
+              -- Rebuild it from the canonical caller template, preserving the target
+              -- function and (when it is a simple literal payload) the request body.
+              slug := (regexp_match(j.command, 'functions/v1/([A-Za-z0-9_\-]+)'))[1];
+
+              if slug is null
+                 or (select count(distinct m[1])
+                     from regexp_matches(j.command, 'functions/v1/([A-Za-z0-9_\-]+)', 'g') m) > 1 then
+                failed := failed || j.jobname;
+                raise notice 'UNFIXABLE cron job % -- command: %', j.jobname, j.command;
+                continue;
+              end if;
+
+              body_expr := (regexp_match(
+                j.command,
+                'body\s*:?=\s*(jsonb_build_object\([^()]*\)|concat\([^()]*\)\s*::\s*jsonb|''\{[^'']*\}''\s*::\s*jsonb)',
+                'i'
+              ))[1];
+
+              if body_expr is null or body_expr ilike '%eyJ%' or body_expr ilike '%anon%' then
+                body_expr := 'jsonb_build_object(''source'', ''cron'', ''time'', now())';
+              end if;
+
+              new_cmd := format(
+                $tmpl$
+                select net.http_post(
+                  url := public.internal_functions_base_url() || '/functions/v1/%s',
+                  headers := jsonb_build_object(
+                    'Content-Type', 'application/json',
+                    'Authorization', 'Bearer ' || public.internal_service_role_key()
+                  ),
+                  body := %s,
+                  timeout_milliseconds := 25000
+                )
+                where public.internal_functions_base_url() is not null
+                  and public.internal_service_role_key() is not null;
+                $tmpl$,
+                slug,
+                body_expr
+              );
+
+              perform cron.alter_job(job_id := j.jobid, command := new_cmd);
+              rebuilt := rebuilt + 1;
+              raise notice 'rebuilt cron job % from canonical template (was: %)', j.jobname, j.command;
             end loop;
 
-            raise notice 'cron jobs rewritten: %', fixed;
+            raise notice 'cron jobs rewritten: % (patched) + % (rebuilt)', fixed, rebuilt;
 
             if array_length(failed, 1) > 0 then
               raise exception 'Could not rewrite cron job(s) automatically: %. Reschedule them manually to use public.internal_service_role_key().', array_to_string(failed, ', ');
@@ -475,7 +613,101 @@ jobs:
           $rewrite$;
           SQL
 
+
           echo "✅ PROD cron callers now authenticate with the Vault service-role key."
+
+
+      # A handful of old PROD trigger functions were created directly in PROD
+      # before their definitions were migration-managed. They still contain an
+      # embedded anon JWT (or read app.supabase_service_role_key via a setting),
+      # so db push cannot repair them. Rewrite only those credential expressions
+      # in place while preserving each function's complete body and attributes.
+      - name: Repair legacy PROD trigger dispatch credentials
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+          run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
+
+          run_sql <<'SQL'
+          do $rewrite$
+          declare
+            fn record;
+            old_source text;
+            new_source text;
+            definition text;
+            fixed integer := 0;
+          begin
+            for fn in
+              select p.oid, p.proname, p.prosrc
+              from pg_proc p
+              join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public'
+                and p.prosrc ilike '%functions/v1/%'
+                and p.prosrc not ilike '%internal_service_role_key%'
+                -- These two functions intentionally use dedicated, single-purpose
+                -- credentials rather than the service-role bearer token.
+                and p.prosrc not ilike '%x-bootstrap-token%'
+                and p.prosrc not ilike '%x-alert-secret%'
+            loop
+              old_source := fn.prosrc;
+              new_source := old_source;
+
+              -- Replace a quoted `Bearer eyJ...` literal with a runtime Vault
+              -- expression. The replacement remains a valid jsonb_build_object
+              -- value expression; no secret is copied into the function body.
+              new_source := regexp_replace(
+                new_source,
+                '''Bearer\s+eyJ[A-Za-z0-9_.\-]+''',
+                '''Bearer '' || public.internal_service_role_key()',
+                'gi'
+              );
+
+              -- Some older functions first assign the JWT to a local variable
+              -- (`anon_key := 'eyJ...'`) and later concatenate that variable into
+              -- the Authorization header. Replace the assignment expression too.
+              new_source := regexp_replace(
+                new_source,
+                '(anon_key\s*:=\s*)''eyJ[A-Za-z0-9_.\-]+''',
+                '\1public.internal_service_role_key()',
+                'gi'
+              );
+
+              -- Replace legacy GUC lookups. Those settings are not reliably set
+              -- in trigger sessions and caused null/401 dispatches in PROD.
+              new_source := regexp_replace(
+                new_source,
+                'current_setting\(\s*''app\.supabase_service_role_key''\s*,\s*true\s*\)',
+                'public.internal_service_role_key()',
+                'gi'
+              );
+
+              if new_source = old_source
+                 or new_source not ilike '%internal_service_role_key%'
+                 or new_source ilike '%eyJ%'
+                 or new_source ilike '%app.supabase_service_role_key%' then
+                raise exception 'Could not safely repair legacy trigger function %', fn.proname;
+              end if;
+
+              -- pg_get_functiondef preserves signature, language, volatility,
+              -- security-definer and SET clauses. Replace only the body text.
+              definition := pg_get_functiondef(fn.oid);
+              definition := replace(definition, old_source, new_source);
+              if definition = pg_get_functiondef(fn.oid) then
+                raise exception 'Could not locate body while rebuilding trigger function %', fn.proname;
+              end if;
+
+              execute definition;
+              fixed := fixed + 1;
+              raise notice 'repaired trigger function %', fn.proname;
+            end loop;
+
+            raise notice 'legacy trigger functions repaired: %', fixed;
+          end
+          $rewrite$;
+          SQL
+
+          echo "✅ Legacy PROD trigger dispatch credentials repaired."
 
 
       - name: Verify PROD callers authenticate to edge functions
@@ -511,24 +743,30 @@ jobs:
           fi
           echo "✅ All PROD cron callers use the Vault service-role key."
 
-          # Trigger functions that dispatch to edge functions must do the same.
+          # Trigger functions must use either the shared Vault service-role key or
+          # one of the two deliberately narrow credentials accepted by its target:
+          # a single-use bootstrap token or the new-club alert shared secret.
           BAD_FN=$(run_sql -c "
             select count(*) from pg_proc p
             join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'public'
               and p.prosrc ilike '%functions/v1/%'
-              and p.prosrc not ilike '%internal_service_role_key%';")
+              and p.prosrc not ilike '%internal_service_role_key%'
+              and p.prosrc not ilike '%x-bootstrap-token%'
+              and p.prosrc not ilike '%x-alert-secret%';")
           if [ "$BAD_FN" != "0" ]; then
-            echo "::error::$BAD_FN PROD trigger function(s) dispatch to edge functions without public.internal_service_role_key(). Those calls will 401."
+            echo "::error::$BAD_FN PROD trigger function(s) dispatch to edge functions without an approved credential. Those calls will 401."
             run_sql -c "
               select p.proname from pg_proc p
               join pg_namespace n on n.oid = p.pronamespace
               where n.nspname = 'public'
                 and p.prosrc ilike '%functions/v1/%'
-                and p.prosrc not ilike '%internal_service_role_key%';"
+                and p.prosrc not ilike '%internal_service_role_key%'
+                and p.prosrc not ilike '%x-bootstrap-token%'
+                and p.prosrc not ilike '%x-alert-secret%';"
             exit 1
           fi
-          echo "✅ All PROD trigger dispatchers use the Vault service-role key."
+          echo "✅ All PROD trigger dispatchers use an approved server credential."
 
 
       - name: Post-migration state

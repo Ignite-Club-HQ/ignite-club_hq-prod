@@ -21,6 +21,11 @@
  * the cache/fetch produced.
  */
 
+import {
+  clearReactionReconciliationScope,
+  reconcileReactions,
+} from "./chatReactionReconciliation";
+
 export type ReconcilableMessage = { id: string };
 
 /** Fields a realtime UPDATE payload may carry that we reconcile. */
@@ -187,6 +192,9 @@ export function reconcileMessages<T extends ReconcilableMessage>(
   messages: T[] | undefined,
 ): T[] | undefined {
   if (!messages || messages.length === 0) return messages;
+  // Reaction deltas are reconciled on the same path so every list that reaches
+  // rendering carries the newest realtime reactions too.
+  messages = reconcileReactions(scopeKey, messages as never) as T[];
   const m = registry.get(scopeKey);
   if (!m || m.size === 0) return messages;
 
@@ -219,6 +227,7 @@ export function reconcileMessages<T extends ReconcilableMessage>(
 /** Drop a scope's registry (chat unmount / thread switch). */
 export function clearReconciliationScope(scopeKey: string) {
   registry.delete(scopeKey);
+  clearReactionReconciliationScope(scopeKey);
 }
 
 /** Test helper. */

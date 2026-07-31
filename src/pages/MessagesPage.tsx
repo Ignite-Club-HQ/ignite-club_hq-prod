@@ -1,3 +1,4 @@
+import { useStickyList } from "@/hooks/useStickyList";
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -2120,16 +2121,41 @@ export default function MessagesPage() {
 
 
 
+  // Resume/reconnect stability: an inbox source query can transiently resolve
+  // to undefined/[] while it is refetching or errored (auth refresh, RLS
+  // settling, dropped socket). Retain the last non-empty result until the query
+  // settles successfully — a settled empty result is still authoritative, so
+  // removed/purged conversations do not linger.
+  const stickyTeams = useStickyList<any>(teams, {
+    isFetching: teamsFetching,
+    isFetched: teamsFetched,
+    isError: teamsError,
+    resetKey: user?.id ?? null,
+  });
+  const stickyMemberClubs = useStickyList<any>(memberClubs, {
+    isFetching: memberClubsFetching,
+    isFetched: memberClubsFetched,
+    isError: memberClubsError,
+    resetKey: user?.id ?? null,
+  });
+  const stickyChatGroups = useStickyList<any>(chatGroups, {
+    isFetching: chatGroupsFetching,
+    isFetched: chatGroupsFetched,
+    isError: chatGroupsError,
+    resetKey: user?.id ?? null,
+  });
+
   // Determine which data to display (prefer fresh, fallback to cached)
-  const displayTeams = (teams?.length ? teams : (!isOnline ? (cachedData?.teams as any) : null)) || teams || cachedData?.teams || [];
-  const displayMemberClubs = (memberClubs?.length ? memberClubs : (!isOnline ? (cachedData?.memberClubs as any) : null)) || memberClubs || cachedData?.memberClubs || [];
+  const displayTeams = (stickyTeams?.length ? stickyTeams : (!isOnline ? (cachedData?.teams as any) : null)) || stickyTeams || cachedData?.teams || [];
+  const displayMemberClubs = (stickyMemberClubs?.length ? stickyMemberClubs : (!isOnline ? (cachedData?.memberClubs as any) : null)) || stickyMemberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
   // Important: an empty fresh chat-group result is authoritative *while
   // online*. Falling back to cached groups when `chatGroups.length === 0`
   // kept soft-deleted/purged club chats visible forever after the server
   // correctly returned no rows. Offline, an empty/failed result carries no
   // authority, so cached rows stay visible.
-  const allChatGroups = (chatGroups?.length ? chatGroups : (!isOnline ? (cachedData?.chatGroups as any) : null)) ?? chatGroups ?? (cachedData?.chatGroups as any) ?? [];
+  const allChatGroups = (stickyChatGroups?.length ? stickyChatGroups : (!isOnline ? (cachedData?.chatGroups as any) : null)) ?? stickyChatGroups ?? (cachedData?.chatGroups as any) ?? [];
+
 
   
   // Filter chat groups by user's roles
@@ -2405,11 +2431,20 @@ export default function MessagesPage() {
     })) as any[];
   }, [cachedData, user?.id]);
 
+  // Resume stability: keep the last non-empty DM list while the query is
+  // refetching/errored so rows do not blink out of the inbox.
+  const stickyDMConversations = useStickyList<any>(dmConversations as any[] | undefined, {
+    isFetching: dmFetching,
+    isFetched: dmFetched,
+    isError: dmError,
+    resetKey: user?.id ?? null,
+  });
+
   const effectiveDMConversations = useMemo(() => {
-    if (dmConversations?.length) return dmConversations as any[];
+    if (stickyDMConversations?.length) return stickyDMConversations as any[];
     if (!isOnline && offlineCachedDMs.length) return offlineCachedDMs;
-    return (dmConversations as any[]) ?? [];
-  }, [dmConversations, isOnline, offlineCachedDMs]);
+    return (stickyDMConversations as any[]) ?? [];
+  }, [stickyDMConversations, isOnline, offlineCachedDMs]);
 
   // Filtered DM conversations
   // Hide empty DMs (no messages exchanged) from the list — these are stub
