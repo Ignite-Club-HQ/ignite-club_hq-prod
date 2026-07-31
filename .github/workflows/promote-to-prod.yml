@@ -501,6 +501,9 @@ jobs:
               if new_cmd ilike '%internal_service_role_key%'
                  and new_cmd not ilike '%eyJ%'
                  and new_cmd not ilike '%anon%'
+                 -- the Vault key must actually land in an Authorization header
+                 and new_cmd ~* 'authorization''?\s*,\s*''bearer\s*''\s*\|\|\s*public\.internal_service_role_key\(\)'
+
                  and (length(new_cmd) - length(replace(new_cmd, '(', '')))
                      = (length(new_cmd) - length(replace(new_cmd, ')', '')))
                  and (length(new_cmd) - length(replace(new_cmd, '''', ''))) % 2 = 0 then
