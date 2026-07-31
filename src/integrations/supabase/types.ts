@@ -12116,6 +12116,7 @@ export type Database = {
           team_name: string
         }[]
       }
+      self_heal_dispatch_credentials: { Args: never; Returns: boolean }
       send_duty_notification_email: {
         Args: {
           p_club_logo_url: string
