@@ -22,6 +22,7 @@ import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { PWAPendingInviteHandler } from "@/components/PWAPendingInviteHandler";
 import { NativeAppUpdatePrompt } from "@/components/NativeAppUpdatePrompt";
+import { LegalReacceptanceGate } from "@/components/LegalReacceptanceGate";
 
 import { StatusBarManager } from "@/components/StatusBarManager";
 import { NotifDebugOverlay } from "@/components/NotifDebugOverlay";
@@ -499,6 +500,7 @@ const App = () => {
             <PushNotificationManager />
             <StatusBarManager />
             <NativeAppUpdatePrompt />
+            <LegalReacceptanceGate />
             
           </BrowserRouter>
           </TooltipProvider>
