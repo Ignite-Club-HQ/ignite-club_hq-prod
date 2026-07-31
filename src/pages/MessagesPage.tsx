@@ -206,6 +206,7 @@ interface UnifiedConversation {
 
 export default function MessagesPage() {
   const { user, initialized, refreshUnreadCount } = useAuth();
+  const { isOnline } = useOnlineStatus();
   usePageTitle("Messages");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
