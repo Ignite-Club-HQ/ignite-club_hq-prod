@@ -512,12 +512,8 @@ function ChatMessageInner({
       return { previousMessages, previousReactions };
     },
     onError: (err, variables, context) => {
-      if (context?.previousMessages) {
-        queryClient.setQueryData(queryKey, context.previousMessages);
-      }
-      if (context?.previousReactions) {
-        setLocalReactions(context.previousReactions);
-      }
+      rollbackOwnReactions(context?.previousReactions);
+      toast.error("Couldn't update reaction. Please try again.");
     },
     onSettled: () => {
       isReactionMutatingRef.current = false;
