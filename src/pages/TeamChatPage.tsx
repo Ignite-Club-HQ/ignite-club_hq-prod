@@ -1438,92 +1438,29 @@ export default function TeamChatPage() {
       )
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "INSERT", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.team_message_id) return;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map((m) => {
-              if (m.id !== reaction.team_message_id) return m;
-
-              const existingTempIdx = m.reactions.findIndex(
-                (r) => r.id.startsWith("temp-") && r.user_id === reaction.user_id
-              );
-              if (m.reactions.some((r) => r.id === reaction.id)) return m;
-
-              const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
-              if (existingTempIdx !== -1) {
-                const newReactions = [...m.reactions];
-                newReactions[existingTempIdx] = newReaction;
-                return { ...m, reactions: newReactions };
-              }
-
-              return {
-                ...m,
-                reactions: [...m.reactions.filter((r) => r.user_id !== reaction.user_id), newReaction],
-              };
-            });
-            return { ...(old || {}), messages: updatedMessages };
-          });
+          if (!reaction?.team_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.team_message_id, reaction);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "UPDATE", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.team_message_id) return;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map((m) => {
-              if (m.id !== reaction.team_message_id) return m;
-
-              const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
-              const hasExistingReaction = m.reactions.some((r) => r.id === reaction.id);
-
-              if (hasExistingReaction) {
-                return {
-                  ...m,
-                  reactions: m.reactions.map((r) => (r.id === reaction.id ? newReaction : r)),
-                };
-              }
-
-              return {
-                ...m,
-                reactions: [...m.reactions.filter((r) => r.user_id !== reaction.user_id), newReaction],
-              };
-            });
-            return { ...(old || {}), messages: updatedMessages };
-          });
+          if (!reaction?.team_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.team_message_id, reaction);
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "message_reactions",
-        },
+        { event: "DELETE", schema: "public", table: "message_reactions" },
         (payload) => {
-          const deletedReaction = payload.old as any;
-          if (!deletedReaction.id) return;
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            const updatedMessages = existingMessages.map((m) => ({
-              ...m,
-              reactions: m.reactions.filter((r) => r.id !== deletedReaction.id),
-            }));
-            return { ...(old || {}), messages: updatedMessages };
-          });
+          const deleted = payload.old as any;
+          if (!deleted?.id) return;
+          applyRealtimeReactionDelete(deleted.team_message_id ?? null, deleted.id);
         }
       )
       .subscribe();
