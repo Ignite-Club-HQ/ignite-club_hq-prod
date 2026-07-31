@@ -1125,6 +1125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileLoading,
       profileError,
       initialized,
+      sessionRestoration,
       profileResolved,
       unreadCount,
       unreadMessagesCount,
