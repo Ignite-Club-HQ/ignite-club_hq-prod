@@ -23,13 +23,37 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const auth = await requireServiceRoleOrAppAdmin(req, corsHeaders);
-  if ("response" in auth) return auth.response;
-
   if (!SUPABASE_URL || !SERVICE_KEY) {
     console.error("[sync-dispatch-credentials] missing runtime env");
     return jsonResponse({ error: "Server misconfigured" }, 500, corsHeaders);
   }
+
+  // Bootstrap path: the database itself can request a credential refresh using a
+  // single-use, short-lived token it generated. This exists because the stored
+  // service-role key may be stale — the very failure this function repairs — so
+  // the normal service-role bearer check would be unusable.
+  const bootstrapToken = req.headers.get("x-bootstrap-token");
+  let authorized = false;
+
+  if (bootstrapToken) {
+    const bootstrapClient = createClient(SUPABASE_URL, SERVICE_KEY);
+    const { data: consumed, error: consumeError } = await bootstrapClient.rpc(
+      "consume_dispatch_bootstrap_token",
+      { _token: bootstrapToken },
+    );
+    if (consumeError || consumed !== true) {
+      console.warn("[sync-dispatch-credentials] bootstrap token rejected");
+      return jsonResponse({ error: "Unauthorized" }, 401, corsHeaders);
+    }
+    authorized = true;
+  }
+
+  if (!authorized) {
+    const auth = await requireServiceRoleOrAppAdmin(req, corsHeaders);
+    if ("response" in auth) return auth.response;
+  }
+
+
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
   const baseUrl = SUPABASE_URL.replace(/\/+$/, "");
