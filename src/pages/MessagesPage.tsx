@@ -1,3 +1,4 @@
+import { useStickyList } from "@/hooks/useStickyList";
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -2430,11 +2431,20 @@ export default function MessagesPage() {
     })) as any[];
   }, [cachedData, user?.id]);
 
+  // Resume stability: keep the last non-empty DM list while the query is
+  // refetching/errored so rows do not blink out of the inbox.
+  const stickyDMConversations = useStickyList<any>(dmConversations as any[] | undefined, {
+    isFetching: dmFetching,
+    isFetched: dmFetched,
+    isError: dmError,
+    resetKey: user?.id ?? null,
+  });
+
   const effectiveDMConversations = useMemo(() => {
-    if (dmConversations?.length) return dmConversations as any[];
+    if (stickyDMConversations?.length) return stickyDMConversations as any[];
     if (!isOnline && offlineCachedDMs.length) return offlineCachedDMs;
-    return (dmConversations as any[]) ?? [];
-  }, [dmConversations, isOnline, offlineCachedDMs]);
+    return (stickyDMConversations as any[]) ?? [];
+  }, [stickyDMConversations, isOnline, offlineCachedDMs]);
 
   // Filtered DM conversations
   // Hide empty DMs (no messages exchanged) from the list — these are stub
