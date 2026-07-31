@@ -7,6 +7,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
+import { isAuthorizedCronCaller } from "../_shared/cron-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,13 +67,12 @@ Deno.serve(async (req) => {
   const __outboundBlocked = outboundBlockedResponse("notify-game-kickoff");
   if (__outboundBlocked) return __outboundBlocked;
 
-  const cronSecret = req.headers.get("x-cron-secret");
-  const expected = Deno.env.get("CRON_SECRET");
-  if (!expected || cronSecret !== expected) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+  if (!(await isAuthorizedCronCaller(req))) {
+    console.error("Unauthorized: caller is not an authorized cron/internal caller");
+    return new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
   }
 
   const supabase = createClient(

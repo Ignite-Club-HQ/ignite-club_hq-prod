@@ -315,7 +315,14 @@ jobs:
             where name = 'functions_base_url';
           SQL
 
-          if [ -n "$KEY" ]; then
+          # NEVER clobber a working PROD Vault key. A hotfix may have written the
+          # canonical runtime service-role key directly into Vault; overwriting it
+          # with a (possibly stale/rotated) GitHub secret would re-break dispatch.
+          # Seed only when the Vault entry is absent or obviously invalid.
+          EXISTING_KEY_OK=$(run_sql -c "select coalesce((select 1 from vault.decrypted_secrets where name='service_role_key' and length(decrypted_secret) >= 20 and decrypted_secret !~ '\s' limit 1), 0);")
+          if [ "$EXISTING_KEY_OK" = "1" ]; then
+            echo "🔒 Existing PROD Vault service_role_key looks valid — leaving it untouched (hotfix-safe)."
+          elif [ -n "$KEY" ]; then
             run_sql -v key="$KEY" <<'SQL' >/dev/null
               select vault.create_secret(:'key', 'service_role_key', 'Service role key for pg_net dispatch')
               where not exists (select 1 from vault.secrets where name = 'service_role_key');
@@ -324,7 +331,7 @@ jobs:
               from vault.secrets
               where name = 'service_role_key';
           SQL
-            echo "✅ Vault service_role_key seeded from GitHub secret."
+            echo "✅ Vault service_role_key seeded from GitHub secret (was missing/invalid)."
           else
             echo "ℹ️  No service-role key secret set — relying on an existing Vault entry."
           fi
@@ -355,6 +362,42 @@ jobs:
             exit 1
           fi
           echo "✅ Both Vault secrets present and well-formed."
+
+
+      - name: Guard PROD hotfixes are still in the code being promoted
+        # Blocks promotion if the branch would deploy code that reverts a PROD
+        # hotfix. Add a check here for every hotfix applied directly to PROD.
+        run: |
+          set -euo pipefail
+          FAIL=0
+
+          # 1. process-message-notifications must not reference the undefined
+          #    `supabaseServiceKey` in its dispatch Authorization header.
+          if grep -rn "supabaseServiceKey" supabase/functions/process-message-notifications/index.ts; then
+            echo "::error::process-message-notifications references supabaseServiceKey (undefined) — this reverts the PROD hotfix. Use SUPABASE_SERVICE_KEY."
+            FAIL=1
+          fi
+
+          # 2. Shared cron caller auth must exist.
+          if [ ! -f supabase/functions/_shared/cron-auth.ts ]; then
+            echo "::error::supabase/functions/_shared/cron-auth.ts is missing — PROD cron jobs authenticate with a service-role bearer and would 401."
+            FAIL=1
+          fi
+
+          # 3. Every cron-invoked function must authorise via isAuthorizedCronCaller.
+          CRON_FUNCS="notify-game-kickoff send-event-reminders process-duty-points expire-subscriptions auto-purge-trash cleanup-deleted-accounts send-renewal-reminders send-engagement-reminders send-storage-warnings process-weekly-engagement-digest reconcile-legacy-subscriptions"
+          for f in $CRON_FUNCS; do
+            if ! grep -q "isAuthorizedCronCaller" "supabase/functions/$f/index.ts"; then
+              echo "::error::supabase/functions/$f/index.ts does not use isAuthorizedCronCaller — reverts the PROD hotfix (cron calls would 401)."
+              FAIL=1
+            fi
+          done
+
+          if [ "$FAIL" != "0" ]; then
+            echo "Promotion aborted: the branch would overwrite a PROD hotfix."
+            exit 1
+          fi
+          echo "✅ All PROD hotfixes are present in the code being promoted."
 
 
       - name: Apply migrations to PROD

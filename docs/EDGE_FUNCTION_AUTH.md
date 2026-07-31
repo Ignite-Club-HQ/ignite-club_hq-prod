@@ -95,3 +95,20 @@ migration lands.
    does not go through `public.internal_service_role_key()`. This catches a cron
    job or trigger left on an anon key, which would 401 silently against the
    hardened functions.
+
+## PROD hotfix parity (2026-07-31)
+
+A hotfix was deployed straight to PROD; the repo now carries the same code, and
+promotion refuses to overwrite it:
+
+| Hotfix | Repo home | Promotion guard |
+| --- | --- | --- |
+| `process-message-notifications` dispatch header uses `SUPABASE_SERVICE_KEY` (was an undefined `supabaseServiceKey`) | `supabase/functions/process-message-notifications/index.ts` | "Guard PROD hotfixes are still in the code being promoted" |
+| Cron callers accept `CRON_SECRET` **or** a service-role bearer (with an `/auth/v1/admin/users` privilege probe for opaque `sb_` keys) | `supabase/functions/_shared/cron-auth.ts` + `isAuthorizedCronCaller` in the 11 cron functions | same step, per function |
+| Vault `service_role_key` set to the canonical runtime key (data-only) | n/a — data | "Ensure PROD push-delivery prerequisites" now **never overwrites** a valid existing Vault key; it only seeds when the entry is missing or malformed |
+
+Local regression cover: `src/edge-functions/prodHotfixParity.guard.test.ts`.
+
+The temporary PROD helpers (`public.__hotfix_set_service_role_key`,
+`recover-event-push-strath`, `STRATH_RECOVERY_TOKEN`) were deleted and are
+intentionally absent from this repo — do not recreate them.
