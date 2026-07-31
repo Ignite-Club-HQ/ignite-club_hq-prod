@@ -920,12 +920,37 @@ export default function EventsPage() {
       </div>
 
       <QueryErrorBanner
-        hasError={eventsIsError && !isFetching}
+        hasError={isOnline && eventsIsError && !isFetching}
         onRetry={async () => {
           await Promise.allSettled([refetchEvents(), queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] })]);
         }}
         message="Couldn't load schedule. Tap to retry."
       />
+
+      {!isOnline && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <WifiOff className="h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            {showingOfflineCache
+              ? "You're offline — showing your saved schedule."
+              : "You're offline. Your schedule will update when you reconnect."}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={async () => {
+              await Promise.allSettled([
+                refetchEvents(),
+                queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] }),
+              ]);
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
 
 
 
