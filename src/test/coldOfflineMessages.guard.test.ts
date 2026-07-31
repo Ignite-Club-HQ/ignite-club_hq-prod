@@ -24,9 +24,9 @@ describe("cold-offline messages inbox guards", () => {
   });
 
   it("keeps cached teams, clubs and groups when offline results are empty", () => {
-    expect(messages).toMatch(/!isOnline \? \(cachedData\?\.teams as any\)/);
-    expect(messages).toMatch(/!isOnline \? \(cachedData\?\.memberClubs as any\)/);
-    expect(messages).toMatch(/!isOnline \? \(cachedData\?\.chatGroups as any\)/);
+    expect(messages).toMatch(/!isOnline \|\| !teamsFetched\) \? \(cachedData\?\.teams as any\)/);
+    expect(messages).toMatch(/!isOnline \|\| !memberClubsFetched\) \? \(cachedData\?\.memberClubs as any\)/);
+    expect(messages).toMatch(/!isOnline \|\| !chatGroupsFetched\) \? \(cachedData\?\.chatGroups as any\)/);
   });
 
   it("does not drop club/team groups when roles cannot load offline", () => {
