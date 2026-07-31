@@ -21,13 +21,24 @@ import { mark as coldMark } from "@/lib/coldStartMarks";
 const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
 export function AppLayout() {
-  const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized, profileResolved } = useAuth();
+  const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized, profileResolved, sessionRestoration } = useAuth();
   useAdMobInit();
   useActivityTracking();
   useTrackPresence(user?.id);
   const { isThemeReady } = useClubTheme();
   const location = useLocation();
   const [retrying, setRetrying] = useState(false);
+  // Cold-start auth flash guard: while the stored session is still being
+  // restored we must not redirect to /auth (the user IS signed in, we just
+  // don't have the session object yet). Ceiling so a wedged restore can never
+  // trap the user on a spinner.
+  const [authRestoreExpired, setAuthRestoreExpired] = useState(false);
+  useEffect(() => {
+    if (sessionRestoration !== "restoring") return;
+    const t = window.setTimeout(() => setAuthRestoreExpired(true), 8000);
+    return () => window.clearTimeout(t);
+  }, [sessionRestoration]);
+  const isRestoringSession = sessionRestoration === "restoring" && !authRestoreExpired;
   const [themeTimeout, setThemeTimeout] = useState(false);
   
   const isChatThreadRoute = useMemo(() => {
@@ -199,6 +210,18 @@ export function AppLayout() {
       }>
         <LazyDeepLinkGate />
       </Suspense>
+    );
+  }
+
+  // Session restore still in flight (cached profile present, no session object
+  // yet) — show the auth-check state instead of flashing the login screen.
+  if (!user && isRestoringSession && !hasPendingOAuth && !hasOAuthTokensInUrl) {
+    return (
+      <div className="flex flex-col items-center justify-center bg-background gap-4" style={appViewportStyle} role="status" aria-live="polite">
+        <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" loading="eager" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+        <p className="text-sm text-muted-foreground">Checking authentication...</p>
+      </div>
     );
   }
 
