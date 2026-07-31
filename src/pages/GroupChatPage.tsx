@@ -1839,7 +1839,24 @@ export default function GroupChatPage() {
     onMutate: async ({ messageId, reactionType }) => {
       await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
 
-      const previousData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
+      const liveData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
+
+      // Immutable pre-mutation snapshot: copy the arrays (and the reaction
+      // rows themselves) so later optimistic/realtime cache writes can never
+      // mutate what we roll back to after retries are exhausted.
+      const previousData = liveData
+        ? {
+            ...liveData,
+            messages: [...(liveData.messages || [])],
+            reactions: (liveData.reactions || []).map((r) => ({ ...r })),
+          }
+        : undefined;
+
+      // Snapshot of the rendered reaction rows for this message, used to
+      // restore local render state (which is fail-open for temp reactions).
+      const previousLocalReactions = ((localMessagesRef.current || []) as any[])
+        .find((m: any) => m.id === messageId)
+        ?.reactions?.map((r: any) => ({ ...r })) as MessageReaction[] | undefined;
 
       const existingReaction = previousData?.reactions.find(
         r => r.group_message_id === messageId && r.user_id === user?.id
@@ -1851,6 +1868,8 @@ export default function GroupChatPage() {
         reactionType: normalizedReactionType,
         action: !existingReaction ? 'add' : normalizedExistingReactionType === normalizedReactionType ? 'remove' : 'update',
       };
+
+      const tempReactionId = `temp-reaction-${Date.now()}`;
 
       queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
         if (!old) return { messages: [], reactions: [] };
@@ -1871,7 +1890,7 @@ export default function GroupChatPage() {
         }
 
         const tempReaction: MessageReaction = {
-          id: `temp-reaction-${Date.now()}`,
+          id: tempReactionId,
           user_id: user!.id,
           reaction_type: normalizedReactionType,
           group_message_id: messageId,
@@ -1879,17 +1898,64 @@ export default function GroupChatPage() {
         return { ...old, reactions: [...old.reactions, tempReaction] };
       });
 
-      return { previousData, existingReaction, messageId };
+      return { previousData, previousLocalReactions, existingReaction, messageId, tempReactionId };
     },
     onError: (err, variables, context) => {
+      // Fires only after all retries are exhausted, so this is the single
+      // final rollback.
+      const currentUserId = user?.id;
+
+      // Roll back only THIS user's reaction rows. Reactions from other users
+      // that arrived via realtime while the mutation was in flight are kept,
+      // so a failed rollback can't erase someone else's reaction.
       if (context?.previousData) {
-        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+        const snapshotMine = (context.previousData.reactions || []).filter(
+          (r) => r.user_id === currentUserId,
+        );
+        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(
+          ["group-messages", groupId],
+          (live) => {
+            if (!live) return context.previousData!;
+            const othersReactions = (live.reactions || []).filter((r) => r.user_id !== currentUserId);
+            return { ...live, reactions: [...othersReactions, ...snapshotMine.map((r) => ({ ...r }))] };
+          },
+        );
       }
+
       if (context?.messageId) {
-        delete lastReactionIntentRef.current[context.messageId];
+        const messageId = context.messageId;
+        // The rendered list is fail-open for un-reconciled `temp-` reactions,
+        // so restoring the query cache alone leaves the unsaved reaction on
+        // screen. Restore this user's exact pre-interaction rows for this
+        // message while preserving other users' rows.
+        const snapshotMineForMessage = (context.previousLocalReactions ?? []).filter(
+          (r: any) => r.user_id === currentUserId,
+        );
+        setLocalMessages((prev) => {
+          if (!prev) return prev;
+          let changed = false;
+          const next = prev.map((m: any) => {
+            if (m.id !== messageId) return m;
+            const current: any[] = m.reactions || [];
+            const restored = [
+              ...current.filter((r) => r.user_id !== currentUserId),
+              ...snapshotMineForMessage.map((r: any) => ({ ...r })),
+            ];
+            const sameSet =
+              current.length === restored.length &&
+              current.every((r) => restored.some((p: any) => p.id === r.id && p.reaction_type === r.reaction_type));
+            if (sameSet) return m;
+            changed = true;
+            return { ...m, reactions: restored };
+          });
+          return changed ? next : prev;
+        });
+        delete lastReactionIntentRef.current[messageId];
       }
-      toast.error("Failed to update reaction");
+
+      toast.error("Couldn't update reaction. Please try again.");
     },
+
     onSuccess: (result) => {
       if (!result) return;
 
