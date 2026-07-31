@@ -1865,20 +1865,34 @@ export default function TeamChatPage() {
       : team.clubs.name
     : onlineLabel || undefined;
 
-  // Only block on the metadata fetch if we have nothing cached to render the header with.
-  if (loadingTeam && !team) {
+  // `team` may come from the local metadata cache; only gate when it's absent.
+  const teamMetadataState = resolveChatMetadataState({
+    data: team,
+    isLoading: loadingTeam,
+    isError: teamIsError,
+    fetchStatus: teamFetchStatus,
+    status: teamStatus,
+    isOnline: typeof navigator === "undefined" ? true : navigator.onLine !== false,
+  });
+
+  if (teamMetadataState === "loading") {
     return <ChatPageSkeleton title="Team chat" />;
   }
 
-  // Query is paused (offline) and we have no cached team — keep showing loader
-  // instead of a misleading "Team not found".
-  if (teamFetchStatus === "paused" && !team) {
-    return <ChatPageSkeleton title="Team chat" />;
+  if (teamMetadataState === "unreachable") {
+    return (
+      <ChatUnreachable
+        label="team chat"
+        onRetry={() => void refetchTeam()}
+        retrying={teamIsFetching}
+      />
+    );
   }
 
   if (!team) {
     return <div className="py-6 text-center text-muted-foreground">Team not found</div>;
   }
+
 
   return (
     <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
