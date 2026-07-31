@@ -7,14 +7,23 @@ interface ChatUnreachableProps {
   label?: string;
   onRetry: () => void;
   retrying?: boolean;
+  /** Where the secondary button goes. Defaults to the Messages inbox. */
+  backTo?: string;
+  backLabel?: string;
 }
 
 /**
- * Shown when a chat's metadata request failed or was paused (offline / dropped
- * connection). Deliberately does NOT claim the chat was deleted — see
- * `src/lib/chatMetadataGate.ts`.
+ * Shown when a screen's metadata request failed or was paused (offline /
+ * dropped connection). Deliberately does NOT claim the thing was deleted —
+ * see `src/lib/chatMetadataGate.ts`.
  */
-export function ChatUnreachable({ label = "chat", onRetry, retrying }: ChatUnreachableProps) {
+export function ChatUnreachable({
+  label = "chat",
+  onRetry,
+  retrying,
+  backTo = "/messages",
+  backLabel = "Back to Messages",
+}: ChatUnreachableProps) {
   const navigate = useNavigate();
   return (
     <div className="flex flex-col items-center justify-center h-64 gap-4 px-6 text-center">
@@ -27,10 +36,11 @@ export function ChatUnreachable({ label = "chat", onRetry, retrying }: ChatUnrea
           <RefreshCw className={`h-4 w-4 mr-2 ${retrying ? "animate-spin" : ""}`} aria-hidden="true" />
           {retrying ? "Retrying…" : "Try again"}
         </Button>
-        <Button variant="outline" onClick={() => navigate("/messages")}>
-          Back to Messages
+        <Button variant="outline" onClick={() => navigate(backTo)}>
+          {backLabel}
         </Button>
       </div>
     </div>
   );
 }
+
