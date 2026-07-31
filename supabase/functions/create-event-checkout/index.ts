@@ -103,7 +103,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const rateLimitResult = await checkRateLimit(supabaseAdmin, user.id, 'create-event-checkout');
+    // A rate-limit storage failure must fail closed, never silently disable
+    // rate limiting.
+    let rateLimitResult;
+    try {
+      rateLimitResult = await checkRateLimit(supabaseAdmin, user.id, 'create-event-checkout');
+    } catch (rateLimitError) {
+      console.error('Rate limit storage failure');
+      return new Response(
+        JSON.stringify({ error: 'Unable to create payment checkout. Please try again.', code: 'rate_limit_unavailable' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     if (!rateLimitResult.allowed) {
       console.warn(`Rate limit exceeded for user ${user.id} on create-event-checkout`);
       return new Response(
