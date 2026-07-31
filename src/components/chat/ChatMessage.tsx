@@ -458,13 +458,10 @@ function ChatMessageInner({
     },
     onError: (err, variables, context) => {
       console.error("[Reaction] Mutation error:", err);
-      if (context?.previousMessages) {
-        queryClient.setQueryData(queryKey, context.previousMessages);
-      }
-      if (context?.previousReactions) {
-        setLocalReactions(context.previousReactions);
-      }
-      toast.error("Failed to add reaction");
+      // Fires only after retries are exhausted: single, final rollback scoped
+      // to this user's rows so other users' realtime reactions are preserved.
+      rollbackOwnReactions(context?.previousReactions);
+      toast.error("Couldn't update reaction. Please try again.");
     },
     onSettled: () => {
       isReactionMutatingRef.current = false;
