@@ -10817,6 +10817,10 @@ export type Database = {
         }
         Returns: string
       }
+      create_event_with_duties: {
+        Args: { p_child_dates?: string[]; p_duties?: Json; p_event: Json }
+        Returns: string
+      }
       create_personal_competition: {
         Args: {
           p_description?: string
@@ -12141,6 +12145,10 @@ export type Database = {
           p_player2_team: string
         }
         Returns: undefined
+      }
+      sync_event_duties: {
+        Args: { p_delete_ids?: string[]; p_duties?: Json; p_event_id: string }
+        Returns: Json
       }
       team_has_club_pro_access: { Args: { _team_id: string }; Returns: boolean }
       team_has_club_pro_football_access: {
