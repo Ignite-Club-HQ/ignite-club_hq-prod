@@ -1223,7 +1223,16 @@ export default function EventsPage() {
               </TabsList>
 
           <TabsContent value="upcoming" className="mt-4 space-y-2">
-            {upcomingEvents?.length === 0 ? (
+            {offlineNoCache ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center">
+                  <WifiOff className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    You're offline and no saved schedule is available yet.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : upcomingEvents?.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="p-8 text-center">
                   <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
