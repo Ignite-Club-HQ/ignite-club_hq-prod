@@ -715,54 +715,34 @@ export default function EditEventPage() {
         if (error) throw error;
       }
 
-      // Handle duty updates for game events.
-      // These are separate writes from the event update, so we check every
-      // returned error and record which ones succeeded — a retry then performs
-      // only the remaining work and never repeats a destructive delete or
-      // duplicates an already-created duty.
+      // Duty changes for game events are applied by a single transactional RPC:
+      // every removal, edit and addition either commits together or rolls back,
+      // and the RPC raises when RLS would silently skip a row.
       if (type === "game") {
-        // Delete removed duties
-        if (dutiesToDelete.length > 0) {
-          const { error: deleteError } = await supabase
-            .from("duties")
-            .delete()
-            .in("id", dutiesToDelete);
-          if (deleteError) throw Object.assign(deleteError, { __dutyStage: "delete" });
-          setDutiesToDelete([]);
-        }
+        const { data: syncedRaw, error: dutyError } = await supabase.rpc("sync_event_duties", {
+          p_event_id: id!,
+          p_delete_ids: dutiesToDelete,
+          p_duties: duties.map((duty, idx) => ({
+            idx,
+            id: duty.id ?? null,
+            name: duty.name,
+            assigned_to: duty.assignedTo,
+          })) as any,
+        });
+        if (dutyError) throw Object.assign(dutyError, { __dutyStage: "sync" });
 
-        // Update existing duties and create new ones
-        for (let i = 0; i < duties.length; i++) {
-          const duty = duties[i];
-          if (duty.id) {
-            // Update existing
-            const { error: updateError } = await supabase
-              .from("duties")
-              .update({ name: duty.name, assigned_to: duty.assignedTo })
-              .eq("id", duty.id);
-            if (updateError) throw Object.assign(updateError, { __dutyStage: "update" });
-          } else {
-            // Create new — capture the id so a retry updates instead of
-            // inserting a duplicate duty.
-            const { data: inserted, error: insertError } = await supabase
-              .from("duties")
-              .insert({
-                event_id: id!,
-                name: duty.name,
-                assigned_to: duty.assignedTo,
-              })
-              .select("id")
-              .maybeSingle();
-            if (insertError) throw Object.assign(insertError, { __dutyStage: "insert" });
-            if (inserted?.id) {
-              const newId = inserted.id;
-              setDuties((prev) =>
-                prev.map((d, idx) => (idx === i && !d.id ? { ...d, id: newId } : d)),
-              );
-            }
-          }
+        setDutiesToDelete([]);
+        const synced = (syncedRaw as { idx: number; id: string }[] | null) ?? [];
+        if (synced.length > 0) {
+          setDuties((prev) =>
+            prev.map((d, idx) => {
+              const match = synced.find((s) => s.idx === idx);
+              return match && !d.id ? { ...d, id: match.id } : d;
+            }),
+          );
         }
       }
+
 
       // Event update notifications are now handled automatically by the
       // on_event_updated DB trigger → process-event-notifications edge function
