@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Repeat, Bell, ChevronDown, Calendar, FileText, DollarSign, ClipboardList, Plus, X, User, Star, Trash2, UserPlus, Clock } from "lucide-react";
@@ -106,6 +106,10 @@ export default function CreateEventPage() {
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  // Partial-write recovery: if the event row was created but its duties failed,
+  // remember the created event id so a retry only re-attempts the duty insert
+  // and never creates a second event.
+  const createdEventIdRef = useRef<string | null>(null);
 
   // End time / duration state
   const [endTime, setEndTime] = useState("");
@@ -806,7 +810,32 @@ export default function CreateEventPage() {
           : null,
     } as any;
 
+    // Insert duties for an already-created event. Returns an error when the
+    // write fails so the caller can report partial completion instead of
+    // claiming success.
+    const insertDuties = async (eventId: string) => {
+      if (type !== "game" || duties.length === 0) return null;
+      const dutyRecords = duties.map((duty) => ({
+        event_id: eventId,
+        name: duty.name,
+        assigned_to: duty.assignedTo,
+      }));
+      const { error } = await supabase.from("duties").insert(dutyRecords);
+      return error;
+    };
+
     try {
+      // Retry path: the event already exists from a previous attempt whose
+      // duty insert failed. Only re-attempt the duties — never a second event.
+      if (createdEventIdRef.current) {
+        const dutyError = await insertDuties(createdEventIdRef.current);
+        if (dutyError) throw Object.assign(dutyError, { __dutyStage: true });
+        const eventId = createdEventIdRef.current;
+        createdEventIdRef.current = null;
+        navigate(`/events/${eventId}`);
+        return;
+      }
+
       if (isRecurring) {
         const endDate = new Date(recurrenceEndDate);
         const dates = generateRecurringDates(parsedDateTime, endDate);
@@ -821,6 +850,7 @@ export default function CreateEventPage() {
           .single();
 
         if (parentError) throw parentError;
+        createdEventIdRef.current = parentEvent.id;
 
         if (dates.length > 1) {
           const childEvents = dates.slice(1).map((date) => {
@@ -841,15 +871,10 @@ export default function CreateEventPage() {
         }
 
         // Create duties for parent event if it's a game
-        if (type === "game" && duties.length > 0) {
-          const dutyRecords = duties.map(duty => ({
-            event_id: parentEvent.id,
-            name: duty.name,
-            assigned_to: duty.assignedTo,
-          }));
-          await supabase.from("duties").insert(dutyRecords);
-        }
+        const dutyError = await insertDuties(parentEvent.id);
+        if (dutyError) throw Object.assign(dutyError, { __dutyStage: true });
 
+        createdEventIdRef.current = null;
         navigate(`/events/${parentEvent.id}`);
       } else {
         const { data, error } = await supabase
@@ -862,21 +887,34 @@ export default function CreateEventPage() {
           .single();
 
         if (error) throw error;
+        createdEventIdRef.current = data.id;
 
         // Create duties if it's a game event
-        if (type === "game" && duties.length > 0) {
-          const dutyRecords = duties.map(duty => ({
-            event_id: data.id,
-            name: duty.name,
-            assigned_to: duty.assignedTo,
-          }));
-          await supabase.from("duties").insert(dutyRecords);
-        }
+        const dutyError = await insertDuties(data.id);
+        if (dutyError) throw Object.assign(dutyError, { __dutyStage: true });
 
+        createdEventIdRef.current = null;
         navigate(`/events/${data.id}`);
       }
     } catch (error: any) {
       console.error("Error creating event:", error);
+
+      // Partial write: the event row exists but its duties did not save.
+      // Report exactly that, keep the form usable, and let the user retry
+      // without creating a duplicate event.
+      if (error?.__dutyStage) {
+        toast({
+          title: "Event created, duties not saved",
+          description:
+            (/row-level security|permission/i.test(error?.message ?? "")
+              ? "You don't have permission to add duties to this event. "
+              : `${error?.message ?? "The duties could not be saved."} `) +
+            "Tap Create again to retry saving the duties — this will not create another event.",
+          variant: "destructive",
+        });
+        return;
+      }
+
 
       const errorBlob = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
 
