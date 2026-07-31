@@ -392,6 +392,58 @@ jobs:
             supabase functions deploy "$name" --project-ref "$PROJECT_REF"
           done
 
+      - name: Verify PROD callers authenticate to edge functions
+        # Every edge function now authenticates its caller, so any cron job or
+        # trigger still sending an anon key (or no Authorization header) would
+        # start 401-ing silently. Catch that in CI rather than in production.
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+          run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
+
+          echo "=== Cron jobs calling edge functions ==="
+          run_sql -c "
+            select jobname || ' | schedule=' || schedule || ' | active=' || active
+            from cron.job
+            where command ilike '%functions/v1/%'
+            order by jobname;"
+
+          # A cron job that embeds a raw anon JWT (role\":\"anon\") in its command
+          # can no longer authenticate against the hardened functions.
+          BAD_CRON=$(run_sql -c "
+            select count(*) from cron.job
+            where command ilike '%functions/v1/%'
+              and (command ilike '%anon%' or command not ilike '%internal_service_role_key%');")
+          if [ "$BAD_CRON" != "0" ]; then
+            echo "::error::$BAD_CRON PROD cron job(s) calling edge functions do not use public.internal_service_role_key(). They will receive 401 from the hardened functions. Reschedule them before promoting."
+            run_sql -c "
+              select jobname from cron.job
+              where command ilike '%functions/v1/%'
+                and (command ilike '%anon%' or command not ilike '%internal_service_role_key%');"
+            exit 1
+          fi
+          echo "✅ All PROD cron callers use the Vault service-role key."
+
+          # Trigger functions that dispatch to edge functions must do the same.
+          BAD_FN=$(run_sql -c "
+            select count(*) from pg_proc p
+            join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'public'
+              and p.prosrc ilike '%functions/v1/%'
+              and p.prosrc not ilike '%internal_service_role_key%';")
+          if [ "$BAD_FN" != "0" ]; then
+            echo "::error::$BAD_FN PROD trigger function(s) dispatch to edge functions without public.internal_service_role_key(). Those calls will 401."
+            run_sql -c "
+              select p.proname from pg_proc p
+              join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public'
+                and p.prosrc ilike '%functions/v1/%'
+                and p.prosrc not ilike '%internal_service_role_key%';"
+            exit 1
+          fi
+          echo "✅ All PROD trigger dispatchers use the Vault service-role key."
+
 
       - name: Post-migration state
         if: github.event_name == 'push'
