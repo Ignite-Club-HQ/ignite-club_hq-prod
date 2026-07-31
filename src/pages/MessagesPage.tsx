@@ -2810,7 +2810,7 @@ export default function MessagesPage() {
 
 
   const hasNoResults = query && unifiedConversations.length === 0;
-  const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0;
+  const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0 && filteredDMs.length === 0;
 
   // If a specific club is in scope (active club theme or local filter), use that
   // club's Pro status — otherwise fall back to the global "any Pro" check. This
