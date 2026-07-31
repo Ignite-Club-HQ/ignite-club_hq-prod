@@ -41,13 +41,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // ---- Authorization: cron secret OR app_admin JWT ----
-    const cronSecret = req.headers.get('x-cron-secret');
-    const expectedCron = Deno.env.get('CRON_SECRET');
+    // ---- Authorization: internal cron/service-role caller OR app_admin JWT ----
     let authorized = false;
     let actorUserId: string | null = null;
 
-    if (cronSecret && expectedCron && cronSecret === expectedCron) {
+    if (await isAuthorizedCronCaller(req)) {
       authorized = true;
     } else {
       const authHeader = req.headers.get('Authorization');
