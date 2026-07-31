@@ -29,9 +29,22 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import {
   chatTargetPath,
   resolveChatTargetForMessageId,
+  resolveChatTargetResult,
   NOTIFICATION_FALLBACK_PATH,
   type ChatTarget,
 } from "@/lib/notificationChatRouting";
+
+/**
+ * A notification tap whose message lookup FAILED (offline / dropped socket) must
+ * not redirect anywhere — the message probably still exists. Keep the user on
+ * the list and invite a retry.
+ */
+function warnUnreachableNotification() {
+  toast.error("Couldn't open this message", {
+    description: "Your connection looks unstable. Tap it again once you're back online.",
+  });
+}
+
 
 
 /**
