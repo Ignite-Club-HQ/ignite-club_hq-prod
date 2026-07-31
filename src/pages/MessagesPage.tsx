@@ -19,6 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { WifiOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
 import { useClubTheme } from "@/hooks/useClubTheme";
