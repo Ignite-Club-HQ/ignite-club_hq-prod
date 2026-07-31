@@ -1408,12 +1408,12 @@ export default function MediaPage() {
         <div className="max-w-lg mx-auto space-y-6">
           {[...Array(3)].map((_, i) => <PhotoSkeleton key={i} />)}
         </div>
-      ) : hasProAccessQueryFailed ? (
+      ) : hasProAccessQueryFailed && photos.length === 0 ? (
         <Card className="border-dashed max-w-lg mx-auto">
           <CardContent className="p-8 text-center">
             <p className="text-muted-foreground">
-              {typeof navigator !== "undefined" && navigator.onLine === false
-                ? "You appear to be offline. Check your internet connection and try again."
+              {!isOnline
+                ? "You're offline and no saved photos are available yet."
                 : "We couldn’t verify Pro access right now."}
             </p>
             <Button
@@ -1423,6 +1423,16 @@ export default function MediaPage() {
             >
               Retry
             </Button>
+          </CardContent>
+        </Card>
+
+      ) : !isOnline && photos.length === 0 ? (
+        <Card className="border-dashed max-w-lg mx-auto">
+          <CardContent className="p-8 text-center">
+            <WifiOff className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">
+              You're offline and no saved photos are available yet.
+            </p>
           </CardContent>
         </Card>
 
