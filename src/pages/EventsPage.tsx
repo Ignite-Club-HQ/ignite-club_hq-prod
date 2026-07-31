@@ -669,8 +669,11 @@ export default function EventsPage() {
 
   // Only show full-page loading on first ever load (no cached data).
   // Also wait when userMemberships is still loading (events query is disabled until it resolves).
+  // When offline we never block on the spinner: we render whatever the
+  // user-scoped cache holds, or a friendly offline empty state.
   const isInitialLoad = !events && !upcomingEvents && !pastEvents;
-  const isStuckOnSpinner = isInitialLoad && (isLoading || membershipsLoading || !userMemberships);
+  const isStuckOnSpinner =
+    isOnline && isInitialLoad && (isLoading || membershipsLoading || !userMemberships);
 
   // Diagnostic: log what's blocking the spinner so we can see it client-side.
   useEffect(() => {
