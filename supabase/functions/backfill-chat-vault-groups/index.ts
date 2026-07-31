@@ -1,3 +1,4 @@
+import { requireServiceRoleAuth } from "../_shared/callerAuth.ts";
 // Backfill historical group chat attachments (images and file/document links)
 // into the vault, mirroring chatVaultSync.ts folder strategy:
 //   - Every group chat gets its own dedicated club-level folder, named after
@@ -116,6 +117,10 @@ function guessFileType(url: string): string | null {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const __authError = requireServiceRoleAuth(req, corsHeaders);
+  if (__authError) return __authError;
+
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
