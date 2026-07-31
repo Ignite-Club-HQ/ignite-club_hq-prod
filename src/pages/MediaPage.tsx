@@ -874,8 +874,10 @@ export default function MediaPage() {
     return () => clearInterval(timer);
   }, [proGateStuck, queryClient]);
 
-  // Only show loading state on initial resolution — never on refetch/resume
-  const isCheckingProAccess = !proAccessEverResolved.current && !proGateTimedOut && (!user || loadingProAccess || activeClubProLoading || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
+  // Only show loading state on initial resolution — never on refetch/resume.
+  // Offline, the pro check can never resolve, so it must not gate rendering:
+  // cached photos are shown instead of an indefinite skeleton/blank area.
+  const isCheckingProAccess = isOnline && !proAccessEverResolved.current && !proGateTimedOut && (!user || loadingProAccess || activeClubProLoading || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
