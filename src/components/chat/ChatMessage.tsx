@@ -266,6 +266,30 @@ function ChatMessageInner({
     return (cachedMessage?.reactions || optimisticReactionsRef.current) as Reaction[];
   }, [queryClient, queryKey, id]);
 
+  // Final rollback after retries are exhausted. Restores ONLY this user's
+  // reaction rows for this message (from an immutable pre-mutation snapshot)
+  // so that reactions other users made via realtime while the mutation was in
+  // flight survive, and un-reconciled `temp-` rows are purged from both the
+  // rendered state and the query cache.
+  const rollbackOwnReactions = useCallback((snapshot: Reaction[] | undefined) => {
+    const mine = (snapshot ?? []).filter((r) => r.user_id === currentUserId).map((r) => ({ ...r }));
+
+    const merge = (current: Reaction[]): Reaction[] => [
+      ...(current || []).filter((r) => r.user_id !== currentUserId),
+      ...mine.map((r) => ({ ...r })),
+    ];
+
+    setLocalReactions((prev) => merge(prev));
+    updateReactionMessages((msgs) =>
+      msgs.map((msg: any) => {
+        if (msg.id !== id) return msg;
+        return { ...msg, reactions: merge((msg.reactions || []) as Reaction[]) };
+      })
+    );
+  }, [currentUserId, id, setLocalReactions, updateReactionMessages]);
+
+
+
   const addReactionMutation = useMutation({
     mutationFn: async ({
       reactionType,
