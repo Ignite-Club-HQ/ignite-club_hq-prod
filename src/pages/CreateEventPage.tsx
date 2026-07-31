@@ -810,110 +810,45 @@ export default function CreateEventPage() {
           : null,
     } as any;
 
-    // Insert duties for an already-created event. Returns an error when the
-    // write fails so the caller can report partial completion instead of
-    // claiming success.
-    const insertDuties = async (eventId: string) => {
-      if (type !== "game" || duties.length === 0) return null;
-      const dutyRecords = duties.map((duty) => ({
-        event_id: eventId,
-        name: duty.name,
-        assigned_to: duty.assignedTo,
-      }));
-      const { error } = await supabase.from("duties").insert(dutyRecords);
-      return error;
-    };
+    // The event row, any recurring occurrences and the duties are written by a
+    // single transactional RPC: either everything commits or nothing does, so a
+    // duty failure can never leave an orphaned event behind.
+    const dutyPayload =
+      type === "game"
+        ? duties.map((duty) => ({ name: duty.name, assigned_to: duty.assignedTo }))
+        : [];
 
     try {
-      // Retry path: the event already exists from a previous attempt whose
-      // duty insert failed. Only re-attempt the duties — never a second event.
-      if (createdEventIdRef.current) {
-        const dutyError = await insertDuties(createdEventIdRef.current);
-        if (dutyError) throw Object.assign(dutyError, { __dutyStage: true });
-        const eventId = createdEventIdRef.current;
-        createdEventIdRef.current = null;
-        navigate(`/events/${eventId}`);
-        return;
-      }
-
+      let childDates: string[] | null = null;
       if (isRecurring) {
         const endDate = new Date(recurrenceEndDate);
         const dates = generateRecurringDates(parsedDateTime, endDate);
-        
-        const { data: parentEvent, error: parentError } = await supabase
-          .from("events")
-          .insert({
-            ...baseEventData,
-            event_date: parsedDateTime.toISOString(),
-          })
-          .select()
-          .single();
-
-        if (parentError) throw parentError;
-        createdEventIdRef.current = parentEvent.id;
-
-        if (dates.length > 1) {
-          const childEvents = dates.slice(1).map((date) => {
-            const childDateTime = new Date(date);
-            childDateTime.setHours(parsedDateTime.getHours(), parsedDateTime.getMinutes());
-            return {
-              ...baseEventData,
-              event_date: childDateTime.toISOString(),
-              parent_event_id: parentEvent.id,
-            };
-          });
-
-          const { error: childError } = await supabase
-            .from("events")
-            .insert(childEvents);
-
-          if (childError) throw childError;
-        }
-
-        // Create duties for parent event if it's a game
-        const dutyError = await insertDuties(parentEvent.id);
-        if (dutyError) throw Object.assign(dutyError, { __dutyStage: true });
-
-        createdEventIdRef.current = null;
-        navigate(`/events/${parentEvent.id}`);
-      } else {
-        const { data, error } = await supabase
-          .from("events")
-          .insert({
-            ...baseEventData,
-            event_date: parsedDateTime.toISOString(),
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        createdEventIdRef.current = data.id;
-
-        // Create duties if it's a game event
-        const dutyError = await insertDuties(data.id);
-        if (dutyError) throw Object.assign(dutyError, { __dutyStage: true });
-
-        createdEventIdRef.current = null;
-        navigate(`/events/${data.id}`);
+        childDates = dates.slice(1).map((date) => {
+          const childDateTime = new Date(date);
+          childDateTime.setHours(parsedDateTime.getHours(), parsedDateTime.getMinutes());
+          return childDateTime.toISOString();
+        });
+        if (childDates.length === 0) childDates = null;
       }
+
+      const { data: newEventId, error } = await supabase.rpc("create_event_with_duties", {
+        p_event: {
+          ...baseEventData,
+          event_date: parsedDateTime.toISOString(),
+        } as any,
+        p_child_dates: childDates,
+        p_duties: dutyPayload as any,
+      });
+
+      if (error) throw error;
+      if (!newEventId) throw new Error("Event could not be created.");
+
+      createdEventIdRef.current = null;
+      navigate(`/events/${newEventId}`);
     } catch (error: any) {
       console.error("Error creating event:", error);
 
-      // Partial write: the event row exists but its duties did not save.
-      // Report exactly that, keep the form usable, and let the user retry
-      // without creating a duplicate event.
-      if (error?.__dutyStage) {
-        toast({
-          title: "Event created, duties not saved",
-          description:
-            (/row-level security|permission/i.test(error?.message ?? "")
-              ? "You don't have permission to add duties to this event. "
-              : `${error?.message ?? "The duties could not be saved."} `) +
-            "Tap Create again to retry saving the duties — this will not create another event.",
-          variant: "destructive",
-        });
-        return;
-      }
+
 
 
       const errorBlob = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
