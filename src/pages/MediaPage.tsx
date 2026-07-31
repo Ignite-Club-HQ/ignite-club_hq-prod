@@ -1294,7 +1294,12 @@ export default function MediaPage() {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">Media</h1>
-          {(isShowingCachedData || isCacheStale) && loadingPhotos && (
+          {!isOnline ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <WifiOff className="h-3 w-3" />
+              {allPhotos.length > 0 ? "Offline — saved photos" : "Offline"}
+            </span>
+          ) : (isShowingCachedData || isCacheStale) && loadingPhotos && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
               <span>Updating...</span>
