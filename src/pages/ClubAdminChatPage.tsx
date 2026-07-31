@@ -555,6 +555,13 @@ export default function ClubAdminChatPage() {
   });
 
   const localMessagesRef = useRef(localMessages);
+  // Realtime reactions must reach BOTH stores (query cache + localMessages).
+  const reactionQueryKey = useMemo(() => queryKey, [queryKey]);
+  const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<ClubAdminMessage>({
+    scopeKey: reconcileScope,
+    queryKey: reactionQueryKey,
+    setLocalMessages,
+  });
   localMessagesRef.current = localMessages;
 
   // Deep-link / push-notification jump: ?message=<id>
@@ -1038,20 +1045,8 @@ export default function ClubAdminChatPage() {
         { event: "INSERT", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.club_admin_message_id) return;
-          queryClient.setQueryData(queryKey, (old: any) => {
-            if (!old) return old;
-            return {
-              ...old,
-              messages: old.messages.map((m: any) => {
-                if (m.id !== reaction.club_admin_message_id) return m;
-                const reactions = m.reactions || [];
-                if (reactions.some((r: any) => r.id === reaction.id)) return m;
-                const filtered = reactions.filter((r: any) => !(r.id.startsWith('temp-') && r.user_id === reaction.user_id));
-                return { ...m, reactions: [...filtered, { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type }] };
-              }),
-            };
-          });
+          if (!reaction?.club_admin_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.club_admin_message_id, reaction);
         }
       )
       .on(
@@ -1059,22 +1054,8 @@ export default function ClubAdminChatPage() {
         { event: "UPDATE", schema: "public", table: "message_reactions" },
         (payload) => {
           const reaction = payload.new as any;
-          if (!reaction.club_admin_message_id) return;
-          queryClient.setQueryData(queryKey, (old: any) => {
-            if (!old) return old;
-            return {
-              ...old,
-              messages: old.messages.map((m: any) => {
-                if (m.id !== reaction.club_admin_message_id) return m;
-                const newReaction = { id: reaction.id, user_id: reaction.user_id, reaction_type: reaction.reaction_type };
-                const hasExisting = (m.reactions || []).some((r: any) => r.id === reaction.id);
-                if (hasExisting) {
-                  return { ...m, reactions: (m.reactions || []).map((r: any) => r.id === reaction.id ? newReaction : r) };
-                }
-                return { ...m, reactions: [...(m.reactions || []).filter((r: any) => r.user_id !== reaction.user_id), newReaction] };
-              }),
-            };
-          });
+          if (!reaction?.club_admin_message_id || !reaction.id) return;
+          applyRealtimeReaction(reaction.club_admin_message_id, reaction);
         }
       )
       .on(
@@ -1082,17 +1063,8 @@ export default function ClubAdminChatPage() {
         { event: "DELETE", schema: "public", table: "message_reactions" },
         (payload) => {
           const deleted = payload.old as any;
-          if (!deleted.id) return;
-          queryClient.setQueryData(queryKey, (old: any) => {
-            if (!old) return old;
-            return {
-              ...old,
-              messages: old.messages.map((m: any) => ({
-                ...m,
-                reactions: (m.reactions || []).filter((r: any) => r.id !== deleted.id),
-              })),
-            };
-          });
+          if (!deleted?.id) return;
+          applyRealtimeReactionDelete(deleted.club_admin_message_id ?? null, deleted.id);
         }
       )
       .subscribe();
@@ -1112,7 +1084,7 @@ export default function ClubAdminChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`club-admin-chat-${conversationId}`);
     };
-  }, [conversationId, conversation?.club_id, queryClient, queryKey, user?.id, reconcileScope]);
+  }, [conversationId, conversation?.club_id, queryClient, queryKey, user?.id, reconcileScop, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   // Visibility change handler
   useEffect(() => {
