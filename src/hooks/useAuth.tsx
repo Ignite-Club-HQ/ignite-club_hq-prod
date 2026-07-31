@@ -36,6 +36,8 @@ interface AuthContextType {
   profileLoading: boolean;
   profileError: boolean;
   initialized: boolean; // True only after first auth check completes
+  /** 'restoring' until the stored session has been resolved one way or the other. */
+  sessionRestoration: "restoring" | "authenticated" | "signed_out";
   profileResolved: boolean; // True only after profile has been fetched from server at least once
   unreadCount: number;
   unreadMessagesCount: number;
@@ -190,6 +192,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(initialAuthState.profileLoading);
   const [profileError, setProfileError] = useState(false);
   const [initialized, setInitialized] = useState(initialAuthState.initialized);
+  // sessionRestoration distinguishes "we haven't finished restoring the stored
+  // session yet" from "there is definitively no session". Without it, a cold
+  // start with a cached profile reports initialized=true / user=null for a few
+  // hundred ms and route guards flash the login screen before the restored
+  // session lands (notification cold start was the worst offender).
+  const [sessionRestoration, setSessionRestoration] =
+    useState<"restoring" | "authenticated" | "signed_out">("restoring");
   // Cold-start instrumentation: fire the `auth_ready` mark exactly once
   // when `initialized` first flips true, regardless of which of the ~10
   // setInitialized(true) sites triggered it.
@@ -408,6 +417,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (stableSession && mounted) {
         setSession(stableSession);
         setUser(stableSession.user);
+        setSessionRestoration("authenticated");
       }
       
       // If we have a cached profile for THIS USER with display_name, TRUST IT immediately
@@ -494,6 +504,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
+        setSessionRestoration(currentSession?.user ? "authenticated" : "signed_out");
         currentUserIdRef.current = incomingUserId;
         // Keep client-perf logger in sync so slow-query rows are attributed.
         try {
@@ -623,16 +634,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               console.log('[Auth] Background session retry succeeded');
               setSession(retrySession);
               setUser(retrySession.user);
+              setSessionRestoration("authenticated");
               if (!profileFetched) {
                 await handleSession(retrySession, true, false);
               }
+            } else {
+              setSessionRestoration("signed_out");
             }
-          }).catch(e => console.warn('[Auth] Background session retry failed:', e));
+          }).catch(e => {
+            console.warn('[Auth] Background session retry failed:', e);
+            setSessionRestoration("signed_out");
+          });
         } else {
           console.warn('[Auth] Session check timed out, no cache available');
           setLoading(false);
           setProfileLoading(false);
           setInitialized(true);
+          setSessionRestoration("signed_out");
         }
       }
     }, 10000); // 10 second timeout for slow connections
@@ -647,6 +665,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
+      setSessionRestoration(existingSession?.user ? "authenticated" : "signed_out");
       
       if (existingSession?.user && !profileFetched) {
         // Initial page load - don't apply theme from profile (localStorage is source of truth)
@@ -667,6 +686,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         setProfileLoading(false);
         setInitialized(true); // Mark as initialized even on error
+        // Transient failure with a cached identity: stay in "restoring" so the
+        // route guard shows the auth-check state instead of flashing /auth.
+        // The resume/visibility recovery pass below resolves it either way.
+        setSessionRestoration(cachedUserId ? "restoring" : "signed_out");
       }
     });
 
@@ -704,6 +727,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log(`[Auth] ${source} - session still valid`);
           setSession(currentData.session);
           setUser(currentData.session.user);
+          setSessionRestoration("authenticated");
           return;
         }
 
@@ -719,6 +743,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log(`[Auth] ${source} - session recovered via refresh`);
           setSession(refreshData.session);
           setUser(refreshData.session.user);
+          setSessionRestoration("authenticated");
           return;
         }
 
@@ -734,6 +759,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log(`[Auth] ${source} - session restored after retry`);
           setSession(retryData.session);
           setUser(retryData.session.user);
+          setSessionRestoration("authenticated");
           return;
         }
 
@@ -744,6 +770,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearRolesCache();
         setUser(null);
         setSession(null);
+        setSessionRestoration("signed_out");
         setProfile(null);
         setCachedProfile(null);
         setUnreadCount(0);
@@ -1055,6 +1082,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null);
     setSession(null);
+    setSessionRestoration("signed_out");
     setProfile(null);
     setCachedProfile(null);
     currentUserIdRef.current = null; // Clear so re-login is treated as fresh (applies theme from DB)
@@ -1097,6 +1125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileLoading,
       profileError,
       initialized,
+      sessionRestoration,
       profileResolved,
       unreadCount,
       unreadMessagesCount,

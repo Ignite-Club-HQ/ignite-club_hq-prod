@@ -20,7 +20,7 @@ describe("cold-offline messages inbox guards", () => {
   });
 
   it("does not wait on remote queries to settle while offline", () => {
-    expect(messages).toMatch(/const freshSortDataReady =\s*\n\s*!isOnline \|\|/);
+    expect(messages).toMatch(/const freshSortDataReady = !isOnline \|\|/);
   });
 
   it("keeps cached teams, clubs and groups when offline results are empty", () => {
