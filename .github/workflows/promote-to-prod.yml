@@ -620,6 +620,16 @@ jobs:
                 'gi'
               );
 
+              -- Some older functions first assign the JWT to a local variable
+              -- (`anon_key := 'eyJ...'`) and later concatenate that variable into
+              -- the Authorization header. Replace the assignment expression too.
+              new_source := regexp_replace(
+                new_source,
+                '(anon_key\s*:=\s*)''eyJ[A-Za-z0-9_.\-]+''',
+                '\1public.internal_service_role_key()',
+                'gi'
+              );
+
               -- Replace legacy GUC lookups. Those settings are not reliably set
               -- in trigger sessions and caused null/401 dispatches in PROD.
               new_source := regexp_replace(
