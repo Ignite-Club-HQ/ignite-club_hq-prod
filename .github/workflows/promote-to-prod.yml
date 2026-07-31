@@ -400,6 +400,8 @@ jobs:
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
+          DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+          run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
           run_sql -c "select public.bootstrap_dispatch_credentials((select decrypted_secret from vault.decrypted_secrets where name='functions_base_url' limit 1));"
           sleep 10
           run_sql -c "select status_code, left(coalesce(content,''),200) from net._http_response order by id desc limit 1;"
