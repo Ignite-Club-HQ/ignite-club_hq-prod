@@ -138,6 +138,7 @@ export default function MediaPage() {
   const [albumHintShown, setAlbumHintShown] = useState<boolean>(() => {
     try { return localStorage.getItem("media:albumHintShown") === "1"; } catch { return false; }
   });
+  const { isOnline } = useOnlineStatus();
   const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [blockTarget, setBlockTarget] = useState<{ userId: string; userName: string } | null>(null);
   // Long-press action sheet — opens Delete/Report/Block when the user holds
