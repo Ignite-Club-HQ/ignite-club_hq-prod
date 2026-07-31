@@ -2123,7 +2123,7 @@ export default function MessagesPage() {
         return true;
       });
     });
-  }, [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember]);
+  }, [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember, isOnline]);
 
   const displayLatestBroadcast = latestBroadcast || cachedData?.latestBroadcast;
   const displayLatestTeamMessages = latestTeamMessages || {};
