@@ -713,28 +713,51 @@ export default function EditEventPage() {
         if (error) throw error;
       }
 
-      // Handle duty updates for game events
+      // Handle duty updates for game events.
+      // These are separate writes from the event update, so we check every
+      // returned error and record which ones succeeded — a retry then performs
+      // only the remaining work and never repeats a destructive delete or
+      // duplicates an already-created duty.
       if (type === "game") {
         // Delete removed duties
         if (dutiesToDelete.length > 0) {
-          await supabase.from("duties").delete().in("id", dutiesToDelete);
+          const { error: deleteError } = await supabase
+            .from("duties")
+            .delete()
+            .in("id", dutiesToDelete);
+          if (deleteError) throw Object.assign(deleteError, { __dutyStage: "delete" });
+          setDutiesToDelete([]);
         }
 
         // Update existing duties and create new ones
-        for (const duty of duties) {
+        for (let i = 0; i < duties.length; i++) {
+          const duty = duties[i];
           if (duty.id) {
             // Update existing
-            await supabase
+            const { error: updateError } = await supabase
               .from("duties")
               .update({ name: duty.name, assigned_to: duty.assignedTo })
               .eq("id", duty.id);
+            if (updateError) throw Object.assign(updateError, { __dutyStage: "update" });
           } else {
-            // Create new
-            await supabase.from("duties").insert({
-              event_id: id!,
-              name: duty.name,
-              assigned_to: duty.assignedTo,
-            });
+            // Create new — capture the id so a retry updates instead of
+            // inserting a duplicate duty.
+            const { data: inserted, error: insertError } = await supabase
+              .from("duties")
+              .insert({
+                event_id: id!,
+                name: duty.name,
+                assigned_to: duty.assignedTo,
+              })
+              .select("id")
+              .maybeSingle();
+            if (insertError) throw Object.assign(insertError, { __dutyStage: "insert" });
+            if (inserted?.id) {
+              const newId = inserted.id;
+              setDuties((prev) =>
+                prev.map((d, idx) => (idx === i && !d.id ? { ...d, id: newId } : d)),
+              );
+            }
           }
         }
       }
@@ -752,6 +775,7 @@ export default function EditEventPage() {
       queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
 
       navigate(`/events/${id}`);
+
     } catch (error: any) {
       console.error("Error updating event:", error);
       toast(friendlyMutationError(error, { description: "Failed to update event. Please try again." }));
