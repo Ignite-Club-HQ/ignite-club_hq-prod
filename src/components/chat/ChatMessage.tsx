@@ -390,7 +390,9 @@ function ChatMessageInner({
       isReactionMutatingRef.current = true;
       void queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData(queryKey);
-      const previousReactions = optimisticReactionsRef.current;
+      // Immutable snapshot so later optimistic/realtime writes can't mutate
+      // what we roll back to.
+      const previousReactions = (optimisticReactionsRef.current || []).map((r) => ({ ...r }));
 
       if (!currentUserId) {
         return { previousMessages, previousReactions, tempReactionId: null };
