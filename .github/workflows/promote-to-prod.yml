@@ -392,6 +392,19 @@ jobs:
             supabase functions deploy "$name" --project-ref "$PROJECT_REF"
           done
 
+      # The Vault copy of the service-role key can drift from the runtime key the
+      # Edge Function gateway actually accepts (a stale copy silently 403s every
+      # chat notification). Ask the runtime to write its authoritative key back
+      # into Vault after each promotion.
+      - name: Refresh PROD internal dispatch credentials from runtime
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          run_sql -c "select public.bootstrap_dispatch_credentials((select decrypted_secret from vault.decrypted_secrets where name='functions_base_url' limit 1));"
+          sleep 10
+          run_sql -c "select status_code, left(coalesce(content,''),200) from net._http_response order by id desc limit 1;"
+
+
       - name: Verify PROD callers authenticate to edge functions
         # Every edge function now authenticates its caller, so any cron job or
         # trigger still sending an anon key (or no Authorization header) would
