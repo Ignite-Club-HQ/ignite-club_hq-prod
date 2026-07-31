@@ -761,20 +761,13 @@ export default function EditEventPage() {
     } catch (error: any) {
       console.error("Error updating event:", error);
       if (error?.__dutyStage) {
-        const stage = error.__dutyStage as "delete" | "update" | "insert";
-        const what =
-          stage === "delete"
-            ? "removing a duty"
-            : stage === "update"
-              ? "updating a duty"
-              : "adding a duty";
         toast({
-          title: "Event saved, duties not fully saved",
+          title: "Event saved, duties not saved",
           description:
-            (/row-level security|permission/i.test(error?.message ?? "")
-              ? `You don't have permission for ${what}. `
-              : `Something went wrong ${what}: ${error?.message ?? "unknown error"}. `) +
-            "Your event changes were saved. Tap Save again to retry just the outstanding duty changes.",
+            (/row-level security|permission|not permitted/i.test(error?.message ?? "")
+              ? "You don't have permission to change the duties on this event. "
+              : `Something went wrong saving the duties: ${error?.message ?? "unknown error"}. `) +
+            "No duty changes were applied. Your event changes were saved — tap Save again to retry the duties.",
           variant: "destructive",
         });
         return;
