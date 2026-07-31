@@ -315,6 +315,29 @@ export default function EventGroupPitchPage() {
     );
   }
 
+  const groupMetadataState = resolveChatMetadataState({
+    data: group,
+    isLoading: groupLoading,
+    isError: groupIsError,
+    fetchStatus: groupFetchStatus,
+    status: groupStatus,
+    isOnline: typeof navigator === "undefined" ? true : navigator.onLine !== false,
+  });
+
+  if (groupMetadataState === "unreachable") {
+    return (
+      <div className="container max-w-4xl py-6">
+        <ChatUnreachable
+          label="match day group"
+          onRetry={() => void refetchGroup()}
+          retrying={groupIsFetching}
+          backTo="/schedule"
+          backLabel="Back to Schedule"
+        />
+      </div>
+    );
+  }
+
   if (!group) {
     return (
       <div className="container max-w-4xl py-6 text-center">
@@ -322,6 +345,7 @@ export default function EventGroupPitchPage() {
       </div>
     );
   }
+
 
   // Convert mini league players to the format expected by PitchBoard
   // PitchBoard expects members in this format for initialization
