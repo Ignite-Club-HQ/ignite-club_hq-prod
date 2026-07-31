@@ -3,7 +3,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { usePersistedFilter } from "@/lib/persistedFilter";
 import { cn } from "@/lib/utils";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, onlineManager } from "@tanstack/react-query";
-import { Image, Image as ImageIcon, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, Flag, ShieldAlert, Eye } from "lucide-react";
+import { Image, Image as ImageIcon, Lock, Crown, Plus, MessageCircle, Trash2, Loader2, Filter, X, Calendar, Flag, ShieldAlert, Eye, WifiOff } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -35,6 +35,7 @@ import { selectCachedProfileById } from "@/lib/profileCache";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
 import { useAuth } from "@/hooks/useAuth";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { toast } from "sonner";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
@@ -137,6 +138,7 @@ export default function MediaPage() {
   const [albumHintShown, setAlbumHintShown] = useState<boolean>(() => {
     try { return localStorage.getItem("media:albumHintShown") === "1"; } catch { return false; }
   });
+  const { isOnline } = useOnlineStatus();
   const [reportPhotoId, setReportPhotoId] = useState<string | null>(null);
   const [blockTarget, setBlockTarget] = useState<{ userId: string; userName: string } | null>(null);
   // Long-press action sheet — opens Delete/Report/Block when the user holds
@@ -874,8 +876,10 @@ export default function MediaPage() {
     return () => clearInterval(timer);
   }, [proGateStuck, queryClient]);
 
-  // Only show loading state on initial resolution — never on refetch/resume
-  const isCheckingProAccess = !proAccessEverResolved.current && !proGateTimedOut && (!user || loadingProAccess || activeClubProLoading || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
+  // Only show loading state on initial resolution — never on refetch/resume.
+  // Offline, the pro check can never resolve, so it must not gate rendering:
+  // cached photos are shown instead of an indefinite skeleton/blank area.
+  const isCheckingProAccess = isOnline && !proAccessEverResolved.current && !proGateTimedOut && (!user || loadingProAccess || activeClubProLoading || loadingRoles || waitingOnRolesWithoutFallback || proQueryNotYetResolved);
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
@@ -1245,7 +1249,9 @@ export default function MediaPage() {
   // Show skeletons only if we have no cached data and are loading. The
   // pro-access gate is dropped once the watchdog has timed it out so a hung
   // pro check can never hold the whole page on skeletons.
-  const showSkeletons = (loadingPhotos || (loadingProAccess && !proGateTimedOut)) && allPhotos.length === 0;
+  // Offline never shows skeletons — we render cached photos or a friendly
+  // offline empty state instead of an indefinite shimmer.
+  const showSkeletons = isOnline && (loadingPhotos || (loadingProAccess && !proGateTimedOut)) && allPhotos.length === 0;
 
   // Diagnostic: log what's blocking the skeleton from clearing.
   useEffect(() => {
@@ -1288,7 +1294,12 @@ export default function MediaPage() {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">Media</h1>
-          {(isShowingCachedData || isCacheStale) && loadingPhotos && (
+          {!isOnline ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <WifiOff className="h-3 w-3" />
+              {allPhotos.length > 0 ? "Offline — saved photos" : "Offline"}
+            </span>
+          ) : (isShowingCachedData || isCacheStale) && loadingPhotos && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
               <span>Updating...</span>
@@ -1404,12 +1415,12 @@ export default function MediaPage() {
         <div className="max-w-lg mx-auto space-y-6">
           {[...Array(3)].map((_, i) => <PhotoSkeleton key={i} />)}
         </div>
-      ) : hasProAccessQueryFailed ? (
+      ) : hasProAccessQueryFailed && photos.length === 0 ? (
         <Card className="border-dashed max-w-lg mx-auto">
           <CardContent className="p-8 text-center">
             <p className="text-muted-foreground">
-              {typeof navigator !== "undefined" && navigator.onLine === false
-                ? "You appear to be offline. Check your internet connection and try again."
+              {!isOnline
+                ? "You're offline and no saved photos are available yet."
                 : "We couldn’t verify Pro access right now."}
             </p>
             <Button
@@ -1419,6 +1430,16 @@ export default function MediaPage() {
             >
               Retry
             </Button>
+          </CardContent>
+        </Card>
+
+      ) : !isOnline && photos.length === 0 ? (
+        <Card className="border-dashed max-w-lg mx-auto">
+          <CardContent className="p-8 text-center">
+            <WifiOff className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">
+              You're offline and no saved photos are available yet.
+            </p>
           </CardContent>
         </Card>
 

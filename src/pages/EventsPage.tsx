@@ -40,6 +40,8 @@ import { filterRecurringEvents } from "@/lib/filterRecurringEvents";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
 import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
 import { useAuth } from "@/hooks/useAuth";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { WifiOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logScheduleOpenLatency, resetScheduleOpenLog } from "@/lib/scheduleOpenLatency";
@@ -412,7 +414,7 @@ export default function EventsPage() {
     [user?.id, filter, teamFilter, clubFilter]
   );
 
-  const { data: events, isLoading, isFetching, isError: eventsIsError, refetch: refetchEvents } = useQuery({
+  const { data: eventsData, isLoading, isFetching, isError: eventsIsError, refetch: refetchEvents } = useQuery({
     queryKey: ["events", user?.id, filter, teamFilter, clubFilter, viewMode, pastDaysBack, userMemberships?.teamIds, userMemberships?.clubIds, userMemberships?.miniLeagueIds],
     queryFn: async () => {
       const overall = performance.now();
@@ -568,6 +570,26 @@ export default function EventsPage() {
     placeholderData: (prev) => prev,
   });
 
+  // --- Cold-offline fallback -------------------------------------------
+  // When the app opens with no connectivity, the memberships query (which
+  // gates the events query) may never resolve. Rather than sit on a spinner
+  // forever, read the user-scoped schedule cache directly and render it.
+  const { isOnline } = useOnlineStatus();
+  const offlineCachedEvents = useMemo(() => {
+    if (isOnline) return null;
+    try {
+      return (getCachedEventsList(eventsScopeKey, user?.id) as Event[] | null) ?? null;
+    } catch {
+      return null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, eventsScopeKey, user?.id]);
+
+  // Never let a failed/never-resolving network query blank out cached data.
+  const events: Event[] | undefined = eventsData ?? offlineCachedEvents ?? undefined;
+  const showingOfflineCache = !isOnline && !eventsData && !!offlineCachedEvents;
+  const offlineNoCache = !isOnline && !events;
+
   // Derived from userMemberships — no extra round trips.
   const isAppAdmin = userMemberships?.isAppAdmin ?? false;
   const userRoles = userMemberships?.roles;
@@ -647,8 +669,11 @@ export default function EventsPage() {
 
   // Only show full-page loading on first ever load (no cached data).
   // Also wait when userMemberships is still loading (events query is disabled until it resolves).
+  // When offline we never block on the spinner: we render whatever the
+  // user-scoped cache holds, or a friendly offline empty state.
   const isInitialLoad = !events && !upcomingEvents && !pastEvents;
-  const isStuckOnSpinner = isInitialLoad && (isLoading || membershipsLoading || !userMemberships);
+  const isStuckOnSpinner =
+    isOnline && isInitialLoad && (isLoading || membershipsLoading || !userMemberships);
 
   // Diagnostic: log what's blocking the spinner so we can see it client-side.
   useEffect(() => {
@@ -895,12 +920,37 @@ export default function EventsPage() {
       </div>
 
       <QueryErrorBanner
-        hasError={eventsIsError && !isFetching}
+        hasError={isOnline && eventsIsError && !isFetching}
         onRetry={async () => {
           await Promise.allSettled([refetchEvents(), queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] })]);
         }}
         message="Couldn't load schedule. Tap to retry."
       />
+
+      {!isOnline && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <WifiOff className="h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            {showingOfflineCache
+              ? "You're offline — showing your saved schedule."
+              : "You're offline. Your schedule will update when you reconnect."}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={async () => {
+              await Promise.allSettled([
+                refetchEvents(),
+                queryClient.refetchQueries({ queryKey: ["user-memberships-for-events", user?.id] }),
+              ]);
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
 
 
 
@@ -1173,7 +1223,16 @@ export default function EventsPage() {
               </TabsList>
 
           <TabsContent value="upcoming" className="mt-4 space-y-2">
-            {upcomingEvents?.length === 0 ? (
+            {offlineNoCache ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center">
+                  <WifiOff className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    You're offline and no saved schedule is available yet.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : upcomingEvents?.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="p-8 text-center">
                   <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -1195,7 +1254,15 @@ export default function EventsPage() {
           </TabsContent>
 
           <TabsContent value="past" className="mt-4 space-y-2">
-            {pastEvents?.length === 0 ? (
+            {offlineNoCache ? (
+              <Card className="border-dashed">
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground">
+                    You're offline and no saved schedule is available yet.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : pastEvents?.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="p-8 text-center">
                   <p className="text-muted-foreground">No past events</p>
