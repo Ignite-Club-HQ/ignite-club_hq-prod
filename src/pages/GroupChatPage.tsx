@@ -1527,67 +1527,18 @@ export default function GroupChatPage() {
       )
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "message_reactions",
-        },
-        (payload) => {
-          const reaction = payload.new as any;
-          if (!reaction.group_message_id) return;
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
-            if (!old) return { messages: [], reactions: [] };
-            // Check if there's already a temp reaction from this user on this message - replace it
-            const existingTempIdx = old.reactions.findIndex(
-              r => r.id.startsWith('temp-') && r.user_id === reaction.user_id && r.group_message_id === reaction.group_message_id
-            );
-            // Check if reaction already exists with this ID
-            if (old.reactions.some(r => r.id === reaction.id)) return old;
-            
-            if (existingTempIdx !== -1) {
-              const newReactions = [...old.reactions];
-              newReactions[existingTempIdx] = reaction;
-              return { ...old, reactions: newReactions };
-            }
-            return { ...old, reactions: [...old.reactions, reaction] };
-          });
-        }
+        { event: "INSERT", schema: "public", table: "message_reactions" },
+        (payload) => applyGroupReaction(payload.new as any),
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "message_reactions",
-        },
-        (payload) => {
-          const reaction = payload.new as any;
-          if (!reaction.group_message_id) return;
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
-            if (!old) return { messages: [], reactions: [] };
-            const hasExisting = old.reactions.some(r => r.id === reaction.id);
-            if (hasExisting) {
-              return { ...old, reactions: old.reactions.map(r => r.id === reaction.id ? { ...r, reaction_type: reaction.reaction_type } : r) };
-            }
-            return { ...old, reactions: [...old.reactions.filter(r => r.user_id !== reaction.user_id || r.group_message_id !== reaction.group_message_id), reaction] };
-          });
-        }
+        { event: "UPDATE", schema: "public", table: "message_reactions" },
+        (payload) => applyGroupReaction(payload.new as any),
       )
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "message_reactions",
-        },
-        (payload) => {
-          const deletedReaction = payload.old as any;
-          if (!deletedReaction.id) return;
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
-            if (!old) return { messages: [], reactions: [] };
-            return { ...old, reactions: old.reactions.filter(r => r.id !== deletedReaction.id) };
-          });
-        }
+        { event: "DELETE", schema: "public", table: "message_reactions" },
+        (payload) => applyGroupReactionDelete(payload.old as any),
       )
       .subscribe();
     noteChannelSubscribed(`group-messages-${groupId}`);
@@ -1599,7 +1550,7 @@ export default function GroupChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`group-messages-${groupId}`);
     };
-  }, [groupId, queryClient, groupRealtimeMode, user?.id, reconcileScope]);
+  }, [groupId, queryClient, groupRealtimeMode, user?.id, reconcileScope, applyGroupReaction, applyGroupReactionDelete]);
 
 
   // Send message mutation
