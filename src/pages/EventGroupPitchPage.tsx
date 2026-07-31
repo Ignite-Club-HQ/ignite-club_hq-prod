@@ -43,8 +43,18 @@ export default function EventGroupPitchPage() {
   const [assignDutyOpen, setAssignDutyOpen] = useState(false);
   const [selectedDuty, setSelectedDuty] = useState<GroupDuty | null>(null);
 
-  // Fetch group details
-  const { data: group, isLoading: groupLoading } = useQuery({
+  // Fetch group details.
+  // `maybeSingle()` so an absent row resolves to `null` on a SUCCESSFUL query —
+  // that's what lets the gate below tell "deleted" apart from "network dropped".
+  const {
+    data: group,
+    isLoading: groupLoading,
+    isError: groupIsError,
+    status: groupStatus,
+    fetchStatus: groupFetchStatus,
+    refetch: refetchGroup,
+    isFetching: groupIsFetching,
+  } = useQuery({
     queryKey: ["event-group", groupId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -54,12 +64,13 @@ export default function EventGroupPitchPage() {
           event:events(id, title, event_date, start_time, end_time, mini_league_id)
         `)
         .eq("id", groupId!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data ?? null;
     },
     enabled: !!groupId,
   });
+
 
   // Fetch group players with team assignment
   const { data: players } = useQuery({
