@@ -406,6 +406,77 @@ jobs:
           sleep 10
           run_sql -c "select status_code, left(coalesce(content,''),200) from net._http_response order by id desc limit 1;"
 
+      # Legacy PROD cron jobs were scheduled with a raw anon JWT baked into their
+      # headers (they predate the hardened functions and were never created by a
+      # migration, so `db push` cannot fix them). Rewrite every edge-function
+      # caller onto the Vault service-role key in place, then let the verification
+      # step below prove none are left.
+      - name: Reschedule PROD cron callers onto the Vault service-role key
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+          run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
+
+          run_sql <<'SQL'
+          do $rewrite$
+          declare
+            j record;
+            new_cmd text;
+            fixed int := 0;
+            failed text[] := '{}';
+          begin
+            for j in
+              select jobid, jobname, command
+              from cron.job
+              where command ilike '%functions/v1/%'
+                and (command ilike '%anon%' or command not ilike '%internal_service_role_key%')
+            loop
+              new_cmd := j.command;
+
+              -- Replace a whole hard-coded headers JSON literal (the common shape:
+              -- headers := '{"Content-Type":"application/json","apikey":"eyJ..."}'::jsonb)
+              new_cmd := regexp_replace(
+                new_cmd,
+                'headers\s*:?=\s*''\{[^'']*\}''(\s*::\s*jsonb)?',
+                'headers := jsonb_build_object(''Content-Type'', ''application/json'', ''Authorization'', ''Bearer '' || public.internal_service_role_key())',
+                'gi'
+              );
+
+              -- Any remaining inline JWT literals (Bearer or bare) become the Vault key.
+              new_cmd := regexp_replace(
+                new_cmd,
+                '''Bearer\s+eyJ[A-Za-z0-9_.\-]+''',
+                '(''Bearer '' || public.internal_service_role_key())',
+                'gi'
+              );
+              new_cmd := regexp_replace(
+                new_cmd,
+                '''eyJ[A-Za-z0-9_.\-]+''',
+                'public.internal_service_role_key()',
+                'gi'
+              );
+
+              if new_cmd ilike '%internal_service_role_key%' and new_cmd not ilike '%eyJ%' then
+                perform cron.alter_job(job_id := j.jobid, command := new_cmd);
+                fixed := fixed + 1;
+                raise notice 'rescheduled cron job % onto Vault service-role key', j.jobname;
+              else
+                failed := failed || j.jobname;
+              end if;
+            end loop;
+
+            raise notice 'cron jobs rewritten: %', fixed;
+
+            if array_length(failed, 1) > 0 then
+              raise exception 'Could not rewrite cron job(s) automatically: %. Reschedule them manually to use public.internal_service_role_key().', array_to_string(failed, ', ');
+            end if;
+          end
+          $rewrite$;
+          SQL
+
+          echo "✅ PROD cron callers now authenticate with the Vault service-role key."
+
 
       - name: Verify PROD callers authenticate to edge functions
         # Every edge function now authenticates its caller, so any cron job or
