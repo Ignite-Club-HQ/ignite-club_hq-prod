@@ -1,3 +1,4 @@
+import { authenticateUser, isServiceRoleCaller, forbidden } from "../_shared/callerAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -15,6 +16,15 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Either an internal service-role caller, or the signed-in user requesting
+  // their own welcome DM. Nothing privileged happens before this resolves.
+  let __callerUserId: string | null = null;
+  if (!isServiceRoleCaller(req)) {
+    const __auth = await authenticateUser(req, corsHeaders);
+    if ("response" in __auth) return __auth.response;
+    __callerUserId = __auth.user.userId;
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -22,7 +32,13 @@ Deno.serve(async (req: Request) => {
     // Use service role client to bypass RLS
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { userId } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const userId: string | undefined =
+      typeof body?.userId === "string" ? body.userId : undefined;
+
+    if (__callerUserId && userId !== __callerUserId) {
+      return forbidden(corsHeaders);
+    }
 
     if (!userId) {
       return new Response(

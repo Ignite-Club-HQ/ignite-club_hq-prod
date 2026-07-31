@@ -1,3 +1,4 @@
+import { requireServiceRoleAuth } from "../_shared/callerAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -71,6 +72,10 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const __authError = requireServiceRoleAuth(req, corsHeaders);
+  if (__authError) return __authError;
+
 
   const startTime = Date.now();
   console.log('[CLEANUP] Starting daily data cleanup...');
