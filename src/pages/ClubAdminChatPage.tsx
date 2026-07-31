@@ -35,6 +35,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChatStuckWatchdog, createChatFetchBudget } from "@/lib/chatStuckWatchdog";
+import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
+import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { toast } from "sonner";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
