@@ -1903,31 +1903,56 @@ export default function GroupChatPage() {
     onError: (err, variables, context) => {
       // Fires only after all retries are exhausted, so this is the single
       // final rollback.
+      const currentUserId = user?.id;
+
+      // Roll back only THIS user's reaction rows. Reactions from other users
+      // that arrived via realtime while the mutation was in flight are kept,
+      // so a failed rollback can't erase someone else's reaction.
       if (context?.previousData) {
-        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+        const snapshotMine = (context.previousData.reactions || []).filter(
+          (r) => r.user_id === currentUserId,
+        );
+        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(
+          ["group-messages", groupId],
+          (live) => {
+            if (!live) return context.previousData!;
+            const othersReactions = (live.reactions || []).filter((r) => r.user_id !== currentUserId);
+            return { ...live, reactions: [...othersReactions, ...snapshotMine.map((r) => ({ ...r }))] };
+          },
+        );
       }
+
       if (context?.messageId) {
         const messageId = context.messageId;
         // The rendered list is fail-open for un-reconciled `temp-` reactions,
         // so restoring the query cache alone leaves the unsaved reaction on
-        // screen. Restore the exact pre-interaction rows for this message.
+        // screen. Restore this user's exact pre-interaction rows for this
+        // message while preserving other users' rows.
+        const snapshotMineForMessage = (context.previousLocalReactions ?? []).filter(
+          (r: any) => r.user_id === currentUserId,
+        );
         setLocalMessages((prev) => {
           if (!prev) return prev;
           let changed = false;
           const next = prev.map((m: any) => {
             if (m.id !== messageId) return m;
-            const restored = context.previousLocalReactions ?? [];
             const current: any[] = m.reactions || [];
-            const sameLength = current.length === restored.length;
-            const sameIds = sameLength && current.every((r) => restored.some((p: any) => p.id === r.id && p.reaction_type === r.reaction_type));
-            if (sameIds) return m;
+            const restored = [
+              ...current.filter((r) => r.user_id !== currentUserId),
+              ...snapshotMineForMessage.map((r: any) => ({ ...r })),
+            ];
+            const sameSet =
+              current.length === restored.length &&
+              current.every((r) => restored.some((p: any) => p.id === r.id && p.reaction_type === r.reaction_type));
+            if (sameSet) return m;
             changed = true;
-            return { ...m, reactions: restored.map((r: any) => ({ ...r })) };
+            return { ...m, reactions: restored };
           });
           return changed ? next : prev;
         });
         delete lastReactionIntentRef.current[messageId];
       }
+
       toast.error("Couldn't update reaction. Please try again.");
     },
 
