@@ -231,3 +231,58 @@ export function clearReactionReconciliationScope(scopeKey: string) {
 export function _resetReactionReconciliationRegistry() {
   registry.clear();
 }
+
+/**
+ * Group/operational chats keep a FLAT top-level reactions array in their query
+ * payload (rather than embedding reactions on each message). Re-apply the same
+ * recorded deltas to that shape so a late query response can't drop a newer
+ * realtime reaction there either.
+ */
+export function reconcileFlatReactions<
+  T extends ReconcilableReaction & Record<string, unknown>,
+>(
+  scopeKey: string,
+  flat: T[],
+  getMessageId: (reaction: T) => string | null | undefined,
+  buildRow: (messageId: string, reaction: ReconcilableReaction) => T,
+): T[] {
+  const m = registry.get(scopeKey);
+  if (!m || m.size === 0) return flat;
+
+  let result = flat;
+  let changed = false;
+
+  const drop = (reactionId: string) => {
+    if (!result.some((r) => r.id === reactionId)) return;
+    result = result.filter((r) => r.id !== reactionId);
+    changed = true;
+  };
+
+  for (const [messageId, deltas] of m) {
+    for (const [reactionId, delta] of deltas) {
+      if (delta.kind === "delete") {
+        drop(reactionId);
+        continue;
+      }
+      if (messageId === "*") continue;
+      const existing = result.find((r) => r.id === reactionId);
+      if (
+        existing &&
+        existing.user_id === delta.reaction.user_id &&
+        existing.reaction_type === delta.reaction.reaction_type
+      ) {
+        continue;
+      }
+      // One reaction per user per message: replace the user's stale row.
+      result = result.filter(
+        (r) =>
+          r.id !== reactionId &&
+          !(r.user_id === delta.reaction.user_id && getMessageId(r) === messageId),
+      );
+      result = [...result, buildRow(messageId, delta.reaction)];
+      changed = true;
+    }
+  }
+
+  return changed ? result : flat;
+}
