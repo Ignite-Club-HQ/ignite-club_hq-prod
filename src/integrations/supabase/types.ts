@@ -3103,6 +3103,27 @@ export type Database = {
           },
         ]
       }
+      dispatch_bootstrap_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       dm_attachment_restrictions: {
         Row: {
           club_id: string | null
@@ -10472,6 +10493,10 @@ export type Database = {
           status: string
         }[]
       }
+      bootstrap_dispatch_credentials: {
+        Args: { _base_url: string }
+        Returns: number
+      }
       can_access_chat: {
         Args: { _chat_id: string; _chat_type: string }
         Returns: boolean
@@ -10831,6 +10856,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      consume_dispatch_bootstrap_token: {
+        Args: { _token: string }
+        Returns: boolean
       }
       create_association_club_event_atomic: {
         Args: {
