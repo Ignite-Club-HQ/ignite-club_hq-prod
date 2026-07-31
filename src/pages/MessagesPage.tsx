@@ -423,7 +423,7 @@ export default function MessagesPage() {
   });
 
   // Fetch member clubs with their latest messages in a single query
-  const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched, isError: memberClubsError } = useQuery({
+  const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched, isFetching: memberClubsFetching, isError: memberClubsError } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
     refetchOnReconnect: "always",
