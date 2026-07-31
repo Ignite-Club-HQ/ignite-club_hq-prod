@@ -2120,16 +2120,41 @@ export default function MessagesPage() {
 
 
 
+  // Resume/reconnect stability: an inbox source query can transiently resolve
+  // to undefined/[] while it is refetching or errored (auth refresh, RLS
+  // settling, dropped socket). Retain the last non-empty result until the query
+  // settles successfully — a settled empty result is still authoritative, so
+  // removed/purged conversations do not linger.
+  const stickyTeams = useStickyList<any>(teams, {
+    isFetching: teamsFetching,
+    isFetched: teamsFetched,
+    isError: teamsError,
+    resetKey: user?.id ?? null,
+  });
+  const stickyMemberClubs = useStickyList<any>(memberClubs, {
+    isFetching: memberClubsFetching,
+    isFetched: memberClubsFetched,
+    isError: memberClubsError,
+    resetKey: user?.id ?? null,
+  });
+  const stickyChatGroups = useStickyList<any>(chatGroups, {
+    isFetching: chatGroupsFetching,
+    isFetched: chatGroupsFetched,
+    isError: chatGroupsError,
+    resetKey: user?.id ?? null,
+  });
+
   // Determine which data to display (prefer fresh, fallback to cached)
-  const displayTeams = (teams?.length ? teams : (!isOnline ? (cachedData?.teams as any) : null)) || teams || cachedData?.teams || [];
-  const displayMemberClubs = (memberClubs?.length ? memberClubs : (!isOnline ? (cachedData?.memberClubs as any) : null)) || memberClubs || cachedData?.memberClubs || [];
+  const displayTeams = (stickyTeams?.length ? stickyTeams : (!isOnline ? (cachedData?.teams as any) : null)) || stickyTeams || cachedData?.teams || [];
+  const displayMemberClubs = (stickyMemberClubs?.length ? stickyMemberClubs : (!isOnline ? (cachedData?.memberClubs as any) : null)) || stickyMemberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
   // Important: an empty fresh chat-group result is authoritative *while
   // online*. Falling back to cached groups when `chatGroups.length === 0`
   // kept soft-deleted/purged club chats visible forever after the server
   // correctly returned no rows. Offline, an empty/failed result carries no
   // authority, so cached rows stay visible.
-  const allChatGroups = (chatGroups?.length ? chatGroups : (!isOnline ? (cachedData?.chatGroups as any) : null)) ?? chatGroups ?? (cachedData?.chatGroups as any) ?? [];
+  const allChatGroups = (stickyChatGroups?.length ? stickyChatGroups : (!isOnline ? (cachedData?.chatGroups as any) : null)) ?? stickyChatGroups ?? (cachedData?.chatGroups as any) ?? [];
+
 
   
   // Filter chat groups by user's roles
