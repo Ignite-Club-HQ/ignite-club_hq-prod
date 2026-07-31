@@ -501,6 +501,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
+        setSessionRestoration(currentSession?.user ? "authenticated" : "signed_out");
         currentUserIdRef.current = incomingUserId;
         // Keep client-perf logger in sync so slow-query rows are attributed.
         try {
