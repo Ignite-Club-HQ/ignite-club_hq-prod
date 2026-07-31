@@ -1,3 +1,4 @@
+import { requireServiceRoleAuth } from "../_shared/callerAuth.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
@@ -14,6 +15,10 @@ Deno.serve(async (req: Request) => {
 
   const __outboundBlocked = outboundBlockedResponse("send-block-alert-email");
   if (__outboundBlocked) return __outboundBlocked;
+
+  const __authError = requireServiceRoleAuth(req, corsHeaders);
+  if (__authError) return __authError;
+
 
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");

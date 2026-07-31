@@ -1,3 +1,4 @@
+import { requireServiceRoleAuth } from "../_shared/callerAuth.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
@@ -28,6 +29,10 @@ serve(async (req: Request): Promise<Response> => {
 
   const __outboundBlocked = outboundBlockedResponse("retry-missed-push-notifications");
   if (__outboundBlocked) return __outboundBlocked;
+
+  const __authError = requireServiceRoleAuth(req, corsHeaders);
+  if (__authError) return __authError;
+
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

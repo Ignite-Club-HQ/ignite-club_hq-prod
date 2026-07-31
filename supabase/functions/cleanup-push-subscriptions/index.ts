@@ -1,3 +1,4 @@
+import { requireServiceRoleOrAppAdmin } from "../_shared/callerAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -21,6 +22,10 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const __caller = await requireServiceRoleOrAppAdmin(req, corsHeaders);
+  if ("response" in __caller) return __caller.response;
+
 
   console.log('[CLEANUP] Starting push subscription cleanup...');
 
