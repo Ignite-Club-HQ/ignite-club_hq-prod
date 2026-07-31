@@ -190,6 +190,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(initialAuthState.profileLoading);
   const [profileError, setProfileError] = useState(false);
   const [initialized, setInitialized] = useState(initialAuthState.initialized);
+  // sessionRestoration distinguishes "we haven't finished restoring the stored
+  // session yet" from "there is definitively no session". Without it, a cold
+  // start with a cached profile reports initialized=true / user=null for a few
+  // hundred ms and route guards flash the login screen before the restored
+  // session lands (notification cold start was the worst offender).
+  const [sessionRestoration, setSessionRestoration] =
+    useState<"restoring" | "authenticated" | "signed_out">("restoring");
   // Cold-start instrumentation: fire the `auth_ready` mark exactly once
   // when `initialized` first flips true, regardless of which of the ~10
   // setInitialized(true) sites triggered it.
