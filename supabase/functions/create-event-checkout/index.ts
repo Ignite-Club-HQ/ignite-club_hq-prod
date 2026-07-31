@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildApprovedOrigins,
+  resolveApplicationOrigin,
+  resolveRedirectUrl,
+} from "../_shared/redirectOrigins.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -136,7 +141,7 @@ serve(async (req) => {
     // Get event details
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, title, price, club_id, type')
+      .select('id, title, amount, club_id, type')
       .eq('id', eventId)
       .single();
 
@@ -148,7 +153,7 @@ serve(async (req) => {
       );
     }
 
-    if (event.type !== 'social' || !event.price || event.price <= 0) {
+    if (event.type !== 'social' || !event.amount || event.amount <= 0) {
       console.error('Event not payable:', event);
       return new Response(
         JSON.stringify({ error: 'This event does not require payment' }),
@@ -156,13 +161,21 @@ serve(async (req) => {
       );
     }
 
-    // Check if user already paid
-    const { data: existingPayment } = await supabase
+    // Check if user already paid — a lookup error must fail closed.
+    const { data: existingPayment, error: existingPaymentError } = await supabase
       .from('event_payments')
       .select('id')
       .eq('event_id', eventId)
       .eq('user_id', user.id)
       .maybeSingle();
+
+    if (existingPaymentError) {
+      console.error('Existing payment lookup failed');
+      return new Response(
+        JSON.stringify({ error: 'Unable to create payment checkout. Please try again.', code: 'existing_payment_lookup_failed' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (existingPayment) {
       return new Response(
@@ -171,12 +184,9 @@ serve(async (req) => {
       );
     }
 
-    // Get club's Stripe configuration using service role
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
+    // Reuse the single service-role client created above for the club's
+    // Stripe configuration. (Declaring `supabaseAdmin` twice in the same
+    // scope was a hard bundle failure.)
     const { data: stripeConfig, error: stripeError } = await supabaseAdmin
       .from('club_stripe_configs')
       .select('stripe_secret_key, stripe_publishable_key, is_enabled')
@@ -206,6 +216,30 @@ serve(async (req) => {
       .eq('id', user.id)
       .single();
 
+    // Validate caller-supplied redirect URLs against an approved allowlist.
+    // The untrusted `Origin` request header is never used to build a fallback.
+    const approvedOrigins = buildApprovedOrigins({
+      APP_ALLOWED_REDIRECT_ORIGINS: Deno.env.get('APP_ALLOWED_REDIRECT_ORIGINS') ?? undefined,
+      ALLOW_LOCAL_REDIRECTS: Deno.env.get('ALLOW_LOCAL_REDIRECTS') ?? undefined,
+      APP_PUBLIC_ORIGIN: Deno.env.get('APP_PUBLIC_ORIGIN') ?? undefined,
+    });
+    const appOrigin = resolveApplicationOrigin({
+      APP_PUBLIC_ORIGIN: Deno.env.get('APP_PUBLIC_ORIGIN') ?? undefined,
+    });
+    const successResolution = resolveRedirectUrl(
+      successUrl, `${appOrigin}/events/${eventId}?payment=success`, approvedOrigins);
+    const cancelResolution = resolveRedirectUrl(
+      cancelUrl, `${appOrigin}/events/${eventId}?payment=cancelled`, approvedOrigins);
+
+    if (!successResolution.ok || !cancelResolution.ok) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid redirect URL', code: 'invalid_redirect_url' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const resolvedSuccessUrl = successResolution.url;
+    const resolvedCancelUrl = cancelResolution.url;
+
     // Create Stripe checkout session
     const stripeResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
       method: 'POST',
@@ -215,10 +249,10 @@ serve(async (req) => {
       },
       body: new URLSearchParams({
         'mode': 'payment',
-        'success_url': successUrl || `${req.headers.get('origin')}/events/${eventId}?payment=success`,
-        'cancel_url': cancelUrl || `${req.headers.get('origin')}/events/${eventId}?payment=cancelled`,
+        'success_url': resolvedSuccessUrl,
+        'cancel_url': resolvedCancelUrl,
         'line_items[0][price_data][currency]': 'aud',
-        'line_items[0][price_data][unit_amount]': String(Math.round(event.price * 100)),
+        'line_items[0][price_data][unit_amount]': String(Math.round(event.amount * 100)),
         'line_items[0][price_data][product_data][name]': event.title,
         'line_items[0][price_data][product_data][description]': `Event registration for ${event.title}`,
         'line_items[0][quantity]': '1',
@@ -232,9 +266,10 @@ serve(async (req) => {
     const stripeData = await stripeResponse.json();
 
     if (!stripeResponse.ok) {
-      console.error('Stripe API error:', stripeData);
+      // Never return or log raw Stripe error bodies.
+      console.error(`Stripe checkout creation failed (status=${stripeResponse.status}, code=${stripeData?.error?.code ?? 'unknown'})`);
       return new Response(
-        JSON.stringify({ error: stripeData.error?.message || 'Failed to create checkout session' }),
+        JSON.stringify({ error: 'Unable to create payment checkout. Please try again.', code: 'checkout_creation_failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
