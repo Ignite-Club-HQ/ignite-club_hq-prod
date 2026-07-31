@@ -2091,22 +2091,35 @@ export default function MessagesPage() {
   // full-page skeleton after resume or when a new message arrived. The
   // ordering gate must therefore apply *only until* the first settled reveal;
   // afterwards refetching is non-blocking and rows are patched in place.
-  const hasRevealedStableInboxRef = useRef(false);
-  const [hasRevealedStableInbox, setHasRevealedStableInbox] = useState(false);
+  const hasRevealedStableInboxRef = useRef(sessionRevealedInboxUserId === user?.id && !!user?.id);
+  const [hasRevealedStableInbox, setHasRevealedStableInbox] = useState(hasRevealedStableInboxRef.current);
 
   // Reset only on a genuine identity change (a new mount starts false anyway).
   const revealLatchIdentityRef = useRef<string | undefined>(user?.id);
   if (revealLatchIdentityRef.current !== user?.id) {
     revealLatchIdentityRef.current = user?.id;
-    hasRevealedStableInboxRef.current = false;
+    hasRevealedStableInboxRef.current = sessionRevealedInboxUserId === user?.id && !!user?.id;
   }
 
-  const initialRevealBlocked = isOnline && (isLoadingFreshData || !freshSortDataReady);
+  // WARM-MOUNT CACHE FIX. The ordering gate must only ever apply to the very
+  // first inbox reveal of the session. Previously the latch lived in a mount
+  // ref, so every warm re-entry to /messages started false again — and because
+  // the inbox queries use `refetchOnMount`, `isFetching` was true on that mount,
+  // which held the full-page skeleton and ignored the cached rows we already
+  // had. Now the latch is session-scoped per user, and any already-available
+  // data (React Query cache or the user-scoped local cache) releases the gate
+  // immediately so warm opens paint from cache and patch in place.
+  const initialRevealBlocked =
+    isOnline &&
+    !hasAnyDisplayData &&
+    !hasCachedData &&
+    (isLoadingFreshData || !freshSortDataReady);
 
   useEffect(() => {
     if (hasRevealedStableInboxRef.current) return;
     if (initialRevealBlocked) return;
     hasRevealedStableInboxRef.current = true;
+    if (user?.id) sessionRevealedInboxUserId = user.id;
     setHasRevealedStableInbox(true);
   }, [initialRevealBlocked, user?.id]);
 
