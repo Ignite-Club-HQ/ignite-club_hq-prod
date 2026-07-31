@@ -373,20 +373,29 @@ export default function TeamChatPage() {
     requestAnimationFrame(() => handleJumpToMessage(mid));
   };
 
-  const { data: teamData, isLoading: loadingTeam, fetchStatus: teamFetchStatus } = useQuery({
+  const {
+    data: teamData,
+    isLoading: loadingTeam,
+    fetchStatus: teamFetchStatus,
+    isError: teamIsError,
+    status: teamStatus,
+    refetch: refetchTeam,
+    isFetching: teamIsFetching,
+  } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
         .select("*, clubs!club_id (name, id, logo_url)")
         .eq("id", teamId!)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data ?? null;
     },
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
 
   // Warm metadata cache so future opens render the header without waiting on this query.
   useEffect(() => {
