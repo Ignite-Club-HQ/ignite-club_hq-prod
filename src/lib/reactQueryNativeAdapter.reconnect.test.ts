@@ -82,6 +82,7 @@ describe("reactQueryNativeAdapter — reconnect preserves club theme", () => {
 
   afterEach(() => {
     qc.clear();
+    vi.unstubAllGlobals();
   });
 
   it("invalidates theme-critical queries and errored queries on offline→online", async () => {
@@ -296,6 +297,10 @@ describe("reactQueryNativeAdapter — reconnect preserves club theme", () => {
   });
 
   it("does not refetch active queries when Android resumes and remains offline", async () => {
+    // The adapter deliberately verifies an OS "offline" result with a health
+    // probe. Keep that probe offline in this scenario so a concurrently
+    // running local test stack cannot turn this into an online-recovery test.
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
     const queryKey = ["photos", "still-offline"] as const;
     qc.setQueryData(queryKey, []);
     const observer = new QueryObserver(qc, {

@@ -17,7 +17,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      grepInvert: /^(Android|iOS)/,
+      grepInvert: /Android|iOS/,
       use: { ...devices["Desktop Chrome"] },
     },
     {

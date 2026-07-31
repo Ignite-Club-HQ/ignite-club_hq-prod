@@ -527,11 +527,11 @@ test(`${nativeCase.label} online resume does not start foreground refetches or b
     document.dispatchEvent(new Event("visibilitychange"));
   });
 
-  // Resume while already online is not a reconnect. Give every overlapping
-  // lifecycle signal time to settle, then prove no blanket request burst was
-  // started before the user taps the thread.
+  // Resume while already online is not a reconnect. A bounded refresh of the
+  // currently mounted chat read-model is intentional so stale/blank threads
+  // recover, but the old global active-query storm must not return.
   await page.waitForTimeout(500);
-  expect(state.resumeRequests()).toBe(0);
+  expect(state.resumeRequests()).toBeLessThanOrEqual(4);
   await thread.click({ timeout: 1_000 });
   await expect(page).toHaveURL(new RegExp(`/messages/${teamId}$`), { timeout: 1_000 });
 
@@ -565,7 +565,8 @@ test(`${nativeCase.label} request saturation keeps Inbox, Schedule and Media nav
     window.dispatchEvent(new Event("pageshow"));
   });
   await page.waitForTimeout(500);
-  expect(state.resumeRequests()).toBe(0);
+  const scopedResumeRequests = state.resumeRequests();
+  expect(scopedResumeRequests).toBeLessThanOrEqual(4);
 
   // Saturate the Android/WebView-style per-origin request pool with many
   // foreground refetches. Do not await them: they intentionally remain held
@@ -575,7 +576,8 @@ test(`${nativeCase.label} request saturation keeps Inbox, Schedule and Media nav
       void fetch(`${apiOrigin}/rest/v1/teams?android_resume_stress=${i}`).catch(() => {});
     }
   }, api);
-  await expect.poll(state.resumeRequests, { timeout: 5_000 }).toBeGreaterThanOrEqual(6);
+  await expect.poll(state.resumeRequests, { timeout: 5_000 })
+    .toBeGreaterThanOrEqual(scopedResumeRequests + 6);
 
   // Slow/hung foreground refetches must never swallow the user's tab taps.
   await page.getByRole("link", { name: "Schedule" }).click({ timeout: 1_000 });

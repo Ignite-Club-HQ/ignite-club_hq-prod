@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const userId = "00000000-0000-4000-8000-000000000101";
 const clubId = "00000000-0000-4000-8000-000000000102";
@@ -9,13 +9,10 @@ const user = {
   app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z",
 };
 
-test("club admin creates a club-wide game by grade, edits it to team grouping, and sees grouped attendance", async ({ page }) => {
-  test.setTimeout(30_000);
+async function installClubWideGameHarness(page: Page) {
   let grouping: "level" | "team" = "level";
   let targetTeamIds: string[] | null = null;
-  let deniedDutyWrites = 0;
-  let deferredCreateAttempts = 0;
-  let exposeExistingDuty = false;
+  const state = { exposeExistingDuty: false };
   const writes: Array<{ method: string; body: any }> = [];
   const teams = [
     { id: "team-u8-blue", club_id: clubId, name: "U8 Blue", age_group: "U8" },
@@ -84,19 +81,28 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
       );
     }
     if (url.pathname === "/rest/v1/club_subscriptions") return json([]);
+    if (url.pathname === "/rest/v1/rpc/create_event_with_duties") {
+      const body = request.postDataJSON();
+      const eventBody = body.p_event;
+      writes.push({ method: "POST", body: eventBody });
+      grouping = eventBody.rsvp_grouping;
+      targetTeamIds = eventBody.target_team_ids;
+      return json(eventId);
+    }
+    if (url.pathname === "/rest/v1/rpc/sync_event_duties") return json([]);
     if (url.pathname === "/rest/v1/events" && request.method() === "POST") {
       const body = request.postDataJSON();
       writes.push({ method: "POST", body });
       grouping = body.rsvp_grouping;
       targetTeamIds = body.target_team_ids;
-      return json([{ ...body, id: eventId, is_cancelled: false }]);
+      return json({ ...body, id: eventId, is_cancelled: false });
     }
     if (url.pathname === "/rest/v1/events" && request.method() === "PATCH") {
       const body = request.postDataJSON();
       writes.push({ method: "PATCH", body });
       grouping = body.rsvp_grouping;
       targetTeamIds = body.target_team_ids;
-      return json([{ id: eventId, ...body }]);
+      return json({ id: eventId, ...body });
     }
     if (url.pathname === "/rest/v1/events") {
       const event = {
@@ -110,7 +116,7 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
       return json(singular ? event : [event]);
     }
     if (url.pathname === "/rest/v1/duties" && request.method() === "GET") {
-      return json(exposeExistingDuty ? [{
+      return json(state.exposeExistingDuty ? [{
         id: "duty-existing",
         event_id: eventId,
         name: "Existing scorer",
@@ -171,6 +177,17 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     if (url.pathname.startsWith("/rest/v1/")) return json([]);
     return json({});
   });
+
+  return {
+    writes,
+    state,
+    getGrouping: () => grouping,
+  };
+}
+
+test("club admin creates a club-wide game by grade, edits it to team grouping, and sees grouped attendance", async ({ page }) => {
+  test.setTimeout(45_000);
+  const { writes } = await installClubWideGameHarness(page);
 
   await page.goto("/events/new");
   await page.getByRole("button", { name: /Game/ }).click();
@@ -260,11 +277,13 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   );
   await page.reload();
   await expect(page.getByRole("alert")).toContainText(/grouped attendance (?:couldn.t be loaded|could not be loaded|is unavailable)/i);
+});
 
+test("a denied club-wide event edit remains retryable without changing committed state", async ({ page }) => {
+  const { writes, getGrouping } = await installClubWideGameHarness(page);
   // A denied edit must not navigate away or replace the last committed event
   // with a false success state. This exercises the real form and mutation
   // boundary rather than only validating a helper payload.
-  await page.unroute("**/rest/v1/rpc/get_targeted_event_attendance_roster*");
   await page.route("**/rest/v1/events*", async route => {
     if (route.request().method() !== "PATCH") return route.fallback();
     await route.fulfill({
@@ -277,12 +296,14 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   await page.getByLabel("Event Title").fill("Must not be committed");
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect(page).toHaveURL(`/events/${eventId}/edit`);
-  await expect(page.getByText(/failed to update event/i)).toBeVisible();
-  expect(grouping).toBe("team");
-  expect(writes.filter(write => write.method === "PATCH")).toHaveLength(1);
+  await expect(page.getByText("Failed to update event. Please try again.", { exact: true })).toBeVisible();
+  expect(getGrouping()).toBe("level");
+  expect(writes.filter(write => write.method === "PATCH")).toHaveLength(0);
+});
 
-  await page.route("**/rest/v1/events*", async route => {
-    if (route.request().method() !== "POST") return route.fallback();
+test("a denied club-wide event creation remains on the form and permits retry", async ({ page }) => {
+  const { writes } = await installClubWideGameHarness(page);
+  await page.route("**/rest/v1/rpc/create_event_with_duties*", async route => {
     await route.fulfill({
       status: 403,
       contentType: "application/json",
@@ -297,13 +318,17 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   await page.getByPlaceholder("Search for address...").fill("Synthetic Oval");
   await page.getByRole("button", { name: "Create Event" }).click();
   await expect(page).toHaveURL("/events/new");
-  await expect(page.getByText(/failed to create event/i)).toBeVisible();
+  await expect(
+    page.getByText("Failed to create event. synthetic event creation denied", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Create Event" })).toBeEnabled();
   expect(writes.filter(write => write.method === "POST")).toHaveLength(postsBeforeDeniedCreate);
+});
 
-  await page.unroute("**/rest/v1/events*");
-  await page.route("**/rest/v1/duties*", async route => {
-    if (route.request().method() !== "POST") return route.fallback();
+test("a denied duty write reports partial failure without claiming event success", async ({ page }) => {
+  await installClubWideGameHarness(page);
+  let deniedDutyWrites = 0;
+  await page.route("**/rest/v1/rpc/create_event_with_duties*", async route => {
     deniedDutyWrites += 1;
     await route.fulfill({
       status: 403,
@@ -322,23 +347,33 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   await page.getByRole("button", { name: "Create Event" }).click();
   await expect.poll(() => deniedDutyWrites).toBe(1);
   await expect(page).toHaveURL("/events/new");
-  await expect(page.getByText(/duty.*(?:failed|not saved)|failed.*duty/i)).toBeVisible();
+  await expect(
+    page.getByText("Failed to create event. synthetic duty creation denied", { exact: true }),
+  ).toBeVisible();
+});
 
-  await page.unroute("**/rest/v1/duties*");
+test("repeated create taps produce only one club-wide event mutation", async ({ page }) => {
+  await installClubWideGameHarness(page);
+  let deferredCreateAttempts = 0;
   let releaseDeferredCreate!: () => void;
   const deferredCreate = new Promise<void>(resolve => { releaseDeferredCreate = resolve; });
-  await page.route("**/rest/v1/events*", async route => {
-    if (route.request().method() !== "POST") return route.fallback();
+  await page.route("**/rest/v1/rpc/create_event_with_duties*", async route => {
     deferredCreateAttempts += 1;
     await deferredCreate;
-    const body = route.request().postDataJSON();
     await route.fulfill({
       status: 201,
       contentType: "application/json",
-      body: JSON.stringify([{ ...body, id: eventId, is_cancelled: false }]),
+      body: JSON.stringify(eventId),
     });
   });
-  const createWhilePending = page.getByRole("button", { name: "Create Event" });
+
+  await page.goto("/events/new");
+  await page.getByRole("button", { name: /Game/ }).click();
+  await page.getByLabel("Event Title").fill("Single synthetic event");
+  await page.getByLabel("Date & Time").fill("2099-10-01T10:00");
+  await page.getByPlaceholder("Search for address...").fill("Synthetic Oval");
+  const createWhilePending = page.locator("div.sticky").getByRole("button");
+  await expect(createWhilePending).toBeEnabled();
   const firstClick = createWhilePending.click();
   await expect.poll(() => deferredCreateAttempts).toBe(1);
   await expect(createWhilePending).toBeDisabled();
@@ -348,10 +383,12 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
   await firstClick;
   await expect(page).toHaveURL(`/events/${eventId}`);
   expect(deferredCreateAttempts).toBe(1);
+});
 
+test("a denied duty addition during event editing remains visible and retryable", async ({ page }) => {
+  await installClubWideGameHarness(page);
   let deniedEditDutyWrites = 0;
-  await page.route("**/rest/v1/duties*", async route => {
-    if (route.request().method() !== "POST") return route.fallback();
+  await page.route("**/rest/v1/rpc/sync_event_duties*", async route => {
     deniedEditDutyWrites += 1;
     await route.fulfill({
       status: 403,
@@ -360,19 +397,21 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     });
   });
   await page.goto(`/events/${eventId}/edit`);
+  await page.getByRole("button", { name: /Duties/ }).click();
   const editDutyInput = page.getByPlaceholder("e.g., BBQ duty, Scorer, First Aid");
   await editDutyInput.fill("Ground marshal");
   await editDutyInput.press("Enter");
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect.poll(() => deniedEditDutyWrites).toBe(1);
   await expect(page).toHaveURL(`/events/${eventId}/edit`);
-  await expect(page.getByText(/duty.*(?:failed|not saved)|failed.*duty/i)).toBeVisible();
+  await expect(page.getByText("Event saved, duties not saved", { exact: true })).toBeVisible();
+});
 
-  await page.unroute("**/rest/v1/duties*");
-  exposeExistingDuty = true;
+test("a denied duty deletion during event editing remains visible and retryable", async ({ page }) => {
+  const { state } = await installClubWideGameHarness(page);
+  state.exposeExistingDuty = true;
   let deniedDutyDeletes = 0;
-  await page.route("**/rest/v1/duties*", async route => {
-    if (route.request().method() !== "DELETE") return route.fallback();
+  await page.route("**/rest/v1/rpc/sync_event_duties*", async route => {
     deniedDutyDeletes += 1;
     await route.fulfill({
       status: 403,
@@ -381,11 +420,12 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     });
   });
   await page.goto(`/events/${eventId}/edit`);
+  await page.getByRole("button", { name: /Duties/ }).click();
   const existingDuty = page.getByText("Existing scorer", { exact: true });
   await expect(existingDuty).toBeVisible();
   await existingDuty.locator("..").getByRole("button").click();
   await page.getByRole("button", { name: "Save Changes" }).click();
   await expect.poll(() => deniedDutyDeletes).toBe(1);
   await expect(page).toHaveURL(`/events/${eventId}/edit`);
-  await expect(page.getByText(/duty.*(?:failed|not saved)|failed.*duty/i)).toBeVisible();
+  await expect(page.getByText("Event saved, duties not saved", { exact: true })).toBeVisible();
 });

@@ -37,7 +37,9 @@ describe("local baseline: static drift and remote-target safety", () => {
   it("pins security-definer helper search paths", () => {
     const definitions = migrations.flatMap((migration) => migration.match(/security definer[^;]+/gi) ?? []);
     expect(definitions.length).toBeGreaterThan(5);
-    for (const definition of definitions) expect(definition).toMatch(/set search_path\s*=/i);
+    for (const definition of definitions) {
+      expect(definition).toMatch(/set search_path\s*(?:=|to\b)/i);
+    }
   });
 
   it("keeps Studio and analytics disabled while Auth, Storage, Realtime and Edge are enabled", () => {

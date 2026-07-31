@@ -237,5 +237,5 @@ test("club admin extends a recurring series end date from the edit journey", asy
   await page.getByRole("button", { name: "Entire Series" }).click();
   await expect.poll(() => seriesUpdateAttempts).toBe(1);
   await expect(page).toHaveURL(`/events/${parentId}/edit`);
-  await expect(page.getByText(/failed to update event/i)).toBeVisible();
+  await expect(page.getByText("Failed to update event. Please try again.", { exact: true })).toBeVisible();
 });
