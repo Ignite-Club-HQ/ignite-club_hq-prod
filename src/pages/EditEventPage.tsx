@@ -778,6 +778,25 @@ export default function EditEventPage() {
 
     } catch (error: any) {
       console.error("Error updating event:", error);
+      if (error?.__dutyStage) {
+        const stage = error.__dutyStage as "delete" | "update" | "insert";
+        const what =
+          stage === "delete"
+            ? "removing a duty"
+            : stage === "update"
+              ? "updating a duty"
+              : "adding a duty";
+        toast({
+          title: "Event saved, duties not fully saved",
+          description:
+            (/row-level security|permission/i.test(error?.message ?? "")
+              ? `You don't have permission for ${what}. `
+              : `Something went wrong ${what}: ${error?.message ?? "unknown error"}. `) +
+            "Your event changes were saved. Tap Save again to retry just the outstanding duty changes.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast(friendlyMutationError(error, { description: "Failed to update event. Please try again." }));
     } finally {
       setSaving(false);
