@@ -6116,6 +6116,45 @@ export type Database = {
           },
         ]
       }
+      notification_dispatch_log: {
+        Row: {
+          created_at: string
+          error_detail: string | null
+          id: string
+          message_id: string | null
+          message_type: string
+          request_id: number | null
+          resolved_at: string | null
+          status_code: number | null
+          target_function: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_detail?: string | null
+          id?: string
+          message_id?: string | null
+          message_type: string
+          request_id?: number | null
+          resolved_at?: string | null
+          status_code?: number | null
+          target_function?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_detail?: string | null
+          id?: string
+          message_id?: string | null
+          message_type?: string
+          request_id?: number | null
+          resolved_at?: string | null
+          status_code?: number | null
+          target_function?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           admin_enabled: boolean | null
@@ -11903,12 +11942,23 @@ export type Database = {
           user_id: string
         }[]
       }
+      reconcile_notification_dispatch_log: { Args: never; Returns: number }
       reconcile_pending_invites: {
         Args: { _club_id?: string; _team_id?: string }
         Returns: {
           reconciled_count: number
           skipped_count: number
         }[]
+      }
+      record_notification_dispatch: {
+        Args: {
+          _error_detail?: string
+          _message_id: string
+          _message_type: string
+          _request_id: number
+          _target_function?: string
+        }
+        Returns: undefined
       }
       record_push_failure: {
         Args: { p_endpoint: string; p_reason?: string }
@@ -12112,6 +12162,10 @@ export type Database = {
           _sponsor_name?: string
         }
         Returns: undefined
+      }
+      set_internal_dispatch_credentials: {
+        Args: { _functions_base_url: string; _service_role_key: string }
+        Returns: Json
       }
       set_legal_reacceptance: {
         Args: {
