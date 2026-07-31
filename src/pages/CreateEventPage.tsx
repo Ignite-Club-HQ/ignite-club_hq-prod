@@ -843,7 +843,7 @@ export default function CreateEventPage() {
       if (error) throw error;
       if (!newEventId) throw new Error("Event could not be created.");
 
-      createdEventIdRef.current = null;
+      
       navigate(`/events/${newEventId}`);
     } catch (error: any) {
       console.error("Error creating event:", error);
