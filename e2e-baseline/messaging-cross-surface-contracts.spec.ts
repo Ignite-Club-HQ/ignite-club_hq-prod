@@ -8,6 +8,7 @@ const teamId = "00000000-0000-4000-8000-000000008004";
 const groupId = "00000000-0000-4000-8000-000000008005";
 const conversationId = "00000000-0000-4000-8000-000000008006";
 const adminConversationId = "00000000-0000-4000-8000-000000008007";
+const groupReactionMessageId = "00000000-0000-4000-8000-000000008008";
 const user = { id: userId, aud: "authenticated", role: "authenticated", email: "cross-surface@local.invalid", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" };
 
 const surfaces = [
@@ -30,9 +31,17 @@ async function install(page: Page, options: {
   clubAdminTransientEmpty?: boolean;
   clubAdminThreadResponses?: Array<"empty" | "message" | "error">;
   seedOneMessageClubAdminCache?: boolean;
+  seedGroupReactionMessage?: boolean;
+  holdGroupReactionInsert?: boolean;
+  groupReactionInsertFailure?: boolean;
 } = {}) {
   const inserts: Array<{ table: string; body: Record<string, unknown> }> = [];
   const uploads: string[] = [];
+  const reactionWrites: Record<string, unknown>[] = [];
+  let releaseGroupReactionInsert: (() => void) | undefined;
+  const groupReactionInsertGate = new Promise<void>((resolve) => {
+    releaseGroupReactionInsert = resolve;
+  });
   let clubAdminThreadReads = 0;
   await page.addInitScript(({ user, userId, clubId, adminConversationId, otherId, seedOneMessageClubAdminCache }) => {
     const enc = (value: object) => btoa(JSON.stringify(value)).replaceAll("=", "");
@@ -100,6 +109,19 @@ async function install(page: Page, options: {
       });
     }
     if (url.pathname === "/rest/v1/club_subscriptions") return json(route, [{ club_id: clubId, status: "active" }]);
+    if (url.pathname === "/rest/v1/message_reactions") {
+      if (request.method() === "POST") {
+        const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;
+        reactionWrites.push(body);
+        if (options.holdGroupReactionInsert) await groupReactionInsertGate;
+        if (options.groupReactionInsertFailure) {
+          return json(route, { code: "42501", message: "synthetic reaction denied" }, 403);
+        }
+        const row = { id: "reaction-server", ...body };
+        return json(route, singular ? row : [row], 201);
+      }
+      return json(route, singular ? null : []);
+    }
 
     const table = url.pathname.replace("/rest/v1/", "");
     if (surfaces.some(surface => surface.table === table) || table === "team_messages" || table === "broadcast_messages") {
@@ -139,6 +161,23 @@ async function install(page: Page, options: {
         }
         return json(route, singular ? row : [row]);
       }
+      if (table === "group_messages" && options.seedGroupReactionMessage) {
+        const row = {
+          id: groupReactionMessageId,
+          group_id: groupId,
+          author_id: otherId,
+          text: "Operational reaction target",
+          image_url: null,
+          reply_to_id: null,
+          deleted_at: null,
+          is_system_message: false,
+          forwarded_from_user_id: null,
+          forwarded_at: null,
+          forwarded_source_label: null,
+          created_at: "2026-07-31T04:00:00.000Z",
+        };
+        return json(route, singular ? row : [row]);
+      }
       return json(route, []);
     }
     if (url.pathname.startsWith("/storage/v1/object/chat-attachments/")) {
@@ -163,7 +202,13 @@ async function install(page: Page, options: {
     if (url.pathname.startsWith("/functions/v1/")) return json(route, {});
     return json(route, {});
   });
-  return { inserts, uploads, getClubAdminThreadReads: () => clubAdminThreadReads };
+  return {
+    inserts,
+    uploads,
+    reactionWrites,
+    releaseGroupReactionInsert: () => releaseGroupReactionInsert?.(),
+    getClubAdminThreadReads: () => clubAdminThreadReads,
+  };
 }
 
 test("a user denied DM permission sees the intentional access screen rather than a broken composer", async ({ page }) => {
@@ -436,4 +481,57 @@ test("a failed image send restores both the caption and retryable attachment", a
   await expect(page.getByText("Failed to send message", { exact: true })).toBeVisible();
   await expect(composer).toHaveValue("Retryable synthetic image");
   await expect(page.getByRole("button", { name: "Remove attachment" })).toBeVisible();
+});
+
+test("an operational-group heart appears before its delayed write completes and is not duplicated", async ({ page }) => {
+  const harness = await install(page, {
+    seedGroupReactionMessage: true,
+    holdGroupReactionInsert: true,
+  });
+  await page.goto(`/groups/${groupId}`);
+
+  const message = page.locator(`#message-${groupReactionMessageId}`);
+  await expect(message).toContainText("Operational reaction target", { timeout: 15_000 });
+  await message.locator(".chat-bubble-stable").locator("..").dispatchEvent("contextmenu");
+
+  const heart = page.locator("button").filter({ hasText: /^❤️$/ });
+  await expect(heart).toBeVisible();
+  // The picker deliberately ignores synthetic WebView clicks for its first
+  // 500 ms, so exercise the accepted user interaction rather than bypassing it.
+  await page.waitForTimeout(550);
+  await heart.click();
+
+  await expect.poll(() => harness.reactionWrites.length).toBe(1);
+  expect(harness.reactionWrites[0]).toEqual({
+    group_message_id: groupReactionMessageId,
+    user_id: userId,
+    reaction_type: "❤️",
+  });
+  // The request is still blocked: this assertion proves the badge is
+  // optimistic rather than an echo of the server response or Realtime.
+  const optimisticBadge = message.locator("button").filter({ hasText: /^❤️$/ });
+  await expect(optimisticBadge).toBeVisible();
+
+  harness.releaseGroupReactionInsert();
+  await expect(optimisticBadge).toHaveCount(1);
+});
+
+test("an operational-group reaction is rolled back when its write is denied", async ({ page }) => {
+  const harness = await install(page, {
+    seedGroupReactionMessage: true,
+    groupReactionInsertFailure: true,
+  });
+  await page.goto(`/groups/${groupId}`);
+
+  const message = page.locator(`#message-${groupReactionMessageId}`);
+  await expect(message).toContainText("Operational reaction target", { timeout: 15_000 });
+  await message.locator(".chat-bubble-stable").locator("..").dispatchEvent("contextmenu");
+  const heart = page.locator("button").filter({ hasText: /^❤️$/ });
+  await expect(heart).toBeVisible();
+  await page.waitForTimeout(550);
+  await heart.click();
+
+  await expect.poll(() => harness.reactionWrites.length).toBe(1);
+  await expect(page.getByText("Couldn't update reaction. Please try again.", { exact: true })).toBeVisible();
+  await expect(message.locator("button").filter({ hasText: /^❤️$/ })).toHaveCount(0);
 });
