@@ -2083,6 +2083,13 @@ export default function MessagesPage() {
   const displayChatGroups = useMemo(() => {
     if (isAppAdmin || isCommitteeMember) return allChatGroups;
 
+    // Offline with no roles loaded: the cached groups were already RLS- and
+    // role-filtered for THIS user when they were written (cache is
+    // user-scoped and cleared on sign-out), so render them rather than
+    // dropping every club/team chat.
+    const rolesUnavailableOffline = !isOnline && !userAllRoles?.length;
+    if (rolesUnavailableOffline) return allChatGroups;
+
     return allChatGroups.filter((group: any) => {
       // Personal/custom groups (no club, team, or mini-league scope) are
       // membership-based via group_members and RLS already filtered them.
@@ -2091,6 +2098,7 @@ export default function MessagesPage() {
       if (isPersonalGroup) return true;
 
       if (!userAllRoles?.length) return false;
+
 
       const allowedRoles: string[] = group.allowed_roles || [];
       if (allowedRoles.length === 0) return true;
