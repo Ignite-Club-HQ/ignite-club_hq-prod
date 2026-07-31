@@ -568,6 +568,26 @@ export default function EventsPage() {
     placeholderData: (prev) => prev,
   });
 
+  // --- Cold-offline fallback -------------------------------------------
+  // When the app opens with no connectivity, the memberships query (which
+  // gates the events query) may never resolve. Rather than sit on a spinner
+  // forever, read the user-scoped schedule cache directly and render it.
+  const { isOnline } = useOnlineStatus();
+  const offlineCachedEvents = useMemo(() => {
+    if (isOnline) return null;
+    try {
+      return (getCachedEventsList(eventsScopeKey, user?.id) as Event[] | null) ?? null;
+    } catch {
+      return null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, eventsScopeKey, user?.id]);
+
+  // Never let a failed/never-resolving network query blank out cached data.
+  const events: Event[] | undefined = eventsData ?? offlineCachedEvents ?? undefined;
+  const showingOfflineCache = !isOnline && !eventsData && !!offlineCachedEvents;
+  const offlineNoCache = !isOnline && !events;
+
   // Derived from userMemberships — no extra round trips.
   const isAppAdmin = userMemberships?.isAppAdmin ?? false;
   const userRoles = userMemberships?.roles;
