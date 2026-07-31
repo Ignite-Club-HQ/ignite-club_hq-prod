@@ -2053,24 +2053,31 @@ export default function MessagesPage() {
   // initial load leaves `isFetched` false forever, and the inbox is stuck on
   // the skeleton even after coverage returns. The errored query will retry
   // on reconnect (refetchOnReconnect: "always") and rehydrate in place.
+  // Offline: never wait on remote queries — they can't resolve without a
+  // network, and the user-scoped cache is the authoritative thing to show.
   const freshSortDataReady =
-    (teamsFetched || teamsError) &&
-    (memberClubsFetched || memberClubsError) &&
-    (chatGroupsFetched || chatGroupsError) &&
-    (latestBroadcastFetched || latestBroadcastError) &&
-    (dmFetched || dmError);
-  const showSkeletonLoading = isLoadingFreshData || !freshSortDataReady;
+    !isOnline || (
+      (teamsFetched || teamsError) &&
+      (memberClubsFetched || memberClubsError) &&
+      (chatGroupsFetched || chatGroupsError) &&
+      (latestBroadcastFetched || latestBroadcastError) &&
+      (dmFetched || dmError)
+    );
+  const showSkeletonLoading = isOnline && (isLoadingFreshData || !freshSortDataReady);
 
 
 
   // Determine which data to display (prefer fresh, fallback to cached)
-  const displayTeams = teams || cachedData?.teams || [];
-  const displayMemberClubs = memberClubs || cachedData?.memberClubs || [];
+  const displayTeams = (teams?.length ? teams : (!isOnline ? (cachedData?.teams as any) : null)) || teams || cachedData?.teams || [];
+  const displayMemberClubs = (memberClubs?.length ? memberClubs : (!isOnline ? (cachedData?.memberClubs as any) : null)) || memberClubs || cachedData?.memberClubs || [];
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
-  // Important: an empty fresh chat-group result is authoritative. Falling back
-  // to cached groups when `chatGroups.length === 0` kept soft-deleted/purged
-  // club chats visible forever after the server correctly returned no rows.
-  const allChatGroups = chatGroups ?? (cachedData?.chatGroups as any) ?? [];
+  // Important: an empty fresh chat-group result is authoritative *while
+  // online*. Falling back to cached groups when `chatGroups.length === 0`
+  // kept soft-deleted/purged club chats visible forever after the server
+  // correctly returned no rows. Offline, an empty/failed result carries no
+  // authority, so cached rows stay visible.
+  const allChatGroups = (chatGroups?.length ? chatGroups : (!isOnline ? (cachedData?.chatGroups as any) : null)) ?? chatGroups ?? (cachedData?.chatGroups as any) ?? [];
+
   
   // Filter chat groups by user's roles
   const displayChatGroups = useMemo(() => {
