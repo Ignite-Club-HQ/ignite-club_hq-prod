@@ -565,7 +565,7 @@ export default function MessagesPage() {
 
 
   // Fetch teams with their latest messages in a single query for efficiency
-  const { data: teamsWithMessages, isLoading: teamsLoading, isFetched: teamsFetched, isError: teamsError } = useQuery({
+  const { data: teamsWithMessages, isLoading: teamsLoading, isFetched: teamsFetched, isFetching: teamsFetching, isError: teamsError } = useQuery({
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
     refetchOnReconnect: "always",
