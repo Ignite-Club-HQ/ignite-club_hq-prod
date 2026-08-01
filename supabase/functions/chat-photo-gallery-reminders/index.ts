@@ -210,6 +210,10 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } finally {
-    await supabase.rpc("release_cron_lock", { p_key: LOCK_KEY }).catch(() => {});
+    try {
+      await supabase.rpc("release_cron_lock", { p_key: LOCK_KEY });
+    } catch (e) {
+      console.warn("[chat-photo-reminders] lock release failed", e);
+    }
   }
 });
