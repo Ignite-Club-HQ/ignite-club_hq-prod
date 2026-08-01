@@ -126,9 +126,20 @@ const loadActiveTimerState = (): TimerState | null => {
 
 const saveTimerState = (state: TimerState) => {
   try {
-    localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(state));
+    // CRITICAL: stamp `schema_version: 2` on EVERY write, exactly like
+    // GameTimer.saveTimerState does. The marker is the "do not touch" signal
+    // that makes `useActiveGameSync` and `GlobalSubMonitor` skip writing
+    // `active_games.timer_state`. `serverToTimerState()` builds a fresh object
+    // literal without the marker, so saving it unstamped silently downgraded
+    // localStorage to "legacy v1" — the two legacy syncs then overwrote the
+    // authoritative server-anchored row with `{ elapsedSeconds, lastUpdateTime }`,
+    // which derives elapsed = 0 and reset the board to 00:00 on the next
+    // resume / button press. Never remove this stamp.
+    const stamped = { ...state, schema_version: 2 as const };
+    const json = JSON.stringify(stamped);
+    localStorage.setItem(ACTIVE_TIMER_KEY, json);
     if (state.teamId) {
-      localStorage.setItem(getTeamTimerStorageKey(state.teamId), JSON.stringify(state));
+      localStorage.setItem(getTeamTimerStorageKey(state.teamId), json);
     }
     // Clear dismissed flag when timer state is actively saved (new game or state change)
     localStorage.removeItem(WIDGET_DISMISSED_KEY);
@@ -136,6 +147,7 @@ const saveTimerState = (state: TimerState) => {
     window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'timer-widget' } }));
   } catch { /* ignore */ }
 };
+
 
 /**
  * Map a server-anchored ServerTimer row into the widget's legacy TimerState
