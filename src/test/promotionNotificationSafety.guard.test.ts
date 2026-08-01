@@ -46,11 +46,14 @@ describe("promotion notification safety", () => {
   });
 
   it("probes authentication before any notification caller is rewritten", () => {
-    const probeAt = workflow.indexOf("Probe PROD notification authentication");
-    const rewriteAt = workflow.search(/Rewrite|reconcile PROD cron/i);
+    const probeAt = workflow.indexOf("- name: Probe PROD notification authentication");
+    const cronRewriteAt = workflow.indexOf("- name: Reschedule PROD cron callers");
+    const triggerRewriteAt = workflow.indexOf("- name: Repair legacy PROD trigger dispatch credentials");
     expect(probeAt).toBeGreaterThan(-1);
-    if (rewriteAt > -1) expect(probeAt).toBeLessThan(rewriteAt);
+    expect(cronRewriteAt).toBeGreaterThan(probeAt);
+    expect(triggerRewriteAt).toBeGreaterThan(probeAt);
     expect(workflow).toMatch(/x-notification-auth-probe/);
+
     expect(workflow).toMatch(/probe was REJECTED \(HTTP \$\{PSTATUS\}\)/);
   });
 
