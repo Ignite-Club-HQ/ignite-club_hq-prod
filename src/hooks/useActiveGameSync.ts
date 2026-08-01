@@ -2,6 +2,7 @@ import { useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { recordSyncWrite } from "@/lib/syncWriteRateMonitor";
+import { hasAnchoredTimerMarker, mayWriteLegacyTimerState } from "@/lib/serverTimer";
 import type { Json } from "@/integrations/supabase/types";
 
 const SYNC_INTERVAL = 10000; // Sync every 10 seconds
