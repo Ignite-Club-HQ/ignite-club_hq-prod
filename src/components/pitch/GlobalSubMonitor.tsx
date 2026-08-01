@@ -423,7 +423,18 @@ export default function GlobalSubMonitor() {
 
           const { data: newGame, error } = await supabase
             .from('active_games')
-            .insert(gameData)
+            .insert({
+              ...gameData,
+              // A brand-new row must carry a valid timer_state or the
+              // pending-sub / half-time cron has nothing to read. For
+              // server-anchored boards we synthesise a correctly shaped v2
+              // state (event timestamps, not elapsedSeconds) so
+              // `pitch-timer-read` derives the right elapsed value.
+              timer_state: (isServerAnchoredTimer
+                ? toServerAnchoredTimerState(syncedTimerState as unknown as TimerState)
+                : (syncedTimerState as unknown)) as Json,
+            })
+
             .select()
             .single();
 
