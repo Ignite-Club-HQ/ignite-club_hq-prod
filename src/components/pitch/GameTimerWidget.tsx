@@ -7,6 +7,7 @@ import {
   deriveElapsedSeconds,
   isServerAnchoredTimer,
   shouldPreferLocalOnFirstHydrate,
+  shouldAcceptServerSnapshot,
   type ServerTimer,
 } from "@/lib/serverTimer";
 import { Button } from "@/components/ui/button";
