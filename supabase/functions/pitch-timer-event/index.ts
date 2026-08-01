@@ -372,16 +372,76 @@ Deno.serve(async (req) => {
       }
       rowId = created.id;
     } else {
-      const updatePayload: Record<string, unknown> = {
-        timer_state: next as unknown,
-        pitch_state: mergedPitchState as unknown,
-        updated_at: nowIso(),
-        is_active: event === "reset" ? false : !next.is_game_finished,
-      };
-      if (isFreshStart) updatePayload.last_sub_check_time = 0;
-      await admin.from("active_games")
-        .update(updatePayload)
-        .eq("id", rowId);
+      // Compare-and-swap the read-modify-write. Two writers exist per board
+      // (PitchBoard's GameTimer and the floating GameTimerWidget), plus any
+      // co-admin on another device and the check-pending-subs cron. Without a
+      // CAS, the loser's `next` — computed from a `prev` that is already
+      // superseded — lands last and rewinds the clock (e.g. a resume computed
+      // from a pre-halftime snapshot republishes the old half's anchor).
+      // Retry by re-reading and re-applying the event to the winner's state.
+      let attemptPrev = prev;
+      let attemptNext = next;
+      let attemptPitch = mergedPitchState;
+      let committed = false;
+
+      for (let attempt = 0; attempt < 3 && !committed; attempt++) {
+        const updatePayload: Record<string, unknown> = {
+          timer_state: attemptNext as unknown,
+          pitch_state: attemptPitch as unknown,
+          updated_at: nowIso(),
+          is_active: event === "reset" ? false : !attemptNext.is_game_finished,
+        };
+        if (isFreshStart) updatePayload.last_sub_check_time = 0;
+
+        let uq = admin.from("active_games").update(updatePayload).eq("id", rowId);
+        uq = isServerAnchored(attemptPrev) && typeof attemptPrev.last_event_at === "string"
+          ? uq.filter("timer_state->>last_event_at", "eq", attemptPrev.last_event_at)
+          // Legacy / clobbered / empty previous state: only win while the row
+          // still has no anchored marker, so we can't stomp a v2 writer.
+          : uq.is("timer_state->>schema_version", null);
+        const { data: casRows, error: casErr } = await uq.select("id");
+        if (casErr) {
+          return new Response(JSON.stringify({ error: casErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (casRows && casRows.length > 0) {
+          committed = true;
+          break;
+        }
+
+        // Lost the race — re-read the winner's state and re-apply this event.
+        const { data: fresh } = await admin.from("active_games")
+          .select("timer_state, pitch_state")
+          .eq("id", rowId)
+          .maybeSingle();
+        attemptPrev = isServerAnchored(fresh?.timer_state)
+          ? fresh!.timer_state as ServerTimer
+          : (fromLegacyTimerState(fresh?.timer_state, initialMinutes) ?? emptyTimer(initialMinutes));
+        attemptNext = applyEvent(attemptPrev, event, payload);
+        const freshBase: Record<string, unknown> = event === "reset"
+          ? { sport: "soccer", autoSubActive: false, autoSubPlan: [], players: [] }
+          : ((fresh?.pitch_state as Record<string, unknown> | null) ?? { sport: "soccer", autoSubActive: true });
+        attemptPitch = { ...freshBase };
+        if (incomingAutoSubPlan !== null) attemptPitch.autoSubPlan = incomingAutoSubPlan;
+        if (incomingAutoSubActive !== null) attemptPitch.autoSubActive = incomingAutoSubActive;
+        if (incomingPlayers !== null) attemptPitch.players = incomingPlayers;
+      }
+
+      if (!committed) {
+        return new Response(JSON.stringify({ error: "timer_conflict" }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Always report the state we actually committed, not the first attempt's.
+      return new Response(JSON.stringify({
+        ok: true,
+        row_id: rowId,
+        timer_state: attemptNext,
+        elapsed_seconds: deriveElapsedSeconds(attemptNext),
+        server_now: nowIso(),
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(JSON.stringify({
@@ -391,6 +451,7 @@ Deno.serve(async (req) => {
       elapsed_seconds: deriveElapsedSeconds(next),
       server_now: nowIso(),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
