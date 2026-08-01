@@ -359,6 +359,10 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } finally {
-    await admin.rpc("release_cron_lock", { p_key: LOCK_KEY }).catch(() => {});
+    try {
+      await admin.rpc("release_cron_lock", { p_key: LOCK_KEY });
+    } catch (e) {
+      console.warn("[auto-rsvp-dm-cron] lock release failed", e);
+    }
   }
 });
