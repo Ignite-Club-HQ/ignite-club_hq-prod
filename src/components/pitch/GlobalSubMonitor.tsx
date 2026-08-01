@@ -201,7 +201,37 @@ export default function GlobalSubMonitor() {
     const isServerAnchoredTimer =
       hasAnchoredTimerMarker(timerState) || remoteAnchored;
 
-
+    /**
+     * Deactivating the row is NOT a harmless bookkeeping write for a
+     * server-anchored (v2) board.
+     *
+     * `pitch-timer-read` and `pitch-timer-event` both filter on
+     * `is_active = true`. Once this loop flips the authoritative row inactive,
+     * the next resume read returns `found: false` and the next `resume` event
+     * finds no row to continue — so the edge function takes its "no existing
+     * row" path and anchors a FRESH half from `half_started_at = now()`. The
+     * coach presses play and the board snaps back to the start of the half,
+     * discarding elapsed time and `accumulated_pause_ms`.
+     *
+     * That was reachable on any real match, because this loop deactivates on
+     * every pause that is not exactly halftime — water breaks, injuries, or
+     * pausing to fix a late kickoff. Lifecycle of a v2 row belongs solely to
+     * `pitch-timer-event` (`end_game` / `reset` clear it); this legacy sync
+     * loop must never revoke it.
+     */
+    const deactivateActiveGameRow = async (reason: string) => {
+      if (!activeGameIdRef.current) return;
+      if (isServerAnchoredTimer) {
+        console.info('[SYNC] Keeping server-anchored active_games row active:', reason);
+        return;
+      }
+      console.log('[SYNC] Deactivating game -', reason);
+      await supabase
+        .from('active_games')
+        .update({ is_active: false })
+        .eq('id', activeGameIdRef.current);
+      activeGameIdRef.current = null;
+    };
 
 
     console.log('[SYNC] Timer state:', timerState ? {
