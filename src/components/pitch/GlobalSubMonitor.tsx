@@ -268,7 +268,8 @@ export default function GlobalSubMonitor() {
             .update({
               user_id: user.id,
               team_id: teamId,
-              timer_state: syncedTimerState as unknown as Json,
+              ...(isServerAnchoredTimer ? {} : { timer_state: syncedTimerState as unknown as Json }),
+
               pitch_state: pitchState as unknown as Json,
               is_active: true,
               updated_at: new Date().toISOString(),
