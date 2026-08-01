@@ -224,16 +224,29 @@ export function shouldAcceptServerSnapshot(
   incoming: ServerTimer,
   local?: LocalTimerSnapshot,
 ): { accept: boolean; reason: string } {
-  if (!prev?.last_event_at) return { accept: true, reason: "first-hydrate" };
-
-  const prevMs = new Date(prev.last_event_at).getTime();
-  const nextMs = new Date(incoming.last_event_at).getTime();
   const incomingIsZero =
     !incoming.is_running &&
     !incoming.half_started_at &&
     (incoming.current_half ?? 1) === 1 &&
     !incoming.is_game_finished;
   const localAdvanced = !!local && (local.isRunning || local.elapsedSeconds > 0 || local.currentHalf === 2 || local.isGameFinished);
+
+  if (!prev?.last_event_at) {
+    // First hydrate has no previous event timestamp to compare against, so it
+    // used to be accepted unconditionally. That reopened the "resets to 0 on
+    // resume" defect on any path where the mount hydrate deliberately kept the
+    // local projection (serverTimerRef stays null) and a later resume read the
+    // same clobbered/zeroed row. A zero row can never legitimately describe a
+    // board that is visibly mid-match: refuse it and keep the local clock.
+    if (incomingIsZero && localAdvanced) {
+      return { accept: false, reason: "stale-zero-at-first-hydrate" };
+    }
+    return { accept: true, reason: "first-hydrate" };
+  }
+
+  const prevMs = new Date(prev.last_event_at).getTime();
+  const nextMs = new Date(incoming.last_event_at).getTime();
+
 
   // Backwards-movement guard: reject any incoming snapshot whose derived
   // elapsed would regress the currently displayed clock in the same half,
