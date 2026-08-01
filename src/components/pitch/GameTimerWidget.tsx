@@ -5,6 +5,8 @@ import {
   readServerTimer,
   sendTimerEvent,
   deriveElapsedSeconds,
+  isServerAnchoredTimer,
+  shouldPreferLocalOnFirstHydrate,
   type ServerTimer,
 } from "@/lib/serverTimer";
 import { Button } from "@/components/ui/button";
