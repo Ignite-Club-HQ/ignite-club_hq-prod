@@ -1,4 +1,5 @@
 import { useStickyList } from "@/hooks/useStickyList";
+import { useStableInboxReadModel } from "@/hooks/useStableInboxReadModel";
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -2507,7 +2508,7 @@ export default function MessagesPage() {
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
 
   // Build unified conversation list
-  const unifiedConversations = useMemo(() => {
+  const freshUnifiedConversations = useMemo(() => {
     const items: UnifiedConversation[] = [];
 
     // Broadcast
@@ -2720,6 +2721,20 @@ export default function MessagesPage() {
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
     filteredDMs, clubAdminConversations, query, user?.id, showIgniteSupport, systemMessage, allDrafts,
   ]);
+
+  // Keep the final authorised read model coherent across native resume and
+  // background refetches. Individual sticky source arrays are insufficient:
+  // a derived role/filter input can settle one render before another source
+  // and temporarily remove an otherwise retained row. Only publish the fresh
+  // model once the complete ordering/source set is settled; a settled empty
+  // model remains authoritative, so real deletions and permission removals
+  // are never retained indefinitely.
+  const unifiedConversations = useStableInboxReadModel(freshUnifiedConversations, {
+    authoritative: !isOnline || sortSourcesSettled,
+    resetKey: user?.id
+      ? `${user.id}:${effectiveClubFilter ?? "all"}:${query}`
+      : null,
+  });
 
   // Perf: log inbox open latency once when the first meaningful list is ready.
   const perfLoggedRef = useRef(false);
