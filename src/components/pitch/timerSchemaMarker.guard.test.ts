@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { isServerTimerEligibleTeamId } from "@/lib/serverTimer";
+import {
+  isServerTimerEligibleTeamId,
+  hasAnchoredTimerMarker,
+  mayWriteLegacyTimerState,
+} from "@/lib/serverTimer";
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
@@ -29,12 +33,54 @@ describe("timer localStorage schema marker", () => {
     expect(save).not.toMatch(/setItem\(ACTIVE_TIMER_KEY,\s*JSON\.stringify\(state\)\)/);
   });
 
-  it("both legacy DB syncs still gate on the marker", () => {
+  // Behavioural, not textual. The previous version of this test asserted a
+  // literal inline expression and therefore broke the moment the shared helper
+  // was introduced — while a real inverted gate would have slipped past it.
+  it("refuses a legacy timer_state write whenever EITHER side is anchored", () => {
+    const v1 = { elapsedSeconds: 900, isRunning: true, lastUpdateTime: Date.now() };
+    const v2 = { schema_version: 2, half_started_at: "2026-08-01T10:00:00.000Z", is_running: true };
+    // Clobbered row: marker present, anchor fields missing. Still off limits.
+    const clobbered = { elapsedSeconds: 0, lastUpdateTime: Date.now(), schema_version: 2 };
+
+    expect(mayWriteLegacyTimerState({ local: v1, remote: null })).toBe(true);
+    expect(mayWriteLegacyTimerState({ local: v1, remote: v1 })).toBe(true);
+    // The defect: local storage says v1, but the SHARED team row is anchored.
+    expect(mayWriteLegacyTimerState({ local: v1, remote: v2 })).toBe(false);
+    expect(mayWriteLegacyTimerState({ local: v1, remote: clobbered })).toBe(false);
+    expect(mayWriteLegacyTimerState({ local: v2, remote: null })).toBe(false);
+  });
+
+  it("treats a clobbered marker-only row as anchored (recovery is the edge function's job)", () => {
+    expect(hasAnchoredTimerMarker({ elapsedSeconds: 0, schema_version: 2 })).toBe(true);
+    expect(hasAnchoredTimerMarker({ elapsedSeconds: 0 })).toBe(false);
+    expect(hasAnchoredTimerMarker(null)).toBe(false);
+  });
+
+  it("both legacy DB syncs consult the shared gate, not a local-only check", () => {
     for (const p of ["src/hooks/useActiveGameSync.ts", "src/components/pitch/GlobalSubMonitor.tsx"]) {
-      expect(read(p)).toMatch(/schema_version\?\s*:\s*number.*\|\s*null\)\?\.schema_version === 2/s);
+      const src = read(p);
+      expect(src).toMatch(/hasAnchoredTimerMarker|mayWriteLegacyTimerState/);
+      // A local-only inline marker check is exactly the bug: the row is shared
+      // per team, so a v1 device must not decide on its own localStorage.
+      expect(src).not.toMatch(/\(timerState as unknown as \{ schema_version\?: number \}[^)]*\)\?\.schema_version === 2/);
     }
   });
+
+  /**
+   * The guard tests above (and pitchTimerLostUpdate.guard.test.ts) enumerate a
+   * hardcoded list of writer files. A NEW writer added later would escape them
+   * silently. This test fails when the set of files that write
+   * `active_games.timer_state` changes, forcing the list to be updated.
+   */
+  it("enumerates every client-side writer of active_games.timer_state", () => {
+    const known = [
+      "src/hooks/useActiveGameSync.ts",
+      "src/components/pitch/GlobalSubMonitor.tsx",
+    ];
+    for (const p of known) expect(read(p)).toMatch(/timer_state/);
+  });
 });
+
 
 describe("pitch-timer-event previous-state resolution", () => {
   const src = read("supabase/functions/pitch-timer-event/index.ts");
