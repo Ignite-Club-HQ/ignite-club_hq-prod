@@ -2,7 +2,7 @@ import { useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { shouldApplyRemoteTimerState, type LocalEventGroupTimer } from "@/lib/eventGroupTimerGuard";
+import { shouldApplyRemoteTimerState, shouldWriteLocalTimerState, type LocalEventGroupTimer } from "@/lib/eventGroupTimerGuard";
 
 
 const SYNC_INTERVAL = 5000; // Fallback polling interval
