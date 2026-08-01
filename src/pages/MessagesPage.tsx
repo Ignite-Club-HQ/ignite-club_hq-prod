@@ -1,4 +1,5 @@
 import { useStickyList } from "@/hooks/useStickyList";
+import { useStableInboxReadModel } from "@/hooks/useStableInboxReadModel";
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -380,7 +381,7 @@ export default function MessagesPage() {
   });
 
   // Check if user is app admin
-  const { data: isAppAdmin } = useQuery({
+  const { data: isAppAdmin, isFetching: isAppAdminFetching } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -712,7 +713,7 @@ export default function MessagesPage() {
   });
 
   // Check if user is a committee member (club-level role)
-  const { data: isCommitteeMember } = useQuery({
+  const { data: isCommitteeMember, isFetching: isCommitteeMemberFetching } = useQuery({
     queryKey: ["is-committee-member", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -729,7 +730,7 @@ export default function MessagesPage() {
   });
 
   // Fetch all user roles for chat group filtering
-  const { data: userAllRoles } = useQuery({
+  const { data: userAllRoles, isFetching: userAllRolesFetching } = useQuery({
     queryKey: ["user-all-roles", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -743,7 +744,7 @@ export default function MessagesPage() {
   });
 
   // Fetch mini league IDs the user's children are assigned to (for league group visibility)
-  const { data: userLeagueIds } = useQuery({
+  const { data: userLeagueIds, isFetching: userLeagueIdsFetching } = useQuery({
     queryKey: ["user-child-league-ids", user?.id],
     queryFn: async () => {
       // Get user's children
@@ -2144,9 +2145,17 @@ export default function MessagesPage() {
   // settling, dropped socket). Retain the last non-empty result until the query
   // settles successfully — a settled empty result is still authoritative, so
   // removed/purged conversations do not linger.
+  // A successful empty `user_roles` response can be a transient false-negative
+  // while the native auth token is rotating on resume. The independently
+  // resolved bootstrap membership list corroborates whether that empty result
+  // is authoritative before we release a retained team snapshot.
+  const teamsEmptyCorroborated =
+    teams.length > 0 ||
+    !bootstrapQ.data ||
+    bootstrapQ.data.member_team_ids.length === 0;
   const stickyTeams = useStickyList<any>(teams, {
     isFetching: teamsFetching,
-    isFetched: teamsFetched,
+    isFetched: teamsFetched && teamsEmptyCorroborated,
     isError: teamsError,
     resetKey: user?.id ?? null,
   });
@@ -2507,7 +2516,7 @@ export default function MessagesPage() {
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
 
   // Build unified conversation list
-  const unifiedConversations = useMemo(() => {
+  const freshUnifiedConversations = useMemo(() => {
     const items: UnifiedConversation[] = [];
 
     // Broadcast
@@ -2720,6 +2729,26 @@ export default function MessagesPage() {
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
     filteredDMs, clubAdminConversations, query, user?.id, showIgniteSupport, systemMessage, allDrafts,
   ]);
+
+  // Keep the final authorised read model coherent across native resume and
+  // background refetches. Individual sticky source arrays are insufficient:
+  // a derived role/filter input can settle one render before another source
+  // and temporarily remove an otherwise retained row. Only publish the fresh
+  // model once the complete ordering/source set is settled; a settled empty
+  // model remains authoritative, so real deletions and permission removals
+  // are never retained indefinitely.
+  const unifiedConversations = useStableInboxReadModel(freshUnifiedConversations, {
+    authoritative: !isOnline || (
+      sortSourcesSettled &&
+      !isAppAdminFetching &&
+      !isCommitteeMemberFetching &&
+      !userAllRolesFetching &&
+      !userLeagueIdsFetching
+    ),
+    resetKey: user?.id
+      ? `${user.id}:${effectiveClubFilter ?? "all"}:${query}`
+      : null,
+  });
 
   // Perf: log inbox open latency once when the first meaningful list is ready.
   const perfLoggedRef = useRef(false);

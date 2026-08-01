@@ -414,19 +414,22 @@ jobs:
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
-          supabase migration list --linked > /tmp/mig-list.txt || true
-          cat /tmp/mig-list.txt
+          DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+          run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
+
+          # Remote applied versions, read straight from the history table. The
+          # CLI's `migration list` output is a rendered table (padded, quoted)
+          # and parsing it silently produced zero remote versions, so the
+          # orphan sweep below never fired and `db push` still aborted.
+          run_sql -c "select version from supabase_migrations.schema_migrations order by version;" \
+            | grep -oE '^[0-9]{14}$' | sort -u > /tmp/remote-versions.txt || : > /tmp/remote-versions.txt
 
           # Local file versions
           ls supabase/migrations/*.sql 2>/dev/null \
             | xargs -n1 basename 2>/dev/null \
             | grep -oE '^[0-9]{14}' | sort -u > /tmp/local-versions.txt || : > /tmp/local-versions.txt
 
-          # Remote versions = rows where the REMOTE column is populated.
-          awk -F'|' 'NF>=2 {
-            gsub(/ /,"",$1); gsub(/ /,"",$2);
-            if ($2 ~ /^[0-9]{14}$/) print $2
-          }' /tmp/mig-list.txt | sort -u > /tmp/remote-versions.txt
+          echo "Remote versions: $(wc -l < /tmp/remote-versions.txt), local files: $(wc -l < /tmp/local-versions.txt)"
 
           ORPHANS=$(comm -23 /tmp/remote-versions.txt /tmp/local-versions.txt || true)
           if [ -z "$ORPHANS" ]; then
@@ -434,7 +437,14 @@ jobs:
           else
             echo "Orphan remote versions (applied in PROD, no local file):"
             echo "$ORPHANS"
+            # repair --status reverted only deletes the history row; PROD schema
+            # is untouched and the hotfix stays live.
             echo "$ORPHANS" | xargs -n 20 supabase migration repair --linked --status reverted
+            # Belt and braces: if the CLI repair is a no-op for any reason, drop
+            # the rows directly so `db push` cannot abort on them.
+            for v in $ORPHANS; do
+              run_sql -c "delete from supabase_migrations.schema_migrations where version = '${v}';"
+            done
             echo "✅ Orphan history rows cleared; PROD schema untouched."
           fi
 
