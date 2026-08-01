@@ -112,8 +112,22 @@ export function shouldPreferLocalOnFirstHydrate(args: {
   return serverElapsed + tolerance < args.localElapsedSeconds;
 }
 
+/**
+ * `active_games.team_id` is a uuid column, so a synthetic board id like
+ * `event-group-<uuid>` (mini-league / event-group boards) can never match it.
+ * Those boards are synced through `useEventGroupSync` instead. Calling the
+ * edge functions with a non-uuid id is guaranteed to fail (invalid uuid →
+ * 403 forbidden) on every tick, which is pure noise and — worse — makes the
+ * `.catch()` paths indistinguishable from real network failures.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isServerTimerEligibleTeamId(teamId: string | null): boolean {
+  if (teamId === null) return true; // personal / null-team board
+  return UUID_RE.test(teamId);
+}
 
 export async function sendTimerEvent(args: {
+
   teamId: string | null;
   event: TimerEvent;
   minutesPerHalf?: number;
