@@ -3124,6 +3124,42 @@ export type Database = {
         }
         Relationships: []
       }
+      dispatch_repair_attempts: {
+        Row: {
+          attempt_count: number
+          checked_at: string | null
+          completed_at: string | null
+          created_at: string
+          deadline_at: string
+          failure_reason: string | null
+          id: string
+          request_id: number
+          status: string
+        }
+        Insert: {
+          attempt_count?: number
+          checked_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          deadline_at?: string
+          failure_reason?: string | null
+          id?: string
+          request_id: number
+          status?: string
+        }
+        Update: {
+          attempt_count?: number
+          checked_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          deadline_at?: string
+          failure_reason?: string | null
+          id?: string
+          request_id?: number
+          status?: string
+        }
+        Relationships: []
+      }
       dm_attachment_restrictions: {
         Row: {
           club_id: string | null
@@ -12116,7 +12152,7 @@ export type Database = {
           team_name: string
         }[]
       }
-      self_heal_dispatch_credentials: { Args: never; Returns: boolean }
+      self_heal_dispatch_credentials: { Args: never; Returns: string }
       send_duty_notification_email: {
         Args: {
           p_club_logo_url: string
@@ -12392,6 +12428,7 @@ export type Database = {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
+      verify_dispatch_credential_repair: { Args: never; Returns: string }
     }
     Enums: {
       app_role:
