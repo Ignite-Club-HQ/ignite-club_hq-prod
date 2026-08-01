@@ -146,16 +146,31 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const __outboundBlocked = outboundBlockedResponse("process-message-notifications");
-  if (__outboundBlocked) return __outboundBlocked;
-
+  // Authenticate BEFORE anything else, so the health probe below can never be
+  // reached by an unauthenticated caller.
   const __authError = requireServiceRoleAuth(req, corsHeaders);
   if (__authError) return __authError;
 
+  // Non-destructive authentication health probe.
+  // Promotion uses this to prove that the credential a DB trigger / cron job
+  // would present is actually accepted by the deployed function, BEFORE any
+  // caller is rewritten. It performs no reads or writes, creates no
+  // notifications and sends no push/email.
+  const probeHeader = req.headers.get('x-notification-auth-probe');
+  if (probeHeader) {
+    return new Response(
+      JSON.stringify({ ok: true, probe: true, authenticated: true, correlation: probeHeader }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+
+  const __outboundBlocked = outboundBlockedResponse("process-message-notifications");
+  if (__outboundBlocked) return __outboundBlocked;
 
   const startTime = Date.now();
 
   try {
+
     const payload: MessagePayload = await req.json();
     const { messageType, messageId, authorId, messageText, imageUrl, replyToId } = payload;
     
