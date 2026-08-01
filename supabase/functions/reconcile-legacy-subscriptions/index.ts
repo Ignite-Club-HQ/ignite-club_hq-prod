@@ -19,6 +19,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14.21.0";
+import { isAuthorizedCronCaller } from "../_shared/cron-auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,13 +42,11 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // ---- Authorization: cron secret OR app_admin JWT ----
-    const cronSecret = req.headers.get('x-cron-secret');
-    const expectedCron = Deno.env.get('CRON_SECRET');
+    // ---- Authorization: internal cron/service-role caller OR app_admin JWT ----
     let authorized = false;
     let actorUserId: string | null = null;
 
-    if (cronSecret && expectedCron && cronSecret === expectedCron) {
+    if (await isAuthorizedCronCaller(req)) {
       authorized = true;
     } else {
       const authHeader = req.headers.get('Authorization');

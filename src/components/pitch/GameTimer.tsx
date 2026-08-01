@@ -7,7 +7,7 @@ import { Play, Pause } from "lucide-react";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { toast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import { sendTimerEvent, readServerTimer, deriveElapsedSeconds, shouldAcceptServerSnapshot, type ServerTimer } from "@/lib/serverTimer";
+import { sendTimerEvent, readServerTimer, deriveElapsedSeconds, shouldAcceptServerSnapshot, isServerAnchoredTimer, shouldPreferLocalOnFirstHydrate, type ServerTimer } from "@/lib/serverTimer";
 import { getPitchStateKey, PITCH_STATE_KEY } from "./types";
 
 /**
@@ -355,11 +355,18 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     if (externalMinutesPerHalf === undefined) {
       setInternalMinutesPerHalf(t.minutes_per_half);
     }
-    setCurrentHalf((t.current_half as 1 | 2) || 1);
+    // `end_half` leaves the server row on half 1 with half_ended_at set (so
+    // spectators can render "Half time"). Locally that state IS the start of
+    // the second half — mapping it straight through would rewind the board to
+    // half 1 at full time on the next resume.
+    const isHalfTimeBreak =
+      !!t.half_ended_at && !t.is_running && !t.is_game_finished && ((t.current_half as number) || 1) === 1;
+    setCurrentHalf(isHalfTimeBreak ? 2 : ((t.current_half as 1 | 2) || 1));
     setIsGameFinished(!!t.is_game_finished);
-    const elapsed = deriveElapsedSeconds(t, Date.now() + clockSkewMsRef.current);
+    const elapsed = isHalfTimeBreak ? 0 : deriveElapsedSeconds(t, Date.now() + clockSkewMsRef.current);
     setElapsedSeconds(elapsed);
     setIsRunning(!!t.is_running);
+
     // Note: tick anchor is reset by the running-tick effect when isRunning flips true.
     console.info('[TimerAudit] server-hydrate', { teamId, reason: decision.reason, t, elapsed });
   }, [externalMinutesPerHalf, teamId]);
@@ -367,19 +374,43 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Local snapshot is loaded FIRST so a stale/zeroed server row can be
+      // detected before it overwrites a locally-advanced clock.
+      const local = loadTimerState(teamId);
+      const localUsable = !!local && local.teamId === teamId;
       // Try server first.
       try {
         const res = await readServerTimer(teamId ?? null);
         if (cancelled) return;
-        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
-          applyServerSnapshot(res.timer_state as ServerTimer, res.server_now);
-          setHasInitialized(true);
-          return;
+        if (res.found && isServerAnchoredTimer(res.timer_state)) {
+          const incoming = res.timer_state as ServerTimer;
+          const serverNowMs = new Date(res.server_now).getTime();
+          const localElapsed = localUsable
+            ? Math.max(0, (local!.elapsedSeconds || 0)) +
+              (local!.isRunning ? getSecondsSinceUpdateUncapped(local!.lastUpdateTime) : 0)
+            : 0;
+          const preferLocal = localUsable && !local!.isGameFinished && shouldPreferLocalOnFirstHydrate({
+            incoming,
+            serverNowMs: Number.isFinite(serverNowMs) ? serverNowMs : Date.now(),
+            localElapsedSeconds: localElapsed,
+            localCurrentHalf: local!.currentHalf,
+            localIsRunning: local!.isRunning,
+            localLastUpdateMs: local!.lastUpdateTime,
+          });
+          if (!preferLocal) {
+            applyServerSnapshot(incoming, res.server_now);
+            setHasInitialized(true);
+            return;
+          }
+          console.info('[TimerAudit] server-row-would-regress-local, keeping local projection', {
+            teamId, incoming, localElapsed,
+          });
         }
       } catch (e) {
         console.warn('[TimerAudit] server-hydrate failed, fallback to localStorage', e);
       }
       if (cancelled) return;
+
 
       // Fallback: legacy localStorage hydration (unchanged from before so
       // mid-flight games on the old path keep working).
@@ -489,8 +520,15 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       minutesPerHalf,
       ...readLocalPitchPatch(teamId ?? null),
     }).then((res) => {
+      // Shape-validate before hydrating: a clobbered "fake v2" row derives
+      // elapsed = 0 and would visibly zero the clock mid-match.
+      if (!isServerAnchoredTimer(res.timer_state)) {
+        console.warn('[TimerAudit] ignoring malformed timer_state from', evt);
+        return;
+      }
       applyServerSnapshot(res.timer_state, res.server_now);
     }).catch((e) => console.warn('[TimerAudit] sendTimerEvent failed', evt, e));
+
 
     return nextIsRunning;
   }, [isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf, teamId, minutesPerHalf, applyServerSnapshot]);
@@ -678,7 +716,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           console.info('[TimerAudit] reconcile: team-id changed mid-read, dropping', { readForTeamId, current: reconcileRefs.current.teamId });
           return;
         }
-        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
+        if (res.found && isServerAnchoredTimer(res.timer_state)) {
           const prevHalf = r.currentHalf;
           const prevFinished = r.isGameFinished;
           const prevSnapshot = serverTimerRef.current;
