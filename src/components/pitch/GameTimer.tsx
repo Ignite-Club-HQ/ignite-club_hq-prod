@@ -367,19 +367,43 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Local snapshot is loaded FIRST so a stale/zeroed server row can be
+      // detected before it overwrites a locally-advanced clock.
+      const local = loadTimerState(teamId);
+      const localUsable = !!local && local.teamId === teamId;
       // Try server first.
       try {
         const res = await readServerTimer(teamId ?? null);
         if (cancelled) return;
-        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
-          applyServerSnapshot(res.timer_state as ServerTimer, res.server_now);
-          setHasInitialized(true);
-          return;
+        if (res.found && isServerAnchoredTimer(res.timer_state)) {
+          const incoming = res.timer_state as ServerTimer;
+          const serverNowMs = new Date(res.server_now).getTime();
+          const localElapsed = localUsable
+            ? Math.max(0, (local!.elapsedSeconds || 0)) +
+              (local!.isRunning ? getSecondsSinceUpdateUncapped(local!.lastUpdateTime) : 0)
+            : 0;
+          const preferLocal = localUsable && !local!.isGameFinished && shouldPreferLocalOnFirstHydrate({
+            incoming,
+            serverNowMs: Number.isFinite(serverNowMs) ? serverNowMs : Date.now(),
+            localElapsedSeconds: localElapsed,
+            localCurrentHalf: local!.currentHalf,
+            localIsRunning: local!.isRunning,
+            localLastUpdateMs: local!.lastUpdateTime,
+          });
+          if (!preferLocal) {
+            applyServerSnapshot(incoming, res.server_now);
+            setHasInitialized(true);
+            return;
+          }
+          console.info('[TimerAudit] server-row-would-regress-local, keeping local projection', {
+            teamId, incoming, localElapsed,
+          });
         }
       } catch (e) {
         console.warn('[TimerAudit] server-hydrate failed, fallback to localStorage', e);
       }
       if (cancelled) return;
+
 
       // Fallback: legacy localStorage hydration (unchanged from before so
       // mid-flight games on the old path keep working).
