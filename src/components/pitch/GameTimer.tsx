@@ -520,8 +520,15 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
       minutesPerHalf,
       ...readLocalPitchPatch(teamId ?? null),
     }).then((res) => {
+      // Shape-validate before hydrating: a clobbered "fake v2" row derives
+      // elapsed = 0 and would visibly zero the clock mid-match.
+      if (!isServerAnchoredTimer(res.timer_state)) {
+        console.warn('[TimerAudit] ignoring malformed timer_state from', evt);
+        return;
+      }
       applyServerSnapshot(res.timer_state, res.server_now);
     }).catch((e) => console.warn('[TimerAudit] sendTimerEvent failed', evt, e));
+
 
     return nextIsRunning;
   }, [isGameFinished, isRunning, kickoffMs, elapsedSeconds, currentHalf, teamId, minutesPerHalf, applyServerSnapshot]);
