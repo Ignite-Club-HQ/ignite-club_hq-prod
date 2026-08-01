@@ -2145,9 +2145,17 @@ export default function MessagesPage() {
   // settling, dropped socket). Retain the last non-empty result until the query
   // settles successfully — a settled empty result is still authoritative, so
   // removed/purged conversations do not linger.
+  // A successful empty `user_roles` response can be a transient false-negative
+  // while the native auth token is rotating on resume. The independently
+  // resolved bootstrap membership list corroborates whether that empty result
+  // is authoritative before we release a retained team snapshot.
+  const teamsEmptyCorroborated =
+    teams.length > 0 ||
+    !bootstrapQ.data ||
+    bootstrapQ.data.member_team_ids.length === 0;
   const stickyTeams = useStickyList<any>(teams, {
     isFetching: teamsFetching,
-    isFetched: teamsFetched,
+    isFetched: teamsFetched && teamsEmptyCorroborated,
     isError: teamsError,
     resetKey: user?.id ?? null,
   });
