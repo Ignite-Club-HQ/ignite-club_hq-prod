@@ -116,13 +116,19 @@ describe("PitchBoard spectator wiring", () => {
 describe("GlobalSubMonitor row lifecycle", () => {
   const src = readFileSync("src/components/pitch/GlobalSubMonitor.tsx", "utf8");
 
-  it("never issues a bare is_active:false deactivation for the board's own row", () => {
+  it("has exactly one own-row deactivation, inside the guarded helper", () => {
     // Deactivating an anchored row makes pitch-timer-read return found:false and
     // the next resume re-anchors a fresh half from now() — a live clock reset.
-    // All own-row deactivations must go through the guarded helper.
-    const bareDeactivations = src.match(/update\(\{ is_active: false \}\)\s*\.eq\('id', activeGameIdRef\.current\)/g);
-    expect(bareDeactivations).toBeNull();
+    // All own-row deactivations must go through the guarded helper, so this
+    // statement may appear once and only within `deactivateActiveGameRow`.
+    const pattern = /update\(\{ is_active: false \}\)\s*\.eq\('id', activeGameIdRef\.current\)/g;
+    expect(src.match(pattern)).toHaveLength(1);
+
+    const helper = src.slice(src.indexOf("const deactivateActiveGameRow = async"));
+    const helperBody = helper.slice(0, helper.indexOf("\n    };"));
+    expect(helperBody).toMatch(pattern);
   });
+
 
   it("routes deactivation through the anchored-row guard", () => {
     expect(src).toMatch(/const deactivateActiveGameRow = async/);
