@@ -61,6 +61,63 @@ function emptyTimer(minutesPerHalf: number): ServerTimer {
   };
 }
 
+/**
+ * A row is only usable as authoritative previous state when it carries the
+ * FULL anchored shape. Mirrors `isServerAnchoredTimer` on the client.
+ */
+function isServerAnchored(t: unknown): t is ServerTimer {
+  if (!t || typeof t !== "object") return false;
+  const r = t as Record<string, unknown>;
+  if (r.schema_version !== 2) return false;
+  if (typeof r.last_event_at !== "string" || !Number.isFinite(new Date(r.last_event_at).getTime())) return false;
+  if (!("half_started_at" in r)) return false;
+  if (r.half_started_at !== null && typeof r.half_started_at !== "string") return false;
+  if (typeof r.is_running !== "boolean") return false;
+  if (typeof r.minutes_per_half !== "number" || r.minutes_per_half <= 0) return false;
+  return true;
+}
+
+/**
+ * Rescue a legacy / clobbered v1 timer row (`{ elapsedSeconds, isRunning,
+ * currentHalf, minutesPerHalf, lastUpdateTime }`) into the anchored shape.
+ * Returning null means "nothing meaningful to preserve" and the caller falls
+ * back to `emptyTimer`. Without this a single legacy write permanently reset
+ * the match clock on the next event.
+ */
+function fromLegacyTimerState(t: unknown, fallbackMinutes: number): ServerTimer | null {
+  if (!t || typeof t !== "object") return null;
+  const r = t as Record<string, unknown>;
+  const elapsedRaw = typeof r.elapsedSeconds === "number" ? r.elapsedSeconds : null;
+  const isRunning = typeof r.isRunning === "boolean" ? r.isRunning : false;
+  if (elapsedRaw === null && !isRunning) return null;
+
+  const minutes = typeof r.minutesPerHalf === "number" && r.minutesPerHalf > 0
+    ? r.minutesPerHalf
+    : fallbackMinutes;
+  const nowMs = Date.now();
+  const lastUpdateMs = typeof r.lastUpdateTime === "number" && Number.isFinite(r.lastUpdateTime)
+    ? r.lastUpdateTime
+    : nowMs;
+  const drift = isRunning ? Math.max(0, Math.floor((nowMs - lastUpdateMs) / 1000)) : 0;
+  const elapsed = Math.min(Math.max(0, (elapsedRaw ?? 0) + drift), minutes * 60);
+  const isFinished = r.isGameFinished === true;
+
+  return {
+    schema_version: 2,
+    current_half: r.currentHalf === 2 ? 2 : 1,
+    minutes_per_half: minutes,
+    half_started_at: elapsed > 0 || isRunning ? new Date(nowMs - elapsed * 1000).toISOString() : null,
+    half_paused_at: !isRunning && elapsed > 0 ? new Date(nowMs).toISOString() : null,
+    accumulated_pause_ms: 0,
+    is_running: isRunning && !isFinished,
+    is_game_finished: isFinished,
+    half_ended_at: null,
+    last_event_at: new Date(lastUpdateMs).toISOString(),
+  };
+}
+
+
+
 function applyEvent(prev: ServerTimer, evt: EventType, payload: Record<string, unknown>): ServerTimer {
   const t: ServerTimer = { ...prev, last_event_at: nowIso() };
   switch (evt) {
@@ -241,9 +298,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const prev: ServerTimer = existing?.timer_state?.schema_version === 2
-      ? existing.timer_state as ServerTimer
-      : emptyTimer(initialMinutes);
+    // A naive `schema_version === 2` check accepts a CLOBBERED row — the
+    // legacy sync shape `{ elapsedSeconds, lastUpdateTime, schema_version: 2 }`
+    // passes it but carries no `half_started_at`, so every derived elapsed is
+    // 0 and the very next pause/resume press visibly zeroes the board. Require
+    // the full anchored shape, and migrate any legacy/clobbered row by
+    // reconstructing `half_started_at` from its elapsed seconds instead of
+    // resetting the clock to zero.
+    const prev: ServerTimer = isServerAnchored(existing?.timer_state)
+      ? existing!.timer_state as ServerTimer
+      : (fromLegacyTimerState(existing?.timer_state, initialMinutes) ?? emptyTimer(initialMinutes));
+
 
     const next = applyEvent(prev, event, payload);
 

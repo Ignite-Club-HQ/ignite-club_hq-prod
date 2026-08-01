@@ -112,8 +112,22 @@ export function shouldPreferLocalOnFirstHydrate(args: {
   return serverElapsed + tolerance < args.localElapsedSeconds;
 }
 
+/**
+ * `active_games.team_id` is a uuid column, so a synthetic board id like
+ * `event-group-<uuid>` (mini-league / event-group boards) can never match it.
+ * Those boards are synced through `useEventGroupSync` instead. Calling the
+ * edge functions with a non-uuid id is guaranteed to fail (invalid uuid →
+ * 403 forbidden) on every tick, which is pure noise and — worse — makes the
+ * `.catch()` paths indistinguishable from real network failures.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isServerTimerEligibleTeamId(teamId: string | null): boolean {
+  if (teamId === null) return true; // personal / null-team board
+  return UUID_RE.test(teamId);
+}
 
 export async function sendTimerEvent(args: {
+
   teamId: string | null;
   event: TimerEvent;
   minutesPerHalf?: number;
@@ -128,7 +142,11 @@ export async function sendTimerEvent(args: {
   autoSubActive?: boolean;
   players?: unknown[];
 }): Promise<TimerEventResponse> {
+  if (!isServerTimerEligibleTeamId(args.teamId)) {
+    throw new Error("server-timer-not-applicable");
+  }
   const { data, error } = await supabase.functions.invoke("pitch-timer-event", {
+
     body: {
       team_id: args.teamId,
       event: args.event,
@@ -148,7 +166,9 @@ export async function readServerTimer(teamId: string | null): Promise<TimerReadR
   // avoids 401 blank-screen reports on /auth, during sign-out, and when
   // a stale session is still in localStorage but auto-refresh hasn't run.
   const empty: TimerReadResponse = { found: false, server_now: new Date().toISOString() };
+  if (!isServerTimerEligibleTeamId(teamId)) return empty;
   let accessToken: string | null = null;
+
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const session = sessionData?.session;
