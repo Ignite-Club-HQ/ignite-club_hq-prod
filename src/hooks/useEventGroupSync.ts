@@ -20,8 +20,22 @@ const getTeamTimerStorageKey = (teamId: string) => {
  * Uses a lightweight Supabase Realtime channel to broadcast "state-changed"
  * signals so other clients can fetch fresh state immediately, while keeping
  * the existing polling sync as a safety-net fallback.
+ *
+ * `readOnly` MUST be set for spectator surfaces (e.g. `BoardViewerDialog`).
+ * A spectator mirrors the remote state into its own localStorage; if it is
+ * also allowed to write, then once its copy goes stale (backgrounded tab, or
+ * simply a 5s tick landing before its next read) the interval — and the
+ * unmount flush — blind-`UPDATE`s the shared row with a stale clock and
+ * broadcasts `state-changed`, dragging every other client to re-read it.
+ * Spectators must only ever read.
  */
-export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
+export function useEventGroupSync(
+  teamId: string,
+  eventGroupId: string | null,
+  options?: { readOnly?: boolean },
+) {
+  const readOnly = options?.readOnly === true;
+
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncedStateRef = useRef<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
