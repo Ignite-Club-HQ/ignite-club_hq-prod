@@ -702,7 +702,7 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
           console.info('[TimerAudit] reconcile: team-id changed mid-read, dropping', { readForTeamId, current: reconcileRefs.current.teamId });
           return;
         }
-        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
+        if (res.found && isServerAnchoredTimer(res.timer_state)) {
           const prevHalf = r.currentHalf;
           const prevFinished = r.isGameFinished;
           const prevSnapshot = serverTimerRef.current;
