@@ -83,6 +83,32 @@ const getTeamSizeNumber = (teamSize: string): number => {
   return parseInt(teamSize) || 11;
 };
 
+/**
+ * Convert a v1-shaped local timer snapshot into the server-anchored (v2)
+ * shape used by `pitch-timer-event` / `pitch-timer-read`. Elapsed time is
+ * expressed as event timestamps so the server derives it from now(), which
+ * is what makes resume-after-background drift-free.
+ */
+const toServerAnchoredTimerState = (t: TimerState) => {
+  const nowMs = Date.now();
+  const elapsed = Math.max(0, t.elapsedSeconds || 0);
+  const hasProgress = elapsed > 0 || !!t.isRunning;
+  const nowIso = new Date(nowMs).toISOString();
+  return {
+    schema_version: 2 as const,
+    current_half: (t.currentHalf === 2 ? 2 : 1) as 1 | 2,
+    minutes_per_half: t.minutesPerHalf,
+    half_started_at: hasProgress ? new Date(nowMs - elapsed * 1000).toISOString() : null,
+    half_paused_at: hasProgress && !t.isRunning ? nowIso : null,
+    accumulated_pause_ms: 0,
+    is_running: !!t.isRunning,
+    is_game_finished: !!(t as TimerState & { isGameFinished?: boolean }).isGameFinished,
+    half_ended_at: null,
+    last_event_at: new Date(t.lastUpdateTime || nowMs).toISOString(),
+  };
+};
+
+
 // recalculateRemainingPlan is imported from pitchStateUtils
 
 export default function GlobalSubMonitor() {
