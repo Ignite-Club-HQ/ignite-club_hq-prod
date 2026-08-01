@@ -182,8 +182,25 @@ export default function GlobalSubMonitor() {
     // `pitch-timer-read` derives elapsed = 0 and the next mount hydrates the
     // board at 00:00 — the "timer resets to 0 after the app is inactive"
     // defect. Never write timer_state for v2 boards; pitch_state only.
+    //
+    // The LOCAL marker alone is not a sufficient gate: active_games rows are
+    // shared per team, so a device whose localStorage is still v1 would decide
+    // "not anchored" and stomp the team's anchored row. Consult the row too.
+    const remoteAnchored = await (async () => {
+      try {
+        const tId = timerState?.teamId || null;
+        let q = supabase.from('active_games').select('timer_state').eq('is_active', true);
+        q = tId ? q.eq('team_id', tId) : q.eq('user_id', user.id).is('team_id', null);
+        const { data } = await q.order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        return hasAnchoredTimerMarker(data?.timer_state);
+      } catch {
+        return true; // fail safe: never downgrade on an unknown remote shape
+      }
+    })();
     const isServerAnchoredTimer =
-      (timerState as unknown as { schema_version?: number } | null)?.schema_version === 2;
+      hasAnchoredTimerMarker(timerState) || remoteAnchored;
+
+
 
 
     console.log('[SYNC] Timer state:', timerState ? {
