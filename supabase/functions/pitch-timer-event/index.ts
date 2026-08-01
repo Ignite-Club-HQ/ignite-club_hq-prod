@@ -241,9 +241,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const prev: ServerTimer = existing?.timer_state?.schema_version === 2
-      ? existing.timer_state as ServerTimer
-      : emptyTimer(initialMinutes);
+    // A naive `schema_version === 2` check accepts a CLOBBERED row — the
+    // legacy sync shape `{ elapsedSeconds, lastUpdateTime, schema_version: 2 }`
+    // passes it but carries no `half_started_at`, so every derived elapsed is
+    // 0 and the very next pause/resume press visibly zeroes the board. Require
+    // the full anchored shape, and migrate any legacy/clobbered row by
+    // reconstructing `half_started_at` from its elapsed seconds instead of
+    // resetting the clock to zero.
+    const prev: ServerTimer = isServerAnchored(existing?.timer_state)
+      ? existing!.timer_state as ServerTimer
+      : (fromLegacyTimerState(existing?.timer_state, initialMinutes) ?? emptyTimer(initialMinutes));
+
 
     const next = applyEvent(prev, event, payload);
 
