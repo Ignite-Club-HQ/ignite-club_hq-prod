@@ -2112,14 +2112,23 @@ export default function MessagesPage() {
   // ref, so every warm re-entry to /messages started false again — and because
   // the inbox queries use `refetchOnMount`, `isFetching` was true on that mount,
   // which held the full-page skeleton and ignored the cached rows we already
-  // had. Now the latch is session-scoped per user, and any already-available
-  // data (React Query cache or the user-scoped local cache) releases the gate
-  // immediately so warm opens paint from cache and patch in place.
+  // had. The latch is now session-scoped per user, so warm re-entry paints from
+  // cache immediately and patches in place.
+  //
+  // STALE-ORDER FIX: the cached-data bypass must NOT also be applied to the
+  // session's *first* reveal. Cached rows carry stale `lastActivity` /
+  // `created_at` values, so releasing the gate merely because a cache exists
+  // painted an intermediate ordering that visibly re-sorted the moment the
+  // authoritative previews arrived (the Android reload/resume jolt). Online
+  // cold starts therefore wait for authoritative ordering, bounded by
+  // `sortGateExpired` (and `isLoadingFreshData` still consults the cache, so
+  // a cached inbox never waits on the *loading* half of the gate). Offline is
+  // excluded entirely by the leading `isOnline`, so the cached inbox is still
+  // revealed instantly with no network.
   const initialRevealBlocked =
     isOnline &&
-    !hasAnyDisplayData &&
-    !hasCachedData &&
     (isLoadingFreshData || !freshSortDataReady);
+
 
   useEffect(() => {
     if (hasRevealedStableInboxRef.current) return;

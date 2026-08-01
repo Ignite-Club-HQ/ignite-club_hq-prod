@@ -1,8 +1,15 @@
 project_id = "ecsdwrarzfexssxtrymj"
 
 [functions]
+  # The dispatch-credential bootstrap request authenticates with a single-use
+  # `x-bootstrap-token`, not a bearer JWT, so platform JWT verification must be
+  # off. The function still authorises every caller internally (single-use
+  # bootstrap token, service-role bearer, or signed-in app_admin).
+  [functions.sync-dispatch-credentials]
+    verify_jwt = false
   [functions.send-new-club-alert]
     verify_jwt = false
+
   [functions.export-write-audit]
     verify_jwt = false
   [functions.auth-email-hook]
