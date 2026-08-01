@@ -242,10 +242,26 @@ export function useActiveGameSync() {
     // doesn't re-send half-time notifications when a new active_games row is created
     const isAtHalftime = syncedTimerState.currentHalf === 2 && syncedTimerState.elapsedSeconds === 0 && !syncedTimerState.isRunning;
 
+    // Local storage says "legacy v1", but the shared team row may already be
+    // server-anchored (another device / a newer app version owns the clock).
+    // Publishing our v1 timer_state there strands every device at 00:00, so ask
+    // the row itself before including the column.
+    const remoteTimerState = await readRemoteTimerState(
+      timerState.teamId || null,
+      activeGameIdRef.current,
+    );
+    const allowTimerWrite = mayWriteLegacyTimerState({
+      local: timerState,
+      remote: remoteTimerState,
+    });
+    if (!allowTimerWrite) {
+      console.log('[SYNC] v1 timer_state write SKIPPED — server row is anchored (v2)');
+    }
+
     const gameData = {
       user_id: user.id,
       team_id: timerState.teamId || null,
-      timer_state: syncedTimerState as unknown as Json,
+      ...(allowTimerWrite ? { timer_state: syncedTimerState as unknown as Json } : {}),
       pitch_state: pitchState as unknown as Json,
       is_active: true,
       updated_at: new Date().toISOString(),
