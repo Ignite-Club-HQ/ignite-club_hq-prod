@@ -381,7 +381,7 @@ export default function MessagesPage() {
   });
 
   // Check if user is app admin
-  const { data: isAppAdmin } = useQuery({
+  const { data: isAppAdmin, isFetching: isAppAdminFetching } = useQuery({
     queryKey: ["is-app-admin", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -713,7 +713,7 @@ export default function MessagesPage() {
   });
 
   // Check if user is a committee member (club-level role)
-  const { data: isCommitteeMember } = useQuery({
+  const { data: isCommitteeMember, isFetching: isCommitteeMemberFetching } = useQuery({
     queryKey: ["is-committee-member", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -730,7 +730,7 @@ export default function MessagesPage() {
   });
 
   // Fetch all user roles for chat group filtering
-  const { data: userAllRoles } = useQuery({
+  const { data: userAllRoles, isFetching: userAllRolesFetching } = useQuery({
     queryKey: ["user-all-roles", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -744,7 +744,7 @@ export default function MessagesPage() {
   });
 
   // Fetch mini league IDs the user's children are assigned to (for league group visibility)
-  const { data: userLeagueIds } = useQuery({
+  const { data: userLeagueIds, isFetching: userLeagueIdsFetching } = useQuery({
     queryKey: ["user-child-league-ids", user?.id],
     queryFn: async () => {
       // Get user's children
@@ -2730,7 +2730,13 @@ export default function MessagesPage() {
   // model remains authoritative, so real deletions and permission removals
   // are never retained indefinitely.
   const unifiedConversations = useStableInboxReadModel(freshUnifiedConversations, {
-    authoritative: !isOnline || sortSourcesSettled,
+    authoritative: !isOnline || (
+      sortSourcesSettled &&
+      !isAppAdminFetching &&
+      !isCommitteeMemberFetching &&
+      !userAllRolesFetching &&
+      !userLeagueIdsFetching
+    ),
     resetKey: user?.id
       ? `${user.id}:${effectiveClubFilter ?? "all"}:${query}`
       : null,
