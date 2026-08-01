@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import type { Json } from "@/integrations/supabase/types";
 import { setSyncStatus } from "@/hooks/useSyncStatus";
+import { hasAnchoredTimerMarker } from "@/lib/serverTimer";
 import { getCurrentGameSeconds, getSecondsSinceUpdate, MAX_EXTRAPOLATION_SECS } from "./timerUtils";
 import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan, validateAndFixRemainingPlan } from "./pitchStateUtils";
 import type { Player, SubstitutionEvent, TimerState, PitchBoardState, Goal } from "./types";
@@ -182,8 +183,55 @@ export default function GlobalSubMonitor() {
     // `pitch-timer-read` derives elapsed = 0 and the next mount hydrates the
     // board at 00:00 — the "timer resets to 0 after the app is inactive"
     // defect. Never write timer_state for v2 boards; pitch_state only.
+    //
+    // The LOCAL marker alone is not a sufficient gate: active_games rows are
+    // shared per team, so a device whose localStorage is still v1 would decide
+    // "not anchored" and stomp the team's anchored row. Consult the row too.
+    const remoteAnchored = await (async () => {
+      try {
+        const tId = timerState?.teamId || null;
+        let q = supabase.from('active_games').select('timer_state').eq('is_active', true);
+        q = tId ? q.eq('team_id', tId) : q.eq('user_id', user.id).is('team_id', null);
+        const { data } = await q.order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        return hasAnchoredTimerMarker(data?.timer_state);
+      } catch {
+        return true; // fail safe: never downgrade on an unknown remote shape
+      }
+    })();
     const isServerAnchoredTimer =
-      (timerState as unknown as { schema_version?: number } | null)?.schema_version === 2;
+      hasAnchoredTimerMarker(timerState) || remoteAnchored;
+
+    /**
+     * Deactivating the row is NOT a harmless bookkeeping write for a
+     * server-anchored (v2) board.
+     *
+     * `pitch-timer-read` and `pitch-timer-event` both filter on
+     * `is_active = true`. Once this loop flips the authoritative row inactive,
+     * the next resume read returns `found: false` and the next `resume` event
+     * finds no row to continue — so the edge function takes its "no existing
+     * row" path and anchors a FRESH half from `half_started_at = now()`. The
+     * coach presses play and the board snaps back to the start of the half,
+     * discarding elapsed time and `accumulated_pause_ms`.
+     *
+     * That was reachable on any real match, because this loop deactivates on
+     * every pause that is not exactly halftime — water breaks, injuries, or
+     * pausing to fix a late kickoff. Lifecycle of a v2 row belongs solely to
+     * `pitch-timer-event` (`end_game` / `reset` clear it); this legacy sync
+     * loop must never revoke it.
+     */
+    const deactivateActiveGameRow = async (reason: string) => {
+      if (!activeGameIdRef.current) return;
+      if (isServerAnchoredTimer) {
+        console.info('[SYNC] Keeping server-anchored active_games row active:', reason);
+        return;
+      }
+      console.log('[SYNC] Deactivating game -', reason);
+      await supabase
+        .from('active_games')
+        .update({ is_active: false })
+        .eq('id', activeGameIdRef.current);
+      activeGameIdRef.current = null;
+    };
 
 
     console.log('[SYNC] Timer state:', timerState ? {
@@ -220,14 +268,7 @@ export default function GlobalSubMonitor() {
     }
 
     if (!timerState || !pitchState) {
-      if (activeGameIdRef.current) {
-        console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
-        await supabase
-          .from('active_games')
-          .update({ is_active: false })
-          .eq('id', activeGameIdRef.current);
-        activeGameIdRef.current = null;
-      }
+      await deactivateActiveGameRow(`no local timer/pitch state (isFinished=${isFinished})`);
       setSyncStatus({ status: "idle", lastSyncTime: null });
       return;
     }
@@ -334,14 +375,7 @@ export default function GlobalSubMonitor() {
     // pitch-board pushes for coaches who never turned on auto-sub.
     const isHalftimeBreak = !timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0;
     if (!timerState.isRunning && !isHalftimeBreak) {
-      if (activeGameIdRef.current) {
-        console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
-        await supabase
-          .from('active_games')
-          .update({ is_active: false })
-          .eq('id', activeGameIdRef.current);
-        activeGameIdRef.current = null;
-      }
+      await deactivateActiveGameRow(`paused outside halftime (isFinished=${isFinished})`);
       setSyncStatus({ status: "idle", lastSyncTime: null });
       return;
     }
@@ -360,13 +394,7 @@ export default function GlobalSubMonitor() {
     // admins for casual / unlinked sessions (e.g. when a coach is just moving
     // players around or experimenting with formations).
     if (!pitchState.linkedEventId) {
-      if (activeGameIdRef.current) {
-        await supabase
-          .from('active_games')
-          .update({ is_active: false })
-          .eq('id', activeGameIdRef.current);
-        activeGameIdRef.current = null;
-      }
+      await deactivateActiveGameRow('board not linked to an event');
       setSyncStatus({ status: "idle", lastSyncTime: null });
       return;
     }
@@ -439,6 +467,20 @@ export default function GlobalSubMonitor() {
           console.log('[SYNC] Resumed existing game:', existing.id);
           setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
         } else {
+          // The `existing` lookup above is scoped by `user_id`, so a live
+          // server-anchored row owned by a DIFFERENT controller (co-coach,
+          // team admin) is invisible here. Synthesising a fresh anchor in that
+          // case would either collide with `uniq_active_games_team_active` or —
+          // if the real row had just been released — create a second,
+          // independently anchored row for the same team whose
+          // `half_started_at = now()` silently discards the real match history.
+          // Let `pitch-timer-event` own row creation for anchored boards.
+          if (isServerAnchoredTimer) {
+            console.info('[SYNC] Anchored board with no row owned by this user — deferring to pitch-timer-event');
+            setSyncStatus({ status: "idle", lastSyncTime: null });
+            return;
+          }
+
           // Deactivate ALL previous games for this user before creating a new one
           // This prevents stale games from triggering false half-time notifications
           await supabase
@@ -446,6 +488,7 @@ export default function GlobalSubMonitor() {
             .update({ is_active: false })
             .eq('user_id', user.id)
             .eq('is_active', true);
+
 
           const { data: newGame, error } = await supabase
             .from('active_games')

@@ -84,6 +84,38 @@ export function isServerAnchoredTimer(t: unknown): t is ServerTimer {
 }
 
 /**
+ * Marker-only detection, deliberately looser than `isServerAnchoredTimer`.
+ *
+ * Used to decide whether a LEGACY (v1) writer is allowed to publish
+ * `timer_state` at all. It must return true even for a half-written or
+ * already-clobbered v2 row (`{ elapsedSeconds, schema_version: 2 }`), because
+ * such a row still belongs to a server-anchored board — overwriting it with a
+ * v1 payload is what strands the board at 00:00. Recovery of a clobbered row is
+ * the job of `pitch-timer-event` (`fromLegacyTimerState`), never of a v1 sync.
+ */
+export function hasAnchoredTimerMarker(t: unknown): boolean {
+  if (!t || typeof t !== "object") return false;
+  return (t as Record<string, unknown>).schema_version === 2;
+}
+
+/**
+ * Whether a legacy (v1) sync loop may include `timer_state` in its write.
+ *
+ * Gating on the LOCAL localStorage shape alone is not sufficient, and was a
+ * live reset path: `active_games` rows are shared per team, so a second device
+ * (or a tab that never loaded the v2 writer) holds v1 localStorage, decides
+ * "not anchored", adopts the team's existing row by `team_id` and republishes a
+ * v1 `timer_state` over the authoritative anchored row. The next read derives
+ * elapsed 0 and every device resets to 00:00 mid-match.
+ *
+ * So the write is only permitted when NEITHER side shows an anchored marker.
+ * `pitch_state` is unaffected — the cron still needs autoSubPlan / players.
+ */
+export function mayWriteLegacyTimerState(args: { local: unknown; remote: unknown }): boolean {
+  return !hasAnchoredTimerMarker(args.local) && !hasAnchoredTimerMarker(args.remote);
+}
+
+/**
  * First-hydrate protection. `shouldAcceptServerSnapshot` has no previous
  * snapshot to compare against on mount, so a stale/zeroed server row would be
  * accepted unconditionally and wipe a locally-persisted running clock.

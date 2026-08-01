@@ -7,6 +7,7 @@ import {
   deriveElapsedSeconds,
   isServerAnchoredTimer,
   shouldPreferLocalOnFirstHydrate,
+  shouldAcceptServerSnapshot,
   type ServerTimer,
 } from "@/lib/serverTimer";
 import { Button } from "@/components/ui/button";
@@ -227,6 +228,9 @@ interface GameTimerWidgetProps {
 
 export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: GameTimerWidgetProps) {
   const [timerState, setTimerState] = useState<TimerState | null>(null);
+  // Last server snapshot this widget accepted, so repeated resumes are compared
+  // against it instead of each being treated as a fresh first hydrate.
+  const serverTimerRef = useRef<ServerTimer | null>(null);
   const [displaySeconds, setDisplaySeconds] = useState(0);
   const [homeGoals, setHomeGoals] = useState(0);
   // Guard: skip polling reads for a short window after a user action
@@ -423,9 +427,29 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             localIsRunning: saved.isRunning,
             localLastUpdateMs: saved.lastUpdateTime,
           });
-          if (preferLocal) {
-            console.info('[GameTimerWidget] server row would regress local clock — keeping local');
+          // This effect fires on EVERY resume, so it is not a first hydrate
+          // after the first one — `shouldPreferLocalOnFirstHydrate` alone lacks
+          // the equal-timestamp divergence and backwards-regression rules. The
+          // widget writes the SAME localStorage key the board reads, so a stale
+          // snapshot accepted here becomes the board's next local baseline.
+          // Require both guards, exactly like GameTimer.
+          const decision = shouldAcceptServerSnapshot(
+            serverTimerRef.current,
+            incoming,
+            {
+              isRunning: saved.isRunning,
+              currentHalf: saved.currentHalf,
+              elapsedSeconds: getCurrentGameSeconds(saved),
+              isGameFinished: Boolean(saved.gameFinishedAt),
+            },
+          );
+          if (preferLocal || !decision.accept) {
+            console.info(
+              '[GameTimerWidget] server row rejected — keeping local',
+              preferLocal ? 'prefer-local-on-hydrate' : decision.reason,
+            );
           } else {
+            serverTimerRef.current = incoming;
             const mapped = serverToTimerState(
               incoming,
               res.server_now,
@@ -437,6 +461,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
             return;
           }
         }
+
 
       } catch (e) {
         console.warn('[GameTimerWidget] server hydrate failed, falling back to local drift', e);
