@@ -2,6 +2,8 @@ import { useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { shouldApplyRemoteTimerState, type LocalEventGroupTimer } from "@/lib/eventGroupTimerGuard";
+
 
 const SYNC_INTERVAL = 5000; // Fallback polling interval
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
@@ -93,7 +95,15 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
         console.log("[EventGroupSync] Applied pitch state from database", force ? "(realtime)" : "(initial)");
       }
 
-      if (data.timer_state && (force || !localTimer)) {
+      // Never let a remote timer payload move this board's clock backwards.
+      // `event_groups.timer_state` defaults to `{}` (truthy!) and peers can
+      // broadcast stale snapshots — both used to hydrate the board at 00:00.
+      const timerDecision = shouldApplyRemoteTimerState({
+        remote: data.timer_state,
+        local: localTimer as LocalEventGroupTimer | null,
+        force,
+      });
+      if (timerDecision.apply) {
         const dbTimerState = data.timer_state as Record<string, unknown>;
         if (typeof dbTimerState === "object" && dbTimerState !== null) {
           dbTimerState.teamId = teamId;
@@ -101,7 +111,10 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
         localStorage.setItem(getTeamTimerStorageKey(teamId), JSON.stringify(dbTimerState));
         localStorage.setItem("pitch-board-timer-state", JSON.stringify(dbTimerState));
         console.log("[EventGroupSync] Applied timer state from database", force ? "(realtime)" : "(initial)");
+      } else {
+        console.info("[EventGroupSync] Skipped remote timer state:", timerDecision.reason);
       }
+
 
       // Dispatch event so same-tab components know state changed
       if (force) {
