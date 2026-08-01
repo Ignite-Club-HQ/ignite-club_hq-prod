@@ -5,6 +5,8 @@ import {
   readServerTimer,
   sendTimerEvent,
   deriveElapsedSeconds,
+  isServerAnchoredTimer,
+  shouldPreferLocalOnFirstHydrate,
   type ServerTimer,
 } from "@/lib/serverTimer";
 import { Button } from "@/components/ui/button";
@@ -398,17 +400,32 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       // Immune to phone-lock, app-kill, or stale localStorage projections.
       try {
         const res = await readServerTimer(saved.teamId ?? null);
-        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
-          const mapped = serverToTimerState(
-            res.timer_state as ServerTimer,
-            res.server_now,
-            { teamId: saved.teamId, teamName: saved.teamName, gameFinishedAt: saved.gameFinishedAt },
-          );
-          saveTimerState(mapped);
-          setTimerState(mapped);
-          setDisplaySeconds(mapped.elapsedSeconds);
-          return;
+        if (res.found && isServerAnchoredTimer(res.timer_state)) {
+          const incoming = res.timer_state as ServerTimer;
+          const serverNowMs = new Date(res.server_now).getTime();
+          const preferLocal = shouldPreferLocalOnFirstHydrate({
+            incoming,
+            serverNowMs: Number.isFinite(serverNowMs) ? serverNowMs : Date.now(),
+            localElapsedSeconds: getCurrentGameSeconds(saved),
+            localCurrentHalf: saved.currentHalf,
+            localIsRunning: saved.isRunning,
+            localLastUpdateMs: saved.lastUpdateTime,
+          });
+          if (preferLocal) {
+            console.info('[GameTimerWidget] server row would regress local clock — keeping local');
+          } else {
+            const mapped = serverToTimerState(
+              incoming,
+              res.server_now,
+              { teamId: saved.teamId, teamName: saved.teamName, gameFinishedAt: saved.gameFinishedAt },
+            );
+            saveTimerState(mapped);
+            setTimerState(mapped);
+            setDisplaySeconds(mapped.elapsedSeconds);
+            return;
+          }
         }
+
       } catch (e) {
         console.warn('[GameTimerWidget] server hydrate failed, falling back to local drift', e);
       }

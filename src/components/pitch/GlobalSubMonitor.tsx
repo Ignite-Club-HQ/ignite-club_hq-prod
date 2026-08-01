@@ -83,6 +83,32 @@ const getTeamSizeNumber = (teamSize: string): number => {
   return parseInt(teamSize) || 11;
 };
 
+/**
+ * Convert a v1-shaped local timer snapshot into the server-anchored (v2)
+ * shape used by `pitch-timer-event` / `pitch-timer-read`. Elapsed time is
+ * expressed as event timestamps so the server derives it from now(), which
+ * is what makes resume-after-background drift-free.
+ */
+const toServerAnchoredTimerState = (t: TimerState) => {
+  const nowMs = Date.now();
+  const elapsed = Math.max(0, t.elapsedSeconds || 0);
+  const hasProgress = elapsed > 0 || !!t.isRunning;
+  const nowIso = new Date(nowMs).toISOString();
+  return {
+    schema_version: 2 as const,
+    current_half: (t.currentHalf === 2 ? 2 : 1) as 1 | 2,
+    minutes_per_half: t.minutesPerHalf,
+    half_started_at: hasProgress ? new Date(nowMs - elapsed * 1000).toISOString() : null,
+    half_paused_at: hasProgress && !t.isRunning ? nowIso : null,
+    accumulated_pause_ms: 0,
+    is_running: !!t.isRunning,
+    is_game_finished: !!(t as TimerState & { isGameFinished?: boolean }).isGameFinished,
+    half_ended_at: null,
+    last_event_at: new Date(t.lastUpdateTime || nowMs).toISOString(),
+  };
+};
+
+
 // recalculateRemainingPlan is imported from pitchStateUtils
 
 export default function GlobalSubMonitor() {
@@ -147,6 +173,18 @@ export default function GlobalSubMonitor() {
 
     const timerState = loadTimerState();
     const pitchState = loadPitchState(timerState?.teamId);
+
+    // The server-anchored timer (schema v2) is owned exclusively by the
+    // `pitch-timer-event` edge function, which stores event timestamps
+    // (half_started_at / last_event_at). Writing the v1 localStorage shape
+    // ({ elapsedSeconds, lastUpdateTime, schema_version: 2 }) over the top
+    // leaves a row that still LOOKS like v2 but has no half_started_at, so
+    // `pitch-timer-read` derives elapsed = 0 and the next mount hydrates the
+    // board at 00:00 — the "timer resets to 0 after the app is inactive"
+    // defect. Never write timer_state for v2 boards; pitch_state only.
+    const isServerAnchoredTimer =
+      (timerState as unknown as { schema_version?: number } | null)?.schema_version === 2;
+
 
     console.log('[SYNC] Timer state:', timerState ? {
       isRunning: timerState.isRunning,
@@ -256,7 +294,8 @@ export default function GlobalSubMonitor() {
             .update({
               user_id: user.id,
               team_id: teamId,
-              timer_state: syncedTimerState as unknown as Json,
+              ...(isServerAnchoredTimer ? {} : { timer_state: syncedTimerState as unknown as Json }),
+
               pitch_state: pitchState as unknown as Json,
               is_active: true,
               updated_at: new Date().toISOString(),
@@ -339,7 +378,7 @@ export default function GlobalSubMonitor() {
     const gameData = {
       user_id: user.id,
       team_id: teamId,
-      timer_state: syncedTimerState as unknown as Json,
+      ...(isServerAnchoredTimer ? {} : { timer_state: syncedTimerState as unknown as Json }),
       pitch_state: pitchState as unknown as Json,
       is_active: true,
       updated_at: new Date().toISOString(),
@@ -410,7 +449,18 @@ export default function GlobalSubMonitor() {
 
           const { data: newGame, error } = await supabase
             .from('active_games')
-            .insert(gameData)
+            .insert({
+              ...gameData,
+              // A brand-new row must carry a valid timer_state or the
+              // pending-sub / half-time cron has nothing to read. For
+              // server-anchored boards we synthesise a correctly shaped v2
+              // state (event timestamps, not elapsedSeconds) so
+              // `pitch-timer-read` derives the right elapsed value.
+              timer_state: (isServerAnchoredTimer
+                ? toServerAnchoredTimerState(syncedTimerState as unknown as TimerState)
+                : (syncedTimerState as unknown)) as Json,
+            })
+
             .select()
             .single();
 

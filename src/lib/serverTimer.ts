@@ -63,6 +63,56 @@ export function deriveElapsedSeconds(
   return Math.min(Math.floor(ms / 1000), (t.minutes_per_half || 0) * 60);
 }
 
+/**
+ * A row is only safe to hydrate from when it carries the FULL server-anchored
+ * shape. Legacy sync paths used to write `{ elapsedSeconds, lastUpdateTime,
+ * schema_version: 2 }` over the top of a real v2 row: it passes a naive
+ * `schema_version === 2` check but has no `half_started_at` / `last_event_at`,
+ * so elapsed derives to 0 and the board hydrates at 00:00 after a resume.
+ * Treat those rows as absent and fall back to the local projection instead.
+ */
+export function isServerAnchoredTimer(t: unknown): t is ServerTimer {
+  if (!t || typeof t !== "object") return false;
+  const r = t as Record<string, unknown>;
+  if (r.schema_version !== 2) return false;
+  if (typeof r.last_event_at !== "string" || !Number.isFinite(new Date(r.last_event_at).getTime())) return false;
+  if (!("half_started_at" in r)) return false;
+  if (r.half_started_at !== null && typeof r.half_started_at !== "string") return false;
+  if (typeof r.is_running !== "boolean") return false;
+  if (typeof r.minutes_per_half !== "number" || r.minutes_per_half <= 0) return false;
+  return true;
+}
+
+/**
+ * First-hydrate protection. `shouldAcceptServerSnapshot` has no previous
+ * snapshot to compare against on mount, so a stale/zeroed server row would be
+ * accepted unconditionally and wipe a locally-persisted running clock.
+ * Prefer the local projection when the server row would regress it AND the
+ * local snapshot was written after the server's last event.
+ */
+export function shouldPreferLocalOnFirstHydrate(args: {
+  incoming: ServerTimer;
+  serverNowMs: number;
+  localElapsedSeconds: number;
+  localCurrentHalf: 1 | 2;
+  localIsRunning: boolean;
+  localLastUpdateMs: number;
+  toleranceSeconds?: number;
+}): boolean {
+  const tolerance = args.toleranceSeconds ?? 5;
+  if (!args.localIsRunning && args.localElapsedSeconds <= 0) return false;
+  const lastEventMs = new Date(args.incoming.last_event_at).getTime();
+  if (!Number.isFinite(lastEventMs) || !Number.isFinite(args.localLastUpdateMs)) return false;
+  // The server has newer authoritative information — always defer to it.
+  if (lastEventMs >= args.localLastUpdateMs) return false;
+  const sameHalf = (args.incoming.current_half ?? 1) === args.localCurrentHalf;
+  if (!sameHalf) return false;
+  if (args.incoming.is_game_finished) return false;
+  const serverElapsed = deriveElapsedSeconds(args.incoming, args.serverNowMs);
+  return serverElapsed + tolerance < args.localElapsedSeconds;
+}
+
+
 export async function sendTimerEvent(args: {
   teamId: string | null;
   event: TimerEvent;
