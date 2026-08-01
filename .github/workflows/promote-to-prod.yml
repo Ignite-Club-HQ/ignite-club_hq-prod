@@ -276,17 +276,25 @@ jobs:
         # aborts `db push` if pg_cron / pg_net / supabase_vault are missing or
         # if the Vault secrets functions_base_url / service_role_key are absent.
         # Seed them here (idempotent) so promotion is not a manual dashboard chore.
-        # Key source: SUPABASE_PROD_SERVICE_ROLE_KEY if present, otherwise the
-        # existing SUPABASE_SERVICE_ROLE_KEY secret. A legacy JWT key is checked
-        # against the prod project ref so a dev key can never be seeded here.
+        #
+        # Key source: SUPABASE_PROD_SERVICE_ROLE_KEY *only*. The generic
+        # SUPABASE_SERVICE_ROLE_KEY fallback was removed — it could point at a
+        # non-prod project, and modern opaque `sb_` keys carry no verifiable
+        # project ref, so the legacy JWT ref decode below cannot catch that
+        # mistake. Fail closed BEFORE touching Vault instead.
         if: github.event_name == 'push'
         env:
           PROD_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_PROD_SERVICE_ROLE_KEY }}
-          FALLBACK_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
-          KEY="${PROD_SERVICE_ROLE_KEY:-${FALLBACK_SERVICE_ROLE_KEY:-}}"
-          if [ -n "$KEY" ] && [ "${KEY:0:2}" = "ey" ]; then
+          KEY="${PROD_SERVICE_ROLE_KEY:-}"
+          if [ -z "$KEY" ]; then
+            echo "::error::Repository secret SUPABASE_PROD_SERVICE_ROLE_KEY is not set. Promotion refuses to modify the PROD Vault without the production-specific service-role key."
+            exit 1
+          fi
+          # Best-effort extra guard for legacy JWT keys. Opaque keys skip this;
+          # they are never accepted from the generic secret in the first place.
+          if [ "${KEY:0:2}" = "ey" ]; then
             PAYLOAD=$(echo "$KEY" | cut -d. -f2 | tr '_-' '/+')
             while [ $(( ${#PAYLOAD} % 4 )) -ne 0 ]; do PAYLOAD="${PAYLOAD}="; done
             KEY_REF=$(echo "$PAYLOAD" | base64 -d 2>/dev/null | grep -oE '"ref"[[:space:]]*:[[:space:]]*"[^"]+"' | cut -d'"' -f4 || true)
@@ -295,6 +303,7 @@ jobs:
               exit 1
             fi
           fi
+
           DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
           run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
 
