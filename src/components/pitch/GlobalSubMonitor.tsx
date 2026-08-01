@@ -352,14 +352,7 @@ export default function GlobalSubMonitor() {
     // pitch-board pushes for coaches who never turned on auto-sub.
     const isHalftimeBreak = !timerState.isRunning && timerState.currentHalf === 2 && timerState.elapsedSeconds === 0;
     if (!timerState.isRunning && !isHalftimeBreak) {
-      if (activeGameIdRef.current) {
-        console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
-        await supabase
-          .from('active_games')
-          .update({ is_active: false })
-          .eq('id', activeGameIdRef.current);
-        activeGameIdRef.current = null;
-      }
+      await deactivateActiveGameRow(`paused outside halftime (isFinished=${isFinished})`);
       setSyncStatus({ status: "idle", lastSyncTime: null });
       return;
     }
