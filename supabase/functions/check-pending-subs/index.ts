@@ -638,6 +638,15 @@ async function checkGames(supabase: any): Promise<number> {
       // Schema v2: also flip the server-anchored timer into the halftime
       // break state so the client (and spectators) see a paused half=2/0:00
       // instead of a frozen running clock at minutes_per_half * 60.
+      //
+      // CRITICAL: this MUST be a compare-and-swap on `last_event_at`. `rawTs`
+      // was read at the top of this cron invocation, and the loop below/above
+      // awaits many round trips (dedup, staff lookup, push fan-out). If a coach
+      // presses "Start 2nd Half" (or resume) inside that window, an
+      // unconditional write here re-publishes the stale snapshot with
+      // `half_started_at: null` AND a fresh `last_event_at` — which the client
+      // guards (`shouldAcceptServerSnapshot`) then correctly accept as newer,
+      // resetting a live board to 00:00. Never make this write unconditional.
       if (isServerAnchored && (rawTs.current_half === 1 || rawTs.is_running)) {
         const nowIso = new Date().toISOString();
         const nextTs = {
@@ -650,12 +659,22 @@ async function checkGames(supabase: any): Promise<number> {
           half_ended_at: nowIso,
           last_event_at: nowIso,
         };
-        await supabase
+        let q = supabase
           .from('active_games')
           .update({ timer_state: nextTs, updated_at: nowIso })
           .eq('id', game.id);
-        console.log(`[CHECK-SUBS] v2 auto-transitioned game ${game.id} to halftime`);
+        // CAS guard: only win if nobody wrote a newer timer event meanwhile.
+        q = typeof rawTs.last_event_at === 'string'
+          ? q.filter('timer_state->>last_event_at', 'eq', rawTs.last_event_at)
+          : q.is('timer_state->>last_event_at', null);
+        const { data: casRows } = await q.select('id');
+        if (casRows && casRows.length > 0) {
+          console.log(`[CHECK-SUBS] v2 auto-transitioned game ${game.id} to halftime`);
+        } else {
+          console.log(`[CHECK-SUBS] v2 halftime write SKIPPED for game ${game.id} — newer client timer event won the CAS`);
+        }
       }
+
       continue; // Skip sub processing during half-time
     }
 
