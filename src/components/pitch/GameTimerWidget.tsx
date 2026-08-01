@@ -569,6 +569,12 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     if (serverEvent) {
       sendTimerEvent({ teamId: fresh.teamId ?? null, event: serverEvent, minutesPerHalf: mph })
         .then((res) => {
+          // Never map a malformed row back into the widget — a clobbered
+          // "fake v2" payload derives elapsed = 0 and would zero the clock.
+          if (!isServerAnchoredTimer(res.timer_state)) {
+            console.warn("[GameTimerWidget] ignoring malformed timer_state from", serverEvent);
+            return;
+          }
           const mapped = serverToTimerState(
             res.timer_state,
             res.server_now,
@@ -580,6 +586,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         })
         .catch((err) => console.warn("[GameTimerWidget] sendTimerEvent failed", serverEvent, err));
     }
+
   };
 
 
