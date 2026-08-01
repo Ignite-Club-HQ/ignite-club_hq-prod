@@ -238,14 +238,7 @@ export default function GlobalSubMonitor() {
     }
 
     if (!timerState || !pitchState) {
-      if (activeGameIdRef.current) {
-        console.log('[SYNC] Deactivating game - conditions not met', { isFinished });
-        await supabase
-          .from('active_games')
-          .update({ is_active: false })
-          .eq('id', activeGameIdRef.current);
-        activeGameIdRef.current = null;
-      }
+      await deactivateActiveGameRow(`no local timer/pitch state (isFinished=${isFinished})`);
       setSyncStatus({ status: "idle", lastSyncTime: null });
       return;
     }
