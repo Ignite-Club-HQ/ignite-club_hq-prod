@@ -355,11 +355,18 @@ const GameTimer = forwardRef<GameTimerRef, GameTimerProps>(({
     if (externalMinutesPerHalf === undefined) {
       setInternalMinutesPerHalf(t.minutes_per_half);
     }
-    setCurrentHalf((t.current_half as 1 | 2) || 1);
+    // `end_half` leaves the server row on half 1 with half_ended_at set (so
+    // spectators can render "Half time"). Locally that state IS the start of
+    // the second half — mapping it straight through would rewind the board to
+    // half 1 at full time on the next resume.
+    const isHalfTimeBreak =
+      !!t.half_ended_at && !t.is_running && !t.is_game_finished && ((t.current_half as number) || 1) === 1;
+    setCurrentHalf(isHalfTimeBreak ? 2 : ((t.current_half as 1 | 2) || 1));
     setIsGameFinished(!!t.is_game_finished);
-    const elapsed = deriveElapsedSeconds(t, Date.now() + clockSkewMsRef.current);
+    const elapsed = isHalfTimeBreak ? 0 : deriveElapsedSeconds(t, Date.now() + clockSkewMsRef.current);
     setElapsedSeconds(elapsed);
     setIsRunning(!!t.is_running);
+
     // Note: tick anchor is reset by the running-tick effect when isRunning flips true.
     console.info('[TimerAudit] server-hydrate', { teamId, reason: decision.reason, t, elapsed });
   }, [externalMinutesPerHalf, teamId]);
