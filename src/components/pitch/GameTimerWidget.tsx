@@ -228,6 +228,9 @@ interface GameTimerWidgetProps {
 
 export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: GameTimerWidgetProps) {
   const [timerState, setTimerState] = useState<TimerState | null>(null);
+  // Last server snapshot this widget accepted, so repeated resumes are compared
+  // against it instead of each being treated as a fresh first hydrate.
+  const serverTimerRef = useRef<ServerTimer | null>(null);
   const [displaySeconds, setDisplaySeconds] = useState(0);
   const [homeGoals, setHomeGoals] = useState(0);
   // Guard: skip polling reads for a short window after a user action
