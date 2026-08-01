@@ -110,3 +110,61 @@ export function shouldApplyRemoteTimerState(args: {
 
   return { apply: true, reason: "remote-accepted" };
 }
+
+/**
+ * Write-side mirror of `shouldApplyRemoteTimerState`.
+ *
+ * The read guard only decides what a client ACCEPTS into localStorage; it does
+ * nothing to stop a losing writer from clobbering the shared
+ * `event_groups.timer_state` row. `useEventGroupSync` writes on a blind 5s
+ * `UPDATE`, so two co-admins race last-write-wins: B's tick fires with a
+ * snapshot older than A's write and overwrites it. A's own next read rejects
+ * the regression, but the ROW stays clobbered — and any third device joining in
+ * that window has no local state, so `shouldApplyRemoteTimerState` returns
+ * `no-local-state` and hydrates the wrong clock.
+ *
+ * So before writing, compare against the row we are about to overwrite and
+ * refuse when the remote copy is strictly ahead of ours.
+ */
+export function shouldWriteLocalTimerState(args: {
+  local: unknown;
+  remote: unknown;
+  nowMs?: number;
+}): RemoteTimerDecision {
+  const { local, remote } = args;
+  const nowMs = args.nowMs ?? Date.now();
+
+  // Nothing meaningful remotely (including the `{}` column default) → our write
+  // is the first real state for this board.
+  if (!isMeaningfulTimerState(remote)) return { apply: true, reason: "remote-not-meaningful" };
+  if (!isMeaningfulTimerState(local)) return { apply: false, reason: "local-not-meaningful" };
+
+  const r = remote as LocalEventGroupTimer;
+  const l = local as LocalEventGroupTimer;
+
+  if (r.isGameFinished && !l.isGameFinished) {
+    return { apply: false, reason: "remote-game-finished" };
+  }
+
+  const remoteHalf = r.currentHalf ?? 1;
+  const localHalf = l.currentHalf ?? 1;
+  if (remoteHalf > localHalf) return { apply: false, reason: "remote-newer-half" };
+  if (remoteHalf < localHalf) return { apply: true, reason: "local-newer-half" };
+
+  const remoteElapsed = projectLocalElapsed(r, nowMs);
+  const localElapsed = projectLocalElapsed(l, nowMs);
+
+  // Same tolerance as the read guard, so the two can never disagree about
+  // which side is "ahead" for the same pair of snapshots.
+  if (remoteElapsed > localElapsed + 2) {
+    return { apply: false, reason: "would-regress-remote-clock" };
+  }
+
+  // Don't let our stale "still running" snapshot resurrect a peer's pause.
+  if (r.isRunning === false && l.isRunning && (l.lastUpdateTime ?? 0) <= (r.lastUpdateTime ?? 0)) {
+    return { apply: false, reason: "stale-local-resume" };
+  }
+
+  return { apply: true, reason: "local-accepted" };
+}
+
