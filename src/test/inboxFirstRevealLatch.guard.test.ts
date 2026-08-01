@@ -33,10 +33,25 @@ describe("inbox first-reveal latch", () => {
     expect(messages).toMatch(/isLoadingFreshData \|\| !freshSortDataReady/);
   });
 
-  it("never blocks the reveal when data is already available (warm mount)", () => {
+  it("never blocks a warm re-entry reveal (session latch, not a cache bypass)", () => {
     expect(messages).toMatch(/let sessionRevealedInboxUserId: string \| null = null;/);
-    expect(messages).toMatch(/!hasAnyDisplayData &&\s*\n\s*!hasCachedData &&/);
+    // Warm re-entry is released by the session-scoped latch. The cached-data
+    // bypass must NOT appear in the first-reveal gate itself: cached rows carry
+    // stale ordering timestamps, and releasing on them produced the Android
+    // reload/resume stale-order jolt.
+    const gate = messages.slice(
+      messages.indexOf("const initialRevealBlocked ="),
+      messages.indexOf("useEffect(() => {\n    if (hasRevealedStableInboxRef.current) return;"),
+    );
+    expect(gate).not.toMatch(/!hasCachedData/);
+    expect(gate).not.toMatch(/!hasAnyDisplayData/);
+    // The cache is still consulted for the *loading* half of the gate, so a
+    // cached inbox never waits on query loading state.
+    expect(messages).toMatch(
+      /const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData &&/,
+    );
   });
+
 
   it("latches once and only resets on an identity change", () => {
     expect(messages).toMatch(/revealLatchIdentityRef/);

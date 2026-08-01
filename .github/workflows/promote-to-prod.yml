@@ -13,13 +13,17 @@ name: Promote to Prod
 # and `supabase db push` works with zero special handling.
 #
 # Required GitHub Actions secrets (Settings → Secrets and variables → Actions):
-#   SUPABASE_ACCESS_TOKEN      — https://supabase.com/dashboard/account/tokens
-#   SUPABASE_PROD_PROJECT_REF  — yabcfiuntwqjwvschnji
-#   SUPABASE_DB_PASSWORD       — prod DB password (Project Settings → Database)
-#   SUPABASE_SERVICE_ROLE_KEY  — prod service-role key, seeded into the prod
-#                                Vault so the push-delivery preflight migration
-#                                passes. Override with SUPABASE_PROD_SERVICE_ROLE_KEY
-#                                if the generic secret points at another project.
+#   SUPABASE_ACCESS_TOKEN          — https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROD_PROJECT_REF      — yabcfiuntwqjwvschnji
+#   SUPABASE_DB_PASSWORD           — prod DB password (Project Settings → Database)
+#   SUPABASE_PROD_SERVICE_ROLE_KEY — the PROD service-role key, seeded into the
+#                                prod Vault so the push-delivery preflight
+#                                migration passes. REQUIRED and production
+#                                specific: the old generic SUPABASE_SERVICE_ROLE_KEY
+#                                fallback was removed because it could point at a
+#                                non-prod project, and opaque `sb_` keys carry no
+#                                verifiable project ref for the workflow to check.
+
 
 
 
@@ -276,17 +280,25 @@ jobs:
         # aborts `db push` if pg_cron / pg_net / supabase_vault are missing or
         # if the Vault secrets functions_base_url / service_role_key are absent.
         # Seed them here (idempotent) so promotion is not a manual dashboard chore.
-        # Key source: SUPABASE_PROD_SERVICE_ROLE_KEY if present, otherwise the
-        # existing SUPABASE_SERVICE_ROLE_KEY secret. A legacy JWT key is checked
-        # against the prod project ref so a dev key can never be seeded here.
+        #
+        # Key source: SUPABASE_PROD_SERVICE_ROLE_KEY *only*. The generic
+        # SUPABASE_SERVICE_ROLE_KEY fallback was removed — it could point at a
+        # non-prod project, and modern opaque `sb_` keys carry no verifiable
+        # project ref, so the legacy JWT ref decode below cannot catch that
+        # mistake. Fail closed BEFORE touching Vault instead.
         if: github.event_name == 'push'
         env:
           PROD_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_PROD_SERVICE_ROLE_KEY }}
-          FALLBACK_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -euo pipefail
-          KEY="${PROD_SERVICE_ROLE_KEY:-${FALLBACK_SERVICE_ROLE_KEY:-}}"
-          if [ -n "$KEY" ] && [ "${KEY:0:2}" = "ey" ]; then
+          KEY="${PROD_SERVICE_ROLE_KEY:-}"
+          if [ -z "$KEY" ]; then
+            echo "::error::Repository secret SUPABASE_PROD_SERVICE_ROLE_KEY is not set. Promotion refuses to modify the PROD Vault without the production-specific service-role key."
+            exit 1
+          fi
+          # Best-effort extra guard for legacy JWT keys. Opaque keys skip this;
+          # they are never accepted from the generic secret in the first place.
+          if [ "${KEY:0:2}" = "ey" ]; then
             PAYLOAD=$(echo "$KEY" | cut -d. -f2 | tr '_-' '/+')
             while [ $(( ${#PAYLOAD} % 4 )) -ne 0 ]; do PAYLOAD="${PAYLOAD}="; done
             KEY_REF=$(echo "$PAYLOAD" | base64 -d 2>/dev/null | grep -oE '"ref"[[:space:]]*:[[:space:]]*"[^"]+"' | cut -d'"' -f4 || true)
@@ -295,6 +307,7 @@ jobs:
               exit 1
             fi
           fi
+
           DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
           run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
 
@@ -322,7 +335,7 @@ jobs:
           EXISTING_KEY_OK=$(run_sql -c "select coalesce((select 1 from vault.decrypted_secrets where name='service_role_key' and length(decrypted_secret) >= 20 and decrypted_secret !~ '\s' limit 1), 0);")
           if [ "$EXISTING_KEY_OK" = "1" ]; then
             echo "🔒 Existing PROD Vault service_role_key looks valid — leaving it untouched (hotfix-safe)."
-          elif [ -n "$KEY" ]; then
+          else
             run_sql -v key="$KEY" <<'SQL' >/dev/null
               select vault.create_secret(:'key', 'service_role_key', 'Service role key for pg_net dispatch')
               where not exists (select 1 from vault.secrets where name = 'service_role_key');
@@ -331,10 +344,9 @@ jobs:
               from vault.secrets
               where name = 'service_role_key';
           SQL
-            echo "✅ Vault service_role_key seeded from GitHub secret (was missing/invalid)."
-          else
-            echo "ℹ️  No service-role key secret set — relying on an existing Vault entry."
+            echo "✅ Vault service_role_key seeded from SUPABASE_PROD_SERVICE_ROLE_KEY (was missing/invalid)."
           fi
+
 
           echo "=== Push delivery prerequisite report (no secret values) ==="
           run_sql -c "
@@ -488,15 +500,137 @@ jobs:
       # Edge Function gateway actually accepts (a stale copy silently 403s every
       # chat notification). Ask the runtime to write its authoritative key back
       # into Vault after each promotion.
+      #
+      # This step used to `sleep 10` and then read `net._http_response ORDER BY
+      # id DESC LIMIT 1` — which can be any unrelated pg_net response (a trigger
+      # dispatch, a cron call), so a failed bootstrap could be reported as a
+      # success. It now correlates on the exact pg_net request id returned by
+      # `bootstrap_dispatch_credentials(...)` and fails promotion unless that
+      # specific response is HTTP 2xx with `ok = true` and `key_matches = true`.
       - name: Refresh PROD internal dispatch credentials from runtime
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
           DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
           run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
-          run_sql -c "select public.bootstrap_dispatch_credentials((select decrypted_secret from vault.decrypted_secrets where name='functions_base_url' limit 1));"
-          sleep 10
-          run_sql -c "select status_code, left(coalesce(content,''),200) from net._http_response order by id desc limit 1;"
+
+          REQ_ID=$(run_sql -c "select public.bootstrap_dispatch_credentials((select decrypted_secret from vault.decrypted_secrets where name='functions_base_url' limit 1));")
+          if ! printf '%s' "$REQ_ID" | grep -qE '^[0-9]+$'; then
+            echo "::error::bootstrap_dispatch_credentials did not return a pg_net request id — cannot verify the notification credential refresh."
+            exit 1
+          fi
+          echo "Bootstrap pg_net request id: $REQ_ID"
+
+          # Bounded correlated poll: 30 attempts × 2s = 60s ceiling.
+          STATUS=""
+          for i in $(seq 1 30); do
+            STATUS=$(run_sql -c "select coalesce((select status_code::text from net._http_response where id = ${REQ_ID}), '');")
+            [ -n "$STATUS" ] && break
+            sleep 2
+          done
+
+          if [ -z "$STATUS" ]; then
+            echo "::error::No pg_net response recorded for bootstrap request ${REQ_ID} within 60s. Notification credential refresh is UNVERIFIED — aborting promotion."
+            exit 1
+          fi
+          echo "Correlated bootstrap response status: $STATUS"
+
+          if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 300 ]; then
+            echo "::error::Bootstrap request ${REQ_ID} returned HTTP ${STATUS}. Notification authentication is not proven — aborting promotion. Inspect the sync-dispatch-credentials logs in the Supabase dashboard (the response body is not printed here because it may contain sensitive information)."
+            exit 1
+          fi
+
+          # Parse the body server-side and emit ONLY the two booleans. The body
+          # itself is never printed.
+          VERDICT=$(run_sql -c "
+            select case
+                     when (r.content::jsonb ->> 'ok') = 'true'
+                      and (r.content::jsonb ->> 'key_matches') = 'true' then 'verified'
+                     else 'rejected'
+                   end
+            from net._http_response r
+            where r.id = ${REQ_ID}
+              and r.content is not null
+              and r.content ~ '^\s*\{';
+          " || true)
+
+          if [ "$VERDICT" != "verified" ]; then
+            echo "::error::Bootstrap request ${REQ_ID} did not report ok=true and key_matches=true. The Vault service-role key does not match the runtime key, so notification dispatch would 401/403 — aborting promotion."
+            exit 1
+          fi
+          echo "✅ PROD dispatch credentials refreshed and verified (ok=true, key_matches=true)."
+
+      # Authentication must be PROVEN before any cron job or trigger function is
+      # rewritten onto the Vault service-role key. Otherwise a promotion can
+      # rewrite every notification caller onto a credential the deployed
+      # functions reject, and report success. The probe below is authenticated,
+      # correlated, and non-destructive: `process-message-notifications` returns
+      # early for `x-notification-auth-probe`, creating no notifications and
+      # sending no push/email.
+      - name: Probe PROD notification authentication (non-destructive)
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+          run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
+
+          CORRELATION="promote-$(date +%s)-$RANDOM"
+          # Issued from inside the database with exactly the credential a trigger
+          # or cron job would present (the Vault service-role key).
+          PROBE_ID=$(run_sql -v corr="$CORRELATION" -c "
+            select net.http_post(
+              url := public.internal_functions_base_url() || '/functions/v1/process-message-notifications',
+              headers := jsonb_build_object(
+                'Content-Type', 'application/json',
+                'x-notification-auth-probe', :'corr',
+                'Authorization', 'Bearer ' || public.internal_service_role_key()),
+              body := '{}'::jsonb
+            );")
+          if ! printf '%s' "$PROBE_ID" | grep -qE '^[0-9]+$'; then
+            echo "::error::Could not issue the notification authentication probe (no pg_net request id). Aborting before any caller is rewritten."
+            exit 1
+          fi
+          echo "Auth probe pg_net request id: $PROBE_ID"
+
+          PSTATUS=""
+          for i in $(seq 1 30); do
+            PSTATUS=$(run_sql -c "select coalesce((select status_code::text from net._http_response where id = ${PROBE_ID}), '');")
+            [ -n "$PSTATUS" ] && break
+            sleep 2
+          done
+
+          if [ -z "$PSTATUS" ]; then
+            echo "::error::Notification authentication probe timed out after 60s. Aborting before rewriting any notification caller."
+            exit 1
+          fi
+          echo "Probe response status: $PSTATUS"
+          if [ "$PSTATUS" = "401" ] || [ "$PSTATUS" = "403" ]; then
+            echo "::error::Notification authentication probe was REJECTED (HTTP ${PSTATUS}). The Vault service-role key is not accepted by the deployed functions — aborting before rewriting any notification caller."
+            exit 1
+          fi
+          if [ "$PSTATUS" -lt 200 ] || [ "$PSTATUS" -ge 300 ]; then
+            echo "::error::Notification authentication probe returned HTTP ${PSTATUS}. Authentication is unproven — aborting before rewriting any notification caller."
+            exit 1
+          fi
+
+          PVERDICT=$(run_sql -c "
+            select case
+                     when (r.content::jsonb ->> 'ok') = 'true'
+                      and (r.content::jsonb ->> 'authenticated') = 'true'
+                      and (r.content::jsonb ->> 'correlation') = $(printf "'%s'" "$CORRELATION") then 'verified'
+                     else 'rejected'
+                   end
+            from net._http_response r
+            where r.id = ${PROBE_ID}
+              and r.content is not null
+              and r.content ~ '^\s*\{';
+          " || true)
+          if [ "$PVERDICT" != "verified" ]; then
+            echo "::error::Notification authentication probe response did not correlate to this promotion's probe. Aborting before rewriting any notification caller."
+            exit 1
+          fi
+          echo "✅ PROD notification authentication proven — safe to reconcile cron/trigger callers."
+
 
       # Legacy PROD cron jobs were scheduled with a raw anon JWT baked into their
       # headers (they predate the hardened functions and were never created by a
