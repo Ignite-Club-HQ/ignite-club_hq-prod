@@ -103,6 +103,31 @@ export function useActiveGameSync() {
     }
   }, []);
 
+  /**
+   * Read the CURRENT server row's timer_state so we can refuse to downgrade a
+   * server-anchored (v2) board from this legacy writer. Local localStorage is
+   * not a safe proxy: `active_games` rows are shared per team, so a device with
+   * v1 localStorage would otherwise adopt the team's anchored row and stomp it.
+   */
+  const readRemoteTimerState = useCallback(
+    async (teamId: string | null, rowId: string | null): Promise<unknown> => {
+      if (!user?.id) return null;
+      try {
+        let q = supabase.from('active_games').select('timer_state').eq('is_active', true);
+        q = rowId
+          ? q.eq('id', rowId)
+          : (teamId ? q.eq('team_id', teamId) : q.eq('user_id', user.id).is('team_id', null));
+        const { data } = await q.order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        return data?.timer_state ?? null;
+      } catch {
+        // Unknown remote shape → treat as anchored (fail safe: skip timer_state).
+        return { schema_version: 2 };
+      }
+    },
+    [user?.id]
+  );
+
+
   const syncToDatabase = useCallback(async () => {
     if (!user?.id) return;
     // Skip DB sync when offline — local pitch state remains the source of truth,
