@@ -141,7 +141,7 @@ export function useActiveGameSync() {
     // STILL need to keep pitch_state in sync so the cron can read
     // autoSubPlan / players for sub & halftime notifications. Update
     // pitch_state only on existing rows; never timer_state.
-    const isServerAnchored = (timerState as unknown as { schema_version?: number } | null)?.schema_version === 2;
+    const isServerAnchored = hasAnchoredTimerMarker(timerState);
     if (isServerAnchored) {
       try {
         const ps = loadPitchState(timerState?.teamId);
