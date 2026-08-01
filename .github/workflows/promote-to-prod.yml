@@ -13,13 +13,17 @@ name: Promote to Prod
 # and `supabase db push` works with zero special handling.
 #
 # Required GitHub Actions secrets (Settings → Secrets and variables → Actions):
-#   SUPABASE_ACCESS_TOKEN      — https://supabase.com/dashboard/account/tokens
-#   SUPABASE_PROD_PROJECT_REF  — yabcfiuntwqjwvschnji
-#   SUPABASE_DB_PASSWORD       — prod DB password (Project Settings → Database)
-#   SUPABASE_SERVICE_ROLE_KEY  — prod service-role key, seeded into the prod
-#                                Vault so the push-delivery preflight migration
-#                                passes. Override with SUPABASE_PROD_SERVICE_ROLE_KEY
-#                                if the generic secret points at another project.
+#   SUPABASE_ACCESS_TOKEN          — https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROD_PROJECT_REF      — yabcfiuntwqjwvschnji
+#   SUPABASE_DB_PASSWORD           — prod DB password (Project Settings → Database)
+#   SUPABASE_PROD_SERVICE_ROLE_KEY — the PROD service-role key, seeded into the
+#                                prod Vault so the push-delivery preflight
+#                                migration passes. REQUIRED and production
+#                                specific: the old generic SUPABASE_SERVICE_ROLE_KEY
+#                                fallback was removed because it could point at a
+#                                non-prod project, and opaque `sb_` keys carry no
+#                                verifiable project ref for the workflow to check.
+
 
 
 
