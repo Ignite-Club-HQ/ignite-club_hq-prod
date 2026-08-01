@@ -400,9 +400,48 @@ jobs:
           echo "✅ All PROD hotfixes are present in the code being promoted."
 
 
+      - name: Reconcile orphan PROD migration history rows
+        # Hotfixes applied directly in PROD (SQL editor / dashboard) leave
+        # version rows in supabase_migrations.schema_migrations with no matching
+        # file in this repo. `db push` then aborts with
+        # "Remote migration versions not found in local migrations directory".
+        #
+        # Those hotfixes are re-authored as normal dev migrations (different
+        # timestamps) and are verified as present by the hotfix-parity step
+        # above, so the orphan history rows are safe to drop. `repair --status
+        # reverted` only deletes the history row — it never touches schema, so
+        # the hotfix stays live in PROD.
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          supabase migration list --linked > /tmp/mig-list.txt || true
+          cat /tmp/mig-list.txt
+
+          # Local file versions
+          ls supabase/migrations/*.sql 2>/dev/null \
+            | xargs -n1 basename 2>/dev/null \
+            | grep -oE '^[0-9]{14}' | sort -u > /tmp/local-versions.txt || : > /tmp/local-versions.txt
+
+          # Remote versions = rows where the REMOTE column is populated.
+          awk -F'|' 'NF>=2 {
+            gsub(/ /,"",$1); gsub(/ /,"",$2);
+            if ($2 ~ /^[0-9]{14}$/) print $2
+          }' /tmp/mig-list.txt | sort -u > /tmp/remote-versions.txt
+
+          ORPHANS=$(comm -23 /tmp/remote-versions.txt /tmp/local-versions.txt || true)
+          if [ -z "$ORPHANS" ]; then
+            echo "✅ No orphan remote migration versions."
+          else
+            echo "Orphan remote versions (applied in PROD, no local file):"
+            echo "$ORPHANS"
+            echo "$ORPHANS" | xargs -n 20 supabase migration repair --linked --status reverted
+            echo "✅ Orphan history rows cleared; PROD schema untouched."
+          fi
+
       - name: Apply migrations to PROD
         if: github.event_name == 'push'
         run: supabase db push --linked
+
 
 
       - name: Deploy changed edge functions to PROD
