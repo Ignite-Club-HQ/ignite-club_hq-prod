@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import type { Json } from "@/integrations/supabase/types";
 import { setSyncStatus } from "@/hooks/useSyncStatus";
+import { hasAnchoredTimerMarker } from "@/lib/serverTimer";
 import { getCurrentGameSeconds, getSecondsSinceUpdate, MAX_EXTRAPOLATION_SECS } from "./timerUtils";
 import { recalculateRemainingPlanTeamAware as recalculateRemainingPlan, validateAndFixRemainingPlan } from "./pitchStateUtils";
 import type { Player, SubstitutionEvent, TimerState, PitchBoardState, Goal } from "./types";
