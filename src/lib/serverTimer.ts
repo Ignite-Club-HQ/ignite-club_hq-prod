@@ -142,7 +142,11 @@ export async function sendTimerEvent(args: {
   autoSubActive?: boolean;
   players?: unknown[];
 }): Promise<TimerEventResponse> {
+  if (!isServerTimerEligibleTeamId(args.teamId)) {
+    throw new Error("server-timer-not-applicable");
+  }
   const { data, error } = await supabase.functions.invoke("pitch-timer-event", {
+
     body: {
       team_id: args.teamId,
       event: args.event,
