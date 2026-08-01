@@ -467,6 +467,20 @@ export default function GlobalSubMonitor() {
           console.log('[SYNC] Resumed existing game:', existing.id);
           setSyncStatus({ status: "synced", lastSyncTime: Date.now() });
         } else {
+          // The `existing` lookup above is scoped by `user_id`, so a live
+          // server-anchored row owned by a DIFFERENT controller (co-coach,
+          // team admin) is invisible here. Synthesising a fresh anchor in that
+          // case would either collide with `uniq_active_games_team_active` or —
+          // if the real row had just been released — create a second,
+          // independently anchored row for the same team whose
+          // `half_started_at = now()` silently discards the real match history.
+          // Let `pitch-timer-event` own row creation for anchored boards.
+          if (isServerAnchoredTimer) {
+            console.info('[SYNC] Anchored board with no row owned by this user — deferring to pitch-timer-event');
+            setSyncStatus({ status: "idle", lastSyncTime: null });
+            return;
+          }
+
           // Deactivate ALL previous games for this user before creating a new one
           // This prevents stale games from triggering false half-time notifications
           await supabase
@@ -474,6 +488,7 @@ export default function GlobalSubMonitor() {
             .update({ is_active: false })
             .eq('user_id', user.id)
             .eq('is_active', true);
+
 
           const { data: newGame, error } = await supabase
             .from('active_games')
