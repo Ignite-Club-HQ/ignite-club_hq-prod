@@ -378,13 +378,7 @@ export default function GlobalSubMonitor() {
     // admins for casual / unlinked sessions (e.g. when a coach is just moving
     // players around or experimenting with formations).
     if (!pitchState.linkedEventId) {
-      if (activeGameIdRef.current) {
-        await supabase
-          .from('active_games')
-          .update({ is_active: false })
-          .eq('id', activeGameIdRef.current);
-        activeGameIdRef.current = null;
-      }
+      await deactivateActiveGameRow('board not linked to an event');
       setSyncStatus({ status: "idle", lastSyncTime: null });
       return;
     }
