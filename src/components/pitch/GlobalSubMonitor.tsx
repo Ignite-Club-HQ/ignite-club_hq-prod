@@ -148,6 +148,18 @@ export default function GlobalSubMonitor() {
     const timerState = loadTimerState();
     const pitchState = loadPitchState(timerState?.teamId);
 
+    // The server-anchored timer (schema v2) is owned exclusively by the
+    // `pitch-timer-event` edge function, which stores event timestamps
+    // (half_started_at / last_event_at). Writing the v1 localStorage shape
+    // ({ elapsedSeconds, lastUpdateTime, schema_version: 2 }) over the top
+    // leaves a row that still LOOKS like v2 but has no half_started_at, so
+    // `pitch-timer-read` derives elapsed = 0 and the next mount hydrates the
+    // board at 00:00 — the "timer resets to 0 after the app is inactive"
+    // defect. Never write timer_state for v2 boards; pitch_state only.
+    const isServerAnchoredTimer =
+      (timerState as unknown as { schema_version?: number } | null)?.schema_version === 2;
+
+
     console.log('[SYNC] Timer state:', timerState ? {
       isRunning: timerState.isRunning,
       currentHalf: timerState.currentHalf,
