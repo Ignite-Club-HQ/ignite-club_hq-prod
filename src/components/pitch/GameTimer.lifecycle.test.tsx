@@ -186,4 +186,115 @@ describe("GameTimer lock, background and hydration lifecycle", () => {
     expect(ref.current?.getElapsedSeconds()).toBe(0);
     expect(ref.current?.isRunning()).toBe(false);
   });
+
+  it("credits real wall-clock time when interval callbacks are throttled", async () => {
+    server.read.mockResolvedValue(response(snapshot(16 * 60, {
+      is_running: true,
+      half_paused_at: null,
+    })));
+    const ref = createRef<GameTimerRef>();
+    render(<GameTimer ref={ref} teamId="team-a" compact />);
+    await settle();
+
+    expect(ref.current?.getElapsedSeconds()).toBe(16 * 60);
+    await act(async () => {
+      // Model a WebView that delivers one late callback rather than five
+      // reliable one-second callbacks.
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(ref.current?.getElapsedSeconds()).toBe(16 * 60 + 5);
+  });
+
+  it("uses server time rather than a device clock that is two minutes slow", async () => {
+    const serverNow = NOW + 2 * 60 * 1000;
+    const value = snapshot(0, {
+      is_running: true,
+      half_paused_at: null,
+      half_started_at: new Date(serverNow - 16 * 60 * 1000).toISOString(),
+      last_event_at: new Date(serverNow - 16 * 60 * 1000).toISOString(),
+    });
+    server.read.mockResolvedValue({ ...response(value), server_now: new Date(serverNow).toISOString() });
+    const ref = createRef<GameTimerRef>();
+    render(<GameTimer ref={ref} teamId="team-a" compact />);
+    await settle();
+
+    expect(ref.current?.getElapsedSeconds()).toBe(16 * 60);
+  });
+
+  it("does not advance a paused timer while the phone is locked", async () => {
+    const paused = snapshot(16 * 60);
+    server.read.mockResolvedValue(response(paused));
+    const ref = createRef<GameTimerRef>();
+    render(<GameTimer ref={ref} teamId="team-a" compact />);
+    await settle();
+
+    await act(async () => {
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      window.dispatchEvent(new Event("focus"));
+    });
+    await settle();
+    expect(ref.current?.getElapsedSeconds()).toBe(16 * 60);
+    expect(ref.current?.isRunning()).toBe(false);
+  });
+
+  it("maps an authoritative end-of-first-half snapshot to the halftime UI", async () => {
+    server.read.mockResolvedValue(response(snapshot(40 * 60, {
+      current_half: 1,
+      is_running: false,
+      half_paused_at: null,
+      half_ended_at: new Date(NOW).toISOString(),
+    })));
+    const ref = createRef<GameTimerRef>();
+    render(<GameTimer ref={ref} teamId="team-a" compact />);
+    await settle();
+
+    expect(ref.current?.getCurrentHalf()).toBe(2);
+    expect(ref.current?.getElapsedSeconds()).toBe(0);
+    expect(ref.current?.isRunning()).toBe(false);
+  });
+
+  it("hydrates full time without restarting or wrapping the second half", async () => {
+    server.read.mockResolvedValue(response(snapshot(40 * 60, {
+      current_half: 2,
+      is_running: false,
+      is_game_finished: true,
+      half_paused_at: null,
+      half_ended_at: new Date(NOW).toISOString(),
+    })));
+    const ref = createRef<GameTimerRef>();
+    render(<GameTimer ref={ref} teamId="team-a" compact />);
+    await settle();
+
+    expect(ref.current?.getCurrentHalf()).toBe(2);
+    expect(ref.current?.getElapsedSeconds()).toBe(40 * 60);
+    expect(ref.current?.isGameFinished()).toBe(true);
+    expect(ref.current?.isRunning()).toBe(false);
+  });
+
+  it("accepts a newer explicit reset but rejects an old zero row", async () => {
+    const live = snapshot(16 * 60, { last_event_at: new Date(NOW).toISOString() });
+    server.read.mockResolvedValue(response(live));
+    const ref = createRef<GameTimerRef>();
+    render(<GameTimer ref={ref} teamId="team-a" compact />);
+    await settle();
+
+    server.read.mockResolvedValue(response(snapshot(0, {
+      half_started_at: null,
+      half_paused_at: null,
+      last_event_at: new Date(NOW - 60_000).toISOString(),
+    })));
+    window.dispatchEvent(new Event("focus"));
+    await settle();
+    expect(ref.current?.getElapsedSeconds()).toBe(16 * 60);
+
+    server.read.mockResolvedValue(response(snapshot(0, {
+      half_started_at: null,
+      half_paused_at: null,
+      last_event_at: new Date(NOW + 60_000).toISOString(),
+    })));
+    window.dispatchEvent(new Event("focus"));
+    await settle();
+    expect(ref.current?.getElapsedSeconds()).toBe(0);
+    expect(ref.current?.isRunning()).toBe(false);
+  });
 });

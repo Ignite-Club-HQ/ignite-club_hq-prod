@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   computeClockSkewMs,
   deriveElapsedSeconds,
+  shouldAcceptServerSnapshot,
   type ServerTimer,
 } from "./serverTimer";
 
@@ -20,6 +21,20 @@ const timer = (overrides: Partial<ServerTimer> = {}): ServerTimer => ({
   last_event_at: new Date(START).toISOString(),
   ...overrides,
 });
+
+const mk = timer;
+const advanced = {
+  isRunning: true,
+  currentHalf: 1 as const,
+  elapsedSeconds: 16 * 60,
+  isGameFinished: false,
+};
+const idle = {
+  isRunning: false,
+  currentHalf: 1 as const,
+  elapsedSeconds: 0,
+  isGameFinished: false,
+};
 
 describe("server-anchored pitch timer arithmetic", () => {
   it("derives elapsed time from timestamps instead of interval count", () => {
