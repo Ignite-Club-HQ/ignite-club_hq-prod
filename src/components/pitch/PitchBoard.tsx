@@ -226,7 +226,9 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
   }, [isLandscape]);
 
   // Event group sync - syncs pitch board state to database for mini-league matches
-  const { forceSync: forceEventGroupSync, isEventGroup } = useEventGroupSync(teamId, null);
+  // readOnly (spectator / BoardViewerDialog) must never write back: its mirrored
+  // localStorage copy goes stale while the coach's clock advances.
+  const { forceSync: forceEventGroupSync, isEventGroup } = useEventGroupSync(teamId, null, { readOnly });
   
   // State initialization flag
   const [hasInitialized, setHasInitialized] = useState(false);

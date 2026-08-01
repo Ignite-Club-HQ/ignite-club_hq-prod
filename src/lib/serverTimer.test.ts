@@ -75,3 +75,40 @@ describe("server-anchored pitch timer arithmetic", () => {
     expect(value).toEqual(before);
   });
 });
+
+describe("first-hydrate stale-zero protection (resume-after-prefer-local)", () => {
+  // Repro: mount keeps the local projection (serverTimerRef stays null), then a
+  // resume read of the SAME clobbered zero row used to be accepted as
+  // "first-hydrate" and reset the board to 00:00.
+  const zeroRow = mk({
+    is_running: false,
+    half_started_at: null,
+    current_half: 1,
+    last_event_at: "2026-07-25T10:00:00.000Z",
+  });
+
+  it("rejects a zero row on first hydrate when the local clock has advanced", () => {
+    const d = shouldAcceptServerSnapshot(null, zeroRow, advanced);
+    expect(d.accept).toBe(false);
+    expect(d.reason).toBe("stale-zero-at-first-hydrate");
+  });
+
+  it("still accepts a zero row on first hydrate when local is idle (fresh board / post-reset)", () => {
+    expect(shouldAcceptServerSnapshot(null, zeroRow, idle).accept).toBe(true);
+  });
+
+  it("still accepts a running row on first hydrate", () => {
+    expect(shouldAcceptServerSnapshot(null, mk(), advanced).accept).toBe(true);
+  });
+
+  it("rejects a zero row on first hydrate when local is at half time (half 2, 0s)", () => {
+    expect(
+      shouldAcceptServerSnapshot(null, zeroRow, {
+        isRunning: false,
+        currentHalf: 2,
+        elapsedSeconds: 0,
+        isGameFinished: false,
+      }).accept,
+    ).toBe(false);
+  });
+});

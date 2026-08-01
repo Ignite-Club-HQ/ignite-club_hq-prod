@@ -29,9 +29,13 @@ describe("inbox first-reveal latch", () => {
 
   it("keeps ordering readiness separate from the permanent render decision", () => {
     expect(messages).toMatch(/const freshSortDataReady = !isOnline \|\|/);
-    expect(messages).toMatch(
-      /const initialRevealBlocked = isOnline && \(isLoadingFreshData \|\| !freshSortDataReady\)/,
-    );
+    expect(messages).toMatch(/const initialRevealBlocked =\s*\n?\s*isOnline &&/);
+    expect(messages).toMatch(/isLoadingFreshData \|\| !freshSortDataReady/);
+  });
+
+  it("never blocks the reveal when data is already available (warm mount)", () => {
+    expect(messages).toMatch(/let sessionRevealedInboxUserId: string \| null = null;/);
+    expect(messages).toMatch(/!hasAnyDisplayData &&\s*\n\s*!hasCachedData &&/);
   });
 
   it("latches once and only resets on an identity change", () => {

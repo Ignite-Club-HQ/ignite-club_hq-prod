@@ -5,6 +5,9 @@ import {
   readServerTimer,
   sendTimerEvent,
   deriveElapsedSeconds,
+  isServerAnchoredTimer,
+  shouldPreferLocalOnFirstHydrate,
+  shouldAcceptServerSnapshot,
   type ServerTimer,
 } from "@/lib/serverTimer";
 import { Button } from "@/components/ui/button";
@@ -124,9 +127,20 @@ const loadActiveTimerState = (): TimerState | null => {
 
 const saveTimerState = (state: TimerState) => {
   try {
-    localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(state));
+    // CRITICAL: stamp `schema_version: 2` on EVERY write, exactly like
+    // GameTimer.saveTimerState does. The marker is the "do not touch" signal
+    // that makes `useActiveGameSync` and `GlobalSubMonitor` skip writing
+    // `active_games.timer_state`. `serverToTimerState()` builds a fresh object
+    // literal without the marker, so saving it unstamped silently downgraded
+    // localStorage to "legacy v1" — the two legacy syncs then overwrote the
+    // authoritative server-anchored row with `{ elapsedSeconds, lastUpdateTime }`,
+    // which derives elapsed = 0 and reset the board to 00:00 on the next
+    // resume / button press. Never remove this stamp.
+    const stamped = { ...state, schema_version: 2 as const };
+    const json = JSON.stringify(stamped);
+    localStorage.setItem(ACTIVE_TIMER_KEY, json);
     if (state.teamId) {
-      localStorage.setItem(getTeamTimerStorageKey(state.teamId), JSON.stringify(state));
+      localStorage.setItem(getTeamTimerStorageKey(state.teamId), json);
     }
     // Clear dismissed flag when timer state is actively saved (new game or state change)
     localStorage.removeItem(WIDGET_DISMISSED_KEY);
@@ -134,6 +148,7 @@ const saveTimerState = (state: TimerState) => {
     window.dispatchEvent(new CustomEvent('game-state-changed', { detail: { source: 'timer-widget' } }));
   } catch { /* ignore */ }
 };
+
 
 /**
  * Map a server-anchored ServerTimer row into the widget's legacy TimerState
@@ -213,6 +228,9 @@ interface GameTimerWidgetProps {
 
 export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: GameTimerWidgetProps) {
   const [timerState, setTimerState] = useState<TimerState | null>(null);
+  // Last server snapshot this widget accepted, so repeated resumes are compared
+  // against it instead of each being treated as a fresh first hydrate.
+  const serverTimerRef = useRef<ServerTimer | null>(null);
   const [displaySeconds, setDisplaySeconds] = useState(0);
   const [homeGoals, setHomeGoals] = useState(0);
   // Guard: skip polling reads for a short window after a user action
@@ -398,17 +416,53 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
       // Immune to phone-lock, app-kill, or stale localStorage projections.
       try {
         const res = await readServerTimer(saved.teamId ?? null);
-        if (res.found && res.timer_state && (res.timer_state as ServerTimer).schema_version === 2) {
-          const mapped = serverToTimerState(
-            res.timer_state as ServerTimer,
-            res.server_now,
-            { teamId: saved.teamId, teamName: saved.teamName, gameFinishedAt: saved.gameFinishedAt },
+        if (res.found && isServerAnchoredTimer(res.timer_state)) {
+          const incoming = res.timer_state as ServerTimer;
+          const serverNowMs = new Date(res.server_now).getTime();
+          const preferLocal = shouldPreferLocalOnFirstHydrate({
+            incoming,
+            serverNowMs: Number.isFinite(serverNowMs) ? serverNowMs : Date.now(),
+            localElapsedSeconds: getCurrentGameSeconds(saved),
+            localCurrentHalf: saved.currentHalf,
+            localIsRunning: saved.isRunning,
+            localLastUpdateMs: saved.lastUpdateTime,
+          });
+          // This effect fires on EVERY resume, so it is not a first hydrate
+          // after the first one — `shouldPreferLocalOnFirstHydrate` alone lacks
+          // the equal-timestamp divergence and backwards-regression rules. The
+          // widget writes the SAME localStorage key the board reads, so a stale
+          // snapshot accepted here becomes the board's next local baseline.
+          // Require both guards, exactly like GameTimer.
+          const decision = shouldAcceptServerSnapshot(
+            serverTimerRef.current,
+            incoming,
+            {
+              isRunning: saved.isRunning,
+              currentHalf: saved.currentHalf,
+              elapsedSeconds: getCurrentGameSeconds(saved),
+              isGameFinished: Boolean(saved.gameFinishedAt),
+            },
           );
-          saveTimerState(mapped);
-          setTimerState(mapped);
-          setDisplaySeconds(mapped.elapsedSeconds);
-          return;
+          if (preferLocal || !decision.accept) {
+            console.info(
+              '[GameTimerWidget] server row rejected — keeping local',
+              preferLocal ? 'prefer-local-on-hydrate' : decision.reason,
+            );
+          } else {
+            serverTimerRef.current = incoming;
+            const mapped = serverToTimerState(
+              incoming,
+              res.server_now,
+              { teamId: saved.teamId, teamName: saved.teamName, gameFinishedAt: saved.gameFinishedAt },
+            );
+            saveTimerState(mapped);
+            setTimerState(mapped);
+            setDisplaySeconds(mapped.elapsedSeconds);
+            return;
+          }
         }
+
+
       } catch (e) {
         console.warn('[GameTimerWidget] server hydrate failed, falling back to local drift', e);
       }
@@ -552,6 +606,12 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
     if (serverEvent) {
       sendTimerEvent({ teamId: fresh.teamId ?? null, event: serverEvent, minutesPerHalf: mph })
         .then((res) => {
+          // Never map a malformed row back into the widget — a clobbered
+          // "fake v2" payload derives elapsed = 0 and would zero the clock.
+          if (!isServerAnchoredTimer(res.timer_state)) {
+            console.warn("[GameTimerWidget] ignoring malformed timer_state from", serverEvent);
+            return;
+          }
           const mapped = serverToTimerState(
             res.timer_state,
             res.server_now,
@@ -563,6 +623,7 @@ export default function GameTimerWidget({ onOpenPitchBoard, readOnly = false }: 
         })
         .catch((err) => console.warn("[GameTimerWidget] sendTimerEvent failed", serverEvent, err));
     }
+
   };
 
 

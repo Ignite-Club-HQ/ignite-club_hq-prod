@@ -2,6 +2,7 @@ import { useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { recordSyncWrite } from "@/lib/syncWriteRateMonitor";
+import { hasAnchoredTimerMarker, mayWriteLegacyTimerState } from "@/lib/serverTimer";
 import type { Json } from "@/integrations/supabase/types";
 
 const SYNC_INTERVAL = 10000; // Sync every 10 seconds
@@ -102,6 +103,31 @@ export function useActiveGameSync() {
     }
   }, []);
 
+  /**
+   * Read the CURRENT server row's timer_state so we can refuse to downgrade a
+   * server-anchored (v2) board from this legacy writer. Local localStorage is
+   * not a safe proxy: `active_games` rows are shared per team, so a device with
+   * v1 localStorage would otherwise adopt the team's anchored row and stomp it.
+   */
+  const readRemoteTimerState = useCallback(
+    async (teamId: string | null, rowId: string | null): Promise<unknown> => {
+      if (!user?.id) return null;
+      try {
+        let q = supabase.from('active_games').select('timer_state').eq('is_active', true);
+        q = rowId
+          ? q.eq('id', rowId)
+          : (teamId ? q.eq('team_id', teamId) : q.eq('user_id', user.id).is('team_id', null));
+        const { data } = await q.order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        return data?.timer_state ?? null;
+      } catch {
+        // Unknown remote shape → treat as anchored (fail safe: skip timer_state).
+        return { schema_version: 2 };
+      }
+    },
+    [user?.id]
+  );
+
+
   const syncToDatabase = useCallback(async () => {
     if (!user?.id) return;
     // Skip DB sync when offline — local pitch state remains the source of truth,
@@ -115,7 +141,7 @@ export function useActiveGameSync() {
     // STILL need to keep pitch_state in sync so the cron can read
     // autoSubPlan / players for sub & halftime notifications. Update
     // pitch_state only on existing rows; never timer_state.
-    const isServerAnchored = (timerState as unknown as { schema_version?: number } | null)?.schema_version === 2;
+    const isServerAnchored = hasAnchoredTimerMarker(timerState);
     if (isServerAnchored) {
       try {
         const ps = loadPitchState(timerState?.teamId);
@@ -216,10 +242,26 @@ export function useActiveGameSync() {
     // doesn't re-send half-time notifications when a new active_games row is created
     const isAtHalftime = syncedTimerState.currentHalf === 2 && syncedTimerState.elapsedSeconds === 0 && !syncedTimerState.isRunning;
 
+    // Local storage says "legacy v1", but the shared team row may already be
+    // server-anchored (another device / a newer app version owns the clock).
+    // Publishing our v1 timer_state there strands every device at 00:00, so ask
+    // the row itself before including the column.
+    const remoteTimerState = await readRemoteTimerState(
+      timerState.teamId || null,
+      activeGameIdRef.current,
+    );
+    const allowTimerWrite = mayWriteLegacyTimerState({
+      local: timerState,
+      remote: remoteTimerState,
+    });
+    if (!allowTimerWrite) {
+      console.log('[SYNC] v1 timer_state write SKIPPED — server row is anchored (v2)');
+    }
+
     const gameData = {
       user_id: user.id,
       team_id: timerState.teamId || null,
-      timer_state: syncedTimerState as unknown as Json,
+      ...(allowTimerWrite ? { timer_state: syncedTimerState as unknown as Json } : {}),
       pitch_state: pitchState as unknown as Json,
       is_active: true,
       updated_at: new Date().toISOString(),
@@ -314,7 +356,7 @@ export function useActiveGameSync() {
     } catch (err) {
       console.error('[SYNC] Sync error:', err);
     }
-  }, [user?.id, loadTimerState, loadPitchState, deactivateOtherActiveGames]);
+  }, [user?.id, loadTimerState, loadPitchState, deactivateOtherActiveGames, readRemoteTimerState]);
 
   const startSync = useCallback(() => {
     if (syncIntervalRef.current) return;

@@ -2,6 +2,8 @@ import { useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { shouldApplyRemoteTimerState, shouldWriteLocalTimerState, type LocalEventGroupTimer } from "@/lib/eventGroupTimerGuard";
+
 
 const SYNC_INTERVAL = 5000; // Fallback polling interval
 const PITCH_STATE_KEY = "ignite-pitch-board-state";
@@ -18,8 +20,22 @@ const getTeamTimerStorageKey = (teamId: string) => {
  * Uses a lightweight Supabase Realtime channel to broadcast "state-changed"
  * signals so other clients can fetch fresh state immediately, while keeping
  * the existing polling sync as a safety-net fallback.
+ *
+ * `readOnly` MUST be set for spectator surfaces (e.g. `BoardViewerDialog`).
+ * A spectator mirrors the remote state into its own localStorage; if it is
+ * also allowed to write, then once its copy goes stale (backgrounded tab, or
+ * simply a 5s tick landing before its next read) the interval — and the
+ * unmount flush — blind-`UPDATE`s the shared row with a stale clock and
+ * broadcasts `state-changed`, dragging every other client to re-read it.
+ * Spectators must only ever read.
  */
-export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
+export function useEventGroupSync(
+  teamId: string,
+  eventGroupId: string | null,
+  options?: { readOnly?: boolean },
+) {
+  const readOnly = options?.readOnly === true;
+
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastSyncedStateRef = useRef<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -93,7 +109,15 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
         console.log("[EventGroupSync] Applied pitch state from database", force ? "(realtime)" : "(initial)");
       }
 
-      if (data.timer_state && (force || !localTimer)) {
+      // Never let a remote timer payload move this board's clock backwards.
+      // `event_groups.timer_state` defaults to `{}` (truthy!) and peers can
+      // broadcast stale snapshots — both used to hydrate the board at 00:00.
+      const timerDecision = shouldApplyRemoteTimerState({
+        remote: data.timer_state,
+        local: localTimer as LocalEventGroupTimer | null,
+        force,
+      });
+      if (timerDecision.apply) {
         const dbTimerState = data.timer_state as Record<string, unknown>;
         if (typeof dbTimerState === "object" && dbTimerState !== null) {
           dbTimerState.teamId = teamId;
@@ -101,7 +125,10 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
         localStorage.setItem(getTeamTimerStorageKey(teamId), JSON.stringify(dbTimerState));
         localStorage.setItem("pitch-board-timer-state", JSON.stringify(dbTimerState));
         console.log("[EventGroupSync] Applied timer state from database", force ? "(realtime)" : "(initial)");
+      } else {
+        console.info("[EventGroupSync] Skipped remote timer state:", timerDecision.reason);
       }
+
 
       // Dispatch event so same-tab components know state changed
       if (force) {
@@ -114,6 +141,7 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
 
   const syncToDatabase = useCallback(async () => {
     if (!actualGroupId) return;
+    if (readOnly) return; // spectators never write
 
     const { pitchState, timerState } = loadLocalState();
 
@@ -123,17 +151,57 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
     if (stateHash === lastSyncedStateRef.current) return;
 
     try {
-      const { error } = await supabase
+      // Compare-and-swap. Read the row we are about to overwrite so we can
+      // (a) refuse to publish a snapshot older than what's already there, and
+      // (b) scope the UPDATE to that exact `updated_at`, so a peer that wrote
+      // in between wins and our stale write is dropped instead of clobbering.
+      const { data: current, error: readError } = await supabase
+        .from("event_groups")
+        .select("timer_state, updated_at")
+        .eq("id", actualGroupId)
+        .maybeSingle();
+
+      if (readError) {
+        console.error("[EventGroupSync] CAS pre-read failed, skipping write:", readError);
+        return;
+      }
+
+      const writeDecision = shouldWriteLocalTimerState({
+        local: timerState,
+        remote: current?.timer_state,
+      });
+
+      // `pitch_state` (formation, auto-sub plan) is still worth publishing even
+      // when our clock is behind — only the timer column is withheld.
+      const timerPatch = writeDecision.apply
+        ? { timer_state: (timerState || {}) as unknown as Json }
+        : {};
+      if (!writeDecision.apply) {
+        console.info("[EventGroupSync] Withholding timer_state:", writeDecision.reason);
+      }
+
+      let update = supabase
         .from("event_groups")
         .update({
           pitch_state: (pitchState || {}) as unknown as Json,
-          timer_state: (timerState || {}) as unknown as Json,
+          ...timerPatch,
           updated_at: new Date().toISOString(),
         })
         .eq("id", actualGroupId);
 
+      update = current?.updated_at
+        ? update.eq("updated_at", current.updated_at)
+        : update.is("updated_at", null);
+
+      const { data: updated, error } = await update.select("id");
+
       if (error) {
         console.error("[EventGroupSync] Failed to sync:", error);
+      } else if (!updated || updated.length === 0) {
+        // CAS lost: a peer wrote between our read and write. Pull their state
+        // in rather than retrying, so we converge instead of ping-ponging.
+        console.info("[EventGroupSync] CAS conflict — adopting peer state");
+        await loadFromDatabase(true);
       } else {
         lastSyncedStateRef.current = stateHash;
         console.log("[EventGroupSync] Synced state to database");
@@ -143,7 +211,8 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
     } catch (err) {
       console.error("[EventGroupSync] Sync error:", err);
     }
-  }, [actualGroupId, loadLocalState, broadcastSignal]);
+  }, [actualGroupId, readOnly, loadLocalState, broadcastSignal, loadFromDatabase]);
+
 
   /**
    * Subscribe to a lightweight Realtime broadcast channel for this event group.
@@ -189,10 +258,12 @@ export function useEventGroupSync(teamId: string, eventGroupId: string | null) {
     // Load from database first (in case another user started the game)
     loadFromDatabase(false);
 
-    // Fallback polling sync
-    syncIntervalRef.current = setInterval(syncToDatabase, SYNC_INTERVAL);
-    console.log("[EventGroupSync] Started sync for event group:", actualGroupId);
-  }, [actualGroupId, loadFromDatabase, syncToDatabase, subscribeToChannel]);
+    // Fallback polling sync (writers only — spectators just read)
+    if (!readOnly) {
+      syncIntervalRef.current = setInterval(syncToDatabase, SYNC_INTERVAL);
+    }
+    console.log("[EventGroupSync] Started sync for event group:", actualGroupId, readOnly ? "(read-only)" : "");
+  }, [actualGroupId, readOnly, loadFromDatabase, syncToDatabase, subscribeToChannel]);
 
   const stopSync = useCallback(async () => {
     if (syncIntervalRef.current) {
