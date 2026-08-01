@@ -356,7 +356,7 @@ export function useActiveGameSync() {
     } catch (err) {
       console.error('[SYNC] Sync error:', err);
     }
-  }, [user?.id, loadTimerState, loadPitchState, deactivateOtherActiveGames]);
+  }, [user?.id, loadTimerState, loadPitchState, deactivateOtherActiveGames, readRemoteTimerState]);
 
   const startSync = useCallback(() => {
     if (syncIntervalRef.current) return;
