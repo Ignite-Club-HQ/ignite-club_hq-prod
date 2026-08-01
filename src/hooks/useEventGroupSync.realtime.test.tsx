@@ -43,12 +43,17 @@ function eventGroupQuery() {
     return query;
   });
   query.eq = vi.fn(() => query);
+  query.is = vi.fn(() => query);
   query.single = vi.fn(async () => ({ data: databaseState, error: null }));
+  query.maybeSingle = vi.fn(async () => ({ data: databaseState, error: null }));
   Object.defineProperty(query, "then", {
     value: (resolve: any) =>
       Promise.resolve(
         mode === "update"
-          ? { data: null, error: syncControl.updateError }
+          ? {
+              data: syncControl.updateError ? null : [{ id: "group-1" }],
+              error: syncControl.updateError,
+            }
           : { data: databaseState, error: null },
       ).then(resolve),
   });
