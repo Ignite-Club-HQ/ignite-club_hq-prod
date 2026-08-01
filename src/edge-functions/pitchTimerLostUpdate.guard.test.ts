@@ -40,15 +40,20 @@ describe("pitch timer writers must compare-and-swap on last_event_at", () => {
     expect(src).toContain(".update({ is_active: false })");
   });
 
-  it("no server writer updates timer_state with only an id predicate", () => {
+  it("no timer_state write is awaited inline without a CAS chain", () => {
     for (const p of [
       "supabase/functions/pitch-timer-event/index.ts",
       "supabase/functions/check-pending-subs/index.ts",
     ]) {
       const src = read(p);
-      // `.update({ timer_state: ... }).eq('id', x)` with nothing else is the
-      // exact shape of the lost-update defect.
-      expect(/update\(\{\s*timer_state[\s\S]{0,120}?\}\)\s*\.eq\((['"])id\1[^)]*\)\s*;/.test(src)).toBe(false);
+      // `await supabase.from(...).update({ timer_state ... }).eq('id', x)` in a
+      // single inline expression is the exact shape of the lost-update defect:
+      // there is nowhere left to attach the CAS filter. Guarded writes build
+      // the query into a variable first, then chain `.filter(...)`.
+      expect(
+        /await\s+(supabase|admin)\s*\n?\s*\.from\([^)]*\)\s*\.update\(\{\s*timer_state/.test(src),
+      ).toBe(false);
     }
   });
+
 });
