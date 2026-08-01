@@ -258,10 +258,12 @@ export function useEventGroupSync(
     // Load from database first (in case another user started the game)
     loadFromDatabase(false);
 
-    // Fallback polling sync
-    syncIntervalRef.current = setInterval(syncToDatabase, SYNC_INTERVAL);
-    console.log("[EventGroupSync] Started sync for event group:", actualGroupId);
-  }, [actualGroupId, loadFromDatabase, syncToDatabase, subscribeToChannel]);
+    // Fallback polling sync (writers only — spectators just read)
+    if (!readOnly) {
+      syncIntervalRef.current = setInterval(syncToDatabase, SYNC_INTERVAL);
+    }
+    console.log("[EventGroupSync] Started sync for event group:", actualGroupId, readOnly ? "(read-only)" : "");
+  }, [actualGroupId, readOnly, loadFromDatabase, syncToDatabase, subscribeToChannel]);
 
   const stopSync = useCallback(async () => {
     if (syncIntervalRef.current) {
