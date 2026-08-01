@@ -166,7 +166,9 @@ export async function readServerTimer(teamId: string | null): Promise<TimerReadR
   // avoids 401 blank-screen reports on /auth, during sign-out, and when
   // a stale session is still in localStorage but auto-refresh hasn't run.
   const empty: TimerReadResponse = { found: false, server_now: new Date().toISOString() };
+  if (!isServerTimerEligibleTeamId(teamId)) return empty;
   let accessToken: string | null = null;
+
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const session = sessionData?.session;
