@@ -531,6 +531,8 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     // HT crossing.
     if (curHalf === 2 && prevHalf === 1) {
       accHalf.clear();
+      recomputeH2Alloc();
+
       if (gkRotates) {
         // The incoming keeper cannot also hold an outfield slot in H2. If the
         // rotation left them on the pitch, hand their slot over explicitly so
