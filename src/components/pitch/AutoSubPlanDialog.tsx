@@ -3052,6 +3052,7 @@ export function createSubPlan(
         if (!bestEq || eqSpread < bestEq.spread) {
           bestEq = { plan: eqResult.plan as unknown as typeof plan, spread: eqSpread };
         }
+        if (process.env.EQ_DEBUG) console.warn("[eq]", minShiftSec, "spread", eqSpread/60, "subs", eqResult.plan.length);
         if (eqSpread <= capSec) break;
       }
 
@@ -3066,6 +3067,7 @@ export function createSubPlan(
         else if (eqMeetsCap === currentMeetsCap && bestEq.spread < currentSpread) adopt = true;
         else if (!currentSim.valid) adopt = true;
 
+        if (process.env.EQ_DEBUG) console.warn("[eq] best", bestEq.spread/60, "current", currentSpread/60, "valid", currentSim.valid);
         if (adopt) {
           plan.length = 0;
           plan.push(...bestEq.plan);
