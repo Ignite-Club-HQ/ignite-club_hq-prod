@@ -387,7 +387,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
       for (const outId of onPitchEligible) {
         if (inId === outId) continue;
         const lastOut = lastSubAt.get(outId);
-        if (lastOut !== undefined && absT - lastOut < minShiftSec + chunkSec) continue;
+        if (lastOut !== undefined && absT - lastOut < minShiftSec) continue;
 
         const outP = playerById.get(outId)!;
         const outPos = currentPosition.get(outId);
