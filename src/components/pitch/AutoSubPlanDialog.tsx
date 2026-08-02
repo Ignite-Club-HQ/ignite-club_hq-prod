@@ -3012,11 +3012,11 @@ export function createSubPlan(
       const currentSim = simulateOutfieldPlan(plan);
       const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
 
-      const cadenceFloor = rotationSpeed >= 2 ? eff.frequentIntervalFloorSec : eff.standardIntervalFloorSec;
+      const cadenceFloor = rotationSpeed >= 2 ? eff.frequentIntervalFloor : eff.standardIntervalFloor;
       const minShiftCandidates = Array.from(
         new Set(
           [
-            eff.standardTargetIntervalSec,
+            eff.standardTargetInterval,
             cadenceFloor,
             Math.max(60, eff.minShiftSeconds),
             240,
