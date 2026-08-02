@@ -66,7 +66,7 @@ export default function PitchBoardResumeRedirect() {
     //  - the board mounted in THIS JS session, or
     //  - the persisted open stamp is recent (board was mounted shortly before
     //    the WebView was torn down by the OS).
-    // The old check used `performance.now() < 8000`, which silently refused
+    // The old check used a fixed 8s cold-start window, which silently refused
     // to restore on slow cold starts (auth restore + theme + legal gate can
     // push the first mount past 8s), leaving the user on the team page with
     // the board gone — exactly the reported bug.
