@@ -12,6 +12,7 @@ const lifecycle = readFileSync(
 const openFlag = readFileSync("src/components/pitch/pitchBoardOpenFlag.ts", "utf8");
 const teamPage = readFileSync("src/pages/TeamDetailPage.tsx", "utf8");
 const eventPage = readFileSync("src/pages/EventDetailPage.tsx", "utf8");
+const app = readFileSync("src/App.tsx", "utf8");
 
 describe("pitch board resume restore", () => {
   it("does not gate restore on the brittle 8s performance.now() cold-start check", () => {
@@ -53,5 +54,12 @@ describe("pitch board resume restore", () => {
   it("keeps event-scoped pitch board access sticky through resume refetches", () => {
     expect(eventPage).toContain("pitchBoardAccessEverGrantedRef");
     expect(eventPage).toContain("showPitchBoard && isSoccerClub && pitchBoardAccessGranted");
+  });
+
+  it("mounts the resume redirect above the protected route tree", () => {
+    const redirectIndex = app.indexOf("<PitchBoardResumeRedirect />");
+    const routesIndex = app.indexOf("<Routes>");
+    expect(redirectIndex).toBeGreaterThan(-1);
+    expect(routesIndex).toBeGreaterThan(redirectIndex);
   });
 });
