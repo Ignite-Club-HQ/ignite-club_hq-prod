@@ -359,7 +359,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     // shift of their allocation there is nothing worth substituting for. This
     // keeps the plan's substitution count in the same range as the
     // conventional planner instead of churning every slice.
-    const deadband = Math.max(chunkSec, minShiftSec / 2);
+    const deadband = chunkSec;
     if (base.maxAbs <= deadband) return null;
 
     let best:
@@ -483,6 +483,9 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   // Slice walk.
   // ------------------------------------------------------------
   let prevHalf: 1 | 2 = 1;
+  const windowGapSec = Math.max(chunkSec, minShiftSec);
+  const maxSwapsPerWindow = Math.max(1, Math.floor(outfieldSlots / 2));
+  let lastWindowAt = Number.NEGATIVE_INFINITY;
 
   for (let absT = 0; absT < totalSec; absT += chunkSec) {
     const curHalf = halfOf(absT);
@@ -531,11 +534,24 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     const intoHalf = intoHalfSec(absT, curHalf);
     const halfRemaining = halfDurationSec - intoHalf;
     const subEligible =
-      intoHalf >= noSubBeforeSec && halfRemaining > noSubAfterSec && absT > 0;
+      intoHalf >= noSubBeforeSec &&
+      halfRemaining > noSubAfterSec &&
+      absT > 0 &&
+      absT - lastWindowAt >= windowGapSec;
 
     if (subEligible) {
-      const swap = findBestSwap(absT, curHalf);
-      if (swap) applySwap(intoHalf, curHalf, swap, absT);
+      // Substitutions are grouped into windows spaced at least one minimum
+      // shift apart. Inside a window we keep taking the best legal swap while
+      // it still improves fairness, which lands the line-up on its allocation
+      // in a handful of windows rather than churning every slice.
+      let applied = 0;
+      for (let k = 0; k < maxSwapsPerWindow; k += 1) {
+        const swap = findBestSwap(absT, curHalf);
+        if (!swap) break;
+        applySwap(intoHalf, curHalf, swap, absT);
+        applied += 1;
+      }
+      if (applied > 0) lastWindowAt = absT;
     }
 
     // Credit this chunk to whoever is currently on the outfield.
