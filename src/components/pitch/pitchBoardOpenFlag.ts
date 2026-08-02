@@ -21,6 +21,7 @@ export function clearPitchBoardOpenFlag() {
     localStorage.removeItem(PITCH_BOARD_OPEN_KEY);
     localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
     localStorage.removeItem(PITCH_BOARD_LAST_CONTEXT_KEY);
+    localStorage.removeItem(PITCH_BOARD_OPEN_AT_KEY);
   } catch {
     /* ignore */
   }
