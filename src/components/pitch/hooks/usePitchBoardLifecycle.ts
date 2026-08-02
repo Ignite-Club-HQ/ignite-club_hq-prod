@@ -63,6 +63,7 @@ export function usePitchBoardLifecycle({
     try {
       const path = window.location.pathname + window.location.search;
       localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
+      localStorage.setItem(PITCH_BOARD_OPEN_AT_KEY, String(Date.now()));
     } catch {
       /* ignore */
     }
