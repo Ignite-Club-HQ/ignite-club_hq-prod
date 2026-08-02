@@ -129,6 +129,7 @@ export default function PitchBoardResumeRedirect() {
   useEffect(() => {
     let cancelled = false;
     const attempt = () => attemptRestoreRef.current();
+    const resumeTimers: number[] = [];
 
     // Cold start counts as a restore opportunity.
     openRestoreWindow();
@@ -158,8 +159,8 @@ export default function PitchBoardResumeRedirect() {
               // sometimes restores the WebView to the start URL ("/") and
               // React needs a frame or two to finish bootstrap.
               attempt();
-              window.setTimeout(attempt, 400);
-              window.setTimeout(attempt, 1200);
+              resumeTimers.push(window.setTimeout(attempt, 400));
+              resumeTimers.push(window.setTimeout(attempt, 1200));
             }
           });
           if (cancelled) {
@@ -193,6 +194,7 @@ export default function PitchBoardResumeRedirect() {
     return () => {
       cancelled = true;
       timers.forEach((t) => window.clearTimeout(t));
+      resumeTimers.forEach((t) => window.clearTimeout(t));
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pageshow", onPageShow);
       removeListener?.();
@@ -237,4 +239,3 @@ export default function PitchBoardResumeRedirect() {
 
   return null;
 }
-

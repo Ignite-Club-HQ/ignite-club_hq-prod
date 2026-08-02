@@ -3263,7 +3263,7 @@ export function createSubPlan(
 }
 
 // Generate per-team plans for mini-league mode and merge them
-function createMiniLeagueSubPlan(
+export function createMiniLeagueSubPlan(
   players: Player[],
   teamSize: number,
   halfDurationSeconds: number,
