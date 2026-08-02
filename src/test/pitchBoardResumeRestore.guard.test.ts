@@ -11,6 +11,7 @@ const lifecycle = readFileSync(
 );
 const openFlag = readFileSync("src/components/pitch/pitchBoardOpenFlag.ts", "utf8");
 const teamPage = readFileSync("src/pages/TeamDetailPage.tsx", "utf8");
+const eventPage = readFileSync("src/pages/EventDetailPage.tsx", "utf8");
 
 describe("pitch board resume restore", () => {
   it("does not gate restore on the brittle 8s performance.now() cold-start check", () => {
@@ -35,5 +36,22 @@ describe("pitch board resume restore", () => {
     expect(teamPage).not.toContain(
       "showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin)",
     );
+  });
+
+  it("keeps the restore lease alive across slow native bootstrap", () => {
+    expect(redirect).toContain("const RESTORE_WINDOW_MS = 30_000");
+    expect(redirect).toContain("29_000");
+    expect(redirect).not.toContain("openRestoreWindow = (ms = 6000)");
+  });
+
+  it("reclaims competing protected routes but never auth/legal routes", () => {
+    expect(redirect).toContain("isPublicBootstrapPath");
+    expect(redirect).toContain("if (!onStored && isPublicBootstrapPath(loc.pathname)) return");
+    expect(redirect).not.toContain("if (!onNeutral && !onStored) return");
+  });
+
+  it("keeps event-scoped pitch board access sticky through resume refetches", () => {
+    expect(eventPage).toContain("pitchBoardAccessEverGrantedRef");
+    expect(eventPage).toContain("showPitchBoard && isSoccerClub && pitchBoardAccessGranted");
   });
 });

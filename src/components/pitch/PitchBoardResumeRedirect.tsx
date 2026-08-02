@@ -12,6 +12,19 @@ import { clearPitchBoardOpenFlag } from "./pitchBoardOpenFlag";
  *  count as a genuine restore signal (covers a long phone-lock + slow cold
  *  start, while still self-healing truly stale flags). */
 const RECENT_OPEN_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+// Native cold starts can spend well over six seconds restoring auth, profile,
+// theme and legal state. Keep the restore lease alive across that bootstrap so
+// a later redirect cannot strand the user on another protected page.
+const RESTORE_WINDOW_MS = 30_000;
+const RESTORE_RETRY_DELAYS_MS = [0, 250, 750, 1500, 3000, 5000, 8000, 12_000, 20_000, 29_000] as const;
+
+const isPublicBootstrapPath = (path: string) =>
+  path === "/auth" ||
+  path === "/reset-password" ||
+  path === "/verify-reset-code" ||
+  path === "/complete-profile" ||
+  path === "/terms" ||
+  path === "/privacy";
 
 /**
  * Restores the pitch board after a WebView cold-start (iOS lock/unlock kills
@@ -41,7 +54,7 @@ export default function PitchBoardResumeRedirect() {
   // restore — otherwise the pitch board re-opens unexpectedly whenever the
   // user lands on a neutral route after closing it earlier.
   const restoreWindowUntilRef = useRef(0);
-  const openRestoreWindow = (ms = 6000) => {
+  const openRestoreWindow = (ms = RESTORE_WINDOW_MS) => {
     restoreWindowUntilRef.current = Math.max(
       restoreWindowUntilRef.current,
       Date.now() + ms,
@@ -102,10 +115,14 @@ export default function PitchBoardResumeRedirect() {
       // HomePage runs its own cold-start restore that re-opens the modal.
       if (path === "/" || path === "/home") return;
 
-      const onNeutral =
-        loc.pathname === "/" || loc.pathname === "/home";
       const onStored = loc.pathname === path;
-      if (!onNeutral && !onStored) return;
+
+      // During a genuine cold-start/resume lease the open board is the
+      // authoritative foreground destination. Auth/profile/bootstrap and
+      // pending navigation effects can briefly move the router to another
+      // protected page after our first attempt; reclaim it on a later retry.
+      // Never override public auth/legal flows.
+      if (!onStored && isPublicBootstrapPath(loc.pathname)) return;
 
       // Already mid-restore (param present and on the right path) → nothing to do.
       const currentParams = new URLSearchParams(loc.search);
@@ -137,8 +154,7 @@ export default function PitchBoardResumeRedirect() {
     // catch the case where the URL is still /auth or the Suspense fallback
     // when the first attempt runs, and only resolves to "/" a few hundred
     // milliseconds later once the AuthProvider hydrates.
-    const delays = [0, 250, 750, 1500, 3000, 5000];
-    const timers = delays.map((d) =>
+    const timers = RESTORE_RETRY_DELAYS_MS.map((d) =>
       window.setTimeout(() => {
         if (!cancelled) attempt();
       }, d)
@@ -215,15 +231,17 @@ export default function PitchBoardResumeRedirect() {
       const storedPath = (
         localStorage.getItem(PITCH_BOARD_OPEN_PATH_KEY) || ""
       ).split("?")[0];
-      const isNeutral = next === "/" || next === "/home";
       if (
         storedPath &&
         prev === storedPath &&
-        isNeutral &&
-        prev !== next
+        prev !== next &&
+        // Route changes caused by cold-start/resume bootstrap are allowed to
+        // settle and will be reclaimed by attemptRestore. Outside that lease,
+        // leaving the board's route is an explicit navigation and must clear
+        // the flag so it does not reopen later.
+        Date.now() > restoreWindowUntilRef.current
       ) {
-        // User left the pitch-board route to a neutral page — treat as
-        // explicit close. Cancel any in-flight restore window.
+        // User left the pitch-board route — treat as explicit close.
         restoreWindowUntilRef.current = 0;
         clearPitchBoardOpenFlag();
         return;

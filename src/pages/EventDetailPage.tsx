@@ -715,6 +715,15 @@ export default function EventDetailPage() {
 
   const canViewPitchBoardReadOnly = !!isTeamMember && !canAccessPitchBoard && !!activeGameSummary;
 
+  // Keep proven access sticky while the board is open. Native resume aborts
+  // and restarts active queries; transient false/undefined access results must
+  // not unmount the restored board and reveal the event page underneath it.
+  const rawPitchBoardAccess = canAccessSoccerBoard || canViewPitchBoardReadOnly;
+  const pitchBoardAccessEverGrantedRef = useRef(false);
+  if (rawPitchBoardAccess) pitchBoardAccessEverGrantedRef.current = true;
+  const pitchBoardAccessGranted =
+    rawPitchBoardAccess || (showPitchBoard && pitchBoardAccessEverGrantedRef.current);
+
   // Fetch team members for pitch board (adults + children)
   // STRICT: Only includes players whose RSVP status is "going" for this event.
   // Players with status "maybe", "not_going", or no response are excluded.
@@ -4448,7 +4457,7 @@ export default function EventDetailPage() {
       />
 
       {/* Pitch Board Modal — soccer */}
-      {showPitchBoard && isSoccerClub && (canAccessSoccerBoard || canViewPitchBoardReadOnly) && teamMembers && event?.team_id && createPortal(
+      {showPitchBoard && isSoccerClub && pitchBoardAccessGranted && teamMembers && event?.team_id && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen flex items-center justify-center" style={{ backgroundColor: '#2d5a27', zIndex: 999999 }}>
             <div className="flex flex-col items-center gap-4">
