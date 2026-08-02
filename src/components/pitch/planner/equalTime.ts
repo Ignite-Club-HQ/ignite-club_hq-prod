@@ -283,10 +283,24 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     benchEligible.sort((a, b) => urgency(b) - urgency(a) || cmpId(a, b));
     onPitchEligible.sort((a, b) => urgency(a) - urgency(b) || cmpId(a, b));
 
-    // A swap must buy back at least one chunk of fairness over the minimum
-    // shift it commits us to. Expressed as a rate gap so it scales with how
-    // much opportunity is left.
-    const payback = 0;
+    // Baseline score: sum of squared projected deviations if we do NOTHING
+    // this chunk. Each on-pitch player is projected forward by their REMAINING
+    // OPPORTUNITY rather than by the raw remaining match time — that single
+    // change is what makes halftime goalkeeper rotation fair, because a player
+    // who takes the second half in goal cannot bank any more outfield seconds
+    // after halftime.
+    const oppOf = (id: string) => remainingOpportunitySec(id, absT);
+    let baseSumSq = 0;
+    let baseMaxAbs = 0;
+    rotationPool.forEach((p) => {
+      const cur = projected.get(p.id) ?? 0;
+      const tgt = targetSec.get(p.id) ?? 0;
+      const proj = cur + (onPitchOutfield.has(p.id) ? oppOf(p.id) : 0);
+      const d = proj - tgt;
+      baseSumSq += d * d;
+      const ad = Math.abs(d);
+      if (ad > baseMaxAbs) baseMaxAbs = ad;
+    });
 
     let best:
       | {
@@ -299,6 +313,8 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
             toPosition: PitchPosition;
           };
           improvement: number;
+          newSumSq: number;
+          newMaxAbs: number;
           outId: string;
           inId: string;
         }
@@ -306,17 +322,8 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
 
     for (const inId of benchEligible) {
       const inP = playerById.get(inId)!;
-      const inUrgency = urgency(inId);
-      if (!Number.isFinite(inUrgency)) continue;
       for (const outId of onPitchEligible) {
         if (inId === outId) continue;
-        const gap = inUrgency - urgency(outId);
-        if (!(gap > payback)) continue;
-        // Once the gap is below the payback threshold for this bench player,
-        // every less-urgent on-pitch candidate is even worse — but the
-        // on-pitch list is sorted ascending, so keep scanning is wrong; the
-        // first (least urgent) candidate is the best target. Continue anyway
-        // to allow position-eligibility fallbacks further down the list.
         // Min-shift gate on the player coming OFF.
         const lastOut = lastSubAt.get(outId);
         if (lastOut !== undefined && absT - lastOut < minShiftSec) continue;
@@ -350,16 +357,46 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
           if (!foundSwap) continue;
         }
 
-        if (!best || gap > best.improvement ||
-            (gap === best.improvement &&
-              (cmpId(outId, best.outId) < 0 ||
-                (outId === best.outId && cmpId(inId, best.inId) < 0)))) {
+        // Score the hypothetical post-swap squad projection.
+        let newSumSq = 0;
+        let newMaxAbs = 0;
+        rotationPool.forEach((p) => {
+          const cur = projected.get(p.id) ?? 0;
+          const tgt = targetSec.get(p.id) ?? 0;
+          const onAfter =
+            p.id === outId
+              ? false
+              : p.id === inId
+                ? true
+                : onPitchOutfield.has(p.id);
+          const proj = cur + (onAfter ? oppOf(p.id) : 0);
+          const d = proj - tgt;
+          newSumSq += d * d;
+          const ad = Math.abs(d);
+          if (ad > newMaxAbs) newMaxAbs = ad;
+        });
+
+        // Strict improvement in squad-wide fairness (sum-of-squares) required.
+        if (newSumSq >= baseSumSq) continue;
+
+        const improvement = baseSumSq - newSumSq;
+        if (
+          !best ||
+          newSumSq < best.newSumSq ||
+          (newSumSq === best.newSumSq && newMaxAbs < best.newMaxAbs) ||
+          (newSumSq === best.newSumSq &&
+            newMaxAbs === best.newMaxAbs &&
+            (cmpId(outId, best.outId) < 0 ||
+              (outId === best.outId && cmpId(inId, best.inId) < 0)))
+        ) {
           best = {
             out: outP,
             in: inP,
             outPos,
             swap: swapMeta,
-            improvement: gap,
+            improvement,
+            newSumSq,
+            newMaxAbs,
             outId,
             inId,
           };
