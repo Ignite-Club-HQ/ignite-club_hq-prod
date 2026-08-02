@@ -359,7 +359,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     // shift of their allocation there is nothing worth substituting for. This
     // keeps the plan's substitution count in the same range as the
     // conventional planner instead of churning every slice.
-    const deadband = Math.max(chunkSec, minShiftSec);
+    const deadband = chunkSec;
     if (base.maxAbs <= deadband) return null;
 
     let best:
@@ -383,11 +383,11 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     for (const inId of benchEligible) {
       const inP = playerById.get(inId)!;
       const lastIn = lastSubAt.get(inId);
-      if (lastIn !== undefined && absT - lastIn < minShiftSec) continue;
+      if (lastIn !== undefined && absT - lastIn < minShiftSec + chunkSec) continue;
       for (const outId of onPitchEligible) {
         if (inId === outId) continue;
         const lastOut = lastSubAt.get(outId);
-        if (lastOut !== undefined && absT - lastOut < minShiftSec) continue;
+        if (lastOut !== undefined && absT - lastOut < minShiftSec + chunkSec) continue;
 
         const outP = playerById.get(outId)!;
         const outPos = currentPosition.get(outId);
