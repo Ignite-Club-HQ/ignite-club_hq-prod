@@ -1,7 +1,22 @@
 # Accepted Transitive Risk: brace-expansion (GHSA-mh99-v99m-4gvg / CVE-2026-14257)
 
-**Status:** Open — accepted risk, awaiting upstream fixes. Do **not** dismiss Dependabot alerts for this advisory as false positives.
-**Last reviewed:** 2026-07-25
+**Status:** Partially remediated — scoped overrides applied (see "2026-08-02 update"). Do **not** dismiss remaining Dependabot alerts for this advisory as false positives.
+**Last reviewed:** 2026-08-02
+
+## 2026-08-02 update — scoped patch overrides
+
+Backports have now shipped for the 1.x and 2.x lines, so major-version substitution is no longer required. `package.json` carries version-scoped npm overrides:
+
+```json
+"brace-expansion@1.x": "1.1.17",
+"brace-expansion@2.x": "2.1.3"
+```
+
+Resolved paths after install: eslint -> minimatch@3 -> `1.1.17`; exceljs/archiver -> minimatch@5 -> `2.1.3`; tailwindcss/sucrase and typescript-eslint -> minimatch@9 -> `2.1.3`; @capacitor/cli -> rimraf/glob -> minimatch@10 -> `5.0.8` (already patched, untouched).
+
+The rules below still apply: no *global* single-version override, no `--force`, no parent downgrades.
+
+
 
 ## Advisory
 
