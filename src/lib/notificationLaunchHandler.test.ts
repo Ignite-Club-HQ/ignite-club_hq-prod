@@ -148,6 +148,38 @@ describe("native notification launch routing", () => {
     vi.useRealTimers();
   });
 
+  it("keeps the newest exact message when two pushes are tapped before cold-start auth is ready", async () => {
+    let nonce = 1_000;
+    mocks.normalizeChatUrl.mockImplementation((data, url) => {
+      const parsed = new URL(url, "https://igniteclubhq.app");
+      parsed.searchParams.set("message", data.message_id);
+      parsed.searchParams.set("jump", String(nonce++));
+      return `${parsed.pathname}${parsed.search}`;
+    });
+    const module = await loadHandler();
+
+    tap({
+      type: "team_message",
+      message_id: "older-tapped-message",
+      url: "/messages/team-1",
+    });
+    tap({
+      type: "team_message",
+      message_id: "newer-tapped-message",
+      url: "/messages/team-1",
+    });
+
+    expect(module.peekPendingNotificationNavigation()).toMatch(
+      /^\/messages\/team-1\?(?=.*message=newer-tapped-message)(?=.*jump=1001)/,
+    );
+    const navigate = vi.fn();
+    expect(module.processPendingNotificationNavigation(navigate)).toBe(true);
+    expect(navigate).toHaveBeenCalledWith(expect.stringContaining(
+      "message=newer-tapped-message",
+    ));
+    expect(navigate.mock.calls[0][0]).not.toContain("older-tapped-message");
+  });
+
   it.each(["pending_sub", "half_time", "full_time", "game_finished", "formation_change", "game_kickoff", "pitch_board"])(
     "routes a %s notification without a URL to the pitch board",
     async type => {

@@ -3,10 +3,14 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 const api = "http://127.0.0.1:54321";
 const userId = "00000000-0000-4000-8000-000000009001";
 const teamId = "00000000-0000-4000-8000-000000009002";
+const secondTeamId = "00000000-0000-4000-8000-000000009012";
 const clubId = "00000000-0000-4000-8000-000000009003";
 const targetId = "00000000-0000-4000-8000-000000009020";
 const olderSearchId = "00000000-0000-4000-8000-000000009021";
+const oldPushTargetId = "00000000-0000-4000-8000-000000009022";
 const syntheticImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='30'%3E%3Crect width='40' height='30' fill='%23007acc'/%3E%3C/svg%3E";
+const offlineEventTitle = "Synthetic cached offline fixture";
+const offlinePhotoTitle = "Synthetic cached offline photo";
 const user = { id: userId, aud: "authenticated", role: "authenticated", email: "synthetic.messaging@local.invalid", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" };
 const messages = Array.from({ length: 90 }, (_, i) => ({
   id: i === 18 ? targetId : `00000000-0000-4000-8000-${String(9100 + i).padStart(12, "0")}`,
@@ -28,10 +32,15 @@ type HarnessBehavior = {
   deferOlderPage?: boolean;
   mockRealtime?: boolean;
   deferInboxResume?: boolean;
+  multipleInboxTeams?: boolean;
   nativeRuntime?: "android" | "ios";
+  reactionDelayMs?: number;
+  deferHomeEvents?: boolean;
+  deferMessageHistory?: boolean;
 };
 type HarnessState = {
   inserts: Record<string, unknown>[];
+  rsvpInserts: Record<string, unknown>[];
   patches: Array<{ body: Record<string, unknown>; id: string | null }>;
   deletes: string[];
   olderRequests: number;
@@ -41,6 +50,11 @@ type HarnessState = {
   beginInboxResume: () => void;
   releaseInboxResume: () => void;
   resumeRequests: () => number;
+  setApiAvailable: (available: boolean) => void;
+  addServerMessage: (message: Record<string, unknown>) => void;
+  setReactionAvailable: (available: boolean) => void;
+  releaseHomeEvents: () => void;
+  releaseMessageHistory: () => void;
 };
 const defaultBell: BellCase = { type: "team_message", table: "team_messages", scopeColumn: "team_id", scopeId: teamId, expectedPath: `/messages/${teamId}` };
 
@@ -48,18 +62,30 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
   let insertRelease!: () => void;
   let olderRelease!: () => void;
   let resumeRelease!: () => void;
+  let homeEventsRelease!: () => void;
+  let messageHistoryRelease!: () => void;
   const insertGate = new Promise<void>(resolve => { insertRelease = resolve; });
   const olderGate = new Promise<void>(resolve => { olderRelease = resolve; });
   const resumeGate = new Promise<void>(resolve => { resumeRelease = resolve; });
+  const homeEventsGate = new Promise<void>(resolve => { homeEventsRelease = resolve; });
+  const messageHistoryGate = new Promise<void>(resolve => { messageHistoryRelease = resolve; });
   let inboxResumeActive = false;
   let inboxResumeRequests = 0;
+  let apiAvailable = true;
+  const serverMessages: Record<string, unknown>[] = [];
+  let reactionAvailable = false;
   const state: HarnessState = {
-    inserts: [], patches: [], deletes: [], olderRequests: 0, olderResponses: 0,
+    inserts: [], rsvpInserts: [], patches: [], deletes: [], olderRequests: 0, olderResponses: 0,
     releaseInsert: insertRelease,
     releaseOlderPage: olderRelease,
     beginInboxResume: () => { inboxResumeActive = true; },
     releaseInboxResume: resumeRelease,
     resumeRequests: () => inboxResumeRequests,
+    setApiAvailable: (available) => { apiAvailable = available; },
+    addServerMessage: (message) => { serverMessages.push(message); },
+    setReactionAvailable: (available) => { reactionAvailable = available; },
+    releaseHomeEvents: homeEventsRelease,
+    releaseMessageHistory: messageHistoryRelease,
   };
   if (behavior.nativeRuntime) {
     // Capacitor detects Android/iOS from their native bridge globals when
@@ -145,6 +171,23 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
     });
   }
   await page.addInitScript(({ user, userId }) => {
+    let syntheticOnline = localStorage.getItem("synthetic-network-offline") !== "1";
+    if (!syntheticOnline) {
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        get: () => syntheticOnline,
+      });
+    }
+    (window as any).__setSyntheticOnline = (online: boolean) => {
+      syntheticOnline = online;
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        get: () => syntheticOnline,
+      });
+      if (online) localStorage.removeItem("synthetic-network-offline");
+      else localStorage.setItem("synthetic-network-offline", "1");
+      window.dispatchEvent(new Event(online ? "online" : "offline"));
+    };
     const enc = (v: object) => btoa(JSON.stringify(v)).replaceAll("=", "");
     const token = `${enc({ alg: "HS256", typ: "JWT" })}.${enc({ sub: userId, role: "authenticated", exp: 4102444800 })}.synthetic`;
     localStorage.setItem("sb-127-auth-token", JSON.stringify({ access_token: token, refresh_token: "synthetic", expires_at: 4102444800, expires_in: 3600, token_type: "bearer", user }));
@@ -160,6 +203,7 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
     const req = route.request(); const url = new URL(req.url());
     if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) return route.abort("blockedbyclient");
     if (url.origin !== api) return route.continue();
+    if (!apiAvailable) return route.abort("internetdisconnected");
     if (behavior.deferInboxResume && inboxResumeActive && (
       url.pathname.startsWith("/rest/v1/rpc/get_messages_page_bootstrap") ||
       url.pathname.startsWith("/rest/v1/rpc/get_inbox_latest_") ||
@@ -170,15 +214,102 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
     }
     const singular = req.headers()["accept"]?.includes("application/vnd.pgrst.object");
     if (url.pathname === "/auth/v1/user") return json(route, user);
-    if (url.pathname === "/rest/v1/teams") return json(route, singular ? { id: teamId, club_id: clubId, name: "Synthetic Messaging Team", logo_url: null, clubs: { id: clubId, name: "Synthetic Club", logo_url: null } } : [{ id: teamId, club_id: clubId, name: "Synthetic Messaging Team" }]);
+    if (url.pathname === "/rest/v1/teams") {
+      const teamRows = [
+        { id: teamId, club_id: clubId, name: "Synthetic Messaging Team", logo_url: null, clubs: { id: clubId, name: "Synthetic Club", logo_url: null } },
+        ...(behavior.multipleInboxTeams
+          ? [{ id: secondTeamId, club_id: clubId, name: "Synthetic Older Team", logo_url: null, clubs: { id: clubId, name: "Synthetic Club", logo_url: null } }]
+          : []),
+      ];
+      const exactId = url.searchParams.get("id")?.replace("eq.", "");
+      return json(route, singular ? teamRows.find((row) => row.id === exactId) ?? teamRows[0] : teamRows);
+    }
     if (url.pathname === "/rest/v1/clubs") return json(route, singular ? { id: clubId, name: "Synthetic Club", is_pro: true } : [{ id: clubId, name: "Synthetic Club", is_pro: true }]);
     if (url.pathname === "/rest/v1/profiles") {
       const rows = [{ id: userId, display_name: "Synthetic Member", avatar_url: null, active_club_id: clubId }, { id: "00000000-0000-4000-8000-000000009099", display_name: "Alex Member", avatar_url: null, active_club_id: clubId }];
       const exactId = url.searchParams.get("id")?.startsWith("eq.") ? url.searchParams.get("id")!.slice(3) : null;
       return json(route, singular || exactId ? rows.find(row => row.id === exactId) ?? rows[0] : rows);
     }
-    if (url.pathname === "/rest/v1/user_roles") return json(route, [{ user_id: userId, role: "player", club_id: clubId, team_id: teamId }]);
+    if (url.pathname === "/rest/v1/user_roles") return json(route, [
+      { user_id: userId, role: "player", club_id: clubId, team_id: teamId },
+      ...(behavior.multipleInboxTeams
+        ? [{ user_id: userId, role: "player", club_id: clubId, team_id: secondTeamId }]
+        : []),
+    ]);
+    if (url.pathname === "/rest/v1/events") {
+      if (behavior.deferHomeEvents) await homeEventsGate;
+      return json(route, [{
+      id: "00000000-0000-4000-8000-000000009040",
+      title: offlineEventTitle,
+      type: "game",
+      event_date: "2026-08-15T00:00:00.000Z",
+      start_time: "10:00:00",
+      end_time: "11:00:00",
+      description: "Cached journey fixture",
+      address: "1 Local Test Road",
+      suburb: "Testville",
+      state: "SA",
+      postcode: "5000",
+      location_name: "Synthetic Ground",
+      club_id: clubId,
+      team_id: teamId,
+      mini_league_id: null,
+      is_cancelled: false,
+      is_bye: false,
+      is_recurring: false,
+      parent_event_id: null,
+      opponent: "Synthetic Opponent",
+      arrival_minutes_before: 30,
+      rsvp_audience: "all",
+      adults_only: false,
+      updated_at: "2026-07-31T00:00:00.000Z",
+      teams: { name: "Synthetic Messaging Team", default_match_arrival_minutes: 30, default_rsvp_audience: "all" },
+      clubs: { name: "Synthetic Club", sport: "soccer" },
+      }]);
+    }
+    if (url.pathname === "/rest/v1/photos") return json(route, [{
+      id: "00000000-0000-4000-8000-000000009041",
+      file_url: syntheticImage,
+      image_url: syntheticImage,
+      title: offlinePhotoTitle,
+      caption: "Available from the local offline cache",
+      created_at: "2026-07-31T00:00:00.000Z",
+      club_id: clubId,
+      team_id: teamId,
+      event_id: null,
+      mini_league_id: null,
+      uploader_id: userId,
+      album_id: null,
+      clubs: { name: "Synthetic Club", is_pro: true },
+      teams: { name: "Synthetic Messaging Team", club_id: clubId, clubs: { name: "Synthetic Club" } },
+      mini_leagues: null,
+    }]);
+    if (url.pathname === "/rest/v1/rsvps") {
+      if (req.method() === "POST") {
+        state.rsvpInserts.push((req.postDataJSON() ?? {}) as Record<string, unknown>);
+        return json(route, [], 201);
+      }
+      return json(route, []);
+    }
+    if (url.pathname === "/rest/v1/message_reactions") {
+      if (!reactionAvailable) return json(route, []);
+      if (behavior.reactionDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, behavior.reactionDelayMs));
+      }
+      return json(route, [{
+        id: "00000000-0000-4000-8000-000000009014",
+        user_id: "00000000-0000-4000-8000-000000009099",
+        reaction_type: "like",
+        team_message_id: messages[29].id,
+      }]);
+    }
     if (url.pathname === "/rest/v1/team_messages") {
+      // Let notification routing resolve the target row by exact id first;
+      // hold only the thread-history/bootstrap request that powers skeleton
+      // replacement after navigation.
+      if (behavior.deferMessageHistory && !url.searchParams.get("id")) {
+        await messageHistoryGate;
+      }
       if (req.method() === "POST") {
         state.inserts.push((req.postDataJSON() ?? {}) as Record<string, unknown>);
         if (behavior.insert?.startsWith("deferred")) await insertGate;
@@ -197,6 +328,15 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
         if (behavior.delete === "failure") return json(route, { code: "42501", message: "synthetic delete denied" }, 403);
         return json(route, [], 204);
       }
+      if (behavior.multipleInboxTeams && url.searchParams.get("team_id") === `eq.${secondTeamId}`) {
+        return json(route, [{
+          ...messages[0],
+          id: "00000000-0000-4000-8000-000000009013",
+          team_id: secondTeamId,
+          text: "Older team preview",
+          created_at: "2026-07-26T09:00:00.000Z",
+        }]);
+      }
       const requested = url.searchParams.get("id")?.replace("eq.", "");
       const isHistorySearch = [...url.searchParams.keys()].some(key => key === "text") &&
         [...url.searchParams.getAll("text")].some(value => value.includes("ilike"));
@@ -206,19 +346,35 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
         text: "Needle from archived synthetic history",
         created_at: "2025-01-01T09:00:00.000Z",
       };
+      const oldPushTarget = {
+        ...messages[0],
+        id: oldPushTargetId,
+        text: "Exact notification target from last season",
+        created_at: "2024-03-02T09:00:00.000Z",
+      };
       const isOlderPage = !!url.searchParams.get("created_at")?.startsWith("lt.");
+      const isOldPushWindow =
+        url.searchParams.get("created_at")?.includes(oldPushTarget.created_at) ||
+        url.searchParams.get("created_at")?.includes("2024-03-02");
       if (isOlderPage) state.olderRequests += 1;
       if (isOlderPage && behavior.deferOlderPage) await olderGate;
       if (isOlderPage) state.olderResponses += 1;
       const rows = isHistorySearch
         ? [olderSearchMessage]
+        : requested === oldPushTargetId
+          ? [oldPushTarget]
+          : requested
+            ? [...serverMessages, ...messages].filter(m => m.id === requested)
+        : isOldPushWindow
+          ? [oldPushTarget]
         : behavior.paginated && isOlderPage
           ? messages.slice(0, 39).reverse()
           : behavior.paginated && !requested
             ? messages.slice(39)
-        : requested
-          ? (bell.targetExists === false ? [] : messages.filter(m => m.id === requested))
-          : messages;
+          : [...serverMessages, ...messages];
+      if (requested && bell.targetExists === false) {
+        return json(route, singular ? null : []);
+      }
       return json(route, singular ? rows[0] ?? null : rows);
     }
     if (url.pathname === `/rest/v1/${bell.table}`) {
@@ -226,6 +382,31 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       return json(route, bell.targetExists === false ? (singular ? null : []) : (singular ? row : [row]));
     }
     if (url.pathname === "/rest/v1/notifications") return json(route, [{ id: "00000000-0000-4000-8000-000000009030", user_id: userId, type: bell.type, message: "Alex sent a message", read: false, is_read: false, related_id: targetId, club_id: clubId, created_at: "2026-07-27T12:00:00Z" }]);
+    if (
+      behavior.multipleInboxTeams &&
+      url.pathname === "/rest/v1/rpc/get_inbox_latest_team_messages"
+    ) {
+      return json(route, [
+        {
+          team_id: teamId,
+          text: "Authoritative newest team preview",
+          author_display_name: "Coach",
+          created_at: "2026-07-27T10:30:00.000Z",
+          image_url: null,
+          is_club_announcement: false,
+          club_announcement_name: null,
+        },
+        {
+          team_id: secondTeamId,
+          text: "Authoritative older team preview",
+          author_display_name: "Coach",
+          created_at: "2026-07-26T09:00:00.000Z",
+          image_url: null,
+          is_club_announcement: false,
+          club_announcement_name: null,
+        },
+      ]);
+    }
     if (url.pathname.startsWith("/rest/v1/rpc/")) return json(route, 0);
     if (url.pathname.startsWith("/rest/v1/")) return json(route, []);
     if (url.pathname.startsWith("/functions/v1/")) return json(route, {});
@@ -245,6 +426,139 @@ test("cold message deep link lands the exact Virtuoso row above the composer", a
   const geometry = await target.evaluate(el => { const r = el.getBoundingClientRect(); const composer = document.querySelector('[data-chat-composer="true"]')?.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, viewport: innerHeight, composerTop: composer?.top ?? innerHeight }; });
   expect(geometry.top).toBeGreaterThanOrEqual(0);
   expect(geometry.bottom).toBeLessThanOrEqual(geometry.composerTop + 1);
+});
+
+test("a notification for a message outside the loaded history fetches and lands on that exact old row", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.goto(`/messages/${teamId}?message=${oldPushTargetId}&jump=1722400000000`);
+
+  const target = page.locator(`#message-${oldPushTargetId}`);
+  await expect(target).toContainText("Exact notification target from last season", {
+    timeout: 15_000,
+  });
+  const geometry = await target.evaluate((element) => {
+    const row = element.getBoundingClientRect();
+    const composer = document
+      .querySelector('[data-chat-composer="true"]')
+      ?.getBoundingClientRect();
+    return {
+      top: row.top,
+      bottom: row.bottom,
+      composerTop: composer?.top ?? innerHeight,
+    };
+  });
+  expect(geometry.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.composerTop + 1);
+});
+
+test("Android cached inbox waits for fresh ordering, then reveals once without any row jolt", async ({ page }) => {
+  test.setTimeout(45_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, {
+    deferInboxResume: true,
+    nativeRuntime: "android",
+    multipleInboxTeams: true,
+  });
+
+  await page.goto("/messages");
+  const thread = page.getByText("Synthetic Messaging Team", { exact: true }).first();
+  await expect(thread).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Synthetic Older Team", { exact: true })).toBeVisible();
+  // Inbox disk persistence is deliberately idle/debounced.
+  await page.waitForTimeout(5_000);
+  // Deliberately make the persisted timestamps disagree with the fresh
+  // server order. If cached rows are painted before reconciliation, these two
+  // cards will visibly swap — precisely the native jolt this contract forbids.
+  await page.evaluate(({ firstId, secondId }) => {
+    const raw = localStorage.getItem("messages-page-cache-v2");
+    if (!raw) throw new Error("expected persisted messages cache");
+    const cache = JSON.parse(raw);
+    cache.latestTeamMessages ||= {};
+    cache.latestTeamMessages[firstId] = {
+      text: "Stale cached first-team preview",
+      author: "Coach",
+      created_at: "2025-01-01T00:00:00.000Z",
+    };
+    cache.latestTeamMessages[secondId] = {
+      text: "Stale cached second-team preview",
+      author: "Coach",
+      created_at: "2027-01-01T00:00:00.000Z",
+    };
+    localStorage.setItem("messages-page-cache-v2", JSON.stringify(cache));
+  }, { firstId: teamId, secondId: secondTeamId });
+
+  state.beginInboxResume();
+  await page.reload();
+
+  // Showing cached rows immediately is not inherently better: stale activity
+  // timestamps can reorder them once the fresh previews land. It is acceptable
+  // to hold a short skeleton, but the wait must be bounded and the final list
+  // must reveal in its settled order exactly once.
+  await expect(page.locator(".animate-pulse").first()).toBeVisible({ timeout: 1_500 });
+  await expect(thread).toHaveCount(0);
+  const releaseTs = Date.now();
+  state.releaseInboxResume();
+  await expect(thread).toBeVisible({ timeout: 2_500 });
+  const orderedNames = await page.locator(
+    `a[href="/messages/${teamId}"] h3, a[href="/messages/${secondTeamId}"] h3`,
+  ).allTextContents();
+  expect(orderedNames).toEqual([
+    "Synthetic Messaging Team",
+    "Synthetic Older Team",
+  ]);
+  expect(Date.now() - releaseTs).toBeLessThan(2_500);
+
+  // Sample every animation frame after first reveal. Any late sort/reflow that
+  // moves the card is a native UX regression even when the final order is right.
+  const positions = await page.evaluate(async ({ href }) => {
+    const samples: number[] = [];
+    for (let i = 0; i < 30; i += 1) {
+      const element = document.querySelector(`a[href="${href}"] h3`);
+      samples.push(element ? element.getBoundingClientRect().top : -10_000);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    return samples;
+  }, { href: `/messages/${teamId}` });
+  expect(Math.max(...positions) - Math.min(...positions)).toBeLessThanOrEqual(1);
+
+  await thread.click({ timeout: 1_500 });
+  await expect(page).toHaveURL(new RegExp(`/messages/${teamId}`), { timeout: 2_000 });
+});
+
+test("Performance: a normal inbox thread tap paints usable messages within budget", async ({ page }) => {
+  await page.goto("/messages");
+  const thread = page.getByText("Synthetic Messaging Team", { exact: true }).first();
+  await expect(thread).toBeVisible({ timeout: 15_000 });
+
+  const started = Date.now();
+  await thread.click();
+  await expect(page.locator(`#message-${targetId}`)).toBeVisible({ timeout: 4_000 });
+  await expect(page.getByRole("textbox", { name: "Type a message..." })).toBeEditable();
+  expect(Date.now() - started).toBeLessThan(4_000);
+});
+
+test("Performance: an in-app notification tap paints its exact message within budget", async ({ page }) => {
+  await page.goto("/notifications");
+  const notification = page.getByText("Alex sent a message", { exact: true });
+  await expect(notification).toBeVisible({ timeout: 15_000 });
+
+  const started = Date.now();
+  await notification.click();
+  await expect(page.locator(`#message-${targetId}`)).toContainText(
+    "Exact synthetic notification target",
+    { timeout: 3_500 },
+  );
+  expect(Date.now() - started).toBeLessThan(3_500);
+});
+
+test("Performance: a cold notification deep link paints its exact old message within budget", async ({ page }) => {
+  const started = Date.now();
+  await page.goto(`/messages/${teamId}?message=${oldPushTargetId}&jump=1722400000001`);
+  await expect(page.locator(`#message-${oldPushTargetId}`)).toContainText(
+    "Exact notification target from last season",
+    { timeout: 5_000 },
+  );
+  expect(Date.now() - started).toBeLessThan(5_000);
 });
 
 test("full-history search finds an older message outside the initially loaded page and closes cleanly", async ({ page }) => {
@@ -433,6 +747,93 @@ test("a mounted chat reconciles incoming realtime messages and reactions", async
 
 });
 
+test("a realtime inbox preview and the subsequently opened thread converge on the same new message", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, { mockRealtime: true });
+  await page.goto("/messages");
+
+  await expect(page.getByText("Synthetic Messaging Team", { exact: true }).first()).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect.poll(() => page.evaluate(() => (window as any).__syntheticRealtimeSockets
+    .flatMap((socket: any) => socket.channels.flatMap((channel: any) => channel.bindings))
+    .filter((binding: any) => binding.table === "team_messages").length)).toBeGreaterThan(0);
+  await page.waitForTimeout(250);
+
+  const row = {
+    ...messages[0],
+    id: "00000000-0000-4000-8000-000000009776",
+    text: "Realtime preview and thread must agree",
+    created_at: "2026-07-27T10:17:30.000Z",
+  };
+  state.addServerMessage(row);
+  await page.evaluate(({ row }) => {
+    (window as any).__emitSyntheticPostgresChange("team_messages", "INSERT", row);
+  }, { row });
+
+  const preview = page.getByText("Realtime preview and thread must agree", { exact: true });
+  await expect(preview).toBeVisible({ timeout: 3_000 });
+  await preview.click();
+  await expect(page.locator(`#message-${row.id}`)).toContainText(
+    "Realtime preview and thread must agree",
+    { timeout: 5_000 },
+  );
+});
+
+test("a cached chat never paints a reaction-free message before its existing emoji is reconciled", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, { reactionDelayMs: 1_000 });
+
+  // Warm a realistic stale cache from a visit made before the reaction existed.
+  await page.goto(`/messages/${teamId}`);
+  const target = page.locator(`#message-${messages[29].id}`);
+  await expect(target).toBeVisible({ timeout: 15_000 });
+  await expect(target.getByRole("button", { name: "1 like reaction" })).toHaveCount(0);
+  await page.goto("/messages");
+  await expect(page.getByText("Synthetic Messaging Team", { exact: true }).first()).toBeVisible();
+
+  state.setReactionAvailable(true);
+  await page.evaluate(({ messageId }) => {
+    const timings: { message?: number; reaction?: number } = {};
+    (window as any).__reactionPaintTimings = timings;
+    const check = () => {
+      const row = document.getElementById(`message-${messageId}`);
+      if (row && timings.message === undefined) timings.message = performance.now();
+      if (
+        row?.querySelector('[aria-label="1 like reaction"]') &&
+        timings.reaction === undefined
+      ) {
+        timings.reaction = performance.now();
+      }
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    (window as any).__reactionPaintObserver = observer;
+    check();
+  }, { messageId: messages[29].id });
+  await page.getByText("Synthetic Messaging Team", { exact: true }).first().click();
+
+  // The stale message row is available immediately, but it must not be
+  // revealed without the already-existing server reaction and then mutate a
+  // second later. Message + emoji are one first-paint contract.
+  await expect(target).toBeVisible({ timeout: 5_000 });
+  await expect(target.getByRole("button", { name: "1 like reaction" })).toBeVisible({
+    timeout: 5_000,
+  });
+  const timings = await page.evaluate(() => {
+    (window as any).__reactionPaintObserver?.disconnect();
+    return (window as any).__reactionPaintTimings as {
+      message?: number;
+      reaction?: number;
+    };
+  });
+  expect(timings.message).toBeDefined();
+  expect(timings.reaction).toBeDefined();
+  expect((timings.reaction ?? 0) - (timings.message ?? 0)).toBeLessThanOrEqual(100);
+});
+
 test("a mounted chat applies realtime edits and soft-deletes to an existing row", async ({ page }) => {
   test.setTimeout(40_000);
   await page.unrouteAll({ behavior: "wait" });
@@ -498,10 +899,439 @@ test("a team draft survives leaving the chat and remounting the route", async ({
   await expect(page.getByRole("textbox", { name: "Type a message..." })).toHaveValue("Synthetic remount-safe draft", { timeout: 15_000 });
 });
 
+test("offline navigation shows saved Home, Schedule, Media and chat data then recovers without freezing", async ({ page, context }) => {
+  test.setTimeout(60_000);
+
+  // Warm each user-facing cache using synthetic local responses.
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: new RegExp(offlineEventTitle) }).first()).toBeVisible({ timeout: 15_000 });
+
+  await page.goto("/events");
+  await expect(page.getByRole("heading", { name: "Schedule" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(offlineEventTitle, { exact: false }).first()).toBeVisible();
+
+  await page.goto("/media");
+  await expect(page.getByRole("heading", { name: "Media" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("img", { name: offlinePhotoTitle }).first()).toBeVisible();
+
+  await page.goto(`/messages/${teamId}`);
+  await expect(page.locator(`#message-${targetId}`)).toContainText(
+    "Exact synthetic notification target",
+    { timeout: 15_000 },
+  );
+  // Message and media disk writes are intentionally idle/debounced to avoid
+  // Android WebView main-thread freezes; wait for those production paths.
+  await page.waitForTimeout(2_000);
+  await page.getByRole("link", { name: "Messages" }).click();
+  await expect(page.getByText("Synthetic Messaging Team", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+
+  await context.setOffline(true);
+  await expect(page.getByText("Offline", { exact: true })).toBeVisible();
+
+  // All navigation is SPA-local. Each assertion must complete while Chromium
+  // is genuinely offline, proving the interface is not waiting on the API.
+  await page.getByRole("link", { name: "Home" }).click({ timeout: 1_500 });
+  await expect(page).toHaveURL(/\/$/, { timeout: 1_500 });
+  await expect(page.getByRole("button", { name: new RegExp(offlineEventTitle) }).first()).toBeVisible({ timeout: 3_000 });
+
+  await page.getByRole("link", { name: "Schedule" }).click({ timeout: 1_500 });
+  await expect(page).toHaveURL(/\/events(?:\?|$)/, { timeout: 1_500 });
+  await expect(page.getByText(offlineEventTitle, { exact: false }).first()).toBeVisible({ timeout: 3_000 });
+
+  await page.getByRole("link", { name: "Media" }).click({ timeout: 1_500 });
+  await expect(page).toHaveURL(/\/media(?:\?|$)/, { timeout: 1_500 });
+  await expect(page.getByRole("img", { name: offlinePhotoTitle }).first()).toBeVisible({ timeout: 3_000 });
+
+  await page.getByRole("link", { name: "Messages" }).click({ timeout: 1_500 });
+  const thread = page.getByText("Synthetic Messaging Team", { exact: true }).first();
+  await expect(thread).toBeVisible({ timeout: 3_000 });
+  await thread.click({ timeout: 1_500 });
+  await expect(page.locator(`#message-${targetId}`)).toContainText(
+    "Exact synthetic notification target",
+    { timeout: 3_000 },
+  );
+
+  await context.setOffline(false);
+  await expect(page.getByText("Offline", { exact: true })).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByRole("textbox", { name: "Type a message..." })).toBeEditable();
+  await page.getByRole("link", { name: "Schedule" }).click({ timeout: 1_500 });
+  await expect(page.getByRole("heading", { name: "Schedule" })).toBeVisible({ timeout: 5_000 });
+});
+
+test("a cold offline remount restores saved content without contacting the API", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page);
+  // Prime and verify a row that is guaranteed to be inside Virtuoso's first
+  // rendered window. The exact-target navigation contract is covered by the
+  // dedicated notification tests; this journey is about disk persistence.
+  const cachedChatMessageId = messages[0].id;
+
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: new RegExp(offlineEventTitle) }).first()).toBeVisible({ timeout: 15_000 });
+  await page.goto("/events");
+  await expect(page.getByText(offlineEventTitle, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
+  await page.goto("/media");
+  await expect(page.getByRole("img", { name: offlinePhotoTitle }).first()).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(1_500);
+  await page.goto(`/messages/${teamId}`);
+  await expect(page.locator(`#message-${cachedChatMessageId}`)).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(2_000);
+  await page.goto("/messages");
+  await expect(page.getByText("Synthetic Messaging Team", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+  // Inbox persistence is intentionally debounced and idle-scheduled
+  // (1.5s debounce + up to 3s idle timeout) to protect Android's main thread.
+  await page.waitForTimeout(5_000);
+
+  await page.goto("/");
+  await page.evaluate(() => (window as any).__setSyntheticOnline(false));
+  state.setApiAvailable(false);
+  await page.reload();
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+
+  await expect(page.getByText("Offline", { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("button", { name: new RegExp(offlineEventTitle) }).first()).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("link", { name: "Schedule" }).click({ timeout: 1_500 });
+  await expect(page.getByText(offlineEventTitle, { exact: false }).first()).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("link", { name: "Media" }).click({ timeout: 1_500 });
+  await expect(page.getByRole("img", { name: offlinePhotoTitle }).first()).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("link", { name: "Messages" }).click({ timeout: 1_500 });
+  await page.getByText("Synthetic Messaging Team", { exact: true }).first().click({ timeout: 2_000 });
+  await expect(page.locator(`#message-${cachedChatMessageId}`)).toBeVisible({ timeout: 5_000 });
+
+  state.setApiAvailable(true);
+  await page.evaluate(() => (window as any).__setSyntheticOnline(true));
+  await expect(page.getByText("Offline", { exact: true })).toHaveCount(0, { timeout: 10_000 });
+});
+
+test("a cold offline remount with no saved schedule shows an unavailable state rather than false empty data", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page);
+  await page.goto("/events");
+  await expect(page.getByRole("heading", { name: "Schedule" })).toBeVisible({ timeout: 15_000 });
+
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (
+        key.startsWith("ignite_events_list_") ||
+        key.startsWith("ignite_event_detail_") ||
+        key.startsWith("ignite_event_rsvps_")
+      ) {
+        localStorage.removeItem(key);
+      }
+    }
+    (window as any).__setSyntheticOnline(false);
+  });
+  state.setApiAvailable(false);
+  await page.reload();
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+
+  await expect(page.getByText("Offline", { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("heading", { name: "Schedule" })).toBeVisible();
+  await expect(page.getByText("You're offline and no saved schedule is available yet.", { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("No upcoming events", { exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: "Messages" }).click({ timeout: 1_500 });
+  await expect(page).toHaveURL(/\/messages(?:\?|$)/, { timeout: 1_500 });
+});
+
+test("a cold offline Media remount displays its saved photo instead of freezing", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page);
+  await page.goto("/media");
+  await expect(page.getByRole("img", { name: offlinePhotoTitle }).first()).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(1_500);
+
+  await page.evaluate(() => (window as any).__setSyntheticOnline(false));
+  state.setApiAvailable(false);
+  await page.reload();
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+
+  await expect(page.getByText("Offline", { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("heading", { name: "Media" })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("img", { name: offlinePhotoTitle }).first()).toBeVisible({ timeout: 5_000 });
+  await page.getByRole("link", { name: "Messages" }).click({ timeout: 1_500 });
+  await expect(page).toHaveURL(/\/messages(?:\?|$)/, { timeout: 1_500 });
+});
+
+test("a cold offline chat remount displays saved messages and keeps its navigation responsive", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page);
+  await page.goto(`/messages/${teamId}`);
+  await expect(page.locator(`#message-${targetId}`)).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(2_000);
+
+  await page.evaluate(() => (window as any).__setSyntheticOnline(false));
+  state.setApiAvailable(false);
+  await page.reload();
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+
+  await expect(page.getByText("Offline", { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator(`#message-${targetId}`)).toContainText(
+    "Exact synthetic notification target",
+    { timeout: 5_000 },
+  );
+  await expect(page.getByRole("textbox", { name: "Type a message..." })).toBeEditable();
+  await page.getByRole("link", { name: "Home" }).click({ timeout: 1_500 });
+  await expect(page).toHaveURL(/\/$/, { timeout: 1_500 });
+});
+
+test("an offline queued chat message synchronizes once when connectivity returns", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page);
+  await page.goto(`/messages/${teamId}`);
+  const composer = page.getByRole("textbox", { name: "Type a message..." });
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+
+  state.setApiAvailable(false);
+  await page.evaluate(() => (window as any).__setSyntheticOnline(false));
+  await expect(page.getByText("Offline", { exact: true })).toBeVisible();
+  await composer.fill("Synthetic queued offline message");
+  await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+
+  await expect(page.getByText("Synthetic queued offline message", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Offline • 1 pending/)).toBeVisible({ timeout: 3_000 });
+  expect(state.inserts).toHaveLength(0);
+
+  state.setApiAvailable(true);
+  await page.evaluate(() => (window as any).__setSyntheticOnline(true));
+  await expect.poll(() => state.inserts.length, { timeout: 10_000 }).toBe(1);
+  expect(state.inserts[0]).toEqual(expect.objectContaining({
+    team_id: teamId,
+    author_id: userId,
+    text: "Synthetic queued offline message",
+  }));
+  await expect(page.getByText(/Offline • 1 pending/)).toHaveCount(0, { timeout: 5_000 });
+  await expect(page.getByText("Synthetic queued offline message", { exact: true })).toHaveCount(1);
+});
+
+test("an offline queued RSVP synchronizes once when connectivity returns", async ({ page }) => {
+  test.setTimeout(30_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: new RegExp(offlineEventTitle) }).first()).toBeVisible({ timeout: 15_000 });
+
+  state.setApiAvailable(false);
+  await page.evaluate(({ eventId, userId }) => {
+    localStorage.setItem("ignite_rsvp_queue", JSON.stringify([{
+      id: "queued-rsvp-offline-1",
+      eventId,
+      userId,
+      status: "going",
+      queuedAt: new Date().toISOString(),
+      retryCount: 0,
+    }]));
+    (window as any).__setSyntheticOnline(false);
+  }, { eventId: "00000000-0000-4000-8000-000000009040", userId });
+
+  await expect(page.getByText(/Offline • 1 pending/)).toBeVisible({ timeout: 3_000 });
+  state.setApiAvailable(true);
+  await page.evaluate(() => (window as any).__setSyntheticOnline(true));
+
+  await expect.poll(() => state.rsvpInserts.length, { timeout: 10_000 }).toBe(1);
+  expect(state.rsvpInserts[0]).toEqual(expect.objectContaining({
+    event_id: "00000000-0000-4000-8000-000000009040",
+    user_id: userId,
+    status: "going",
+    source: "user",
+  }));
+  await expect(page.getByText(/1 pending/)).toHaveCount(0, { timeout: 5_000 });
+});
+
+test("repeated connection loss and restoration never blocks primary navigation", async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page);
+  await page.goto("/messages");
+  await expect(page.getByText("Synthetic Messaging Team", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    state.setApiAvailable(false);
+    await page.evaluate(() => (window as any).__setSyntheticOnline(false));
+    await expect(page.getByText("Offline", { exact: true })).toBeVisible({ timeout: 3_000 });
+    const destination = cycle % 2 === 0 ? "Schedule" : "Media";
+    await page.getByRole("link", { name: destination }).click({ timeout: 1_500 });
+    await expect(page).toHaveURL(destination === "Schedule" ? /\/events/ : /\/media/, { timeout: 1_500 });
+
+    state.setApiAvailable(true);
+    await page.evaluate(() => (window as any).__setSyntheticOnline(true));
+    await expect(page.getByText("Offline", { exact: true })).toHaveCount(0, { timeout: 5_000 });
+    await page.getByRole("link", { name: "Messages", exact: true }).click({ timeout: 1_500 });
+    await expect(page).toHaveURL(/\/messages(?:\?|$)/, { timeout: 1_500 });
+  }
+});
+
 for (const nativeCase of [
   { label: "Android", platform: "android" },
   { label: "iOS", platform: "ios" },
 ] as const) {
+test(`${nativeCase.label} Home reveals Next Up and My Teams together without pushing content`, async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, {
+    nativeRuntime: nativeCase.platform,
+    deferHomeEvents: true,
+  });
+
+  await page.goto("/");
+  await expect.poll(() => page.evaluate(() => (window as any).Capacitor?.getPlatform?.()))
+    .toBe(nativeCase.platform);
+  await expect(page.getByRole("heading", { name: /Welcome,/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".animate-pulse").first()).toBeVisible({ timeout: 5_000 });
+  // My Teams must not paint high on the page while Next Up is unresolved and
+  // then get shoved down when the event card arrives.
+  await expect(page.getByRole("heading", { name: /^My Teams/ })).toHaveCount(0);
+
+  state.releaseHomeEvents();
+  await expect(page.getByRole("heading", { name: "Next Up", exact: true })).toBeVisible({ timeout: 8_000 });
+  const myTeams = page.getByRole("heading", { name: /^My Teams/ });
+  await expect(myTeams).toBeVisible({ timeout: 8_000 });
+  await expect(page.locator(".animate-pulse")).toHaveCount(0, { timeout: 8_000 });
+
+  const samples = await myTeams.evaluate(async (element) => {
+    const positions: number[] = [];
+    for (let frame = 0; frame < 60; frame += 1) {
+      positions.push(element.getBoundingClientRect().top);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    return positions;
+  });
+  expect(Math.max(...samples) - Math.min(...samples)).toBeLessThanOrEqual(1);
+});
+
+test(`${nativeCase.label} in-app message notification reveals and pins the exact row without jolt`, async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, {
+    nativeRuntime: nativeCase.platform,
+    deferMessageHistory: true,
+  });
+  await page.goto("/notifications");
+  await page.getByText("Alex sent a message", { exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/messages/${teamId}\\?.*message=${targetId}`));
+  await expect(page.locator(`#message-${targetId}`)).toHaveCount(0);
+
+  state.releaseMessageHistory();
+  const target = page.locator(`#message-${targetId}`);
+  await expect(target).toContainText("Exact synthetic notification target", { timeout: 8_000 });
+  const geometry = await target.evaluate(async (element) => {
+    const tops: number[] = [];
+    const bottoms: number[] = [];
+    for (let frame = 0; frame < 60; frame += 1) {
+      const rect = element.getBoundingClientRect();
+      tops.push(rect.top);
+      bottoms.push(rect.bottom);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    const composerTop = document.querySelector('[data-chat-composer="true"]')
+      ?.getBoundingClientRect().top ?? innerHeight;
+    return { tops, bottoms, composerTop };
+  });
+  expect(Math.min(...geometry.tops)).toBeGreaterThanOrEqual(0);
+  expect(Math.max(...geometry.bottoms)).toBeLessThanOrEqual(geometry.composerTop + 1);
+  expect(Math.max(...geometry.tops) - Math.min(...geometry.tops)).toBeLessThanOrEqual(1);
+});
+
+test(`${nativeCase.label} cold push to old history reveals and pins only its exact message`, async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, {
+    nativeRuntime: nativeCase.platform,
+    deferMessageHistory: true,
+  });
+  await page.goto(`/messages/${teamId}?message=${oldPushTargetId}&jump=1722400000001`);
+  await expect(page.locator(`#message-${oldPushTargetId}`)).toHaveCount(0);
+
+  state.releaseMessageHistory();
+  const target = page.locator(`#message-${oldPushTargetId}`);
+  await expect(target).toContainText("Exact notification target from last season", { timeout: 10_000 });
+  expect(oldPushTargetId).not.toBe(targetId);
+  const geometry = await target.evaluate(async (element) => {
+    const tops: number[] = [];
+    const bottoms: number[] = [];
+    for (let frame = 0; frame < 60; frame += 1) {
+      const rect = element.getBoundingClientRect();
+      tops.push(rect.top);
+      bottoms.push(rect.bottom);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    const composerTop = document.querySelector('[data-chat-composer="true"]')
+      ?.getBoundingClientRect().top ?? innerHeight;
+    return { tops, bottoms, composerTop };
+  });
+  expect(Math.min(...geometry.tops)).toBeGreaterThanOrEqual(0);
+  expect(Math.max(...geometry.bottoms)).toBeLessThanOrEqual(geometry.composerTop + 1);
+  expect(Math.max(...geometry.tops) - Math.min(...geometry.tops)).toBeLessThanOrEqual(1);
+});
+
+test(`${nativeCase.label} cold WebView restart returns to the exact open pitchboard route`, async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { nativeRuntime: nativeCase.platform });
+  const pitchBoardPath = `/teams/${teamId}?from=game-day&tab=lineup`;
+
+  await page.goto("/");
+  await expect.poll(() => page.evaluate(() => (window as any).Capacitor?.getPlatform?.()))
+    .toBe(nativeCase.platform);
+  await page.evaluate(({ pitchBoardPath, teamId }) => {
+    localStorage.setItem("ignite-pitch-board-open", "true");
+    localStorage.setItem("ignite-pitch-board-open-path", pitchBoardPath);
+    localStorage.setItem("ignite-pitch-board-open-at", String(Date.now()));
+    localStorage.setItem("ignite-pitch-board-last-context", JSON.stringify({
+      teamId,
+      teamName: "Synthetic Messaging Team",
+      readOnly: false,
+    }));
+  }, { pitchBoardPath, teamId });
+
+  // A native OS may destroy the WebView while the phone is locked. Reloading
+  // deliberately drops all in-memory React/global state while retaining only
+  // the same local persistence that survives a genuine process recreation.
+  await page.reload();
+
+  await expect(page).toHaveURL(
+    new RegExp(`/teams/${teamId}\\?from=game-day&tab=lineup&openPitchBoard=1$`),
+    { timeout: 5_000 },
+  );
+  await expect(page).not.toHaveURL(/\/(?:messages|events|media)(?:\/|\?|$)/);
+});
+
+test(`${nativeCase.label} warm unlock restores a lost pitchboard modal without changing page`, async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { nativeRuntime: nativeCase.platform });
+  const pitchBoardPath = `/teams/${teamId}?from=game-day`;
+  await page.goto(pitchBoardPath);
+  await expect.poll(() => page.evaluate(() => (window as any).Capacitor?.getPlatform?.()))
+    .toBe(nativeCase.platform);
+
+  await page.evaluate(({ pitchBoardPath, teamId }) => {
+    localStorage.setItem("ignite-pitch-board-open", "true");
+    localStorage.setItem("ignite-pitch-board-open-path", pitchBoardPath);
+    localStorage.setItem("ignite-pitch-board-last-context", JSON.stringify({
+      teamId,
+      teamName: "Synthetic Messaging Team",
+      readOnly: false,
+    }));
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = false;
+
+    let visibility: DocumentVisibilityState = "hidden";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibility,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    visibility = "visible";
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+    window.dispatchEvent(new Event("pageshow"));
+  }, { pitchBoardPath, teamId });
+
+  await expect(page).toHaveURL(
+    new RegExp(`/teams/${teamId}\\?from=game-day&openPitchBoard=1$`),
+    { timeout: 5_000 },
+  );
+});
+
 test(`${nativeCase.label} online resume does not start foreground refetches or block an inbox thread tap`, async ({ page }) => {
   await page.unrouteAll({ behavior: "wait" });
   const state = await install(page, defaultBell, { deferInboxResume: true, nativeRuntime: nativeCase.platform });
@@ -537,6 +1367,61 @@ test(`${nativeCase.label} online resume does not start foreground refetches or b
 
   state.releaseInboxResume();
   await expect(page.getByRole("heading", { name: "Synthetic Messaging Team" })).toBeVisible({ timeout: 15_000 });
+});
+
+test(`${nativeCase.label} opening Inbox after inactivity reaches stable conversations within budget`, async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { nativeRuntime: nativeCase.platform });
+
+  // Warm the user-scoped inbox cache, leave the route, then model a long
+  // background stint before opening Inbox again.
+  await page.goto("/messages");
+  await expect(page.getByText("Synthetic Messaging Team", { exact: true }).first()).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.waitForTimeout(5_000);
+  await page.getByRole("link", { name: "Home" }).click();
+  await page.evaluate(() => {
+    let visibility: DocumentVisibilityState = "hidden";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibility,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    visibility = "visible";
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("focus"));
+    window.dispatchEvent(new Event("pageshow"));
+  });
+
+  const started = Date.now();
+  await page.getByRole("link", { name: "Messages", exact: true }).click({
+    timeout: 1_500,
+  });
+  // Do not let a same-named team card on the route we are leaving satisfy the
+  // readiness assertion. On slower mobile navigation that made the geometry
+  // sampler start before the Messages route had committed, incorrectly
+  // recording a missing inbox row as a post-reveal disappearance.
+  await expect(page).toHaveURL(/\/messages(?:\?|$)/, { timeout: 4_000 });
+  const thread = page.locator(`a[href="/messages/${teamId}"]`).filter({
+    has: page.getByRole("heading", { name: "Synthetic Messaging Team", exact: true }),
+  });
+  await expect(thread).toBeVisible({ timeout: 4_000 });
+  expect(Date.now() - started).toBeLessThan(4_000);
+  await expect(page.locator(".animate-pulse")).toHaveCount(0);
+
+  // Once revealed, the first card must remain geometrically stable.
+  const positions = await page.evaluate(async ({ href }) => {
+    const samples: number[] = [];
+    for (let i = 0; i < 30; i += 1) {
+      const element = document.querySelector(`a[href="${href}"] h3`);
+      samples.push(element ? element.getBoundingClientRect().top : -10_000);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    return samples;
+  }, { href: `/messages/${teamId}` });
+  expect(Math.max(...positions) - Math.min(...positions)).toBeLessThanOrEqual(1);
 });
 
 test(`${nativeCase.label} request saturation keeps Inbox, Schedule and Media navigation responsive`, async ({ page }) => {

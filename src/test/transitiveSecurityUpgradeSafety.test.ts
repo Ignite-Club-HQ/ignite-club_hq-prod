@@ -11,12 +11,9 @@ const readText = (relativePath: string) =>
 
 const packageLock = JSON.parse(readText("package-lock.json"));
 
-const resolvedVersion = (packageName: string): string => {
+const resolvedVersion = (packageName: string): string | null => {
   const entry = packageLock.packages?.[`node_modules/${packageName}`];
-  if (!entry?.version) {
-    throw new Error(`${packageName} is not resolved in package-lock.json`);
-  }
-  return entry.version;
+  return entry?.version ?? null;
 };
 
 const versionTuple = (version: string): [number, number, number] => {
@@ -124,12 +121,7 @@ describe("security-sensitive transitive dependency boundaries", () => {
   });
 });
 
-const describeUpgradeCandidate =
-  process.env.TRANSITIVE_SECURITY_UPGRADE_CANDIDATE === "true"
-    ? describe
-    : describe.skip;
-
-describeUpgradeCandidate("transitive security upgrade acceptance gate", () => {
+describe("transitive dependency security resolution", () => {
   const minimumVersions: Record<string, string> = {
     "@grpc/grpc-js": "1.9.16",
     dompurify: "3.4.12",
@@ -144,10 +136,16 @@ describeUpgradeCandidate("transitive security upgrade acceptance gate", () => {
   };
 
   for (const [packageName, minimumVersion] of Object.entries(minimumVersions)) {
-    it(`resolves ${packageName} at ${minimumVersion} or newer`, () => {
+    it(`omits ${packageName} or resolves it at ${minimumVersion} or newer`, () => {
+      const installedVersion = resolvedVersion(packageName);
+      if (installedVersion === null) {
+        expect(installedVersion).toBeNull();
+        return;
+      }
+
       expect(
-        atLeast(resolvedVersion(packageName), minimumVersion),
-        `${packageName} resolved to ${resolvedVersion(packageName)}`,
+        atLeast(installedVersion, minimumVersion),
+        `${packageName} resolved to ${installedVersion}`,
       ).toBe(true);
     });
   }

@@ -128,12 +128,7 @@ describe("remaining dependency security compatibility", () => {
   });
 });
 
-const describeUpgradeCandidate =
-  process.env.REMAINING_SECURITY_UPGRADE_CANDIDATE === "true"
-    ? describe
-    : describe.skip;
-
-describeUpgradeCandidate("remaining dependency security acceptance gate", () => {
+describe("resolved dependency security versions", () => {
   it("resolves every yaml copy to 2.8.3 or newer", () => {
     expectMinimumResolution("yaml", "2.8.3");
   });
@@ -142,13 +137,20 @@ describeUpgradeCandidate("remaining dependency security acceptance gate", () => 
     expectMinimumResolution("uuid", "11.1.1");
   });
 
-  it("resolves every @babel/core copy beyond the affected Babel 7 range", () => {
-    expectMinimumResolution("@babel/core", "8.0.0");
-  });
-
   it("does not downgrade ExcelJS to satisfy npm audit", () => {
     expect(
       atLeast(packageLock.packages?.["node_modules/exceljs"]?.version, "4.4.0"),
     ).toBe(true);
+  });
+});
+
+const describeBabelUpgradeCandidate =
+  process.env.REMAINING_SECURITY_UPGRADE_CANDIDATE === "true"
+    ? describe
+    : describe.skip;
+
+describeBabelUpgradeCandidate("Babel 8 security acceptance gate", () => {
+  it("resolves every @babel/core copy beyond the affected Babel 7 range", () => {
+    expectMinimumResolution("@babel/core", "8.0.0");
   });
 });

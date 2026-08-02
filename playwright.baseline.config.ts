@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const localAppUrl = "http://127.0.0.1:4173";
+const localAppPort = process.env.PLAYWRIGHT_BASELINE_PORT || "4173";
+const localAppUrl = `http://127.0.0.1:${localAppPort}`;
 
 export default defineConfig({
   testDir: "./e2e-baseline",
@@ -45,7 +46,7 @@ export default defineConfig({
     command:
       "env VITE_SUPABASE_URL=http://127.0.0.1:54321 " +
       "VITE_SUPABASE_PUBLISHABLE_KEY=local-synthetic-anon-key " +
-      "npx vite --host 127.0.0.1 --port 4173 --strictPort",
+      `npx vite --host 127.0.0.1 --port ${localAppPort} --strictPort`,
     url: localAppUrl,
     reuseExistingServer: false,
     timeout: 60_000,

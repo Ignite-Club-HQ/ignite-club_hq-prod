@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     profileLoading: false,
     profileError: null as any,
     initialized: true,
+    sessionRestoration: "signed_out" as "restoring" | "authenticated" | "signed_out",
     profileResolved: true,
     refreshProfile: vi.fn(),
   },
@@ -88,6 +89,7 @@ describe("AppLayout routing boundaries", () => {
       profileLoading: false,
       profileError: null,
       initialized: true,
+      sessionRestoration: "signed_out",
       profileResolved: true,
       refreshProfile: vi.fn(),
     });
@@ -139,6 +141,32 @@ describe("AppLayout routing boundaries", () => {
 
     expect(screen.getByText("Checking authentication...")).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/events/event-42");
+    expect(sessionStorage.getItem("redirectAfterAuth")).toBeNull();
+  });
+
+  it("does not flash the authentication page when a cached profile exists but session restoration is still resolving", () => {
+    // This is the native cold-start shape seen after tapping a push:
+    // synchronous profile hydration has data, but getSession() has not yet
+    // supplied the User object. The protected destination and its exact jump
+    // parameters must remain mounted/pending instead of briefly redirecting
+    // through /auth.
+    mocks.auth.profile = { display_name: "Cached Member" };
+    mocks.auth.user = null;
+    mocks.auth.initialized = true;
+    // Cached-profile hydration currently reports loading=false before
+    // getSession() has supplied the user, which is the dangerous transition.
+    mocks.auth.loading = false;
+    mocks.auth.profileLoading = false;
+    mocks.auth.profileResolved = true;
+    mocks.auth.sessionRestoration = "restoring";
+
+    renderRoute("/messages/team-7?message=old-message-9&jump=1722400000000");
+
+    expect(screen.getByText("Checking authentication...")).toBeInTheDocument();
+    expect(screen.queryByText("authentication page")).not.toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/messages/team-7?message=old-message-9&jump=1722400000000",
+    );
     expect(sessionStorage.getItem("redirectAfterAuth")).toBeNull();
   });
 
