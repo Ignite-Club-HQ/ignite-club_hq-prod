@@ -253,6 +253,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   const allocFor = (id: string, half: 1 | 2) =>
     (half === 1 ? allocH1 : allocH2).get(id) ?? 0;
 
+
   // Initial outfield on-pitch. Players currently on the pitch in non-GK
   // positions form the starting outfield set. We honour up to `outfieldSlots`.
   const initialOutfieldOnPitch = players.filter(
