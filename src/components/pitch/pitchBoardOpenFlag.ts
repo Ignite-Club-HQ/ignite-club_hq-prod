@@ -26,3 +26,20 @@ export function clearPitchBoardOpenFlag() {
     /* ignore */
   }
 }
+
+/**
+ * Durable fallback for route-scoped boards. The query-string signal can be
+ * consumed or replaced before slow access/roster queries settle; the mounted
+ * board's persisted path remains authoritative until an explicit close or
+ * navigation-away clears it.
+ */
+export function shouldRestorePitchBoardForCurrentPath(pathname: string) {
+  try {
+    if (localStorage.getItem(PITCH_BOARD_OPEN_KEY) !== "true") return false;
+    const storedPath = localStorage.getItem(PITCH_BOARD_OPEN_PATH_KEY);
+    if (!storedPath) return false;
+    return storedPath.split("?")[0] === pathname;
+  } catch {
+    return false;
+  }
+}

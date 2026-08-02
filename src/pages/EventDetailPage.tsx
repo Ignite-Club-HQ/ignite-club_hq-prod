@@ -97,7 +97,10 @@ import { EventNoteSection } from "@/components/event/EventNoteSection";
 // Lazy load PitchBoard for game events
 const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 // NetballBoard / BasketballBoard archived — football-only build (see archive/sports/)
-import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
+import {
+  clearPitchBoardOpenFlag,
+  shouldRestorePitchBoardForCurrentPath,
+} from "@/components/pitch/pitchBoardOpenFlag";
 
 // Close handler used by all game-board variants. Clears both the React modal
 // state AND the persisted "open" flag so PitchBoardResumeRedirect won't
@@ -678,7 +681,9 @@ export default function EventDetailPage() {
   const canAccessBasketballBoard = false;
   const canAccessPitchBoard = canAccessSoccerBoard;
 
-  const wantOpenPitchBoard = searchParams.get("openPitchBoard") === "1";
+  const wantOpenPitchBoard =
+    searchParams.get("openPitchBoard") === "1" ||
+    shouldRestorePitchBoardForCurrentPath(window.location.pathname);
 
 
   // Check if user is a team member (for read-only pitch board access)

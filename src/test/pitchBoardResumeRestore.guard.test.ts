@@ -31,6 +31,12 @@ describe("pitch board resume restore", () => {
     expect(openFlag).toContain("PITCH_BOARD_OPEN_AT_KEY");
   });
 
+  it("keeps a durable route-scoped restore fallback after query consumption", () => {
+    expect(openFlag).toContain("shouldRestorePitchBoardForCurrentPath");
+    expect(teamPage).toContain("shouldRestorePitchBoardForCurrentPath(window.location.pathname)");
+    expect(eventPage).toContain("shouldRestorePitchBoardForCurrentPath(window.location.pathname)");
+  });
+
   it("keeps the team pitch board mounted via a sticky access latch", () => {
     expect(teamPage).toContain("pitchBoardAccessEverGrantedRef");
     expect(teamPage).toContain("{showPitchBoard && pitchBoardAccessGranted &&");
