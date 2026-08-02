@@ -555,7 +555,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   // Mathematical floor: when (slots × T) is exactly divisible by N, perfect
   // equality is possible (spread = 0). Otherwise it's the residue from
   // integer-second rounding.
-  const remainder = totalPlayerSeconds % rotationPool.length;
+  const remainder = (perPlayerTarget * rotationPool.length) % rotationPool.length;
   const perfectFloorSec = remainder === 0 ? 0 : 1; // chunk-level resolution; near-zero
 
   return {
