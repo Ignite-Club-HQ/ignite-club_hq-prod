@@ -3001,6 +3001,7 @@ export function createSubPlan(
     clampedStartElapsed === 0 &&
     outfieldOnBench.length > 0;
 
+  if (process.env.EQ_DEBUG) console.warn("[eq] eligible", equalTimeEligible, priorityOrder.length, startHalf, clampedStartElapsed, outfieldOnBench.length);
   if (equalTimeEligible) {
     try {
       // Sweep substitution cadences from the calmest to the busiest. The
