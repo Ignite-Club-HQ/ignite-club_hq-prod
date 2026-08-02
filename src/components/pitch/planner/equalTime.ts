@@ -515,10 +515,17 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
                   allocFor(b.id, 2) - allocFor(a.id, 2) || cmpId(a.id, b.id),
               )[0] ?? null;
           if (replacement && vacatedPos) {
+            // The outgoing keeper leaves the pitch and a bench player takes the
+            // slot the incoming keeper just vacated. We express this as
+            // `gk1 off / replacement on` (rather than `gk2 off / ...`) because
+            // the incoming keeper stays on the pitch — they only move into
+            // goal — and every downstream simulator credits on-pitch time from
+            // these events. Emitting `gk2 off` would silently strip the new
+            // keeper of their entire second half.
             plan.push({
               time: 0,
               half: 2,
-              playerOut: gk2H!,
+              playerOut: gk1H!,
               playerIn: replacement,
               executed: false,
             });
