@@ -253,6 +253,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   const allocFor = (id: string, half: 1 | 2) =>
     (half === 1 ? allocH1 : allocH2).get(id) ?? 0;
 
+
   // Initial outfield on-pitch. Players currently on the pitch in non-GK
   // positions form the starting outfield set. We honour up to `outfieldSlots`.
   const initialOutfieldOnPitch = players.filter(
@@ -285,6 +286,43 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   const onPitchOutfield = new Set<string>(initialOutfieldOnPitch.map((p) => p.id));
   // Outfield seconds accumulated inside the current half.
   const accHalf = new Map<string, number>();
+
+  // Halftime re-allocation. The pre-match H2 allocation is a forecast; by the
+  // break we know exactly what each player actually banked in H1, so we
+  // re-solve H2 against real totals. Without this, first-half rounding and
+  // cadence residue survive into the final numbers (each half could drift up
+  // to one deadband, and the two errors compound).
+  //
+  // Solved by water-filling: alloc_i = clamp(perPlayerTarget + lambda - played_i,
+  // 0, halfDurationSec) with lambda chosen so the allocations sum to the
+  // half's outfield capacity. That levels final totals as far as the
+  // per-player ceiling allows.
+  const recomputeH2Alloc = () => {
+    const ids = rotationPool.filter((p) => eligibleH2.has(p.id)).map((p) => p.id);
+    rotationPool.forEach((p) => {
+      if (!eligibleH2.has(p.id)) allocH2.set(p.id, 0);
+    });
+    if (ids.length === 0) return;
+    const played = new Map(ids.map((id) => [id, projected.get(id) ?? 0] as const));
+    const sumFor = (lambda: number) =>
+      ids.reduce((s, id) => {
+        const raw = perPlayerTarget + lambda - (played.get(id) ?? 0);
+        return s + Math.max(0, Math.min(halfDurationSec, raw));
+      }, 0);
+    let lo = -totalSec - perPlayerTarget;
+    let hi = totalSec + perPlayerTarget;
+    for (let i = 0; i < 60; i += 1) {
+      const mid = (lo + hi) / 2;
+      if (sumFor(mid) < capacityPerHalf) lo = mid;
+      else hi = mid;
+    }
+    const lambda = (lo + hi) / 2;
+    ids.forEach((id) => {
+      const raw = perPlayerTarget + lambda - (played.get(id) ?? 0);
+      allocH2.set(id, Math.max(0, Math.min(halfDurationSec, raw)));
+    });
+  };
+
 
   // If there's an HT GK swap, emit it now (pure GK change — no outfield
   // positions involved). The downstream simulator treats this as such.
@@ -493,6 +531,8 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     // HT crossing.
     if (curHalf === 2 && prevHalf === 1) {
       accHalf.clear();
+      recomputeH2Alloc();
+
       if (gkRotates) {
         // The incoming keeper cannot also hold an outfield slot in H2. If the
         // rotation left them on the pitch, hand their slot over explicitly so
