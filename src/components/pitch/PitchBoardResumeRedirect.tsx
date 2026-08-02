@@ -1,8 +1,17 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
-import { PITCH_BOARD_OPEN_KEY, PITCH_BOARD_OPEN_PATH_KEY } from "./types";
+import {
+  PITCH_BOARD_OPEN_KEY,
+  PITCH_BOARD_OPEN_PATH_KEY,
+  PITCH_BOARD_OPEN_AT_KEY,
+} from "./types";
 import { clearPitchBoardOpenFlag } from "./pitchBoardOpenFlag";
+
+/** How recently the board must have been mounted for a persisted open flag to
+ *  count as a genuine restore signal (covers a long phone-lock + slow cold
+ *  start, while still self-healing truly stale flags). */
+const RECENT_OPEN_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 /**
  * Restores the pitch board after a WebView cold-start (iOS lock/unlock kills
@@ -51,15 +60,31 @@ export default function PitchBoardResumeRedirect() {
     // avoid yanking the URL and forcing an unmount/remount loop.
     if ((window as any).__pitchBoardMounted === true) return;
 
-    // Suppress warm-resume restores when the board was never opened in this
-    // JS session — the persisted PITCH_BOARD_OPEN_KEY is stale (left over
-    // from a previous run or a never-cleared crash path). Cold starts get
-    // an 8s grace window so the original kill-and-restore use case still
-    // works (iOS WKWebView eviction on long lock).
+    // Suppress warm-resume restores when the persisted flag is stale (left
+    // over from a previous run or a never-cleared crash path). Two signals
+    // count as "genuinely open":
+    //  - the board mounted in THIS JS session, or
+    //  - the persisted open stamp is recent (board was mounted shortly before
+    //    the WebView was torn down by the OS).
+    // The old check used a fixed 8s cold-start window, which silently refused
+    // to restore on slow cold starts (auth restore + theme + legal gate can
+    // push the first mount past 8s), leaving the user on the team page with
+    // the board gone — exactly the reported bug.
     const wasMountedThisSession =
       (window as any).__pitchBoardMountedThisSession === true;
-    const isColdStart = performance.now() < 8000;
-    if (!wasMountedThisSession && !isColdStart) {
+    let openedRecently = false;
+    try {
+      const openedAt = Number(
+        localStorage.getItem(PITCH_BOARD_OPEN_AT_KEY) || "0",
+      );
+      openedRecently =
+        Number.isFinite(openedAt) &&
+        openedAt > 0 &&
+        Date.now() - openedAt < RECENT_OPEN_MAX_AGE_MS;
+    } catch {
+      openedRecently = false;
+    }
+    if (!wasMountedThisSession && !openedRecently) {
       // Self-heal: clear the stale flag so we don't keep re-checking.
       clearPitchBoardOpenFlag();
       return;
