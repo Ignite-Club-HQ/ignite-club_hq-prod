@@ -2578,7 +2578,7 @@ export default function TeamDetailPage() {
       <TeamCompetitionsSection teamId={id!} canManage={isAdmin || isCoachOrAdmin || isClubAdmin} />
 
       {/* Pitch Board Modal — soccer */}
-      {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && createPortal(
+      {showPitchBoard && pitchBoardAccessGranted && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
             <div className="flex flex-col items-center gap-4">
