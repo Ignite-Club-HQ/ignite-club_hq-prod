@@ -355,6 +355,12 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     };
 
     const base = scoreFor(null, null);
+    // Deadband — once every eligible player is projected within half a minimum
+    // shift of their allocation there is nothing worth substituting for. This
+    // keeps the plan's substitution count in the same range as the
+    // conventional planner instead of churning every slice.
+    const deadband = Math.max(chunkSec, minShiftSec / 2);
+    if (base.maxAbs <= deadband) return null;
 
     let best:
       | {
