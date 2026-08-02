@@ -3,6 +3,7 @@ import {
   PITCH_BOARD_OPEN_KEY,
   PITCH_BOARD_OPEN_PATH_KEY,
   PITCH_BOARD_LAST_CONTEXT_KEY,
+  PITCH_BOARD_OPEN_AT_KEY,
 } from "../types";
 import { loadTimerStateForMinutes } from "../pitchStateUtils";
 
