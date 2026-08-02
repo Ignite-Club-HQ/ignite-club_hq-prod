@@ -286,7 +286,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     // A swap must buy back at least one chunk of fairness over the minimum
     // shift it commits us to. Expressed as a rate gap so it scales with how
     // much opportunity is left.
-    const payback = Math.max(chunkSec, 1) / Math.max(minShiftSec, chunkSec, 1);
+    const payback = 0;
 
     let best:
       | {
