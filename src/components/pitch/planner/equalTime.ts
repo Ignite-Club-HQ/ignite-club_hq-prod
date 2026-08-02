@@ -287,6 +287,87 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   // Outfield seconds accumulated inside the current half.
   const accHalf = new Map<string, number>();
 
+  // Exact compact solution for a clean, universally-compatible rotation.
+  // Splitting the match into N equal periods and cycling one player through
+  // the FIFO bench at each boundary gives every player exactly the same
+  // number of periods, using N-1 substitutions instead of dozens of
+  // 30-second greedy corrections. Do not use this shortcut when prior minutes
+  // or a goalkeeper change require deficit-aware, per-half allocation.
+  const occupiedPositions = [...new Set(currentPosition.values())];
+  const cyclicBoundaries = Array.from(
+    { length: Math.max(0, rotationPool.length - 1) },
+    (_, index) => Math.round((totalSec * (index + 1)) / rotationPool.length),
+  );
+  const boundariesRespectBlackouts = cyclicBoundaries.every((absolute) => {
+    const intoHalf = absolute < halfDurationSec ? absolute : absolute - halfDurationSec;
+    return intoHalf >= noSubBeforeSec && intoHalf < halfDurationSec - noSubAfterSec;
+  });
+  const approximatePeriodSec = totalSec / rotationPool.length;
+  const benchCount = rotationPool.length - outfieldSlots;
+  const shortestRepeatGapSec = approximatePeriodSec * Math.min(outfieldSlots, benchCount);
+  const universallyCompatible =
+    !gkRotates &&
+    totalAlready === 0 &&
+    initialOutfieldOnPitch.length === outfieldSlots &&
+    rotationPool.length > outfieldSlots &&
+    boundariesRespectBlackouts &&
+    shortestRepeatGapSec >= minShiftSec &&
+    rotationPool.every((player) =>
+      occupiedPositions.every((position) => canPlayFor(player, position)),
+    );
+
+  if (universallyCompatible) {
+    const onQueue = initialOutfieldOnPitch.map((player) => player.id);
+    const benchQueue = rotationPool
+      .filter((player) => !onPitchOutfield.has(player.id))
+      .map((player) => player.id);
+    let previousAbs = 0;
+
+    for (let period = 1; period < rotationPool.length; period += 1) {
+      const absolute = cyclicBoundaries[period - 1];
+      const elapsed = absolute - previousAbs;
+      onQueue.forEach((id) => projected.set(id, (projected.get(id) ?? 0) + elapsed));
+
+      const outId = onQueue.shift();
+      const inId = benchQueue.shift();
+      if (!outId || !inId) break;
+      const outgoing = playerById.get(outId);
+      const incoming = playerById.get(inId);
+      const outPosition = currentPosition.get(outId);
+      if (!outgoing || !incoming || !outPosition) break;
+
+      plan.push({
+        time: absolute < halfDurationSec ? absolute : absolute - halfDurationSec,
+        half: absolute < halfDurationSec ? 1 : 2,
+        playerOut: outgoing,
+        playerIn: incoming,
+        executed: false,
+      });
+      currentPosition.delete(outId);
+      currentPosition.set(inId, outPosition);
+      onPitchOutfield.delete(outId);
+      onPitchOutfield.add(inId);
+      onQueue.push(inId);
+      benchQueue.push(outId);
+      previousAbs = absolute;
+    }
+
+    const tail = totalSec - previousAbs;
+    onQueue.forEach((id) => projected.set(id, (projected.get(id) ?? 0) + tail));
+    const values = rotationPool.map((player) => projected.get(player.id) ?? 0);
+    const deviations = rotationPool.map((player) =>
+      Math.abs((projected.get(player.id) ?? 0) - (targetSec.get(player.id) ?? 0)),
+    );
+    return {
+      plan,
+      projectedSec: projected,
+      targetSec,
+      spreadSec: Math.max(...values) - Math.min(...values),
+      maxDeviationSec: Math.max(...deviations),
+      perfectFloorSec: 0,
+    };
+  }
+
   // Halftime re-allocation. The pre-match H2 allocation is a forecast; by the
   // break we know exactly what each player actually banked in H1, so we
   // re-solve H2 against real totals. Without this, first-half rounding and
