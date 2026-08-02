@@ -1697,6 +1697,22 @@ export function createSubPlan(
       (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
       (b.half === 1 ? b.time : halfDurationSeconds + b.time)
     );
+    {
+      const eqPlan = applyEqualTimeOverride({
+        playerData, teamSize, halfDurationSeconds,
+        gkOnPitch, halftimeGkIn, rotateGkAtHalftime, maxSpreadMinutes,
+        rotationSpeed, eff,
+        priorityOrderLength: priorityOrder.length,
+        startHalf, startElapsedSeconds: clampedStartElapsed,
+        benchCount: outfieldOnBench.length,
+        currentPlan: sortedStandard,
+      });
+      if (eqPlan) {
+        sortedStandard.length = 0;
+        sortedStandard.push(...eqPlan);
+      }
+    }
+
     return ensureNoStarvedPlayers(sortedStandard, playerData, halfDurationSeconds);
   }
   // ===========================================================================
@@ -2575,6 +2591,22 @@ export function createSubPlan(
     if (aIsGkSwap !== bIsGkSwap) return aIsGkSwap ? -1 : 1;
     return 0;
   });
+
+  {
+      const eqPlan = applyEqualTimeOverride({
+        playerData, teamSize, halfDurationSeconds,
+        gkOnPitch, halftimeGkIn, rotateGkAtHalftime, maxSpreadMinutes,
+        rotationSpeed, eff,
+        priorityOrderLength: priorityOrder.length,
+        startHalf, startElapsedSeconds: clampedStartElapsed,
+        benchCount: outfieldOnBench.length,
+        currentPlan: plan,
+      });
+      if (eqPlan) {
+        plan.length = 0;
+        plan.push(...eqPlan);
+      }
+    }
 
   return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 
