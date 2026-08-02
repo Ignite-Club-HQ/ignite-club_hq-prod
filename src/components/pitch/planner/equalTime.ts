@@ -287,6 +287,43 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   // Outfield seconds accumulated inside the current half.
   const accHalf = new Map<string, number>();
 
+  // Halftime re-allocation. The pre-match H2 allocation is a forecast; by the
+  // break we know exactly what each player actually banked in H1, so we
+  // re-solve H2 against real totals. Without this, first-half rounding and
+  // cadence residue survive into the final numbers (each half could drift up
+  // to one deadband, and the two errors compound).
+  //
+  // Solved by water-filling: alloc_i = clamp(perPlayerTarget + lambda - played_i,
+  // 0, halfDurationSec) with lambda chosen so the allocations sum to the
+  // half's outfield capacity. That levels final totals as far as the
+  // per-player ceiling allows.
+  const recomputeH2Alloc = () => {
+    const ids = rotationPool.filter((p) => eligibleH2.has(p.id)).map((p) => p.id);
+    rotationPool.forEach((p) => {
+      if (!eligibleH2.has(p.id)) allocH2.set(p.id, 0);
+    });
+    if (ids.length === 0) return;
+    const played = new Map(ids.map((id) => [id, projected.get(id) ?? 0] as const));
+    const sumFor = (lambda: number) =>
+      ids.reduce((s, id) => {
+        const raw = perPlayerTarget + lambda - (played.get(id) ?? 0);
+        return s + Math.max(0, Math.min(halfDurationSec, raw));
+      }, 0);
+    let lo = -totalSec - perPlayerTarget;
+    let hi = totalSec + perPlayerTarget;
+    for (let i = 0; i < 60; i += 1) {
+      const mid = (lo + hi) / 2;
+      if (sumFor(mid) < capacityPerHalf) lo = mid;
+      else hi = mid;
+    }
+    const lambda = (lo + hi) / 2;
+    ids.forEach((id) => {
+      const raw = perPlayerTarget + lambda - (played.get(id) ?? 0);
+      allocH2.set(id, Math.max(0, Math.min(halfDurationSec, raw)));
+    });
+  };
+
+
   // If there's an HT GK swap, emit it now (pure GK change — no outfield
   // positions involved). The downstream simulator treats this as such.
   if (gkRotates) {
