@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useRef, lazy, Suspense, useMemo, type ReactNode } from "react";
 import { prefetchProfiles } from "@/hooks/useProfiles";
 import { cacheProfiles, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
