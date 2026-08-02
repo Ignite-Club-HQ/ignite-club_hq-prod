@@ -2995,92 +2995,30 @@ export function createSubPlan(
   // converge to mathematically perfect distributions instead of getting
   // dragged off-target by starter bias / continuity / GK protection.
   // ============================================================
-  const equalTimeEligible =
-    priorityOrder.length === 0 &&
-    startHalf === 1 &&
-    clampedStartElapsed === 0 &&
-    outfieldOnBench.length > 0;
-
-  if (process.env.EQ_DEBUG) console.warn("[eq] eligible", equalTimeEligible, priorityOrder.length, startHalf, clampedStartElapsed, outfieldOnBench.length);
-  if (equalTimeEligible) {
-    try {
-      // Sweep substitution cadences from the calmest to the busiest. The
-      // equal-time planner groups swaps into windows spaced `minShiftSec`
-      // apart, so a larger value means a quieter plan. We take the FIRST
-      // (calmest) cadence whose simulated spread meets the fairness cap, and
-      // otherwise keep whichever cadence produced the smallest spread.
-      const capSec = maxSpreadMinutes * 60;
-      const currentSim = simulateOutfieldPlan(plan);
-      const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
-
-      const cadenceFloor = rotationSpeed >= 2 ? eff.frequentIntervalFloor : eff.standardIntervalFloor;
-      const minShiftCandidates = Array.from(
-        new Set(
-          [
-            eff.standardTargetInterval,
-            cadenceFloor,
-            Math.max(60, eff.minShiftSeconds),
-            240,
-            180,
-            120,
-            90,
-            60,
-          ]
-            .map((v) => Math.max(60, Math.round(v)))
-            .filter((v) => v <= halfDurationSeconds),
-        ),
-      ).sort((a, b) => b - a);
-
-      let bestEq: { plan: typeof plan; spread: number } | null = null;
-      for (const minShiftSec of minShiftCandidates) {
-        const eqResult = buildEqualTimePlan({
-          players: playerData,
-          teamSize,
-          halfDurationSec: halfDurationSeconds,
-          gk1H: gkOnPitch || undefined,
-          gk2H: rotateGkAtHalftime
-            ? halftimeGkIn || gkOnPitch || undefined
-            : gkOnPitch || undefined,
-          chunkSec: 30,
-          minShiftSec,
-          noSubBeforeSec: 0,
-          noSubAfterSec: 30,
-        });
-        if (eqResult.plan.length === 0) continue;
-        const eqSim = simulateOutfieldPlan(eqResult.plan as unknown as typeof plan);
-        if (!eqSim.valid) continue;
-        const eqSpread = fairnessSpread(eqSim.times);
-        if (!bestEq || eqSpread < bestEq.spread) {
-          bestEq = { plan: eqResult.plan as unknown as typeof plan, spread: eqSpread };
-        }
-        if (process.env.EQ_DEBUG) console.warn("[eq]", minShiftSec, "spread", eqSpread/60, "subs", eqResult.plan.length);
-        if (eqSpread <= capSec) break;
-      }
-
-
-      if (bestEq) {
-        // Lexicographic selection: prefer whichever meets the cap; otherwise
-        // smaller spread; ties → equal-time (deterministic).
-        const currentMeetsCap = currentSim.valid && currentSpread <= capSec;
-        const eqMeetsCap = bestEq.spread <= capSec;
-        let adopt = false;
-        if (eqMeetsCap && !currentMeetsCap) adopt = true;
-        else if (eqMeetsCap === currentMeetsCap && bestEq.spread < currentSpread) adopt = true;
-        else if (!currentSim.valid) adopt = true;
-
-        if (process.env.EQ_DEBUG) console.warn("[eq] best", bestEq.spread/60, "current", currentSpread/60, "valid", currentSim.valid);
-        if (adopt) {
-          plan.length = 0;
-          plan.push(...bestEq.plan);
-          sortPlan();
-        }
-      }
-    } catch (err) {
-      // Never break the planner — fall through to the conventional output.
-      // eslint-disable-next-line no-console
-      console.warn("[createSubPlan] equal-time post-pass failed:", err);
+  {
+    const eqPlan = applyEqualTimeOverride({
+      playerData,
+      teamSize,
+      halfDurationSeconds,
+      gkOnPitch,
+      halftimeGkIn,
+      rotateGkAtHalftime,
+      maxSpreadMinutes,
+      rotationSpeed,
+      eff,
+      priorityOrderLength: priorityOrder.length,
+      startHalf,
+      startElapsedSeconds: clampedStartElapsed,
+      benchCount: outfieldOnBench.length,
+      currentPlan: plan,
+    });
+    if (eqPlan) {
+      plan.length = 0;
+      plan.push(...eqPlan);
+      sortPlan();
     }
   }
+
 
   return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 }
