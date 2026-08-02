@@ -81,18 +81,27 @@ export function usePitchBoardLifecycle({
     };
   }, []);
 
-  // 2. Restore-context refresh (no flag clearing).
+  // 2. Restore-context refresh (no flag clearing) + open-recency heartbeat.
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        PITCH_BOARD_LAST_CONTEXT_KEY,
-        JSON.stringify({ teamId, teamName, readOnly })
-      );
-      const path = window.location.pathname + window.location.search;
-      localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
-    } catch {
-      /* ignore */
-    }
+    const stamp = () => {
+      try {
+        localStorage.setItem(
+          PITCH_BOARD_LAST_CONTEXT_KEY,
+          JSON.stringify({ teamId, teamName, readOnly })
+        );
+        const path = window.location.pathname + window.location.search;
+        localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
+        localStorage.setItem(PITCH_BOARD_OPEN_AT_KEY, String(Date.now()));
+      } catch {
+        /* ignore */
+      }
+    };
+    stamp();
+    // Heartbeat keeps the "open at" stamp fresh during long sessions so the
+    // resume restore still recognises the board as genuinely open after a
+    // lock/unlock cycle late in a game.
+    const interval = window.setInterval(stamp, 60_000);
+    return () => window.clearInterval(interval);
   }, [teamId, teamName, readOnly]);
 
   // 3. Expired sub notification toast.
