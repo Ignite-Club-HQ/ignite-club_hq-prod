@@ -640,7 +640,12 @@ function naivePlanTotals(
 ): Map<string, number> {
   const totalSec = halfDurationSeconds * 2;
   const onPitch = new Set(players.filter(p => p.position !== null).map(p => p.id));
-  const totals = new Map<string, number>(players.map(p => [p.id, 0] as const));
+  // Include time already banked before this plan. The equal-time planner uses
+  // that history when compensating deficits; comparing candidate plans without
+  // it could reject the corrective plan and preserve a visibly unfair one.
+  const totals = new Map<string, number>(
+    players.map(p => [p.id, Math.max(0, p.minutesPlayed ?? 0)] as const),
+  );
   const abs = (s: SubstitutionEvent) =>
     s.half === 1 ? s.time : halfDurationSeconds + s.time;
   const ordered = [...plan].sort((a, b) => abs(a) - abs(b));
