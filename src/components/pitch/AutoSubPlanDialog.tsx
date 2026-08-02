@@ -607,6 +607,208 @@ const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 60;
  *  participation windows. */
 const PRACTICAL_GK_WINDOW_BUFFER_SECONDS = 3 * 60;
 
+// ===========================================================================
+// EQUAL-TIME OVERRIDE — global fairness post-pass.
+// ---------------------------------------------------------------------------
+// The conventional planner is a set of local heuristics (starter bias,
+// continuity, GK protection, churn removal). Those heuristics are good at
+// producing natural-looking rotations but they cannot see the whole match, so
+// on some squad shapes — most visibly when the goalkeeper rotates at halftime —
+// they settle on a plan whose playing-time spread breaks the coach's cap.
+//
+// `buildEqualTimePlan` solves the same problem globally: it allocates each
+// player a per-half outfield budget (accounting for the halves a keeper is
+// unavailable for outfield duty) and walks the match filling those budgets.
+// This helper runs that planner across a range of substitution cadences and
+// adopts its output when it is fairer than the conventional plan.
+//
+// It is deliberately shared by every branch of `createSubPlan` (standard,
+// frequent and the legacy fallback) so fairness is enforced on the plan the
+// coach actually receives, whichever branch produced it.
+// ===========================================================================
+
+/**
+ * Playing-time totals using the same model as `calculateTimeForecasts` and the
+ * pitch board itself: a player accrues time whenever they are on the pitch,
+ * and a substitution takes `playerOut` off and puts `playerIn` on. Goalkeepers
+ * are on the pitch, so their time is included automatically.
+ */
+function naivePlanTotals(
+  players: Player[],
+  plan: SubstitutionEvent[],
+  halfDurationSeconds: number,
+): Map<string, number> {
+  const totalSec = halfDurationSeconds * 2;
+  const onPitch = new Set(players.filter(p => p.position !== null).map(p => p.id));
+  const totals = new Map<string, number>(players.map(p => [p.id, 0] as const));
+  const abs = (s: SubstitutionEvent) =>
+    s.half === 1 ? s.time : halfDurationSeconds + s.time;
+  const ordered = [...plan].sort((a, b) => abs(a) - abs(b));
+  let last = 0;
+  for (const ev of ordered) {
+    const t = Math.max(last, Math.min(totalSec, abs(ev)));
+    onPitch.forEach(id => totals.set(id, (totals.get(id) ?? 0) + (t - last)));
+    last = t;
+    onPitch.delete(ev.playerOut.id);
+    onPitch.add(ev.playerIn.id);
+  }
+  onPitch.forEach(id => totals.set(id, (totals.get(id) ?? 0) + (totalSec - last)));
+  return totals;
+}
+
+/** Players the planner can actually rebalance — excludes locked-in keepers. */
+function rebalanceablePlayers(players: Player[], rotateGkAtHalftime: boolean): Player[] {
+  return players.filter(p => {
+    if (p.isInjured) return false;
+    const gkOnly =
+      p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK";
+    // A GK-only player is locked to goal for the whole match unless the keeper
+    // rotates at halftime, in which case they are only locked for one half and
+    // their total is still a fairness input.
+    if (gkOnly && !rotateGkAtHalftime) return false;
+    return true;
+  });
+}
+
+function planSpreadSeconds(
+  players: Player[],
+  plan: SubstitutionEvent[],
+  halfDurationSeconds: number,
+  rotateGkAtHalftime: boolean,
+): number {
+  const totals = naivePlanTotals(players, plan, halfDurationSeconds);
+  const values = rebalanceablePlayers(players, rotateGkAtHalftime).map(
+    p => totals.get(p.id) ?? 0,
+  );
+  if (values.length < 2) return 0;
+  return Math.max(...values) - Math.min(...values);
+}
+
+interface EqualTimeOverrideOptions {
+  playerData: Player[];
+  teamSize: number;
+  halfDurationSeconds: number;
+  gkOnPitch: Player | null | undefined;
+  halftimeGkIn: Player | null | undefined;
+  rotateGkAtHalftime: boolean;
+  maxSpreadMinutes: number;
+  rotationSpeed: number;
+  eff: {
+    standardTargetInterval: number;
+    standardIntervalFloor: number;
+    frequentIntervalFloor: number;
+    minShiftSeconds: number;
+  };
+  priorityOrderLength: number;
+  startHalf: 1 | 2;
+  startElapsedSeconds: number;
+  benchCount: number;
+  currentPlan: SubstitutionEvent[];
+}
+
+function applyEqualTimeOverride(
+  opts: EqualTimeOverrideOptions,
+): SubstitutionEvent[] | null {
+  const {
+    playerData,
+    teamSize,
+    halfDurationSeconds,
+    gkOnPitch,
+    halftimeGkIn,
+    rotateGkAtHalftime,
+    maxSpreadMinutes,
+    rotationSpeed,
+    eff,
+    priorityOrderLength,
+    startHalf,
+    startElapsedSeconds,
+    benchCount,
+    currentPlan,
+  } = opts;
+
+  // Only from kickoff, only when the coach hasn't imposed a manual priority
+  // order (which is an explicit instruction to be unequal), and only when
+  // there is somebody on the bench to rotate with.
+  if (priorityOrderLength > 0 || startHalf !== 1 || startElapsedSeconds !== 0) return null;
+  if (benchCount <= 0) return null;
+
+  try {
+    const capSec = Math.max(0, maxSpreadMinutes) * 60;
+    const currentSpread = planSpreadSeconds(
+      playerData,
+      currentPlan,
+      halfDurationSeconds,
+      rotateGkAtHalftime,
+    );
+
+    // Sweep substitution cadences from the calmest to the busiest. The
+    // equal-time planner groups swaps into windows spaced `minShiftSec` apart,
+    // so a larger value means a quieter plan. Take the FIRST (calmest) cadence
+    // that meets the cap; otherwise keep whichever produced the least spread.
+    const cadenceFloor =
+      rotationSpeed >= 2 ? eff.frequentIntervalFloor : eff.standardIntervalFloor;
+    const cadences = Array.from(
+      new Set(
+        [
+          eff.standardTargetInterval,
+          cadenceFloor,
+          Math.max(60, eff.minShiftSeconds),
+          240,
+          180,
+          120,
+          90,
+          60,
+        ]
+          .map(v => Math.max(60, Math.round(v)))
+          .filter(v => v <= halfDurationSeconds),
+      ),
+    ).sort((a, b) => b - a);
+
+    let best: { plan: SubstitutionEvent[]; spread: number } | null = null;
+    for (const minShiftSec of cadences) {
+      const eqResult = buildEqualTimePlan({
+        players: playerData as unknown as Parameters<typeof buildEqualTimePlan>[0]["players"],
+        teamSize,
+        halfDurationSec: halfDurationSeconds,
+        gk1H: (gkOnPitch || undefined) as never,
+        gk2H: (rotateGkAtHalftime
+          ? halftimeGkIn || gkOnPitch || undefined
+          : gkOnPitch || undefined) as never,
+        chunkSec: 30,
+        minShiftSec,
+        noSubBeforeSec: 0,
+        noSubAfterSec: 30,
+      });
+      const candidate = eqResult.plan as unknown as SubstitutionEvent[];
+      if (candidate.length === 0) continue;
+      const spread = planSpreadSeconds(
+        playerData,
+        candidate,
+        halfDurationSeconds,
+        rotateGkAtHalftime,
+      );
+      if (!best || spread < best.spread) best = { plan: candidate, spread };
+      if (spread <= capSec) break;
+    }
+
+    if (!best) return null;
+    // Adopt when the equal-time plan meets the cap the conventional plan
+    // misses, or when it is simply fairer. Ties keep the conventional plan so
+    // the familiar rotation shape wins when fairness is equivalent.
+    const currentMeetsCap = currentSpread <= capSec;
+    const eqMeetsCap = best.spread <= capSec;
+    if (eqMeetsCap && !currentMeetsCap) return best.plan;
+    if (best.spread < currentSpread) return best.plan;
+    return null;
+  } catch (err) {
+    // Never break the planner — fall through to the conventional output.
+    // eslint-disable-next-line no-console
+    console.warn("[createSubPlan] equal-time override failed:", err);
+    return null;
+  }
+}
+
+
 export function createSubPlan(
   playerData: Player[],
   teamSize: number,
