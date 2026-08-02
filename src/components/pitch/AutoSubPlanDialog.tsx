@@ -607,6 +607,208 @@ const PRACTICAL_EARLY_SUB_TOLERANCE_SECONDS = 60;
  *  participation windows. */
 const PRACTICAL_GK_WINDOW_BUFFER_SECONDS = 3 * 60;
 
+// ===========================================================================
+// EQUAL-TIME OVERRIDE — global fairness post-pass.
+// ---------------------------------------------------------------------------
+// The conventional planner is a set of local heuristics (starter bias,
+// continuity, GK protection, churn removal). Those heuristics are good at
+// producing natural-looking rotations but they cannot see the whole match, so
+// on some squad shapes — most visibly when the goalkeeper rotates at halftime —
+// they settle on a plan whose playing-time spread breaks the coach's cap.
+//
+// `buildEqualTimePlan` solves the same problem globally: it allocates each
+// player a per-half outfield budget (accounting for the halves a keeper is
+// unavailable for outfield duty) and walks the match filling those budgets.
+// This helper runs that planner across a range of substitution cadences and
+// adopts its output when it is fairer than the conventional plan.
+//
+// It is deliberately shared by every branch of `createSubPlan` (standard,
+// frequent and the legacy fallback) so fairness is enforced on the plan the
+// coach actually receives, whichever branch produced it.
+// ===========================================================================
+
+/**
+ * Playing-time totals using the same model as `calculateTimeForecasts` and the
+ * pitch board itself: a player accrues time whenever they are on the pitch,
+ * and a substitution takes `playerOut` off and puts `playerIn` on. Goalkeepers
+ * are on the pitch, so their time is included automatically.
+ */
+function naivePlanTotals(
+  players: Player[],
+  plan: SubstitutionEvent[],
+  halfDurationSeconds: number,
+): Map<string, number> {
+  const totalSec = halfDurationSeconds * 2;
+  const onPitch = new Set(players.filter(p => p.position !== null).map(p => p.id));
+  const totals = new Map<string, number>(players.map(p => [p.id, 0] as const));
+  const abs = (s: SubstitutionEvent) =>
+    s.half === 1 ? s.time : halfDurationSeconds + s.time;
+  const ordered = [...plan].sort((a, b) => abs(a) - abs(b));
+  let last = 0;
+  for (const ev of ordered) {
+    const t = Math.max(last, Math.min(totalSec, abs(ev)));
+    onPitch.forEach(id => totals.set(id, (totals.get(id) ?? 0) + (t - last)));
+    last = t;
+    onPitch.delete(ev.playerOut.id);
+    onPitch.add(ev.playerIn.id);
+  }
+  onPitch.forEach(id => totals.set(id, (totals.get(id) ?? 0) + (totalSec - last)));
+  return totals;
+}
+
+/** Players the planner can actually rebalance — excludes locked-in keepers. */
+function rebalanceablePlayers(players: Player[], rotateGkAtHalftime: boolean): Player[] {
+  return players.filter(p => {
+    if (p.isInjured) return false;
+    const gkOnly =
+      p.assignedPositions?.length === 1 && p.assignedPositions[0] === "GK";
+    // A GK-only player is locked to goal for the whole match unless the keeper
+    // rotates at halftime, in which case they are only locked for one half and
+    // their total is still a fairness input.
+    if (gkOnly && !rotateGkAtHalftime) return false;
+    return true;
+  });
+}
+
+function planSpreadSeconds(
+  players: Player[],
+  plan: SubstitutionEvent[],
+  halfDurationSeconds: number,
+  rotateGkAtHalftime: boolean,
+): number {
+  const totals = naivePlanTotals(players, plan, halfDurationSeconds);
+  const values = rebalanceablePlayers(players, rotateGkAtHalftime).map(
+    p => totals.get(p.id) ?? 0,
+  );
+  if (values.length < 2) return 0;
+  return Math.max(...values) - Math.min(...values);
+}
+
+interface EqualTimeOverrideOptions {
+  playerData: Player[];
+  teamSize: number;
+  halfDurationSeconds: number;
+  gkOnPitch: Player | null | undefined;
+  halftimeGkIn: Player | null | undefined;
+  rotateGkAtHalftime: boolean;
+  maxSpreadMinutes: number;
+  rotationSpeed: number;
+  eff: {
+    standardTargetInterval: number;
+    standardIntervalFloor: number;
+    frequentIntervalFloor: number;
+    minShiftSeconds: number;
+  };
+  priorityOrderLength: number;
+  startHalf: 1 | 2;
+  startElapsedSeconds: number;
+  benchCount: number;
+  currentPlan: SubstitutionEvent[];
+}
+
+function applyEqualTimeOverride(
+  opts: EqualTimeOverrideOptions,
+): SubstitutionEvent[] | null {
+  const {
+    playerData,
+    teamSize,
+    halfDurationSeconds,
+    gkOnPitch,
+    halftimeGkIn,
+    rotateGkAtHalftime,
+    maxSpreadMinutes,
+    rotationSpeed,
+    eff,
+    priorityOrderLength,
+    startHalf,
+    startElapsedSeconds,
+    benchCount,
+    currentPlan,
+  } = opts;
+
+  // Only from kickoff, only when the coach hasn't imposed a manual priority
+  // order (which is an explicit instruction to be unequal), and only when
+  // there is somebody on the bench to rotate with.
+  if (priorityOrderLength > 0 || startHalf !== 1 || startElapsedSeconds !== 0) return null;
+  if (benchCount <= 0) return null;
+
+  try {
+    const capSec = Math.max(0, maxSpreadMinutes) * 60;
+    const currentSpread = planSpreadSeconds(
+      playerData,
+      currentPlan,
+      halfDurationSeconds,
+      rotateGkAtHalftime,
+    );
+
+    // Sweep substitution cadences from the calmest to the busiest. The
+    // equal-time planner groups swaps into windows spaced `minShiftSec` apart,
+    // so a larger value means a quieter plan. Take the FIRST (calmest) cadence
+    // that meets the cap; otherwise keep whichever produced the least spread.
+    const cadenceFloor =
+      rotationSpeed >= 2 ? eff.frequentIntervalFloor : eff.standardIntervalFloor;
+    const cadences = Array.from(
+      new Set(
+        [
+          eff.standardTargetInterval,
+          cadenceFloor,
+          Math.max(60, eff.minShiftSeconds),
+          240,
+          180,
+          120,
+          90,
+          60,
+        ]
+          .map(v => Math.max(60, Math.round(v)))
+          .filter(v => v <= halfDurationSeconds),
+      ),
+    ).sort((a, b) => b - a);
+
+    let best: { plan: SubstitutionEvent[]; spread: number } | null = null;
+    for (const minShiftSec of cadences) {
+      const eqResult = buildEqualTimePlan({
+        players: playerData as unknown as Parameters<typeof buildEqualTimePlan>[0]["players"],
+        teamSize,
+        halfDurationSec: halfDurationSeconds,
+        gk1H: (gkOnPitch || undefined) as never,
+        gk2H: (rotateGkAtHalftime
+          ? halftimeGkIn || gkOnPitch || undefined
+          : gkOnPitch || undefined) as never,
+        chunkSec: 30,
+        minShiftSec,
+        noSubBeforeSec: 0,
+        noSubAfterSec: 30,
+      });
+      const candidate = eqResult.plan as unknown as SubstitutionEvent[];
+      if (candidate.length === 0) continue;
+      const spread = planSpreadSeconds(
+        playerData,
+        candidate,
+        halfDurationSeconds,
+        rotateGkAtHalftime,
+      );
+      if (!best || spread < best.spread) best = { plan: candidate, spread };
+      if (spread <= capSec) break;
+    }
+
+    if (!best) return null;
+    // Adopt when the equal-time plan meets the cap the conventional plan
+    // misses, or when it is simply fairer. Ties keep the conventional plan so
+    // the familiar rotation shape wins when fairness is equivalent.
+    const currentMeetsCap = currentSpread <= capSec;
+    const eqMeetsCap = best.spread <= capSec;
+    if (eqMeetsCap && !currentMeetsCap) return best.plan;
+    if (best.spread < currentSpread) return best.plan;
+    return null;
+  } catch (err) {
+    // Never break the planner — fall through to the conventional output.
+    // eslint-disable-next-line no-console
+    console.warn("[createSubPlan] equal-time override failed:", err);
+    return null;
+  }
+}
+
+
 export function createSubPlan(
   playerData: Player[],
   teamSize: number,
@@ -1495,85 +1697,23 @@ export function createSubPlan(
       (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
       (b.half === 1 ? b.time : halfDurationSeconds + b.time)
     );
-    const playableStandard = ensureNoStarvedPlayers(
-      sortedStandard,
-      playerData,
-      halfDurationSeconds,
-    );
-
-    // Standard's FIFO/cadence heuristics deliberately minimise interruptions,
-    // but they must not silently ignore the user-selected fairness cap. For a
-    // clean full-match plan with no explicit player priority, compare that
-    // practical plan with the deterministic equal-time planner. Adopt the
-    // equal-time result only when it is playable and materially fairer (or is
-    // the only result that meets the requested cap).
-    const equalTimeFallbackEligible =
-      priorityOrder.length === 0 &&
-      startHalf === 1 &&
-      clampedStartElapsed === 0 &&
-      outfieldOnBench.length > 0 &&
-      !halftimeGkIn;
-
-    if (equalTimeFallbackEligible) {
-      try {
-        const capSec = Math.max(60, maxSpreadMinutes * 60);
-        const standardResult = standardSimulate(playableStandard);
-        const standardValues = [...standardResult.projected.values()];
-        const standardSpread = standardResult.valid && standardValues.length > 1
-          ? Math.max(...standardValues) - Math.min(...standardValues)
-          : Number.POSITIVE_INFINITY;
-
-        let bestEqual: { plan: SubstitutionEvent[]; spread: number } | null = null;
-        const minShiftCandidates = Array.from(
-          new Set([60, 90, 120, Math.max(60, eff.minShiftSeconds)]),
-        ).sort((a, b) => b - a);
-
-        for (const minShiftSec of minShiftCandidates) {
-          const candidate = buildEqualTimePlan({
-            players: playerData,
-            teamSize,
-            halfDurationSec: halfDurationSeconds,
-            gk1H: gkOnPitch || undefined,
-            gk2H: rotateGkAtHalftime
-              ? halftimeGkIn || gkOnPitch || undefined
-              : gkOnPitch || undefined,
-            chunkSec: 30,
-            minShiftSec,
-            noSubBeforeSec: 0,
-            noSubAfterSec: 30,
-          }).plan as SubstitutionEvent[];
-          if (candidate.length === 0) continue;
-
-          const result = standardSimulate(candidate);
-          const values = [...result.projected.values()];
-          if (!result.valid || values.length < 2) continue;
-          const candidateSpread = Math.max(...values) - Math.min(...values);
-          if (!bestEqual || candidateSpread < bestEqual.spread) {
-            bestEqual = { plan: candidate, spread: candidateSpread };
-          }
-          if (candidateSpread <= capSec) break;
-        }
-
-        if (bestEqual) {
-          const standardMeetsCap = standardSpread <= capSec;
-          const equalMeetsCap = bestEqual.spread <= capSec;
-          if (
-            (equalMeetsCap && !standardMeetsCap) ||
-            (equalMeetsCap === standardMeetsCap && bestEqual.spread < standardSpread)
-          ) {
-            return bestEqual.plan.sort((a, b) =>
-              (a.half === 1 ? a.time : halfDurationSeconds + a.time) -
-              (b.half === 1 ? b.time : halfDurationSeconds + b.time)
-            );
-          }
-        }
-      } catch (error) {
-        // Preserve the known-playable practical plan if optimisation fails.
-        console.warn("[createSubPlan] Standard equal-time fallback failed:", error);
+    {
+      const eqPlan = applyEqualTimeOverride({
+        playerData, teamSize, halfDurationSeconds,
+        gkOnPitch, halftimeGkIn, rotateGkAtHalftime, maxSpreadMinutes,
+        rotationSpeed, eff,
+        priorityOrderLength: priorityOrder.length,
+        startHalf, startElapsedSeconds: clampedStartElapsed,
+        benchCount: outfieldOnBench.length,
+        currentPlan: sortedStandard,
+      });
+      if (eqPlan) {
+        sortedStandard.length = 0;
+        sortedStandard.push(...eqPlan);
       }
     }
 
-    return playableStandard;
+    return ensureNoStarvedPlayers(sortedStandard, playerData, halfDurationSeconds);
   }
   // ===========================================================================
   // BALANCED / FREQUENT MODES — fairness-driven planner below.
@@ -2452,52 +2592,21 @@ export function createSubPlan(
     return 0;
   });
 
-  const frequentEqualTimeEligible =
-    priorityOrder.length === 0 &&
-    startHalf === 1 &&
-    clampedStartElapsed === 0 &&
-    outfieldOnBench.length > 0 &&
-    !halftimeGkIn;
-
-  if (frequentEqualTimeEligible) {
-    try {
-      const capSec = Math.max(60, maxSpreadMinutes * 60);
-      const current = simulateFullPlan(plan);
-      const spreadAcrossRotationPool = (totals: Map<string, number>) => {
-        const values = outfieldPlayers.map((player) => totals.get(player.id) ?? 0);
-        return values.length > 1 ? Math.max(...values) - Math.min(...values) : 0;
-      };
-      const currentSpread = current.valid
-        ? spreadAcrossRotationPool(current.totals)
-        : Number.POSITIVE_INFINITY;
-      const equal = buildEqualTimePlan({
-        players: playerData,
-        teamSize,
-        halfDurationSec: halfDurationSeconds,
-        gk1H: gkOnPitch || undefined,
-        gk2H: gkOnPitch || undefined,
-        chunkSec: 30,
-        minShiftSec: eff.minShiftSeconds,
-        noSubBeforeSec: 0,
-        noSubAfterSec: 30,
-      }).plan as SubstitutionEvent[];
-      const equalSimulation = simulateFullPlan(equal);
-      const equalSpread = equalSimulation.valid
-        ? spreadAcrossRotationPool(equalSimulation.totals)
-        : Number.POSITIVE_INFINITY;
-      const currentMeetsCap = currentSpread <= capSec;
-      const equalMeetsCap = equalSpread <= capSec;
-      if (
-        equal.length > 0 &&
-        ((equalMeetsCap && !currentMeetsCap) ||
-          (equalMeetsCap === currentMeetsCap && equalSpread < currentSpread))
-      ) {
-        return equal;
+  {
+      const eqPlan = applyEqualTimeOverride({
+        playerData, teamSize, halfDurationSeconds,
+        gkOnPitch, halftimeGkIn, rotateGkAtHalftime, maxSpreadMinutes,
+        rotationSpeed, eff,
+        priorityOrderLength: priorityOrder.length,
+        startHalf, startElapsedSeconds: clampedStartElapsed,
+        benchCount: outfieldOnBench.length,
+        currentPlan: plan,
+      });
+      if (eqPlan) {
+        plan.length = 0;
+        plan.push(...eqPlan);
       }
-    } catch (error) {
-      console.warn("[createSubPlan] Frequent equal-time fallback failed:", error);
     }
-  }
 
   return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 
@@ -3120,73 +3229,30 @@ export function createSubPlan(
   // converge to mathematically perfect distributions instead of getting
   // dragged off-target by starter bias / continuity / GK protection.
   // ============================================================
-  const equalTimeEligible =
-    priorityOrder.length === 0 &&
-    startHalf === 1 &&
-    clampedStartElapsed === 0 &&
-    outfieldOnBench.length > 0;
-
-  if (equalTimeEligible) {
-    try {
-      // Sweep progressively tighter minShift values. Smaller minShift lets the
-      // deficit-driven planner take finer bites out of the largest spread
-      // gaps, at the cost of a busier plan. Select the tightest-spread
-      // variant that still sims valid.
-      const capSec = maxSpreadMinutes * 60;
-      const currentSim = simulateOutfieldPlan(plan);
-      const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
-
-      const minShiftCandidates = Array.from(
-        new Set([60, 90, 120, Math.max(60, eff.minShiftSeconds)]),
-      ).sort((a, b) => a - b);
-
-      let bestEq: { plan: typeof plan; spread: number } | null = null;
-      for (const minShiftSec of minShiftCandidates) {
-        const eqResult = buildEqualTimePlan({
-          players: playerData,
-          teamSize,
-          halfDurationSec: halfDurationSeconds,
-          gk1H: gkOnPitch || undefined,
-          gk2H: rotateGkAtHalftime
-            ? halftimeGkIn || gkOnPitch || undefined
-            : gkOnPitch || undefined,
-          chunkSec: 30,
-          minShiftSec,
-          noSubBeforeSec: 0,
-          noSubAfterSec: 30,
-        });
-        if (eqResult.plan.length === 0) continue;
-        const eqSim = simulateOutfieldPlan(eqResult.plan as unknown as typeof plan);
-        if (!eqSim.valid) continue;
-        const eqSpread = fairnessSpread(eqSim.times);
-        if (!bestEq || eqSpread < bestEq.spread) {
-          bestEq = { plan: eqResult.plan as unknown as typeof plan, spread: eqSpread };
-        }
-        if (eqSpread <= capSec) break;
-      }
-
-      if (bestEq) {
-        // Lexicographic selection: prefer whichever meets the cap; otherwise
-        // smaller spread; ties → equal-time (deterministic).
-        const currentMeetsCap = currentSim.valid && currentSpread <= capSec;
-        const eqMeetsCap = bestEq.spread <= capSec;
-        let adopt = false;
-        if (eqMeetsCap && !currentMeetsCap) adopt = true;
-        else if (eqMeetsCap === currentMeetsCap && bestEq.spread < currentSpread) adopt = true;
-        else if (!currentSim.valid) adopt = true;
-
-        if (adopt) {
-          plan.length = 0;
-          plan.push(...bestEq.plan);
-          sortPlan();
-        }
-      }
-    } catch (err) {
-      // Never break the planner — fall through to the conventional output.
-      // eslint-disable-next-line no-console
-      console.warn("[createSubPlan] equal-time post-pass failed:", err);
+  {
+    const eqPlan = applyEqualTimeOverride({
+      playerData,
+      teamSize,
+      halfDurationSeconds,
+      gkOnPitch,
+      halftimeGkIn,
+      rotateGkAtHalftime,
+      maxSpreadMinutes,
+      rotationSpeed,
+      eff,
+      priorityOrderLength: priorityOrder.length,
+      startHalf,
+      startElapsedSeconds: clampedStartElapsed,
+      benchCount: outfieldOnBench.length,
+      currentPlan: plan,
+    });
+    if (eqPlan) {
+      plan.length = 0;
+      plan.push(...eqPlan);
+      sortPlan();
     }
   }
+
 
   return ensureNoStarvedPlayers(plan, playerData, halfDurationSeconds);
 }

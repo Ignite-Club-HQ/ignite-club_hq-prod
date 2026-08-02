@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useRef, lazy, Suspense, useMemo, type ReactNode } from "react";
 import { prefetchProfiles } from "@/hooks/useProfiles";
 import { cacheProfiles, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -566,6 +566,18 @@ export default function TeamDetailPage() {
   const baseAccess = resolveTeamDetailAccess(userRoles, !!isAppAdmin, !!isClubAdmin);
   const { userRole, isCoachOrAdmin, canManageTeam, isMember, canAccessPitchBoard } = baseAccess;
   const isAdmin = isCoachOrAdmin;
+
+  // Sticky pitch-board access gate. `isSoccerClub` / `hasProFootball` /
+  // `isAppAdmin` all come from async queries that can transiently return
+  // undefined/false on app resume (aborted in-flight GETs, refetch errors).
+  // Without a latch the mounted board unmounts mid-game and the user is left
+  // staring at the team page. Once access has been proven we keep the board
+  // rendered for as long as it is open.
+  const rawPitchBoardAccess = !!(isSoccerClub && (hasProFootball || isAppAdmin));
+  const pitchBoardAccessEverGrantedRef = useRef(false);
+  if (rawPitchBoardAccess) pitchBoardAccessEverGrantedRef.current = true;
+  const pitchBoardAccessGranted =
+    rawPitchBoardAccess || pitchBoardAccessEverGrantedRef.current;
   const { data: nearbySubsManagerEventId } = useQuery({
     queryKey: ["nearby-subs-manager-event", id, user?.id],
     queryFn: async () => {
@@ -2595,7 +2607,7 @@ export default function TeamDetailPage() {
       <TeamCompetitionsSection teamId={id!} canManage={isAdmin || isCoachOrAdmin || isClubAdmin} />
 
       {/* Pitch Board Modal — soccer */}
-      {showPitchBoard && isSoccerClub && (hasProFootball || isAppAdmin) && createPortal(
+      {showPitchBoard && pitchBoardAccessGranted && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
             <div className="flex flex-col items-center gap-4">

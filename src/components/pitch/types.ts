@@ -127,6 +127,13 @@ export const PITCH_STATE_KEY_BASE = "ignite-pitch-board-state-team";
 export const getPitchStateKey = (teamId: string) => `${PITCH_STATE_KEY_BASE}-${teamId}`;
 export const PITCH_BOARD_OPEN_KEY = "ignite-pitch-board-open";
 export const PITCH_BOARD_OPEN_PATH_KEY = "ignite-pitch-board-open-path";
+// Epoch ms of the last time a pitch board was mounted. Used by
+// PitchBoardResumeRedirect to decide whether the persisted open flag is a
+// genuine "board was open when the OS suspended us" signal (recent) or stale
+// leftovers from an older run — replaces the brittle performance.now() < 8s
+// cold-start heuristic, which failed on slow cold starts (auth + theme +
+// legal gate) where the redirect only mounts after 8s have already elapsed.
+export const PITCH_BOARD_OPEN_AT_KEY = "ignite-pitch-board-open-at";
 // JSON-encoded {teamId, teamName, readOnly} of the most recently opened
 // pitch board. Used to re-open the modal after a WebView cold restart
 // (phone lock/unlock) when the board was opened as an overlay on the
