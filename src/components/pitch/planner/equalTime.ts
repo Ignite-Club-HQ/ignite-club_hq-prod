@@ -208,23 +208,38 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   const intoHalfSec = (absT: number, half: 1 | 2) =>
     half === 1 ? absT : absT - halfDurationSec;
 
+  // Remaining OUTFIELD opportunity (seconds) for a player from `absT` to the
+  // end of the match. This is the key quantity the previous scoring model was
+  // missing: a player who keeps goal in the second half can only earn outfield
+  // minutes in the first half, so their remaining opportunity collapses at
+  // halftime. Ranking purely on raw deficit therefore starved the incoming
+  // halftime goalkeeper in H1 (they looked "less behind" because their GK half
+  // was already credited) and left the outgoing goalkeeper unable to catch up
+  // in H2 on their own — producing the large spreads reported for
+  // GK-rotation scenarios.
+  const remainingOpportunitySec = (id: string, absT: number): number => {
+    const rem1 = Math.max(0, Math.min(halfDurationSec, totalSec) - absT);
+    const rem2 = Math.max(0, totalSec - Math.max(absT, halfDurationSec));
+    return (eligibleH1.has(id) ? rem1 : 0) + (eligibleH2.has(id) ? rem2 : 0);
+  };
+
   // Helper — pick best 1-swap at time `absT` in `half`. Returns null if
   // nothing improves OR if no legal swap exists.
   //
-  // Scoring strategy (squad-wide fairness):
-  //   Primary   — sum of squared end-of-match deviations (projects each
-  //               player forward assuming the current on-pitch set remains
-  //               unchanged for the remaining time). Prefers reductions in
-  //               total squared error across the WHOLE rotation pool, not
-  //               just the single worst player.
-  //   Secondary — maximum absolute projected deviation.
-  //   Tertiary  — stable id ordering (outId then inId) for determinism.
+  // Scoring strategy (opportunity-normalised fairness):
+  //   urgency(p) = (target - accumulated) / remaining outfield opportunity
   //
-  // Accepting swaps that improve total squared deviation — even when the
-  // maximum absolute deviation is temporarily unchanged — is what breaks the
-  // multi-substitute stalemate: bringing on an under-played bench player can
-  // reduce the sum-of-squares even if a second, equally-underplayed player
-  // remains on the bench and keeps the maximum deviation the same.
+  // This is a deficit *rate*: how much of every remaining eligible second the
+  // player still needs in order to hit their equal-time target. Ranking by
+  // rate rather than by absolute deficit is what makes goalkeeper rotation
+  // fair — the half-locked keepers automatically bid up as their window
+  // closes, instead of being permanently outranked by players who have the
+  // whole match left to catch up.
+  //
+  // A swap is taken when the most urgent bench player out-bids the least
+  // urgent on-pitch player by enough to pay back the minimum shift length,
+  // which keeps substitution counts in the same ballpark as before while
+  // driving the spread down.
   const findBestSwap = (
     absT: number,
     half: 1 | 2,
@@ -233,45 +248,45 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     in: EqualTimePlayer;
     outPos: PitchPosition;
     swap?: { player: EqualTimePlayer; fromPosition: PitchPosition; toPosition: PitchPosition };
-    /** Reduction in sum-of-squared-deviations achieved (positive = improvement). */
+    /** Urgency gap realised by the swap (positive = improvement). */
     improvement: number;
   } | null => {
     const eligible = half === 1 ? eligibleH1 : eligibleH2;
 
-    // Snapshot current deviations.
-    const dev = (id: string) => (projected.get(id) ?? 0) - (targetSec.get(id) ?? 0);
+    const deficit = (id: string) =>
+      (targetSec.get(id) ?? 0) - (projected.get(id) ?? 0);
+    const urgency = (id: string) => {
+      const opp = remainingOpportunitySec(id, absT);
+      if (opp <= 0) return Number.NEGATIVE_INFINITY;
+      return deficit(id) / opp;
+    };
+
     const benchEligible: string[] = [];
     rotationPool.forEach((p) => {
       if (!eligible.has(p.id)) return;
       if (onPitchOutfield.has(p.id)) return;
+      if (remainingOpportunitySec(p.id, absT) <= 0) return;
       benchEligible.push(p.id);
     });
-    const onPitchEligible = Array.from(onPitchOutfield);
+    const onPitchEligible = Array.from(onPitchOutfield).filter(
+      (id) => rotationIds.has(id) && eligible.has(id),
+    );
 
     if (benchEligible.length === 0 || onPitchEligible.length === 0) return null;
 
     const remaining = totalSec - absT;
     if (remaining <= 0) return null;
 
-    // Deterministic ordering. Primary key = deviation, secondary = id (string
-    // compare) so ties resolve identically across runs.
-    benchEligible.sort((a, b) => dev(a) - dev(b) || (a < b ? -1 : a > b ? 1 : 0));
-    onPitchEligible.sort((a, b) => dev(b) - dev(a) || (a < b ? -1 : a > b ? 1 : 0));
+    // Deterministic ordering: most urgent bench player first, least urgent
+    // on-pitch player first. Ties resolve on id so plans stay reproducible.
+    const cmpId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+    benchEligible.sort((a, b) => urgency(b) - urgency(a) || cmpId(a, b));
+    onPitchEligible.sort((a, b) => urgency(a) - urgency(b) || cmpId(a, b));
 
-    // Baseline score: sum of squared projected deviations if we do NOTHING
-    // this chunk. Bench players stay bench (accumulate 0 more); on-pitch
-    // players collect `remaining` more seconds.
-    let baseSumSq = 0;
-    let baseMaxAbs = 0;
-    rotationPool.forEach((p) => {
-      const cur = projected.get(p.id) ?? 0;
-      const tgt = targetSec.get(p.id) ?? 0;
-      const proj = cur + (onPitchOutfield.has(p.id) ? remaining : 0);
-      const d = proj - tgt;
-      baseSumSq += d * d;
-      const ad = Math.abs(d);
-      if (ad > baseMaxAbs) baseMaxAbs = ad;
-    });
+    // A swap must buy back at least one chunk of fairness over the minimum
+    // shift it commits us to. Expressed as a rate gap so it scales with how
+    // much opportunity is left.
+    const payback = Math.max(chunkSec, 1) / Math.max(minShiftSec, chunkSec, 1);
 
     let best:
       | {
@@ -284,8 +299,6 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
             toPosition: PitchPosition;
           };
           improvement: number;
-          newSumSq: number;
-          newMaxAbs: number;
           outId: string;
           inId: string;
         }
@@ -293,8 +306,17 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
 
     for (const inId of benchEligible) {
       const inP = playerById.get(inId)!;
+      const inUrgency = urgency(inId);
+      if (!Number.isFinite(inUrgency)) continue;
       for (const outId of onPitchEligible) {
         if (inId === outId) continue;
+        const gap = inUrgency - urgency(outId);
+        if (!(gap > payback)) continue;
+        // Once the gap is below the payback threshold for this bench player,
+        // every less-urgent on-pitch candidate is even worse — but the
+        // on-pitch list is sorted ascending, so keep scanning is wrong; the
+        // first (least urgent) candidate is the best target. Continue anyway
+        // to allow position-eligibility fallbacks further down the list.
         // Min-shift gate on the player coming OFF.
         const lastOut = lastSubAt.get(outId);
         if (lastOut !== undefined && absT - lastOut < minShiftSec) continue;
@@ -328,61 +350,16 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
           if (!foundSwap) continue;
         }
 
-        // Score the hypothetical post-swap squad projection.
-        let newSumSq = 0;
-        let newMaxAbs = 0;
-        rotationPool.forEach((p) => {
-          const cur = projected.get(p.id) ?? 0;
-          const tgt = targetSec.get(p.id) ?? 0;
-          const onAfter =
-            p.id === outId
-              ? false
-              : p.id === inId
-                ? true
-                : onPitchOutfield.has(p.id);
-          const proj = cur + (onAfter ? remaining : 0);
-          const d = proj - tgt;
-          newSumSq += d * d;
-          const ad = Math.abs(d);
-          if (ad > newMaxAbs) newMaxAbs = ad;
-        });
-
-        // Strict improvement in squad-wide fairness (sum-of-squares) required.
-        // Note: max deviation is allowed to stay unchanged — this is the fix
-        // for the multi-sub stalemate.
-        if (newSumSq >= baseSumSq) continue;
-
-        const improvement = baseSumSq - newSumSq;
-        if (!best) {
+        if (!best || gap > best.improvement ||
+            (gap === best.improvement &&
+              (cmpId(outId, best.outId) < 0 ||
+                (outId === best.outId && cmpId(inId, best.inId) < 0)))) {
           best = {
             out: outP,
             in: inP,
             outPos,
             swap: swapMeta,
-            improvement,
-            newSumSq,
-            newMaxAbs,
-            outId,
-            inId,
-          };
-          continue;
-        }
-        // Tie-break chain: lower newSumSq → lower newMaxAbs → stable ids.
-        if (
-          newSumSq < best.newSumSq ||
-          (newSumSq === best.newSumSq && newMaxAbs < best.newMaxAbs) ||
-          (newSumSq === best.newSumSq &&
-            newMaxAbs === best.newMaxAbs &&
-            (outId < best.outId || (outId === best.outId && inId < best.inId)))
-        ) {
-          best = {
-            out: outP,
-            in: inP,
-            outPos,
-            swap: swapMeta,
-            improvement,
-            newSumSq,
-            newMaxAbs,
+            improvement: gap,
             outId,
             inId,
           };
@@ -399,6 +376,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
       improvement: best.improvement,
     };
   };
+
 
   for (let absT = 0; absT < totalSec; absT += chunkSec) {
     const curHalf = halfOf(absT);
