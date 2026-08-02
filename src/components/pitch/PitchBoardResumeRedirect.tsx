@@ -1,8 +1,17 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
-import { PITCH_BOARD_OPEN_KEY, PITCH_BOARD_OPEN_PATH_KEY } from "./types";
+import {
+  PITCH_BOARD_OPEN_KEY,
+  PITCH_BOARD_OPEN_PATH_KEY,
+  PITCH_BOARD_OPEN_AT_KEY,
+} from "./types";
 import { clearPitchBoardOpenFlag } from "./pitchBoardOpenFlag";
+
+/** How recently the board must have been mounted for a persisted open flag to
+ *  count as a genuine restore signal (covers a long phone-lock + slow cold
+ *  start, while still self-healing truly stale flags). */
+const RECENT_OPEN_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 /**
  * Restores the pitch board after a WebView cold-start (iOS lock/unlock kills
