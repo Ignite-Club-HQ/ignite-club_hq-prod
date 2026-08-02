@@ -3003,17 +3003,32 @@ export function createSubPlan(
 
   if (equalTimeEligible) {
     try {
-      // Sweep progressively tighter minShift values. Smaller minShift lets the
-      // deficit-driven planner take finer bites out of the largest spread
-      // gaps, at the cost of a busier plan. Select the tightest-spread
-      // variant that still sims valid.
+      // Sweep substitution cadences from the calmest to the busiest. The
+      // equal-time planner groups swaps into windows spaced `minShiftSec`
+      // apart, so a larger value means a quieter plan. We take the FIRST
+      // (calmest) cadence whose simulated spread meets the fairness cap, and
+      // otherwise keep whichever cadence produced the smallest spread.
       const capSec = maxSpreadMinutes * 60;
       const currentSim = simulateOutfieldPlan(plan);
       const currentSpread = currentSim.valid ? fairnessSpread(currentSim.times) : Number.POSITIVE_INFINITY;
 
+      const cadenceFloor = rotationSpeed >= 2 ? eff.frequentIntervalFloorSec : eff.standardIntervalFloorSec;
       const minShiftCandidates = Array.from(
-        new Set([60, 90, 120, Math.max(60, eff.minShiftSeconds)]),
-      ).sort((a, b) => a - b);
+        new Set(
+          [
+            eff.standardTargetIntervalSec,
+            cadenceFloor,
+            Math.max(60, eff.minShiftSeconds),
+            240,
+            180,
+            120,
+            90,
+            60,
+          ]
+            .map((v) => Math.max(60, Math.round(v)))
+            .filter((v) => v <= halfDurationSeconds),
+        ),
+      ).sort((a, b) => b - a);
 
       let bestEq: { plan: typeof plan; spread: number } | null = null;
       for (const minShiftSec of minShiftCandidates) {
@@ -3039,6 +3054,7 @@ export function createSubPlan(
         }
         if (eqSpread <= capSec) break;
       }
+
 
       if (bestEq) {
         // Lexicographic selection: prefer whichever meets the cap; otherwise
