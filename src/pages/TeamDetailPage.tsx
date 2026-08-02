@@ -540,6 +540,19 @@ export default function TeamDetailPage() {
   const canManageTeam = isAdmin || isClubAdmin;
   // isMember includes club admins - they have implicit access to all teams in their club
   const isMember = userRoles.length > 0 || isAppAdmin || isClubAdmin;
+
+  // Sticky pitch-board access gate. `isSoccerClub` / `hasProFootball` /
+  // `isAppAdmin` all come from async queries that can transiently return
+  // undefined/false on app resume (aborted in-flight GETs, refetch errors).
+  // Without a latch the mounted board unmounts mid-game and the user is left
+  // staring at the team page. Once access has been proven we keep the board
+  // rendered for as long as it is open.
+  const rawPitchBoardAccess = !!(isSoccerClub && (hasProFootball || isAppAdmin));
+  const pitchBoardAccessEverGrantedRef = useRef(false);
+  if (rawPitchBoardAccess) pitchBoardAccessEverGrantedRef.current = true;
+  const pitchBoardAccessGranted =
+    rawPitchBoardAccess || pitchBoardAccessEverGrantedRef.current;
+
   const { data: nearbySubsManagerEventId } = useQuery({
     queryKey: ["nearby-subs-manager-event", id, user?.id],
     queryFn: async () => {
