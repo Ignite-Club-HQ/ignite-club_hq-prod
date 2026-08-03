@@ -3,6 +3,7 @@ import {
   PITCH_BOARD_OPEN_PATH_KEY,
   PITCH_BOARD_LAST_CONTEXT_KEY,
   PITCH_BOARD_OPEN_AT_KEY,
+  PITCH_BOARD_BACKGROUNDED_AT_KEY,
 } from "./types";
 
 /**
@@ -22,7 +23,25 @@ export function clearPitchBoardOpenFlag() {
     localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
     localStorage.removeItem(PITCH_BOARD_LAST_CONTEXT_KEY);
     localStorage.removeItem(PITCH_BOARD_OPEN_AT_KEY);
+    localStorage.removeItem(PITCH_BOARD_BACKGROUNDED_AT_KEY);
   } catch {
     /* ignore */
+  }
+}
+
+/**
+ * Durable fallback for route-scoped boards. The query-string signal can be
+ * consumed or replaced before slow access/roster queries settle; the mounted
+ * board's persisted path remains authoritative until an explicit close or
+ * navigation-away clears it.
+ */
+export function shouldRestorePitchBoardForCurrentPath(pathname: string) {
+  try {
+    if (localStorage.getItem(PITCH_BOARD_OPEN_KEY) !== "true") return false;
+    const storedPath = localStorage.getItem(PITCH_BOARD_OPEN_PATH_KEY);
+    if (!storedPath) return false;
+    return storedPath.split("?")[0] === pathname;
+  } catch {
+    return false;
   }
 }

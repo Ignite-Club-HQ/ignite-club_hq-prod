@@ -139,6 +139,11 @@ export const PITCH_BOARD_OPEN_AT_KEY = "ignite-pitch-board-open-at";
 // (phone lock/unlock) when the board was opened as an overlay on the
 // home page (no dedicated route to restore).
 export const PITCH_BOARD_LAST_CONTEXT_KEY = "ignite-pitch-board-last-context";
+// Epoch ms of the last time the app was backgrounded / hidden (phone lock,
+// app switch). A route change observed while backgrounded — or shortly after
+// resuming — is native WebView route drift, NOT a deliberate user navigation,
+// so it must never clear the pitch-board open marker.
+export const PITCH_BOARD_BACKGROUNDED_AT_KEY = "ignite-pitch-board-backgrounded-at";
 export const TIMER_STORAGE_KEY = 'pitch-board-timer-state';
 
 // Goal tracking interface

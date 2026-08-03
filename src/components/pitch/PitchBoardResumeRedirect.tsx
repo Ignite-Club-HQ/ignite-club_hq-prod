@@ -5,6 +5,7 @@ import {
   PITCH_BOARD_OPEN_KEY,
   PITCH_BOARD_OPEN_PATH_KEY,
   PITCH_BOARD_OPEN_AT_KEY,
+  PITCH_BOARD_BACKGROUNDED_AT_KEY,
 } from "./types";
 import { clearPitchBoardOpenFlag } from "./pitchBoardOpenFlag";
 
@@ -12,6 +13,49 @@ import { clearPitchBoardOpenFlag } from "./pitchBoardOpenFlag";
  *  count as a genuine restore signal (covers a long phone-lock + slow cold
  *  start, while still self-healing truly stale flags). */
 const RECENT_OPEN_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+// Native cold starts can spend well over six seconds restoring auth, profile,
+// theme and legal state. Keep the restore lease alive across that bootstrap so
+// a later redirect cannot strand the user on another protected page.
+const RESTORE_WINDOW_MS = 30_000;
+const RESTORE_RETRY_DELAYS_MS = [0, 250, 750, 1500, 3000, 5000, 8000, 12_000, 20_000, 29_000] as const;
+// Route changes seen while hidden, or within this grace period after the app
+// came back to the foreground, are treated as native WebView route drift.
+const DRIFT_GRACE_MS = RESTORE_WINDOW_MS;
+
+function markBackgrounded() {
+  try {
+    localStorage.setItem(PITCH_BOARD_BACKGROUNDED_AT_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * True when the app is currently hidden, or was hidden recently enough that a
+ * route change is more likely OS-driven route drift than a deliberate user
+ * navigation. Used to protect the open marker from being cleared by drift.
+ */
+function isNativeRouteDriftLikely() {
+  try {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      return true;
+    }
+    const at = Number(
+      localStorage.getItem(PITCH_BOARD_BACKGROUNDED_AT_KEY) || "0",
+    );
+    return Number.isFinite(at) && at > 0 && Date.now() - at < DRIFT_GRACE_MS;
+  } catch {
+    return false;
+  }
+}
+
+const isPublicBootstrapPath = (path: string) =>
+  path === "/auth" ||
+  path === "/reset-password" ||
+  path === "/verify-reset-code" ||
+  path === "/complete-profile" ||
+  path === "/terms" ||
+  path === "/privacy";
 
 /**
  * Restores the pitch board after a WebView cold-start (iOS lock/unlock kills
@@ -41,7 +85,7 @@ export default function PitchBoardResumeRedirect() {
   // restore — otherwise the pitch board re-opens unexpectedly whenever the
   // user lands on a neutral route after closing it earlier.
   const restoreWindowUntilRef = useRef(0);
-  const openRestoreWindow = (ms = 6000) => {
+  const openRestoreWindow = (ms = RESTORE_WINDOW_MS) => {
     restoreWindowUntilRef.current = Math.max(
       restoreWindowUntilRef.current,
       Date.now() + ms,
@@ -102,10 +146,14 @@ export default function PitchBoardResumeRedirect() {
       // HomePage runs its own cold-start restore that re-opens the modal.
       if (path === "/" || path === "/home") return;
 
-      const onNeutral =
-        loc.pathname === "/" || loc.pathname === "/home";
       const onStored = loc.pathname === path;
-      if (!onNeutral && !onStored) return;
+
+      // During a genuine cold-start/resume lease the open board is the
+      // authoritative foreground destination. Auth/profile/bootstrap and
+      // pending navigation effects can briefly move the router to another
+      // protected page after our first attempt; reclaim it on a later retry.
+      // Never override public auth/legal flows.
+      if (!onStored && isPublicBootstrapPath(loc.pathname)) return;
 
       // Already mid-restore (param present and on the right path) → nothing to do.
       const currentParams = new URLSearchParams(loc.search);
@@ -119,6 +167,13 @@ export default function PitchBoardResumeRedirect() {
 
       const params = new URLSearchParams(query);
       params.set("openPitchBoard", "1");
+      // The drift marker has served its purpose for this resume — clear it so
+      // a later deliberate navigation away is honoured as an explicit close.
+      try {
+        localStorage.removeItem(PITCH_BOARD_BACKGROUNDED_AT_KEY);
+      } catch {
+        /* ignore */
+      }
       navigate(`${path}?${params.toString()}`, { replace: true });
     } catch {
       /* ignore */
@@ -138,8 +193,7 @@ export default function PitchBoardResumeRedirect() {
     // catch the case where the URL is still /auth or the Suspense fallback
     // when the first attempt runs, and only resolves to "/" a few hundred
     // milliseconds later once the AuthProvider hydrates.
-    const delays = [0, 250, 750, 1500, 3000, 5000];
-    const timers = delays.map((d) =>
+    const timers = RESTORE_RETRY_DELAYS_MS.map((d) =>
       window.setTimeout(() => {
         if (!cancelled) attempt();
       }, d)
@@ -153,15 +207,20 @@ export default function PitchBoardResumeRedirect() {
         try {
           const { App } = await import("@capacitor/app");
           const handle = await App.addListener("appStateChange", ({ isActive }) => {
-            if (isActive) {
+            if (!isActive) {
+              // Backgrounding: any route change from here until the drift
+              // grace period expires is OS-driven, not user intent.
+              markBackgrounded();
               openRestoreWindow();
-              // Retry across the post-resume hydration window — Capacitor
-              // sometimes restores the WebView to the start URL ("/") and
-              // React needs a frame or two to finish bootstrap.
-              attempt();
-              resumeTimers.push(window.setTimeout(attempt, 400));
-              resumeTimers.push(window.setTimeout(attempt, 1200));
+              return;
             }
+            openRestoreWindow();
+            // Retry across the post-resume hydration window — Capacitor
+            // sometimes restores the WebView to the start URL ("/") and
+            // React needs a frame or two to finish bootstrap.
+            attempt();
+            resumeTimers.push(window.setTimeout(attempt, 400));
+            resumeTimers.push(window.setTimeout(attempt, 1200));
           });
           if (cancelled) {
             void handle.remove();
@@ -181,6 +240,9 @@ export default function PitchBoardResumeRedirect() {
       if (document.visibilityState === "visible") {
         openRestoreWindow();
         attempt();
+      } else {
+        markBackgrounded();
+        openRestoreWindow();
       }
     };
     // pageshow fires after WebView bfcache restore (iOS Safari/WKWebView).
@@ -188,8 +250,13 @@ export default function PitchBoardResumeRedirect() {
       openRestoreWindow();
       attempt();
     };
+    const onPageHide = () => {
+      markBackgrounded();
+      openRestoreWindow();
+    };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("pagehide", onPageHide);
 
     return () => {
       cancelled = true;
@@ -197,6 +264,7 @@ export default function PitchBoardResumeRedirect() {
       resumeTimers.forEach((t) => window.clearTimeout(t));
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("pagehide", onPageHide);
       removeListener?.();
     };
   }, []);
@@ -217,15 +285,20 @@ export default function PitchBoardResumeRedirect() {
       const storedPath = (
         localStorage.getItem(PITCH_BOARD_OPEN_PATH_KEY) || ""
       ).split("?")[0];
-      const isNeutral = next === "/" || next === "/home";
       if (
         storedPath &&
         prev === storedPath &&
-        isNeutral &&
-        prev !== next
+        prev !== next &&
+        // Route changes caused by cold-start/resume bootstrap are allowed to
+        // settle and will be reclaimed by attemptRestore. Outside that lease,
+        // leaving the board's route is an explicit navigation and must clear
+        // the flag so it does not reopen later.
+        Date.now() > restoreWindowUntilRef.current &&
+        // Native WebView route drift (route changed while the app was hidden
+        // or right after it came back) is NOT a deliberate close.
+        !isNativeRouteDriftLikely()
       ) {
-        // User left the pitch-board route to a neutral page — treat as
-        // explicit close. Cancel any in-flight restore window.
+        // User left the pitch-board route — treat as explicit close.
         restoreWindowUntilRef.current = 0;
         clearPitchBoardOpenFlag();
         return;

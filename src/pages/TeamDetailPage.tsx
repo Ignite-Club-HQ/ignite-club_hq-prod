@@ -67,7 +67,10 @@ const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
 // NetballBoard / BasketballBoard archived — football-only build (see archive/sports/)
 const TeamGameHistoryTab = lazy(() => import("@/components/history/TeamGameHistoryTab"));
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
-import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
+import {
+  clearPitchBoardOpenFlag,
+  shouldRestorePitchBoardForCurrentPath,
+} from "@/components/pitch/pitchBoardOpenFlag";
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
@@ -244,7 +247,11 @@ export default function TeamDetailPage() {
     // Accept both `openBoard=1` (CourtBoardResumeCard / GameTimerWidget) and
     // `openPitchBoard=1` (PitchBoardResumeRedirect cold-start recovery) so a
     // restored team-scoped pitch board reopens regardless of entry point.
-    if (params.get("openBoard") === "1" || params.get("openPitchBoard") === "1") {
+    if (
+      params.get("openBoard") === "1" ||
+      params.get("openPitchBoard") === "1" ||
+      shouldRestorePitchBoardForCurrentPath(window.location.pathname)
+    ) {
       setShowPitchBoard(true);
       // Strip the param so a refresh doesn't re-open after the coach closed it.
       params.delete("openBoard");
