@@ -199,15 +199,20 @@ export default function PitchBoardResumeRedirect() {
         try {
           const { App } = await import("@capacitor/app");
           const handle = await App.addListener("appStateChange", ({ isActive }) => {
-            if (isActive) {
+            if (!isActive) {
+              // Backgrounding: any route change from here until the drift
+              // grace period expires is OS-driven, not user intent.
+              markBackgrounded();
               openRestoreWindow();
-              // Retry across the post-resume hydration window — Capacitor
-              // sometimes restores the WebView to the start URL ("/") and
-              // React needs a frame or two to finish bootstrap.
-              attempt();
-              window.setTimeout(attempt, 400);
-              window.setTimeout(attempt, 1200);
+              return;
             }
+            openRestoreWindow();
+            // Retry across the post-resume hydration window — Capacitor
+            // sometimes restores the WebView to the start URL ("/") and
+            // React needs a frame or two to finish bootstrap.
+            attempt();
+            window.setTimeout(attempt, 400);
+            window.setTimeout(attempt, 1200);
           });
           if (cancelled) {
             void handle.remove();
@@ -227,6 +232,9 @@ export default function PitchBoardResumeRedirect() {
       if (document.visibilityState === "visible") {
         openRestoreWindow();
         attempt();
+      } else {
+        markBackgrounded();
+        openRestoreWindow();
       }
     };
     // pageshow fires after WebView bfcache restore (iOS Safari/WKWebView).
@@ -234,8 +242,14 @@ export default function PitchBoardResumeRedirect() {
       openRestoreWindow();
       attempt();
     };
+    const onPageHide = () => {
+      markBackgrounded();
+      openRestoreWindow();
+    };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("blur", onPageHide);
 
     return () => {
       cancelled = true;
