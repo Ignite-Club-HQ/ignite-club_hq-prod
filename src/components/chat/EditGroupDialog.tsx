@@ -157,7 +157,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
       const updates: { name: string; allowed_roles?: AppRole[]; join_policy?: string; allow_forwarding?: boolean } = { name };
       if (!isManual) updates.allowed_roles = selectedRoles;
       if (qualifiesForOpenJoin) {
-        updates.join_policy = openToClub ? "open_to_club" : "invite_only";
+        updates.join_policy = joinPolicy;
       }
       updates.allow_forwarding = allowForwarding;
       const { error } = await supabase
