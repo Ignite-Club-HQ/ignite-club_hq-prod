@@ -5,6 +5,7 @@ import {
   PITCH_BOARD_OPEN_KEY,
   PITCH_BOARD_OPEN_PATH_KEY,
   PITCH_BOARD_OPEN_AT_KEY,
+  PITCH_BOARD_BACKGROUNDED_AT_KEY,
 } from "./types";
 import { clearPitchBoardOpenFlag } from "./pitchBoardOpenFlag";
 
@@ -17,6 +18,36 @@ const RECENT_OPEN_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 // a later redirect cannot strand the user on another protected page.
 const RESTORE_WINDOW_MS = 30_000;
 const RESTORE_RETRY_DELAYS_MS = [0, 250, 750, 1500, 3000, 5000, 8000, 12_000, 20_000, 29_000] as const;
+// Route changes seen while hidden, or within this grace period after the app
+// came back to the foreground, are treated as native WebView route drift.
+const DRIFT_GRACE_MS = RESTORE_WINDOW_MS;
+
+function markBackgrounded() {
+  try {
+    localStorage.setItem(PITCH_BOARD_BACKGROUNDED_AT_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * True when the app is currently hidden, or was hidden recently enough that a
+ * route change is more likely OS-driven route drift than a deliberate user
+ * navigation. Used to protect the open marker from being cleared by drift.
+ */
+function isNativeRouteDriftLikely() {
+  try {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      return true;
+    }
+    const at = Number(
+      localStorage.getItem(PITCH_BOARD_BACKGROUNDED_AT_KEY) || "0",
+    );
+    return Number.isFinite(at) && at > 0 && Date.now() - at < DRIFT_GRACE_MS;
+  } catch {
+    return false;
+  }
+}
 
 const isPublicBootstrapPath = (path: string) =>
   path === "/auth" ||
