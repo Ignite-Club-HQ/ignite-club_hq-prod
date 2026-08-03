@@ -130,12 +130,13 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const { data: matches = [], isLoading } = useQuery({
     queryKey: ["competition-matches", competitionId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("competition_matches")
         .select("*, home:home_team_id(id, name, logo_url), away:away_team_id(id, name, logo_url), competition_divisions:division_id(name)")
         .eq("competition_id", competitionId)
         .order("round_number", { ascending: true, nullsFirst: false })
         .order("scheduled_at", { ascending: true, nullsFirst: false });
+      if (error) throw error;
       return data ?? [];
     },
   });
