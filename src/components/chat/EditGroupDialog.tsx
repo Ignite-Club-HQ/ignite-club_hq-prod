@@ -29,6 +29,30 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "player", label: "Players" },
   { value: "club_admin", label: "Club Admins" },
 ];
+type JoinPolicy = "invite_only" | "request_to_join" | "open_to_club";
+
+const JOIN_POLICY_OPTIONS: { value: JoinPolicy; label: string; description: string }[] = [
+  {
+    value: "invite_only",
+    label: "Invite only",
+    description: "Hidden from Discover. Only admins or existing members can add people.",
+  },
+  {
+    value: "request_to_join",
+    label: "Approval required",
+    description: "Club members can request to join, and a current member must approve.",
+  },
+  {
+    value: "open_to_club",
+    label: "Anyone in the club can join",
+    description: "Club members can join instantly from Discover, no approval needed.",
+  },
+];
+
+function normalizeJoinPolicy(raw: string | null | undefined): JoinPolicy {
+  return raw === "open_to_club" || raw === "request_to_join" ? raw : "invite_only";
+}
+
 
 interface EditGroupDialogProps {
   group: {
