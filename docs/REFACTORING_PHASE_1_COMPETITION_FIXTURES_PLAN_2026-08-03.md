@@ -78,6 +78,12 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-g complete 
 - Slice 1G-g verification: three direct round-presentation cases were added;
   all 135 focused competition tests passed, extracted modules are lint clean,
   TypeScript passed, and the production build completed successfully.
+- Match-row pre-extraction hardening completed: four characterization cases
+  now protect external/local source badges, status/schedule/venue presentation,
+  the complete manual-fixture settings menu, competition-level PlayHQ gating,
+  native context-menu suppression and moved-pointer gesture handling.
+- Match-row hardening verification: all 139 focused competition tests passed;
+  this boundary bundle changed tests and this progress record only.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 

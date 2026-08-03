@@ -106,6 +106,54 @@ describe("CompetitionFixturesPanel result management", () => {
     renderPanel({ source: "playhq" });
 
     expect(screen.queryByRole("button", { name: /enter score|edit score/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /fixture settings/i })).not.toBeInTheDocument();
+  });
+
+  it("renders external-source and local-override indicators without hiding local controls", () => {
+    mocks.matches = [match({
+      source: "playhq",
+      manually_overridden_at: "2026-07-20T09:00:00.000Z",
+    })];
+    renderPanel();
+
+    const sourceBadge = screen.getByText("playhq · local");
+    expect(sourceBadge).toHaveAttribute("title", "Synced from playhq · locally overridden");
+    expect(screen.getByRole("button", { name: /enter score/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /fixture settings/i })).toBeInTheDocument();
+  });
+
+  it("renders status, schedule and compact venue/pitch metadata", () => {
+    mocks.matches = [match({ status: "postponed", venue: "Riverside Park, Main Road", pitch_number: "2" })];
+    renderPanel({ isAdmin: false });
+
+    expect(screen.getByText("postponed")).toBeInTheDocument();
+    expect(screen.getByText("Riverside Park · Pitch 2")).toBeInTheDocument();
+    expect(screen.getByText("Riverside")).toBeInTheDocument();
+    expect(screen.getByText("Hilltown")).toBeInTheDocument();
+  });
+
+  it("exposes all manual-fixture management actions from the settings control", async () => {
+    renderPanel();
+    fireEvent.pointerDown(screen.getByRole("button", { name: /fixture settings/i }), {
+      button: 0,
+      ctrlKey: false,
+    });
+
+    expect(await screen.findByText("Edit details")).toBeInTheDocument();
+    expect(screen.getByText("Edit score")).toBeInTheDocument();
+    expect(screen.getByText("Delete")).toBeInTheDocument();
+  });
+
+  it("suppresses native long-press context menus and treats moved pointers as gestures", () => {
+    renderPanel();
+    const settings = screen.getByRole("button", { name: /fixture settings/i });
+    const contextMenu = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    expect(settings.dispatchEvent(contextMenu)).toBe(false);
+
+    fireEvent.pointerDown(settings, { clientX: 4, clientY: 4, button: 0, ctrlKey: false });
+    expect(fireEvent.pointerUp(settings, { clientX: 24, clientY: 4, button: 0 })).toBe(false);
+    expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it("saves both scores, completes the match, and refreshes fixtures and ladder", async () => {
