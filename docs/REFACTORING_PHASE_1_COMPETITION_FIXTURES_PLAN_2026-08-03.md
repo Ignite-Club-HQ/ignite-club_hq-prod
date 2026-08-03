@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-k complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-l complete locally on `codespaces-review`
 
 ## Progress
 
@@ -107,6 +107,12 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-k complete 
   feature-local component.
 - Slice 1G-k verification: all 139 focused competition tests passed, the new
   manual-match component is lint clean, TypeScript passed, and the production
+  build completed successfully.
+- Slice 1G-l completed: maximum-round dialog state, trimming outcomes,
+  guidance, error reporting and fixture invalidation moved into a typed
+  feature-local mutation component.
+- Slice 1G-l verification: all 139 focused competition tests passed, the new
+  round-limit component is lint clean, TypeScript passed, and the production
   build completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
