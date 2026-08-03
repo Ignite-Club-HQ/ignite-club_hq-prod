@@ -558,8 +558,16 @@ export default function GroupChatPage() {
   }, [groupId, invalidateGate, group, queryClient, eagerInvalidate]);
 
   // Fetch messages with reactions - limit to MESSAGES_PER_PAGE for fast initial load
-  const { data: messagesData, isLoading: messagesLoading } = useQuery({
+  const {
+    data: messagesData,
+    isLoading: messagesLoading,
+    isError: messagesIsError,
+    status: messagesStatus,
+    fetchStatus: messagesFetchStatus,
+    refetch: refetchMessages,
+  } = useQuery({
     queryKey: ["group-messages", groupId],
+
     queryFn: async () => {
       markChatFetch();
       // If offline, return cached messages using the shared online manager
