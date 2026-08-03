@@ -95,7 +95,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
     if (open) {
       setName(group.name);
       setSelectedRoles(group.allowed_roles);
-      setOpenToClub(group.join_policy === "open_to_club");
+      setJoinPolicy(normalizeJoinPolicy(group.join_policy));
       setAllowForwarding(group.allow_forwarding !== false);
     }
   }, [open, group.id]);
