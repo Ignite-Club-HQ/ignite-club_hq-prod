@@ -1023,11 +1023,16 @@ export default function GroupChatPage() {
           const br: any[] = b.reactions || [];
           if (ar.length !== br.length) { identical = false; break; }
           if (ar.length > 0) {
-            const aIds = new Set(ar.map((r) => r.id));
-            for (const r of br) {
-              if (!aIds.has(r.id)) { identical = false; break; }
-            }
-            if (!identical) break;
+            // Compare reaction CONTENT (id + user + type), not just the id set,
+            // so a temp -> confirmed reaction transition with an equal id set
+            // still bails out instead of producing a new array identity on
+            // every pass (React #185 guard).
+            const sig = (list: any[]) =>
+              list
+                .map((r) => `${r.id}::${r.user_id}::${r.reaction_type}`)
+                .sort()
+                .join("|");
+            if (sig(ar) !== sig(br)) { identical = false; break; }
           }
         }
         if (identical) return prev;
