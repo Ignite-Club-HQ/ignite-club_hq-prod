@@ -167,6 +167,13 @@ export default function PitchBoardResumeRedirect() {
 
       const params = new URLSearchParams(query);
       params.set("openPitchBoard", "1");
+      // The drift marker has served its purpose for this resume — clear it so
+      // a later deliberate navigation away is honoured as an explicit close.
+      try {
+        localStorage.removeItem(PITCH_BOARD_BACKGROUNDED_AT_KEY);
+      } catch {
+        /* ignore */
+      }
       navigate(`${path}?${params.toString()}`, { replace: true });
     } catch {
       /* ignore */
