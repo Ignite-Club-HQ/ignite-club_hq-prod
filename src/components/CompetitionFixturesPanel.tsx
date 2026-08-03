@@ -2351,6 +2351,19 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
   if (isLoading) {
     return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>;
   }
+  if (isError) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center space-y-2">
+          <Trophy className="h-8 w-8 text-destructive mx-auto" />
+          <h3 className="text-sm font-semibold">Couldn't load the ladder</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Something went wrong loading standings. Please check your connection and try again.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
   if (rows.length === 0) {
     return (
       <Card className="border-dashed">
