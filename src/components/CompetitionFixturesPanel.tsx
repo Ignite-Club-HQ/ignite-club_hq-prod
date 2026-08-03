@@ -66,6 +66,16 @@ import {
   createFinalsFixtures,
   discoverNextFinalsRound,
 } from "@/features/competitions/fixtures/finalsWorkflow";
+import {
+  buildFixtureClubOptions,
+  buildFixtureTeamOptions,
+  collectExternalTeamIds,
+  filterCompetitionFixtures,
+  groupFixturesByRound,
+  mapClubsByExternalTeam,
+  normalizeFixtureFilter,
+  summarizeFixtureRounds,
+} from "@/features/competitions/fixtures/fixtureListModel";
 import type {
   CompetitionDivisionSummary,
   CompetitionEntrySummary,
@@ -955,14 +965,7 @@ function FixturesFilterAndList({
   // For PlayHQ comps, fetch any Ignite teams that link to PlayHQ team ids
   // appearing in this comp's matches — this gives us a real club_id per
   // external team so we can offer a Club filter alongside the Team filter.
-  const externalTeamIds = useMemo(() => {
-    const s = new Set<string>();
-    for (const m of matches) {
-      if (m.external_home_team_id) s.add(m.external_home_team_id);
-      if (m.external_away_team_id) s.add(m.external_away_team_id);
-    }
-    return Array.from(s);
-  }, [matches]);
+  const externalTeamIds = useMemo(() => collectExternalTeamIds(matches), [matches]);
 
   const { data: linkedTeams = [] } = useQuery({
     queryKey: competitionFixtureKeys.linkedTeams(competitionId, externalTeamIds.length),
@@ -971,80 +974,40 @@ function FixturesFilterAndList({
   });
 
   // Map external (PlayHQ) team id → { clubId, clubName }
-  const clubByExternalTeam = useMemo(() => {
-    const m = new Map<string, { clubId: string; clubName: string }>();
-    for (const t of linkedTeams as any[]) {
-      if (t.playhq_team_id && t.clubs?.id) {
-        m.set(t.playhq_team_id, { clubId: t.clubs.id, clubName: t.clubs.name });
-      }
-    }
-    return m;
-  }, [linkedTeams]);
+  const clubByExternalTeam = useMemo(
+    () => mapClubsByExternalTeam(linkedTeams),
+    [linkedTeams],
+  );
 
   // Build the team option list. Each entry is { id, name } where id is either
   // an Ignite team id or `ext:<external_team_id>` for unlinked PlayHQ teams.
-  const teamOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const m of matches) {
-      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) continue;
-      if (m.home?.id) seen.set(m.home.id, m.home.name);
-      else if (m.external_home_team_id) seen.set(`ext:${m.external_home_team_id}`, m.home_team_name ?? "Unknown team");
-      if (m.away?.id) seen.set(m.away.id, m.away.name);
-      else if (m.external_away_team_id) seen.set(`ext:${m.external_away_team_id}`, m.away_team_name ?? "Unknown team");
-    }
-    return Array.from(seen.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [matches, filterDivisionId]);
+  const teamOptions = useMemo(
+    () => buildFixtureTeamOptions(matches, filterDivisionId),
+    [matches, filterDivisionId],
+  );
 
-  const clubOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const m of matches) {
-      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) continue;
-      if (m.external_home_team_id) {
-        const c = clubByExternalTeam.get(m.external_home_team_id);
-        if (c) seen.set(c.clubId, c.clubName);
-      }
-      if (m.external_away_team_id) {
-        const c = clubByExternalTeam.get(m.external_away_team_id);
-        if (c) seen.set(c.clubId, c.clubName);
-      }
-    }
-    return Array.from(seen.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [matches, filterDivisionId, clubByExternalTeam]);
+  const clubOptions = useMemo(
+    () => buildFixtureClubOptions(matches, filterDivisionId, clubByExternalTeam),
+    [matches, filterDivisionId, clubByExternalTeam],
+  );
 
-  const filteredMatches = useMemo(() => {
-    return matches.filter((m: any) => {
-      if (filterDivisionId !== "_all" && m.division_id !== filterDivisionId) return false;
-      if (filterTeamId !== "_all") {
-        if (filterTeamId.startsWith("ext:")) {
-          const ext = filterTeamId.slice(4);
-          if (m.external_home_team_id !== ext && m.external_away_team_id !== ext) return false;
-        } else if (m.home_team_id !== filterTeamId && m.away_team_id !== filterTeamId) {
-          return false;
-        }
-      }
-      if (filterClubId !== "_all") {
-        const homeClub = m.external_home_team_id ? clubByExternalTeam.get(m.external_home_team_id)?.clubId : null;
-        const awayClub = m.external_away_team_id ? clubByExternalTeam.get(m.external_away_team_id)?.clubId : null;
-        if (homeClub !== filterClubId && awayClub !== filterClubId) return false;
-      }
-      return true;
-    });
-  }, [matches, filterDivisionId, filterTeamId, filterClubId, clubByExternalTeam]);
+  const filteredMatches = useMemo(
+    () => filterCompetitionFixtures(matches, {
+      divisionId: filterDivisionId,
+      teamId: filterTeamId,
+      clubId: filterClubId,
+    }, clubByExternalTeam),
+    [matches, filterDivisionId, filterTeamId, filterClubId, clubByExternalTeam],
+  );
 
   // Reset team filter if not in current division scope
   useEffect(() => {
-    if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
-      setFilterTeamId("_all");
-    }
+    const normalized = normalizeFixtureFilter(filterTeamId, teamOptions);
+    if (normalized !== filterTeamId) setFilterTeamId(normalized);
   }, [filterTeamId, teamOptions]);
   useEffect(() => {
-    if (filterClubId !== "_all" && !clubOptions.some((c) => c.id === filterClubId)) {
-      setFilterClubId("_all");
-    }
+    const normalized = normalizeFixtureFilter(filterClubId, clubOptions);
+    if (normalized !== filterClubId) setFilterClubId(normalized);
   }, [filterClubId, clubOptions]);
 
   const showDivisionFilter = divisions.length > 1;
@@ -1069,20 +1032,7 @@ function FixturesFilterAndList({
     );
   }
 
-  // Group matches by round_number, preserving order
-  const groups: { key: string; label: string; items: any[] }[] = [];
-  const indexByKey = new Map<string, number>();
-  for (const m of filteredMatches) {
-    const key = m.round_number != null ? `r${m.round_number}` : "unscheduled";
-    const label = m.round_number != null ? `Round ${m.round_number}` : "Other matches";
-    let idx = indexByKey.get(key);
-    if (idx == null) {
-      idx = groups.length;
-      indexByKey.set(key, idx);
-      groups.push({ key, label, items: [] });
-    }
-    groups[idx].items.push(m);
-  }
+  const groups = groupFixturesByRound(filteredMatches);
 
   return (
     <>
@@ -1182,15 +1132,11 @@ function FixturesFilterAndList({
       ) : (
         <div className="space-y-3">
           {(() => {
-            const roundNums = Array.from(
-              new Set(
-                filteredMatches
-                  .map((m) => m.round_number)
-                  .filter((n: any) => n != null)
-              )
-            ) as number[];
-            const totalRounds = roundNums.length;
-            const maxRound = roundNums.length > 0 ? Math.max(...roundNums) : 0;
+            const {
+              roundNumbers: roundNums,
+              totalRounds,
+              maximumRound: maxRound,
+            } = summarizeFixtureRounds(filteredMatches);
             if (totalRounds === 0) return null;
             return (
               <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
