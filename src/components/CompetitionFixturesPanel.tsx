@@ -2293,6 +2293,7 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
           .eq("status", "accepted"),
       ]);
       if (ladderRes.error) throw ladderRes.error;
+      if (entriesRes.error) throw entriesRes.error;
       const ladderData = ladderRes.data ?? [];
       const entriesData = entriesRes.data ?? [];
 
