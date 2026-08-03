@@ -1151,7 +1151,7 @@ export default function GroupChatPage() {
 
       return mergedMessages;
     });
-  }, [messages, reactions, groupId]);
+  }, [messages, reactions, groupId, threadPhase]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {
