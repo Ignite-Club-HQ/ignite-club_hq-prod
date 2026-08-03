@@ -18,8 +18,63 @@ query ownership, or deployment configuration.
 - Existing production changes in the worktree must not be silently mixed into a
   refactoring commit.
 
+## Refactoring branch and delivery policy
+
+This policy applies to every refactoring phase after Phase 0.
+
+- Refactoring must be designed and implemented in this Codespace on the
+  `codespaces-review` branch. It must not be implemented through Lovable.
+- Lovable may continue to be used for separately scoped product features or
+  defect fixes, but those changes must be merged into `codespaces-review` and
+  verified independently before a refactoring slice begins or resumes.
+- Refactoring work must never be developed directly on `main` or `prod`.
+- Each refactoring slice must be small, behaviour-preserving and committed
+  separately from unrelated feature, defect, test-infrastructure or generated
+  changes.
+- A refactoring commit may be proposed for `main` only after its focused tests,
+  affected integration tests and the complete one-click baseline are green.
+- Passing tests authorise review; they do not automatically authorise a merge.
+  The user must explicitly approve merging or opening the refactoring change
+  back to `main`.
+- Promotion direction is always `codespaces-review` to `main` for completed
+  refactoring. Never merge an unfinished refactoring slice into `main` merely
+  to continue working on it elsewhere.
+- `prod` remains out of scope. Promotion from `main` to `prod` follows the
+  existing deployment process and requires its own decision and safeguards.
+
+### Required workflow for each refactoring slice
+
+1. Synchronise the latest approved `main` into `codespaces-review` and confirm
+   that the working tree is clean.
+2. Run or confirm the pre-refactor focused baseline for the selected behaviour.
+3. Record the responsibility being moved, its existing public contracts and
+   the exact files expected to change.
+4. Implement only that bounded refactoring in the Codespace.
+5. Run focused unit/characterization tests after each meaningful extraction.
+6. Run affected Playwright and isolated local-Supabase tests where the slice
+   crosses UI, mutation, permission, Realtime or database boundaries.
+7. Review the diff for accidental behaviour, schema, dependency, generated-file
+   or deployment changes.
+8. Commit the slice on `codespaces-review` with a refactoring-specific message.
+9. Run the complete one-click baseline from a fresh isolated local stack.
+10. Push `codespaces-review` for review and report test results, changed files,
+    risks and rollback instructions.
+11. Merge back to `main` only after explicit user approval. Do not push directly
+    to `main` as part of the implementation or testing workflow.
+
+If a genuine production defect is discovered during refactoring, stop the
+slice and report it. Treat the behavioural fix and structural refactoring as
+separate changes wherever practical, with the defect fix reviewed and tested
+before the refactoring continues.
+
 ## Current baseline
 
+- Latest complete baseline run on 2026-08-03: 3,651 passing tests
+  - Frontend: 3,338 passed, 3 intentional skips
+  - Playwright: 102 passed
+  - Local Supabase: 211 passed
+  - Isolated local Supabase cleanup: passed; no test containers or data
+    volumes remained
 - Complete Phase 0 baseline run on 2026-08-02: 3,607 passing tests
   - Frontend: 3,300 passed, 3 intentional skips
   - Playwright: 96 passed
@@ -111,3 +166,8 @@ The intended dependency direction is:
 
 Do not introduce a global database service or attempt repository-wide query
 decoupling in one change.
+
+Phase 1 implementation follows the branch and delivery policy above: all
+competition-fixture refactoring is performed and validated on
+`codespaces-review`, then offered back to `main` only after the complete
+baseline passes and the user explicitly approves the merge.

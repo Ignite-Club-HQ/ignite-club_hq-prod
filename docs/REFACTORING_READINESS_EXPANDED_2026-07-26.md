@@ -4,6 +4,16 @@
 **Scope:** Frontend production modules beyond the initial Competition/Event/Vault review.
 **Method:** Repository-only structural and test-readiness analysis. No production behaviour was changed.
 
+## Implementation and promotion rule
+
+All refactoring described in this assessment must be implemented in the
+Codespace on `codespaces-review`, not in Lovable and not directly on `main`.
+Each bounded slice must pass focused tests and the complete one-click baseline
+before it is proposed for `main`. A green run does not merge the work
+automatically: promotion from `codespaces-review` to `main` requires explicit
+user approval. Refactoring commits must remain separate from Lovable feature or
+defect changes and from deployment or schema work.
+
 ## Executive conclusion
 
 The largest maintainability gains will come from four domain programmes:
