@@ -1046,19 +1046,6 @@ function FixturesFilterAndList({
   const showClubFilter = clubOptions.length > 1;
   const divisionLabel = source === "playhq" ? "Grade" : "Division";
 
-  if (isError) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="p-6 text-center space-y-2">
-          <CalendarPlus className="h-8 w-8 text-destructive mx-auto" />
-          <h3 className="text-sm font-semibold">Couldn't load fixtures</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            Something went wrong loading the fixture list. Please check your connection and try again.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   if (matches.length === 0) {
     return (
