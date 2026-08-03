@@ -127,7 +127,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [previewPairings, setPreviewPairings] = useState<{ round: number; home: string; away: string; homeName: string; awayName: string }[] | null>(null);
   const [roundDateOverrides, setRoundDateOverrides] = useState<Map<number, string>>(new Map());
 
-  const { data: matches = [], isLoading } = useQuery({
+  const { data: matches = [], isLoading, isError } = useQuery({
     queryKey: ["competition-matches", competitionId],
     queryFn: async () => {
       const { data, error } = await supabase
