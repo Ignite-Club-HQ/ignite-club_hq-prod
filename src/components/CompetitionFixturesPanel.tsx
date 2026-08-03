@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, ChevronRight, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays, MoreHorizontal, MapPin, Clock, Info, Check } from "lucide-react";
+import { Loader2, Plus, Trophy, CalendarPlus, Save, X, AlertTriangle, ChevronDown, ChevronRight, Shuffle, RefreshCw, Trash2, Pencil, Settings2, CalendarDays, MoreHorizontal, MapPin, Clock, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -63,7 +63,7 @@ import {
   createFinalsFixtures,
   discoverNextFinalsRound,
 } from "@/features/competitions/fixtures/finalsWorkflow";
-import { useFixtureListController } from "@/features/competitions/fixtures/useFixtureListController";
+import { FixtureList } from "@/features/competitions/fixtures/FixtureList";
 import { CompetitionLadderPanel as FeatureCompetitionLadderPanel } from "@/features/competitions/ladder/CompetitionLadder";
 import type {
   CompetitionDivisionSummary,
@@ -946,184 +946,35 @@ function FixturesFilterAndList({
   competitionId: string;
   source?: string;
 }) {
-  const {
-    filters: {
-      divisionId: filterDivisionId,
-      teamId: filterTeamId,
-      clubId: filterClubId,
-    },
-    setDivisionId: setFilterDivisionId,
-    setTeamId: setFilterTeamId,
-    setClubId: setFilterClubId,
-    teamSheetOpen,
-    setTeamSheetOpen,
-    teamOptions,
-    clubOptions,
-    filteredMatches,
-    groups,
-    summary,
-  } = useFixtureListController(competitionId, matches);
-
-  const showDivisionFilter = divisions.length > 1;
-  const showTeamFilter = teamOptions.length > 1;
-  const showClubFilter = clubOptions.length > 1;
-  const divisionLabel = source === "playhq" ? "Grade" : "Division";
-
-
-  if (matches.length === 0) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="p-6 text-center space-y-2">
-          <CalendarPlus className="h-8 w-8 text-muted-foreground mx-auto" />
-          <h3 className="text-sm font-semibold">No fixtures yet</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            {isAdmin
-              ? "Invite teams first, then generate a round-robin fixture or add matches manually."
-              : "Fixtures will appear here once the organiser adds them."}
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <>
-      {(showDivisionFilter || showTeamFilter) && (
-        <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-background/95 backdrop-blur-0 border-b border-border/40 flex flex-wrap gap-2">
-          {showDivisionFilter && (
-            <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
-              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
-                <SelectValue placeholder={`All ${divisionLabel.toLowerCase()}s`} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_all">All {divisionLabel.toLowerCase()}s</SelectItem>
-                {divisions.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {showTeamFilter && (
-            <>
-              <button
-                type="button"
-                onClick={() => setTeamSheetOpen(true)}
-                className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
-              >
-                {filterTeamId === "_all"
-                  ? "All teams"
-                  : teamOptions.find((t) => t.id === filterTeamId)?.name ?? "All teams"}
-                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-              </button>
-              <Sheet open={teamSheetOpen} onOpenChange={setTeamSheetOpen}>
-                <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl p-0">
-                  <div className="flex justify-center pt-3 pb-1">
-                    <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
-                  </div>
-                  <SheetHeader className="px-4 pb-2 text-left">
-                    <SheetTitle className="text-base">Filter by team</SheetTitle>
-                    <SheetDescription className="sr-only">
-                      Choose a team to filter the fixture list.
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="max-h-[60vh] overflow-y-auto px-4 pb-6">
-                    <div className="space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFilterTeamId("_all");
-                          setTeamSheetOpen(false);
-                        }}
-                        className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
-                      >
-                        <span>All teams</span>
-                        {filterTeamId === "_all" && <Check className="h-4 w-4 text-primary" />}
-                      </button>
-                      {teamOptions.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            setFilterTeamId(t.id);
-                            setTeamSheetOpen(false);
-                          }}
-                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
-                        >
-                          <span>{t.name}</span>
-                          {filterTeamId === t.id && <Check className="h-4 w-4 text-primary" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </>
-          )}
-          {showClubFilter && (
-            <Select value={filterClubId} onValueChange={setFilterClubId}>
-              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
-                <SelectValue placeholder="All clubs" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_all">All clubs</SelectItem>
-                {clubOptions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
+    <FixtureList
+      matches={matches}
+      divisions={divisions}
+      isAdmin={isAdmin}
+      competitionId={competitionId}
+      source={source}
+      renderSummaryAction={({ roundNumbers, maximumRound }) => (
+        <SetMaxRoundsButton
+          competitionId={competitionId}
+          currentMax={maximumRound}
+          roundNums={roundNumbers}
+        />
       )}
-
-      {filteredMatches.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="p-6 text-center text-sm text-muted-foreground">
-            No fixtures match the current filter.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {(() => {
-            const {
-              roundNumbers: roundNums,
-              totalRounds,
-              maximumRound: maxRound,
-            } = summary;
-            if (totalRounds === 0) return null;
-            return (
-              <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
-                <span className="font-medium text-foreground">
-                  {totalRounds} round{totalRounds === 1 ? "" : "s"} scheduled
-                  <span className="text-muted-foreground font-normal ml-2 tabular-nums">(max: {maxRound})</span>
-                </span>
-                {isAdmin && source !== "playhq" && (
-                  <SetMaxRoundsButton
-                    competitionId={competitionId}
-                    currentMax={maxRound}
-                    roundNums={roundNums}
-                  />
-                )}
-              </div>
-            );
-          })()}
-          {groups.map((g) => (
-            <RoundSection
-              key={g.key}
-              label={g.label}
-              items={g.items}
-              isAdmin={isAdmin}
-              competitionId={competitionId}
-              entries={entries}
-              divisions={divisions}
-              source={source}
-            />
-          ))}
-        </div>
+      renderRound={(group) => (
+        <RoundSection
+          key={group.key}
+          label={group.label}
+          items={group.items}
+          isAdmin={isAdmin}
+          competitionId={competitionId}
+          entries={entries}
+          divisions={divisions}
+          source={source}
+        />
       )}
-    </>
+    />
   );
 }
-
 
 
 function SetMaxRoundsButton({

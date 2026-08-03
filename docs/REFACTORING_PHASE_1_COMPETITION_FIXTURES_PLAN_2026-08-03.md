@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-e complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-f complete locally on `codespaces-review`
 
 ## Progress
 
@@ -66,6 +66,12 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-e complete 
   grouping and round summaries moved into a typed feature-local controller hook.
 - Slice 1G-e verification: all 129 focused competition tests passed, the new
   controller is lint clean, and the production build completed successfully.
+- Slice 1G-f completed: fixture filter controls, role-specific empty guidance,
+  filtered-empty state, round summary and grouped-list shell moved into a
+  feature-local component; mutation and match renderers remain injected.
+- Slice 1G-f verification: three direct fixture-list presentation cases were
+  added; all 132 focused competition tests passed, extracted modules are lint
+  clean, TypeScript passed, and the production build completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 
