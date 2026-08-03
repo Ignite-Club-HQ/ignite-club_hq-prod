@@ -1022,8 +1022,13 @@ export default function GroupChatPage() {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
     // IMPORTANT: In GroupChatPage, reactions come as a separate top-level array in messagesData,
     // NOT embedded on each message. We must merge the top-level reactions onto each message here.
-    // Guard: never replace existing messages with an empty array (transient cache state during resume)
-    if (!messages || !groupId || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
+    // Guard: never replace existing messages with an empty array, and only
+    // commit an empty thread once the classifier says it is authoritatively
+    // empty (not paused/pending/recovering).
+    if (!messages || !groupId) return;
+    if (messages.length === 0 && localMessages && localMessages.length > 0) return;
+    if (messages.length === 0 && threadPhase !== "empty") return;
+
 
     // Build a map of incoming reactions from the top-level reactions array
     const incomingReactionsByMsg = new Map<string, MessageReaction[]>();
