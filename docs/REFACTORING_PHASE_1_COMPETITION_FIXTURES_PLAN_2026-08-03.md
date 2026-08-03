@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-c complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-d complete locally on `codespaces-review`
 
 ## Progress
 
@@ -56,6 +56,11 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-c complete 
 - Slice 1G-c verification: three direct ladder presentation cases were added;
   all 129 focused competition tests passed, feature-local ladder modules are
   lint clean, and the production build completed successfully.
+- Slice 1G-d completed: the unreachable legacy ladder view, table, card and
+  obsolete imports were removed after the feature-local implementation passed
+  independently; the compatibility export remains in place.
+- Slice 1G-d verification: TypeScript, all 129 focused competition tests,
+  feature-local ladder lint and the production build completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 
