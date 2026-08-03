@@ -104,6 +104,12 @@ import { MessageReadAvatars } from "@/components/chat/MessageReadAvatars";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
+import {
+  classifyChatThreadState,
+  nextEmptyRetryDelay,
+  isUsableCachedThread,
+} from "@/lib/chatThreadLoadState";
+
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
