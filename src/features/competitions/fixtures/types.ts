@@ -10,6 +10,7 @@ export interface CompetitionDivisionSummary {
   day_start_time?: string | null;
   day_end_time?: string | null;
   play_weekdays?: number[] | null;
+  hide_ladder?: boolean | null;
   [key: string]: unknown;
 }
 

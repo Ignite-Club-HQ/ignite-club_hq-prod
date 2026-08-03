@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1E complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F complete locally on `codespaces-review`
 
 ## Progress
 
@@ -32,6 +32,12 @@ Status: in progress; Slices 1A through 1E complete locally on `codespaces-review
   summaries extracted into a pure fixture-list model.
 - Slice 1E verification: 114 focused tests passed, extracted modules lint clean,
   and the production build completed successfully.
+- Slice 1F completed: the three-step ladder read, accepted-entry placeholders,
+  team enrichment, visibility, filters, ordering and grouping extracted into a
+  typed repository and pure model.
+- Slice 1F verification: 126 focused tests and the isolated synthetic local
+  competition lifecycle journey passed; extracted modules lint clean and the
+  production build completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 

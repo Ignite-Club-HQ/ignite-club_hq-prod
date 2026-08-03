@@ -76,6 +76,16 @@ import {
   normalizeFixtureFilter,
   summarizeFixtureRounds,
 } from "@/features/competitions/fixtures/fixtureListModel";
+import { fetchCompetitionLadder } from "@/features/competitions/ladder/repository";
+import {
+  buildLadderDivisionOptions,
+  buildLadderTeamOptions,
+  filterLadderRows,
+  groupLadderRows,
+  normalizeLadderTeamFilter,
+  visibleLadderRows,
+} from "@/features/competitions/ladder/ladderModel";
+import type { CompetitionLadderRow } from "@/features/competitions/ladder/types";
 import type {
   CompetitionDivisionSummary,
   CompetitionEntrySummary,
@@ -2189,63 +2199,10 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
 }
 
 
-export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = false }: { competitionId: string; divisions: any[]; isAdmin?: boolean }) {
+export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = false }: { competitionId: string; divisions: CompetitionDivisionSummary[]; isAdmin?: boolean }) {
   const { data: rows = [], isLoading, isError } = useQuery({
     queryKey: ["competition-ladder", competitionId],
-    queryFn: async () => {
-      const [ladderRes, entriesRes] = await Promise.all([
-        supabase
-          .from("competition_ladder")
-          .select("*")
-          .eq("competition_id", competitionId)
-          .order("points", { ascending: false })
-          .order("goal_diff", { ascending: false })
-          .order("goals_for", { ascending: false }),
-        supabase
-          .from("competition_entries")
-          .select("team_id, division_id, status")
-          .eq("competition_id", competitionId)
-          .eq("status", "accepted"),
-      ]);
-      if (ladderRes.error) throw ladderRes.error;
-      if (entriesRes.error) throw entriesRes.error;
-      const ladderData = ladderRes.data ?? [];
-      const entriesData = entriesRes.data ?? [];
-
-      // Build placeholder zero-rows for accepted entries without a ladder row yet
-      const haveKey = new Set(
-        ladderData.map((r: any) => `${r.team_id ?? ""}::${r.division_id ?? ""}`)
-      );
-      const placeholders: any[] = [];
-      for (const e of entriesData) {
-        const key = `${e.team_id ?? ""}::${e.division_id ?? ""}`;
-        if (!e.team_id || haveKey.has(key)) continue;
-        haveKey.add(key);
-        placeholders.push({
-          competition_id: competitionId,
-          team_id: e.team_id,
-          division_id: e.division_id,
-          played: 0, wins: 0, draws: 0, losses: 0,
-          goals_for: 0, goals_against: 0, goal_diff: 0, points: 0,
-        });
-      }
-      const combined = [...ladderData, ...placeholders];
-
-      const teamIds = Array.from(new Set(combined.map((r: any) => r.team_id).filter(Boolean)));
-      if (teamIds.length === 0) return combined;
-
-      const { data: teams, error: teamsError } = await supabase
-        .from("teams")
-        .select("id, name, logo_url")
-        .in("id", teamIds);
-      if (teamsError) throw teamsError;
-
-      const teamById = new Map((teams ?? []).map((team: any) => [team.id, team]));
-      return combined.map((row: any) => ({
-        ...row,
-        teams: teamById.get(row.team_id) ?? null,
-      }));
-    },
+    queryFn: () => fetchCompetitionLadder(competitionId),
   });
 
   if (isLoading) {
@@ -2282,106 +2239,34 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
 }
 
 
-function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisions: any[]; isAdmin?: boolean }) {
+function LadderView({ rows, divisions, isAdmin = false }: { rows: CompetitionLadderRow[]; divisions: CompetitionDivisionSummary[]; isAdmin?: boolean }) {
   const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
   const [filterTeamId, setFilterTeamId] = useState<string>("_all");
   const [teamSheetOpen, setTeamSheetOpen] = useState(false);
 
-  const hiddenDivisionIds = useMemo(
-    () => new Set(divisions.filter((d: any) => d.hide_ladder).map((d: any) => d.id)),
-    [divisions]
-  );
-  const hasHiddenDivisions = hiddenDivisionIds.size > 0;
-
   // Admins see all rows (with a "Hidden" badge on hidden divisions).
   // If any ladder is hidden, non-admins see no ladder at all.
   const visibleRows = useMemo(
-    () => isAdmin
-      ? rows
-      : hasHiddenDivisions ? [] : rows,
-    [rows, hasHiddenDivisions, isAdmin]
+    () => visibleLadderRows(rows, divisions, isAdmin),
+    [rows, divisions, isAdmin],
   );
 
-  const presentDivisionIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const r of visibleRows) if (r.division_id) ids.add(r.division_id);
-    return ids;
-  }, [visibleRows]);
-
-  const divisionOptions = divisions.filter((d: any) => presentDivisionIds.has(d.id));
+  const divisionOptions = buildLadderDivisionOptions(visibleRows, divisions);
   const showDivisionFilter = divisionOptions.length > 1;
 
-  const teamOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const r of visibleRows) {
-      if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) continue;
-      if (r.team_id) seen.set(r.team_id, r.teams?.name ?? "?");
-    }
-    return Array.from(seen.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [visibleRows, filterDivisionId]);
+  const teamOptions = useMemo(
+    () => buildLadderTeamOptions(visibleRows, filterDivisionId),
+    [visibleRows, filterDivisionId],
+  );
 
   useEffect(() => {
-    if (filterTeamId !== "_all" && !teamOptions.some((t) => t.id === filterTeamId)) {
-      setFilterTeamId("_all");
-    }
+    const normalized = normalizeLadderTeamFilter(filterTeamId, teamOptions);
+    if (normalized !== filterTeamId) setFilterTeamId(normalized);
   }, [filterTeamId, teamOptions]);
   const showTeamFilter = teamOptions.length > 1;
 
-  // When a team is selected, show every ladder group that team participates in
-  // (full standings, not just the selected team's row). Competitions without
-  // divisions use the "Overall" ladder, where division_id is null.
-  const teamDivisionKeys = useMemo(() => {
-    if (filterTeamId === "_all") return null;
-    const ids = new Set<string>();
-    for (const r of visibleRows) {
-      if (r.team_id === filterTeamId) ids.add(r.division_id ?? "__none");
-    }
-    return ids;
-  }, [visibleRows, filterTeamId]);
-
-  const filteredRows = visibleRows.filter((r: any) => {
-    if (filterDivisionId !== "_all" && r.division_id !== filterDivisionId) return false;
-    if (teamDivisionKeys && !teamDivisionKeys.has(r.division_id ?? "__none")) return false;
-    return true;
-  });
-
-  const groups = new Map<string, any[]>();
-  if (divisionOptions.length <= 1) {
-    // Only one division — collapse Overall rows into the divisional ladder by team_id
-    const overallRows = filteredRows.filter((r: any) => !r.division_id);
-    const divRows = filteredRows.filter((r: any) => r.division_id);
-    if (divRows.length) {
-      const overallByTeam = new Map(overallRows.map((r: any) => [r.team_id, r]));
-      const merged = divRows.map((r: any) => {
-        const o = overallByTeam.get(r.team_id);
-        if (!o) return r;
-        // Prefer the row with actual played matches
-        const hasDivData = (r.played ?? 0) > 0;
-        const hasOverallData = (o.played ?? 0) > 0;
-        if (hasOverallData && !hasDivData) {
-          return { ...o, division_id: r.division_id, teams: r.teams ?? o.teams };
-        }
-        return r;
-      });
-      // Re-sort by points / goal_diff / goals_for
-      merged.sort((a: any, b: any) =>
-        (b.points ?? 0) - (a.points ?? 0) ||
-        (b.goal_diff ?? 0) - (a.goal_diff ?? 0) ||
-        (b.goals_for ?? 0) - (a.goals_for ?? 0)
-      );
-      groups.set(divRows[0].division_id, merged);
-    } else if (overallRows.length) {
-      groups.set("__none", overallRows);
-    }
-  } else {
-    filteredRows.forEach((r: any) => {
-      const key = r.division_id ?? "__none";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(r);
-    });
-  }
+  const filteredRows = filterLadderRows(visibleRows, filterDivisionId, filterTeamId);
+  const groups = groupLadderRows(filteredRows, divisionOptions);
 
   return (
     <div className="space-y-4">
@@ -2459,7 +2344,7 @@ function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisio
         </div>
       )}
 
-      {groups.size === 0 ? (
+      {groups.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-6 text-center text-sm text-muted-foreground">
             No standings match the current filter.
@@ -2467,11 +2352,11 @@ function LadderView({ rows, divisions, isAdmin = false }: { rows: any[]; divisio
         </Card>
       ) : (
         <TooltipProvider delayDuration={150}>
-          {Array.from(groups.entries()).map(([divId, list]) => {
-            const div = divisions.find((d: any) => d.id === divId);
+          {groups.map(({ divisionId, rows: list }) => {
+            const div = divisions.find((division) => division.id === divisionId);
             return (
               <LadderDivisionCard
-                key={divId}
+                key={divisionId}
                 title={div?.name ?? "Overall"}
                 rows={list}
                 isHidden={isAdmin && !!div?.hide_ladder}
