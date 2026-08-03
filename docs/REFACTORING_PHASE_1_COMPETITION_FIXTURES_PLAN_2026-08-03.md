@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-d complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-e complete locally on `codespaces-review`
 
 ## Progress
 
@@ -61,6 +61,11 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-d complete 
   independently; the compatibility export remains in place.
 - Slice 1G-d verification: TypeScript, all 129 focused competition tests,
   feature-local ladder lint and the production build completed successfully.
+- Slice 1G-e completed: fixture-list filter state, linked-team query ownership,
+  external-club mapping, option derivation, invalid-filter recovery, filtering,
+  grouping and round summaries moved into a typed feature-local controller hook.
+- Slice 1G-e verification: all 129 focused competition tests passed, the new
+  controller is lint clean, and the production build completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 

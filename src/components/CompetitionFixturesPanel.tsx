@@ -40,10 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
-import {
-  fetchCompetitionFixtures,
-  fetchLinkedCompetitionTeams,
-} from "@/features/competitions/fixtures/repository";
+import { fetchCompetitionFixtures } from "@/features/competitions/fixtures/repository";
 import { competitionFixtureKeys } from "@/features/competitions/fixtures/queryKeys";
 import {
   buildGeneratedFixtureRows,
@@ -66,16 +63,7 @@ import {
   createFinalsFixtures,
   discoverNextFinalsRound,
 } from "@/features/competitions/fixtures/finalsWorkflow";
-import {
-  buildFixtureClubOptions,
-  buildFixtureTeamOptions,
-  collectExternalTeamIds,
-  filterCompetitionFixtures,
-  groupFixturesByRound,
-  mapClubsByExternalTeam,
-  normalizeFixtureFilter,
-  summarizeFixtureRounds,
-} from "@/features/competitions/fixtures/fixtureListModel";
+import { useFixtureListController } from "@/features/competitions/fixtures/useFixtureListController";
 import { CompetitionLadderPanel as FeatureCompetitionLadderPanel } from "@/features/competitions/ladder/CompetitionLadder";
 import type {
   CompetitionDivisionSummary,
@@ -958,58 +946,23 @@ function FixturesFilterAndList({
   competitionId: string;
   source?: string;
 }) {
-  const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
-  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
-  const [filterClubId, setFilterClubId] = useState<string>("_all");
-  const [teamSheetOpen, setTeamSheetOpen] = useState(false);
-
-  // For PlayHQ comps, fetch any Ignite teams that link to PlayHQ team ids
-  // appearing in this comp's matches — this gives us a real club_id per
-  // external team so we can offer a Club filter alongside the Team filter.
-  const externalTeamIds = useMemo(() => collectExternalTeamIds(matches), [matches]);
-
-  const { data: linkedTeams = [] } = useQuery({
-    queryKey: competitionFixtureKeys.linkedTeams(competitionId, externalTeamIds.length),
-    enabled: externalTeamIds.length > 0,
-    queryFn: () => fetchLinkedCompetitionTeams(externalTeamIds),
-  });
-
-  // Map external (PlayHQ) team id → { clubId, clubName }
-  const clubByExternalTeam = useMemo(
-    () => mapClubsByExternalTeam(linkedTeams),
-    [linkedTeams],
-  );
-
-  // Build the team option list. Each entry is { id, name } where id is either
-  // an Ignite team id or `ext:<external_team_id>` for unlinked PlayHQ teams.
-  const teamOptions = useMemo(
-    () => buildFixtureTeamOptions(matches, filterDivisionId),
-    [matches, filterDivisionId],
-  );
-
-  const clubOptions = useMemo(
-    () => buildFixtureClubOptions(matches, filterDivisionId, clubByExternalTeam),
-    [matches, filterDivisionId, clubByExternalTeam],
-  );
-
-  const filteredMatches = useMemo(
-    () => filterCompetitionFixtures(matches, {
+  const {
+    filters: {
       divisionId: filterDivisionId,
       teamId: filterTeamId,
       clubId: filterClubId,
-    }, clubByExternalTeam),
-    [matches, filterDivisionId, filterTeamId, filterClubId, clubByExternalTeam],
-  );
-
-  // Reset team filter if not in current division scope
-  useEffect(() => {
-    const normalized = normalizeFixtureFilter(filterTeamId, teamOptions);
-    if (normalized !== filterTeamId) setFilterTeamId(normalized);
-  }, [filterTeamId, teamOptions]);
-  useEffect(() => {
-    const normalized = normalizeFixtureFilter(filterClubId, clubOptions);
-    if (normalized !== filterClubId) setFilterClubId(normalized);
-  }, [filterClubId, clubOptions]);
+    },
+    setDivisionId: setFilterDivisionId,
+    setTeamId: setFilterTeamId,
+    setClubId: setFilterClubId,
+    teamSheetOpen,
+    setTeamSheetOpen,
+    teamOptions,
+    clubOptions,
+    filteredMatches,
+    groups,
+    summary,
+  } = useFixtureListController(competitionId, matches);
 
   const showDivisionFilter = divisions.length > 1;
   const showTeamFilter = teamOptions.length > 1;
@@ -1032,8 +985,6 @@ function FixturesFilterAndList({
       </Card>
     );
   }
-
-  const groups = groupFixturesByRound(filteredMatches);
 
   return (
     <>
@@ -1137,7 +1088,7 @@ function FixturesFilterAndList({
               roundNumbers: roundNums,
               totalRounds,
               maximumRound: maxRound,
-            } = summarizeFixtureRounds(filteredMatches);
+            } = summary;
             if (totalRounds === 0) return null;
             return (
               <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
