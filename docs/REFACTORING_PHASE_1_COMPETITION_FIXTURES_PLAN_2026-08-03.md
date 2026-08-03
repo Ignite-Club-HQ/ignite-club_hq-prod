@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F and Slice 1G-a complete locally on `codespaces-review`
 
 ## Progress
 
@@ -38,6 +38,12 @@ Status: in progress; Slices 1A through 1F complete locally on `codespaces-review
 - Slice 1F verification: 126 focused tests and the isolated synthetic local
   competition lifecycle journey passed; extracted modules lint clean and the
   production build completed successfully.
+- Slice 1G-a completed: ladder query ownership and its loading, failure, empty
+  and populated presentation states moved behind a feature-local component
+  while preserving the legacy public component contract.
+- Slice 1G-a verification: all 126 focused competition tests passed, the new
+  feature-local component is lint clean, and the production build completed
+  successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 
