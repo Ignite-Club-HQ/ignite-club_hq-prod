@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slice 1A complete locally on `codespaces-review`
+Status: in progress; Slices 1A and 1B complete locally on `codespaces-review`
 
 ## Progress
 
@@ -10,6 +10,11 @@ Status: in progress; Slice 1A complete locally on `codespaces-review`
   factories, and fixture/linked-team read repositories extracted without
   changing query or cache behaviour.
 - Slice 1A verification: 69 focused tests passed, extracted modules lint clean,
+  and the production build completed successfully.
+- Slice 1B completed: generated-fixture row construction, injected persistence,
+  and user-safe persistence error classification extracted without changing
+  confirmation, form, toast, reset or cache-invalidation behaviour.
+- Slice 1B verification: 82 focused tests passed, extracted modules lint clean,
   and the production build completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.

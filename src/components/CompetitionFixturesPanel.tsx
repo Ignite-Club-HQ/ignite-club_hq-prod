@@ -45,6 +45,11 @@ import {
   fetchLinkedCompetitionTeams,
 } from "@/features/competitions/fixtures/repository";
 import { competitionFixtureKeys } from "@/features/competitions/fixtures/queryKeys";
+import {
+  buildGeneratedFixtureRows,
+  describeGeneratedFixtureSaveError,
+  persistGeneratedFixtures,
+} from "@/features/competitions/fixtures/generationWorkflow";
 import type {
   CompetitionDivisionSummary,
   CompetitionEntrySummary,
@@ -387,41 +392,32 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       }
     }
     setGenerating(true);
-    const arrival = genArrival ? Number(genArrival) : null;
-    const startRoundOffset = Math.max(1, Number(genStartRound) || 1) - 1;
-    const rows = allPlaced.map((p) => ({
-      competition_id: competitionId,
-      division_id: genDivisionId || null,
-      round_number: startRoundOffset + p.round,
-      home_team_id: p.home,
-      away_team_id: p.away,
-      status: "scheduled",
-      created_by: user?.id ?? null,
-      scheduled_at: p.scheduledAt ? p.scheduledAt.toISOString() : null,
+    const rows = buildGeneratedFixtureRows({
+      competitionId,
+      divisionId: genDivisionId,
+      startRound: genStartRound,
+      createdBy: user?.id,
       venue: genVenue,
-      pitch_number: p.pitch,
-      duration_minutes: durationNum || null,
-      arrival_minutes_before: arrival,
-      notes: p.note ?? null,
-    }));
+      durationMinutes: durationNum,
+      arrivalMinutesBefore: genArrival,
+      placedFixtures: allPlaced,
+    });
     if (rows.length === 0) {
       setGenerating(false);
       toast({ title: "No fixtures fit the window", description: "Widen the time window, add weekdays, or push the end date.", variant: "destructive" });
       return;
     }
-    const { error } = await supabase.from("competition_matches").insert(rows);
+    const { error } = await persistGeneratedFixtures(rows, async (fixtures) => {
+      const result = await supabase.from("competition_matches").insert(fixtures);
+      return { error: result.error };
+    });
     setGenerating(false);
     if (error) {
-      const raw = (error.message || "").toLowerCase();
-      let description = "Something went wrong while saving these fixtures. Please try again in a moment.";
-      if (raw.includes("duplicate") || raw.includes("unique")) {
-        description = "Some of these fixtures already exist for this competition. Try regenerating or shuffling first.";
-      } else if (raw.includes("permission") || raw.includes("row-level") || raw.includes("not authorized")) {
-        description = "You don't have permission to save fixtures for this competition.";
-      } else if (raw.includes("network") || raw.includes("fetch")) {
-        description = "We couldn't reach the server. Check your connection and try again.";
-      }
-      toast({ title: "Couldn't save fixtures", description, variant: "destructive" });
+      toast({
+        title: "Couldn't save fixtures",
+        description: describeGeneratedFixtureSaveError(error),
+        variant: "destructive",
+      });
       return;
     }
     toast({ title: `Saved ${rows.length} fixtures` });
@@ -2739,5 +2735,4 @@ function LadderDivisionCard({ title, rows, isHidden = false }: { title: string; 
     </Card>
   );
 }
-
 
