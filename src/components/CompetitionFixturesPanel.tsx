@@ -50,6 +50,13 @@ import {
   describeGeneratedFixtureSaveError,
   persistGeneratedFixtures,
 } from "@/features/competitions/fixtures/generationWorkflow";
+import {
+  buildMatchDetailsPayload,
+  buildMatchResultUpdate,
+  deleteCompetitionMatch,
+  trimCompetitionRounds,
+  updateCompetitionMatch,
+} from "@/features/competitions/fixtures/matchWorkflows";
 import type {
   CompetitionDivisionSummary,
   CompetitionEntrySummary,
@@ -1238,11 +1245,7 @@ function SetMaxRoundsButton({
     setSaving(true);
     try {
       if (willDelete.length > 0) {
-        const { error } = await supabase
-          .from("competition_matches")
-          .delete()
-          .eq("competition_id", competitionId)
-          .gt("round_number", target);
+        const { error } = await trimCompetitionRounds(competitionId, target);
         if (error) throw error;
         toast({ title: `Trimmed to ${target} round${target === 1 ? "" : "s"}` });
       } else if (willAdd > 0) {
@@ -1395,30 +1398,17 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
   };
 
   const save = async () => {
-    const homeN = home === "" ? null : Number(home);
-    const awayN = away === "" ? null : Number(away);
-    // Auto-mark as completed when both scores are entered (unless it's already
-    // in a non-scheduled state like cancelled/postponed, which we preserve).
-    let nextStatus = status;
-    const bothScores = homeN != null && awayN != null;
-    if (bothScores && (status === "scheduled" || status === "in_progress")) {
-      nextStatus = "completed";
-    } else if (!bothScores && status === "completed") {
-      // Clearing scores reverts an auto-completed match back to scheduled.
-      nextStatus = "scheduled";
-    }
     // PlayHQ-sourced rows are sync-locked. The first local edit stamps
     // manually_overridden_at, which the DB trigger uses to release the row
     // from future sync overwrites.
-    const isExternal = match.source && match.source !== "manual";
-    const payload: Record<string, unknown> = { home_score: homeN, away_score: awayN, status: nextStatus };
-    if (isExternal && !match.manually_overridden_at) {
-      payload.manually_overridden_at = new Date().toISOString();
-    }
-    const { error } = await supabase
-      .from("competition_matches")
-      .update(payload as never)
-      .eq("id", match.id);
+    const { payload, nextStatus, createsLocalOverride } = buildMatchResultUpdate({
+      homeScore: home,
+      awayScore: away,
+      status,
+      source: match.source,
+      manuallyOverriddenAt: match.manually_overridden_at,
+    });
+    const { error } = await updateCompetitionMatch(match.id, payload);
     if (error) {
       toast({ title: "Could not save", description: error.message, variant: "destructive" });
       return;
@@ -1426,7 +1416,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
     setStatus(nextStatus);
     toast({
       title: "Match updated",
-      description: isExternal && !match.manually_overridden_at
+      description: createsLocalOverride
         ? "This match is now locally overridden — future PlayHQ syncs won't change it."
         : undefined,
     });
@@ -1438,7 +1428,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
   const remove = async () => {
     if (!window.confirm("Delete this match?")) return;
-    const { error } = await supabase.from("competition_matches").delete().eq("id", match.id);
+    const { error } = await deleteCompetitionMatch(match.id);
     if (error) {
       toast({ title: "Could not delete", description: error.message, variant: "destructive" });
       return;
@@ -1708,27 +1698,22 @@ function EditMatchDetailsDialog({
       toast({ title: "Venue is required", variant: "destructive" });
       return;
     }
-    let scheduledAt: string | null = match.scheduled_at ?? null;
-    if (dateStr) {
-      const iso = new Date(`${dateStr}T${timeStr || "09:00"}:00`).toISOString();
-      scheduledAt = iso;
-    }
+    const payload = buildMatchDetailsPayload({
+      homeTeamId: homeId,
+      awayTeamId: awayId,
+      divisionId,
+      existingScheduledAt: match.scheduled_at,
+      date: dateStr,
+      time: timeStr,
+      venue,
+      pitch,
+      round,
+      duration,
+      arrival,
+      notes,
+    });
     setSaving(true);
-    const { error } = await supabase
-      .from("competition_matches")
-      .update({
-        home_team_id: homeId,
-        away_team_id: awayId,
-        division_id: divisionId || null,
-        scheduled_at: scheduledAt,
-        venue: venue,
-        pitch_number: pitch.trim() || null,
-        round_number: round ? Number(round) : null,
-        duration_minutes: duration ? Number(duration) : null,
-        arrival_minutes_before: arrival ? Number(arrival) : null,
-        notes: notes || null,
-      })
-      .eq("id", match.id);
+    const { error } = await updateCompetitionMatch(match.id, payload);
     setSaving(false);
     if (error) {
       toast({ title: "Could not update match", description: error.message, variant: "destructive" });
@@ -2735,4 +2720,3 @@ function LadderDivisionCard({ title, rows, isHidden = false }: { title: string; 
     </Card>
   );
 }
-

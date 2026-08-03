@@ -34,7 +34,7 @@ import { CompetitionFixturesPanel } from "./CompetitionFixturesPanel";
 
 function queryFor(table: string) {
   const query: any = {};
-  for (const method of ["eq", "is", "order", "limit"]) {
+  for (const method of ["eq", "gt", "is", "order", "limit"]) {
     query[method] = vi.fn(() => query);
   }
   query.select = vi.fn(() => {
@@ -315,6 +315,37 @@ describe("CompetitionFixturesPanel characterization — existing fixture actions
     await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
       title: "Could not update match",
       description: "update denied",
+      variant: "destructive",
+    }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mocks.invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("trims later rounds and refreshes fixtures only after the delete succeeds", async () => {
+    renderPanel({ matches: [fixture, { ...fixture, id: "match-3", round_number: 3 }] });
+    fireEvent.click(screen.getByRole("button", { name: /set max/i }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /trim to 1 rounds/i }));
+
+    await waitFor(() => expect(mocks.operations.filter(op => op.kind === "delete")).toHaveLength(1));
+    expect(mocks.invalidateQueries).toHaveBeenCalledTimes(1);
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["competition-matches", "competition-1"],
+    });
+  });
+
+  it("keeps a rejected round trim retryable without invalidating fixtures", async () => {
+    mocks.mutationError = { message: "trim denied" };
+    renderPanel({ matches: [fixture, { ...fixture, id: "match-3", round_number: 3 }] });
+    fireEvent.click(screen.getByRole("button", { name: /set max/i }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("spinbutton"), { target: { value: "1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /trim to 1 rounds/i }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Couldn't update",
+      description: "trim denied",
       variant: "destructive",
     }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();

@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A and 1B complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1C complete locally on `codespaces-review`
 
 ## Progress
 
@@ -15,6 +15,12 @@ Status: in progress; Slices 1A and 1B complete locally on `codespaces-review`
   and user-safe persistence error classification extracted without changing
   confirmation, form, toast, reset or cache-invalidation behaviour.
 - Slice 1B verification: 82 focused tests passed, extracted modules lint clean,
+  and the production build completed successfully.
+- Slice 1C completed: result/status derivation, match-detail payloads, ID-scoped
+  update/delete operations and competition-scoped round trimming extracted
+  without changing dialog, toast or invalidation behaviour.
+- Slice 1C verification: 94 focused tests passed, including new successful and
+  rejected round-trimming component boundaries; extracted modules lint clean
   and the production build completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
