@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-g complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-h complete locally on `codespaces-review`
 
 ## Progress
 
@@ -84,6 +84,12 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-g complete 
   native context-menu suppression and moved-pointer gesture handling.
 - Match-row hardening verification: all 139 focused competition tests passed;
   this boundary bundle changed tests and this progress record only.
+- Slice 1G-h completed: the active match card, result edit/delete mutations,
+  status/source/venue presentation, settings menu and touch guards moved into
+  a typed feature-local component; the details editor remains injected.
+- Slice 1G-h verification: all 139 focused competition tests passed, the new
+  row component is lint clean, TypeScript passed, and the production build
+  completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 

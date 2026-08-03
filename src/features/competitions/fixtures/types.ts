@@ -36,6 +36,14 @@ export interface CompetitionFixtureRow {
   external_away_team_id?: string | null;
   home_team_name?: string | null;
   away_team_name?: string | null;
+  home_score?: number | null;
+  away_score?: number | null;
+  status?: string | null;
+  source?: string | null;
+  manually_overridden_at?: string | null;
+  venue?: string | null;
+  arrival_minutes_before?: number | null;
+  notes?: string | null;
   home?: CompetitionTeamSummary | null;
   away?: CompetitionTeamSummary | null;
   competition_divisions?: { name?: string | null } | null;
