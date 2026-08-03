@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-i complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-j complete locally on `codespaces-review`
 
 ## Progress
 
@@ -95,6 +95,12 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-i complete 
   typed feature-local component without changing its row integration.
 - Slice 1G-i verification: all 139 focused competition tests passed, the new
   details component is lint clean, TypeScript passed, and the production build
+  completed successfully.
+- Slice 1G-j completed: finals-round form state, validation, next-round
+  discovery, seed preview, persistence outcomes and reset behavior moved into
+  a typed feature-local form component.
+- Slice 1G-j verification: all 139 focused competition tests passed, the new
+  finals component is lint clean, TypeScript passed, and the production build
   completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
