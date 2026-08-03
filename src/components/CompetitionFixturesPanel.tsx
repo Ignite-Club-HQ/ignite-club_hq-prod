@@ -76,15 +76,7 @@ import {
   normalizeFixtureFilter,
   summarizeFixtureRounds,
 } from "@/features/competitions/fixtures/fixtureListModel";
-import { CompetitionLadderData } from "@/features/competitions/ladder/CompetitionLadder";
-import {
-  buildLadderDivisionOptions,
-  buildLadderTeamOptions,
-  filterLadderRows,
-  groupLadderRows,
-  normalizeLadderTeamFilter,
-  visibleLadderRows,
-} from "@/features/competitions/ladder/ladderModel";
+import { CompetitionLadderData, CompetitionLadderView } from "@/features/competitions/ladder/CompetitionLadder";
 import type { CompetitionLadderRow } from "@/features/competitions/ladder/types";
 import type {
   CompetitionDivisionSummary,
@@ -2209,132 +2201,20 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
 
 
 function LadderView({ rows, divisions, isAdmin = false }: { rows: CompetitionLadderRow[]; divisions: CompetitionDivisionSummary[]; isAdmin?: boolean }) {
-  const [filterDivisionId, setFilterDivisionId] = useState<string>("_all");
-  const [filterTeamId, setFilterTeamId] = useState<string>("_all");
-  const [teamSheetOpen, setTeamSheetOpen] = useState(false);
-
-  // Admins see all rows (with a "Hidden" badge on hidden divisions).
-  // If any ladder is hidden, non-admins see no ladder at all.
-  const visibleRows = useMemo(
-    () => visibleLadderRows(rows, divisions, isAdmin),
-    [rows, divisions, isAdmin],
-  );
-
-  const divisionOptions = buildLadderDivisionOptions(visibleRows, divisions);
-  const showDivisionFilter = divisionOptions.length > 1;
-
-  const teamOptions = useMemo(
-    () => buildLadderTeamOptions(visibleRows, filterDivisionId),
-    [visibleRows, filterDivisionId],
-  );
-
-  useEffect(() => {
-    const normalized = normalizeLadderTeamFilter(filterTeamId, teamOptions);
-    if (normalized !== filterTeamId) setFilterTeamId(normalized);
-  }, [filterTeamId, teamOptions]);
-  const showTeamFilter = teamOptions.length > 1;
-
-  const filteredRows = filterLadderRows(visibleRows, filterDivisionId, filterTeamId);
-  const groups = groupLadderRows(filteredRows, divisionOptions);
-
   return (
-    <div className="space-y-4">
-      {(showDivisionFilter || showTeamFilter) && (
-        <div className="flex flex-wrap gap-2">
-          {showDivisionFilter && (
-            <Select value={filterDivisionId} onValueChange={setFilterDivisionId}>
-              <SelectTrigger className="h-9 w-auto min-w-[140px]">
-                <SelectValue placeholder="All divisions" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_all">All divisions</SelectItem>
-                {divisionOptions.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {showTeamFilter && (
-            <>
-              <button
-                type="button"
-                onClick={() => setTeamSheetOpen(true)}
-                className="inline-flex h-9 items-center gap-1 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
-              >
-                {filterTeamId === "_all"
-                  ? "All teams"
-                  : teamOptions.find((t) => t.id === filterTeamId)?.name ?? "All teams"}
-                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-              </button>
-              <Sheet open={teamSheetOpen} onOpenChange={setTeamSheetOpen}>
-                <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl p-0">
-                  <div className="flex justify-center pt-3 pb-1">
-                    <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30" />
-                  </div>
-                  <SheetHeader className="px-4 pb-2 text-left">
-                    <SheetTitle className="text-base">Filter by team</SheetTitle>
-                    <SheetDescription className="sr-only">
-                      Choose a team to filter the fixture list.
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="max-h-[60vh] overflow-y-auto px-4 pb-6">
-                    <div className="space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFilterTeamId("_all");
-                          setTeamSheetOpen(false);
-                        }}
-                        className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
-                      >
-                        <span>All teams</span>
-                        {filterTeamId === "_all" && <Check className="h-4 w-4 text-primary" />}
-                      </button>
-                      {teamOptions.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => {
-                            setFilterTeamId(t.id);
-                            setTeamSheetOpen(false);
-                          }}
-                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm hover:bg-accent"
-                        >
-                          <span>{t.name}</span>
-                          {filterTeamId === t.id && <Check className="h-4 w-4 text-primary" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </>
-          )}
-        </div>
+    <CompetitionLadderView
+      rows={rows}
+      divisions={divisions}
+      isAdmin={isAdmin}
+      renderGroup={({ divisionId, rows: groupRows }, division) => (
+        <LadderDivisionCard
+          key={divisionId}
+          title={division?.name ?? "Overall"}
+          rows={groupRows}
+          isHidden={isAdmin && !!division?.hide_ladder}
+        />
       )}
-
-      {groups.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="p-6 text-center text-sm text-muted-foreground">
-            No standings match the current filter.
-          </CardContent>
-        </Card>
-      ) : (
-        <TooltipProvider delayDuration={150}>
-          {groups.map(({ divisionId, rows: list }) => {
-            const div = divisions.find((division) => division.id === divisionId);
-            return (
-              <LadderDivisionCard
-                key={divisionId}
-                title={div?.name ?? "Overall"}
-                rows={list}
-                isHidden={isAdmin && !!div?.hide_ladder}
-              />
-            );
-          })}
-        </TooltipProvider>
-      )}
-    </div>
+    />
   );
 }
 
