@@ -2319,10 +2319,11 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
       const teamIds = Array.from(new Set(combined.map((r: any) => r.team_id).filter(Boolean)));
       if (teamIds.length === 0) return combined;
 
-      const { data: teams } = await supabase
+      const { data: teams, error: teamsError } = await supabase
         .from("teams")
         .select("id, name, logo_url")
         .in("id", teamIds);
+      if (teamsError) throw teamsError;
 
       const teamById = new Map((teams ?? []).map((team: any) => [team.id, team]));
       return combined.map((row: any) => ({
