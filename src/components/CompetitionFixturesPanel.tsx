@@ -57,6 +57,15 @@ import {
   trimCompetitionRounds,
   updateCompetitionMatch,
 } from "@/features/competitions/fixtures/matchWorkflows";
+import {
+  buildManualMatchRow,
+  createManualMatch,
+} from "@/features/competitions/fixtures/manualMatchWorkflow";
+import {
+  buildFinalsFixtureRows,
+  createFinalsFixtures,
+  discoverNextFinalsRound,
+} from "@/features/competitions/fixtures/finalsWorkflow";
 import type {
   CompetitionDivisionSummary,
   CompetitionEntrySummary,
@@ -1864,16 +1873,10 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
     }
     setSaving(true);
 
-    // Compute next round number for this competition + division scope
-    let q = supabase
-      .from("competition_matches")
-      .select("round_number")
-      .eq("competition_id", competitionId)
-      .order("round_number", { ascending: false, nullsFirst: false })
-      .limit(1);
-    if (divisionId) q = q.eq("division_id", divisionId);
-    else q = q.is("division_id", null);
-    const { data: existing, error: existingError } = await q;
+    const { nextRound, error: existingError } = await discoverNextFinalsRound(
+      competitionId,
+      divisionId,
+    );
     if (existingError) {
       setSaving(false);
       toast({
@@ -1883,44 +1886,20 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
       });
       return;
     }
-    const nextRound = (existing?.[0]?.round_number ?? 0) + 1;
-
-
-    const pairs = buildFinalsSeedPairings(format);
-    const pitchLabels = pitchInput
-      .split(/[,\n]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const usePitches = pitchLabels.length > 0 ? pitchLabels : Array.from({ length: pairs.length }, (_, i) => String(i + 1));
-    const dur = Math.max(1, Number(duration) || 60);
-    const [hh, mm] = time.split(":").map(Number);
-    const baseStart = new Date(`${date}T00:00:00`);
-    baseStart.setHours(hh || 9, mm || 0, 0, 0);
-
-    const rows = pairs.map((p, idx) => {
-      // Spread across pitches; if more pairs than pitches, stagger by duration
-      const wave = Math.floor(idx / usePitches.length);
-      const pitch = usePitches[idx % usePitches.length];
-      const start = new Date(baseStart.getTime() + wave * dur * 60_000);
-      return {
-        competition_id: competitionId,
-        division_id: divisionId || null,
-        round_number: nextRound,
-        home_team_id: null,
-        away_team_id: null,
-        status: "scheduled" as const,
-        created_by: user?.id ?? null,
-        scheduled_at: start.toISOString(),
-        venue,
-        pitch_number: pitch,
-        duration_minutes: dur,
-        notes: p.isGrandFinal
-          ? `Grand Final · ${p.homeSeed} v ${p.awaySeed}`
-          : `Finals · ${p.homeSeed} v ${p.awaySeed}`,
-      };
+    const rows = buildFinalsFixtureRows({
+      competitionId,
+      divisionId,
+      roundNumber: nextRound,
+      format,
+      date,
+      time,
+      duration,
+      venue,
+      pitchInput,
+      createdBy: user?.id,
     });
 
-    const { error } = await supabase.from("competition_matches").insert(rows);
+    const { error } = await createFinalsFixtures(rows);
     setSaving(false);
     if (error) {
       toast({ title: "Couldn't add finals", description: error.message, variant: "destructive" });
@@ -2082,21 +2061,21 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("competition_matches").insert({
-      competition_id: competitionId,
-      home_team_id: homeId,
-      away_team_id: awayId,
-      division_id: divisionId || null,
-      scheduled_at: new Date(scheduledAt).toISOString(),
-      venue: venue,
-      pitch_number: pitch.trim() || null,
-      round_number: round ? Number(round) : null,
-      duration_minutes: duration ? Number(duration) : null,
-      arrival_minutes_before: arrival ? Number(arrival) : null,
-      notes: notes || null,
-      status: "scheduled",
-      created_by: user?.id ?? null,
-    } as any);
+    const row = buildManualMatchRow({
+      competitionId,
+      homeTeamId: homeId,
+      awayTeamId: awayId,
+      divisionId,
+      scheduledAt,
+      venue,
+      pitch,
+      round,
+      duration,
+      arrival,
+      notes,
+      createdBy: user?.id,
+    });
+    const { error } = await createManualMatch(row);
     setSaving(false);
     if (error) {
       toast({ title: "Could not add match", description: error.message, variant: "destructive" });
