@@ -82,7 +82,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState(group.name);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(group.allowed_roles);
-  const [openToClub, setOpenToClub] = useState<boolean>(group.join_policy === "open_to_club");
+  const [joinPolicy, setJoinPolicy] = useState<JoinPolicy>(normalizeJoinPolicy(group.join_policy));
   const [allowForwarding, setAllowForwarding] = useState<boolean>(group.allow_forwarding !== false);
   const queryClient = useQueryClient();
 
