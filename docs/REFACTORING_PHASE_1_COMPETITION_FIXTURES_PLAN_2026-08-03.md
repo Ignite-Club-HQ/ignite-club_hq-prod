@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-f complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-g complete locally on `codespaces-review`
 
 ## Progress
 
@@ -72,6 +72,12 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-f complete 
 - Slice 1G-f verification: three direct fixture-list presentation cases were
   added; all 132 focused competition tests passed, extracted modules are lint
   clean, TypeScript passed, and the production build completed successfully.
+- Slice 1G-g completed: round collapse state, date-range summary, match counts
+  and completion progress moved into a feature-local round component while the
+  mutation-capable match row remains an injected renderer.
+- Slice 1G-g verification: three direct round-presentation cases were added;
+  all 135 focused competition tests passed, extracted modules are lint clean,
+  TypeScript passed, and the production build completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 
