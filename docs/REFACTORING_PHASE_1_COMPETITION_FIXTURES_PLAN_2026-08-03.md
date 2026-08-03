@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-b complete locally on `codespaces-review`
+Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-c complete locally on `codespaces-review`
 
 ## Progress
 
@@ -50,6 +50,12 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-b complete 
 - Slice 1G-b verification: all 126 focused competition tests passed, the
   feature-local ladder modules are lint clean, and the production build
   completed successfully.
+- Slice 1G-c completed: the division card, standings table, team avatar and
+  complete feature-local ladder panel now own the active ladder presentation;
+  the legacy export delegates to that feature component.
+- Slice 1G-c verification: three direct ladder presentation cases were added;
+  all 129 focused competition tests passed, feature-local ladder modules are
+  lint clean, and the production build completed successfully.
 - Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
   outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 

@@ -76,7 +76,7 @@ import {
   normalizeFixtureFilter,
   summarizeFixtureRounds,
 } from "@/features/competitions/fixtures/fixtureListModel";
-import { CompetitionLadderData, CompetitionLadderView } from "@/features/competitions/ladder/CompetitionLadder";
+import { CompetitionLadderPanel as FeatureCompetitionLadderPanel } from "@/features/competitions/ladder/CompetitionLadder";
 import type { CompetitionLadderRow } from "@/features/competitions/ladder/types";
 import type {
   CompetitionDivisionSummary,
@@ -2192,11 +2192,7 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
 
 
 export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = false }: { competitionId: string; divisions: CompetitionDivisionSummary[]; isAdmin?: boolean }) {
-  return (
-    <CompetitionLadderData competitionId={competitionId}>
-      {(rows) => <LadderView rows={rows} divisions={divisions} isAdmin={isAdmin} />}
-    </CompetitionLadderData>
-  );
+  return <FeatureCompetitionLadderPanel competitionId={competitionId} divisions={divisions} isAdmin={isAdmin} />;
 }
 
 
