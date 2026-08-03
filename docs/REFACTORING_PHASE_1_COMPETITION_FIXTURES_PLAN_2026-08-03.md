@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-l complete locally on `codespaces-review`
+Status: implementation complete locally; final Playwright, isolated-local and one-click baseline gates remain
 
 ## Progress
 
@@ -114,8 +114,20 @@ Status: in progress; Slices 1A through 1F and Slices 1G-a through 1G-l complete 
 - Slice 1G-l verification: all 139 focused competition tests passed, the new
   round-limit component is lint clean, TypeScript passed, and the production
   build completed successfully.
-- Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
-  outside Slice 1A scope and was not expanded into an opportunistic cleanup.
+- Slice 1G-m completed: fixture generation state, schedule configuration,
+  occupied-pitch reads, preview presentation, confirmation and persistence
+  orchestration moved into a typed feature-local generator; the fixture list
+  remains an injected render boundary.
+- Slice 1G-m verification: all 139 focused competition tests passed, both the
+  generator and compatibility composition module are lint clean, TypeScript
+  passed, and the production build completed successfully.
+- Phase 1 implementation status: all planned data, workflow, read-model and
+  presentation boundaries are extracted. Promotion remains blocked until the
+  final relevant Playwright, isolated local-Supabase and complete one-click
+  baseline gates pass.
+- The compatibility `CompetitionFixturesPanel.tsx` is now a 180-line typed
+  composition module; the active feature behavior lives behind the extracted
+  fixture and ladder boundaries.
 
 ## Objective
 
@@ -129,9 +141,9 @@ implemented through Lovable or directly on `main`. Completed slices may be
 offered back to `main` only after focused verification and the complete
 one-click baseline pass, followed by explicit user approval.
 
-## Current shape
+## Starting shape
 
-`src/components/CompetitionFixturesPanel.tsx` is 2,710 lines and currently owns:
+`src/components/CompetitionFixturesPanel.tsx` was 2,710 lines and originally owned:
 
 1. fixture reads and React Query cache keys;
 2. accepted-team and division selection;
