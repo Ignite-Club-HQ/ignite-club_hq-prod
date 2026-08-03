@@ -249,13 +249,13 @@ export default function PitchBoardResumeRedirect() {
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", onPageShow);
     window.addEventListener("pagehide", onPageHide);
-    window.addEventListener("blur", onPageHide);
 
     return () => {
       cancelled = true;
       timers.forEach((t) => window.clearTimeout(t));
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("pagehide", onPageHide);
       removeListener?.();
     };
   }, []);
@@ -284,7 +284,10 @@ export default function PitchBoardResumeRedirect() {
         // settle and will be reclaimed by attemptRestore. Outside that lease,
         // leaving the board's route is an explicit navigation and must clear
         // the flag so it does not reopen later.
-        Date.now() > restoreWindowUntilRef.current
+        Date.now() > restoreWindowUntilRef.current &&
+        // Native WebView route drift (route changed while the app was hidden
+        // or right after it came back) is NOT a deliberate close.
+        !isNativeRouteDriftLikely()
       ) {
         // User left the pitch-board route — treat as explicit close.
         restoreWindowUntilRef.current = 0;
