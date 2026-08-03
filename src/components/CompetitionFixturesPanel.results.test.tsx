@@ -191,4 +191,25 @@ describe("CompetitionFixturesPanel result management", () => {
     }));
     expect(mocks.invalidateQueries).not.toHaveBeenCalled();
   });
+
+  it("keeps a rejected score edit retryable and invalidates only after the retry succeeds", async () => {
+    mocks.mutationResult.error = { message: "temporary failure" };
+    renderPanel();
+    await editScores("3", "2");
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Could not save",
+    })));
+    expect(mocks.invalidateQueries).not.toHaveBeenCalled();
+
+    mocks.mutationResult.error = null;
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(mocks.invalidateQueries).toHaveBeenCalledTimes(2));
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["competition-matches", "competition-1"],
+    });
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["competition-ladder", "competition-1"],
+    });
+  });
 });

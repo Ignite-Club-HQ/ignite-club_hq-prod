@@ -135,6 +135,12 @@ async function previewWithVenue(venue = "Riverside Park") {
 describe("CompetitionFixturesPanel characterization — permissions and generation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
+    Object.defineProperties(HTMLElement.prototype, {
+      hasPointerCapture: { configurable: true, value: () => false },
+      setPointerCapture: { configurable: true, value: () => undefined },
+      releasePointerCapture: { configurable: true, value: () => undefined },
+    });
     mocks.matches = [];
     mocks.mutationError = null;
     mocks.selectedRows = [];
@@ -206,6 +212,16 @@ describe("CompetitionFixturesPanel characterization — permissions and generati
     expect(mocks.invalidateQueries).toHaveBeenCalledTimes(1);
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["competition-matches", "competition-1"] });
     expect(mocks.toast).toHaveBeenCalledWith({ title: "Saved 3 fixtures" });
+  });
+
+  it("prevents repeated save taps from inserting generated fixtures twice", async () => {
+    renderPanel();
+    await previewWithVenue();
+    const save = screen.getByRole("button", { name: /save fixtures/i });
+    fireEvent.click(save);
+    fireEvent.click(save);
+
+    await waitFor(() => expect(mocks.operations.filter(op => op.kind === "insert")).toHaveLength(1));
   });
 
   it.each([
@@ -309,6 +325,12 @@ describe("CompetitionFixturesPanel characterization — existing fixture actions
 describe("CompetitionFixturesPanel characterization — manual and finals creation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
+    Object.defineProperties(HTMLElement.prototype, {
+      hasPointerCapture: { configurable: true, value: () => false },
+      setPointerCapture: { configurable: true, value: () => undefined },
+      releasePointerCapture: { configurable: true, value: () => undefined },
+    });
     mocks.matches = [];
     mocks.mutationError = null;
     mocks.selectedRows = [];
@@ -329,6 +351,29 @@ describe("CompetitionFixturesPanel characterization — manual and finals creati
 
     expect(mocks.toast).toHaveBeenCalledWith({ title: "Pick two different teams", variant: "destructive" });
     expect(mocks.operations.filter(op => op.kind === "insert")).toHaveLength(0);
+  });
+
+  it("prevents repeated manual-match save taps from inserting twice", async () => {
+    renderPanel();
+    await chooseManagementAction("Add match");
+    const sheet = await screen.findByRole("dialog");
+    const selectPlaceholders = within(sheet).getAllByText("Select team");
+
+    fireEvent.click(selectPlaceholders[0].closest("button")!);
+    fireEvent.click(await screen.findByRole("option", { name: "Riverside" }));
+    fireEvent.click(within(sheet).getAllByText("Select team")[0].closest("button")!);
+    fireEvent.click(await screen.findByRole("option", { name: "Hilltown" }));
+    const updatedSheet = await screen.findByRole("dialog");
+    fireEvent.change(updatedSheet.querySelector<HTMLInputElement>('input[type="date"]')!, {
+      target: { value: "2026-09-12" },
+    });
+    fireEvent.change(within(updatedSheet).getByLabelText("Venue"), { target: { value: "Riverside Park" } });
+
+    const save = within(updatedSheet).getByRole("button", { name: /^save match$/i });
+    fireEvent.click(save);
+    fireEvent.click(save);
+
+    await waitFor(() => expect(mocks.operations.filter(op => op.kind === "insert")).toHaveLength(1));
   });
 
   it("rejects a finals round without a date before querying or inserting", async () => {
@@ -384,5 +429,37 @@ describe("CompetitionFixturesPanel characterization — manual and finals creati
       }),
     ]);
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["competition-matches", "competition-1"] });
+  });
+
+  it("does not create a round-one final when next-round discovery fails", async () => {
+    mocks.mutationError = { message: "round lookup denied" };
+    renderPanel();
+    await chooseManagementAction("Add finals round");
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(dialog.querySelector<HTMLInputElement>('input[type="date"]')!, {
+      target: { value: "2026-09-12" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Venue"), { target: { value: "Riverside Park" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^add finals$/i }));
+
+    await waitFor(() => expect(mocks.operations.some(op => op.kind === "select")).toBe(true));
+    expect(mocks.operations.filter(op => op.kind === "insert")).toHaveLength(0);
+    expect(mocks.invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it("prevents repeated finals save taps from inserting the round twice", async () => {
+    mocks.selectedRows = [{ round_number: 4 }];
+    renderPanel();
+    await chooseManagementAction("Add finals round");
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(dialog.querySelector<HTMLInputElement>('input[type="date"]')!, {
+      target: { value: "2026-09-12" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Venue"), { target: { value: "Riverside Park" } });
+    const save = within(dialog).getByRole("button", { name: /^add finals$/i });
+    fireEvent.click(save);
+    fireEvent.click(save);
+
+    await waitFor(() => expect(mocks.operations.filter(op => op.kind === "insert")).toHaveLength(1));
   });
 });
