@@ -127,15 +127,16 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [previewPairings, setPreviewPairings] = useState<{ round: number; home: string; away: string; homeName: string; awayName: string }[] | null>(null);
   const [roundDateOverrides, setRoundDateOverrides] = useState<Map<number, string>>(new Map());
 
-  const { data: matches = [], isLoading } = useQuery({
+  const { data: matches = [], isLoading, isError } = useQuery({
     queryKey: ["competition-matches", competitionId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("competition_matches")
         .select("*, home:home_team_id(id, name, logo_url), away:away_team_id(id, name, logo_url), competition_divisions:division_id(name)")
         .eq("competition_id", competitionId)
         .order("round_number", { ascending: true, nullsFirst: false })
         .order("scheduled_at", { ascending: true, nullsFirst: false });
+      if (error) throw error;
       return data ?? [];
     },
   });
@@ -438,6 +439,20 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
 
   if (isLoading) {
     return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>;
+  }
+
+  if (isError) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center space-y-2">
+          <CalendarPlus className="h-8 w-8 text-destructive mx-auto" />
+          <h3 className="text-sm font-semibold">Couldn't load fixtures</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Something went wrong loading the fixture list. Please check your connection and try again.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const totalAccepted = entries.filter((e: any) => e.status === "accepted").length;
@@ -1030,6 +1045,7 @@ function FixturesFilterAndList({
   const showTeamFilter = teamOptions.length > 1;
   const showClubFilter = clubOptions.length > 1;
   const divisionLabel = source === "playhq" ? "Grade" : "Division";
+
 
   if (matches.length === 0) {
     return (
@@ -1882,8 +1898,18 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
       .limit(1);
     if (divisionId) q = q.eq("division_id", divisionId);
     else q = q.is("division_id", null);
-    const { data: existing } = await q;
+    const { data: existing, error: existingError } = await q;
+    if (existingError) {
+      setSaving(false);
+      toast({
+        title: "Couldn't add finals",
+        description: "We couldn't work out the next round number. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
     const nextRound = (existing?.[0]?.round_number ?? 0) + 1;
+
 
     const pairs = buildFinalsSeedPairings(format);
     const pitchLabels = pitchInput
@@ -2264,7 +2290,7 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
 
 
 export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = false }: { competitionId: string; divisions: any[]; isAdmin?: boolean }) {
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError } = useQuery({
     queryKey: ["competition-ladder", competitionId],
     queryFn: async () => {
       const [ladderRes, entriesRes] = await Promise.all([
@@ -2282,6 +2308,7 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
           .eq("status", "accepted"),
       ]);
       if (ladderRes.error) throw ladderRes.error;
+      if (entriesRes.error) throw entriesRes.error;
       const ladderData = ladderRes.data ?? [];
       const entriesData = entriesRes.data ?? [];
 
@@ -2307,10 +2334,11 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
       const teamIds = Array.from(new Set(combined.map((r: any) => r.team_id).filter(Boolean)));
       if (teamIds.length === 0) return combined;
 
-      const { data: teams } = await supabase
+      const { data: teams, error: teamsError } = await supabase
         .from("teams")
         .select("id, name, logo_url")
         .in("id", teamIds);
+      if (teamsError) throw teamsError;
 
       const teamById = new Map((teams ?? []).map((team: any) => [team.id, team]));
       return combined.map((row: any) => ({
@@ -2322,6 +2350,19 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
 
   if (isLoading) {
     return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin" /></div>;
+  }
+  if (isError) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center space-y-2">
+          <Trophy className="h-8 w-8 text-destructive mx-auto" />
+          <h3 className="text-sm font-semibold">Couldn't load the ladder</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Something went wrong loading standings. Please check your connection and try again.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
   if (rows.length === 0) {
     return (
