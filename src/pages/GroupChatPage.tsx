@@ -822,10 +822,98 @@ export default function GroupChatPage() {
     },
     [applyRealtimeReactionDelete, queryClient, groupId],
   );
-  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
-  const showLoading =
-    (!authReady && !hasMeaningfulLocal) ||
-    (messagesLoading && !messagesData && !hasMeaningfulLocal);
+  const hasMeaningfulLocal = isUsableCachedThread(localMessages as any);
+
+  // Authoritative fetched count (null = query never produced data).
+  const fetchedCount = useMemo<number | null>(() => {
+    if (!messagesData) return null;
+    const list = (messagesData as any).messages;
+    return Array.isArray(list) ? list.length : null;
+  }, [messagesData]);
+
+  // The inbox row proves this group already has at least one message, so a
+  // zero-message response is inconsistent (Android resume / RLS settling)
+  // rather than a legitimately empty thread.
+  const inboxSaysHasMessage = useMemo(() => {
+    if (!groupId) return false;
+    const inboxQueries = queryClient.getQueriesData<any>({
+      queryKey: ["my-chat-groups-with-messages"],
+    });
+    for (const [, data] of inboxQueries) {
+      const latest = data?.latestMessages?.[groupId];
+      if (latest && (latest.created_at || latest.text || latest.image_url)) return true;
+    }
+    return false;
+  }, [groupId, queryClient, messagesData]);
+
+  // Bounded automatic recovery (400ms / 1.2s / 3s) before we ever render an
+  // empty thread. Same pattern as ClubAdminChatPage.
+  const recoveryAttemptRef = useRef(0);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [recoveryExhausted, setRecoveryExhausted] = useState(false);
+
+  useEffect(() => {
+    recoveryAttemptRef.current = 0;
+    setRecoveryExhausted(false);
+    if (recoveryTimerRef.current) {
+      clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    if (!groupId || !authReady) return;
+    if (messagesFetchStatus === "fetching") return;
+    if (fetchedCount !== null && fetchedCount > 0) {
+      recoveryAttemptRef.current = 0;
+      setRecoveryExhausted(false);
+      return;
+    }
+    const needsRecovery = messagesIsError || fetchedCount === 0;
+    if (!needsRecovery) return;
+    if (recoveryTimerRef.current) return;
+
+    const delay = nextEmptyRetryDelay(recoveryAttemptRef.current);
+    if (delay === null) {
+      setRecoveryExhausted(true);
+      return;
+    }
+    recoveryAttemptRef.current += 1;
+    recoveryTimerRef.current = setTimeout(() => {
+      recoveryTimerRef.current = null;
+      void refetchMessages();
+    }, delay);
+
+    return () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+    };
+  }, [groupId, authReady, fetchedCount, messagesIsError, messagesFetchStatus, refetchMessages]);
+
+  useEffect(
+    () => () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const threadPhase = classifyChatThreadState({
+    authReady,
+    status: messagesStatus,
+    fetchStatus: messagesFetchStatus,
+    isError: messagesIsError,
+    hasUsableCached: hasMeaningfulLocal,
+    fetchedCount,
+    inboxSaysHasMessage,
+    recoveryExhausted,
+  });
+  const showLoading = threadPhase === "loading";
+
 
   // Android resume escape hatch: abort zombie GETs + re-issue the gating
   // queries while the page is stuck on a skeleton.
