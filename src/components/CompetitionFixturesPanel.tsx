@@ -40,6 +40,16 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
+import {
+  fetchCompetitionFixtures,
+  fetchLinkedCompetitionTeams,
+} from "@/features/competitions/fixtures/repository";
+import { competitionFixtureKeys } from "@/features/competitions/fixtures/queryKeys";
+import type {
+  CompetitionDivisionSummary,
+  CompetitionEntrySummary,
+  CompetitionFixtureRow,
+} from "@/features/competitions/fixtures/types";
 
 function TeamAvatar({
   name,
@@ -91,8 +101,8 @@ const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 interface Props {
   competitionId: string;
   isAdmin: boolean;
-  divisions: any[];
-  entries: any[]; // includes teams:team_id(id,name)
+  divisions: CompetitionDivisionSummary[];
+  entries: CompetitionEntrySummary[];
   source?: string;
 }
 
@@ -128,17 +138,8 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const [roundDateOverrides, setRoundDateOverrides] = useState<Map<number, string>>(new Map());
 
   const { data: matches = [], isLoading, isError } = useQuery({
-    queryKey: ["competition-matches", competitionId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("competition_matches")
-        .select("*, home:home_team_id(id, name, logo_url), away:away_team_id(id, name, logo_url), competition_divisions:division_id(name)")
-        .eq("competition_id", competitionId)
-        .order("round_number", { ascending: true, nullsFirst: false })
-        .order("scheduled_at", { ascending: true, nullsFirst: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: competitionFixtureKeys.matches(competitionId),
+    queryFn: () => fetchCompetitionFixtures(competitionId),
   });
 
   const acceptedByDivision = (divisionId: string | null) =>
@@ -434,7 +435,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     setGenVenue(""); setGenDuration("60"); setGenArrival(""); setGenAutoPitches(""); setGenPitchLabelsInput("");
     setGenMaxRounds(""); setGenAddFinals(false); setGenFinalsFormat("gf");
     setAdvancedOpen(false);
-    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: competitionFixtureKeys.matches(competitionId) });
   };
 
   if (isLoading) {
@@ -907,7 +908,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
       )}
 
       <FixturesFilterAndList
-        matches={matches as any[]}
+        matches={matches}
         divisions={divisions}
         entries={entries}
         isAdmin={isAdmin}
@@ -927,9 +928,9 @@ function FixturesFilterAndList({
   competitionId,
   source,
 }: {
-  matches: any[];
-  divisions: any[];
-  entries: any[];
+  matches: CompetitionFixtureRow[];
+  divisions: CompetitionDivisionSummary[];
+  entries: CompetitionEntrySummary[];
   isAdmin: boolean;
   competitionId: string;
   source?: string;
@@ -952,16 +953,9 @@ function FixturesFilterAndList({
   }, [matches]);
 
   const { data: linkedTeams = [] } = useQuery({
-    queryKey: ["competition-linked-teams", competitionId, externalTeamIds.length],
+    queryKey: competitionFixtureKeys.linkedTeams(competitionId, externalTeamIds.length),
     enabled: externalTeamIds.length > 0,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("teams")
-        .select("id, name, playhq_team_id, club_id, clubs:club_id(id, name)")
-        .in("playhq_team_id", externalTeamIds);
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => fetchLinkedCompetitionTeams(externalTeamIds),
   });
 
   // Map external (PlayHQ) team id → { clubId, clubName }
@@ -1263,7 +1257,7 @@ function SetMaxRoundsButton({
       } else {
         toast({ title: "No changes" });
       }
-      qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+      qc.invalidateQueries({ queryKey: competitionFixtureKeys.matches(competitionId) });
       setOpen(false);
     } catch (e: any) {
       toast({ title: "Couldn't update", description: e?.message, variant: "destructive" });
@@ -1441,7 +1435,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
         : undefined,
     });
     setEditing(false);
-    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: competitionFixtureKeys.matches(competitionId) });
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
 
@@ -1453,7 +1447,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
       toast({ title: "Could not delete", description: error.message, variant: "destructive" });
       return;
     }
-    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: competitionFixtureKeys.matches(competitionId) });
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
 
@@ -1746,7 +1740,7 @@ function EditMatchDetailsDialog({
     }
     toast({ title: "Match updated" });
     onOpenChange(false);
-    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: competitionFixtureKeys.matches(competitionId) });
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
 
@@ -1952,7 +1946,7 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
       return;
     }
     toast({ title: `Added finals round (${rows.length} match${rows.length === 1 ? "" : "es"})` });
-    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: competitionFixtureKeys.matches(competitionId) });
     reset();
     setOpen(false);
   };
@@ -2129,7 +2123,7 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
     }
     toast({ title: "Match added" });
     setOpen(false); reset();
-    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: competitionFixtureKeys.matches(competitionId) });
     onSaved?.();
   };
 
@@ -2745,7 +2739,5 @@ function LadderDivisionCard({ title, rows, isHidden = false }: { title: string; 
     </Card>
   );
 }
-
-
 
 

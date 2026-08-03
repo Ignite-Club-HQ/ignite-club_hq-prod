@@ -2,7 +2,17 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: analysis complete; production refactoring not started
+Status: in progress; Slice 1A complete locally on `codespaces-review`
+
+## Progress
+
+- Slice 1A completed: feature-local fixture contracts, stable query-key
+  factories, and fixture/linked-team read repositories extracted without
+  changing query or cache behaviour.
+- Slice 1A verification: 69 focused tests passed, extracted modules lint clean,
+  and the production build completed successfully.
+- Existing `CompetitionFixturesPanel.tsx` explicit-`any` lint debt remains
+  outside Slice 1A scope and was not expanded into an opportunistic cleanup.
 
 ## Objective
 
