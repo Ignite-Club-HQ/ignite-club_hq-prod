@@ -1883,8 +1883,18 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
       .limit(1);
     if (divisionId) q = q.eq("division_id", divisionId);
     else q = q.is("division_id", null);
-    const { data: existing } = await q;
+    const { data: existing, error: existingError } = await q;
+    if (existingError) {
+      setSaving(false);
+      toast({
+        title: "Couldn't add finals",
+        description: "We couldn't work out the next round number. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
     const nextRound = (existing?.[0]?.round_number ?? 0) + 1;
+
 
     const pairs = buildFinalsSeedPairings(format);
     const pitchLabels = pitchInput
