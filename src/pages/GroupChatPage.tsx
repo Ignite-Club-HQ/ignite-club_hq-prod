@@ -748,7 +748,8 @@ export default function GroupChatPage() {
   }, [messagesData, reconcileScope]);
 
   // Local copy used for rendering so optimistic updates are instant.
-  // 1-item cache = notification preload; don't seed from it.
+  // A notification-preload stub is never used as a seed, but a genuine
+  // short thread is (see mem://technical/notification-preload-single-message-guard).
   const getInitialLocalMessages = () => {
     if (!groupId) return undefined;
 
@@ -757,13 +758,14 @@ export default function GroupChatPage() {
       groupId,
     ]);
 
-    if ((cachedQueryData?.messages?.length ?? 0) >= 2) {
+    if (isUsableCachedThread(cachedQueryData?.messages as any)) {
       return cachedQueryData!.messages;
     }
 
     const fromCache = getCachedGroupMessages(groupId).messages;
-    return fromCache.length >= 2 ? fromCache : undefined;
+    return isUsableCachedThread(fromCache as any) ? fromCache : undefined;
   };
+
 
   const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(() =>
     getInitialLocalMessages(),
