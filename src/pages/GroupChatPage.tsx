@@ -714,10 +714,12 @@ export default function GroupChatPage() {
       if (prev) return prev;
 
       const cachedData = getCachedGroupMessages(groupId);
-      if (cachedData.messages.length < 2) return undefined;
+      // A genuine one-message thread is usable; a notification-preload stub is not.
+      if (!isUsableCachedThread(cachedData.messages as any)) return undefined;
 
       return { ...cachedData, hasOlderMessages: false, fromCache: true };
     },
+
   });
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
