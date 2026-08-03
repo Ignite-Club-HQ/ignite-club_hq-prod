@@ -852,8 +852,11 @@ export default function GroupChatPage() {
       (r: any) => r.group_message_id,
       (messageId, reaction) => ({ ...reaction, group_message_id: messageId }) as any,
     ) as MessageReaction[];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messagesData, reconcileScope, localMessages]);
+    // NOTE: `localMessages` must NOT be a dependency here. This memo feeds the
+    // sync useLayoutEffect below, which writes `localMessages` — including it
+    // closes a state -> memo -> effect -> state cycle that trips React #185
+    // ("Maximum update depth exceeded") on tap-to-react.
+  }, [messagesData, reconcileScope]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
