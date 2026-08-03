@@ -249,24 +249,36 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
               )}
 
               {qualifiesForOpenJoin && (
-                <div className="space-y-2 rounded-md border p-3">
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id="edit-group-open-join"
-                      checked={openToClub}
-                      onCheckedChange={(v) => setOpenToClub(v === true)}
-                    />
-                    <div className="space-y-0.5">
-                      <label htmlFor="edit-group-open-join" className="text-sm font-medium cursor-pointer">
-                        Let any club member join
-                      </label>
-                      <p className="text-xs text-muted-foreground">
-                        This group appears under "Discover groups" so club members can join without being added by an admin.
-                      </p>
-                    </div>
+                <div className="space-y-3 rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <Label>Who can join this group?</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Controls how club members get into this chat.
+                    </p>
                   </div>
+                  <RadioGroup value={joinPolicy} onValueChange={(v) => setJoinPolicy(v as JoinPolicy)}>
+                    {JOIN_POLICY_OPTIONS.map((opt) => (
+                      <div key={opt.value} className="flex items-start gap-3">
+                        <RadioGroupItem
+                          id={`edit-group-join-${opt.value}`}
+                          value={opt.value}
+                          className="mt-0.5"
+                        />
+                        <div className="space-y-0.5">
+                          <label
+                            htmlFor={`edit-group-join-${opt.value}`}
+                            className="text-sm font-medium cursor-pointer"
+                          >
+                            {opt.label}
+                          </label>
+                          <p className="text-xs text-muted-foreground">{opt.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </RadioGroup>
                 </div>
               )}
+
 
               <div className="space-y-2 rounded-md border p-3">
                 <div className="flex items-start gap-3">
