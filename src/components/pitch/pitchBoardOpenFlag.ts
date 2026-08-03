@@ -3,6 +3,7 @@ import {
   PITCH_BOARD_OPEN_PATH_KEY,
   PITCH_BOARD_LAST_CONTEXT_KEY,
   PITCH_BOARD_OPEN_AT_KEY,
+  PITCH_BOARD_BACKGROUNDED_AT_KEY,
 } from "./types";
 
 /**
@@ -22,6 +23,7 @@ export function clearPitchBoardOpenFlag() {
     localStorage.removeItem(PITCH_BOARD_OPEN_PATH_KEY);
     localStorage.removeItem(PITCH_BOARD_LAST_CONTEXT_KEY);
     localStorage.removeItem(PITCH_BOARD_OPEN_AT_KEY);
+    localStorage.removeItem(PITCH_BOARD_BACKGROUNDED_AT_KEY);
   } catch {
     /* ignore */
   }
