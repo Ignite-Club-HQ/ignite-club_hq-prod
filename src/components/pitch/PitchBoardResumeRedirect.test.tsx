@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import PitchBoardResumeRedirect from "./PitchBoardResumeRedirect";
 import {
+  PITCH_BOARD_BACKGROUNDED_AT_KEY,
   PITCH_BOARD_OPEN_AT_KEY,
   PITCH_BOARD_OPEN_KEY,
   PITCH_BOARD_OPEN_PATH_KEY,
@@ -103,5 +104,41 @@ describe("PitchBoardResumeRedirect behavior", () => {
     act(() => vi.advanceTimersByTime(30_000));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/");
+  });
+
+  it("restores the stored board after native route drift to a stale route", () => {
+    seedOpenBoard("/teams/team-1");
+    // Simulate a resume where the WebView came back on /media.
+    localStorage.setItem(PITCH_BOARD_BACKGROUNDED_AT_KEY, String(Date.now()));
+    renderRedirect("/media");
+
+    act(() => vi.advanceTimersByTime(1));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/teams/team-1?openPitchBoard=1",
+    );
+  });
+
+  it("keeps the open marker when the route drifts while the app is hidden", () => {
+    seedOpenBoard("/teams/team-1");
+    const { rerender } = render(
+      <MemoryRouter initialEntries={["/teams/team-1"]}>
+        <PitchBoardResumeRedirect />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    // Let the initial cold-start lease expire.
+    act(() => vi.advanceTimersByTime(40_000));
+    // App goes to background, then the WebView drifts to a stale route.
+    localStorage.setItem(PITCH_BOARD_BACKGROUNDED_AT_KEY, String(Date.now()));
+    rerender(
+      <MemoryRouter initialEntries={["/messages"]}>
+        <PitchBoardResumeRedirect />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+    act(() => vi.advanceTimersByTime(1));
+
+    expect(localStorage.getItem(PITCH_BOARD_OPEN_KEY)).toBe("true");
   });
 });

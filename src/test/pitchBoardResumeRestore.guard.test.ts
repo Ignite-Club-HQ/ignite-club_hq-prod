@@ -68,4 +68,12 @@ describe("pitch board resume restore", () => {
     expect(redirectIndex).toBeGreaterThan(-1);
     expect(routesIndex).toBeGreaterThan(redirectIndex);
   });
+
+  it("treats route changes during backgrounding as native drift, not a close", () => {
+    expect(redirect).toContain("PITCH_BOARD_BACKGROUNDED_AT_KEY");
+    expect(redirect).toContain("isNativeRouteDriftLikely");
+    expect(redirect).toContain("!isNativeRouteDriftLikely()");
+    expect(redirect).toContain("markBackgrounded()");
+    expect(openFlag).toContain("PITCH_BOARD_BACKGROUNDED_AT_KEY");
+  });
 });
