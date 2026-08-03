@@ -36,6 +36,7 @@ function LocationProbe() {
     <>
       <output data-testid="location">{location.pathname}{location.search}</output>
       <button onClick={() => navigate("/")}>home</button>
+      <button onClick={() => navigate("/media")}>media</button>
     </>
   );
 }
@@ -75,6 +76,10 @@ describe("PitchBoardResumeRedirect lock/unlock recovery", () => {
     delete (window as any).__pitchBoardMounted;
     delete (window as any).__pitchBoardMountedThisSession;
     vi.spyOn(performance, "now").mockReturnValue(1_000);
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -97,6 +102,80 @@ describe("PitchBoardResumeRedirect lock/unlock recovery", () => {
     await waitFor(() =>
       expect(screen.getByTestId("location")).toHaveTextContent(
         "/teams/team-1?from=game-day&openPitchBoard=1",
+      ),
+    );
+  });
+
+  it("cold restart restores the board even when the WebView revives a different cached route", async () => {
+    persistOpenBoard("/teams/team-1?from=game-day&tab=lineup");
+
+    // Android can recreate the WebView using a cached navigation entry rather
+    // than the configured start URL. The recent open-board marker must win.
+    mountAt("/messages");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/teams/team-1?from=game-day&tab=lineup&openPitchBoard=1",
+      ),
+    );
+  });
+
+  it("warm unlock repairs route drift that occurred while the app was hidden", async () => {
+    persistOpenBoard("/events/event-1?tab=lineup");
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = false;
+    mountAt("/events/event-1?tab=lineup");
+
+    let visibility: DocumentVisibilityState = "hidden";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibility,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    // Model the native WebView restoring an older history entry while the
+    // phone is locked. This is not a user navigation and must not close the
+    // persisted board.
+    await act(async () => screen.getByRole("button", { name: "media" }).click());
+    expect(screen.getByTestId("location")).toHaveTextContent("/media");
+
+    visibility = "visible";
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/events/event-1?tab=lineup&openPitchBoard=1",
+      ),
+    );
+  });
+
+  it("converges on the exact board route under repeated unlock signals", async () => {
+    persistOpenBoard("/events/event-1");
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = false;
+    mountAt("/events/event-1");
+
+    let visibility: DocumentVisibilityState = "hidden";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibility,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await act(async () => screen.getByRole("button", { name: "media" }).click());
+    expect(screen.getByTestId("location")).toHaveTextContent("/media");
+
+    await waitFor(() => expect(native.appStateHandler).toBeTypeOf("function"));
+    visibility = "visible";
+    await act(async () => {
+      native.appStateHandler?.({ isActive: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("pageshow"));
+      window.dispatchEvent(new Event("pageshow"));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/events/event-1?openPitchBoard=1",
       ),
     );
   });
@@ -127,13 +206,33 @@ describe("PitchBoardResumeRedirect lock/unlock recovery", () => {
   });
 
   it("does not hijack an unrelated non-neutral page after unlock", async () => {
-    vi.mocked(performance.now).mockReturnValue(30_000);
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
     persistOpenBoard("/events/event-1");
     (window as any).__pitchBoardMountedThisSession = true;
-    mountAt("/media");
+    (window as any).__pitchBoardMounted = true;
+    mountAt("/events/event-1");
+
+    // Model deliberate foreground navigation after bootstrap has settled,
+    // rather than a cached route supplied during the restore lease.
+    now.mockReturnValue(32_000);
+    (window as any).__pitchBoardMounted = false;
+    await act(async () => screen.getByRole("button", { name: "media" }).click());
 
     await signalNativeResume();
     expect(screen.getByTestId("location")).toHaveTextContent("/media");
+  });
+
+  it("does not restore a different route when the persisted board marker is stale", async () => {
+    persistOpenBoard("/events/event-1");
+    localStorage.setItem(
+      PITCH_BOARD_OPEN_AT_KEY,
+      String(Date.now() - (12 * 60 * 60 * 1000 + 1)),
+    );
+    mountAt("/messages");
+
+    await signalNativeResume();
+    expect(screen.getByTestId("location")).toHaveTextContent("/messages");
+    expect(localStorage.getItem(PITCH_BOARD_OPEN_KEY)).toBeNull();
   });
 
   it("clears a stale previous-session flag instead of reopening it on warm resume", async () => {
@@ -150,10 +249,14 @@ describe("PitchBoardResumeRedirect lock/unlock recovery", () => {
   });
 
   it("treats navigation from the board route to Home as an explicit close", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
     persistOpenBoard("/events/event-1");
     (window as any).__pitchBoardMountedThisSession = true;
     mountAt("/events/event-1");
 
+    // Once the cold-start lease has elapsed, leaving the board route is a
+    // foreground user action and must clear the persisted open marker.
+    now.mockReturnValue(32_000);
     await act(async () => screen.getByRole("button", { name: "home" }).click());
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
     expect(localStorage.getItem(PITCH_BOARD_OPEN_KEY)).toBeNull();

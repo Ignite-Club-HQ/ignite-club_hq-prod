@@ -37,6 +37,7 @@ type HarnessBehavior = {
   reactionDelayMs?: number;
   deferHomeEvents?: boolean;
   deferMessageHistory?: boolean;
+  pitchBoardController?: boolean;
 };
 type HarnessState = {
   inserts: Record<string, unknown>[];
@@ -216,7 +217,7 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
     if (url.pathname === "/auth/v1/user") return json(route, user);
     if (url.pathname === "/rest/v1/teams") {
       const teamRows = [
-        { id: teamId, club_id: clubId, name: "Synthetic Messaging Team", logo_url: null, clubs: { id: clubId, name: "Synthetic Club", logo_url: null } },
+        { id: teamId, club_id: clubId, name: "Synthetic Messaging Team", logo_url: null, team_type: "mixed", clubs: { id: clubId, name: "Synthetic Club", logo_url: null, sport: behavior.pitchBoardController ? "soccer" : null, is_pro: true } },
         ...(behavior.multipleInboxTeams
           ? [{ id: secondTeamId, club_id: clubId, name: "Synthetic Older Team", logo_url: null, clubs: { id: clubId, name: "Synthetic Club", logo_url: null } }]
           : []),
@@ -231,19 +232,19 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       return json(route, singular || exactId ? rows.find(row => row.id === exactId) ?? rows[0] : rows);
     }
     if (url.pathname === "/rest/v1/user_roles") return json(route, [
-      { user_id: userId, role: "player", club_id: clubId, team_id: teamId },
+      { user_id: userId, role: behavior.pitchBoardController ? "coach" : "player", club_id: clubId, team_id: teamId },
       ...(behavior.multipleInboxTeams
         ? [{ user_id: userId, role: "player", club_id: clubId, team_id: secondTeamId }]
         : []),
     ]);
     if (url.pathname === "/rest/v1/events") {
       if (behavior.deferHomeEvents) await homeEventsGate;
-      return json(route, [{
+      const eventRows = [{
       id: "00000000-0000-4000-8000-000000009040",
       title: offlineEventTitle,
       type: "game",
       event_date: "2026-08-15T00:00:00.000Z",
-      start_time: "10:00:00",
+      start_time: behavior.pitchBoardController ? "2026-08-15T10:00:00.000Z" : "10:00:00",
       end_time: "11:00:00",
       description: "Cached journey fixture",
       address: "1 Local Test Road",
@@ -265,7 +266,13 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       updated_at: "2026-07-31T00:00:00.000Z",
       teams: { name: "Synthetic Messaging Team", default_match_arrival_minutes: 30, default_rsvp_audience: "all" },
       clubs: { name: "Synthetic Club", sport: "soccer" },
-      }]);
+      }];
+      const teamCardSingle = behavior.pitchBoardController && url.searchParams.has("team_id");
+      // The pitch-board entry journey does not need a next-event card. Return
+      // an intentional empty maybeSingle result so unrelated date rendering
+      // cannot obscure the entry/resume behavior under test.
+      if (teamCardSingle) return json(route, null);
+      return json(route, singular ? eventRows[0] : eventRows);
     }
     if (url.pathname === "/rest/v1/photos") return json(route, [{
       id: "00000000-0000-4000-8000-000000009041",
@@ -290,6 +297,26 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
         return json(route, [], 201);
       }
       return json(route, []);
+    }
+    if (url.pathname === "/rest/v1/team_subscriptions") {
+      const subscription = {
+      team_id: teamId,
+      status: "active",
+      is_pro: true,
+      is_pro_football: true,
+      minutes_per_half: 20,
+      team_size: 7,
+      };
+      return json(route, singular ? subscription : (behavior.pitchBoardController ? [subscription] : []));
+    }
+    if (url.pathname === "/rest/v1/club_subscriptions") {
+      const subscription = {
+      club_id: clubId,
+      status: "active",
+      is_pro: true,
+      is_pro_football: true,
+      };
+      return json(route, singular ? subscription : (behavior.pitchBoardController ? [subscription] : []));
     }
     if (url.pathname === "/rest/v1/message_reactions") {
       if (!reactionAvailable) return json(route, []);
@@ -407,6 +434,11 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
         },
       ]);
     }
+    if (behavior.pitchBoardController && [
+      "/rest/v1/rpc/has_active_pro_for_team",
+      "/rest/v1/rpc/has_active_pro_for_club",
+      "/rest/v1/rpc/user_has_any_club_pro",
+    ].includes(url.pathname)) return json(route, true);
     if (url.pathname.startsWith("/rest/v1/rpc/")) return json(route, 0);
     if (url.pathname.startsWith("/rest/v1/")) return json(route, []);
     if (url.pathname.startsWith("/functions/v1/")) return json(route, {});
@@ -1295,6 +1327,33 @@ test(`${nativeCase.label} cold WebView restart returns to the exact open pitchbo
   await expect(page).not.toHaveURL(/\/(?:messages|events|media)(?:\/|\?|$)/);
 });
 
+test(`${nativeCase.label} cold WebView restart overrides a stale non-pitchboard history entry`, async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { nativeRuntime: nativeCase.platform });
+  const pitchBoardPath = `/teams/${teamId}?from=game-day&tab=lineup`;
+
+  await page.goto("/messages");
+  await page.evaluate(({ pitchBoardPath, teamId }) => {
+    localStorage.setItem("ignite-pitch-board-open", "true");
+    localStorage.setItem("ignite-pitch-board-open-path", pitchBoardPath);
+    localStorage.setItem("ignite-pitch-board-open-at", String(Date.now()));
+    localStorage.setItem("ignite-pitch-board-last-context", JSON.stringify({
+      teamId,
+      teamName: "Synthetic Messaging Team",
+      readOnly: false,
+    }));
+  }, { pitchBoardPath, teamId });
+
+  // Recreate the document on the wrong history entry while retaining only
+  // the durable state that survives a native process/WebView recreation.
+  await page.reload();
+
+  await expect(page).toHaveURL(
+    new RegExp(`/teams/${teamId}\\?from=game-day&tab=lineup&openPitchBoard=1$`),
+    { timeout: 6_000 },
+  );
+});
+
 test(`${nativeCase.label} warm unlock restores a lost pitchboard modal without changing page`, async ({ page }) => {
   await page.unrouteAll({ behavior: "wait" });
   await install(page, defaultBell, { nativeRuntime: nativeCase.platform });
@@ -1329,6 +1388,79 @@ test(`${nativeCase.label} warm unlock restores a lost pitchboard modal without c
   await expect(page).toHaveURL(
     new RegExp(`/teams/${teamId}\\?from=game-day&openPitchBoard=1$`),
     { timeout: 5_000 },
+  );
+});
+
+test(`${nativeCase.label} Team page entry reopens the actual pitchboard after WebView recreation`, async ({ page }) => {
+  test.slow();
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, {
+    nativeRuntime: nativeCase.platform,
+    pitchBoardController: true,
+  });
+  await page.goto(`/teams/${teamId}`);
+
+  const entry = page.getByRole("button", { name: "Pitch Board" });
+  await expect(entry).toBeVisible({ timeout: 15_000 });
+  await entry.click();
+
+  await expect.poll(() => page.evaluate(() => ({
+    open: localStorage.getItem("ignite-pitch-board-open"),
+    path: localStorage.getItem("ignite-pitch-board-open-path"),
+    mounted: (window as any).__pitchBoardMounted === true,
+  })), { timeout: 15_000 }).toEqual({
+    open: "true",
+    path: `/teams/${teamId}`,
+    mounted: true,
+  });
+
+  // A native OS can destroy and recreate the WebView during lock. This drops
+  // React modal state and globals while retaining localStorage.
+  await page.reload();
+
+  await expect.poll(() => page.evaluate(() => ({
+    open: localStorage.getItem("ignite-pitch-board-open"),
+    mounted: (window as any).__pitchBoardMounted === true,
+  })), { timeout: 15_000 }).toEqual({ open: "true", mounted: true });
+  await expect(page).toHaveURL(new RegExp(`/teams/${teamId}(?:\\?|$)`));
+});
+
+test(`${nativeCase.label} warm unlock repairs non-pitchboard route drift while locked`, async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { nativeRuntime: nativeCase.platform });
+  const pitchBoardPath = `/teams/${teamId}?from=game-day&tab=lineup`;
+  await page.goto("/media");
+
+  await page.evaluate(({ pitchBoardPath, teamId }) => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    localStorage.setItem("ignite-pitch-board-open", "true");
+    localStorage.setItem("ignite-pitch-board-open-path", pitchBoardPath);
+    localStorage.setItem("ignite-pitch-board-open-at", String(Date.now()));
+    localStorage.setItem("ignite-pitch-board-last-context", JSON.stringify({
+      teamId,
+      teamName: "Synthetic Messaging Team",
+      readOnly: false,
+    }));
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = false;
+  }, { pitchBoardPath, teamId });
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    window.dispatchEvent(new Event("pageshow"));
+  });
+
+  await expect(page).toHaveURL(
+    new RegExp(`/teams/${teamId}\\?from=game-day&tab=lineup&openPitchBoard=1$`),
+    { timeout: 6_000 },
   );
 });
 
