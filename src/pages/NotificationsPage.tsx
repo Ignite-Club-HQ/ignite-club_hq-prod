@@ -33,6 +33,8 @@ import {
   NOTIFICATION_FALLBACK_PATH,
   type ChatTarget,
 } from "@/lib/notificationChatRouting";
+import { requestClubSwitchForChatTarget } from "@/lib/notificationClubSwitch";
+
 
 /**
  * A notification tap whose message lookup FAILED (offline / dropped socket) must
@@ -64,8 +66,16 @@ function jumpAndNavigate(
 ) {
   console.log("[InAppNotifTap] jumpAndNavigate", { kind, targetId, messageId, to });
   try { setPendingChatJump(kind, targetId, messageId); } catch { /* ignore */ }
-  navigate(withChatJumpNonce(to));
+  // A bell tap is a user-driven action, so it MAY move the global active-club
+  // filter to the club that owns this thread (same rationale as a push tap).
+  // Resolve first (bounded) so the destination doesn't render under the wrong
+  // club, then navigate. Membership is verified before the filter actually
+  // changes, inside useNotificationClubSwitch.
+  void requestClubSwitchForChatTarget(kind, targetId)
+    .catch(() => { /* never block navigation */ })
+    .finally(() => navigate(withChatJumpNonce(to)));
 }
+
 
 interface Notification {
   id: string;

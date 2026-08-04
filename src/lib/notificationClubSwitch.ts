@@ -141,3 +141,57 @@ export function requestClubSwitchForNotification(data: any, url: string | null |
     if (clubId) stash(clubId);
   });
 }
+
+/**
+ * Resolve the owning club for an already-resolved chat target (in-app
+ * notification bell taps, where we have kind + targetId rather than a raw push
+ * payload). DM/broadcast are not club-scoped and resolve to `null`.
+ */
+export async function resolveClubIdForChatTarget(
+  kind: ChatJumpKind,
+  targetId: string | null,
+): Promise<string | null> {
+  try {
+    if (!targetId) return null;
+    if (kind === "club") return targetId;
+    if (kind === "team") {
+      const { data } = await supabase.from("teams").select("club_id").eq("id", targetId).maybeSingle();
+      return (data as any)?.club_id ?? null;
+    }
+    if (kind === "group") {
+      const { data } = await supabase.from("chat_groups").select("club_id").eq("id", targetId).maybeSingle();
+      return (data as any)?.club_id ?? null;
+    }
+    if (kind === "club_admin") {
+      const { data } = await supabase
+        .from("club_admin_conversations").select("club_id").eq("id", targetId).maybeSingle();
+      return (data as any)?.club_id ?? null;
+    }
+    return null;
+  } catch (err) {
+    console.warn("[NotificationClubSwitch] target resolve failed", err);
+    return null;
+  }
+}
+
+/**
+ * Bell-tap entry point: stash the pending club switch BEFORE navigating where
+ * practical, so the destination thread does not render under the wrong club
+ * context. Bounded by `timeoutMs` — navigation is never blocked for long, and a
+ * slow lookup still stashes (and is drained by `useNotificationClubSwitch`)
+ * once it resolves.
+ */
+export async function requestClubSwitchForChatTarget(
+  kind: ChatJumpKind,
+  targetId: string | null,
+  timeoutMs = 600,
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  const resolving = resolveClubIdForChatTarget(kind, targetId).then((clubId) => {
+    if (clubId) stash(clubId);
+  });
+  await Promise.race([
+    resolving,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
