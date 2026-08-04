@@ -954,7 +954,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     });
   }, [user?.id, activeClubFilter, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers]);
 
-  const showSkeleton = (!initialized || isLoading || (isFetching && items.length === 0)) && !snapshot;
+  const showSkeleton = (!initialized || isLoading || (isFetching && scopedItems.length === 0)) && !snapshot;
 
   // Section is "ready" only once the primary teams query has actually settled
   // (i.e. not its first load and not a background refetch with no items yet).
@@ -962,7 +962,7 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   // signal ready off the snapshot alone — otherwise My Teams reports ready
   // immediately while Next Up is still waiting on its first hero, and they
   // visibly desync on native cold opens.
-  const dataSettled = initialized && !isLoading && !(isFetching && items.length === 0);
+  const dataSettled = initialized && !isLoading && !(isFetching && scopedItems.length === 0);
   const sectionReady = dataSettled || (!!snapshot && !isLoading);
 
   useEffect(() => {
@@ -984,7 +984,11 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
   // Without this fallback the carousel vanishes until relaunch. The snapshot
   // write effect already refuses to overwrite the cache with an empty list,
   // so this only ever shows genuinely stale-but-real data during the blip.
-  const displayItems = items.length > 0 ? items : (snapshot?.items ?? []);
+  // Snapshot rows are scoped to the same club filter key, but re-filter anyway.
+  const snapshotItems = activeClubFilter
+    ? (snapshot?.items ?? []).filter(i => i.club_id === activeClubFilter)
+    : (snapshot?.items ?? []);
+  const displayItems = scopedItems.length > 0 ? scopedItems : snapshotItems;
 
   // Empty state: onboarding with clear paths
   if (displayItems.length === 0) {
