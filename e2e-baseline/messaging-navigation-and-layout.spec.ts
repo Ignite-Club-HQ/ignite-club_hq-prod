@@ -5,6 +5,7 @@ const userId = "00000000-0000-4000-8000-000000009001";
 const teamId = "00000000-0000-4000-8000-000000009002";
 const secondTeamId = "00000000-0000-4000-8000-000000009012";
 const clubId = "00000000-0000-4000-8000-000000009003";
+const otherClubId = "00000000-0000-4000-8000-000000009013";
 const targetId = "00000000-0000-4000-8000-000000009020";
 const olderSearchId = "00000000-0000-4000-8000-000000009021";
 const oldPushTargetId = "00000000-0000-4000-8000-000000009022";
@@ -38,6 +39,8 @@ type HarnessBehavior = {
   deferHomeEvents?: boolean;
   deferMessageHistory?: boolean;
   pitchBoardController?: boolean;
+  wrongActiveClub?: boolean;
+  wrongScopeCachedMessages?: boolean;
 };
 type HarnessState = {
   inserts: Record<string, unknown>[];
@@ -171,7 +174,7 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       };
     });
   }
-  await page.addInitScript(({ user, userId }) => {
+  await page.addInitScript(({ user, userId, teamId, secondTeamId, otherClubId, wrongActiveClub, wrongScopeCachedMessages }) => {
     let syntheticOnline = localStorage.getItem("synthetic-network-offline") !== "1";
     if (!syntheticOnline) {
       Object.defineProperty(navigator, "onLine", {
@@ -199,7 +202,36 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
     }));
     localStorage.setItem("ios-install-prompt-dismissed", Date.now().toString());
     localStorage.setItem("cookie-consent", "accepted");
-  }, { user, userId });
+    if (wrongActiveClub) {
+      localStorage.setItem(`ignite-club-theme-${userId}`, otherClubId);
+      localStorage.setItem(`ignite-club-theme-data-${userId}`, JSON.stringify({
+        clubId: otherClubId,
+        clubName: "Other Synthetic Club",
+        primaryColor: "#112233",
+        secondaryColor: "#445566",
+        logoUrl: null,
+        sport: null,
+        cachedAt: Date.now(),
+      }));
+    }
+    if (wrongScopeCachedMessages) {
+      localStorage.setItem(`ignite_message_cache_team_${teamId}`, JSON.stringify({
+        timestamp: Date.now(),
+        messages: Array.from({ length: 5 }, (_, index) => ({
+          id: `00000000-0000-4000-8000-${String(9800 + index).padStart(12, "0")}`,
+          team_id: secondTeamId,
+          author_id: userId,
+          text: `Wrong-thread cached message ${index}`,
+          created_at: new Date(Date.UTC(2026, 6, 27, 8, index)).toISOString(),
+          image_url: null,
+          reply_to_id: null,
+          profiles: { display_name: "Wrong Thread User", avatar_url: null },
+          reactions: [],
+          reply_to: null,
+        })),
+      }));
+    }
+  }, { user, userId, teamId, secondTeamId, otherClubId, wrongActiveClub: !!behavior.wrongActiveClub, wrongScopeCachedMessages: !!behavior.wrongScopeCachedMessages });
   await page.route("**/*", async route => {
     const req = route.request(); const url = new URL(req.url());
     if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) return route.abort("blockedbyclient");
@@ -225,14 +257,24 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       const exactId = url.searchParams.get("id")?.replace("eq.", "");
       return json(route, singular ? teamRows.find((row) => row.id === exactId) ?? teamRows[0] : teamRows);
     }
-    if (url.pathname === "/rest/v1/clubs") return json(route, singular ? { id: clubId, name: "Synthetic Club", is_pro: true } : [{ id: clubId, name: "Synthetic Club", is_pro: true }]);
+    if (url.pathname === "/rest/v1/clubs") {
+      const clubRows = [
+        { id: clubId, name: "Synthetic Club", is_pro: true },
+        ...(behavior.wrongActiveClub ? [{ id: otherClubId, name: "Other Synthetic Club", is_pro: true }] : []),
+      ];
+      const exactId = url.searchParams.get("id")?.replace("eq.", "");
+      return json(route, singular ? clubRows.find((row) => row.id === exactId) ?? clubRows[0] : clubRows);
+    }
     if (url.pathname === "/rest/v1/profiles") {
-      const rows = [{ id: userId, display_name: "Synthetic Member", avatar_url: null, active_club_id: clubId }, { id: "00000000-0000-4000-8000-000000009099", display_name: "Alex Member", avatar_url: null, active_club_id: clubId }];
+      const rows = [{ id: userId, display_name: "Synthetic Member", avatar_url: null, active_club_id: clubId, active_club_theme_id: behavior.wrongActiveClub ? otherClubId : null }, { id: "00000000-0000-4000-8000-000000009099", display_name: "Alex Member", avatar_url: null, active_club_id: clubId }];
       const exactId = url.searchParams.get("id")?.startsWith("eq.") ? url.searchParams.get("id")!.slice(3) : null;
       return json(route, singular || exactId ? rows.find(row => row.id === exactId) ?? rows[0] : rows);
     }
     if (url.pathname === "/rest/v1/user_roles") return json(route, [
       { user_id: userId, role: behavior.pitchBoardController ? "coach" : "player", club_id: clubId, team_id: teamId },
+      ...(behavior.wrongActiveClub
+        ? [{ user_id: userId, role: "club_member", club_id: otherClubId, team_id: null }]
+        : []),
       ...(behavior.multipleInboxTeams
         ? [{ user_id: userId, role: "player", club_id: clubId, team_id: secondTeamId }]
         : []),
@@ -779,6 +821,53 @@ test("a mounted chat reconciles incoming realtime messages and reactions", async
   }), { reactionId, realtimeId, otherId: "00000000-0000-4000-8000-000000009099" });
   await expect(bubble.getByRole("button", { name: "1 like reaction" })).toBeVisible({ timeout: 15_000 });
 
+});
+
+test("a mounted thread rejects a realtime message belonging to another team", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { mockRealtime: true });
+  await page.goto(`/messages/${teamId}`);
+  await expect(page.getByRole("heading", { name: "Synthetic Messaging Team" })).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => page.evaluate(() => (window as any).__syntheticRealtimeSockets
+    .flatMap((socket: any) => socket.channels.flatMap((channel: any) => channel.bindings))
+    .filter((binding: any) => binding.table === "team_messages").length)).toBeGreaterThan(0);
+  await page.waitForTimeout(250);
+
+  const foreignId = "00000000-0000-4000-8000-000000009779";
+  const foreignRow = {
+    ...messages[0],
+    id: foreignId,
+    team_id: secondTeamId,
+    text: "Must never render in the open team thread",
+    created_at: "2026-07-27T10:16:30.000Z",
+  };
+  await page.evaluate(({ row }) => {
+    (window as any).__emitSyntheticPostgresChange("team_messages", "INSERT", row);
+  }, { row: foreignRow });
+  await page.waitForTimeout(500);
+
+  await expect(page.locator(`#message-${foreignId}`)).toHaveCount(0);
+  await expect(page.getByText("Must never render in the open team thread", { exact: true })).toHaveCount(0);
+  await expect(page.locator(`#message-${messages[29].id}`)).toBeVisible();
+});
+
+test("a thread never paints cached rows whose immutable team scope belongs elsewhere", async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, {
+    deferMessageHistory: true,
+    wrongScopeCachedMessages: true,
+  });
+
+  try {
+    await page.goto(`/messages/${teamId}`);
+    await expect(page.getByRole("heading", { name: "Synthetic Messaging Team" })).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(500);
+    await expect(page.getByText(/Wrong-thread cached message/)).toHaveCount(0);
+  } finally {
+    state.releaseMessageHistory();
+  }
+  await expect(page.locator(`#message-${messages[29].id}`)).toBeVisible({ timeout: 15_000 });
 });
 
 test("a realtime inbox preview and the subsequently opened thread converge on the same new message", async ({ page }) => {
@@ -1623,6 +1712,24 @@ test("notification bell resolves a team notification to its exact message", asyn
   await page.getByText("Alex sent a message", { exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/messages/${teamId}\\?.*message=${targetId}`));
   await expect(page.locator(`#message-${targetId}`)).toContainText("Exact synthetic notification target", { timeout: 15_000 });
+});
+
+test("a cross-club message notification switches club context before revealing its exact thread", async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, defaultBell, { wrongActiveClub: true });
+  await page.goto("/notifications");
+
+  await expect.poll(() => page.evaluate(({ userId }) =>
+    localStorage.getItem(`ignite-club-theme-${userId}`), { userId })).toBe(otherClubId);
+  await page.getByText("Alex sent a message", { exact: true }).click();
+
+  await expect(page).toHaveURL(new RegExp(`/messages/${teamId}\\?.*message=${targetId}`));
+  await expect(page.locator(`#message-${targetId}`)).toContainText(
+    "Exact synthetic notification target",
+    { timeout: 15_000 },
+  );
+  await expect.poll(() => page.evaluate(({ userId }) =>
+    localStorage.getItem(`ignite-club-theme-${userId}`), { userId })).toBe(clubId);
 });
 
 test("notification bell falls back safely when its message is deleted or inaccessible", async ({ page }) => {
