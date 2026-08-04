@@ -33,3 +33,15 @@ export function mergeOlderChatMessagesChronologically<
   currentMessages?.forEach((message) => byId.set(message.id, message));
   return orderChatMessagesChronologically([...byId.values()]);
 }
+
+/**
+ * Preserve the strict-timestamp pagination contract used by surfaces whose
+ * backend query guarantees that every returned row predates the current page.
+ * This intentionally does not deduplicate or reorder either input.
+ */
+export function prependStrictlyOlderChatMessages<TMessage>(
+  olderMessages: readonly TMessage[],
+  currentMessages: readonly TMessage[] | undefined,
+): TMessage[] {
+  return [...olderMessages, ...(currentMessages ?? [])];
+}

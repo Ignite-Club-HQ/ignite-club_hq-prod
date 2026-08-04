@@ -265,6 +265,16 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   lint, and three Group Playwright journeys covering exact-scope send,
   optimistic reaction visibility/deduplication and denied-write rollback. No
   runtime defect was found.
+- M4c now also extracts the distinct strict-timestamp prepend rule shared by
+  Club and Broadcast. Their queries retain the exact `created_at < oldest`
+  boundary, reverse the backend page before enrichment and intentionally
+  concatenate without client-side deduplication or reordering. This is kept
+  separate from the Team/Group current-row-wins merge so the refactor does not
+  invent new pagination semantics.
+- Club/Broadcast extension verification passed 134 focused contracts,
+  TypeScript, focused lint and three Playwright journeys covering Club's exact
+  send scope plus authorized and read-only Broadcast behavior. No runtime
+  defect was found.
 
 ## Objective
 

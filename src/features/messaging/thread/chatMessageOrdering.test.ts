@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   mergeOlderChatMessagesChronologically,
   orderChatMessagesChronologically,
+  prependStrictlyOlderChatMessages,
 } from "./chatMessageOrdering";
 
 describe("orderChatMessagesChronologically", () => {
@@ -44,6 +45,47 @@ describe("orderChatMessagesChronologically", () => {
 
     expect(result).not.toBe(messages);
     expect(messages.map((message) => message.id)).toEqual(["newer", "older"]);
+  });
+});
+
+describe("prependStrictlyOlderChatMessages", () => {
+  it("preserves older-page and current-page order while prepending", () => {
+    expect(
+      prependStrictlyOlderChatMessages(
+        [{ id: "older-a" }, { id: "older-b" }],
+        [{ id: "current-a" }, { id: "current-b" }],
+      ).map((message) => message.id),
+    ).toEqual(["older-a", "older-b", "current-a", "current-b"]);
+  });
+
+  it("intentionally preserves repeated ids because strict timestamp queries own the boundary", () => {
+    expect(
+      prependStrictlyOlderChatMessages(
+        [{ id: "repeated", source: "older" }],
+        [{ id: "repeated", source: "current" }],
+      ),
+    ).toEqual([
+      { id: "repeated", source: "older" },
+      { id: "repeated", source: "current" },
+    ]);
+  });
+
+  it("supports an absent current page without returning an input reference", () => {
+    const older = [{ id: "older" }];
+    const result = prependStrictlyOlderChatMessages(older, undefined);
+
+    expect(result).toEqual(older);
+    expect(result).not.toBe(older);
+  });
+
+  it("does not mutate either input", () => {
+    const older = [{ id: "older" }];
+    const current = [{ id: "current" }];
+
+    prependStrictlyOlderChatMessages(older, current);
+
+    expect(older).toEqual([{ id: "older" }]);
+    expect(current).toEqual([{ id: "current" }]);
   });
 });
 

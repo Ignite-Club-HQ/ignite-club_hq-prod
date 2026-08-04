@@ -50,7 +50,10 @@ import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { BROADCAST_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
-import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
+import {
+  orderChatMessagesChronologically,
+  prependStrictlyOlderChatMessages,
+} from "@/features/messaging/thread/chatMessageOrdering";
 
 const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -640,7 +643,10 @@ export default function BroadcastChatPage() {
           const existingMessages: Message[] = old?.messages || [];
           return {
             ...(old || {}),
-            messages: [...olderMessages, ...existingMessages],
+            messages: prependStrictlyOlderChatMessages(
+              olderMessages,
+              existingMessages,
+            ),
             hasOlderMessages: hasMore,
           };
         });

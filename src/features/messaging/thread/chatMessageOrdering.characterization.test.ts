@@ -46,4 +46,16 @@ describe("chat chronological-order boundary consumption", () => {
       "reactions: [...(reactionsData as MessageReaction[]), ...(old.reactions || [])]",
     );
   });
+
+  it.each(["ClubChatPage.tsx", "BroadcastChatPage.tsx"])(
+    "%s preserves its strict-timestamp prepend contract",
+    (name) => {
+      const source = page(name);
+
+      expect(source).toContain('.lt("created_at", oldestMessage.created_at)');
+      expect(source).toContain("prependStrictlyOlderChatMessages(");
+      expect(source).toContain("olderMessages,");
+      expect(source).toContain("existingMessages,");
+    },
+  );
 });

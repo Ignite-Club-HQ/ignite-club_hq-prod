@@ -99,7 +99,10 @@ import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { buildChatScopeFilter, CLUB_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
-import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
+import {
+  orderChatMessagesChronologically,
+  prependStrictlyOlderChatMessages,
+} from "@/features/messaging/thread/chatMessageOrdering";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -956,7 +959,10 @@ export default function ClubChatPage() {
           const existingMessages: Message[] = old?.messages || [];
           return {
             ...(old || {}),
-            messages: [...olderMessages, ...existingMessages],
+            messages: prependStrictlyOlderChatMessages(
+              olderMessages,
+              existingMessages,
+            ),
             hasOlderMessages: hasMore,
           };
         });
