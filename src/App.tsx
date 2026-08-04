@@ -168,10 +168,10 @@ const RemountOnParamChange = ({
   children,
 }: {
   param: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) => {
   const params = useParams();
-  return <Suspense key={params[param] ?? "none"} fallback={null}>{children}</Suspense>;
+  return <Fragment key={params[param] ?? "none"}>{children}</Fragment>;
 };
 
 
