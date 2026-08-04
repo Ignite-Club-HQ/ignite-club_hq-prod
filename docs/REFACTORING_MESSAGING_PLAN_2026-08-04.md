@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1, M2 and M3 technically complete locally; manual UI review deferred
+Status: M1, M2 and M3 technically complete locally; M4a query-envelope normalization started; manual UI review deferred
 
 ## Progress
 
@@ -212,6 +212,17 @@ Status: M1, M2 and M3 technically complete locally; manual UI review deferred
   The cumulative source diff confirms that Supabase operations, mutation
   payloads, authorization rules, Realtime tables/filters and timing constants
   were not changed. M3 is technically ready for deferred manual UI review.
+- M4a begins thread lifecycle extraction with one pure query-data boundary that
+  interprets the retained legacy array and `{ messages }` envelope shapes. It
+  initially serves Broadcast and Direct Message only. Fetching, sorting,
+  reconciliation, cache writes, loading states, navigation and Realtime remain
+  page-owned; the remaining surfaces will migrate only after this slice passes.
+- M4a initial verification: 7 pure query-data tests, 2 source-consumption
+  contracts and 99 related adapter/reconciliation/load-state/page contracts
+  passed (108 total), with TypeScript, focused lint and production build. Four
+  Playwright journeys covering denied DM access, exact DM sending, authorized
+  broadcast sending and read-only broadcast access also passed. No runtime
+  defect was found.
 
 ## Objective
 

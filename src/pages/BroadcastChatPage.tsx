@@ -49,6 +49,7 @@ import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { BROADCAST_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
 
 const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -370,9 +371,7 @@ export default function BroadcastChatPage() {
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
-    const msgList = Array.isArray(messagesData) 
-      ? messagesData 
-      : (messagesData as any).messages || [];
+    const msgList = extractChatQueryMessages<Message>(messagesData);
     // Sort by created_at to ensure proper ordering
     const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)

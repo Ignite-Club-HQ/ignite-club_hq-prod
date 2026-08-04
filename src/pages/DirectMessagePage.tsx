@@ -88,6 +88,7 @@ import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { buildChatScopeFilter, DIRECT_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
 
 
 const MESSAGES_PER_PAGE = 15;
@@ -626,7 +627,7 @@ export default function DirectMessagePage() {
     if (!conversationId || !authReady) return;
     if (messagesLoading) return;
     if (!messagesData) return;
-    const list = Array.isArray(messagesData) ? messagesData : messagesData.messages;
+    const list = extractChatQueryMessages<DirectMessage>(messagesData);
     if (list && list.length === 0) {
       emptyRetriedRef.current = true;
       const t = setTimeout(() => {
@@ -641,9 +642,7 @@ export default function DirectMessagePage() {
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
-    const msgList = Array.isArray(messagesData) 
-      ? messagesData 
-      : (messagesData as any).messages || [];
+    const msgList = extractChatQueryMessages<DirectMessage>(messagesData);
     const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
