@@ -35,4 +35,15 @@ describe("chat chronological-order boundary consumption", () => {
     expect(source).toContain("existing,");
     expect(source).toContain("reconcileMessages(reconcileScope, sorted)");
   });
+
+  it("Group merges older messages without moving its separate reaction-array contract", () => {
+    const source = page("GroupChatPage.tsx");
+
+    expect(source).toContain("mergeOlderChatMessagesChronologically(");
+    expect(source).toContain("enrichedOlderMessages,");
+    expect(source).toContain("old.messages,");
+    expect(source).toContain(
+      "reactions: [...(reactionsData as MessageReaction[]), ...(old.reactions || [])]",
+    );
+  });
 });

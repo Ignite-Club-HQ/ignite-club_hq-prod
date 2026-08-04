@@ -257,6 +257,14 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   TypeScript, focused lint and the Playwright older-history journey covering
   boundary deduplication and visible-anchor preservation. No runtime defect was
   found.
+- M4c now applies the same message-only boundary merge to Group after
+  independently characterizing its cache shape. Its separately stored reaction
+  rows retain their original prepend expression and lifecycle; fetching,
+  enrichment, cache ownership and Virtuoso behavior remain page-owned.
+  Extension verification passed 128 focused contracts, TypeScript, focused
+  lint, and three Group Playwright journeys covering exact-scope send,
+  optimistic reaction visibility/deduplication and denied-write rollback. No
+  runtime defect was found.
 
 ## Objective
 

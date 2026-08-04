@@ -122,7 +122,10 @@ import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { buildChatScopeFilter, GROUP_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
-import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
+import {
+  mergeOlderChatMessagesChronologically,
+  orderChatMessagesChronologically,
+} from "@/features/messaging/thread/chatMessageOrdering";
 
 
 
@@ -1217,13 +1220,12 @@ export default function GroupChatPage() {
       queueAnchoredPrepend(() => {
         queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(groupMessagesQueryKey, (old: any) => {
           if (!old) return { messages: enrichedOlderMessages, reactions: reactionsData as MessageReaction[], hasOlderMessages: hasMore };
-          const existingIds = new Set((old.messages || []).map((m: GroupMessage) => m.id));
           return {
             ...old,
-            messages: [
-              ...enrichedOlderMessages.filter((m) => !existingIds.has(m.id)),
-              ...old.messages,
-            ],
+            messages: mergeOlderChatMessagesChronologically(
+              enrichedOlderMessages,
+              old.messages,
+            ),
             reactions: [...(reactionsData as MessageReaction[]), ...(old.reactions || [])],
             hasOlderMessages: hasMore,
           };
