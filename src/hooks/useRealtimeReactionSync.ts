@@ -30,8 +30,17 @@ export function useRealtimeReactionSync<T extends ReactionCarrier>(opts: {
   readMessages?: (old: any) => T[];
   /** Write the message array back into the cached query payload. */
   writeMessages?: (old: any, next: T[]) => any;
+  /**
+   * Reads the currently rendered messages (typically a `localMessagesRef`).
+   * Supplying this enables scope enforcement: Postgres changes cannot filter
+   * `message_reactions` by chat scope, so EVERY reaction in the platform
+   * reaches every open chat page. Reactions whose parent message is not loaded
+   * in this chat's stores are dropped instead of being recorded into this
+   * scope's reconciliation registry / caches.
+   */
+  getLocalMessages?: () => T[] | undefined;
 }) {
-  const { scopeKey, queryKey, setLocalMessages, readMessages, writeMessages } = opts;
+  const { scopeKey, queryKey, setLocalMessages, readMessages, writeMessages, getLocalMessages } = opts;
   const queryClient = useQueryClient();
 
   const keyToken = useMemo(() => JSON.stringify(queryKey), [queryKey]);
@@ -54,9 +63,23 @@ export function useRealtimeReactionSync<T extends ReactionCarrier>(opts: {
     [queryClient, keyToken, setLocalMessages],
   );
 
+  const isKnownMessage = useCallback(
+    (messageId: string) => {
+      if (!messageId) return false;
+      const key = JSON.parse(keyToken) as unknown[];
+      const cached = queryClient.getQueryData(key);
+      if (cached && read(cached).some((m) => m.id === messageId)) return true;
+      return Boolean(getLocalMessages?.()?.some((m) => m.id === messageId));
+    },
+    // `read` is pure by contract; excluded to keep this callback stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [queryClient, keyToken, getLocalMessages],
+  );
+
   const applyRealtimeReaction = useCallback(
     (messageId: string, raw: { id: string; user_id: string; reaction_type: string }) => {
       if (!messageId || !raw?.id) return;
+      if (getLocalMessages && !isKnownMessage(messageId)) return;
       const reaction: ReconcilableReaction = {
         id: raw.id,
         user_id: raw.user_id,
@@ -65,16 +88,17 @@ export function useRealtimeReactionSync<T extends ReactionCarrier>(opts: {
       recordRealtimeReaction(scopeKey, messageId, reaction);
       mutateStores((messages) => upsertReactionInMessages(messages, messageId, reaction));
     },
-    [scopeKey, mutateStores],
+    [scopeKey, mutateStores, getLocalMessages, isKnownMessage],
   );
 
   const applyRealtimeReactionDelete = useCallback(
     (messageId: string | null | undefined, reactionId: string) => {
       if (!reactionId) return;
+      if (getLocalMessages && messageId && !isKnownMessage(messageId)) return;
       recordRealtimeReactionDelete(scopeKey, messageId, reactionId);
       mutateStores((messages) => removeReactionFromMessages(messages, reactionId));
     },
-    [scopeKey, mutateStores],
+    [scopeKey, mutateStores, getLocalMessages, isKnownMessage],
   );
 
   return { applyRealtimeReaction, applyRealtimeReactionDelete };
