@@ -833,39 +833,37 @@ export default function UpgradeProPage() {
           </CardContent>
         </Card>
 
-        {!isNativePlatform() && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Ticket className="h-5 w-5" />
-                Have a Promo Code?
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor={`promo-${tier}`}>Enter promo code</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id={`promo-${tier}`}
-                    placeholder={isPro ? "PROMO2024" : "FOOTBALL2024"}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    className="uppercase"
-                  />
-                  <Button 
-                    onClick={() => handleApplyPromo(tier)} 
-                    disabled={!code.trim() || isValidating || applyPromoMutation.isPending}
-                  >
-                    {(isValidating || applyPromoMutation.isPending) && (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    )}
-                    Apply
-                  </Button>
-                </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Ticket className="h-5 w-5" />
+              Have a Promo Code?
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor={`promo-${tier}`}>Enter promo code</Label>
+              <div className="flex gap-2">
+                <Input
+                  id={`promo-${tier}`}
+                  placeholder={isPro ? "PROMO2024" : "FOOTBALL2024"}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  className="uppercase"
+                />
+                <Button
+                  onClick={() => handleApplyPromo(tier)}
+                  disabled={!code.trim() || isValidating || applyPromoMutation.isPending}
+                >
+                  {(isValidating || applyPromoMutation.isPending) && (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  )}
+                  Apply
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          </CardContent>
+        </Card>
       </>
     );
   };
