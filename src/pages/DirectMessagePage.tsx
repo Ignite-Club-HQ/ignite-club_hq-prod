@@ -89,7 +89,10 @@ import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { buildChatScopeFilter, DIRECT_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
-import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
+import {
+  orderChatMessagesChronologically,
+  prependStrictlyOlderChatMessages,
+} from "@/features/messaging/thread/chatMessageOrdering";
 
 
 const MESSAGES_PER_PAGE = 15;
@@ -904,7 +907,10 @@ export default function DirectMessagePage() {
         dmQueryKey,
         (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
           const existing = old?.messages || [];
-          const merged = [...reconciledOlder, ...existing];
+          const merged = prependStrictlyOlderChatMessages(
+            reconciledOlder,
+            existing,
+          );
           cacheDirectMessages(conversationId, merged);
           return { ...(old || {}), messages: merged, hasOlderMessages: hasMore };
         },

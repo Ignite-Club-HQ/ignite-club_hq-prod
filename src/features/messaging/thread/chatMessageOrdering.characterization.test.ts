@@ -58,4 +58,16 @@ describe("chat chronological-order boundary consumption", () => {
       expect(source).toContain("existingMessages,");
     },
   );
+
+  it("Direct Message preserves its strict prepend before persisting the merged cache", () => {
+    const source = page("DirectMessagePage.tsx");
+    const merge = source.indexOf("const merged = prependStrictlyOlderChatMessages(");
+    const persist = source.indexOf("cacheDirectMessages(conversationId, merged)", merge);
+
+    expect(source).toContain('.lt("created_at", oldestMessage.created_at)');
+    expect(merge).toBeGreaterThan(-1);
+    expect(source.slice(merge, persist)).toContain("reconciledOlder,");
+    expect(source.slice(merge, persist)).toContain("existing,");
+    expect(persist).toBeGreaterThan(merge);
+  });
 });

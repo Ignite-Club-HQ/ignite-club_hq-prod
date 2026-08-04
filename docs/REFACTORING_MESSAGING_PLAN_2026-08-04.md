@@ -275,6 +275,14 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   TypeScript, focused lint and three Playwright journeys covering Club's exact
   send scope plus authorized and read-only Broadcast behavior. No runtime
   defect was found.
+- M4c extends the strict-timestamp prepend boundary to Direct Message. The
+  exact conversation-scoped fetch, enrichment and reconciliation remain in the
+  page, and the fully merged array is still persisted through
+  `cacheDirectMessages` before the React Query cache result is returned.
+- Direct Message extension verification passed 135 focused contracts,
+  TypeScript and focused lint, plus four Playwright journeys covering denied
+  permission, exact-scope send and usable desktop/narrow-phone composers. No
+  runtime defect was found.
 
 ## Objective
 
