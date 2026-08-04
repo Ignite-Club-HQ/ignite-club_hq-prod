@@ -92,6 +92,7 @@ const EXPLICIT_SESSION_KEYS = [
 function sweepStorage(
   storage: Storage | undefined | null,
   preserve: Set<string>,
+  extraPrefixes: string[] = [],
 ): void {
   if (!storage) return;
   try {
@@ -99,7 +100,10 @@ function sweepStorage(
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
       if (!key) continue;
-      if (!key.startsWith(IGNITE_PREFIX)) continue;
+      const matches =
+        key.startsWith(IGNITE_PREFIX) ||
+        extraPrefixes.some((prefix) => key.startsWith(prefix));
+      if (!matches) continue;
       if (preserve.has(key)) continue;
       toRemove.push(key);
     }
@@ -140,6 +144,7 @@ export function clearUserScopedCaches(): void {
   sweepStorage(
     typeof localStorage !== "undefined" ? localStorage : null,
     PRESERVE_LOCAL_KEYS,
+    LEGACY_LOCAL_PREFIXES,
   );
 
   // 4. Sweep namespaced sessionStorage entries — same rule as localStorage.
