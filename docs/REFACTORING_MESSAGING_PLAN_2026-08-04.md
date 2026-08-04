@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: in progress; M1a-M1b inbox policy boundaries complete locally
+Status: in progress; M1a-M1c inbox policy boundaries complete locally
 
 ## Progress
 
@@ -26,6 +26,13 @@ Status: in progress; M1a-M1b inbox policy boundaries complete locally
 - M1b verification: extracted-module lint and TypeScript passed; 160 broader
   inbox/messaging tests and the three native-like no-jolt Playwright journeys
   passed; the production build completed with established warnings only.
+- M1c extracted canonical scope identity/routes, group unread precedence,
+  provisional-versus-definitive Pro entitlement fallback and draft activity
+  enrichment. Source-specific preview construction remains in `MessagesPage`
+  for the next M1 slice.
+- M1c verification: 166 broader inbox/messaging tests, extracted-module lint,
+  TypeScript and three native-like no-jolt Playwright journeys passed; the
+  production build completed with established warnings only.
 
 ## Objective
 

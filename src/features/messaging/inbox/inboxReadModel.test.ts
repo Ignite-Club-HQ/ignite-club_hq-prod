@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  attachInboxDrafts,
   deriveActiveMutedChats,
   filterInboxConversations,
+  inboxConversationIdentity,
   isHiddenConversationVisible,
   normalizeInboxTypeFilter,
   partitionInboxByReadState,
+  resolveClubProEntitlement,
+  resolveGroupUnreadCount,
   resolveOperationalConversationDisclosure,
   type InboxConversation,
   type InboxConversationType,
@@ -31,6 +35,95 @@ function conversation(
 }
 
 describe("messaging inbox read model", () => {
+  it("builds stable identity and routes for every inbox conversation scope", () => {
+    expect(inboxConversationIdentity("broadcast", "ignored")).toEqual({
+      id: "broadcast", key: "broadcast", link: "/messages/broadcast",
+    });
+    expect(inboxConversationIdentity("support", "ignored")).toEqual({
+      id: "ignite-support", key: "ignite-support", link: "/messages/welcome",
+    });
+    expect(inboxConversationIdentity("club", "c1")).toEqual({
+      id: "c1", key: "club-c1", link: "/messages/club/c1",
+    });
+    expect(inboxConversationIdentity("team", "t1")).toEqual({
+      id: "t1", key: "team-t1", link: "/messages/t1",
+    });
+    expect(inboxConversationIdentity("group", "g1")).toEqual({
+      id: "g1", key: "group-g1", link: "/groups/g1",
+    });
+    expect(inboxConversationIdentity("league", "l1")).toEqual({
+      id: "l1", key: "league-l1", link: "/groups/l1",
+    });
+    expect(inboxConversationIdentity("dm", "d1")).toEqual({
+      id: "d1", key: "dm-d1", link: "/messages/dm/d1",
+    });
+    expect(inboxConversationIdentity("admin_group", "a1")).toEqual({
+      id: "a1", key: "admin-group-a1", link: "/messages/club-admin/a1",
+    });
+  });
+
+  it("prefers the realtime group unread count, including an explicit zero", () => {
+    expect(resolveGroupUnreadCount(0, 4)).toBe(0);
+    expect(resolveGroupUnreadCount(3, 4)).toBe(3);
+    expect(resolveGroupUnreadCount(undefined, 4)).toBe(4);
+    expect(resolveGroupUnreadCount(undefined, undefined)).toBe(0);
+  });
+
+  it("treats club Pro access as available until the entitlement result is definitive", () => {
+    expect(resolveClubProEntitlement({
+      clubId: "club-1", statuses: undefined, isLoading: false, isFetching: false,
+    })).toEqual({ known: false, hasAccess: true });
+    expect(resolveClubProEntitlement({
+      clubId: "club-1", statuses: { "club-1": false }, isLoading: true, isFetching: false,
+    })).toEqual({ known: false, hasAccess: true });
+    expect(resolveClubProEntitlement({
+      clubId: "club-1", statuses: { "club-1": false }, isLoading: false, isFetching: true,
+    })).toEqual({ known: false, hasAccess: true });
+    expect(resolveClubProEntitlement({
+      clubId: "club-1", statuses: { "club-1": false }, isLoading: false, isFetching: false,
+    })).toEqual({ known: true, hasAccess: false });
+    expect(resolveClubProEntitlement({
+      clubId: "club-1", statuses: {}, isLoading: false, isFetching: false,
+    })).toEqual({ known: true, hasAccess: false });
+    expect(resolveClubProEntitlement({
+      clubId: "club-1", statuses: { "club-1": true }, isLoading: false, isFetching: false,
+    })).toEqual({ known: true, hasAccess: true });
+  });
+
+  it("attaches drafts and only bumps activity for a strictly newer valid timestamp", () => {
+    const rows = [
+      conversation("newer-draft", "team", { lastActivity: "2026-08-04T10:00:00.000Z" }),
+      conversation("equal-draft", "group", { lastActivity: "2026-08-04T10:00:00.000Z" }),
+      conversation("no-activity", "dm", { lastActivity: "" }),
+      conversation("no-draft", "club"),
+    ];
+
+    const result = attachInboxDrafts(rows, {
+      "newer-draft": { text: "new", updatedAt: "2026-08-04T10:00:00.001Z" },
+      "equal-draft": { text: "equal", updatedAt: "2026-08-04T10:00:00.000Z" },
+      "no-activity": { text: "unsent", updatedAt: "2026-08-03T10:00:00.000Z" },
+    });
+
+    expect(result[0]).toMatchObject({ draftText: "new", lastActivity: "2026-08-04T10:00:00.001Z" });
+    expect(result[1]).toMatchObject({ draftText: "equal", lastActivity: "2026-08-04T10:00:00.000Z" });
+    expect(result[2]).toMatchObject({ draftText: "unsent", lastActivity: "2026-08-03T10:00:00.000Z" });
+    expect(result[3]).toBe(rows[3]);
+    expect(rows[0].draftText).toBeUndefined();
+  });
+
+  it("preserves activity when a draft timestamp cannot be compared", () => {
+    const row = conversation("invalid-draft-time", "team", {
+      lastActivity: "2026-08-04T10:00:00.000Z",
+    });
+
+    expect(attachInboxDrafts([row], {
+      "invalid-draft-time": { text: "draft", updatedAt: "not-a-date" },
+    })[0]).toMatchObject({
+      draftText: "draft",
+      lastActivity: "2026-08-04T10:00:00.000Z",
+    });
+  });
+
   it("keeps indefinite and future mute preferences active by their exact scope", () => {
     const muted = deriveActiveMutedChats([
       { chat_id: "team-forever", chat_type: "team", muted_until: null },

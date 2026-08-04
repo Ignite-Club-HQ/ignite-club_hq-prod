@@ -57,6 +57,85 @@ export interface ActiveMutedChats {
   groups: Set<string>;
 }
 
+export interface InboxDraft {
+  text: string;
+  updatedAt: string;
+}
+
+export interface ClubProEntitlementState {
+  known: boolean;
+  hasAccess: boolean;
+}
+
+export function inboxConversationIdentity(
+  type: InboxConversationType,
+  id: string,
+): Pick<InboxConversation, "id" | "key" | "link"> {
+  switch (type) {
+    case "broadcast":
+      return { id: "broadcast", key: "broadcast", link: "/messages/broadcast" };
+    case "support":
+      return { id: "ignite-support", key: "ignite-support", link: "/messages/welcome" };
+    case "club":
+      return { id, key: `club-${id}`, link: `/messages/club/${id}` };
+    case "team":
+      return { id, key: `team-${id}`, link: `/messages/${id}` };
+    case "group":
+      return { id, key: `group-${id}`, link: `/groups/${id}` };
+    case "league":
+      return { id, key: `league-${id}`, link: `/groups/${id}` };
+    case "dm":
+      return { id, key: `dm-${id}`, link: `/messages/dm/${id}` };
+    case "admin_group":
+      return { id, key: `admin-group-${id}`, link: `/messages/club-admin/${id}` };
+  }
+}
+
+export function resolveGroupUnreadCount(
+  realtimeCount: number | undefined,
+  fetchedCount: number | undefined,
+): number {
+  return realtimeCount ?? fetchedCount ?? 0;
+}
+
+export function resolveClubProEntitlement(options: {
+  clubId: string;
+  statuses: Record<string, boolean> | undefined;
+  isLoading: boolean;
+  isFetching: boolean;
+}): ClubProEntitlementState {
+  const known =
+    !options.isLoading &&
+    !options.isFetching &&
+    options.statuses !== undefined;
+
+  return {
+    known,
+    hasAccess: known ? options.statuses?.[options.clubId] === true : true,
+  };
+}
+
+export function attachInboxDrafts(
+  conversations: readonly InboxConversation[],
+  drafts: Readonly<Record<string, InboxDraft>>,
+): InboxConversation[] {
+  return conversations.map((conversation) => {
+    const draft = drafts[conversation.id];
+    if (!draft) return conversation;
+
+    const draftIsNewer =
+      !conversation.lastActivity ||
+      new Date(draft.updatedAt).getTime() >
+        new Date(conversation.lastActivity).getTime();
+
+    return {
+      ...conversation,
+      draftText: draft.text,
+      lastActivity: draftIsNewer ? draft.updatedAt : conversation.lastActivity,
+    };
+  });
+}
+
 export function deriveActiveMutedChats(
   preferences: readonly ChatMutePreference[],
   now: number,

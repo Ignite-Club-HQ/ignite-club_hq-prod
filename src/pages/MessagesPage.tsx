@@ -52,11 +52,15 @@ import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
 import {
+  attachInboxDrafts,
   deriveActiveMutedChats,
   filterInboxConversations,
+  inboxConversationIdentity,
   isHiddenConversationVisible,
   normalizeInboxTypeFilter,
   partitionInboxByReadState,
+  resolveClubProEntitlement,
+  resolveGroupUnreadCount,
   resolveOperationalConversationDisclosure,
   type InboxConversation as UnifiedConversation,
 } from "@/features/messaging/inbox/inboxReadModel";
@@ -2420,7 +2424,6 @@ export default function MessagesPage() {
 
   // Live drafts (unsent text in any chat composer)
   const allDrafts = useAllChatDrafts();
-  const draftFor = (id?: string | null) => (id ? allDrafts[id] : undefined);
 
   // Offline fallback: when the DM query errors (no network), React Query drops
   // the placeholder and `dmConversations` is undefined. Rebuild the list from
@@ -2506,10 +2509,8 @@ export default function MessagesPage() {
     if (showBroadcast) {
       items.push({
         type: 'broadcast',
-        id: 'broadcast',
-        key: 'broadcast',
+        ...inboxConversationIdentity('broadcast', 'broadcast'),
         name: 'Announcements',
-        link: '/messages/broadcast',
         lastActivity: displayLatestBroadcast?.created_at || '',
         lastMessage: displayLatestBroadcast ? {
           text: displayLatestBroadcast.text,
@@ -2528,15 +2529,17 @@ export default function MessagesPage() {
       // Treat as Pro until we have a definitive answer. This prevents a flash of
       // "Pro only" lock state after returning from phone lock / visibility refetch
       // when clubProStatus is briefly unavailable.
-      const proStatusKnown = !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
-      const hasProAccess = proStatusKnown ? (clubProStatus?.[club.id] === true) : true;
+      const { known: proStatusKnown, hasAccess: hasProAccess } = resolveClubProEntitlement({
+        clubId: club.id,
+        statuses: clubProStatus,
+        isLoading: isLoadingClubProStatus,
+        isFetching: isFetchingClubProStatus,
+      });
       items.push({
         type: 'club',
-        id: club.id,
-        key: `club-${club.id}`,
+        ...inboxConversationIdentity('club', club.id),
         name: club.name,
         avatarUrl: club.logo_url,
-        link: `/messages/club/${club.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.clubs[club.id] || 0,
@@ -2550,11 +2553,9 @@ export default function MessagesPage() {
       const lastMsg = displayLatestTeamMessages?.[team.id];
       items.push({
         type: 'team',
-        id: team.id,
-        key: `team-${team.id}`,
+        ...inboxConversationIdentity('team', team.id),
         name: team.name,
         avatarUrl: team.logo_url || team.clubs?.logo_url,
-        link: `/messages/${team.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.teams[team.id] || 0,
@@ -2567,14 +2568,12 @@ export default function MessagesPage() {
       const lastMsg = displayLatestGroupMessages?.[group.id];
       items.push({
         type: 'league',
-        id: group.id,
-        key: `league-${group.id}`,
+        ...inboxConversationIdentity('league', group.id),
         name: group.name,
         avatarUrl: group.clubs?.logo_url ?? null,
-        link: `/groups/${group.id}`,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
-        unreadCount: groupUnreadCache?.[group.id] ?? unreadCounts?.groups[group.id] ?? 0,
+        unreadCount: resolveGroupUnreadCount(groupUnreadCache?.[group.id], unreadCounts?.groups[group.id]),
         isMuted: mutedChats?.groups.has(group.id) || false,
       });
     });
@@ -2582,6 +2581,7 @@ export default function MessagesPage() {
     // Chat groups
     filteredChatGroups.forEach((group: any) => {
       const lastMsg = displayLatestGroupMessages?.[group.id];
+      const identity = inboxConversationIdentity('group', group.id);
       const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
       const allowedRoles: string[] = group.allowed_roles || [];
       const isClubRoleGroup =
@@ -2591,24 +2591,24 @@ export default function MessagesPage() {
         allowedRoles.some((r) =>
           ["coach", "team_admin", "committee_member", "club_admin"].includes(r)
         );
-      const proStatusKnown =
-        !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
-      const clubHasPro = group.club_id
-        ? proStatusKnown
-          ? clubProStatus?.[group.club_id] === true
-          : true
-        : true;
+      const { known: proStatusKnown, hasAccess: clubHasPro } = group.club_id
+        ? resolveClubProEntitlement({
+            clubId: group.club_id,
+            statuses: clubProStatus,
+            isLoading: isLoadingClubProStatus,
+            isFetching: isFetchingClubProStatus,
+          })
+        : { known: false, hasAccess: true };
       const isLocked =
         isClubRoleGroup && proStatusKnown && !clubHasPro && !isAppAdmin;
       items.push({
         type: 'group',
-        id: group.id,
-        key: `group-${group.id}`,
+        ...identity,
         name: group.name,
-        link: isLocked ? `/clubs/${group.club_id}/upgrade` : `/groups/${group.id}`,
+        link: isLocked ? `/clubs/${group.club_id}/upgrade` : identity.link,
         lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
-        unreadCount: groupUnreadCache?.[group.id] ?? unreadCounts?.groups[group.id] ?? 0,
+        unreadCount: resolveGroupUnreadCount(groupUnreadCache?.[group.id], unreadCounts?.groups[group.id]),
         isMuted: mutedChats?.groups.has(group.id) || false,
         canHide: isPersonalGroup,
         category: (group as any).category ?? null,
@@ -2622,11 +2622,9 @@ export default function MessagesPage() {
       const isSupport = isIgniteSupportUser(conv.other_user?.id);
       items.push({
         type: 'dm',
-        id: conv.id,
-        key: `dm-${conv.id}`,
+        ...inboxConversationIdentity('dm', conv.id),
         name: isSupport ? "Ignite Support" : (conv.other_user?.display_name || "Unknown User"),
         avatarUrl: conv.other_user?.avatar_url,
-        link: `/messages/dm/${conv.id}`,
         lastActivity: conv.last_message?.created_at || conv.updated_at || '',
         lastMessage: conv.last_message ? {
           text: conv.last_message.text,
@@ -2653,11 +2651,9 @@ export default function MessagesPage() {
     filteredAdminConvs.forEach((conv) => {
       items.push({
         type: 'admin_group',
-        id: conv.id,
-        key: `admin-group-${conv.id}`,
+        ...inboxConversationIdentity('admin_group', conv.id),
         name: conv.member_name,
         avatarUrl: conv.member_avatar,
-        link: `/messages/club-admin/${conv.id}`,
         lastActivity: conv.last_created_at || conv.updated_at || '',
         lastMessage: conv.last_created_at ? {
           text: conv.last_text || '',
@@ -2676,10 +2672,8 @@ export default function MessagesPage() {
     if (showIgniteSupport && !filteredDMs.some((conv: any) => isIgniteSupportUser(conv.other_user?.id))) {
       items.push({
         type: 'support',
-        id: 'ignite-support',
-        key: 'ignite-support',
+        ...inboxConversationIdentity('support', 'ignite-support'),
         name: 'Ignite Support',
-        link: '/messages/welcome',
         lastActivity: systemMessage?.created_at || '',
         lastMessage: systemMessage ? {
           text: systemMessage.text.substring(0, 60) + '...',
@@ -2692,19 +2686,7 @@ export default function MessagesPage() {
     }
 
     // Attach drafts and bump lastActivity if draft is more recent than last message
-    return items.map((item) => {
-      const draftId = item.type === 'broadcast' ? 'broadcast' : item.id;
-      const draft = draftFor(draftId);
-      if (!draft) return item;
-      const draftTime = draft.updatedAt;
-      const lastTime = item.lastActivity;
-      const isNewer = !lastTime || new Date(draftTime).getTime() > new Date(lastTime).getTime();
-      return {
-        ...item,
-        draftText: draft.text,
-        lastActivity: isNewer ? draftTime : lastTime,
-      };
-    });
+    return attachInboxDrafts(items, allDrafts);
   }, [
     showBroadcast, displayLatestBroadcast, unreadCounts, groupUnreadCache,
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
