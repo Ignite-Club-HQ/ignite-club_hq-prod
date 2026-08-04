@@ -78,11 +78,14 @@ import {
   fetchInboxClubProStatus,
   fetchInboxCommitteeMemberStatus,
   fetchInboxCompetitionClubMap,
+  fetchInboxEventTitleMap,
   fetchInboxHiddenDirectMessages,
   fetchInboxHiddenGroups,
   fetchInboxMutedChats,
   fetchInboxUserLeagueIds,
   fetchInboxUserRoles,
+  fetchInboxVaultFileNameMap,
+  fetchInboxVaultFolderNameMap,
 } from "@/features/messaging/inbox/inboxRepositories";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
@@ -2600,54 +2603,21 @@ export default function MessagesPage() {
 
   const { data: eventTitleMap = {} } = useQuery({
     queryKey: ["messages-page-event-titles", referencedEventIds.join(",")],
-    queryFn: async () => {
-      if (referencedEventIds.length === 0) return {} as Record<string, string>;
-      const { data } = await supabase
-        .from("events")
-        .select("id, title")
-        .in("id", referencedEventIds);
-      const map: Record<string, string> = {};
-      (data || []).forEach((e) => {
-        if (e?.id && e?.title) map[e.id.toLowerCase()] = e.title;
-      });
-      return map;
-    },
+    queryFn: () => fetchInboxEventTitleMap(referencedEventIds),
     enabled: referencedEventIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: vaultFolderNameMap = {} } = useQuery({
     queryKey: ["messages-page-vault-folder-names", referencedVaultFolderIds.join(",")],
-    queryFn: async () => {
-      if (referencedVaultFolderIds.length === 0) return {} as Record<string, string>;
-      const { data } = await supabase
-        .from("vault_folders")
-        .select("id, name")
-        .in("id", referencedVaultFolderIds);
-      const map: Record<string, string> = {};
-      (data || []).forEach((f) => {
-        if (f?.id && f?.name) map[f.id.toLowerCase()] = f.name;
-      });
-      return map;
-    },
+    queryFn: () => fetchInboxVaultFolderNameMap(referencedVaultFolderIds),
     enabled: referencedVaultFolderIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: vaultFileNameMap = {} } = useQuery({
     queryKey: ["messages-page-vault-file-names", referencedVaultFileIds.join(",")],
-    queryFn: async () => {
-      if (referencedVaultFileIds.length === 0) return {} as Record<string, string>;
-      const { data } = await supabase
-        .from("vault_files")
-        .select("id, name")
-        .in("id", referencedVaultFileIds);
-      const map: Record<string, string> = {};
-      (data || []).forEach((f) => {
-        if (f?.id && f?.name) map[f.id.toLowerCase()] = f.name;
-      });
-      return map;
-    },
+    queryFn: () => fetchInboxVaultFileNameMap(referencedVaultFileIds),
     enabled: referencedVaultFileIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });

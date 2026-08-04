@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 technically complete; M2a-M2e repository boundaries complete locally; manual UI review deferred
+Status: M1 technically complete; M2a-M2f repository boundaries complete locally; manual UI review deferred
 
 ## Progress
 
@@ -90,6 +90,14 @@ Status: M1 technically complete; M2a-M2e repository boundaries complete locally;
 - M2e verification: all 25 repository tests, 199 broader inbox/messaging tests,
   TypeScript, focused lint, production build and all three native-like no-jolt
   Playwright journeys passed.
+- M2f extracted the event-title, vault-folder-name and vault-file-name reads
+  used to enrich inbox link previews. Each repository retains its exact table,
+  selected columns and id filter, normalizes identifiers for lookup, omits
+  incomplete rows, avoids empty-scope requests and keeps backend failures
+  distinct from valid empty metadata.
+- M2f verification: all 31 repository tests, 113 selected inbox regression
+  tests, TypeScript, focused lint, production build and all three native-like
+  no-jolt Playwright journeys passed.
 
 ## Objective
 

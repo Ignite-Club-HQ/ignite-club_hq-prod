@@ -8,11 +8,14 @@ import {
   fetchInboxClubProStatus,
   fetchInboxCommitteeMemberStatus,
   fetchInboxCompetitionClubMap,
+  fetchInboxEventTitleMap,
   fetchInboxHiddenDirectMessages,
   fetchInboxHiddenGroups,
   fetchInboxMutedChats,
   fetchInboxUserLeagueIds,
   fetchInboxUserRoles,
+  fetchInboxVaultFileNameMap,
+  fetchInboxVaultFolderNameMap,
 } from "./inboxRepositories";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
@@ -54,6 +57,68 @@ function tableQueryClient(results: Record<string, { data: unknown; error: unknow
 }
 
 describe("messaging inbox repositories", () => {
+  it.each([
+    {
+      label: "event titles",
+      fetcher: fetchInboxEventTitleMap,
+      table: "events",
+      selection: "id, title",
+      rows: [
+        { id: "EVENT-A", title: "Final" },
+        { id: "event-b", title: "" },
+      ],
+      expected: { "event-a": "Final" },
+    },
+    {
+      label: "vault folder names",
+      fetcher: fetchInboxVaultFolderNameMap,
+      table: "vault_folders",
+      selection: "id, name",
+      rows: [
+        { id: "FOLDER-A", name: "Policies" },
+        { id: "folder-b", name: "" },
+      ],
+      expected: { "folder-a": "Policies" },
+    },
+    {
+      label: "vault file names",
+      fetcher: fetchInboxVaultFileNameMap,
+      table: "vault_files",
+      selection: "id, name",
+      rows: [
+        { id: "FILE-A", name: "Roster.pdf" },
+        { id: "file-b", name: "" },
+      ],
+      expected: { "file-a": "Roster.pdf" },
+    },
+  ])("maps $label with normalized identifiers and exact scoped reads", async ({
+    fetcher,
+    table,
+    selection,
+    rows,
+    expected,
+  }) => {
+    const fake = queryClient({ data: rows, error: null });
+    await expect(fetcher(["A", "B"], fake.client)).resolves.toEqual(expected);
+    expect(fake.from).toHaveBeenCalledWith(table);
+    expect(fake.builder.select).toHaveBeenCalledWith(selection);
+    expect(fake.builder.in).toHaveBeenCalledWith("id", ["A", "B"]);
+  });
+
+  it.each([
+    ["event titles", fetchInboxEventTitleMap],
+    ["vault folder names", fetchInboxVaultFolderNameMap],
+    ["vault file names", fetchInboxVaultFileNameMap],
+  ])("keeps empty %s reads query-free and propagates failures", async (_label, fetcher) => {
+    const empty = queryClient({ data: [], error: null });
+    await expect(fetcher([], empty.client)).resolves.toEqual({});
+    expect(empty.from).not.toHaveBeenCalled();
+
+    const failure = new Error("metadata lookup failed");
+    const failed = queryClient({ data: null, error: failure });
+    await expect(fetcher(["id-1"], failed.client)).rejects.toBe(failure);
+  });
+
   it("builds the active-club scope from personal-group members and DM peers", async () => {
     const fake = tableQueryClient({
       group_members: {

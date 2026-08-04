@@ -5,6 +5,63 @@ import { deriveActiveMutedChats, type ActiveMutedChats } from "./inboxReadModel"
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 
+export async function fetchInboxEventTitleMap(
+  eventIds: readonly string[],
+  client: IgniteSupabaseClient = supabase,
+): Promise<Record<string, string>> {
+  if (eventIds.length === 0) return {};
+
+  const { data, error } = await client
+    .from("events")
+    .select("id, title")
+    .in("id", [...eventIds]);
+
+  if (error) throw error;
+  const titles: Record<string, string> = {};
+  for (const event of data ?? []) {
+    if (event.id && event.title) titles[event.id.toLowerCase()] = event.title;
+  }
+  return titles;
+}
+
+export async function fetchInboxVaultFolderNameMap(
+  folderIds: readonly string[],
+  client: IgniteSupabaseClient = supabase,
+): Promise<Record<string, string>> {
+  if (folderIds.length === 0) return {};
+
+  const { data, error } = await client
+    .from("vault_folders")
+    .select("id, name")
+    .in("id", [...folderIds]);
+
+  if (error) throw error;
+  const names: Record<string, string> = {};
+  for (const folder of data ?? []) {
+    if (folder.id && folder.name) names[folder.id.toLowerCase()] = folder.name;
+  }
+  return names;
+}
+
+export async function fetchInboxVaultFileNameMap(
+  fileIds: readonly string[],
+  client: IgniteSupabaseClient = supabase,
+): Promise<Record<string, string>> {
+  if (fileIds.length === 0) return {};
+
+  const { data, error } = await client
+    .from("vault_files")
+    .select("id, name")
+    .in("id", [...fileIds]);
+
+  if (error) throw error;
+  const names: Record<string, string> = {};
+  for (const file of data ?? []) {
+    if (file.id && file.name) names[file.id.toLowerCase()] = file.name;
+  }
+  return names;
+}
+
 export interface InboxClubScopeFilterData {
   groupMembersMap: Map<string, string[]>;
   usersInClub: Set<string>;
