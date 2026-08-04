@@ -698,21 +698,42 @@ export default function CompleteProfilePage() {
                 
                 if (existingChild) {
                   console.log("[CompleteProfile] Child already exists:", childData.name);
+                  // The server dedupes same-name children on a team and may
+                  // merge (and delete) this row during the roster insert, so the
+                  // id must be re-resolved before any chained write. Errors are
+                  // checked so a child is never silently dropped off the roster.
+                  let existingEffectiveChildId: string | undefined = existingChild.id;
                   if (invite.team_id) {
-                    await supabase
+                    const { error: assignError } = await supabase
                       .from("child_team_assignments")
-                      .insert({ child_id: existingChild.id, team_id: invite.team_id })
-                      .select();
+                      .insert({ child_id: existingChild.id, team_id: invite.team_id });
+                    if (assignError && assignError.code !== "23505") {
+                      console.error(
+                        "[CompleteProfile] Failed to assign existing child to team:",
+                        assignError.message
+                      );
+                    }
+                    existingEffectiveChildId =
+                      (await resolveCanonicalChildId(
+                        existingChild.id,
+                        invite.team_id,
+                        childData.name
+                      )) ?? undefined;
                   }
-                  if (invite.metadata?.mini_league_id) {
-                    await supabase
+                  if (existingEffectiveChildId && invite.metadata?.mini_league_id) {
+                    const { error: leagueError } = await supabase
                       .from("child_mini_league_assignments")
-                      .insert({ 
-                        child_id: existingChild.id, 
+                      .insert({
+                        child_id: existingEffectiveChildId,
                         mini_league_id: invite.metadata.mini_league_id,
-                        ability_rating: 3 
-                      })
-                      .select();
+                        ability_rating: 3,
+                      });
+                    if (leagueError && leagueError.code !== "23505") {
+                      console.error(
+                        "[CompleteProfile] Failed to assign existing child to mini league:",
+                        leagueError.message
+                      );
+                    }
                   }
                   continue;
                 }

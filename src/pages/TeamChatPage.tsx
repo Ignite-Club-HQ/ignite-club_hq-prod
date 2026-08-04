@@ -832,6 +832,8 @@ export default function TeamChatPage() {
   const reactionQueryKey = useMemo(() => ["team-messages", teamId], [teamId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
+    // Scope guard: message_reactions realtime events are unfiltered platform-wide.
+    getLocalMessages: () => localMessagesRef.current,
     queryKey: reactionQueryKey,
     setLocalMessages,
   });

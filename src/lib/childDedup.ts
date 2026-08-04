@@ -40,7 +40,7 @@ export async function resolveCanonicalChildId(
   return match?.child_id ?? null;
 }
 
-function isDuplicateChildError(error: any): boolean {
+export function isDuplicateChildError(error: any): boolean {
   return (
     error?.code === "23505" ||
     (typeof error?.message === "string" &&
