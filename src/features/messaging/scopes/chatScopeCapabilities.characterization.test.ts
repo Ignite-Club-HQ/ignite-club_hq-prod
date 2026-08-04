@@ -126,4 +126,14 @@ describe("chat scope capability source parity", () => {
     expect(source).not.toContain('queryKey: ["club-admin-messages", conversationId]');
     expect(source).not.toContain('cacheKeys: [["club-admin-messages", conversationId]]');
   });
+
+  it("uses the direct-message adapter for conversation cache and history scope identity", () => {
+    const source = page("DirectMessagePage.tsx");
+    expect(source).toContain("DIRECT_CHAT_SCOPE.cachePrefix");
+    expect(source).toContain("table: DIRECT_CHAT_SCOPE.messageTable");
+    expect(source).toContain(
+      "scope: buildChatScopeFilter(DIRECT_CHAT_SCOPE, conversationId)",
+    );
+    expect(source).not.toContain('["dm-messages", conversationId]');
+  });
 });

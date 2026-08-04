@@ -87,9 +87,12 @@ import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
+import { buildChatScopeFilter, DIRECT_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 
 
 const MESSAGES_PER_PAGE = 15;
+const getDirectMessagesQueryKey = (conversationId?: string) =>
+  [DIRECT_CHAT_SCOPE.cachePrefix, conversationId] as const;
 
 interface DirectMessage {
   id: string;
@@ -344,7 +347,7 @@ export default function DirectMessagePage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: getDirectMessagesQueryKey(conversationId) }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
@@ -472,7 +475,7 @@ export default function DirectMessagePage() {
   });
 
   // Memoize query key to prevent ChatMessage memo breaks
-  const dmQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
+  const dmQueryKey = useMemo(() => getDirectMessagesQueryKey(conversationId), [conversationId]);
 
   // Force a fresh fetch whenever we land on this conversation. Push notifications
   // and inbox taps can land here while react-query still has stale data from a
@@ -483,7 +486,7 @@ export default function DirectMessagePage() {
   const invalidateGateDm = eagerInvalidateDm ? !!user?.id : authReady;
   useEffect(() => {
     if (!conversationId || !invalidateGateDm) return;
-    const key = ["dm-messages", conversationId];
+    const key = getDirectMessagesQueryKey(conversationId);
     if (shouldSkipChatMountInvalidate(queryClient, key, `dm:${conversationId}`)) return;
     let cancelled = false;
     (async () => {
@@ -520,7 +523,7 @@ export default function DirectMessagePage() {
       const authorIds = [...new Set(dataToDisplay.map((m) => m.author_id))];
 
       // Preserve cached reactions when the reactions query fails transiently
-      const cachedQueryData = queryClient.getQueryData(["dm-messages", conversationId]) as any;
+      const cachedQueryData = queryClient.getQueryData(dmQueryKey) as any;
       const cachedDmMessages: DirectMessage[] = Array.isArray(cachedQueryData)
         ? cachedQueryData
         : cachedQueryData?.messages || [];
@@ -610,8 +613,8 @@ export default function DirectMessagePage() {
   useEffect(() => {
     if (!openedFromNotificationRef.current) return;
     if (!conversationId || !authReady) return;
-    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
-  }, [conversationId, authReady, queryClient]);
+    queryClient.invalidateQueries({ queryKey: dmQueryKey });
+  }, [conversationId, authReady, queryClient, dmQueryKey]);
 
   // Belt-and-braces: if the first fetch returned zero messages while auth was
   // still settling (notification-tap cold start), retry once after a short
@@ -627,11 +630,11 @@ export default function DirectMessagePage() {
     if (list && list.length === 0) {
       emptyRetriedRef.current = true;
       const t = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+        queryClient.invalidateQueries({ queryKey: dmQueryKey });
       }, 400);
       return () => clearTimeout(t);
     }
-  }, [conversationId, authReady, messagesLoading, messagesData, queryClient]);
+  }, [conversationId, authReady, messagesLoading, messagesData, queryClient, dmQueryKey]);
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `dm:${conversationId ?? "none"}`;
@@ -659,10 +662,9 @@ export default function DirectMessagePage() {
   localMessagesRef.current = localMessages;
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
-  const reactionQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<DirectMessage>({
     scopeKey: reconcileScope,
-    queryKey: reactionQueryKey,
+    queryKey: dmQueryKey,
     setLocalMessages,
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
@@ -677,7 +679,7 @@ export default function DirectMessagePage() {
     [
       ["dm-conversation", conversationId],
       ["can-dm", otherUserId],
-      ["dm-messages", conversationId],
+      dmQueryKey,
     ],
     "dm-chat",
   );
@@ -755,8 +757,8 @@ export default function DirectMessagePage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
-  }, [queryClient, conversationId]);
+    await queryClient.invalidateQueries({ queryKey: dmQueryKey });
+  }, [queryClient, dmQueryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
@@ -928,9 +930,9 @@ export default function DirectMessagePage() {
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("dm", conversationId, fetchedCount)) {
       console.log("[DirectMessage] Messages unexpectedly 0, triggering refetch");
-      queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: dmQueryKey });
     }
-  }, [conversationId, authReady, messages, messagesLoading, queryClient]);
+  }, [conversationId, authReady, messages, messagesLoading, queryClient, dmQueryKey]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
@@ -943,14 +945,14 @@ export default function DirectMessagePage() {
         if (timeSinceLastRefresh > 30000) {
           console.log("[DirectMessage] App became visible, refreshing messages");
           lastRefresh = Date.now();
-          await queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+          await queryClient.invalidateQueries({ queryKey: dmQueryKey });
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [conversationId, authReady, queryClient]);
+  }, [conversationId, authReady, queryClient, dmQueryKey]);
 
   // Send message mutation
   const sendMessageMutation = useMutation({
@@ -1014,7 +1016,7 @@ export default function DirectMessagePage() {
       
       // Update the query cache with the new message to replace optimistic one
       queryClient.setQueryData(
-        ["dm-messages", conversationId],
+        dmQueryKey,
         (oldData: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
           if (!oldData) {
             const msg: DirectMessage = {
@@ -1079,7 +1081,7 @@ export default function DirectMessagePage() {
     onError: (error, variables) => {
       console.error('[DM] Send message error:', error, 'Message text:', variables.text?.slice(0, 20));
       // Check if the message actually arrived via realtime before showing error
-      const currentData = queryClient.getQueryData<{ messages: DirectMessage[] }>(["dm-messages", conversationId]);
+      const currentData = queryClient.getQueryData<{ messages: DirectMessage[] }>(dmQueryKey);
       const messageExists = currentData?.messages?.some(
         m => !m.id.startsWith("temp-") && m.author_id === user?.id && m.text === variables.text
       );
@@ -1181,7 +1183,7 @@ export default function DirectMessagePage() {
           const newMsg = payload.new as any;
           // Skip if it's our own optimistic message already in cache
           queryClient.setQueryData(
-            ["dm-messages", conversationId],
+            dmQueryKey,
             (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
               if (!old) return old;
               if (old.messages.some(m => m.id === newMsg.id)) return old;
@@ -1217,7 +1219,7 @@ export default function DirectMessagePage() {
               replyAuthor = rp;
             }
             queryClient.setQueryData(
-              ["dm-messages", conversationId],
+              dmQueryKey,
               (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
                 if (!old) return old;
                 return {
@@ -1255,7 +1257,7 @@ export default function DirectMessagePage() {
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
           queryClient.setQueryData(
-            ["dm-messages", conversationId],
+            dmQueryKey,
             (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
               if (!old) return old;
               return { ...old, messages: removeMessage(old.messages, deletedId) };
@@ -1281,7 +1283,7 @@ export default function DirectMessagePage() {
 
           if (outcome === "deleted") {
             queryClient.setQueryData(
-              ["dm-messages", conversationId],
+              dmQueryKey,
               (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) =>
                 old ? { ...old, messages: removeMessage(old.messages, updated.id) } : old,
             );
@@ -1292,7 +1294,7 @@ export default function DirectMessagePage() {
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
           queryClient.setQueryData(
-            ["dm-messages", conversationId],
+            dmQueryKey,
             (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) =>
               old ? { ...old, messages: applyMessageUpdate(old.messages, updated) } : old,
           );
@@ -1336,7 +1338,7 @@ export default function DirectMessagePage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`dm-${conversationId}`);
     };
-  }, [conversationId, queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [conversationId, queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete, dmQueryKey]);
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
     searchQuery,
@@ -1346,8 +1348,8 @@ export default function DirectMessagePage() {
     cacheKey: `dm:${conversationId ?? ""}`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "direct_messages",
-        scope: { conversation_id: conversationId! },
+        table: DIRECT_CHAT_SCOPE.messageTable,
+        scope: buildChatScopeFilter(DIRECT_CHAT_SCOPE, conversationId),
         query: q,
         signal,
         selectColumns: "id, text, image_url, created_at, author_id, conversation_id, reply_to_id",

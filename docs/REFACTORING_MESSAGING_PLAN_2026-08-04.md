@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin consumption complete locally; manual UI review deferred
+Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin/direct consumption complete locally; manual UI review deferred
 
 ## Progress
 
@@ -157,6 +157,19 @@ Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin con
   empty/send journeys passed. One source assertion was updated because it
   intentionally required the removed cache-key literal; no runtime defect was
   found.
+- M3c direct-message consumption now derives every conversation message cache
+  key and history-search table/filter from the adapter. Notification refresh,
+  mount and empty-state recovery, watchdog inputs, reaction reconciliation,
+  manual/visibility refresh, optimistic send/error handling and Realtime cache
+  writes retain one cache identity. Supabase reads/writes, Realtime filters,
+  participant/Pro checks and support-conversation restrictions remain explicit
+  and unchanged.
+- M3c direct-message verification: 121 focused adapter, history, navigation,
+  metadata and thread-state tests, TypeScript, production build and 5 focused
+  Playwright permission/send/mobile-layout/notification-routing journeys
+  passed. Whole-page lint continues to report pre-existing legacy type and hook
+  debt; the newly touched dependency closures are declared. No runtime defect
+  was found.
 
 ## Objective
 
