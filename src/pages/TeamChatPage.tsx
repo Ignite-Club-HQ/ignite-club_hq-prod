@@ -103,9 +103,12 @@ import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemov
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
+import { buildChatScopeFilter, TEAM_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 
 
 const MESSAGES_PER_PAGE = 30;
+const getTeamMessagesQueryKey = (teamId?: string) =>
+  [TEAM_CHAT_SCOPE.cachePrefix, teamId] as const;
 
 interface Message {
   id: string;
@@ -183,6 +186,7 @@ export default function TeamChatPage() {
     return () => noteChatUnmount("TeamChat", k, null);
   }, []);
   const { teamId } = useParams<{ teamId: string }>();
+  const teamMessagesQueryKey = useMemo(() => getTeamMessagesQueryKey(teamId), [teamId]);
   const { user, profile, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
@@ -318,12 +322,12 @@ export default function TeamChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId, targetJumpNonce]);
+  }, [targetMessageId, targetParentId, targetJumpNonce, queryClient, teamMessagesQueryKey]);
 
   // Pinned messages
   const {
@@ -525,10 +529,10 @@ export default function TeamChatPage() {
     }
 
     toast.success("Role removed");
-    queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
     queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
     setSelectedMember(null);
-  }, [teamId, queryClient]);
+  }, [teamId, queryClient, teamMessagesQueryKey]);
 
   const handleRemoveSelectedMemberFromTeam = useCallback(async () => {
     if (!teamId || !selectedMember) return;
@@ -547,11 +551,11 @@ export default function TeamChatPage() {
     }
 
     toast.success("Member removed from team");
-    queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
     queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
     queryClient.invalidateQueries({ queryKey: ["authorized-scopes"] });
     setSelectedMember(null);
-  }, [teamId, selectedMember, queryClient]);
+  }, [teamId, selectedMember, queryClient, teamMessagesQueryKey]);
 
   // Force a fresh fetch whenever we land on this team chat. Push notifications
   // and inbox taps can land here while react-query still has stale data —
@@ -562,7 +566,7 @@ export default function TeamChatPage() {
   const invalidateGateTeam = eagerInvalidateTeam ? !!user?.id : authReady;
   useEffect(() => {
     if (!teamId || !invalidateGateTeam) return;
-    const key = ["team-messages", teamId];
+    const key = teamMessagesQueryKey;
     if (shouldSkipChatMountInvalidate(queryClient, key, `team:${teamId}`)) return;
     let cancelled = false;
     (async () => {
@@ -571,10 +575,10 @@ export default function TeamChatPage() {
       queryClient.invalidateQueries({ queryKey: key });
     })();
     return () => { cancelled = true; };
-  }, [teamId, invalidateGateTeam, queryClient, eagerInvalidateTeam]);
+  }, [teamId, invalidateGateTeam, queryClient, eagerInvalidateTeam, teamMessagesQueryKey]);
 
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({
-    queryKey: ["team-messages", teamId],
+    queryKey: teamMessagesQueryKey,
     queryFn: async () => {
       markChatFetch();
       // If offline, return cached messages using the React Query online manager
@@ -627,7 +631,7 @@ export default function TeamChatPage() {
       const authorIds = [...new Set(messagesToDisplay.map((m) => m.author_id))];
 
       // Preserve cached reactions when the reactions query fails transiently.
-      const cachedQueryData = queryClient.getQueryData(["team-messages", teamId]) as
+      const cachedQueryData = queryClient.getQueryData(teamMessagesQueryKey) as
         | { messages?: Message[] }
         | Message[]
         | undefined;
@@ -791,10 +795,9 @@ export default function TeamChatPage() {
   });
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
-  const reactionQueryKey = useMemo(() => ["team-messages", teamId], [teamId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
-    queryKey: reactionQueryKey,
+    queryKey: teamMessagesQueryKey,
     setLocalMessages,
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
@@ -866,7 +869,7 @@ export default function TeamChatPage() {
       return;
     }
 
-    const cachedQueryData = queryClient.getQueryData(["team-messages", teamId]) as
+    const cachedQueryData = queryClient.getQueryData(teamMessagesQueryKey) as
       | { messages?: Message[] }
       | Message[]
       | undefined;
@@ -885,7 +888,7 @@ export default function TeamChatPage() {
       // Tombstones/patches are per-thread; drop them when leaving the thread.
       clearReconciliationScope(`team:${teamId}`);
     };
-  }, [teamId, queryClient, reconcileScope]);
+  }, [teamId, queryClient, reconcileScope, teamMessagesQueryKey]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
   // gate on as soon as we have any messages so older-page loads can begin.
@@ -901,9 +904,9 @@ export default function TeamChatPage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
-    await queryClient.refetchQueries({ queryKey: ["team-messages", teamId], type: "active" });
-  }, [queryClient, teamId]);
+    await queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
+    await queryClient.refetchQueries({ queryKey: teamMessagesQueryKey, type: "active" });
+  }, [queryClient, teamMessagesQueryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
@@ -1011,9 +1014,9 @@ export default function TeamChatPage() {
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("team", teamId, fetchedCount)) {
       console.log("[TeamChat] Messages unexpectedly 0, triggering refetch");
-      queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+      queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
     }
-  }, [teamId, authReady, messages, loadingMessages, isFetching, queryClient]);
+  }, [teamId, authReady, messages, loadingMessages, isFetching, queryClient, teamMessagesQueryKey]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
@@ -1026,14 +1029,14 @@ export default function TeamChatPage() {
         if (timeSinceLastRefresh > 30000) {
           console.log("[TeamChat] App became visible, refreshing messages");
           lastRefresh = Date.now();
-          await queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+          await queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [teamId, authReady, queryClient]);
+  }, [teamId, authReady, queryClient, teamMessagesQueryKey]);
 
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
@@ -1195,7 +1198,7 @@ export default function TeamChatPage() {
       };
 
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+        queryClient.setQueryData(teamMessagesQueryKey, (old: any) => ({
           ...(old || {}),
           messages: mergeOlder(old?.messages as Message[] | undefined),
           hasOlderMessages: hasMore,
@@ -1211,7 +1214,7 @@ export default function TeamChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
+  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope, teamMessagesQueryKey]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1277,10 +1280,10 @@ export default function TeamChatPage() {
   useEffect(() => {
     if (!teamId || teamRealtimeMode !== "polling") return;
     const id = window.setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+      queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
     }, teamPollIntervalMs);
     return () => window.clearInterval(id);
-  }, [teamId, teamRealtimeMode, teamPollIntervalMs, queryClient]);
+  }, [teamId, teamRealtimeMode, teamPollIntervalMs, queryClient, teamMessagesQueryKey]);
 
   useEffect(() => {
     if (!teamId) return;
@@ -1304,7 +1307,7 @@ export default function TeamChatPage() {
           const cachedProfile = cachedProfiles.get(newMsg.author_id);
           
           // IMMEDIATELY update cache with message (don't wait for profile fetch)
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+          queryClient.setQueryData(teamMessagesQueryKey, (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
             
             // Check if message already exists with real ID
@@ -1365,7 +1368,7 @@ export default function TeamChatPage() {
                 : Promise.resolve({ data: null }),
             ]).then(([profileData, replyToResult]) => {
               // Update the message with fetched data
-              queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+              queryClient.setQueryData(teamMessagesQueryKey, (old: any) => {
                 const existingMessages: Message[] = old?.messages || [];
                 return {
                   ...(old || {}),
@@ -1404,7 +1407,7 @@ export default function TeamChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+          queryClient.setQueryData(teamMessagesQueryKey, (old: any) => ({
             ...(old || {}),
             messages: removeMessage((old?.messages || []) as Message[], deletedId),
           }));
@@ -1427,7 +1430,7 @@ export default function TeamChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+            queryClient.setQueryData(teamMessagesQueryKey, (old: any) => ({
               ...(old || {}),
               messages: removeMessage((old?.messages || []) as Message[], updated.id),
             }));
@@ -1437,7 +1440,7 @@ export default function TeamChatPage() {
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+          queryClient.setQueryData(teamMessagesQueryKey, (old: any) => ({
             ...(old || {}),
             messages: applyMessageUpdate((old?.messages || []) as Message[], updated),
           }));
@@ -1481,7 +1484,7 @@ export default function TeamChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete, teamMessagesQueryKey]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -1498,8 +1501,6 @@ export default function TeamChatPage() {
       setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), delay);
     });
   }, []);
-
-  const queryKeyMemo = useMemo(() => ["team-messages", teamId!], [teamId]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async ({ text, image_url, reply_to_id }: { text: string; image_url: string | null; reply_to_id: string | null }) => {
@@ -1530,7 +1531,7 @@ export default function TeamChatPage() {
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
 
-      await queryClient.cancelQueries({ queryKey: ["team-messages", teamId] });
+      await queryClient.cancelQueries({ queryKey: teamMessagesQueryKey });
 
       // Mutation-specific temp id so overlapping sends can be rolled back
       // independently (Date.now() alone collides on rapid double-sends).
@@ -1554,7 +1555,7 @@ export default function TeamChatPage() {
       };
 
       // Update query cache directly (this will sync to localMessages via useEffect)
-      queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+      queryClient.setQueryData(teamMessagesQueryKey, (old: any) => {
         const existingMessages: Message[] = old?.messages || [];
         return {
           ...(old || {}),
@@ -1586,7 +1587,7 @@ export default function TeamChatPage() {
         // Remove ONLY this mutation's optimistic row, regardless of whether a
         // previous cache snapshot existed. Never restore a whole snapshot —
         // that would discard newer realtime rows / concurrent optimistic sends.
-        queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+        queryClient.setQueryData(teamMessagesQueryKey, (old: any) => {
           if (!old) return old;
           const existingMessages: Message[] = old?.messages || [];
           return { ...old, messages: existingMessages.filter((m) => m.id !== tempId) };
@@ -1640,7 +1641,7 @@ export default function TeamChatPage() {
     onSuccess: () => {
       setMessage("");
       setEditingMessage(null);
-      queryClient.invalidateQueries({ queryKey: queryKeyMemo });
+      queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
       // silent success
     },
     onError: () => toast.error("Failed to update message"),
@@ -1725,8 +1726,8 @@ export default function TeamChatPage() {
     cacheKey: `team:${teamId ?? ""}`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "team_messages",
-        scope: { team_id: teamId! },
+        table: TEAM_CHAT_SCOPE.messageTable,
+        scope: buildChatScopeFilter(TEAM_CHAT_SCOPE, teamId),
         query: q,
         signal,
         selectColumns:
@@ -2048,7 +2049,7 @@ export default function TeamChatPage() {
                       reactions={msg.reactions}
                       currentUserId={user?.id}
                       messageType="team"
-                      queryKey={queryKeyMemo}
+                      queryKey={teamMessagesQueryKey}
                       replyToMessage={
                         msg.reply_to
                           ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
@@ -2235,7 +2236,7 @@ export default function TeamChatPage() {
           onOpenChange={(open) => {
             if (!open) {
               setAddRoleMember(null);
-              queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+              queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
               queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
             }
           }}

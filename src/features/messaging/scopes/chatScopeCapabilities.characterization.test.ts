@@ -156,4 +156,14 @@ describe("chat scope capability source parity", () => {
     );
     expect(source).not.toContain('["club-messages", clubId]');
   });
+
+  it("uses the team adapter for message cache and history scope identity", () => {
+    const source = page("TeamChatPage.tsx");
+    expect(source).toContain("TEAM_CHAT_SCOPE.cachePrefix");
+    expect(source).toContain("table: TEAM_CHAT_SCOPE.messageTable");
+    expect(source).toContain(
+      "scope: buildChatScopeFilter(TEAM_CHAT_SCOPE, teamId)",
+    );
+    expect(source).not.toContain('["team-messages", teamId]');
+  });
 });

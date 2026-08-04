@@ -60,6 +60,8 @@ describe("six-surface messaging refactor contracts", () => {
         expect(text).toContain("GROUP_CHAT_SCOPE.cachePrefix");
       } else if (name === "ClubChatPage.tsx") {
         expect(text).toContain("CLUB_CHAT_SCOPE.cachePrefix");
+      } else if (name === "TeamChatPage.tsx") {
+        expect(text).toContain("TEAM_CHAT_SCOPE.cachePrefix");
       } else {
         expect(text).toContain(cachePrefix);
       }
