@@ -80,9 +80,10 @@ export function PushNotificationManager() {
   // Sample realtime delivery latency (10% of sessions, batched writes)
   useRealtimePerfSampler(user?.id);
 
-  // React to centralized notification taps for cross-cutting concerns that do
-  // not mutate the user's selected club filter. Navigation is performed by
-  // notificationLaunchHandler.ts.
+  // React to centralized notification taps for cross-cutting concerns.
+  // Navigation is performed by notificationLaunchHandler.ts. The active club
+  // filter IS moved here — but only in response to this explicit user tap, and
+  // only to a club the user is verified to belong to.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
