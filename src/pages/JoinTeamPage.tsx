@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { createChildForParentOrReuse } from "@/lib/childDedup";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -507,15 +508,13 @@ export default function JoinTeamPage() {
               console.log("[JoinTeam] Child already exists:", childData.name, "ID:", childId);
             } else {
               // Create the child record
-              const { data: newChild, error: childError } = await supabase
-                .from("children")
-                .insert({
-                  parent_id: user.id,
-                  name: childData.name,
-                  year_of_birth: childData.yearOfBirth,
-                })
-                .select("id")
-                .single();
+              const { childId: createdChildId, error: childError } =
+                await createChildForParentOrReuse(
+                  user.id,
+                  childData.name,
+                  childData.yearOfBirth ?? null
+                );
+              const newChild = createdChildId ? { id: createdChildId } : null;
               
               if (childError) {
                 console.error("[JoinTeam] Failed to create child:", childError.message);
@@ -742,15 +741,12 @@ export default function JoinTeamPage() {
           });
         } else {
           // Create new child and assign to team
-          const { data: newChild } = await supabase
-            .from("children")
-            .insert({
-              parent_id: user.id,
-              name: childMeta.child_name,
-              year_of_birth: childMeta.child_year_of_birth || null,
-            })
-            .select("id")
-            .single();
+          const { childId: reusableChildId } = await createChildForParentOrReuse(
+            user.id,
+            childMeta.child_name,
+            childMeta.child_year_of_birth || null
+          );
+          const newChild = reusableChildId ? { id: reusableChildId } : null;
           
           if (newChild?.id) {
             await supabase.from("child_team_assignments").insert({
