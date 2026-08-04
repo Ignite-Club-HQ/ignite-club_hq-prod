@@ -934,17 +934,25 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
     placeholderData: (prev) => prev,
   });
 
+  // Guard against cross-club bleed: `placeholderData: (prev) => prev` keeps the
+  // previous club's rows visible while the new query key loads, so anything not
+  // belonging to the active club must be dropped at render time.
+  const scopedItems = useMemo(
+    () => (activeClubFilter ? items.filter(i => i.club_id === activeClubFilter) : items),
+    [items, activeClubFilter]
+  );
+
   // Persist snapshot for instant cold-start on next visit
   useEffect(() => {
-    if (!user?.id || items.length === 0) return;
+    if (!user?.id || scopedItems.length === 0) return;
     setCachedCarousel<CarouselSnapshot>(user.id, activeClubFilter, {
-      items,
+      items: scopedItems,
       nextEvents,
       teamPhotos,
       unreadCounts,
       teamMembers,
     });
-  }, [user?.id, activeClubFilter, items, nextEvents, teamPhotos, unreadCounts, teamMembers]);
+  }, [user?.id, activeClubFilter, scopedItems, nextEvents, teamPhotos, unreadCounts, teamMembers]);
 
   const showSkeleton = (!initialized || isLoading || (isFetching && items.length === 0)) && !snapshot;
 
