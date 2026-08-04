@@ -702,7 +702,18 @@ export default function GroupChatPage() {
     refetchOnMount: "always", // Force refetch on every mount so reactions/messages added while away are picked up (true is a no-op while staleTime is unmet)
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
-      if (!groupId) return prev;
+      if (!groupId) return undefined;
+      // SECURITY (cross-group bleed): `prev` is whatever THIS hook instance
+      // last rendered. When the route param changes without a remount, that is
+      // the PREVIOUS group's message list — returning it verbatim renders
+      // group A's messages under group B's header (and bakes them into group
+      // B's offline cache). Never reuse `prev` unless every row belongs to the
+      // current group.
+      const prevBelongsToThisGroup =
+        !!prev &&
+        Array.isArray(prev.messages) &&
+        prev.messages.length > 0 &&
+        prev.messages.every((m: any) => !m?.group_id || m.group_id === groupId);
       // From-push freshness: prefer the just-preloaded localStorage cache
       // over a stale `prev` so the new message renders at first paint —
       // but only when the cache has a meaningful history window. A single
@@ -717,7 +728,8 @@ export default function GroupChatPage() {
           return { ...cachedData, hasOlderMessages: false, fromCache: true };
         }
       }
-      if (prev) return prev;
+      if (prevBelongsToThisGroup) return prev;
+
 
       const cachedData = getCachedGroupMessages(groupId);
       // A genuine one-message thread is usable; a notification-preload stub is not.
@@ -737,15 +749,18 @@ export default function GroupChatPage() {
     const msgList = Array.isArray(messagesData) 
       ? messagesData 
       : (messagesData as any).messages || [];
+    // SECURITY (cross-group bleed): last line of defence before render — a row
+    // is only ever displayed in the thread it was posted to.
+    const scoped = (msgList as any[]).filter((m) => !m?.group_id || m.group_id === groupId);
     // Sort by created_at to ensure proper ordering
-    const sorted = [...msgList].sort((a, b) => 
+    const sorted = [...scoped].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
     // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
     // after a realtime UPDATE must never restore pre-edit text or resurrect a
     // deleted row.
     return (reconcileMessages(reconcileScope, sorted) ?? []) as GroupMessage[];
-  }, [messagesData, reconcileScope]);
+  }, [messagesData, reconcileScope, groupId]);
 
   // Local copy used for rendering so optimistic updates are instant.
   // A notification-preload stub is never used as a seed, but a genuine
@@ -758,13 +773,19 @@ export default function GroupChatPage() {
       groupId,
     ]);
 
-    if (isUsableCachedThread(cachedQueryData?.messages as any)) {
-      return cachedQueryData!.messages;
+    // Seeds are scoped too: a placeholder object left behind by a previous
+    // group must never seed this thread's render state.
+    const cachedScoped = (cachedQueryData?.messages ?? []).filter(
+      (m: any) => !m?.group_id || m.group_id === groupId,
+    );
+    if (isUsableCachedThread(cachedScoped as any)) {
+      return cachedScoped as GroupMessage[];
     }
 
     const fromCache = getCachedGroupMessages(groupId).messages;
     return isUsableCachedThread(fromCache as any) ? fromCache : undefined;
   };
+
 
 
   const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(() =>
@@ -1046,8 +1067,17 @@ export default function GroupChatPage() {
           .map((m: any) => `${m.author_id}::${m.text ?? ""}::${m.image_url ?? ""}`),
       );
       const previousOnly = (prev || []).filter((message: any) => {
+        // SECURITY (cross-group bleed): this merge is deliberately fail-open —
+        // it keeps prior rows that are absent from the incoming snapshot. A row
+        // left over from another group's thread (route param changed without a
+        // remount) would otherwise satisfy every keep-condition below and be
+        // merged into THIS group permanently, then persisted to this group's
+        // offline cache. Foreign rows are never kept.
+        if (message.group_id && message.group_id !== groupId) return false;
         if (incomingIds.has(message.id)) return false;
         // A soft-deleted row is absent from `messages`; without this guard the
+        // fail-open branch below would re-add it on every sync.
+
         // fail-open branch below would re-add it on every sync.
         if (isTombstoned(reconcileScope, message.id)) return false;
         if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
