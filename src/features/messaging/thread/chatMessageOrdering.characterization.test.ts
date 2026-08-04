@@ -18,11 +18,21 @@ describe("chat chronological-order boundary consumption", () => {
     (name) => {
       const source = page(name);
 
+      expect(source).toContain("orderChatMessagesChronologically");
       expect(source).toContain(
-        'import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering"',
+        'from "@/features/messaging/thread/chatMessageOrdering"',
       );
       expect(source).toContain("orderChatMessagesChronologically(msgList)");
       expect(source).toContain("reconcileMessages(reconcileScope, sorted)");
     },
   );
+
+  it("Team preserves current state when an older page repeats a boundary message", () => {
+    const source = page("TeamChatPage.tsx");
+
+    expect(source).toContain("mergeOlderChatMessagesChronologically(");
+    expect(source).toContain("olderMessages,");
+    expect(source).toContain("existing,");
+    expect(source).toContain("reconcileMessages(reconcileScope, sorted)");
+  });
 });

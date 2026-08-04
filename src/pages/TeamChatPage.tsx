@@ -105,7 +105,10 @@ import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { buildChatScopeFilter, TEAM_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
-import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
+import {
+  mergeOlderChatMessagesChronologically,
+  orderChatMessagesChronologically,
+} from "@/features/messaging/thread/chatMessageOrdering";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -1182,13 +1185,9 @@ export default function TeamChatPage() {
       // in the same task, so the user never sees the intermediate state.
       // Functional merge keyed by message id — never replace the collection.
       const mergeOlder = (existing: Message[] | undefined): Message[] => {
-        const byId = new Map<string, Message>();
-        olderMessages.forEach((m) => byId.set(m.id, m));
-        (existing || []).forEach((m) => byId.set(m.id, m)); // current state wins on boundary duplicates
-        const sorted = [...byId.values()].sort(
-          (a, b) =>
-            (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) ||
-            a.id.localeCompare(b.id),
+        const sorted = mergeOlderChatMessagesChronologically(
+          olderMessages,
+          existing,
         );
         // An UPDATE received while this page was in flight must survive.
         return (reconcileMessages(reconcileScope, sorted) ?? []) as Message[];

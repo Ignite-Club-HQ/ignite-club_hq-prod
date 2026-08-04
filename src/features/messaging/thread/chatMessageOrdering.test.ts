@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { orderChatMessagesChronologically } from "./chatMessageOrdering";
+import {
+  mergeOlderChatMessagesChronologically,
+  orderChatMessagesChronologically,
+} from "./chatMessageOrdering";
 
 describe("orderChatMessagesChronologically", () => {
   it("orders older messages before newer messages", () => {
@@ -41,5 +44,55 @@ describe("orderChatMessagesChronologically", () => {
 
     expect(result).not.toBe(messages);
     expect(messages.map((message) => message.id)).toEqual(["newer", "older"]);
+  });
+});
+
+describe("mergeOlderChatMessagesChronologically", () => {
+  it("prepends an older page in chronological order", () => {
+    const result = mergeOlderChatMessagesChronologically(
+      [
+        { id: "oldest", created_at: "2026-08-04T09:58:00.000Z" },
+        { id: "older", created_at: "2026-08-04T09:59:00.000Z" },
+      ],
+      [{ id: "current", created_at: "2026-08-04T10:00:00.000Z" }],
+    );
+
+    expect(result.map((message) => message.id)).toEqual([
+      "oldest",
+      "older",
+      "current",
+    ]);
+  });
+
+  it("keeps current in-memory state when the page boundary repeats an id", () => {
+    const result = mergeOlderChatMessagesChronologically(
+      [{ id: "boundary", created_at: "2026-08-04T09:59:00.000Z", text: "stale" }],
+      [{ id: "boundary", created_at: "2026-08-04T09:59:00.000Z", text: "realtime edit" }],
+    );
+
+    expect(result).toEqual([
+      { id: "boundary", created_at: "2026-08-04T09:59:00.000Z", text: "realtime edit" },
+    ]);
+  });
+
+  it("does not mutate either input collection", () => {
+    const older = [{ id: "older", created_at: "2026-08-04T09:59:00.000Z" }];
+    const current = [{ id: "current", created_at: "2026-08-04T10:00:00.000Z" }];
+
+    const result = mergeOlderChatMessagesChronologically(older, current);
+
+    expect(result).not.toBe(older);
+    expect(result).not.toBe(current);
+    expect(older.map((message) => message.id)).toEqual(["older"]);
+    expect(current.map((message) => message.id)).toEqual(["current"]);
+  });
+
+  it("supports an absent current page", () => {
+    expect(
+      mergeOlderChatMessagesChronologically(
+        [{ id: "older", created_at: "2026-08-04T09:59:00.000Z" }],
+        undefined,
+      ).map((message) => message.id),
+    ).toEqual(["older"]);
   });
 });

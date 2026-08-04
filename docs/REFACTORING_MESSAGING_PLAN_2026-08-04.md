@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1, M2 and M3 technically complete locally; M4a query-envelope normalization and M4b query-message ordering complete; manual UI review deferred
+Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pagination merge extraction started; manual UI review deferred
 
 ## Progress
 
@@ -244,6 +244,19 @@ Status: M1, M2 and M3 technically complete locally; M4a query-envelope normaliza
   three-second timeout in the combined run and passed immediately in isolation.
   The failure occurred before thread navigation and did not execute the new
   ordering boundary. No runtime defect was found.
+- M4c begins pagination extraction with Team's existing pure older-page merge
+  rule. The helper deduplicates by immutable message id, deliberately lets the
+  current in-memory row win when a page boundary repeats an id, and applies the
+  shared chronological ordering before the existing reconciliation registry.
+  Fetches, enrichment, cache updates, `hasOlderMessages`, Virtuoso anchoring and
+  Realtime ownership remain in `TeamChatPage`.
+- Club and Broadcast currently concatenate older pages without Team's explicit
+  boundary rule, while Group couples its deduplication to a separate reactions
+  array. M4c does not normalize those differences without independent
+  characterization. Initial verification passed 127 focused contracts,
+  TypeScript, focused lint and the Playwright older-history journey covering
+  boundary deduplication and visible-anchor preservation. No runtime defect was
+  found.
 
 ## Objective
 

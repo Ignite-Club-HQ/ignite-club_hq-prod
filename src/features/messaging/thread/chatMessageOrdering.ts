@@ -17,3 +17,19 @@ export function orderChatMessagesChronologically<TMessage extends ChronologicalC
       left.id.localeCompare(right.id),
   );
 }
+
+/**
+ * Merge an older page into the current thread without allowing a boundary
+ * duplicate to overwrite newer in-memory/Realtime state.
+ */
+export function mergeOlderChatMessagesChronologically<
+  TMessage extends ChronologicalChatMessage,
+>(
+  olderMessages: readonly TMessage[],
+  currentMessages: readonly TMessage[] | undefined,
+): TMessage[] {
+  const byId = new Map<string, TMessage>();
+  olderMessages.forEach((message) => byId.set(message.id, message));
+  currentMessages?.forEach((message) => byId.set(message.id, message));
+  return orderChatMessagesChronologically([...byId.values()]);
+}
