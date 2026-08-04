@@ -87,6 +87,7 @@ import {
   buildChatScopeFilter,
   CLUB_ADMIN_CHAT_SCOPE,
 } from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -544,9 +545,7 @@ export default function ClubAdminChatPage() {
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
-    const msgList = Array.isArray(messagesData)
-      ? messagesData
-      : (messagesData as any).messages || [];
+    const msgList = extractChatQueryMessages<ClubAdminMessage>(messagesData);
     const sorted = [...msgList].sort((a, b) =>
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );

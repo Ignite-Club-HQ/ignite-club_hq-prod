@@ -121,6 +121,7 @@ import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
 import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { buildChatScopeFilter, GROUP_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
 
 
 
@@ -722,9 +723,7 @@ export default function GroupChatPage() {
   // Extract messages and reactions from query data
   const messages = useMemo(() => {
     if (!messagesData) return [];
-    const msgList = Array.isArray(messagesData) 
-      ? messagesData 
-      : (messagesData as any).messages || [];
+    const msgList = extractChatQueryMessages<GroupMessage>(messagesData);
     // Sort by created_at to ensure proper ordering
     const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)

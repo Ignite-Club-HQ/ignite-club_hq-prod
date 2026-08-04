@@ -104,6 +104,7 @@ import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { buildChatScopeFilter, TEAM_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -771,9 +772,7 @@ export default function TeamChatPage() {
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
-    const msgList = Array.isArray(messagesData)
-      ? messagesData
-      : (messagesData as any).messages || [];
+    const msgList = extractChatQueryMessages<Message>(messagesData);
     // Sort by created_at to ensure proper ordering
     const sorted = [...msgList].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)

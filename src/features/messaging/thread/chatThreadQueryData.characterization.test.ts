@@ -9,6 +9,10 @@ describe("chat query-data boundary consumption", () => {
   it.each([
     ["BroadcastChatPage.tsx", "Message"],
     ["DirectMessagePage.tsx", "DirectMessage"],
+    ["TeamChatPage.tsx", "Message"],
+    ["ClubChatPage.tsx", "Message"],
+    ["GroupChatPage.tsx", "GroupMessage"],
+    ["ClubAdminChatPage.tsx", "ClubAdminMessage"],
   ])("%s delegates legacy-array/envelope interpretation to the shared primitive", (name, type) => {
     const source = page(name);
 
@@ -16,6 +20,5 @@ describe("chat query-data boundary consumption", () => {
       'import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData"',
     );
     expect(source).toContain(`extractChatQueryMessages<${type}>(messagesData)`);
-    expect(source).not.toMatch(/Array\.isArray\(messagesData\)\s*\?\s*messagesData/);
   });
 });

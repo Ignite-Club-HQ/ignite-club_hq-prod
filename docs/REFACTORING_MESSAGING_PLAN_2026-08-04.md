@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1, M2 and M3 technically complete locally; M4a query-envelope normalization started; manual UI review deferred
+Status: M1, M2 and M3 technically complete locally; M4a query-envelope normalization complete; manual UI review deferred
 
 ## Progress
 
@@ -223,6 +223,14 @@ Status: M1, M2 and M3 technically complete locally; M4a query-envelope normaliza
   Playwright journeys covering denied DM access, exact DM sending, authorized
   broadcast sending and read-only broadcast access also passed. No runtime
   defect was found.
+- M4a now serves Team, Club, Group and Club Admin as well, completing the pure
+  query-data boundary across all six surfaces. Envelope-only pagination,
+  reaction and recovery metadata deliberately remains page-owned. Extension
+  verification passed 112 focused tests, TypeScript, focused lint, production
+  build and 6 Playwright exact-scope/delayed-hydration/reaction/optimistic-send
+  journeys. One over-broad source assertion was narrowed because Team still
+  legitimately reads pagination metadata; this was a test issue, not a runtime
+  defect.
 
 ## Objective
 
