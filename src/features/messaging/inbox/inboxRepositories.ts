@@ -5,6 +5,59 @@ import { deriveActiveMutedChats, type ActiveMutedChats } from "./inboxReadModel"
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 
+export interface InboxClubScopeFilterData {
+  groupMembersMap: Map<string, string[]>;
+  usersInClub: Set<string>;
+}
+
+export async function fetchInboxClubScopeFilter(options: {
+  userId: string;
+  clubId: string;
+  personalGroupIds: readonly string[];
+  dmOtherUserIds: readonly string[];
+  client?: IgniteSupabaseClient;
+}): Promise<InboxClubScopeFilterData> {
+  const client = options.client ?? supabase;
+  const groupMembersMap = new Map<string, string[]>();
+
+  if (options.personalGroupIds.length > 0) {
+    const { data: groupMembers, error: groupMembersError } = await client
+      .from("group_members")
+      .select("group_id, user_id")
+      .in("group_id", [...options.personalGroupIds]);
+
+    if (groupMembersError) throw groupMembersError;
+    for (const row of groupMembers ?? []) {
+      const members = groupMembersMap.get(row.group_id) ?? [];
+      members.push(row.user_id);
+      groupMembersMap.set(row.group_id, members);
+    }
+  }
+
+  const userIdsToCheck = new Set(options.dmOtherUserIds);
+  for (const members of groupMembersMap.values()) {
+    for (const memberId of members) {
+      if (memberId && memberId !== options.userId) userIdsToCheck.add(memberId);
+    }
+  }
+
+  const usersInClub = new Set<string>();
+  if (userIdsToCheck.size > 0) {
+    const { data: roles, error: rolesError } = await client
+      .from("user_roles")
+      .select("user_id")
+      .eq("club_id", options.clubId)
+      .in("user_id", [...userIdsToCheck]);
+
+    if (rolesError) throw rolesError;
+    for (const role of roles ?? []) {
+      if (role.user_id) usersInClub.add(role.user_id);
+    }
+  }
+
+  return { groupMembersMap, usersInClub };
+}
+
 export async function fetchInboxAdminTeamIds(
   userId: string,
   client: IgniteSupabaseClient = supabase,

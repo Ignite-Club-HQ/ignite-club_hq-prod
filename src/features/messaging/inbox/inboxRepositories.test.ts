@@ -4,6 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   fetchInboxAdminTeamIds,
   fetchInboxAppAdminStatus,
+  fetchInboxClubScopeFilter,
   fetchInboxClubProStatus,
   fetchInboxCommitteeMemberStatus,
   fetchInboxCompetitionClubMap,
@@ -53,6 +54,105 @@ function tableQueryClient(results: Record<string, { data: unknown; error: unknow
 }
 
 describe("messaging inbox repositories", () => {
+  it("builds the active-club scope from personal-group members and DM peers", async () => {
+    const fake = tableQueryClient({
+      group_members: {
+        data: [
+          { group_id: "group-1", user_id: "user-1" },
+          { group_id: "group-1", user_id: "member-1" },
+          { group_id: "group-2", user_id: "member-2" },
+          { group_id: "group-2", user_id: "dm-peer" },
+        ],
+        error: null,
+      },
+      user_roles: {
+        data: [
+          { user_id: "member-1" },
+          { user_id: "dm-peer" },
+          { user_id: "dm-peer" },
+        ],
+        error: null,
+      },
+    });
+
+    const result = await fetchInboxClubScopeFilter({
+      userId: "user-1",
+      clubId: "club-1",
+      personalGroupIds: ["group-1", "group-2"],
+      dmOtherUserIds: ["dm-peer"],
+      client: fake.client,
+    });
+
+    expect(result.groupMembersMap).toEqual(new Map([
+      ["group-1", ["user-1", "member-1"]],
+      ["group-2", ["member-2", "dm-peer"]],
+    ]));
+    expect([...result.usersInClub]).toEqual(["member-1", "dm-peer"]);
+    expect(fake.from.mock.calls.map(([table]) => table)).toEqual(["group_members", "user_roles"]);
+    expect(fake.queries.group_members.builder.in).toHaveBeenCalledWith(
+      "group_id", ["group-1", "group-2"],
+    );
+    expect(fake.queries.user_roles.builder.eq).toHaveBeenCalledWith("club_id", "club-1");
+    expect(fake.queries.user_roles.builder.in).toHaveBeenCalledWith(
+      "user_id", ["dm-peer", "member-1", "member-2"],
+    );
+  });
+
+  it("supports DM-only and group-only club scopes", async () => {
+    const dmOnly = tableQueryClient({
+      user_roles: { data: [{ user_id: "dm-peer" }], error: null },
+    });
+    const dmResult = await fetchInboxClubScopeFilter({
+      userId: "user-1", clubId: "club-1", personalGroupIds: [],
+      dmOtherUserIds: ["dm-peer"], client: dmOnly.client,
+    });
+    expect(dmResult.groupMembersMap).toEqual(new Map());
+    expect(dmResult.usersInClub).toEqual(new Set(["dm-peer"]));
+    expect(dmOnly.from.mock.calls.map(([table]) => table)).toEqual(["user_roles"]);
+
+    const groupOnly = tableQueryClient({
+      group_members: { data: [{ group_id: "group-1", user_id: "member-1" }], error: null },
+      user_roles: { data: [{ user_id: "member-1" }], error: null },
+    });
+    const groupResult = await fetchInboxClubScopeFilter({
+      userId: "user-1", clubId: "club-1", personalGroupIds: ["group-1"],
+      dmOtherUserIds: [], client: groupOnly.client,
+    });
+    expect(groupResult.groupMembersMap).toEqual(new Map([["group-1", ["member-1"]]]));
+    expect(groupResult.usersInClub).toEqual(new Set(["member-1"]));
+  });
+
+  it("keeps an empty club scope query-free", async () => {
+    const fake = tableQueryClient({});
+    await expect(fetchInboxClubScopeFilter({
+      userId: "user-1", clubId: "club-1", personalGroupIds: [],
+      dmOtherUserIds: [], client: fake.client,
+    })).resolves.toEqual({ groupMembersMap: new Map(), usersInClub: new Set() });
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["group-members", "group_members"],
+    ["club-roles", "user_roles"],
+  ])("propagates a %s scope-filter failure", async (_label, failingTable) => {
+    const failure = new Error(`${failingTable} unavailable`);
+    const fake = tableQueryClient({
+      group_members: {
+        data: [{ group_id: "group-1", user_id: "member-1" }],
+        error: failingTable === "group_members" ? failure : null,
+      },
+      user_roles: {
+        data: [{ user_id: "member-1" }],
+        error: failingTable === "user_roles" ? failure : null,
+      },
+    });
+
+    await expect(fetchInboxClubScopeFilter({
+      userId: "user-1", clubId: "club-1", personalGroupIds: ["group-1"],
+      dmOtherUserIds: [], client: fake.client,
+    })).rejects.toBe(failure);
+  });
+
   it("reads the exact group-management roles and returns only scoped team ids", async () => {
     const success = queryClient({
       data: [

@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 technically complete; M2a-M2d repository boundaries complete locally; manual UI review deferred
+Status: M1 technically complete; M2a-M2e repository boundaries complete locally; manual UI review deferred
 
 ## Progress
 
@@ -79,6 +79,15 @@ Status: M1 technically complete; M2a-M2d repository boundaries complete locally;
   now propagates failures from all three tables instead of publishing empty
   membership.
 - M2d verification: all 20 repository tests, 194 broader inbox/messaging tests,
+  TypeScript, focused lint, production build and all three native-like no-jolt
+  Playwright journeys passed.
+- M2e extracted the active-club filter repository spanning personal-group
+  membership and DM-peer club roles. It preserves raw per-group membership,
+  excludes the current user from the role-check union, deduplicates DM/group
+  peers, supports either source independently and avoids empty-scope queries.
+  Failures from either table now propagate instead of publishing a false empty
+  club scope.
+- M2e verification: all 25 repository tests, 199 broader inbox/messaging tests,
   TypeScript, focused lint, production build and all three native-like no-jolt
   Playwright journeys passed.
 
