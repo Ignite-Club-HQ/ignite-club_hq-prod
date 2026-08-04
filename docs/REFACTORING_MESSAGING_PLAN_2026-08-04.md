@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: in progress; M1a pure filtering, ordering and disclosure boundary complete locally
+Status: in progress; M1a-M1b inbox policy boundaries complete locally
 
 ## Progress
 
@@ -18,6 +18,14 @@ Status: in progress; M1a pure filtering, ordering and disclosure boundary comple
   passed; the production build completed successfully.
 - Whole-file `MessagesPage` lint remains blocked by pre-existing legacy `any`,
   empty-block and hook-dependency debt. M1a did not add or expand that debt.
+- M1b extracted active mute classification and hidden-conversation resurfacing
+  rules without moving their Supabase queries, query keys, mutations or cache
+  behavior. It covers mute expiry boundaries and scope separation, plus hidden
+  DM/personal-group behavior with no message, equal timestamps, newer messages
+  and active search.
+- M1b verification: extracted-module lint and TypeScript passed; 160 broader
+  inbox/messaging tests and the three native-like no-jolt Playwright journeys
+  passed; the production build completed with established warnings only.
 
 ## Objective
 

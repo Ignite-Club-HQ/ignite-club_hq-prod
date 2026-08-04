@@ -52,7 +52,9 @@ import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
 import {
+  deriveActiveMutedChats,
   filterInboxConversations,
+  isHiddenConversationVisible,
   normalizeInboxTypeFilter,
   partitionInboxByReadState,
   resolveOperationalConversationDisclosure,
@@ -1044,23 +1046,7 @@ export default function MessagesPage() {
         .select("chat_id, chat_type, muted_until")
         .eq("user_id", user!.id);
       
-      const now = new Date();
-      const muted = {
-        teams: new Set<string>(),
-        clubs: new Set<string>(),
-        groups: new Set<string>(),
-      };
-      
-      data?.forEach((pref) => {
-        const isActive = pref.muted_until === null || new Date(pref.muted_until) > now;
-        if (!isActive) return;
-        
-        if (pref.chat_type === "team") muted.teams.add(pref.chat_id);
-        else if (pref.chat_type === "club") muted.clubs.add(pref.chat_id);
-        else if (pref.chat_type === "group") muted.groups.add(pref.chat_id);
-      });
-      
-      return muted;
+      return deriveActiveMutedChats(data ?? [], Date.now());
     },
     enabled: !!user && initialized,
     staleTime: 60000,
@@ -2383,9 +2369,11 @@ export default function MessagesPage() {
       const hiddenAt = hiddenGroupMap?.get(group.id);
       if (!hiddenAt) return true;
       const lastMsgAt = displayLatestGroupMessages?.[group.id]?.created_at;
-      const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
-      if (stillHidden && !query) return false;
-      return true;
+      return isHiddenConversationVisible({
+        hiddenAt,
+        lastMessageAt: lastMsgAt,
+        hasSearchQuery: !!query,
+      });
     });
     if (!query) return groups;
     return groups.filter((group: any) => {
@@ -2481,11 +2469,11 @@ export default function MessagesPage() {
     return effectiveDMConversations.filter((conv: any) => {
 
       const hiddenAt = hiddenDMMap?.get(conv.id);
-      if (hiddenAt) {
-        const lastMsgAt = conv.last_message?.created_at;
-        const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
-        if (stillHidden && !query) return false;
-      }
+      if (!isHiddenConversationVisible({
+        hiddenAt,
+        lastMessageAt: conv.last_message?.created_at,
+        hasSearchQuery: !!query,
+      })) return false;
       // When a club filter is active, only show DMs whose other participant
       // holds a role under the selected club. Always keep Ignite Support
       // visible regardless of club scope. While the lookup is loading, keep

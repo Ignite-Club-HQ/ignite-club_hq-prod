@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  deriveActiveMutedChats,
   filterInboxConversations,
+  isHiddenConversationVisible,
   normalizeInboxTypeFilter,
   partitionInboxByReadState,
   resolveOperationalConversationDisclosure,
@@ -29,6 +31,69 @@ function conversation(
 }
 
 describe("messaging inbox read model", () => {
+  it("keeps indefinite and future mute preferences active by their exact scope", () => {
+    const muted = deriveActiveMutedChats([
+      { chat_id: "team-forever", chat_type: "team", muted_until: null },
+      { chat_id: "club-future", chat_type: "club", muted_until: "2026-08-04T12:00:01.000Z" },
+      { chat_id: "group-future", chat_type: "group", muted_until: "2026-08-05T00:00:00.000Z" },
+    ], NOW);
+
+    expect([...muted.teams]).toEqual(["team-forever"]);
+    expect([...muted.clubs]).toEqual(["club-future"]);
+    expect([...muted.groups]).toEqual(["group-future"]);
+  });
+
+  it("excludes expired, boundary-time, invalid and unsupported mute preferences", () => {
+    const muted = deriveActiveMutedChats([
+      { chat_id: "expired", chat_type: "team", muted_until: "2026-08-04T11:59:59.999Z" },
+      { chat_id: "at-now", chat_type: "club", muted_until: "2026-08-04T12:00:00.000Z" },
+      { chat_id: "invalid", chat_type: "group", muted_until: "not-a-date" },
+      { chat_id: "dm", chat_type: "dm", muted_until: null },
+    ], NOW);
+
+    expect([...muted.teams]).toEqual([]);
+    expect([...muted.clubs]).toEqual([]);
+    expect([...muted.groups]).toEqual([]);
+  });
+
+  it("keeps a hidden conversation absent until a strictly newer message arrives", () => {
+    const hiddenAt = "2026-08-04T10:00:00.000Z";
+
+    expect(isHiddenConversationVisible({ hiddenAt, lastMessageAt: undefined, hasSearchQuery: false })).toBe(false);
+    expect(isHiddenConversationVisible({ hiddenAt, lastMessageAt: hiddenAt, hasSearchQuery: false })).toBe(false);
+    expect(isHiddenConversationVisible({
+      hiddenAt,
+      lastMessageAt: "2026-08-04T10:00:00.001Z",
+      hasSearchQuery: false,
+    })).toBe(true);
+  });
+
+  it("reveals hidden conversations during search without changing persisted hidden state", () => {
+    expect(isHiddenConversationVisible({
+      hiddenAt: "2026-08-04T10:00:00.000Z",
+      lastMessageAt: "2026-08-03T10:00:00.000Z",
+      hasSearchQuery: true,
+    })).toBe(true);
+    expect(isHiddenConversationVisible({
+      hiddenAt: undefined,
+      lastMessageAt: undefined,
+      hasSearchQuery: false,
+    })).toBe(true);
+  });
+
+  it("preserves visibility when stored hidden timestamps cannot be compared", () => {
+    expect(isHiddenConversationVisible({
+      hiddenAt: "not-a-date",
+      lastMessageAt: "2026-08-04T10:00:00.000Z",
+      hasSearchQuery: false,
+    })).toBe(true);
+    expect(isHiddenConversationVisible({
+      hiddenAt: "2026-08-04T10:00:00.000Z",
+      lastMessageAt: "not-a-date",
+      hasSearchQuery: false,
+    })).toBe(true);
+  });
+
   it("normalizes legacy and invalid persisted filter values", () => {
     expect(normalizeInboxTypeFilter("club")).toBe("groups");
     expect(normalizeInboxTypeFilter("league")).toBe("groups");

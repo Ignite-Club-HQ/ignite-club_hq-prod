@@ -45,6 +45,56 @@ export interface OperationalDisclosureOptions {
   visibleWhenCollapsed?: number;
 }
 
+export interface ChatMutePreference {
+  chat_id: string;
+  chat_type: string;
+  muted_until: string | null;
+}
+
+export interface ActiveMutedChats {
+  teams: Set<string>;
+  clubs: Set<string>;
+  groups: Set<string>;
+}
+
+export function deriveActiveMutedChats(
+  preferences: readonly ChatMutePreference[],
+  now: number,
+): ActiveMutedChats {
+  const muted: ActiveMutedChats = {
+    teams: new Set<string>(),
+    clubs: new Set<string>(),
+    groups: new Set<string>(),
+  };
+
+  for (const preference of preferences) {
+    const isActive =
+      preference.muted_until === null ||
+      new Date(preference.muted_until).getTime() > now;
+    if (!isActive) continue;
+
+    if (preference.chat_type === "team") muted.teams.add(preference.chat_id);
+    else if (preference.chat_type === "club") muted.clubs.add(preference.chat_id);
+    else if (preference.chat_type === "group") muted.groups.add(preference.chat_id);
+  }
+
+  return muted;
+}
+
+export function isHiddenConversationVisible(options: {
+  hiddenAt?: string;
+  lastMessageAt?: string | null;
+  hasSearchQuery: boolean;
+}): boolean {
+  if (!options.hiddenAt || options.hasSearchQuery) return true;
+  if (!options.lastMessageAt) return false;
+
+  const stillHidden =
+    new Date(options.lastMessageAt).getTime() <=
+    new Date(options.hiddenAt).getTime();
+  return !stillHidden;
+}
+
 export function normalizeInboxTypeFilter(value: string): InboxTypeFilter {
   if (value === "club" || value === "league") return "groups";
   if (value === "teams" || value === "groups" || value === "dms") return value;
