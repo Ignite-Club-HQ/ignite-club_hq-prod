@@ -749,15 +749,18 @@ export default function GroupChatPage() {
     const msgList = Array.isArray(messagesData) 
       ? messagesData 
       : (messagesData as any).messages || [];
+    // SECURITY (cross-group bleed): last line of defence before render — a row
+    // is only ever displayed in the thread it was posted to.
+    const scoped = (msgList as any[]).filter((m) => !m?.group_id || m.group_id === groupId);
     // Sort by created_at to ensure proper ordering
-    const sorted = [...msgList].sort((a, b) => 
+    const sorted = [...scoped].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
     // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
     // after a realtime UPDATE must never restore pre-edit text or resurrect a
     // deleted row.
     return (reconcileMessages(reconcileScope, sorted) ?? []) as GroupMessage[];
-  }, [messagesData, reconcileScope]);
+  }, [messagesData, reconcileScope, groupId]);
 
   // Local copy used for rendering so optimistic updates are instant.
   // A notification-preload stub is never used as a seed, but a genuine
@@ -770,13 +773,19 @@ export default function GroupChatPage() {
       groupId,
     ]);
 
-    if (isUsableCachedThread(cachedQueryData?.messages as any)) {
-      return cachedQueryData!.messages;
+    // Seeds are scoped too: a placeholder object left behind by a previous
+    // group must never seed this thread's render state.
+    const cachedScoped = (cachedQueryData?.messages ?? []).filter(
+      (m: any) => !m?.group_id || m.group_id === groupId,
+    );
+    if (isUsableCachedThread(cachedScoped as any)) {
+      return cachedScoped as GroupMessage[];
     }
 
     const fromCache = getCachedGroupMessages(groupId).messages;
     return isUsableCachedThread(fromCache as any) ? fromCache : undefined;
   };
+
 
 
   const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(() =>
