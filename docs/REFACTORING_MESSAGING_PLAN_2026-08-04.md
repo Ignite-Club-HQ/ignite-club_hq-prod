@@ -283,6 +283,20 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   TypeScript and focused lint, plus four Playwright journeys covering denied
   permission, exact-scope send and usable desktop/narrow-phone composers. No
   runtime defect was found.
+- Club Admin has no older-page pagination to extract: although its initial read
+  computes whether more than 15 messages exist, the scroller is explicitly
+  wired with `hasOlderMessages={false}` and a no-op loader. This pre-existing
+  functional gap is documented for a separate behavior change and is not fixed
+  or locked in as desired pagination behavior by M4.
+- M4d begins cache hydration extraction with Club Admin's notification-cache
+  row merge. Existing query rows still win on duplicate ids, missing cached
+  rows are added chronologically, legacy array/envelope placeholder shapes are
+  retained, and bounded empty/error recovery remains page-owned.
+- M4d initial verification passed 140 focused contracts, TypeScript and focused
+  lint. All eight Club Admin Playwright journeys passed, covering inbox-to-
+  thread consistency, delayed hydration, one/two transient empty responses,
+  usable one-message cache, exhausted-error retry UI, authoritative empty state
+  and exact-scope send. No new runtime defect was found.
 
 ## Objective
 

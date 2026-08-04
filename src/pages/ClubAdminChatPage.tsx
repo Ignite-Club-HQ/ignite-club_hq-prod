@@ -89,6 +89,7 @@ import {
 } from "@/features/messaging/scopes/chatScopeAdapters";
 import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
 import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
+import { mergeCachedChatMessagesChronologically } from "@/features/messaging/thread/chatThreadCacheHydration";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -434,12 +435,9 @@ export default function ClubAdminChatPage() {
       const cached = getCachedClubAdminMessages(conversationId);
       if (openedFromNotificationRef.current && prev) {
         const prevMessages: ClubAdminMessage[] = Array.isArray(prev) ? prev : (prev.messages || []);
-        const merged = [...prevMessages];
-        for (const cachedMessage of cached) {
-          if (!merged.some((message) => message.id === cachedMessage.id)) merged.push(cachedMessage);
-        }
-        merged.sort((a, b) =>
-          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
+        const merged = mergeCachedChatMessagesChronologically(
+          prevMessages,
+          cached,
         );
         return Array.isArray(prev) ? merged : { ...prev, messages: merged, fromCache: true };
       }
