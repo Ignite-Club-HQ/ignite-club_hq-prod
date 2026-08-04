@@ -203,6 +203,15 @@ Status: M1, M2 and M3 technically complete locally; manual UI review deferred
   notification-routing journeys passed. Whole-page lint retains pre-existing
   legacy type and hook debt; no runtime defect was found. Adapter consumption is
   now complete across all six messaging surfaces.
+- M3 completion review ran the complete default Vitest suite successfully,
+  rebuilt the production application, and ran the full 78-case messaging
+  Playwright pack. The pack finished 76/78 on the combined run; both exceptions
+  passed immediately in isolated reruns. The first was a cold-load DM denial
+  timeout whose screenshot remained on the application spinner, and the second
+  was an interrupted iOS-like frame reload in an unrelated pitchboard journey.
+  The cumulative source diff confirms that Supabase operations, mutation
+  payloads, authorization rules, Realtime tables/filters and timing constants
+  were not changed. M3 is technically ready for deferred manual UI review.
 
 ## Objective
 
