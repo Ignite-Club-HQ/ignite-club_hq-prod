@@ -5,6 +5,50 @@ import { deriveActiveMutedChats, type ActiveMutedChats } from "./inboxReadModel"
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 
+export async function fetchInboxAdminTeamIds(
+  userId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<string[]> {
+  const { data, error } = await client
+    .from("user_roles")
+    .select("team_id, club_id, role")
+    .eq("user_id", userId)
+    .in("role", ["team_admin", "coach", "committee_member"]);
+
+  if (error) throw error;
+  return (data ?? [])
+    .map((role) => role.team_id)
+    .filter((teamId): teamId is string => !!teamId);
+}
+
+export async function fetchInboxCommitteeMemberStatus(
+  userId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<boolean> {
+  const { data, error } = await client
+    .from("user_roles")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("role", "committee_member")
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
+}
+
+export async function fetchInboxUserRoles(
+  userId: string,
+  client: IgniteSupabaseClient = supabase,
+) {
+  const { data, error } = await client
+    .from("user_roles")
+    .select("role, club_id, team_id")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function fetchInboxAppAdminStatus(
   userId: string,
   client: IgniteSupabaseClient = supabase,

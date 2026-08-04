@@ -72,12 +72,15 @@ import {
   buildTeamInboxConversation,
 } from "@/features/messaging/inbox/inboxConversationBuilders";
 import {
+  fetchInboxAdminTeamIds,
   fetchInboxAppAdminStatus,
   fetchInboxClubProStatus,
+  fetchInboxCommitteeMemberStatus,
   fetchInboxCompetitionClubMap,
   fetchInboxHiddenDirectMessages,
   fetchInboxHiddenGroups,
   fetchInboxMutedChats,
+  fetchInboxUserRoles,
 } from "@/features/messaging/inbox/inboxRepositories";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
@@ -697,14 +700,7 @@ export default function MessagesPage() {
   // Get admin teams where user can create groups
   const { data: adminTeamIds } = useQuery({
     queryKey: ["admin-team-ids", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("team_id, club_id, role")
-        .eq("user_id", user!.id)
-        .in("role", ["team_admin", "coach", "committee_member"]);
-      return data?.map((r) => r.team_id).filter(Boolean) || [];
-    },
+    queryFn: () => fetchInboxAdminTeamIds(user!.id),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -713,15 +709,7 @@ export default function MessagesPage() {
   // Check if user is a committee member (club-level role)
   const { data: isCommitteeMember, isFetching: isCommitteeMemberFetching } = useQuery({
     queryKey: ["is-committee-member", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("role", "committee_member")
-        .maybeSingle();
-      return !!data;
-    },
+    queryFn: () => fetchInboxCommitteeMemberStatus(user!.id),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -730,13 +718,7 @@ export default function MessagesPage() {
   // Fetch all user roles for chat group filtering
   const { data: userAllRoles, isFetching: userAllRolesFetching } = useQuery({
     queryKey: ["user-all-roles", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role, club_id, team_id")
-        .eq("user_id", user!.id);
-      return data || [];
-    },
+    queryFn: () => fetchInboxUserRoles(user!.id),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
   });

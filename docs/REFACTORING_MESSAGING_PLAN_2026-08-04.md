@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 technically complete; M2a-M2b repository boundaries complete locally; manual UI review deferred
+Status: M1 technically complete; M2a-M2c repository boundaries complete locally; manual UI review deferred
 
 ## Progress
 
@@ -64,6 +64,15 @@ Status: M1 technically complete; M2a-M2b repository boundaries complete locally;
   failure contracts and valid user-scoped success paths; 185 broader inbox and
   messaging tests, TypeScript, focused lint, production build and three
   native-like no-jolt Playwright journeys also passed.
+- M2c extracted admin-team, committee-member and complete user-role reads. It
+  fixes three pre-existing fail-closed availability defects where transient
+  backend errors were published as empty/false capability data, temporarily
+  hiding group creation or role-gated conversations. Query keys, role filters,
+  cache options and UI authorization remain unchanged.
+- M2c verification: all 15 repository tests and 189 broader inbox/messaging
+  tests passed with TypeScript, focused lint and production build. Both Android
+  journeys passed first run; the iOS-like journey passed on isolated rerun after
+  one unrelated synthetic Capacitor initialization failure.
 
 ## Objective
 

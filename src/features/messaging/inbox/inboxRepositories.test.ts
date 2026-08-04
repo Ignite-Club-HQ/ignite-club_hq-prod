@@ -2,12 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/integrations/supabase/types";
 import {
+  fetchInboxAdminTeamIds,
   fetchInboxAppAdminStatus,
   fetchInboxClubProStatus,
+  fetchInboxCommitteeMemberStatus,
   fetchInboxCompetitionClubMap,
   fetchInboxHiddenDirectMessages,
   fetchInboxHiddenGroups,
   fetchInboxMutedChats,
+  fetchInboxUserRoles,
 } from "./inboxRepositories";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
@@ -37,6 +40,60 @@ function queryClient(result: { data: unknown; error: unknown }) {
 }
 
 describe("messaging inbox repositories", () => {
+  it("reads the exact group-management roles and returns only scoped team ids", async () => {
+    const success = queryClient({
+      data: [
+        { team_id: "team-1", club_id: "club-1", role: "coach" },
+        { team_id: null, club_id: "club-1", role: "committee_member" },
+        { team_id: "team-2", club_id: "club-2", role: "team_admin" },
+      ],
+      error: null,
+    });
+
+    await expect(fetchInboxAdminTeamIds("user-1", success.client)).resolves.toEqual([
+      "team-1", "team-2",
+    ]);
+    expect(success.from).toHaveBeenCalledWith("user_roles");
+    expect(success.builder.select).toHaveBeenCalledWith("team_id, club_id, role");
+    expect(success.builder.eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(success.builder.in).toHaveBeenCalledWith(
+      "role", ["team_admin", "coach", "committee_member"],
+    );
+  });
+
+  it("does not replace admin-team capability with an empty list on failure", async () => {
+    const failure = new Error("admin team roles unavailable");
+    const failed = queryClient({ data: null, error: failure });
+    await expect(fetchInboxAdminTeamIds("user-1", failed.client)).rejects.toBe(failure);
+  });
+
+  it("reads committee capability for only the current user and propagates failure", async () => {
+    const success = queryClient({ data: { id: "role-1" }, error: null });
+    await expect(fetchInboxCommitteeMemberStatus("user-1", success.client)).resolves.toBe(true);
+    expect(success.builder.eq).toHaveBeenNthCalledWith(1, "user_id", "user-1");
+    expect(success.builder.eq).toHaveBeenNthCalledWith(2, "role", "committee_member");
+    expect(success.builder.maybeSingle).toHaveBeenCalledOnce();
+
+    const failure = new Error("committee role unavailable");
+    const failed = queryClient({ data: null, error: failure });
+    await expect(fetchInboxCommitteeMemberStatus("user-1", failed.client)).rejects.toBe(failure);
+  });
+
+  it("preserves all role scopes and does not publish empty roles on failure", async () => {
+    const rows = [
+      { role: "coach", club_id: "club-1", team_id: "team-1" },
+      { role: "parent", club_id: "club-1", team_id: null },
+    ];
+    const success = queryClient({ data: rows, error: null });
+    await expect(fetchInboxUserRoles("user-1", success.client)).resolves.toEqual(rows);
+    expect(success.builder.select).toHaveBeenCalledWith("role, club_id, team_id");
+    expect(success.builder.eq).toHaveBeenCalledWith("user_id", "user-1");
+
+    const failure = new Error("all roles unavailable");
+    const failed = queryClient({ data: null, error: failure });
+    await expect(fetchInboxUserRoles("user-1", failed.client)).rejects.toBe(failure);
+  });
+
   it("reads only the current user's app-admin role and propagates failures", async () => {
     const success = queryClient({ data: { id: "role-1" }, error: null });
     await expect(fetchInboxAppAdminStatus("user-1", success.client)).resolves.toBe(true);
