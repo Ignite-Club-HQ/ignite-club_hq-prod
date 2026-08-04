@@ -10,6 +10,7 @@
 import { preloadMessageFromNotification } from "./notificationPreload";
 import { captureJumpFromNotification, normalizeNotificationChatUrl } from "./pendingChatJump";
 import { prefetchChatChunkForUrl } from "./chatChunkPrefetch";
+import { requestClubSwitchForNotification } from "./notificationClubSwitch";
 import { mark as coldMark, remark as coldRemark, startLongTaskWindow } from "./coldStartMarks";
 
 let pendingUrl: string | null = null;
@@ -106,6 +107,9 @@ function handlePayload(payload: any) {
     // Warm the chat page chunk in parallel with auth/profile bootstrap so it
     // is already in the module cache by the time the route mounts.
     try { prefetchChatChunkForUrl(url); } catch {}
+    // Bring the global club filter to the club that owns this thread, so the
+    // app doesn't open a Club B chat while still filtered to Club A.
+    try { requestClubSwitchForNotification(data, url); } catch {}
   }
   // Best-effort preload — payload may contain the full push data so the chat
   // page can render the new message instantly. Safe no-op if fields missing.

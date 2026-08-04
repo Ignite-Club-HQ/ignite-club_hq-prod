@@ -39,6 +39,7 @@ interface OpenGroup {
   club_id: string;
   club_name: string | null;
   member_count: number;
+  join_policy: string;
   joined: boolean;
   /** True when the current user has already submitted a pending request. */
   requested: boolean;
@@ -114,8 +115,8 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     queryFn: async (): Promise<OpenGroup[]> => {
       let q = supabase
         .from("chat_groups")
-        .select("id, name, category, club_id, clubs:club_id(name)")
-        .eq("join_policy", "open_to_club")
+        .select("id, name, category, club_id, join_policy, clubs:club_id(name)")
+        .in("join_policy", ["open_to_club", "request_to_join"])
         .is("deleted_at", null)
         .not("club_id", "is", null)
         .is("team_id", null)
@@ -170,6 +171,7 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
         category: r.category ?? null,
         club_id: r.club_id,
         club_name: (r.clubs && (Array.isArray(r.clubs) ? r.clubs[0]?.name : r.clubs.name)) ?? null,
+        join_policy: r.join_policy ?? "request_to_join",
         member_count: counts.get(r.id) ?? 0,
         joined: joined.has(r.id),
         requested: requested.has(r.id),
@@ -193,6 +195,25 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
     },
     onError: (err: any) => {
       toast.error(err?.message ?? "Could not send request");
+    },
+    onSettled: () => setJoiningId(null),
+  });
+
+  const joinMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      const { data, error } = await (supabase as any).rpc("join_open_chat_group", {
+        _group_id: groupId,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      toast.success("You've joined the group");
+      queryClient.invalidateQueries({ queryKey: ["discover-open-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["my-chat-groups"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message ?? "Could not join group");
     },
     onSettled: () => setJoiningId(null),
   });
@@ -309,10 +330,11 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
             onClick={(e) => {
               e.stopPropagation();
               setJoiningId(g.id);
-              requestMutation.mutate(g.id);
+              if (g.join_policy === "open_to_club") joinMutation.mutate(g.id);
+              else requestMutation.mutate(g.id);
             }}
           >
-            {joiningId === g.id ? "…" : "Request"}
+            {joiningId === g.id ? "…" : g.join_policy === "open_to_club" ? "Join" : "Request"}
           </Button>
         )}
       </button>
@@ -388,8 +410,8 @@ export default function DiscoverGroupsList({ activeClubFilter }: DiscoverGroupsL
               <p className="font-medium text-sm mb-1">How this works</p>
               <p className="text-muted-foreground">
                 Admins can mark <strong>Operations</strong> or <strong>Volunteers</strong> groups
-                as open. Tap <strong>Request</strong> — an existing group member must approve
-                before you're added.
+                as open to the club. Groups set to <strong>Join</strong> let you in straight away;
+                groups set to <strong>Request</strong> need an existing member to approve you first.
               </p>
             </PopoverContent>
           </Popover>
