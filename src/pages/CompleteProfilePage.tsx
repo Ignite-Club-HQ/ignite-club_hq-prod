@@ -22,6 +22,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { resolveCanonicalChildId } from "@/lib/childDedup";
+
 
 interface PendingInvite {
   id: string;
