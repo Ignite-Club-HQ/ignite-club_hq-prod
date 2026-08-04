@@ -1058,8 +1058,17 @@ export default function GroupChatPage() {
           .map((m: any) => `${m.author_id}::${m.text ?? ""}::${m.image_url ?? ""}`),
       );
       const previousOnly = (prev || []).filter((message: any) => {
+        // SECURITY (cross-group bleed): this merge is deliberately fail-open —
+        // it keeps prior rows that are absent from the incoming snapshot. A row
+        // left over from another group's thread (route param changed without a
+        // remount) would otherwise satisfy every keep-condition below and be
+        // merged into THIS group permanently, then persisted to this group's
+        // offline cache. Foreign rows are never kept.
+        if (message.group_id && message.group_id !== groupId) return false;
         if (incomingIds.has(message.id)) return false;
         // A soft-deleted row is absent from `messages`; without this guard the
+        // fail-open branch below would re-add it on every sync.
+
         // fail-open branch below would re-add it on every sync.
         if (isTombstoned(reconcileScope, message.id)) return false;
         if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
