@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { deriveActiveMutedChats, type ActiveMutedChats } from "./inboxReadModel";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 
@@ -77,4 +78,55 @@ export async function fetchInboxCompetitionClubMap(
     (clubIdsByCompetition[row.competition_id] ||= new Set()).add(clubId);
   }
   return clubIdsByCompetition;
+}
+
+export async function fetchInboxMutedChats(
+  userId: string,
+  options: {
+    client?: IgniteSupabaseClient;
+    now?: number;
+  } = {},
+): Promise<ActiveMutedChats> {
+  const client = options.client ?? supabase;
+  const { data, error } = await client
+    .from("chat_mute_preferences")
+    .select("chat_id, chat_type, muted_until")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  return deriveActiveMutedChats(data ?? [], options.now ?? Date.now());
+}
+
+export async function fetchInboxHiddenDirectMessages(
+  userId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<Map<string, string>> {
+  const { data, error } = await client
+    .from("hidden_dm_conversations")
+    .select("conversation_id, hidden_at")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  const hiddenByConversation = new Map<string, string>();
+  for (const row of data ?? []) {
+    hiddenByConversation.set(row.conversation_id, row.hidden_at);
+  }
+  return hiddenByConversation;
+}
+
+export async function fetchInboxHiddenGroups(
+  userId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<Map<string, string>> {
+  const { data, error } = await client
+    .from("hidden_chat_groups")
+    .select("group_id, hidden_at")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  const hiddenByGroup = new Map<string, string>();
+  for (const row of data ?? []) {
+    hiddenByGroup.set(row.group_id, row.hidden_at);
+  }
+  return hiddenByGroup;
 }

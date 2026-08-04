@@ -53,7 +53,6 @@ import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
 import {
   attachInboxDrafts,
-  deriveActiveMutedChats,
   filterInboxConversations,
   isHiddenConversationVisible,
   normalizeInboxTypeFilter,
@@ -76,6 +75,9 @@ import {
   fetchInboxAppAdminStatus,
   fetchInboxClubProStatus,
   fetchInboxCompetitionClubMap,
+  fetchInboxHiddenDirectMessages,
+  fetchInboxHiddenGroups,
+  fetchInboxMutedChats,
 } from "@/features/messaging/inbox/inboxRepositories";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
@@ -1015,14 +1017,7 @@ export default function MessagesPage() {
   // Fetch all muted chats for the user
   const { data: mutedChats } = useQuery({
     queryKey: ["muted-chats", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("chat_mute_preferences")
-        .select("chat_id, chat_type, muted_until")
-        .eq("user_id", user!.id);
-      
-      return deriveActiveMutedChats(data ?? [], Date.now());
-    },
+    queryFn: () => fetchInboxMutedChats(user!.id),
     enabled: !!user && initialized,
     staleTime: 60000,
     placeholderData: (prev) => prev,
@@ -1215,30 +1210,14 @@ export default function MessagesPage() {
   // Fetch hidden DM conversations (with hidden_at so they can resurface on new messages)
   const { data: hiddenDMMap } = useQuery({
     queryKey: ["hidden-dm-conversations", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("hidden_dm_conversations")
-        .select("conversation_id, hidden_at")
-        .eq("user_id", user!.id);
-      const map = new Map<string, string>();
-      (data || []).forEach((h: any) => map.set(h.conversation_id, h.hidden_at));
-      return map;
-    },
+    queryFn: () => fetchInboxHiddenDirectMessages(user!.id),
     enabled: !!user,
   });
 
   // Fetch hidden custom group chats (with hidden_at)
   const { data: hiddenGroupMap } = useQuery({
     queryKey: ["hidden-chat-groups", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("hidden_chat_groups" as any)
-        .select("group_id, hidden_at")
-        .eq("user_id", user!.id);
-      const map = new Map<string, string>();
-      (data || []).forEach((h: any) => map.set(h.group_id, h.hidden_at));
-      return map;
-    },
+    queryFn: () => fetchInboxHiddenGroups(user!.id),
     enabled: !!user,
   });
 

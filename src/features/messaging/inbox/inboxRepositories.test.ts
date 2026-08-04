@@ -5,6 +5,9 @@ import {
   fetchInboxAppAdminStatus,
   fetchInboxClubProStatus,
   fetchInboxCompetitionClubMap,
+  fetchInboxHiddenDirectMessages,
+  fetchInboxHiddenGroups,
+  fetchInboxMutedChats,
 } from "./inboxRepositories";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
@@ -135,5 +138,71 @@ describe("messaging inbox repositories", () => {
     const failure = new Error("competition lookup failed");
     const failed = queryClient({ data: null, error: failure });
     await expect(fetchInboxCompetitionClubMap(["comp-1"], failed.client)).rejects.toBe(failure);
+  });
+
+  it("does not replace known mute preferences with an empty result when their read fails", async () => {
+    const failure = new Error("mute preferences unavailable");
+    const failed = queryClient({ data: null, error: failure });
+
+    await expect(fetchInboxMutedChats("user-1", {
+      client: failed.client,
+      now: Date.parse("2026-08-04T12:00:00.000Z"),
+    })).rejects.toBe(failure);
+  });
+
+  it("preserves valid mute preferences and their exact user-scoped query", async () => {
+    const success = queryClient({
+      data: [
+        { chat_id: "team-1", chat_type: "team", muted_until: null },
+        { chat_id: "group-1", chat_type: "group", muted_until: "2026-08-05T00:00:00.000Z" },
+      ],
+      error: null,
+    });
+
+    const result = await fetchInboxMutedChats("user-1", {
+      client: success.client,
+      now: Date.parse("2026-08-04T12:00:00.000Z"),
+    });
+    expect([...result.teams]).toEqual(["team-1"]);
+    expect([...result.groups]).toEqual(["group-1"]);
+    expect(success.from).toHaveBeenCalledWith("chat_mute_preferences");
+    expect(success.builder.select).toHaveBeenCalledWith("chat_id, chat_type, muted_until");
+    expect(success.builder.eq).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  it("does not convert a hidden-DM preference failure into an empty map", async () => {
+    const failure = new Error("hidden DM preferences unavailable");
+    const failed = queryClient({ data: null, error: failure });
+
+    await expect(fetchInboxHiddenDirectMessages("user-1", failed.client)).rejects.toBe(failure);
+  });
+
+  it("does not convert a hidden-group preference failure into an empty map", async () => {
+    const failure = new Error("hidden group preferences unavailable");
+    const failed = queryClient({ data: null, error: failure });
+
+    await expect(fetchInboxHiddenGroups("user-1", failed.client)).rejects.toBe(failure);
+  });
+
+  it("maps valid hidden DM and group preferences using separate scoped tables", async () => {
+    const direct = queryClient({
+      data: [{ conversation_id: "dm-1", hidden_at: "2026-08-04T10:00:00.000Z" }],
+      error: null,
+    });
+    const groups = queryClient({
+      data: [{ group_id: "group-1", hidden_at: "2026-08-04T11:00:00.000Z" }],
+      error: null,
+    });
+
+    await expect(fetchInboxHiddenDirectMessages("user-1", direct.client)).resolves.toEqual(
+      new Map([["dm-1", "2026-08-04T10:00:00.000Z"]]),
+    );
+    await expect(fetchInboxHiddenGroups("user-1", groups.client)).resolves.toEqual(
+      new Map([["group-1", "2026-08-04T11:00:00.000Z"]]),
+    );
+    expect(direct.from).toHaveBeenCalledWith("hidden_dm_conversations");
+    expect(groups.from).toHaveBeenCalledWith("hidden_chat_groups");
+    expect(direct.builder.eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(groups.builder.eq).toHaveBeenCalledWith("user_id", "user-1");
   });
 });

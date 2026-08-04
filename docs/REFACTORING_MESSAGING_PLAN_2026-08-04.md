@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 technically complete; M2a repository boundary complete locally; manual UI review deferred
+Status: M1 technically complete; M2a-M2b repository boundaries complete locally; manual UI review deferred
 
 ## Progress
 
@@ -55,6 +55,15 @@ Status: M1 technically complete; M2a repository boundary complete locally; manua
   message enrichment. Those reads were deliberately not moved or changed in
   M2a; each needs characterization and a separate behavior decision before its
   repository extraction.
+- M2b characterization reproduced three existing failures: errors reading
+  `chat_mute_preferences`, `hidden_dm_conversations` and
+  `hidden_chat_groups` resolved as successful empty results. The narrow fix now
+  propagates each backend error so React Query can retain prior successful
+  preference data rather than publishing false empty state.
+- M2b verification: all 11 repository tests pass, including the three former
+  failure contracts and valid user-scoped success paths; 185 broader inbox and
+  messaging tests, TypeScript, focused lint, production build and three
+  native-like no-jolt Playwright journeys also passed.
 
 ## Objective
 
