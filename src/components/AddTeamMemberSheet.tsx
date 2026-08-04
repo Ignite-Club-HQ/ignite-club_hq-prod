@@ -753,10 +753,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             // Existing child — just add guardian link if not already the parent
             const existingChild = clubChildren.find(c => c.id === childId);
             if (existingChild && existingChild.parent_id !== selectedUser.id) {
-              await supabase.from("child_guardians").insert({
-                child_id: childId,
-                guardian_id: selectedUser.id,
-              }).select().maybeSingle(); // ignore duplicate errors
+              // Only duplicate-link errors are benign; anything else (permission,
+              // FK, merged-away child) must surface or the parent silently ends
+              // up unlinked from the child and cannot RSVP.
+              const { error: guardianError } = await supabase
+                .from("child_guardians")
+                .insert({ child_id: childId, guardian_id: selectedUser.id });
+              if (guardianError && !isDuplicateChildError(guardianError)) {
+                console.error("[AddTeamMember] Failed to link guardian:", guardianError.message);
+                throw guardianError;
+              }
             }
           } else {
             // Create new child via secure RPC so admins can add children for existing parents
@@ -1542,10 +1548,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               if (childId) {
                 const existingChild = clubChildren.find(c => c.id === childId);
                 if (existingChild && existingChild.parent_id !== member.selectedUser.id) {
-                  await supabase.from("child_guardians").insert({
-                    child_id: childId,
-                    guardian_id: member.selectedUser.id,
-                  }).select().maybeSingle();
+                  const { error: guardianError } = await supabase
+                    .from("child_guardians")
+                    .insert({ child_id: childId, guardian_id: member.selectedUser.id });
+                  if (guardianError && !isDuplicateChildError(guardianError)) {
+                    console.error("[AddTeamMember] Failed to link guardian:", guardianError.message);
+                    throw guardianError;
+                  }
                 }
               } else {
                 const { data: newChildId, error: childError } = await supabase.rpc(
