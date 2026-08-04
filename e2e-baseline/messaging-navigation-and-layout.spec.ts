@@ -595,7 +595,9 @@ test("Performance: a cold notification deep link paints its exact old message wi
 
 test("full-history search finds an older message outside the initially loaded page and closes cleanly", async ({ page }) => {
   await page.goto(`/messages/${teamId}`);
-  await expect(page.getByText("Synthetic Messaging Team", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Synthetic Messaging Team", level: 1 }),
+  ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Needle from archived synthetic history", { exact: true })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Search messages" }).click();

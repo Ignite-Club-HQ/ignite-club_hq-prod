@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 and planned M2 repository boundaries technically complete locally; manual UI review deferred
+Status: M1 and M2 technically complete; M3a scope identity adapters complete locally; manual UI review deferred
 
 ## Progress
 
@@ -115,6 +115,17 @@ Status: M1 and planned M2 repository boundaries technically complete locally; ma
 - M2h verification: all 43 repository tests and 9 shared entitlement tests, 134
   selected inbox/entitlement regressions, TypeScript, focused lint, production
   build and all three native-like no-jolt Playwright journeys passed.
+- M3a introduced six explicit scope identity adapters for team, club, group,
+  direct, club-admin and broadcast chat. They lock each message table, immutable
+  scope column, reaction foreign key, cache prefix and route without merging
+  page-specific permissions or capabilities. Shared history search now consumes
+  the adapter reaction key instead of maintaining a second table map.
+- M3a verification: 101 adapter, history, navigation and six-surface contract
+  tests passed with TypeScript, new-module lint, production build and all seven
+  relevant history/notification Playwright journeys across the combined runs.
+  The history journey's readiness assertion was hardened from a generic
+  five-second text lookup to the exact heading with a realistic cold-build
+  allowance after two artifacts showed correct late rendering.
 
 ## Objective
 
