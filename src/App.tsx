@@ -155,6 +155,27 @@ const EmbeddedEoiFormPage = lazy(() => import("./pages/EmbeddedEoiFormPage"));
 const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
+/**
+ * SECURITY (cross-thread bleed): React Router reuses the same element instance
+ * when only a route param changes, so navigating chat A -> chat B keeps every
+ * `useState`/ref of the chat page alive (rendered message list, optimistic
+ * merges, caches) until async effects catch up. That is how a message posted in
+ * one group could momentarily render — and be persisted — inside another.
+ * Keying on the param forces a clean remount per conversation.
+ */
+const RemountOnParamChange = ({
+  param,
+  children,
+}: {
+  param: string;
+  children: React.ReactNode;
+}) => {
+  const params = useParams();
+  return <Suspense key={params[param] ?? "none"} fallback={null}>{children}</Suspense>;
+};
+
+
+
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
 import { installWebReconnectInvalidator } from "@/lib/webReconnectInvalidator";
 import { setupAndroidWebViewWake } from "@/lib/androidWebViewWake";
