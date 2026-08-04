@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { createChildForParentOrReuse } from "@/lib/childDedup";
+import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -551,6 +551,19 @@ export default function JoinTeamPage() {
               } else {
                 console.log("[JoinTeam] Child assigned to team:", childData.name);
               }
+            }
+
+            // The server may have merged this child into the canonical roster
+            // child. Re-resolve so guardian/league links target the survivor.
+            const canonicalId = await resolveCanonicalChildId(
+              childId,
+              pendingInviteData.team_id,
+              childData.name
+            );
+            if (canonicalId && canonicalId !== childId) {
+              const stale = createdChildIds.indexOf(childId);
+              if (stale !== -1) createdChildIds[stale] = canonicalId;
+              childId = canonicalId;
             }
           }
           
