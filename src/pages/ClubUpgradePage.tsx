@@ -1183,9 +1183,9 @@ export default function ClubUpgradePage() {
                 </div>
               </div>
             </CardContent>
-          </Card>
-        )}
+        </Card>
       </>
+
     );
   };
 
