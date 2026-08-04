@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/integrations/supabase/types";
 import {
   fetchInboxAdminTeamIds,
+  fetchInboxAdminClubs,
   fetchInboxAppAdminStatus,
   fetchInboxClubScopeFilter,
   fetchInboxClubProStatus,
@@ -25,6 +26,8 @@ function queryClient(result: { data: unknown; error: unknown }) {
     select: vi.fn(),
     eq: vi.fn(),
     in: vi.fn(),
+    is: vi.fn(),
+    neq: vi.fn(),
     maybeSingle: vi.fn(),
     then: (
       resolve: (value: typeof result) => unknown,
@@ -34,6 +37,8 @@ function queryClient(result: { data: unknown; error: unknown }) {
   builder.select.mockReturnValue(builder);
   builder.eq.mockReturnValue(builder);
   builder.in.mockReturnValue(builder);
+  builder.is.mockReturnValue(builder);
+  builder.neq.mockReturnValue(builder);
   builder.maybeSingle.mockResolvedValue(result);
   const from = vi.fn().mockReturnValue(builder);
 
@@ -57,6 +62,66 @@ function tableQueryClient(results: Record<string, { data: unknown; error: unknow
 }
 
 describe("messaging inbox repositories", () => {
+  it("loads only active non-shell clubs for the current user's club-admin roles", async () => {
+    const fake = tableQueryClient({
+      user_roles: {
+        data: [{ club_id: "club-1" }, { club_id: "club-2" }, { club_id: null }],
+        error: null,
+      },
+      clubs: {
+        data: [
+          { id: "club-1", name: "Riverside FC", logo_url: null, sport: "football" },
+          { id: "club-2", name: "Hills FC", logo_url: "logo.png", sport: "football" },
+        ],
+        error: null,
+      },
+    });
+
+    await expect(fetchInboxAdminClubs("user-1", fake.client)).resolves.toEqual([
+      { id: "club-1", name: "Riverside FC", logo_url: null, sport: "football" },
+      { id: "club-2", name: "Hills FC", logo_url: "logo.png", sport: "football" },
+    ]);
+    expect(fake.from).toHaveBeenNthCalledWith(1, "user_roles");
+    expect(fake.queries.user_roles.builder.select).toHaveBeenCalledWith("club_id");
+    expect(fake.queries.user_roles.builder.eq).toHaveBeenNthCalledWith(1, "user_id", "user-1");
+    expect(fake.queries.user_roles.builder.eq).toHaveBeenNthCalledWith(2, "role", "club_admin");
+    expect(fake.from).toHaveBeenNthCalledWith(2, "clubs");
+    expect(fake.queries.clubs.builder.select).toHaveBeenCalledWith("id, name, logo_url, sport");
+    expect(fake.queries.clubs.builder.in).toHaveBeenCalledWith("id", ["club-1", "club-2"]);
+    expect(fake.queries.clubs.builder.is).toHaveBeenCalledWith("deleted_at", null);
+    expect(fake.queries.clubs.builder.neq).toHaveBeenCalledWith("kind", "shell");
+  });
+
+  it("keeps the clubs read query-free when no club-admin role exists", async () => {
+    const fake = tableQueryClient({
+      user_roles: { data: [], error: null },
+      clubs: { data: [], error: null },
+    });
+
+    await expect(fetchInboxAdminClubs("user-1", fake.client)).resolves.toEqual([]);
+    expect(fake.from).toHaveBeenCalledOnce();
+    expect(fake.from).toHaveBeenCalledWith("user_roles");
+  });
+
+  it.each(["user_roles", "clubs"])(
+    "does not publish empty admin clubs when the %s read fails",
+    async (failingTable) => {
+      const failure = new Error(`${failingTable} unavailable`);
+      const fake = tableQueryClient({
+        user_roles: {
+          data: [{ club_id: "club-1" }],
+          error: failingTable === "user_roles" ? failure : null,
+        },
+        clubs: {
+          data: null,
+          error: failingTable === "clubs" ? failure : null,
+        },
+      });
+
+      await expect(fetchInboxAdminClubs("user-1", fake.client)).rejects.toBe(failure);
+    },
+  );
+
   it.each([
     {
       label: "event titles",

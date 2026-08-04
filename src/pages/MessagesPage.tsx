@@ -73,6 +73,7 @@ import {
 } from "@/features/messaging/inbox/inboxConversationBuilders";
 import {
   fetchInboxAdminTeamIds,
+  fetchInboxAdminClubs,
   fetchInboxAppAdminStatus,
   fetchInboxClubScopeFilter,
   fetchInboxClubProStatus,
@@ -408,26 +409,7 @@ export default function MessagesPage() {
   // Get clubs where user is admin
   const { data: adminClubs } = useQuery({
     queryKey: ["admin-clubs", user?.id],
-    queryFn: async () => {
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .eq("role", "club_admin");
-
-      if (rolesError) throw rolesError;
-      if (!roles || roles.length === 0) return [];
-
-      const clubIds = roles.map((r) => r.club_id).filter(Boolean);
-      const { data } = await supabase
-        .from("clubs")
-        .select("id, name, logo_url, sport")
-        .in("id", clubIds)
-        .is("deleted_at", null)
-        .neq("kind", "shell");
-
-      return data as Club[];
-    },
+    queryFn: () => fetchInboxAdminClubs(user!.id),
     enabled: !!user && initialized,
     retry: 3,
     staleTime: 5 * 60 * 1000,

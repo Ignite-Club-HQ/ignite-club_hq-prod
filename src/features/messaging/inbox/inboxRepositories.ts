@@ -5,6 +5,42 @@ import { deriveActiveMutedChats, type ActiveMutedChats } from "./inboxReadModel"
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 
+export interface InboxAdminClub {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  sport: string | null;
+}
+
+export async function fetchInboxAdminClubs(
+  userId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<InboxAdminClub[]> {
+  const { data: roles, error: rolesError } = await client
+    .from("user_roles")
+    .select("club_id")
+    .eq("user_id", userId)
+    .eq("role", "club_admin");
+
+  if (rolesError) throw rolesError;
+  if (!roles?.length) return [];
+
+  const clubIds = roles
+    .map((role) => role.club_id)
+    .filter((clubId): clubId is string => !!clubId);
+  if (clubIds.length === 0) return [];
+
+  const { data: clubs, error: clubsError } = await client
+    .from("clubs")
+    .select("id, name, logo_url, sport")
+    .in("id", clubIds)
+    .is("deleted_at", null)
+    .neq("kind", "shell");
+
+  if (clubsError) throw clubsError;
+  return clubs ?? [];
+}
+
 export async function fetchInboxEventTitleMap(
   eventIds: readonly string[],
   client: IgniteSupabaseClient = supabase,

@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 technically complete; M2a-M2f repository boundaries complete locally; manual UI review deferred
+Status: M1 technically complete; M2a-M2g repository boundaries complete locally; manual UI review deferred
 
 ## Progress
 
@@ -96,6 +96,13 @@ Status: M1 technically complete; M2a-M2f repository boundaries complete locally;
   incomplete rows, avoids empty-scope requests and keeps backend failures
   distinct from valid empty metadata.
 - M2f verification: all 31 repository tests, 113 selected inbox regression
+  tests, TypeScript, focused lint, production build and all three native-like
+  no-jolt Playwright journeys passed.
+- M2g extracted the current user's administered-clubs read while preserving the
+  exact `club_admin` role constraint and active non-shell club filters. It keeps
+  the second query absent when no valid club ids exist and fixes a pre-existing
+  ambiguity where a failed clubs read was published like an empty result.
+- M2g verification: all 35 repository tests, 117 selected inbox regression
   tests, TypeScript, focused lint, production build and all three native-like
   no-jolt Playwright journeys passed.
 
