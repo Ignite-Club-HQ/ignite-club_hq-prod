@@ -136,4 +136,14 @@ describe("chat scope capability source parity", () => {
     );
     expect(source).not.toContain('["dm-messages", conversationId]');
   });
+
+  it("uses the group adapter for message cache and history scope identity", () => {
+    const source = page("GroupChatPage.tsx");
+    expect(source).toContain("GROUP_CHAT_SCOPE.cachePrefix");
+    expect(source).toContain("table: GROUP_CHAT_SCOPE.messageTable");
+    expect(source).toContain(
+      "scope: buildChatScopeFilter(GROUP_CHAT_SCOPE, groupId)",
+    );
+    expect(source).not.toContain('["group-messages", groupId]');
+  });
 });

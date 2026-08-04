@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin/direct consumption complete locally; manual UI review deferred
+Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin/direct/group consumption complete locally; manual UI review deferred
 
 ## Progress
 
@@ -170,6 +170,17 @@ Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin/dir
   passed. Whole-page lint continues to report pre-existing legacy type and hook
   debt; the newly touched dependency closures are declared. No runtime defect
   was found.
+- M3c group consumption now derives all group-message React Query cache keys
+  and history-search table/filter identity from the adapter. Fetch, notification
+  recovery, watchdog, polling, Realtime reconciliation, anchored pagination,
+  optimistic send/delete/reaction rollback and visibility refresh retain one
+  cache identity. Group membership/RLS, settings, attachment/forwarding/gallery
+  rules, Supabase mutations and Realtime filters remain unchanged.
+- M3c group verification: 122 focused adapter, history, navigation, metadata and
+  thread-state tests, TypeScript, production build and 4 focused Playwright
+  send/reaction-success/reaction-rollback/notification-routing journeys passed.
+  Whole-page lint retains pre-existing legacy type and hook debt; no runtime
+  defect was found.
 
 ## Objective
 

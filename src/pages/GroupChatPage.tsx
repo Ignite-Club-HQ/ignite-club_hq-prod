@@ -120,10 +120,13 @@ import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
 import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
+import { buildChatScopeFilter, GROUP_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 
 
 
 const REACTION_EMOJIS = ["👍", "❤️", "🔥", "👏", "😂", "😢"];
+const getGroupMessagesQueryKey = (groupId?: string) =>
+  [GROUP_CHAT_SCOPE.cachePrefix, groupId] as const;
 
 // Stable empty array reference so rows with no reactions don't bust
 // GroupChatMessageRow's memo on every parent render.
@@ -246,6 +249,7 @@ export default function GroupChatPage() {
     };
   }, []);
   const { groupId } = useParams<{ groupId: string }>();
+  const groupMessagesQueryKey = useMemo(() => getGroupMessagesQueryKey(groupId), [groupId]);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
@@ -384,12 +388,12 @@ export default function GroupChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId, targetJumpNonce]);
+  }, [targetMessageId, targetParentId, targetJumpNonce, groupMessagesQueryKey, queryClient]);
 
   // Pinned messages
   const {
@@ -546,7 +550,7 @@ export default function GroupChatPage() {
   const invalidateGate = eagerInvalidate ? !!user?.id : authReady;
   useEffect(() => {
     if (!groupId || !invalidateGate || !group) return;
-    const key = ["group-messages", groupId];
+    const key = groupMessagesQueryKey;
     if (shouldSkipChatMountInvalidate(queryClient, key, `group:${groupId}`)) return;
     let cancelled = false;
     (async () => {
@@ -555,11 +559,11 @@ export default function GroupChatPage() {
       queryClient.invalidateQueries({ queryKey: key });
     })();
     return () => { cancelled = true; };
-  }, [groupId, invalidateGate, group, queryClient, eagerInvalidate]);
+  }, [groupId, invalidateGate, group, queryClient, eagerInvalidate, groupMessagesQueryKey]);
 
   // Fetch messages with reactions - limit to MESSAGES_PER_PAGE for fast initial load
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
-    queryKey: ["group-messages", groupId],
+    queryKey: groupMessagesQueryKey,
     queryFn: async () => {
       markChatFetch();
       // If offline, return cached messages using the shared online manager
@@ -616,7 +620,7 @@ export default function GroupChatPage() {
       const authorIds = [...new Set(dataToDisplay.map((m) => m.author_id))];
 
       // Preserve cached reactions when the reactions query fails transiently
-      const cachedQueryData = queryClient.getQueryData(["group-messages", groupId]) as any;
+      const cachedQueryData = queryClient.getQueryData(groupMessagesQueryKey) as any;
       const cachedReactions: MessageReaction[] = cachedQueryData?.reactions || [];
       const cachedReactionsByMessage = new Map<string, MessageReaction[]>();
       cachedReactions.forEach((cr) => {
@@ -737,7 +741,7 @@ export default function GroupChatPage() {
     if (!groupId) return undefined;
 
     const cachedQueryData = queryClient.getQueryData<{ messages: GroupMessage[]; reactions: MessageReaction[] }>([
-      "group-messages",
+      GROUP_CHAT_SCOPE.cachePrefix,
       groupId,
     ]);
 
@@ -755,17 +759,16 @@ export default function GroupChatPage() {
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages) and
   // the group-specific flat reactions array.
-  const reactionQueryKey = useMemo(() => ["group-messages", groupId], [groupId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<GroupMessage>({
     scopeKey: reconcileScope,
-    queryKey: reactionQueryKey,
+    queryKey: groupMessagesQueryKey,
     setLocalMessages,
   });
   const applyGroupReaction = useCallback(
     (reaction: any) => {
       if (!reaction?.id || !reaction.group_message_id) return;
       applyRealtimeReaction(reaction.group_message_id, reaction);
-      queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+      queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
         if (!old) return old;
         const flat = (old.reactions || []) as any[];
         if (
@@ -789,20 +792,20 @@ export default function GroupChatPage() {
         return { ...old, reactions: [...kept, reaction] };
       });
     },
-    [applyRealtimeReaction, queryClient, groupId],
+    [applyRealtimeReaction, queryClient, groupMessagesQueryKey],
   );
   const applyGroupReactionDelete = useCallback(
     (reaction: any) => {
       if (!reaction?.id) return;
       applyRealtimeReactionDelete(reaction.group_message_id ?? null, reaction.id);
-      queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+      queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
         if (!old) return old;
         const flat = (old.reactions || []) as any[];
         if (!flat.some((r) => r.id === reaction.id)) return old;
         return { ...old, reactions: flat.filter((r) => r.id !== reaction.id) };
       });
     },
-    [applyRealtimeReactionDelete, queryClient, groupId],
+    [applyRealtimeReactionDelete, queryClient, groupMessagesQueryKey],
   );
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoading =
@@ -813,7 +816,7 @@ export default function GroupChatPage() {
   // queries while the page is stuck on a skeleton.
   useChatStuckWatchdog(
     (!!groupId && (groupLoading || showLoading)),
-    [["chat-group", groupId], ["group-messages", groupId]],
+    [["chat-group", groupId], groupMessagesQueryKey],
     "group-chat",
   );
 
@@ -895,8 +898,8 @@ export default function GroupChatPage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
-  }, [queryClient, groupId]);
+    await queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
+  }, [queryClient, groupMessagesQueryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
@@ -1041,9 +1044,9 @@ export default function GroupChatPage() {
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("group", groupId, fetchedCount)) {
       console.log("[GroupChat] Messages unexpectedly 0, triggering refetch");
-      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+      queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
     }
-  }, [groupId, authReady, messages, messagesLoading, queryClient]);
+  }, [groupId, authReady, messages, messagesLoading, queryClient, groupMessagesQueryKey]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
@@ -1056,14 +1059,14 @@ export default function GroupChatPage() {
         if (timeSinceLastRefresh > 30000) {
           console.log("[GroupChat] App became visible, refreshing messages");
           lastRefresh = Date.now();
-          await queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+          await queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [groupId, authReady, queryClient]);
+  }, [groupId, authReady, queryClient, groupMessagesQueryKey]);
 
   // Always ensure profiles are loaded for messages with missing author data
   useEffect(() => {
@@ -1215,7 +1218,7 @@ export default function GroupChatPage() {
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
+        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(groupMessagesQueryKey, (old: any) => {
           if (!old) return { messages: enrichedOlderMessages, reactions: reactionsData as MessageReaction[], hasOlderMessages: hasMore };
           const existingIds = new Set((old.messages || []).map((m: GroupMessage) => m.id));
           return {
@@ -1236,7 +1239,7 @@ export default function GroupChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
+  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, groupMessagesQueryKey, reconcileScope]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1357,10 +1360,10 @@ export default function GroupChatPage() {
   useEffect(() => {
     if (!groupId || groupRealtimeMode !== "polling") return;
     const id = window.setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+      queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
     }, groupPollIntervalMs);
     return () => window.clearInterval(id);
-  }, [groupId, groupRealtimeMode, groupPollIntervalMs, queryClient]);
+  }, [groupId, groupRealtimeMode, groupPollIntervalMs, queryClient, groupMessagesQueryKey]);
 
   // Real-time subscription - directly update cache instead of invalidating
   useEffect(() => {
@@ -1385,7 +1388,7 @@ export default function GroupChatPage() {
           const cachedProfile = cachedProfiles.get(newMsg.author_id);
           
           // IMMEDIATELY update cache with message (don't wait for profile fetch)
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [{
               ...newMsg,
               author: cachedProfile 
@@ -1450,7 +1453,7 @@ export default function GroupChatPage() {
                 : Promise.resolve({ data: null }),
             ]).then(([profileData, replyToResult]) => {
               // Update the message with fetched data
-              queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+              queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
                 if (!old) return old;
                 return {
                   ...old,
@@ -1485,7 +1488,7 @@ export default function GroupChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [], reactions: [] };
             return { ...old, messages: removeMessage(old.messages, deletedId) };
           });
@@ -1508,7 +1511,7 @@ export default function GroupChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+            queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
               if (!old) return { messages: [], reactions: [] };
               return { ...old, messages: removeMessage(old.messages, updated.id) };
             });
@@ -1518,7 +1521,7 @@ export default function GroupChatPage() {
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [], reactions: [] };
             return { ...old, messages: applyMessageUpdate(old.messages, updated) };
           });
@@ -1550,7 +1553,7 @@ export default function GroupChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`group-messages-${groupId}`);
     };
-  }, [groupId, queryClient, groupRealtimeMode, user?.id, reconcileScope, applyGroupReaction, applyGroupReactionDelete]);
+  }, [groupId, queryClient, groupRealtimeMode, user?.id, reconcileScope, applyGroupReaction, applyGroupReactionDelete, groupMessagesQueryKey]);
 
 
   // Send message mutation
@@ -1583,9 +1586,9 @@ export default function GroupChatPage() {
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
-      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
+      await queryClient.cancelQueries({ queryKey: groupMessagesQueryKey });
 
-      const previousData = queryClient.getQueryData(["group-messages", groupId]);
+      const previousData = queryClient.getQueryData(groupMessagesQueryKey);
 
       const optimisticMessage: GroupMessage = {
         id: `temp-${Date.now()}`,
@@ -1603,7 +1606,7 @@ export default function GroupChatPage() {
       };
 
       // Update query cache directly (this will sync to localMessages via useEffect)
-      queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+      queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
         const existingMessages: GroupMessage[] = old?.messages || [];
         return {
           ...(old || {}),
@@ -1631,7 +1634,7 @@ export default function GroupChatPage() {
         return;
       }
       if (context?.previousData) {
-        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+        queryClient.setQueryData(groupMessagesQueryKey, context.previousData);
       }
       toast.error("Failed to send message");
     },
@@ -1680,7 +1683,7 @@ export default function GroupChatPage() {
     onSuccess: () => {
       setMessage("");
       setEditingMessage(null);
-      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+      queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
       // silent success
     },
     onError: () => {
@@ -1699,10 +1702,10 @@ export default function GroupChatPage() {
     },
     onMutate: async (messageId: string) => {
       // Optimistically hide the message
-      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
-      const previousData = queryClient.getQueryData(["group-messages", groupId]);
+      await queryClient.cancelQueries({ queryKey: groupMessagesQueryKey });
+      const previousData = queryClient.getQueryData(groupMessagesQueryKey);
       
-      queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+      queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
         if (!old) return old;
         const existingMessages: GroupMessage[] = old?.messages || [];
         return { ...old, messages: existingMessages.filter(m => m.id !== messageId) };
@@ -1723,7 +1726,7 @@ export default function GroupChatPage() {
     },
     onError: (err, variables, context) => {
       if (context?.previousData) {
-        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+        queryClient.setQueryData(groupMessagesQueryKey, context.previousData);
       }
       toast.error("Failed to delete message");
     },
@@ -1850,9 +1853,9 @@ export default function GroupChatPage() {
       return { action: 'added' as const, reaction: data ?? { id: `server-${Date.now()}`, user_id: user.id, reaction_type: normalizedReactionType, group_message_id: messageId }, messageId };
     },
     onMutate: async ({ messageId, reactionType }) => {
-      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
+      await queryClient.cancelQueries({ queryKey: groupMessagesQueryKey });
 
-      const liveData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
+      const liveData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey);
 
       // Immutable pre-mutation snapshot: copy the arrays (and the reaction
       // rows themselves) so later optimistic/realtime cache writes can never
@@ -1884,7 +1887,7 @@ export default function GroupChatPage() {
 
       const tempReactionId = `temp-reaction-${Date.now()}`;
 
-      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
         if (!old) return { messages: [], reactions: [] };
 
         if (existingReaction) {
@@ -1926,7 +1929,7 @@ export default function GroupChatPage() {
           (r) => r.user_id === currentUserId,
         );
         queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(
-          ["group-messages", groupId],
+          groupMessagesQueryKey,
           (live) => {
             if (!live) return context.previousData!;
             const othersReactions = (live.reactions || []).filter((r) => r.user_id !== currentUserId);
@@ -1972,7 +1975,7 @@ export default function GroupChatPage() {
     onSuccess: (result) => {
       if (!result) return;
 
-      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
         if (!old) return { messages: [], reactions: [] };
 
         if (result.action === 'added' && result.reaction) {
@@ -2089,8 +2092,8 @@ export default function GroupChatPage() {
     cacheKey: `group:${groupId ?? ""}`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "group_messages",
-        scope: { group_id: groupId! },
+        table: GROUP_CHAT_SCOPE.messageTable,
+        scope: buildChatScopeFilter(GROUP_CHAT_SCOPE, groupId),
         query: q,
         signal,
         selectColumns: "id, text, image_url, created_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
