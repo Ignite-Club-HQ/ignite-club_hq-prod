@@ -14,6 +14,8 @@ import { preloadMessageFromNotification } from "@/lib/notificationPreload";
 import { captureJumpFromNotification, normalizeNotificationChatUrl, getJumpTarget } from "@/lib/pendingChatJump";
 import { suppressChatScope } from "@/lib/pushTapSuppression";
 import { mark as coldMark } from "@/lib/coldStartMarks";
+import { requestClubSwitchForNotification } from "@/lib/notificationClubSwitch";
+import { useNotificationClubSwitch } from "@/hooks/useNotificationClubSwitch";
 
 
 const APP_STORE_URL = "https://apps.apple.com/au/app/ignite-club-hq/id6758928691";
@@ -71,6 +73,10 @@ export function PushNotificationManager() {
   // Initialize native push for Capacitor apps (no-op on web)
   useNativePush(user?.id);
 
+  // Move the global club filter to the club that owns a tapped notification
+  // (user-driven; never switches on its own).
+  useNotificationClubSwitch();
+
   // Sample realtime delivery latency (10% of sessions, batched writes)
   useRealtimePerfSampler(user?.id);
 
@@ -82,6 +88,10 @@ export function PushNotificationManager() {
       const detail = (e as CustomEvent).detail || {};
       const isPitchBoard = !!detail.isPitchBoard;
       const type = detail.type;
+
+      // A tap on a notification from a different club must bring the whole app
+      // to that club, not just open the thread.
+      try { requestClubSwitchForNotification(detail.data, detail.path); } catch { /* noop */ }
 
       if (isPitchBoard) {
         if (type) {
@@ -148,6 +158,7 @@ export function PushNotificationManager() {
         const target = getJumpTarget(payload.data || payload, url);
         if (target) suppressChatScope(target.kind, target.targetId, 1800);
       } catch {}
+      try { requestClubSwitchForNotification(payload.data || payload, url); } catch {}
       navigateToUrl(url);
     };
 
