@@ -325,6 +325,12 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   lint. Two Realtime Playwright journeys passed for edit/soft-delete and
   duplicate delivery, along with three Club/Broadcast exact-send/read-policy
   journeys. No runtime defect was found.
+- M4e now extends the same query-envelope edit/delete boundary to Team. The
+  immutable `team_id` payload guards remain ahead of reconciliation and cache
+  application, while channel ownership, the exact Realtime filter and local
+  rendered-state updates remain page-owned. This preserves the recently added
+  cross-team isolation protections while removing Team's duplicate envelope
+  reconstruction.
 
 ## Objective
 

@@ -6,7 +6,7 @@ const page = (name: string) =>
   readFileSync(resolve(process.cwd(), "src/pages", name), "utf8");
 
 describe("Realtime message query-envelope boundary", () => {
-  it.each(["ClubChatPage.tsx", "BroadcastChatPage.tsx"])(
+  it.each(["ClubChatPage.tsx", "BroadcastChatPage.tsx", "TeamChatPage.tsx"])(
     "%s records reconciliation before updating query and local stores",
     (name) => {
       const source = page(name);

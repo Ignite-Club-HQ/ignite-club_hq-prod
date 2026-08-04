@@ -88,7 +88,9 @@ import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
@@ -1452,10 +1454,9 @@ export default function TeamChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData(teamMessagesQueryKey, (old: any) => ({
-            ...(old || {}),
-            messages: removeMessage((old?.messages || []) as Message[], deletedId),
-          }));
+          queryClient.setQueryData(teamMessagesQueryKey, (old: any) =>
+            removeMessageFromQueryEnvelope<Message>(old, deletedId)
+          );
           setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
@@ -1477,20 +1478,18 @@ export default function TeamChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData(teamMessagesQueryKey, (old: any) => ({
-              ...(old || {}),
-              messages: removeMessage((old?.messages || []) as Message[], updated.id),
-            }));
+            queryClient.setQueryData(teamMessagesQueryKey, (old: any) =>
+              removeMessageFromQueryEnvelope<Message>(old, updated.id)
+            );
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
           }
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData(teamMessagesQueryKey, (old: any) => ({
-            ...(old || {}),
-            messages: applyMessageUpdate((old?.messages || []) as Message[], updated),
-          }));
+          queryClient.setQueryData(teamMessagesQueryKey, (old: any) =>
+            applyMessageUpdateToQueryEnvelope<Message>(old, updated)
+          );
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
