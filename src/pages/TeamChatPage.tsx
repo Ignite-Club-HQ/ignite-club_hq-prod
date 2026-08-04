@@ -160,11 +160,24 @@ const formatMessageDate = (dateStr: string) => {
 const belongsToTeam = (message: any, teamId: string | undefined) =>
   !!teamId && (!message?.team_id || message.team_id === teamId);
 
+/**
+ * SECURITY (cross-team cache bleed): a cached row may already carry an
+ * immutable `team_id` from another team (older cache writes, shared helpers).
+ * Never overwrite it with the open thread's id — that would launder the foreign
+ * row into this thread and defeat every later `belongsToTeam` check. Rows with
+ * no `team_id` are legacy cache rows, already scoped by the cache key.
+ */
 const getCachedTeamMessages = (teamId: string): Message[] =>
 
-  getCachedMessages("team", teamId).map((cachedMessage) => ({
+  getCachedMessages("team", teamId)
+    .filter((cachedMessage) => {
+      const cachedTeamId = (cachedMessage as { team_id?: unknown }).team_id;
+      return typeof cachedTeamId !== "string" || cachedTeamId === teamId;
+    })
+    .map((cachedMessage) => ({
     id: cachedMessage.id,
-    team_id: teamId,
+    team_id: ((cachedMessage as { team_id?: unknown }).team_id as string | undefined) ?? teamId,
+
     author_id: cachedMessage.author_id,
     text: cachedMessage.text,
     image_url: cachedMessage.image_url,
@@ -733,6 +746,8 @@ export default function TeamChatPage() {
       // Cache messages for offline access
       cacheMessages("team", teamId!, messages.map(m => ({
         id: m.id,
+        // Immutable thread scope so future cache reads can validate the row.
+        team_id: m.team_id ?? teamId!,
         text: m.text,
         author_id: m.author_id,
         created_at: m.created_at,
@@ -1018,6 +1033,7 @@ export default function TeamChatPage() {
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,
+        team_id: m.team_id ?? teamId,
         text: m.text,
         author_id: m.author_id,
         created_at: m.created_at,
