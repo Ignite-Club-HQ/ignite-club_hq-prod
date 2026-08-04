@@ -1,0 +1,48 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+/**
+ * Guard: cross-thread message bleed (a message posted in group A rendering in
+ * group B). Two invariants must hold:
+ *
+ * 1. Chat routes remount when their route param changes — React Router reuses
+ *    the element instance otherwise, keeping the previous conversation's render
+ *    state (localMessages, optimistic merges) alive.
+ * 2. GroupChatPage never renders, seeds, or persists a row whose `group_id`
+ *    differs from the active `groupId`.
+ */
+describe("chat cross-thread bleed guard", () => {
+  const src = (p: string) => readFileSync(join(__dirname, "..", p), "utf8");
+
+  it("chat routes are keyed on their route param", () => {
+    const app = src("App.tsx");
+    expect(app).toMatch(/const RemountOnParamChange/);
+    for (const [path, param] of [
+      ["/groups/:groupId", "groupId"],
+      ["/messages/:teamId", "teamId"],
+      ["/messages/club/:clubId", "clubId"],
+      ["/messages/dm/:conversationId", "conversationId"],
+      ["/messages/club-admin/:conversationId", "conversationId"],
+    ] as const) {
+      const line = app
+        .split("\n")
+        .find((l) => l.includes(`path="${path}"`));
+      expect(line, `route ${path} missing`).toBeTruthy();
+      expect(line!).toContain(`RemountOnParamChange param="${param}"`);
+    }
+  });
+
+  it("GroupChatPage scopes rendered/seeded/merged messages to the active group", () => {
+    const page = src("pages/GroupChatPage.tsx");
+    const scopedGuards = page.match(/group_id !== groupId|m\.group_id === groupId/g) ?? [];
+    // render filter + placeholderData reuse check + seed filter + merge filter
+    expect(scopedGuards.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("GroupChatPage never reuses placeholder data from another group verbatim", () => {
+    const page = src("pages/GroupChatPage.tsx");
+    expect(page).not.toMatch(/^\s*if \(prev\) return prev;\s*$/m);
+    expect(page).toMatch(/prevBelongsToThisGroup/);
+  });
+});
