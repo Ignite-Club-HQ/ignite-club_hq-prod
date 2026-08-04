@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { mergeCachedChatMessagesChronologically } from "./chatThreadCacheHydration";
+import {
+  mergeCachedChatMessagesChronologically,
+  selectHistoryChatPlaceholderSource,
+} from "./chatThreadCacheHydration";
 
 describe("mergeCachedChatMessagesChronologically", () => {
   it("adds cached rows missing from the query snapshot and orders the result", () => {
@@ -32,5 +35,57 @@ describe("mergeCachedChatMessagesChronologically", () => {
     expect(result).not.toBe(cached);
     expect(existing.map((message) => message.id)).toEqual(["existing"]);
     expect(cached.map((message) => message.id)).toEqual(["cached"]);
+  });
+});
+
+describe("selectHistoryChatPlaceholderSource", () => {
+  it("uses a meaningful five-row cache for notification first paint", () => {
+    expect(
+      selectHistoryChatPlaceholderSource({
+        hasPrevious: true,
+        cachedMessageCount: 5,
+        openedFromNotification: true,
+      }),
+    ).toBe("cache");
+  });
+
+  it("preserves the previous snapshot when notification cache is only a preload stub", () => {
+    expect(
+      selectHistoryChatPlaceholderSource({
+        hasPrevious: true,
+        cachedMessageCount: 1,
+        openedFromNotification: true,
+      }),
+    ).toBe("previous");
+  });
+
+  it("uses an ordinary two-row cache only when no previous snapshot exists", () => {
+    expect(
+      selectHistoryChatPlaceholderSource({
+        hasPrevious: false,
+        cachedMessageCount: 2,
+        openedFromNotification: false,
+      }),
+    ).toBe("cache");
+  });
+
+  it("does not treat a lone ordinary cached row as usable history", () => {
+    expect(
+      selectHistoryChatPlaceholderSource({
+        hasPrevious: false,
+        cachedMessageCount: 1,
+        openedFromNotification: false,
+      }),
+    ).toBe("none");
+  });
+
+  it("preserves a previous snapshot before considering ordinary cache", () => {
+    expect(
+      selectHistoryChatPlaceholderSource({
+        hasPrevious: true,
+        cachedMessageCount: 20,
+        openedFromNotification: false,
+      }),
+    ).toBe("previous");
   });
 });

@@ -109,6 +109,7 @@ import {
   mergeOlderChatMessagesChronologically,
   orderChatMessagesChronologically,
 } from "@/features/messaging/thread/chatMessageOrdering";
+import { selectHistoryChatPlaceholderSource } from "@/features/messaging/thread/chatThreadCacheHydration";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -751,20 +752,14 @@ export default function TeamChatPage() {
       // it actually contains a meaningful history window — otherwise a
       // single preloaded row replaces `prev` and the user sees one message
       // floating at the top of an empty viewport until the real fetch lands.
-      if (openedFromNotificationRef.current) {
-        const cachedMessages = getCachedTeamMessages(teamId);
-        // Require a meaningful history window (>=5). The notification preload
-        // writes a SINGLE message into cache before the chat mounts — using
-        // that as placeholder strands the user with one message at the top.
-        const cachedHasHistory = cachedMessages.length >= 5;
-        if (cachedHasHistory) {
-          return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
-        }
-      }
-      if (prev) return prev;
-
       const cachedMessages = getCachedTeamMessages(teamId);
-      if (cachedMessages.length < 2) return undefined;
+      const placeholderSource = selectHistoryChatPlaceholderSource({
+        hasPrevious: !!prev,
+        cachedMessageCount: cachedMessages.length,
+        openedFromNotification: !!openedFromNotificationRef.current,
+      });
+      if (placeholderSource === "previous") return prev;
+      if (placeholderSource === "none") return undefined;
 
       return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
     },

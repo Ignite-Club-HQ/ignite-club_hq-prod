@@ -297,6 +297,18 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   thread consistency, delayed hydration, one/two transient empty responses,
   usable one-message cache, exhausted-error retry UI, authoritative empty state
   and exact-scope send. No new runtime defect was found.
+- M4d now extracts the shared placeholder-source decision used by Team, Club
+  and Group without merging their different cache envelopes. A notification
+  preload cache is usable only at five or more messages; otherwise an existing
+  query snapshot wins. With no previous snapshot, ordinary cache requires at
+  least two messages. Each page still owns cached-row transformation,
+  reactions, `hasOlderMessages`, offline handling and local render seeding.
+  Direct and Broadcast retain their different rules.
+- Placeholder-selection verification passed 165 focused contracts, TypeScript
+  and focused lint. The exact team notification-bell journey and three native-
+  like journeys passed: Android cached-inbox settled reveal, Android in-app
+  exact-row no-jolt and iOS in-app exact-row no-jolt. No runtime defect was
+  found.
 
 ## Objective
 

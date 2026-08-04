@@ -126,6 +126,7 @@ import {
   mergeOlderChatMessagesChronologically,
   orderChatMessagesChronologically,
 } from "@/features/messaging/thread/chatMessageOrdering";
+import { selectHistoryChatPlaceholderSource } from "@/features/messaging/thread/chatThreadCacheHydration";
 
 
 
@@ -703,19 +704,14 @@ export default function GroupChatPage() {
       // but only when the cache has a meaningful history window. A single
       // preloaded row replacing `prev` strands the user with one message
       // floating at the top of an empty viewport.
-      if (openedFromNotificationRef.current) {
-        const cachedData = getCachedGroupMessages(groupId);
-        // Require a meaningful history window (>=5). The notification preload
-        // writes a SINGLE message into cache before the chat mounts.
-        const cachedHasHistory = cachedData.messages.length >= 5;
-        if (cachedHasHistory) {
-          return { ...cachedData, hasOlderMessages: false, fromCache: true };
-        }
-      }
-      if (prev) return prev;
-
       const cachedData = getCachedGroupMessages(groupId);
-      if (cachedData.messages.length < 2) return undefined;
+      const placeholderSource = selectHistoryChatPlaceholderSource({
+        hasPrevious: !!prev,
+        cachedMessageCount: cachedData.messages.length,
+        openedFromNotification: !!openedFromNotificationRef.current,
+      });
+      if (placeholderSource === "previous") return prev;
+      if (placeholderSource === "none") return undefined;
 
       return { ...cachedData, hasOlderMessages: false, fromCache: true };
     },

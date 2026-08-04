@@ -23,3 +23,21 @@ describe("Club Admin cache hydration boundary", () => {
     expect(source).toContain("onLoadOlder={() => {}}");
   });
 });
+
+describe("history-window placeholder selection", () => {
+  it.each(["TeamChatPage.tsx", "ClubChatPage.tsx", "GroupChatPage.tsx"])(
+    "%s delegates only the cache/previous/none decision",
+    (name) => {
+      const pageSource = readFileSync(
+        resolve(process.cwd(), "src/pages", name),
+        "utf8",
+      );
+
+      expect(pageSource).toContain("selectHistoryChatPlaceholderSource({");
+      expect(pageSource).toContain("cachedMessageCount:");
+      expect(pageSource).toContain("openedFromNotification:");
+      expect(pageSource).toContain('if (placeholderSource === "previous") return prev');
+      expect(pageSource).toContain('if (placeholderSource === "none") return undefined');
+    },
+  );
+});

@@ -103,6 +103,7 @@ import {
   orderChatMessagesChronologically,
   prependStrictlyOlderChatMessages,
 } from "@/features/messaging/thread/chatMessageOrdering";
+import { selectHistoryChatPlaceholderSource } from "@/features/messaging/thread/chatThreadCacheHydration";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -579,19 +580,14 @@ export default function ClubChatPage() {
       // but only when the cache has a meaningful history window. A single
       // preloaded row replacing `prev` strands the user with one message
       // floating at the top of an empty viewport.
-      if (openedFromNotificationRef.current) {
-        const cachedMessages = getCachedClubMessages(clubId);
-        // Require a meaningful history window (>=5). The notification preload
-        // writes a SINGLE message into cache before the chat mounts.
-        const cachedHasHistory = cachedMessages.length >= 5;
-        if (cachedHasHistory) {
-          return { messages: cachedMessages, hasOlderMessages: isOnline && cachedMessages.length > 0, fromCache: true };
-        }
-      }
-      if (prev) return prev;
-
       const cachedMessages = getCachedClubMessages(clubId);
-      if (cachedMessages.length < 2) return undefined;
+      const placeholderSource = selectHistoryChatPlaceholderSource({
+        hasPrevious: !!prev,
+        cachedMessageCount: cachedMessages.length,
+        openedFromNotification: !!openedFromNotificationRef.current,
+      });
+      if (placeholderSource === "previous") return prev;
+      if (placeholderSource === "none") return undefined;
 
       return { messages: cachedMessages, hasOlderMessages: isOnline && cachedMessages.length > 0, fromCache: true };
     },
