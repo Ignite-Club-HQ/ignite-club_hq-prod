@@ -1150,8 +1150,10 @@ export default function ClubUpgradePage() {
           </CardContent>
         </Card>
 
-        {!isNativePlatform() && (
-          <Card>
+        {/* Promo codes are available on every platform, including native apps:
+            redeeming a code grants access directly and never charges the user,
+            so it does not conflict with store billing rules. */}
+        <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Ticket className="h-5 w-5" />
