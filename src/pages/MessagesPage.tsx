@@ -82,6 +82,7 @@ import {
   fetchInboxEventTitleMap,
   fetchInboxHiddenDirectMessages,
   fetchInboxHiddenGroups,
+  fetchInboxHasAnyProAccess,
   fetchInboxMutedChats,
   fetchInboxUserLeagueIds,
   fetchInboxUserRoles,
@@ -722,63 +723,7 @@ export default function MessagesPage() {
   // Pro Access Logic: Club Pro → all teams inherit; Free club → check team subscription
   const { data: hasAnyProAccess, isLoading: isLoadingProAccess, isFetching: isFetchingProAccess } = useQuery({
     queryKey: ["has-any-pro-access", user?.id],
-    queryFn: async () => {
-      const { data: userTeamRoles } = await supabase
-        .from("user_roles")
-        .select("team_id, club_id")
-        .eq("user_id", user!.id);
-      
-      if (!userTeamRoles?.length) return false;
-      
-      const teamIds = userTeamRoles.map(r => r.team_id).filter(Boolean) as string[];
-      const clubIds = [...new Set(userTeamRoles.map(r => r.club_id).filter(Boolean))] as string[];
-      
-      // Get parent clubs of teams
-      if (teamIds.length > 0) {
-        const { data: teams } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        
-        teams?.forEach(t => {
-          if (t.club_id && !clubIds.includes(t.club_id)) {
-            clubIds.push(t.club_id);
-          }
-        });
-      }
-      
-      // First check club subscriptions (if any club has Pro, user has Pro)
-      if (clubIds.length > 0) {
-        const { data: proClubs } = await supabase
-          .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
-          .in("club_id", clubIds);
-        
-        const hasProClub = proClubs?.some(sub => 
-          (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && 
-          (!sub.expires_at || new Date(sub.expires_at) > new Date())
-        );
-        
-        if (hasProClub) return true;
-      }
-      
-      // Check team-level subscriptions (for teams in free clubs)
-      if (teamIds.length > 0) {
-        const { data: proTeams } = await supabase
-          .from("team_subscriptions")
-          .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
-          .in("team_id", teamIds);
-        
-        const hasProTeam = proTeams?.some(sub => 
-          (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && 
-          (!sub.expires_at || new Date(sub.expires_at) > new Date())
-        );
-        
-        if (hasProTeam) return true;
-      }
-      
-      return false;
-    },
+    queryFn: () => fetchInboxHasAnyProAccess(user!.id),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,

@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 technically complete; M2a-M2g repository boundaries complete locally; manual UI review deferred
+Status: M1 and planned M2 repository boundaries technically complete locally; manual UI review deferred
 
 ## Progress
 
@@ -105,6 +105,16 @@ Status: M1 technically complete; M2a-M2g repository boundaries complete locally;
 - M2g verification: all 35 repository tests, 117 selected inbox regression
   tests, TypeScript, focused lint, production build and all three native-like
   no-jolt Playwright journeys passed.
+- M2h extracted the inbox-wide Pro entitlement read. It retains direct club
+  roles, parent-club inheritance from team roles, club-first short-circuiting,
+  team-level fallback, Pro Football/admin overrides and strict expiry behavior.
+  All four backend reads now propagate failures rather than temporarily
+  publishing a false entitlement. The pure entitlement resolver moved from the
+  React hook module into `lib` and remains re-exported for compatibility,
+  preserving one shared rule without reversing repository-to-hook dependencies.
+- M2h verification: all 43 repository tests and 9 shared entitlement tests, 134
+  selected inbox/entitlement regressions, TypeScript, focused lint, production
+  build and all three native-like no-jolt Playwright journeys passed.
 
 ## Objective
 

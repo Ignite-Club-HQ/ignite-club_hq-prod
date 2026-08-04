@@ -12,6 +12,7 @@ import {
   fetchInboxEventTitleMap,
   fetchInboxHiddenDirectMessages,
   fetchInboxHiddenGroups,
+  fetchInboxHasAnyProAccess,
   fetchInboxMutedChats,
   fetchInboxUserLeagueIds,
   fetchInboxUserRoles,
@@ -62,6 +63,140 @@ function tableQueryClient(results: Record<string, { data: unknown; error: unknow
 }
 
 describe("messaging inbox repositories", () => {
+  it("returns false without querying entitlement tables when the user has no roles", async () => {
+    const fake = tableQueryClient({
+      user_roles: { data: [], error: null },
+    });
+
+    await expect(fetchInboxHasAnyProAccess("user-1", { client: fake.client })).resolves.toBe(false);
+    expect(fake.from).toHaveBeenCalledOnce();
+    expect(fake.from).toHaveBeenCalledWith("user_roles");
+  });
+
+  it("inherits current club Pro through a team's parent club and skips team subscriptions", async () => {
+    const fake = tableQueryClient({
+      user_roles: {
+        data: [{ team_id: "team-1", club_id: null }, { team_id: null, club_id: "club-2" }],
+        error: null,
+      },
+      teams: { data: [{ club_id: "club-1" }], error: null },
+      club_subscriptions: {
+        data: [{
+          club_id: "club-1",
+          is_pro: false,
+          is_pro_football: true,
+          admin_pro_override: false,
+          admin_pro_football_override: false,
+          expires_at: "2026-08-04T12:00:01.000Z",
+        }],
+        error: null,
+      },
+      team_subscriptions: { data: [], error: null },
+    });
+
+    await expect(fetchInboxHasAnyProAccess("user-1", {
+      client: fake.client,
+      now: new Date("2026-08-04T12:00:00.000Z"),
+    })).resolves.toBe(true);
+    expect(fake.queries.user_roles.builder.select).toHaveBeenCalledWith("team_id, club_id");
+    expect(fake.queries.user_roles.builder.eq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(fake.queries.teams.builder.in).toHaveBeenCalledWith("id", ["team-1"]);
+    expect(fake.queries.club_subscriptions.builder.in).toHaveBeenCalledWith(
+      "club_id",
+      ["club-2", "club-1"],
+    );
+    expect(fake.from).not.toHaveBeenCalledWith("team_subscriptions");
+  });
+
+  it("falls back to a current team override when club access is absent or expired", async () => {
+    const fake = tableQueryClient({
+      user_roles: { data: [{ team_id: "team-1", club_id: "club-1" }], error: null },
+      teams: { data: [{ club_id: "club-1" }], error: null },
+      club_subscriptions: {
+        data: [{
+          club_id: "club-1",
+          is_pro: true,
+          is_pro_football: false,
+          admin_pro_override: false,
+          admin_pro_football_override: false,
+          expires_at: "2026-08-04T12:00:00.000Z",
+        }],
+        error: null,
+      },
+      team_subscriptions: {
+        data: [{
+          team_id: "team-1",
+          is_pro: false,
+          is_pro_football: false,
+          admin_pro_override: true,
+          admin_pro_football_override: false,
+          expires_at: null,
+        }],
+        error: null,
+      },
+    });
+
+    await expect(fetchInboxHasAnyProAccess("user-1", {
+      client: fake.client,
+      now: new Date("2026-08-04T12:00:00.000Z"),
+    })).resolves.toBe(true);
+    expect(fake.queries.team_subscriptions.builder.in).toHaveBeenCalledWith("team_id", ["team-1"]);
+  });
+
+  it("returns false when every applicable entitlement is absent or expired", async () => {
+    const fake = tableQueryClient({
+      user_roles: { data: [{ team_id: "team-1", club_id: "club-1" }], error: null },
+      teams: { data: [{ club_id: "club-1" }], error: null },
+      club_subscriptions: { data: [], error: null },
+      team_subscriptions: {
+        data: [{
+          team_id: "team-1",
+          is_pro: true,
+          is_pro_football: false,
+          admin_pro_override: false,
+          admin_pro_football_override: false,
+          expires_at: "2026-08-04T11:59:59.999Z",
+        }],
+        error: null,
+      },
+    });
+
+    await expect(fetchInboxHasAnyProAccess("user-1", {
+      client: fake.client,
+      now: new Date("2026-08-04T12:00:00.000Z"),
+    })).resolves.toBe(false);
+  });
+
+  it.each(["user_roles", "teams", "club_subscriptions", "team_subscriptions"])(
+    "does not convert a %s failure into a false entitlement",
+    async (failingTable) => {
+      const failure = new Error(`${failingTable} unavailable`);
+      const fake = tableQueryClient({
+        user_roles: {
+          data: [{ team_id: "team-1", club_id: "club-1" }],
+          error: failingTable === "user_roles" ? failure : null,
+        },
+        teams: {
+          data: [{ club_id: "club-1" }],
+          error: failingTable === "teams" ? failure : null,
+        },
+        club_subscriptions: {
+          data: [],
+          error: failingTable === "club_subscriptions" ? failure : null,
+        },
+        team_subscriptions: {
+          data: [],
+          error: failingTable === "team_subscriptions" ? failure : null,
+        },
+      });
+
+      await expect(fetchInboxHasAnyProAccess("user-1", {
+        client: fake.client,
+        now: new Date("2026-08-04T12:00:00.000Z"),
+      })).rejects.toBe(failure);
+    },
+  );
+
   it("loads only active non-shell clubs for the current user's club-admin roles", async () => {
     const fake = tableQueryClient({
       user_roles: {

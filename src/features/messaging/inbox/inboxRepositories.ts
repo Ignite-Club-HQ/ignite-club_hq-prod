@@ -1,9 +1,75 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { resolveClubProAccess } from "@/lib/proEntitlement";
 import { deriveActiveMutedChats, type ActiveMutedChats } from "./inboxReadModel";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
+
+export async function fetchInboxHasAnyProAccess(
+  userId: string,
+  options: {
+    client?: IgniteSupabaseClient;
+    now?: Date;
+  } = {},
+): Promise<boolean> {
+  const client = options.client ?? supabase;
+  const now = options.now ?? new Date();
+  const { data: roles, error: rolesError } = await client
+    .from("user_roles")
+    .select("team_id, club_id")
+    .eq("user_id", userId);
+
+  if (rolesError) throw rolesError;
+  if (!roles?.length) return false;
+
+  const teamIds = roles
+    .map((role) => role.team_id)
+    .filter((teamId): teamId is string => !!teamId);
+  const clubIds = [...new Set(
+    roles
+      .map((role) => role.club_id)
+      .filter((clubId): clubId is string => !!clubId),
+  )];
+
+  if (teamIds.length > 0) {
+    const { data: teams, error: teamsError } = await client
+      .from("teams")
+      .select("club_id")
+      .in("id", teamIds);
+
+    if (teamsError) throw teamsError;
+    for (const team of teams ?? []) {
+      if (team.club_id && !clubIds.includes(team.club_id)) clubIds.push(team.club_id);
+    }
+  }
+
+  if (clubIds.length > 0) {
+    const { data: subscriptions, error: subscriptionsError } = await client
+      .from("club_subscriptions")
+      .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
+      .in("club_id", clubIds);
+
+    if (subscriptionsError) throw subscriptionsError;
+    if ((subscriptions ?? []).some((subscription) => resolveClubProAccess(subscription, now).hasPro)) {
+      return true;
+    }
+  }
+
+  if (teamIds.length > 0) {
+    const { data: subscriptions, error: subscriptionsError } = await client
+      .from("team_subscriptions")
+      .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
+      .in("team_id", teamIds);
+
+    if (subscriptionsError) throw subscriptionsError;
+    if ((subscriptions ?? []).some((subscription) => resolveClubProAccess(subscription, now).hasPro)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 export interface InboxAdminClub {
   id: string;
