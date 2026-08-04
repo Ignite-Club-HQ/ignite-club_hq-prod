@@ -4,7 +4,20 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: analysis complete; no messaging production refactor started
+Status: in progress; M1a pure filtering, ordering and disclosure boundary complete locally
+
+## Progress
+
+- M1a extracted persisted filter normalization, type-bucket filtering,
+  unread/recent partitioning, activity ordering and stale operational-chat
+  disclosure into a typed pure inbox model.
+- `MessagesPage` retains all conversation construction, queries, cache writes,
+  polling, Realtime subscriptions and presentation ownership.
+- M1a verification: TypeScript and extracted-module lint passed; 160 broader
+  inbox/messaging tests and three Android/iOS-like no-jolt Playwright journeys
+  passed; the production build completed successfully.
+- Whole-file `MessagesPage` lint remains blocked by pre-existing legacy `any`,
+  empty-block and hook-dependency debt. M1a did not add or expand that debt.
 
 ## Objective
 

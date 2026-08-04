@@ -51,6 +51,13 @@ import { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/component
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
+import {
+  filterInboxConversations,
+  normalizeInboxTypeFilter,
+  partitionInboxByReadState,
+  resolveOperationalConversationDisclosure,
+  type InboxConversation as UnifiedConversation,
+} from "@/features/messaging/inbox/inboxReadModel";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
 // warm re-entries paint cached rows immediately instead of re-running the
@@ -194,25 +201,6 @@ interface Club {
   sport: string | null;
 }
 
-interface UnifiedConversation {
-  type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support' | 'admin_group';
-  id: string;
-  key: string;
-  name: string;
-  avatarUrl?: string | null;
-  link: string;
-  lastActivity: string;
-  lastMessage?: { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean };
-  unreadCount: number;
-  isMuted: boolean;
-  isLocked?: boolean;
-  canManage?: boolean;
-  canHide?: boolean;
-  dmData?: any;
-  draftText?: string;
-  category?: string | null;
-}
-
 export default function MessagesPage() {
   const { user, initialized, refreshUnreadCount } = useAuth();
   const { isOnline } = useOnlineStatus();
@@ -231,9 +219,7 @@ export default function MessagesPage() {
   const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
   // Normalize legacy persisted values ('club' / 'league' used to be top-level
   // chips — they now live inside 'groups').
-  const typeFilter = (
-    typeFilterRaw === 'club' || typeFilterRaw === 'league' ? 'groups' : typeFilterRaw
-  ) as 'all' | 'teams' | 'groups' | 'dms';
+  const typeFilter = normalizeInboxTypeFilter(typeFilterRaw);
   const [showAllOps, setShowAllOps] = useState(false);
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
@@ -2895,66 +2881,33 @@ export default function MessagesPage() {
   });
 
   // Apply type filter chip (teams/groups/dms/club/league/all).
-  // Broadcasts and Ignite Support always remain visible regardless of chip
-  // (they're not real conversation types users think about filtering away).
-  const typeFilteredConversations = useMemo(() => {
-    if (typeFilter === 'all') return unifiedConversations;
-    return unifiedConversations.filter((c) => {
-      if (c.type === 'support') return true;
-      switch (typeFilter) {
-        // Mini-leagues (e.g. Maxiroos) live under Teams — users mentally treat
-        // them as another team they belong to.
-        case 'teams': return c.type === 'team' || c.type === 'league';
-        // Groups bucket includes club broadcast-style groups alongside regular chat groups.
-        case 'groups': return c.type === 'group' || c.type === 'club' || c.type === 'admin_group';
-        case 'dms': return c.type === 'dm';
-        default: return true;
-      }
-    });
-  }, [unifiedConversations, typeFilter]);
-
-  const sortByActivityDesc = (a: UnifiedConversation, b: UnifiedConversation) => {
-    if (!a.lastActivity && !b.lastActivity) return 0;
-    if (!a.lastActivity) return 1;
-    if (!b.lastActivity) return -1;
-    return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
-  };
+  // Ignite Support remains visible regardless of chip. Broadcasts are shown
+  // only in the unfiltered inbox, matching the existing chip behavior.
+  const typeFilteredConversations = useMemo(
+    () => filterInboxConversations(unifiedConversations, typeFilter),
+    [unifiedConversations, typeFilter],
+  );
 
   // Split into unread and recent
-  const unreadItems = useMemo(() => {
-    return typeFilteredConversations.filter(c => c.unreadCount > 0).sort(sortByActivityDesc);
-  }, [typeFilteredConversations]);
-
-  const recentItems = useMemo(() => {
-    return typeFilteredConversations.filter(c => c.unreadCount === 0).sort(sortByActivityDesc);
-  }, [typeFilteredConversations]);
+  const { unread: unreadItems, recent: recentItems } = useMemo(
+    () => partitionInboxByReadState(typeFilteredConversations),
+    [typeFilteredConversations],
+  );
 
   // Mark first non-empty render for perf diagnostics (one-shot).
   // Progressive disclosure for operational groups: when a user has many
   // stale group/league chats, collapse the long tail behind a "Show more
   // groups" toggle. Only kicks in for power users — regular parents with
   // only a few groups see no change.
-  const STALE_OPS_DAYS = 30;
-  const STALE_OPS_THRESHOLD = 6;
-  const OPS_VISIBLE_WHEN_COLLAPSED = 2;
-  const { visibleRecent, hiddenOps } = useMemo(() => {
-    const cutoff = Date.now() - STALE_OPS_DAYS * 24 * 60 * 60 * 1000;
-    const isStaleOp = (c: UnifiedConversation) =>
-      (c.type === 'group' || c.type === 'league') &&
-      c.unreadCount === 0 &&
-      !c.draftText &&
-      (!c.lastActivity || new Date(c.lastActivity).getTime() < cutoff);
-
-    const stale = recentItems.filter(isStaleOp);
-    if (stale.length <= STALE_OPS_THRESHOLD || showAllOps || typeFilter !== 'all' || !!query) {
-      return { visibleRecent: recentItems, hiddenOps: [] as UnifiedConversation[] };
-    }
-    const keepStaleIds = new Set(stale.slice(0, OPS_VISIBLE_WHEN_COLLAPSED).map(c => c.key));
-    const hidden = stale.slice(OPS_VISIBLE_WHEN_COLLAPSED);
-    const hiddenIds = new Set(hidden.map(c => c.key));
-    const visible = recentItems.filter(c => !hiddenIds.has(c.key) || keepStaleIds.has(c.key));
-    return { visibleRecent: visible, hiddenOps: hidden };
-  }, [recentItems, showAllOps, typeFilter, query]);
+  const { visibleRecent, hiddenOps } = useMemo(
+    () => resolveOperationalConversationDisclosure(recentItems, {
+      now: Date.now(),
+      showAll: showAllOps,
+      typeFilter,
+      hasSearchQuery: !!query,
+    }),
+    [recentItems, showAllOps, typeFilter, query],
+  );
 
 
   const hasNoResults = query && unifiedConversations.length === 0;
