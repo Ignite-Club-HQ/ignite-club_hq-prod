@@ -662,6 +662,8 @@ export default function DirectMessagePage() {
   const reactionQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<DirectMessage>({
     scopeKey: reconcileScope,
+    // Scope guard: message_reactions realtime events are unfiltered platform-wide.
+    getLocalMessages: () => localMessagesRef.current,
     queryKey: reactionQueryKey,
     setLocalMessages,
   });
