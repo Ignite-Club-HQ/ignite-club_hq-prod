@@ -10,6 +10,7 @@ import {
   fetchInboxHiddenDirectMessages,
   fetchInboxHiddenGroups,
   fetchInboxMutedChats,
+  fetchInboxUserLeagueIds,
   fetchInboxUserRoles,
 } from "./inboxRepositories";
 
@@ -36,6 +37,18 @@ function queryClient(result: { data: unknown; error: unknown }) {
     client: { from } as unknown as IgniteSupabaseClient,
     from,
     builder,
+  };
+}
+
+function tableQueryClient(results: Record<string, { data: unknown; error: unknown }>) {
+  const queries = Object.fromEntries(
+    Object.entries(results).map(([table, result]) => [table, queryClient(result)]),
+  );
+  const from = vi.fn((table: string) => queries[table].builder);
+  return {
+    client: { from } as unknown as IgniteSupabaseClient,
+    from,
+    queries,
   };
 }
 
@@ -92,6 +105,81 @@ describe("messaging inbox repositories", () => {
     const failure = new Error("all roles unavailable");
     const failed = queryClient({ data: null, error: failure });
     await expect(fetchInboxUserRoles("user-1", failed.client)).rejects.toBe(failure);
+  });
+
+  it("unions primary and guardian children before reading mini-league assignments", async () => {
+    const fake = tableQueryClient({
+      children: { data: [{ id: "child-1" }, { id: "shared-child" }], error: null },
+      child_guardians: {
+        data: [{ child_id: "shared-child" }, { child_id: "child-2" }],
+        error: null,
+      },
+      child_mini_league_assignments: {
+        data: [
+          { mini_league_id: "league-1" },
+          { mini_league_id: "league-1" },
+          { mini_league_id: "league-2" },
+        ],
+        error: null,
+      },
+    });
+
+    const result = await fetchInboxUserLeagueIds("user-1", fake.client);
+    expect([...result]).toEqual(["league-1", "league-2"]);
+    expect(fake.from.mock.calls.map(([table]) => table)).toEqual([
+      "children", "child_guardians", "child_mini_league_assignments",
+    ]);
+    expect(fake.queries.children.builder.eq).toHaveBeenCalledWith("parent_id", "user-1");
+    expect(fake.queries.child_guardians.builder.eq).toHaveBeenCalledWith("guardian_id", "user-1");
+    expect(fake.queries.child_mini_league_assignments.builder.in).toHaveBeenCalledWith(
+      "child_id", ["child-1", "shared-child", "child-2"],
+    );
+  });
+
+  it("supports guardian-only membership and avoids an assignment query with no children", async () => {
+    const guardianOnly = tableQueryClient({
+      children: { data: [], error: null },
+      child_guardians: { data: [{ child_id: "child-2" }], error: null },
+      child_mini_league_assignments: {
+        data: [{ mini_league_id: "league-2" }], error: null,
+      },
+    });
+    await expect(fetchInboxUserLeagueIds("user-1", guardianOnly.client)).resolves.toEqual(
+      new Set(["league-2"]),
+    );
+
+    const noChildren = tableQueryClient({
+      children: { data: [], error: null },
+      child_guardians: { data: [], error: null },
+    });
+    await expect(fetchInboxUserLeagueIds("user-1", noChildren.client)).resolves.toEqual(
+      new Set(),
+    );
+    expect(noChildren.from).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["primary-child", "children"],
+    ["guardian-link", "child_guardians"],
+    ["assignment", "child_mini_league_assignments"],
+  ])("propagates a %s membership read failure", async (_label, failingTable) => {
+    const failure = new Error(`${failingTable} unavailable`);
+    const fake = tableQueryClient({
+      children: {
+        data: [{ id: "child-1" }],
+        error: failingTable === "children" ? failure : null,
+      },
+      child_guardians: {
+        data: [],
+        error: failingTable === "child_guardians" ? failure : null,
+      },
+      child_mini_league_assignments: {
+        data: [{ mini_league_id: "league-1" }],
+        error: failingTable === "child_mini_league_assignments" ? failure : null,
+      },
+    });
+
+    await expect(fetchInboxUserLeagueIds("user-1", fake.client)).rejects.toBe(failure);
   });
 
   it("reads only the current user's app-admin role and propagates failures", async () => {

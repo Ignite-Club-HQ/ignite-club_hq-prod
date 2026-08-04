@@ -49,6 +49,40 @@ export async function fetchInboxUserRoles(
   return data ?? [];
 }
 
+export async function fetchInboxUserLeagueIds(
+  userId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<Set<string>> {
+  const { data: primaryChildren, error: primaryChildrenError } = await client
+    .from("children")
+    .select("id")
+    .eq("parent_id", userId);
+
+  if (primaryChildrenError) throw primaryChildrenError;
+
+  const childIds = (primaryChildren ?? []).map((child) => child.id);
+  const { data: guardianLinks, error: guardianLinksError } = await client
+    .from("child_guardians")
+    .select("child_id")
+    .eq("guardian_id", userId);
+
+  if (guardianLinksError) throw guardianLinksError;
+
+  for (const link of guardianLinks ?? []) {
+    if (!childIds.includes(link.child_id)) childIds.push(link.child_id);
+  }
+
+  if (childIds.length === 0) return new Set<string>();
+
+  const { data: assignments, error: assignmentsError } = await client
+    .from("child_mini_league_assignments")
+    .select("mini_league_id")
+    .in("child_id", childIds);
+
+  if (assignmentsError) throw assignmentsError;
+  return new Set((assignments ?? []).map((assignment) => assignment.mini_league_id));
+}
+
 export async function fetchInboxAppAdminStatus(
   userId: string,
   client: IgniteSupabaseClient = supabase,

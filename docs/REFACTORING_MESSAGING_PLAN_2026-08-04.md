@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 technically complete; M2a-M2c repository boundaries complete locally; manual UI review deferred
+Status: M1 technically complete; M2a-M2d repository boundaries complete locally; manual UI review deferred
 
 ## Progress
 
@@ -73,6 +73,14 @@ Status: M1 technically complete; M2a-M2c repository boundaries complete locally;
   tests passed with TypeScript, focused lint and production build. Both Android
   journeys passed first run; the iOS-like journey passed on isolated rerun after
   one unrelated synthetic Capacitor initialization failure.
+- M2d extracted the multi-step user-to-mini-league membership read. It retains
+  primary-parent and additional-guardian union semantics, deduplicates shared
+  children and league ids, skips assignment reads when no children exist, and
+  now propagates failures from all three tables instead of publishing empty
+  membership.
+- M2d verification: all 20 repository tests, 194 broader inbox/messaging tests,
+  TypeScript, focused lint, production build and all three native-like no-jolt
+  Playwright journeys passed.
 
 ## Objective
 
