@@ -11,6 +11,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +29,30 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "player", label: "Players" },
   { value: "club_admin", label: "Club Admins" },
 ];
+type JoinPolicy = "invite_only" | "request_to_join" | "open_to_club";
+
+const JOIN_POLICY_OPTIONS: { value: JoinPolicy; label: string; description: string }[] = [
+  {
+    value: "invite_only",
+    label: "Invite only",
+    description: "Hidden from Discover. Only admins or existing members can add people.",
+  },
+  {
+    value: "request_to_join",
+    label: "Approval required",
+    description: "Club members can request to join, and a current member must approve.",
+  },
+  {
+    value: "open_to_club",
+    label: "Anyone in the club can join",
+    description: "Club members can join instantly from Discover, no approval needed.",
+  },
+];
+
+function normalizeJoinPolicy(raw: string | null | undefined): JoinPolicy {
+  return raw === "open_to_club" || raw === "request_to_join" ? raw : "invite_only";
+}
+
 
 interface EditGroupDialogProps {
   group: {
@@ -56,7 +82,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState(group.name);
   const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(group.allowed_roles);
-  const [openToClub, setOpenToClub] = useState<boolean>(group.join_policy === "open_to_club");
+  const [joinPolicy, setJoinPolicy] = useState<JoinPolicy>(normalizeJoinPolicy(group.join_policy));
   const [allowForwarding, setAllowForwarding] = useState<boolean>(group.allow_forwarding !== false);
   const queryClient = useQueryClient();
 
@@ -69,7 +95,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
     if (open) {
       setName(group.name);
       setSelectedRoles(group.allowed_roles);
-      setOpenToClub(group.join_policy === "open_to_club");
+      setJoinPolicy(normalizeJoinPolicy(group.join_policy));
       setAllowForwarding(group.allow_forwarding !== false);
     }
   }, [open, group.id]);
@@ -131,7 +157,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
       const updates: { name: string; allowed_roles?: AppRole[]; join_policy?: string; allow_forwarding?: boolean } = { name };
       if (!isManual) updates.allowed_roles = selectedRoles;
       if (qualifiesForOpenJoin) {
-        updates.join_policy = openToClub ? "open_to_club" : "invite_only";
+        updates.join_policy = joinPolicy;
       }
       updates.allow_forwarding = allowForwarding;
       const { error } = await supabase
@@ -249,24 +275,36 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
               )}
 
               {qualifiesForOpenJoin && (
-                <div className="space-y-2 rounded-md border p-3">
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id="edit-group-open-join"
-                      checked={openToClub}
-                      onCheckedChange={(v) => setOpenToClub(v === true)}
-                    />
-                    <div className="space-y-0.5">
-                      <label htmlFor="edit-group-open-join" className="text-sm font-medium cursor-pointer">
-                        Let any club member join
-                      </label>
-                      <p className="text-xs text-muted-foreground">
-                        This group appears under "Discover groups" so club members can join without being added by an admin.
-                      </p>
-                    </div>
+                <div className="space-y-3 rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <Label>Who can join this group?</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Controls how club members get into this chat.
+                    </p>
                   </div>
+                  <RadioGroup value={joinPolicy} onValueChange={(v) => setJoinPolicy(v as JoinPolicy)}>
+                    {JOIN_POLICY_OPTIONS.map((opt) => (
+                      <div key={opt.value} className="flex items-start gap-3">
+                        <RadioGroupItem
+                          id={`edit-group-join-${opt.value}`}
+                          value={opt.value}
+                          className="mt-0.5"
+                        />
+                        <div className="space-y-0.5">
+                          <label
+                            htmlFor={`edit-group-join-${opt.value}`}
+                            className="text-sm font-medium cursor-pointer"
+                          >
+                            {opt.label}
+                          </label>
+                          <p className="text-xs text-muted-foreground">{opt.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </RadioGroup>
                 </div>
               )}
+
 
               <div className="space-y-2 rounded-md border p-3">
                 <div className="flex items-start gap-3">

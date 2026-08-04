@@ -104,6 +104,12 @@ import { MessageReadAvatars } from "@/components/chat/MessageReadAvatars";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { getCachedMessages, cacheMessages, addMessageToCache, shouldRefetchMessages, removeMessageFromCache } from "@/lib/messageCache";
+import {
+  classifyChatThreadState,
+  nextEmptyRetryDelay,
+  isUsableCachedThread,
+} from "@/lib/chatThreadLoadState";
+
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -568,7 +574,14 @@ export default function GroupChatPage() {
   }, [groupId, invalidateGate, group, queryClient, eagerInvalidate, groupMessagesQueryKey]);
 
   // Fetch messages with reactions - limit to MESSAGES_PER_PAGE for fast initial load
-  const { data: messagesData, isLoading: messagesLoading } = useQuery({
+  const {
+    data: messagesData,
+    isLoading: messagesLoading,
+    isError: messagesIsError,
+    status: messagesStatus,
+    fetchStatus: messagesFetchStatus,
+    refetch: refetchMessages,
+  } = useQuery({
     queryKey: groupMessagesQueryKey,
     queryFn: async () => {
       markChatFetch();
@@ -698,7 +711,18 @@ export default function GroupChatPage() {
     refetchOnMount: "always", // Force refetch on every mount so reactions/messages added while away are picked up (true is a no-op while staleTime is unmet)
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
-      if (!groupId) return prev;
+      if (!groupId) return undefined;
+      // SECURITY (cross-group bleed): `prev` is whatever THIS hook instance
+      // last rendered. When the route param changes without a remount, that is
+      // the PREVIOUS group's message list — returning it verbatim renders
+      // group A's messages under group B's header (and bakes them into group
+      // B's offline cache). Never reuse `prev` unless every row belongs to the
+      // current group.
+      const prevBelongsToThisGroup =
+        !!prev &&
+        Array.isArray(prev.messages) &&
+        prev.messages.length > 0 &&
+        prev.messages.every((m: any) => !m?.group_id || m.group_id === groupId);
       // From-push freshness: prefer the just-preloaded localStorage cache
       // over a stale `prev` so the new message renders at first paint —
       // but only when the cache has a meaningful history window. A single
@@ -706,7 +730,7 @@ export default function GroupChatPage() {
       // floating at the top of an empty viewport.
       const cachedData = getCachedGroupMessages(groupId);
       const placeholderSource = selectHistoryChatPlaceholderSource({
-        hasPrevious: !!prev,
+        hasPrevious: prevBelongsToThisGroup,
         cachedMessageCount: cachedData.messages.length,
         openedFromNotification: !!openedFromNotificationRef.current,
       });
@@ -715,6 +739,7 @@ export default function GroupChatPage() {
 
       return { ...cachedData, hasOlderMessages: false, fromCache: true };
     },
+
   });
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
@@ -724,15 +749,19 @@ export default function GroupChatPage() {
   const messages = useMemo(() => {
     if (!messagesData) return [];
     const msgList = extractChatQueryMessages<GroupMessage>(messagesData);
-    const sorted = orderChatMessagesChronologically(msgList);
+    // SECURITY (cross-group bleed): last line of defence before render — a row
+    // is only ever displayed in the thread it was posted to.
+    const scoped = msgList.filter((message) => !message.group_id || message.group_id === groupId);
+    const sorted = orderChatMessagesChronologically(scoped);
     // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
     // after a realtime UPDATE must never restore pre-edit text or resurrect a
     // deleted row.
     return (reconcileMessages(reconcileScope, sorted) ?? []) as GroupMessage[];
-  }, [messagesData, reconcileScope]);
+  }, [messagesData, reconcileScope, groupId]);
 
   // Local copy used for rendering so optimistic updates are instant.
-  // 1-item cache = notification preload; don't seed from it.
+  // A notification-preload stub is never used as a seed, but a genuine
+  // short thread is (see mem://technical/notification-preload-single-message-guard).
   const getInitialLocalMessages = () => {
     if (!groupId) return undefined;
 
@@ -741,13 +770,20 @@ export default function GroupChatPage() {
       groupId,
     ]);
 
-    if ((cachedQueryData?.messages?.length ?? 0) >= 2) {
-      return cachedQueryData!.messages;
+    // Seeds are scoped too: a placeholder object left behind by a previous
+    // group must never seed this thread's render state.
+    const cachedScoped = (cachedQueryData?.messages ?? []).filter(
+      (m: any) => !m?.group_id || m.group_id === groupId,
+    );
+    if (isUsableCachedThread(cachedScoped as any)) {
+      return cachedScoped as GroupMessage[];
     }
 
     const fromCache = getCachedGroupMessages(groupId).messages;
-    return fromCache.length >= 2 ? fromCache : undefined;
+    return isUsableCachedThread(fromCache as any) ? fromCache : undefined;
   };
+
+
 
   const [localMessages, setLocalMessages] = useState<GroupMessage[] | undefined>(() =>
     getInitialLocalMessages(),
@@ -803,10 +839,98 @@ export default function GroupChatPage() {
     },
     [applyRealtimeReactionDelete, queryClient, groupMessagesQueryKey],
   );
-  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
-  const showLoading =
-    (!authReady && !hasMeaningfulLocal) ||
-    (messagesLoading && !messagesData && !hasMeaningfulLocal);
+  const hasMeaningfulLocal = isUsableCachedThread(localMessages as any);
+
+  // Authoritative fetched count (null = query never produced data).
+  const fetchedCount = useMemo<number | null>(() => {
+    if (!messagesData) return null;
+    const list = (messagesData as any).messages;
+    return Array.isArray(list) ? list.length : null;
+  }, [messagesData]);
+
+  // The inbox row proves this group already has at least one message, so a
+  // zero-message response is inconsistent (Android resume / RLS settling)
+  // rather than a legitimately empty thread.
+  const inboxSaysHasMessage = useMemo(() => {
+    if (!groupId) return false;
+    const inboxQueries = queryClient.getQueriesData<any>({
+      queryKey: ["my-chat-groups-with-messages"],
+    });
+    for (const [, data] of inboxQueries) {
+      const latest = data?.latestMessages?.[groupId];
+      if (latest && (latest.created_at || latest.text || latest.image_url)) return true;
+    }
+    return false;
+  }, [groupId, queryClient, messagesData]);
+
+  // Bounded automatic recovery (400ms / 1.2s / 3s) before we ever render an
+  // empty thread. Same pattern as ClubAdminChatPage.
+  const recoveryAttemptRef = useRef(0);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [recoveryExhausted, setRecoveryExhausted] = useState(false);
+
+  useEffect(() => {
+    recoveryAttemptRef.current = 0;
+    setRecoveryExhausted(false);
+    if (recoveryTimerRef.current) {
+      clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    if (!groupId || !authReady) return;
+    if (messagesFetchStatus === "fetching") return;
+    if (fetchedCount !== null && fetchedCount > 0) {
+      recoveryAttemptRef.current = 0;
+      setRecoveryExhausted(false);
+      return;
+    }
+    const needsRecovery = messagesIsError || fetchedCount === 0;
+    if (!needsRecovery) return;
+    if (recoveryTimerRef.current) return;
+
+    const delay = nextEmptyRetryDelay(recoveryAttemptRef.current);
+    if (delay === null) {
+      setRecoveryExhausted(true);
+      return;
+    }
+    recoveryAttemptRef.current += 1;
+    recoveryTimerRef.current = setTimeout(() => {
+      recoveryTimerRef.current = null;
+      void refetchMessages();
+    }, delay);
+
+    return () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+    };
+  }, [groupId, authReady, fetchedCount, messagesIsError, messagesFetchStatus, refetchMessages]);
+
+  useEffect(
+    () => () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current);
+        recoveryTimerRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const threadPhase = classifyChatThreadState({
+    authReady,
+    status: messagesStatus,
+    fetchStatus: messagesFetchStatus,
+    isError: messagesIsError,
+    hasUsableCached: hasMeaningfulLocal,
+    fetchedCount,
+    inboxSaysHasMessage,
+    recoveryExhausted,
+  });
+  const showLoading = threadPhase === "loading";
+
 
   // Android resume escape hatch: abort zombie GETs + re-issue the gating
   // queries while the page is stuck on a skeleton.
@@ -851,8 +975,11 @@ export default function GroupChatPage() {
       (r: any) => r.group_message_id,
       (messageId, reaction) => ({ ...reaction, group_message_id: messageId }) as any,
     ) as MessageReaction[];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messagesData, reconcileScope, localMessages]);
+    // NOTE: `localMessages` must NOT be a dependency here. This memo feeds the
+    // sync useLayoutEffect below, which writes `localMessages` — including it
+    // closes a state -> memo -> effect -> state cycle that trips React #185
+    // ("Maximum update depth exceeded") on tap-to-react.
+  }, [messagesData, reconcileScope]);
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
@@ -912,8 +1039,13 @@ export default function GroupChatPage() {
     // Sync local render state with query cache without dropping newer optimistic/realtime reactions.
     // IMPORTANT: In GroupChatPage, reactions come as a separate top-level array in messagesData,
     // NOT embedded on each message. We must merge the top-level reactions onto each message here.
-    // Guard: never replace existing messages with an empty array (transient cache state during resume)
-    if (!messages || !groupId || (messages.length === 0 && localMessages && localMessages.length > 0)) return;
+    // Guard: never replace existing messages with an empty array, and only
+    // commit an empty thread once the classifier says it is authoritatively
+    // empty (not paused/pending/recovering).
+    if (!messages || !groupId) return;
+    if (messages.length === 0 && localMessages && localMessages.length > 0) return;
+    if (messages.length === 0 && threadPhase !== "empty") return;
+
 
     // Build a map of incoming reactions from the top-level reactions array
     const incomingReactionsByMsg = new Map<string, MessageReaction[]>();
@@ -931,8 +1063,17 @@ export default function GroupChatPage() {
           .map((m: any) => `${m.author_id}::${m.text ?? ""}::${m.image_url ?? ""}`),
       );
       const previousOnly = (prev || []).filter((message: any) => {
+        // SECURITY (cross-group bleed): this merge is deliberately fail-open —
+        // it keeps prior rows that are absent from the incoming snapshot. A row
+        // left over from another group's thread (route param changed without a
+        // remount) would otherwise satisfy every keep-condition below and be
+        // merged into THIS group permanently, then persisted to this group's
+        // offline cache. Foreign rows are never kept.
+        if (message.group_id && message.group_id !== groupId) return false;
         if (incomingIds.has(message.id)) return false;
         // A soft-deleted row is absent from `messages`; without this guard the
+        // fail-open branch below would re-add it on every sync.
+
         // fail-open branch below would re-add it on every sync.
         if (isTombstoned(reconcileScope, message.id)) return false;
         if (message.id.startsWith("temp-") || message.id.startsWith("queued-")) {
@@ -1019,11 +1160,16 @@ export default function GroupChatPage() {
           const br: any[] = b.reactions || [];
           if (ar.length !== br.length) { identical = false; break; }
           if (ar.length > 0) {
-            const aIds = new Set(ar.map((r) => r.id));
-            for (const r of br) {
-              if (!aIds.has(r.id)) { identical = false; break; }
-            }
-            if (!identical) break;
+            // Compare reaction CONTENT (id + user + type), not just the id set,
+            // so a temp -> confirmed reaction transition with an equal id set
+            // still bails out instead of producing a new array identity on
+            // every pass (React #185 guard).
+            const sig = (list: any[]) =>
+              list
+                .map((r) => `${r.id}::${r.user_id}::${r.reaction_type}`)
+                .sort()
+                .join("|");
+            if (sig(ar) !== sig(br)) { identical = false; break; }
           }
         }
         if (identical) return prev;
@@ -1031,7 +1177,7 @@ export default function GroupChatPage() {
 
       return mergedMessages;
     });
-  }, [messages, reactions, groupId]);
+  }, [messages, reactions, groupId, threadPhase]);
 
   // If messages unexpectedly dropped to 0 but we had cached messages, trigger a refetch
   useEffect(() => {

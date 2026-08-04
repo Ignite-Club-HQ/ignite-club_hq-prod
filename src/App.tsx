@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, Fragment, type ReactNode } from "react";
 import NativeOnlyGate from "@/components/NativeOnlyGate";
 import { Capacitor } from "@capacitor/core";
 // Force publish - Firebase upgraded to v12.7.0 for Capacitor 8 compatibility
@@ -154,6 +154,27 @@ const EmbeddedEoiFormPage = lazy(() => import("./pages/EmbeddedEoiFormPage"));
 // WatchLiveTeamPage archived: only served basketball/netball spectator view (archive/sports/pages/)
 const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+
+/**
+ * SECURITY (cross-thread bleed): React Router reuses the same element instance
+ * when only a route param changes, so navigating chat A -> chat B keeps every
+ * `useState`/ref of the chat page alive (rendered message list, optimistic
+ * merges, caches) until async effects catch up. That is how a message posted in
+ * one group could momentarily render — and be persisted — inside another.
+ * Keying on the param forces a clean remount per conversation.
+ */
+const RemountOnParamChange = ({
+  param,
+  children,
+}: {
+  param: string;
+  children: ReactNode;
+}) => {
+  const params = useParams();
+  return <Fragment key={params[param] ?? "none"}>{children}</Fragment>;
+};
+
+
 
 import { setupReactQueryNativeAdapter } from "@/lib/reactQueryNativeAdapter";
 import { installWebReconnectInvalidator } from "@/lib/webReconnectInvalidator";
@@ -428,12 +449,13 @@ const App = () => {
                   <Route path="/messages" element={<MessagesPage />} />
                   <Route path="/scheduled-messages" element={<ScheduledMessagesPage />} />
                   <Route path="/messages/broadcast" element={<BroadcastChatPage />} />
-                  <Route path="/messages/club/:clubId" element={<ClubChatPage />} />
-                   <Route path="/messages/dm/:conversationId" element={<DirectMessagePage />} />
-                   <Route path="/messages/club-admin/:conversationId" element={<ClubAdminChatPage />} />
+                  <Route path="/messages/club/:clubId" element={<RemountOnParamChange param="clubId"><ClubChatPage /></RemountOnParamChange>} />
+                   <Route path="/messages/dm/:conversationId" element={<RemountOnParamChange param="conversationId"><DirectMessagePage /></RemountOnParamChange>} />
+                   <Route path="/messages/club-admin/:conversationId" element={<RemountOnParamChange param="conversationId"><ClubAdminChatPage /></RemountOnParamChange>} />
                   <Route path="/messages/welcome" element={<WelcomeMessagePage />} />
-                  <Route path="/messages/:teamId" element={<TeamChatPage />} />
-                  <Route path="/groups/:groupId" element={<GroupChatPage />} />
+                  <Route path="/messages/:teamId" element={<RemountOnParamChange param="teamId"><TeamChatPage /></RemountOnParamChange>} />
+                  <Route path="/groups/:groupId" element={<RemountOnParamChange param="groupId"><GroupChatPage /></RemountOnParamChange>} />
+
                   <Route path="/media" element={<MediaPage />} />
                   <Route path="/media/:photoId" element={<MediaPhotoRedirect />} />
                   <Route path="/vault" element={<VaultPage />} />

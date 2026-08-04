@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSyncActiveClubToChat } from "./useSyncActiveClubToChat";
 
@@ -15,11 +15,10 @@ describe("useSyncActiveClubToChat", () => {
     setActiveClubTheme.mockReset();
   });
 
-  it("switches global club context when a routed chat belongs to another club", async () => {
+  it("does not override the user-selected club during ordinary cross-club chat navigation", () => {
     renderHook(() => useSyncActiveClubToChat("club-b"));
 
-    await waitFor(() => expect(setActiveClubTheme).toHaveBeenCalledWith("club-b"));
-    expect(setActiveClubTheme).toHaveBeenCalledTimes(1);
+    expect(setActiveClubTheme).not.toHaveBeenCalled();
   });
 
   it("does not write when the routed chat already matches the active club", () => {
