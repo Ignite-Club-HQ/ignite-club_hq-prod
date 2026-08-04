@@ -309,6 +309,22 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   like journeys passed: Android cached-inbox settled reveal, Android in-app
   exact-row no-jolt and iOS in-app exact-row no-jolt. No runtime defect was
   found.
+- M4d review leaves Direct and Broadcast placeholder logic page-owned. Direct
+  ignores previous snapshots and requires at least two cached messages;
+  Broadcast preserves any previous snapshot and otherwise accepts any non-empty
+  cache. They are not duplicated business behavior, so combining them would add
+  abstraction without improving correctness. M4d cache hydration extraction is
+  complete.
+- M4e begins Realtime event-application extraction with pure React Query
+  envelope helpers for edit and delete. Club and Broadcast now preserve query
+  metadata while delegating only the message-array transformation. Channel
+  creation, exact table/filter, reconciliation recording, soft-delete outcome,
+  local rendered state and reaction handlers remain page-owned and in their
+  original order.
+- M4e initial verification passed 153 focused contracts, TypeScript and focused
+  lint. Two Realtime Playwright journeys passed for edit/soft-delete and
+  duplicate delivery, along with three Club/Broadcast exact-send/read-policy
+  journeys. No runtime defect was found.
 
 ## Objective
 

@@ -58,7 +58,9 @@ import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
@@ -1159,10 +1161,9 @@ export default function ClubChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            return { ...old, messages: removeMessage(existingMessages, deletedId) };
-          });
+          queryClient.setQueryData(clubMessagesQueryKey, (old: any) =>
+            removeMessageFromQueryEnvelope<Message>(old, deletedId)
+          );
           setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
@@ -1182,20 +1183,18 @@ export default function ClubChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
-              const existingMessages: Message[] = old?.messages || [];
-              return { ...old, messages: removeMessage(existingMessages, updated.id) };
-            });
+            queryClient.setQueryData(clubMessagesQueryKey, (old: any) =>
+              removeMessageFromQueryEnvelope<Message>(old, updated.id)
+            );
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
           }
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            return { ...old, messages: applyMessageUpdate(existingMessages, updated) };
-          });
+          queryClient.setQueryData(clubMessagesQueryKey, (old: any) =>
+            applyMessageUpdateToQueryEnvelope<Message>(old, updated)
+          );
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
