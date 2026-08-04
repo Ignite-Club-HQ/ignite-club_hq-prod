@@ -10382,29 +10382,17 @@ export type Database = {
           id: string
         }[]
       }
-      admin_link_child_to_parent:
-        | {
-            Args: {
-              p_child_name: string
-              p_club_id: string
-              p_existing_child_id: string
-              p_parent_user_id: string
-              p_pending_invite_ids: string[]
-              p_team_id: string
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_child_name: string
-              p_club_id: string
-              p_existing_child_id?: string
-              p_parent_user_id: string
-              p_pending_invite_ids?: string[]
-              p_team_id: string
-            }
-            Returns: undefined
-          }
+      admin_link_child_to_parent: {
+        Args: {
+          p_child_name: string
+          p_club_id: string
+          p_existing_child_id?: string
+          p_parent_user_id: string
+          p_pending_invite_ids?: string[]
+          p_team_id: string
+        }
+        Returns: undefined
+      }
       admin_update_rsvp_status: {
         Args: { p_acting_user_id: string; p_rsvp_id: string; p_status: string }
         Returns: undefined
@@ -10925,25 +10913,15 @@ export type Database = {
         }
         Returns: Json
       }
-      create_child_for_parent_on_team:
-        | {
-            Args: {
-              p_name: string
-              p_parent_user_id: string
-              p_team_id: string
-              p_year_of_birth?: number
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_name: string
-              p_parent_user_id: string
-              p_team_id: string
-              p_year_of_birth?: number
-            }
-            Returns: string
-          }
+      create_child_for_parent_on_team: {
+        Args: {
+          p_name: string
+          p_parent_user_id: string
+          p_team_id: string
+          p_year_of_birth?: number
+        }
+        Returns: string
+      }
       create_event_with_duties: {
         Args: { p_child_dates?: string[]; p_duties?: Json; p_event: Json }
         Returns: string
