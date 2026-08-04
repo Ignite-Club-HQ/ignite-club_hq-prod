@@ -72,6 +72,11 @@ import {
   buildSupportInboxConversation,
   buildTeamInboxConversation,
 } from "@/features/messaging/inbox/inboxConversationBuilders";
+import {
+  fetchInboxAppAdminStatus,
+  fetchInboxClubProStatus,
+  fetchInboxCompetitionClubMap,
+} from "@/features/messaging/inbox/inboxRepositories";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
 // warm re-entries paint cached rows immediately instead of re-running the
@@ -383,16 +388,7 @@ export default function MessagesPage() {
   // Check if user is app admin
   const { data: isAppAdmin, isFetching: isAppAdminFetching } = useQuery({
     queryKey: ["is-app-admin", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      if (error) throw error;
-      return !!data;
-    },
+    queryFn: () => fetchInboxAppAdminStatus(user!.id),
     enabled: !!user && initialized,
     retry: 3,
     staleTime: 5 * 60 * 1000,
@@ -868,29 +864,9 @@ export default function MessagesPage() {
 
   const { data: clubProStatus, isLoading: isLoadingClubProStatus, isFetching: isFetchingClubProStatus } = useQuery({
     queryKey: ["club-pro-status", memberClubIds],
-    queryFn: async () => {
-      if (memberClubIds.length === 0) return {};
-
-      const { data: subs, error } = await supabase
-        .from("club_subscriptions")
-        .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
-        .in("club_id", memberClubIds);
-
-      // If the query errors transiently (e.g. after returning from phone lock),
-      // throw so React Query keeps the previous (good) data via placeholderData
-      // instead of caching an all-false map that would lock Pro chats.
-      if (error) throw error;
-
-      const statusMap: Record<string, boolean> = {};
-      memberClubIds.forEach(id => {
-        const sub = subs?.find(s => s.club_id === id);
-        statusMap[id] = sub ? 
-          (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && 
-          (!sub.expires_at || new Date(sub.expires_at) > new Date()) : false;
-      });
-      
-      return statusMap;
-    },
+    // Errors remain distinct from an all-false entitlement result so React
+    // Query can retain the previous good value through placeholderData.
+    queryFn: () => fetchInboxClubProStatus(memberClubIds),
     enabled: memberClubIds.length > 0,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -1032,20 +1008,7 @@ export default function MessagesPage() {
     queryKey: ["competition-entry-clubs", competitionIdsForGroups],
     enabled: competitionIdsForGroups.length > 0,
     staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("competition_entries")
-        .select("competition_id, teams:team_id(club_id)")
-        .in("competition_id", competitionIdsForGroups);
-      if (error) throw error;
-      const map: Record<string, Set<string>> = {};
-      for (const row of (data ?? []) as any[]) {
-        const clubId = row?.teams?.club_id;
-        if (!clubId) continue;
-        (map[row.competition_id] ||= new Set()).add(clubId);
-      }
-      return map;
-    },
+    queryFn: () => fetchInboxCompetitionClubMap(competitionIdsForGroups),
   });
 
 

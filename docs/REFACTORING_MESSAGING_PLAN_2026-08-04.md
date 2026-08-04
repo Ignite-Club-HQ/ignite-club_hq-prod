@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 technically complete locally; manual UI review deferred, so not promotable
+Status: M1 technically complete; M2a repository boundary complete locally; manual UI review deferred
 
 ## Progress
 
@@ -42,6 +42,19 @@ Status: M1 technically complete locally; manual UI review deferred, so not promo
   production build completed with established warnings only. A focused test
   also locks the partial-enrichment contract: authorized rows remain visible
   when their latest-message preview is unavailable.
+- M2a extracted explicit repositories for app-admin capability, per-club Pro
+  entitlement and competition-to-club scope membership. React Query keys,
+  options, cadence and placeholder behavior are unchanged. Repository tests
+  lock exact tables, columns, filters, empty-scope short circuits, expiry
+  boundaries, deduplication and backend-error propagation.
+- M2a verification: 180 broader inbox/messaging tests, repository/module lint,
+  TypeScript and three native-like no-jolt Playwright journeys passed; the
+  production build completed with established warnings only.
+- M2 inventory identified pre-existing failure ambiguity in several legacy
+  reads, including muted/hidden preferences and parts of admin-club/latest-
+  message enrichment. Those reads were deliberately not moved or changed in
+  M2a; each needs characterization and a separate behavior decision before its
+  repository extraction.
 
 ## Objective
 
