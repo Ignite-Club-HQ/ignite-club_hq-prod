@@ -22,7 +22,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
-import { resolveCanonicalChildId } from "@/lib/childDedup";
+import { resolveCanonicalChildId, createChildForParentOrReuse } from "@/lib/childDedup";
 
 
 interface PendingInvite {
@@ -567,15 +567,13 @@ export default function CompleteProfilePage() {
                     }
 
                     // No existing child — create new
-                    const { data: newChild, error: childError } = await supabase
-                      .from("children")
-                      .insert({
-                        parent_id: user.id,
-                        name: childData.name,
-                        year_of_birth: childData.yearOfBirth,
-                      })
-                      .select("id")
-                      .single();
+                    const { childId: createdChildId, error: childError } =
+                      await createChildForParentOrReuse(
+                        user.id,
+                        childData.name,
+                        childData.yearOfBirth ?? null
+                      );
+                    const newChild = createdChildId ? { id: createdChildId } : null;
                     
                     if (childError) {
                       console.error("[CompleteProfile] Failed to create child:", childError.message);
@@ -719,15 +717,13 @@ export default function CompleteProfilePage() {
                   continue;
                 }
                 
-                const { data: newChild, error: childError } = await supabase
-                  .from("children")
-                  .insert({
-                    parent_id: user.id,
-                    name: childData.name,
-                    year_of_birth: childData.yearOfBirth,
-                  })
-                  .select("id")
-                  .single();
+                const { childId: createdChildId, error: childError } =
+                  await createChildForParentOrReuse(
+                    user.id,
+                    childData.name,
+                    childData.yearOfBirth ?? null
+                  );
+                const newChild = createdChildId ? { id: createdChildId } : null;
                 
                 if (childError) {
                   console.error("[CompleteProfile] Failed to create child:", childError.message);
