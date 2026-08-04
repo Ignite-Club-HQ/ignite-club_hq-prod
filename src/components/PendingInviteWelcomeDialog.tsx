@@ -132,13 +132,39 @@ export function PendingInviteWelcomeDialog() {
             continue;
           }
 
-          if (newChild?.id && teamId) {
+          let effectiveChildId = newChild?.id as string | undefined;
+
+          if (effectiveChildId && teamId) {
             await supabase.from("child_team_assignments").insert({
-              child_id: newChild.id,
+              child_id: effectiveChildId,
               team_id: teamId,
             });
+
+            // The server dedupes same-name children on a team: the new row may have
+            // been merged into the canonical child and removed. Re-resolve the id so
+            // downstream links (e.g. second parent) attach to the surviving record.
+            const { data: stillExists } = await supabase
+              .from("children")
+              .select("id")
+              .eq("id", effectiveChildId)
+              .maybeSingle();
+
+            if (!stillExists) {
+              const { data: canonical } = await supabase
+                .from("child_team_assignments")
+                .select("child_id, children:child_id(name)")
+                .eq("team_id", teamId);
+              const match = (canonical as any[] | null)?.find(
+                (row) =>
+                  row.children?.name?.toLowerCase().trim() ===
+                  childData.name?.toLowerCase().trim()
+              );
+              effectiveChildId = match?.child_id ?? undefined;
+            }
           }
-          if (newChild?.id) createdChildIds.push(newChild.id);
+
+          if (effectiveChildId) createdChildIds.push(effectiveChildId);
+
         }
       }
     }

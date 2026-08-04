@@ -22,6 +22,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { resolveCanonicalChildId } from "@/lib/childDedup";
+
 
 interface PendingInvite {
   id: string;
@@ -732,21 +734,30 @@ export default function CompleteProfilePage() {
                   continue;
                 }
                 
-                if (newChild?.id && invite.team_id) {
+                let effectiveChildId = newChild?.id as string | undefined;
+
+                if (effectiveChildId && invite.team_id) {
                   await supabase
                     .from("child_team_assignments")
                     .insert({
-                      child_id: newChild.id,
+                      child_id: effectiveChildId,
                       team_id: invite.team_id,
                     });
+                  // Server may have merged this child into an existing roster child
+                  effectiveChildId =
+                    (await resolveCanonicalChildId(
+                      effectiveChildId,
+                      invite.team_id,
+                      childData.name
+                    )) ?? undefined;
                   console.log("[CompleteProfile] Child created and assigned to team:", childData.name);
                 }
                 
-                if (newChild?.id && invite.metadata?.mini_league_id) {
+                if (effectiveChildId && invite.metadata?.mini_league_id) {
                   await supabase
                     .from("child_mini_league_assignments")
                     .insert({
-                      child_id: newChild.id,
+                      child_id: effectiveChildId,
                       mini_league_id: invite.metadata.mini_league_id,
                       ability_rating: 3,
                     });
@@ -754,10 +765,11 @@ export default function CompleteProfilePage() {
                   if (invite.metadata.player_id) {
                     await supabase
                       .from("mini_league_players")
-                      .update({ parent_user_id: user.id, child_id: newChild.id })
+                      .update({ parent_user_id: user.id, child_id: effectiveChildId })
                       .eq("id", invite.metadata.player_id);
                   }
                   console.log("[CompleteProfile] Child created and assigned to mini league:", childData.name);
+
                 }
               }
             }
