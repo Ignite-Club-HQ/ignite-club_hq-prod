@@ -702,7 +702,18 @@ export default function GroupChatPage() {
     refetchOnMount: "always", // Force refetch on every mount so reactions/messages added while away are picked up (true is a no-op while staleTime is unmet)
     refetchOnWindowFocus: false,
     placeholderData: (prev: any) => {
-      if (!groupId) return prev;
+      if (!groupId) return undefined;
+      // SECURITY (cross-group bleed): `prev` is whatever THIS hook instance
+      // last rendered. When the route param changes without a remount, that is
+      // the PREVIOUS group's message list — returning it verbatim renders
+      // group A's messages under group B's header (and bakes them into group
+      // B's offline cache). Never reuse `prev` unless every row belongs to the
+      // current group.
+      const prevBelongsToThisGroup =
+        !!prev &&
+        Array.isArray(prev.messages) &&
+        prev.messages.length > 0 &&
+        prev.messages.every((m: any) => !m?.group_id || m.group_id === groupId);
       // From-push freshness: prefer the just-preloaded localStorage cache
       // over a stale `prev` so the new message renders at first paint —
       // but only when the cache has a meaningful history window. A single
@@ -717,7 +728,8 @@ export default function GroupChatPage() {
           return { ...cachedData, hasOlderMessages: false, fromCache: true };
         }
       }
-      if (prev) return prev;
+      if (prevBelongsToThisGroup) return prev;
+
 
       const cachedData = getCachedGroupMessages(groupId);
       // A genuine one-message thread is usable; a notification-preload stub is not.
