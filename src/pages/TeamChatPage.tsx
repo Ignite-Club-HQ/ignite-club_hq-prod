@@ -1461,6 +1461,8 @@ export default function TeamChatPage() {
         (payload) => {
           const updated = payload.new as any;
           if (!updated?.id) return;
+          // SECURITY (cross-team bleed): drop UPDATE payloads for another team.
+          if (!belongsToTeam(updated, teamId)) return;
           // Record first so any query response already in flight is reconciled
           // when it lands (stale-fetch resurrection guard). Idempotent.
           const outcome = recordRealtimeMutation(reconcileScope, updated);
