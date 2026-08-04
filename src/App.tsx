@@ -428,12 +428,13 @@ const App = () => {
                   <Route path="/messages" element={<MessagesPage />} />
                   <Route path="/scheduled-messages" element={<ScheduledMessagesPage />} />
                   <Route path="/messages/broadcast" element={<BroadcastChatPage />} />
-                  <Route path="/messages/club/:clubId" element={<ClubChatPage />} />
-                   <Route path="/messages/dm/:conversationId" element={<DirectMessagePage />} />
-                   <Route path="/messages/club-admin/:conversationId" element={<ClubAdminChatPage />} />
+                  <Route path="/messages/club/:clubId" element={<RemountOnParamChange param="clubId"><ClubChatPage /></RemountOnParamChange>} />
+                   <Route path="/messages/dm/:conversationId" element={<RemountOnParamChange param="conversationId"><DirectMessagePage /></RemountOnParamChange>} />
+                   <Route path="/messages/club-admin/:conversationId" element={<RemountOnParamChange param="conversationId"><ClubAdminChatPage /></RemountOnParamChange>} />
                   <Route path="/messages/welcome" element={<WelcomeMessagePage />} />
-                  <Route path="/messages/:teamId" element={<TeamChatPage />} />
-                  <Route path="/groups/:groupId" element={<GroupChatPage />} />
+                  <Route path="/messages/:teamId" element={<RemountOnParamChange param="teamId"><TeamChatPage /></RemountOnParamChange>} />
+                  <Route path="/groups/:groupId" element={<RemountOnParamChange param="groupId"><GroupChatPage /></RemountOnParamChange>} />
+
                   <Route path="/media" element={<MediaPage />} />
                   <Route path="/media/:photoId" element={<MediaPhotoRedirect />} />
                   <Route path="/vault" element={<VaultPage />} />
