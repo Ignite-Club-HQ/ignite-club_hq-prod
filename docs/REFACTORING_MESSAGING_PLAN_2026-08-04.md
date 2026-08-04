@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin/direct/group consumption complete locally; manual UI review deferred
+Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin/direct/group/club consumption complete locally; manual UI review deferred
 
 ## Progress
 
@@ -181,6 +181,16 @@ Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin/dir
   send/reaction-success/reaction-rollback/notification-routing journeys passed.
   Whole-page lint retains pre-existing legacy type and hook debt; no runtime
   defect was found.
+- M3c club consumption now derives all club-message React Query cache keys and
+  history-search table/filter identity from the adapter. Fetch, notification
+  recovery, watchdog, polling, Realtime reconciliation, anchored pagination,
+  optimistic send rollback and visibility refresh retain one cache identity.
+  Club membership/RLS, Club Pro gating, announcements, Supabase mutations and
+  Realtime filters remain unchanged.
+- M3c club verification: 123 focused adapter, history, navigation, metadata and
+  thread-state tests, TypeScript, production build and 2 focused Playwright
+  exact-scope-send/notification-routing journeys passed. Whole-page lint retains
+  pre-existing legacy type and hook debt; no runtime defect was found.
 
 ## Objective
 

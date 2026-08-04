@@ -97,9 +97,12 @@ import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
+import { buildChatScopeFilter, CLUB_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 
 
 const MESSAGES_PER_PAGE = 30;
+const getClubMessagesQueryKey = (clubId?: string) =>
+  [CLUB_CHAT_SCOPE.cachePrefix, clubId] as const;
 
 interface Message {
   id: string;
@@ -161,6 +164,7 @@ export default function ClubChatPage() {
     return () => noteChatUnmount("ClubChat", k, null);
   }, []);
   const { clubId } = useParams<{ clubId: string }>();
+  const clubMessagesQueryKey = useMemo(() => getClubMessagesQueryKey(clubId), [clubId]);
   const { user, profile, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
@@ -288,12 +292,12 @@ export default function ClubChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: clubMessagesQueryKey }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId, targetJumpNonce]);
+  }, [targetMessageId, targetParentId, targetJumpNonce, clubMessagesQueryKey, queryClient]);
 
   // Pinned messages
   const {
@@ -431,7 +435,7 @@ export default function ClubChatPage() {
   const invalidateGateClub = eagerInvalidateClub ? !!user?.id : authReady;
   useEffect(() => {
     if (!clubId || !invalidateGateClub) return;
-    const key = ["club-messages", clubId];
+    const key = clubMessagesQueryKey;
     if (shouldSkipChatMountInvalidate(queryClient, key, `club:${clubId}`)) return;
     let cancelled = false;
     (async () => {
@@ -440,10 +444,10 @@ export default function ClubChatPage() {
       queryClient.invalidateQueries({ queryKey: key });
     })();
     return () => { cancelled = true; };
-  }, [clubId, invalidateGateClub, queryClient, eagerInvalidateClub]);
+  }, [clubId, invalidateGateClub, queryClient, eagerInvalidateClub, clubMessagesQueryKey]);
 
   const { data: messagesData, isLoading } = useQuery({
-    queryKey: ["club-messages", clubId],
+    queryKey: clubMessagesQueryKey,
     queryFn: async () => {
       markChatFetch();
       // If offline, return cached messages using the shared online manager
@@ -488,7 +492,7 @@ export default function ClubChatPage() {
       const authorIds = [...new Set(messagesToDisplay.map((m) => m.author_id))];
 
       // Preserve cached reactions when the reactions query fails transiently
-      const cachedQueryData = queryClient.getQueryData(["club-messages", clubId]) as any;
+      const cachedQueryData = queryClient.getQueryData(clubMessagesQueryKey) as any;
       const cachedMessages: Message[] = Array.isArray(cachedQueryData)
         ? cachedQueryData
         : cachedQueryData?.messages || [];
@@ -615,10 +619,9 @@ export default function ClubChatPage() {
   });
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
-  const reactionQueryKey = useMemo(() => ["club-messages", clubId], [clubId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
-    queryKey: reactionQueryKey,
+    queryKey: clubMessagesQueryKey,
     setLocalMessages,
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
@@ -630,7 +633,7 @@ export default function ClubChatPage() {
   // queries while the page is stuck on a skeleton.
   useChatStuckWatchdog(
     (!!clubId && ((isLoadingClubSubscription && !club) || showLoading)),
-    [["club-subscription", clubId], ["club", clubId], ["club-messages", clubId]],
+    [["club-subscription", clubId], ["club", clubId], clubMessagesQueryKey],
     "club-chat",
   );
 
@@ -690,8 +693,8 @@ export default function ClubChatPage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
-  }, [queryClient, clubId]);
+    await queryClient.invalidateQueries({ queryKey: clubMessagesQueryKey });
+  }, [queryClient, clubMessagesQueryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
@@ -785,9 +788,9 @@ export default function ClubChatPage() {
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("club", clubId, fetchedCount)) {
       console.log("[ClubChat] Messages unexpectedly 0, triggering refetch");
-      queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
+      queryClient.invalidateQueries({ queryKey: clubMessagesQueryKey });
     }
-  }, [clubId, authReady, messages, isLoading, queryClient]);
+  }, [clubId, authReady, messages, isLoading, queryClient, clubMessagesQueryKey]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
@@ -800,14 +803,14 @@ export default function ClubChatPage() {
         if (timeSinceLastRefresh > 30000) {
           console.log("[ClubChat] App became visible, refreshing messages");
           lastRefresh = Date.now();
-          await queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
+          await queryClient.invalidateQueries({ queryKey: clubMessagesQueryKey });
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [clubId, authReady, queryClient]);
+  }, [clubId, authReady, queryClient, clubMessagesQueryKey]);
 
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
@@ -952,7 +955,7 @@ export default function ClubChatPage() {
       // (no jolt). The hook flushSyncs the cache update and corrects scrollTop
       // in the same task.
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+        queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           return {
             ...(old || {}),
@@ -967,7 +970,7 @@ export default function ClubChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope]);
+  }, [clubId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope, clubMessagesQueryKey]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1034,10 +1037,10 @@ export default function ClubChatPage() {
   useEffect(() => {
     if (!clubId || clubRealtimeMode !== "polling") return;
     const id = window.setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ["club-messages", clubId] });
+      queryClient.invalidateQueries({ queryKey: clubMessagesQueryKey });
     }, clubPollIntervalMs);
     return () => window.clearInterval(id);
-  }, [clubId, clubRealtimeMode, clubPollIntervalMs, queryClient]);
+  }, [clubId, clubRealtimeMode, clubPollIntervalMs, queryClient, clubMessagesQueryKey]);
 
   // Realtime subscription - directly update cache instead of invalidating
   useEffect(() => {
@@ -1062,7 +1065,7 @@ export default function ClubChatPage() {
           const cachedProfile = cachedProfiles.get(newMsg.author_id);
           
           // IMMEDIATELY update cache with message (don't wait for profile fetch)
-          queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+          queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
             
             // Check if message already exists with real ID
@@ -1122,7 +1125,7 @@ export default function ClubChatPage() {
                 : Promise.resolve({ data: null }),
             ]).then(([profileData, replyToResult]) => {
               // Update the message with fetched data
-              queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+              queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
                 const existingMessages: Message[] = old?.messages || [];
                 return {
                   ...(old || {}),
@@ -1157,7 +1160,7 @@ export default function ClubChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+          queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
             return { ...old, messages: removeMessage(existingMessages, deletedId) };
           });
@@ -1180,7 +1183,7 @@ export default function ClubChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+            queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
               const existingMessages: Message[] = old?.messages || [];
               return { ...old, messages: removeMessage(existingMessages, updated.id) };
             });
@@ -1190,7 +1193,7 @@ export default function ClubChatPage() {
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+          queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
             return { ...old, messages: applyMessageUpdate(existingMessages, updated) };
           });
@@ -1234,7 +1237,7 @@ export default function ClubChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`club-messages-${clubId}`);
     };
-  }, [clubId, queryClient, clubRealtimeMode, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [clubId, queryClient, clubRealtimeMode, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete, clubMessagesQueryKey]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -1257,8 +1260,6 @@ export default function ClubChatPage() {
       setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), delay);
     });
   }, [toast]);
-
-  const queryKeyMemo = useMemo(() => ["club-messages", clubId!], [clubId]);
 
   const formatTimestamp = useCallback((dateStr: string) => {
     return format(parseISO(dateStr), "MMM d, h:mm a");
@@ -1291,9 +1292,9 @@ export default function ClubChatPage() {
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
-      await queryClient.cancelQueries({ queryKey: ["club-messages", clubId] });
+      await queryClient.cancelQueries({ queryKey: clubMessagesQueryKey });
 
-      const previousData = queryClient.getQueryData(["club-messages", clubId]);
+      const previousData = queryClient.getQueryData(clubMessagesQueryKey);
 
       const optimisticMessage: Message = {
         id: `temp-${Date.now()}`,
@@ -1312,7 +1313,7 @@ export default function ClubChatPage() {
       };
 
       // Update query cache directly (this will sync to localMessages via useEffect)
-      queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+      queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
         const existingMessages: Message[] = old?.messages || [];
         return {
           ...(old || {}),
@@ -1339,7 +1340,7 @@ export default function ClubChatPage() {
         return;
       }
       if (context?.previousData) {
-        queryClient.setQueryData(["club-messages", clubId], context.previousData);
+        queryClient.setQueryData(clubMessagesQueryKey, context.previousData);
       }
       toast({
         title: "Failed to send message",
@@ -1382,7 +1383,7 @@ export default function ClubChatPage() {
     onSuccess: () => {
       setMessage("");
       setEditingMessage(null);
-      queryClient.invalidateQueries({ queryKey: queryKeyMemo });
+      queryClient.invalidateQueries({ queryKey: clubMessagesQueryKey });
       // silent success
     },
     onError: () => toast({ title: "Failed to update message", variant: "destructive" }),
@@ -1460,8 +1461,8 @@ export default function ClubChatPage() {
     cacheKey: `club:${clubId ?? ""}`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "club_messages",
-        scope: { club_id: clubId! },
+        table: CLUB_CHAT_SCOPE.messageTable,
+        scope: buildChatScopeFilter(CLUB_CHAT_SCOPE, clubId),
         query: q,
         signal,
         selectColumns: "id, text, image_url, created_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label",
