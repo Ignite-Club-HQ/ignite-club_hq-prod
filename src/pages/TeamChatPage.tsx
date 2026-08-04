@@ -736,6 +736,8 @@ export default function TeamChatPage() {
       // Cache messages for offline access
       cacheMessages("team", teamId!, messages.map(m => ({
         id: m.id,
+        // Immutable thread scope so future cache reads can validate the row.
+        team_id: m.team_id ?? teamId!,
         text: m.text,
         author_id: m.author_id,
         created_at: m.created_at,
@@ -1034,6 +1036,7 @@ export default function TeamChatPage() {
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,
+        team_id: m.team_id ?? teamId,
         text: m.text,
         author_id: m.author_id,
         created_at: m.created_at,
