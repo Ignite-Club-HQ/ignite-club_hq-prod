@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 and M2 technically complete; M3a-M3b scope adapters complete locally; manual UI review deferred
+Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast consumption complete locally; manual UI review deferred
 
 ## Progress
 
@@ -138,6 +138,14 @@ Status: M1 and M2 technically complete; M3a-M3b scope adapters complete locally;
   build and six selected cross-surface Playwright send/authorization journeys
   also passed. Team's exact send scope remains covered by the established
   optimistic-send journey.
+- M3c began adapter consumption with the global broadcast surface. All React
+  Query reads, invalidations, optimistic writes, rollback and watchdog inputs
+  now share the adapter-derived cache key, and history search uses the adapter
+  message table. Supabase reads/writes, Realtime table registration,
+  app-admin authorization, payloads and timing remain unchanged and explicit.
+- M3c broadcast verification: 96 adapter, history, navigation and page-contract
+  tests, TypeScript, focused adapter lint, production build and both broadcast
+  Playwright read/send authorization journeys passed.
 
 ## Objective
 

@@ -101,4 +101,18 @@ describe("chat scope capability source parity", () => {
     expect(source).not.toContain("showVaultPicker=");
     expect(source).not.toContain("<PinnedMessagesBanner");
   });
+
+  it("uses the broadcast adapter for shared cache and history identity", () => {
+    const source = page("BroadcastChatPage.tsx");
+    expect(source).toContain(
+      'import { BROADCAST_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters"',
+    );
+    expect(source).toContain(
+      "const BROADCAST_MESSAGES_QUERY_KEY = [BROADCAST_CHAT_SCOPE.cachePrefix] as const",
+    );
+    expect(source).toContain("table: BROADCAST_CHAT_SCOPE.messageTable");
+    expect(source).not.toContain('queryKey: ["broadcast-messages"]');
+    expect(source).not.toContain('setQueryData(["broadcast-messages"]');
+    expect(source).not.toContain('getQueryData(["broadcast-messages"]');
+  });
 });

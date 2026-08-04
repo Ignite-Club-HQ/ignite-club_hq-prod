@@ -48,6 +48,7 @@ import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
+import { BROADCAST_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 
 const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -81,6 +82,7 @@ import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEa
 
 
 const MESSAGES_PER_PAGE = 30;
+const BROADCAST_MESSAGES_QUERY_KEY = [BROADCAST_CHAT_SCOPE.cachePrefix] as const;
 
 interface Message {
   id: string;
@@ -206,7 +208,7 @@ export default function BroadcastChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
@@ -234,7 +236,7 @@ export default function BroadcastChatPage() {
   const invalidateGateBroadcast = eagerInvalidateBroadcast ? !!user?.id : authReady;
   useEffect(() => {
     if (!invalidateGateBroadcast) return;
-    const key = ["broadcast-messages"];
+    const key = BROADCAST_MESSAGES_QUERY_KEY;
     if (shouldSkipChatMountInvalidate(queryClient, key, "broadcast")) return;
     let cancelled = false;
     (async () => {
@@ -246,7 +248,7 @@ export default function BroadcastChatPage() {
   }, [invalidateGateBroadcast, queryClient, eagerInvalidateBroadcast]);
 
   const { data: messagesData, isLoading } = useQuery({
-    queryKey: ["broadcast-messages"],
+    queryKey: BROADCAST_MESSAGES_QUERY_KEY,
     queryFn: async () => {
       // If offline, return cached messages using the shared online manager
       // so native app resume does not incorrectly fall back to stale cache.
@@ -285,7 +287,7 @@ export default function BroadcastChatPage() {
         .map((m) => m.reply_to_id as string);
 
       // Preserve cached reactions when the reactions query fails transiently
-      const cachedQueryData = queryClient.getQueryData(["broadcast-messages"]) as any;
+      const cachedQueryData = queryClient.getQueryData(BROADCAST_MESSAGES_QUERY_KEY) as any;
       const cachedMessages: Message[] = Array.isArray(cachedQueryData)
         ? cachedQueryData
         : cachedQueryData?.messages || [];
@@ -390,7 +392,7 @@ export default function BroadcastChatPage() {
  
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
-  const reactionQueryKey = useMemo(() => ["broadcast-messages"], []);
+  const reactionQueryKey = useMemo(() => BROADCAST_MESSAGES_QUERY_KEY, []);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
     queryKey: reactionQueryKey,
@@ -402,7 +404,7 @@ export default function BroadcastChatPage() {
 
   // Android resume escape hatch: abort zombie GETs + re-issue the messages
   // query while the page is stuck on a skeleton.
-  useChatStuckWatchdog(showLoading, [["broadcast-messages"]], "broadcast-chat");
+  useChatStuckWatchdog(showLoading, [BROADCAST_MESSAGES_QUERY_KEY], "broadcast-chat");
 
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
@@ -419,7 +421,7 @@ export default function BroadcastChatPage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+    await queryClient.invalidateQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY });
   }, [queryClient]);
 
   const handleManualRefresh = useCallback(async () => {
@@ -512,7 +514,7 @@ export default function BroadcastChatPage() {
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("broadcast", "broadcast", fetchedCount)) {
       console.log("[BroadcastChat] Messages unexpectedly 0, triggering refetch");
-      queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+      queryClient.invalidateQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY });
     }
   }, [authReady, messages, isLoading, queryClient]);
 
@@ -527,7 +529,7 @@ export default function BroadcastChatPage() {
         if (timeSinceLastRefresh > 30000) {
           console.log("[BroadcastChat] App became visible, refreshing messages");
           lastRefresh = Date.now();
-          await queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+          await queryClient.invalidateQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY });
         }
       }
     };
@@ -637,7 +639,7 @@ export default function BroadcastChatPage() {
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+        queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           return {
             ...(old || {}),
@@ -696,7 +698,7 @@ export default function BroadcastChatPage() {
           };
           
           // Single atomic update - handles both temp replacement and new message addition
-          queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+          queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
             
             // Check if message already exists with real ID
@@ -739,7 +741,7 @@ export default function BroadcastChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+          queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
             return { ...old, messages: removeMessage(existingMessages, deletedId) };
           });
@@ -761,7 +763,7 @@ export default function BroadcastChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+            queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
               const existingMessages: Message[] = old?.messages || [];
               return { ...old, messages: removeMessage(existingMessages, updated.id) };
             });
@@ -771,7 +773,7 @@ export default function BroadcastChatPage() {
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+          queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
             return { ...old, messages: applyMessageUpdate(existingMessages, updated) };
           });
@@ -831,7 +833,7 @@ export default function BroadcastChatPage() {
     });
   }, [toast]);
 
-  const queryKeyMemo = useMemo(() => ["broadcast-messages"], []);
+  const queryKeyMemo = useMemo(() => BROADCAST_MESSAGES_QUERY_KEY, []);
 
   const formatTimestamp = useCallback((dateStr: string) => {
     return format(parseISO(dateStr), "MMM d, h:mm a");
@@ -862,8 +864,8 @@ export default function BroadcastChatPage() {
       if (error) throw error;
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
-      await queryClient.cancelQueries({ queryKey: ["broadcast-messages"] });
-      const previousData = queryClient.getQueryData(["broadcast-messages"]);
+      await queryClient.cancelQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY });
+      const previousData = queryClient.getQueryData(BROADCAST_MESSAGES_QUERY_KEY);
 
       const optimisticMessage: Message = {
         id: `temp-${Date.now()}`,
@@ -877,7 +879,7 @@ export default function BroadcastChatPage() {
       };
 
       // Update query cache directly (this will sync to localMessages via useEffect)
-      queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+      queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
         const existingMessages: Message[] = old?.messages || [];
         return {
           ...(old || {}),
@@ -904,7 +906,7 @@ export default function BroadcastChatPage() {
         return;
       }
       if (context?.previousData) {
-        queryClient.setQueryData(["broadcast-messages"], context.previousData);
+        queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, context.previousData);
       }
       toast({
         title: "Failed to send message",
@@ -971,7 +973,7 @@ export default function BroadcastChatPage() {
     cacheKey: `broadcast`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "broadcast_messages",
+        table: BROADCAST_CHAT_SCOPE.messageTable,
         scope: {},
         query: q,
         signal,
