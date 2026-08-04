@@ -618,6 +618,8 @@ export default function ClubChatPage() {
   const reactionQueryKey = useMemo(() => ["club-messages", clubId], [clubId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
+    // Scope guard: message_reactions realtime events are unfiltered platform-wide.
+    getLocalMessages: () => localMessagesRef.current,
     queryKey: reactionQueryKey,
     setLocalMessages,
   });

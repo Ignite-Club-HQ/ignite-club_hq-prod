@@ -143,10 +143,32 @@ const formatMessageDate = (dateStr: string) => {
   return format(date, "MMM d, h:mm a");
 };
 
+/**
+ * SECURITY (cross-team bleed): a row is only ever rendered, seeded, merged or
+ * persisted in the thread it was posted to. Rows without a `team_id` (optimistic
+ * temp/queued rows, offline-cache rows) are created in-thread and allowed.
+ */
+const belongsToTeam = (message: any, teamId: string | undefined) =>
+  !!teamId && (!message?.team_id || message.team_id === teamId);
+
+/**
+ * SECURITY (cross-team cache bleed): a cached row may already carry an
+ * immutable `team_id` from another team (older cache writes, shared helpers).
+ * Never overwrite it with the open thread's id — that would launder the foreign
+ * row into this thread and defeat every later `belongsToTeam` check. Rows with
+ * no `team_id` are legacy cache rows, already scoped by the cache key.
+ */
 const getCachedTeamMessages = (teamId: string): Message[] =>
-  getCachedMessages("team", teamId).map((cachedMessage) => ({
+
+  getCachedMessages("team", teamId)
+    .filter((cachedMessage) => {
+      const cachedTeamId = (cachedMessage as { team_id?: unknown }).team_id;
+      return typeof cachedTeamId !== "string" || cachedTeamId === teamId;
+    })
+    .map((cachedMessage) => ({
     id: cachedMessage.id,
-    team_id: teamId,
+    team_id: ((cachedMessage as { team_id?: unknown }).team_id as string | undefined) ?? teamId,
+
     author_id: cachedMessage.author_id,
     text: cachedMessage.text,
     image_url: cachedMessage.image_url,
@@ -714,6 +736,8 @@ export default function TeamChatPage() {
       // Cache messages for offline access
       cacheMessages("team", teamId!, messages.map(m => ({
         id: m.id,
+        // Immutable thread scope so future cache reads can validate the row.
+        team_id: m.team_id ?? teamId!,
         text: m.text,
         author_id: m.author_id,
         created_at: m.created_at,
@@ -752,7 +776,18 @@ export default function TeamChatPage() {
           return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
         }
       }
-      if (prev) return prev;
+      // SECURITY (cross-team bleed): `prev` is whatever THIS hook instance last
+      // rendered. If the route param changed without a remount it is the
+      // PREVIOUS team's message list — returning it verbatim renders team A's
+      // messages under team B's header and bakes them into team B's offline
+      // cache. Only reuse `prev` when every row belongs to this team.
+      const prevBelongsToThisTeam =
+        !!prev &&
+        Array.isArray(prev.messages) &&
+        prev.messages.length > 0 &&
+        prev.messages.every((m: any) => belongsToTeam(m, teamId));
+      if (prevBelongsToThisTeam) return prev;
+
 
       const cachedMessages = getCachedTeamMessages(teamId);
       if (cachedMessages.length < 2) return undefined;
@@ -770,15 +805,18 @@ export default function TeamChatPage() {
     const msgList = Array.isArray(messagesData)
       ? messagesData
       : (messagesData as any).messages || [];
+    // SECURITY (cross-team bleed): last line of defence before render.
+    const scoped = (msgList as any[]).filter((m) => belongsToTeam(m, teamId));
     // Sort by created_at to ensure proper ordering
-    const sorted = [...msgList].sort((a, b) => 
+    const sorted = [...scoped].sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
     // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
     // after a realtime UPDATE must never restore pre-edit text or resurrect a
     // deleted row.
     return reconcileMessages(reconcileScope, sorted) as Message[];
-  }, [messagesData, reconcileScope]);
+  }, [messagesData, reconcileScope, teamId]);
+
 
   // Local copy used for rendering so optimistic updates are instant.
   // A 1-item cache is almost certainly a notification preload, not real
@@ -794,6 +832,8 @@ export default function TeamChatPage() {
   const reactionQueryKey = useMemo(() => ["team-messages", teamId], [teamId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
+    // Scope guard: message_reactions realtime events are unfiltered platform-wide.
+    getLocalMessages: () => localMessagesRef.current,
     queryKey: reactionQueryKey,
     setLocalMessages,
   });
@@ -874,10 +914,15 @@ export default function TeamChatPage() {
       Array.isArray(cachedQueryData)
         ? cachedQueryData
         : cachedQueryData?.messages || []
-    ).sort((a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id));
+    )
+      // SECURITY (cross-team bleed): a placeholder object left behind by another
+      // team must never seed this thread's render state.
+      .filter((m: any) => belongsToTeam(m, teamId))
+      .sort((a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id));
 
     const seed = inMemoryMessages.length > 0 ? inMemoryMessages : getCachedTeamMessages(teamId);
     setLocalMessages((reconcileMessages(reconcileScope, seed) ?? []) as Message[]);
+
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
 
@@ -931,7 +976,13 @@ export default function TeamChatPage() {
           .map((m) => `${m.author_id}::${m.text ?? ""}::${m.image_url ?? ""}`),
       );
       const previousOnly = (prev || []).filter((message) => {
+        // SECURITY (cross-team bleed): this merge is deliberately fail-open — it
+        // keeps prior rows absent from the incoming snapshot. A row left over
+        // from another team's thread would otherwise be latched in permanently
+        // and persisted into THIS team's offline cache. Never keep foreign rows.
+        if (!belongsToTeam(message, teamId)) return false;
         if (incomingIds.has(message.id)) return false;
+
         // A realtime soft-delete already removed this row from the incoming
         // cache snapshot — never carry it over from the previous render state.
         if (isTombstoned(reconcileScope, message.id)) return false;
@@ -987,6 +1038,7 @@ export default function TeamChatPage() {
 
       cacheMessages("team", teamId, mergedMessages.map((m) => ({
         id: m.id,
+        team_id: m.team_id ?? teamId,
         text: m.text,
         author_id: m.author_id,
         created_at: m.created_at,
@@ -1298,6 +1350,11 @@ export default function TeamChatPage() {
         },
         (payload) => {
           const newMsg = payload.new as any;
+          // SECURITY (cross-team bleed): never trust the server-side filter
+          // alone. A resubscribed/misrouted channel payload for another team is
+          // dropped before it can reach this thread's cache or render state.
+          if (!belongsToTeam(newMsg, teamId)) return;
+
           
           // Get cached profile synchronously (instant, non-blocking)
           const { cached: cachedProfiles } = getProfilesFromCache([newMsg.author_id]);
@@ -1422,6 +1479,8 @@ export default function TeamChatPage() {
         (payload) => {
           const updated = payload.new as any;
           if (!updated?.id) return;
+          // SECURITY (cross-team bleed): drop UPDATE payloads for another team.
+          if (!belongsToTeam(updated, teamId)) return;
           // Record first so any query response already in flight is reconciled
           // when it lands (stale-fetch resurrection guard). Idempotent.
           const outcome = recordRealtimeMutation(reconcileScope, updated);

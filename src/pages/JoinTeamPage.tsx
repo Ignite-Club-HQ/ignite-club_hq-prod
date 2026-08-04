@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -507,15 +508,13 @@ export default function JoinTeamPage() {
               console.log("[JoinTeam] Child already exists:", childData.name, "ID:", childId);
             } else {
               // Create the child record
-              const { data: newChild, error: childError } = await supabase
-                .from("children")
-                .insert({
-                  parent_id: user.id,
-                  name: childData.name,
-                  year_of_birth: childData.yearOfBirth,
-                })
-                .select("id")
-                .single();
+              const { childId: createdChildId, error: childError } =
+                await createChildForParentOrReuse(
+                  user.id,
+                  childData.name,
+                  childData.yearOfBirth ?? null
+                );
+              const newChild = createdChildId ? { id: createdChildId } : null;
               
               if (childError) {
                 console.error("[JoinTeam] Failed to create child:", childError.message);
@@ -552,6 +551,19 @@ export default function JoinTeamPage() {
               } else {
                 console.log("[JoinTeam] Child assigned to team:", childData.name);
               }
+            }
+
+            // The server may have merged this child into the canonical roster
+            // child. Re-resolve so guardian/league links target the survivor.
+            const canonicalId = await resolveCanonicalChildId(
+              childId,
+              pendingInviteData.team_id,
+              childData.name
+            );
+            if (canonicalId && canonicalId !== childId) {
+              const stale = createdChildIds.indexOf(childId);
+              if (stale !== -1) createdChildIds[stale] = canonicalId;
+              childId = canonicalId;
             }
           }
           
@@ -742,15 +754,12 @@ export default function JoinTeamPage() {
           });
         } else {
           // Create new child and assign to team
-          const { data: newChild } = await supabase
-            .from("children")
-            .insert({
-              parent_id: user.id,
-              name: childMeta.child_name,
-              year_of_birth: childMeta.child_year_of_birth || null,
-            })
-            .select("id")
-            .single();
+          const { childId: reusableChildId } = await createChildForParentOrReuse(
+            user.id,
+            childMeta.child_name,
+            childMeta.child_year_of_birth || null
+          );
+          const newChild = reusableChildId ? { id: reusableChildId } : null;
           
           if (newChild?.id) {
             await supabase.from("child_team_assignments").insert({
@@ -1229,16 +1238,35 @@ export default function JoinTeamPage() {
           })
           .select("id")
           .single();
-        
-        if (childErr) throw childErr;
-        
-        if (newChild?.id) {
+
+        let effectiveChildId = newChild?.id as string | undefined;
+
+        if (childErr) {
+          // The server blocks a second child with the same name for this parent.
+          // Reuse the child they already have rather than failing the join.
+          const isDuplicate =
+            childErr.code === "23505" ||
+            childErr.message?.includes("duplicate_child_for_parent");
+          if (!isDuplicate) throw childErr;
+
+          const { data: existingOwn } = await supabase
+            .from("children")
+            .select("id, name")
+            .eq("parent_id", user.id);
+          const target = addedLabel.toLowerCase();
+          effectiveChildId = (existingOwn ?? []).find(
+            (c: any) => c.name?.toLowerCase().trim() === target
+          )?.id;
+          if (!effectiveChildId) throw childErr;
+        }
+
+        if (effectiveChildId) {
           if (leagueLinkMiniLeagueId) {
             // Assign to mini league
             const { error: leagueErr } = await supabase
               .from("child_mini_league_assignments")
               .insert({
-                child_id: newChild.id,
+                child_id: effectiveChildId,
                 mini_league_id: leagueLinkMiniLeagueId,
                 ability_rating: 3,
               });
@@ -1248,13 +1276,14 @@ export default function JoinTeamPage() {
           } else if (invite?.team_id) {
             // Assign to team
             await supabase.from("child_team_assignments").insert({
-              child_id: newChild.id,
+              child_id: effectiveChildId,
               team_id: invite.team_id,
             });
           }
         }
         toast({ title: `${addedLabel} added to ${inviteEntityName}!` });
       }
+
 
       // Track the added child and reset the form so a sibling can be added next
       setAddedChildren(prev => [...prev, addedLabel]);

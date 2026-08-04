@@ -35,6 +35,10 @@ export function AppLayout() {
   const [authRestoreExpired, setAuthRestoreExpired] = useState(false);
   useEffect(() => {
     if (sessionRestoration !== "restoring") return;
+    // Re-arm on every new restore cycle (e.g. a token refresh triggering a
+    // second restore); otherwise a prior expiry would leave the flag true and
+    // flash /auth during a legitimate restore.
+    setAuthRestoreExpired(false);
     const t = window.setTimeout(() => setAuthRestoreExpired(true), 8000);
     return () => window.clearTimeout(t);
   }, [sessionRestoration]);

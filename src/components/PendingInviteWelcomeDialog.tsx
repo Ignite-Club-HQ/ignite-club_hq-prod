@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
 
 /**
  * Silently auto-accepts any pending invites for the logged-in user.
@@ -117,28 +118,40 @@ export function PendingInviteWelcomeDialog() {
           createdChildIds.push(existingId);
         } else {
           // Create new child
-          const { data: newChild, error: childError } = await supabase
-            .from("children")
-            .insert({
-              parent_id: parentId,
-              name: childData.name,
-              year_of_birth: childData.yearOfBirth,
-            })
-            .select("id")
-            .single();
+          const { childId: createdChildId, error: childError } =
+            await createChildForParentOrReuse(
+              parentId,
+              childData.name,
+              childData.yearOfBirth ?? null
+            );
+          const newChild = createdChildId ? { id: createdChildId } : null;
 
           if (childError) {
             console.error("[InviteAutoAccept] Failed to create child:", childError.message);
             continue;
           }
 
-          if (newChild?.id && teamId) {
+          let effectiveChildId = newChild?.id as string | undefined;
+
+          if (effectiveChildId && teamId) {
             await supabase.from("child_team_assignments").insert({
-              child_id: newChild.id,
+              child_id: effectiveChildId,
               team_id: teamId,
             });
+
+            // The server dedupes same-name children on a team: the new row may have
+            // been merged into the canonical child and removed. Re-resolve the id so
+            // downstream links (e.g. second parent) attach to the surviving record.
+            effectiveChildId =
+              (await resolveCanonicalChildId(
+                effectiveChildId,
+                teamId,
+                childData.name
+              )) ?? undefined;
           }
-          if (newChild?.id) createdChildIds.push(newChild.id);
+
+          if (effectiveChildId) createdChildIds.push(effectiveChildId);
+
         }
       }
     }

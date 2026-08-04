@@ -560,6 +560,8 @@ export default function ClubAdminChatPage() {
   const reactionQueryKey = useMemo(() => queryKey, [queryKey]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<ClubAdminMessage>({
     scopeKey: reconcileScope,
+    // Scope guard: message_reactions realtime events are unfiltered platform-wide.
+    getLocalMessages: () => localMessagesRef.current,
     queryKey: reactionQueryKey,
     setLocalMessages,
   });
