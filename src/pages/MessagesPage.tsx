@@ -55,7 +55,6 @@ import {
   attachInboxDrafts,
   deriveActiveMutedChats,
   filterInboxConversations,
-  inboxConversationIdentity,
   isHiddenConversationVisible,
   normalizeInboxTypeFilter,
   partitionInboxByReadState,
@@ -64,6 +63,15 @@ import {
   resolveOperationalConversationDisclosure,
   type InboxConversation as UnifiedConversation,
 } from "@/features/messaging/inbox/inboxReadModel";
+import {
+  buildBroadcastInboxConversation,
+  buildClubAdminInboxConversation,
+  buildClubInboxConversation,
+  buildDirectMessageInboxConversation,
+  buildGroupInboxConversation,
+  buildSupportInboxConversation,
+  buildTeamInboxConversation,
+} from "@/features/messaging/inbox/inboxConversationBuilders";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
 // warm re-entries paint cached rows immediately instead of re-running the
@@ -2507,20 +2515,10 @@ export default function MessagesPage() {
 
     // Broadcast
     if (showBroadcast) {
-      items.push({
-        type: 'broadcast',
-        ...inboxConversationIdentity('broadcast', 'broadcast'),
-        name: 'Announcements',
-        lastActivity: displayLatestBroadcast?.created_at || '',
-        lastMessage: displayLatestBroadcast ? {
-          text: displayLatestBroadcast.text,
-          author: (displayLatestBroadcast.profiles as any)?.display_name || '',
-          created_at: displayLatestBroadcast.created_at,
-          image_url: displayLatestBroadcast.image_url,
-        } : undefined,
+      items.push(buildBroadcastInboxConversation({
+        message: displayLatestBroadcast,
         unreadCount: unreadCounts?.broadcast || 0,
-        isMuted: false,
-      });
+      }));
     }
 
     // Clubs
@@ -2535,53 +2533,43 @@ export default function MessagesPage() {
         isLoading: isLoadingClubProStatus,
         isFetching: isFetchingClubProStatus,
       });
-      items.push({
-        type: 'club',
-        ...inboxConversationIdentity('club', club.id),
-        name: club.name,
-        avatarUrl: club.logo_url,
-        lastActivity: lastMsg?.created_at || '',
+      items.push(buildClubInboxConversation({
+        club,
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.clubs[club.id] || 0,
         isMuted: mutedChats?.clubs.has(club.id) || false,
-        isLocked: proStatusKnown && !hasProAccess,
-      });
+        proStatusKnown,
+        hasProAccess,
+      }));
     });
 
     // Teams
     filteredTeams.forEach((team: any) => {
       const lastMsg = displayLatestTeamMessages?.[team.id];
-      items.push({
-        type: 'team',
-        ...inboxConversationIdentity('team', team.id),
-        name: team.name,
-        avatarUrl: team.logo_url || team.clubs?.logo_url,
-        lastActivity: lastMsg?.created_at || '',
+      items.push(buildTeamInboxConversation({
+        team,
         lastMessage: lastMsg,
         unreadCount: unreadCounts?.teams[team.id] || 0,
         isMuted: mutedChats?.teams.has(team.id) || false,
-      });
+      }));
     });
 
     // League chats
     filteredLeagueChats.forEach((group: any) => {
       const lastMsg = displayLatestGroupMessages?.[group.id];
-      items.push({
+      items.push(buildGroupInboxConversation({
         type: 'league',
-        ...inboxConversationIdentity('league', group.id),
-        name: group.name,
+        group,
         avatarUrl: group.clubs?.logo_url ?? null,
-        lastActivity: lastMsg?.created_at || '',
         lastMessage: lastMsg,
         unreadCount: resolveGroupUnreadCount(groupUnreadCache?.[group.id], unreadCounts?.groups[group.id]),
         isMuted: mutedChats?.groups.has(group.id) || false,
-      });
+      }));
     });
 
     // Chat groups
     filteredChatGroups.forEach((group: any) => {
       const lastMsg = displayLatestGroupMessages?.[group.id];
-      const identity = inboxConversationIdentity('group', group.id);
       const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
       const allowedRoles: string[] = group.allowed_roles || [];
       const isClubRoleGroup =
@@ -2601,42 +2589,28 @@ export default function MessagesPage() {
         : { known: false, hasAccess: true };
       const isLocked =
         isClubRoleGroup && proStatusKnown && !clubHasPro && !isAppAdmin;
-      items.push({
+      items.push(buildGroupInboxConversation({
         type: 'group',
-        ...identity,
-        name: group.name,
-        link: isLocked ? `/clubs/${group.club_id}/upgrade` : identity.link,
-        lastActivity: lastMsg?.created_at || '',
+        group,
         lastMessage: lastMsg,
         unreadCount: resolveGroupUnreadCount(groupUnreadCache?.[group.id], unreadCounts?.groups[group.id]),
         isMuted: mutedChats?.groups.has(group.id) || false,
         canHide: isPersonalGroup,
-        category: (group as any).category ?? null,
         isLocked,
-      });
+        lockedLink: `/clubs/${group.club_id}/upgrade`,
+      }));
     });
 
 
     // DM conversations
     filteredDMs.forEach((conv: any) => {
       const isSupport = isIgniteSupportUser(conv.other_user?.id);
-      items.push({
-        type: 'dm',
-        ...inboxConversationIdentity('dm', conv.id),
-        name: isSupport ? "Ignite Support" : (conv.other_user?.display_name || "Unknown User"),
-        avatarUrl: conv.other_user?.avatar_url,
-        lastActivity: conv.last_message?.created_at || conv.updated_at || '',
-        lastMessage: conv.last_message ? {
-          text: conv.last_message.text,
-          author: conv.last_message.author_id === user?.id ? "You" : (conv.other_user?.display_name || ""),
-          created_at: conv.last_message.created_at,
-          image_url: conv.last_message.image_url,
-        } : undefined,
+      items.push(buildDirectMessageInboxConversation({
+        conversation: conv,
+        currentUserId: user?.id,
         unreadCount: unreadCounts?.dms[conv.id] || 0,
-        isMuted: false,
-        canHide: !isSupport,
-        dmData: conv,
-      });
+        isSupport,
+      }));
     });
 
     // Club admin conversations (filter by search query against member name / club name / last message)
@@ -2649,40 +2623,16 @@ export default function MessagesPage() {
         })
       : clubAdminConversations;
     filteredAdminConvs.forEach((conv) => {
-      items.push({
-        type: 'admin_group',
-        ...inboxConversationIdentity('admin_group', conv.id),
-        name: conv.member_name,
-        avatarUrl: conv.member_avatar,
-        lastActivity: conv.last_created_at || conv.updated_at || '',
-        lastMessage: conv.last_created_at ? {
-          text: conv.last_text || '',
-          author: conv.last_author_id === user?.id ? 'You' : conv.member_name,
-          created_at: conv.last_created_at,
-          image_url: conv.last_image,
-        } : undefined,
-        unreadCount: 0,
-        isMuted: false,
-        category: 'Admin Groups',
-      });
+      items.push(buildClubAdminInboxConversation({
+        conversation: conv,
+        currentUserId: user?.id,
+      }));
     });
 
 
     // Ignite Support system message (if not already shown as a DM)
     if (showIgniteSupport && !filteredDMs.some((conv: any) => isIgniteSupportUser(conv.other_user?.id))) {
-      items.push({
-        type: 'support',
-        ...inboxConversationIdentity('support', 'ignite-support'),
-        name: 'Ignite Support',
-        lastActivity: systemMessage?.created_at || '',
-        lastMessage: systemMessage ? {
-          text: systemMessage.text.substring(0, 60) + '...',
-          author: '',
-          created_at: systemMessage.created_at,
-        } : undefined,
-        unreadCount: 0,
-        isMuted: false,
-      });
+      items.push(buildSupportInboxConversation(systemMessage));
     }
 
     // Attach drafts and bump lastActivity if draft is more recent than last message

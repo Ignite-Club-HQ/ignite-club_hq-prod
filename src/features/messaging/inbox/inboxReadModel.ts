@@ -10,6 +10,14 @@ export type InboxConversationType =
 
 export type InboxTypeFilter = "all" | "teams" | "groups" | "dms";
 
+export interface InboxPreviewMessage {
+  text: string;
+  author: string;
+  created_at: string;
+  image_url?: string | null;
+  is_announcement?: boolean;
+}
+
 export interface InboxConversation {
   type: InboxConversationType;
   id: string;
@@ -18,13 +26,7 @@ export interface InboxConversation {
   avatarUrl?: string | null;
   link: string;
   lastActivity: string;
-  lastMessage?: {
-    text: string;
-    author: string;
-    created_at: string;
-    image_url?: string | null;
-    is_announcement?: boolean;
-  };
+  lastMessage?: InboxPreviewMessage;
   unreadCount: number;
   isMuted: boolean;
   isLocked?: boolean;

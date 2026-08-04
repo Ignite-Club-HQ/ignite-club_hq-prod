@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: in progress; M1a-M1c inbox policy boundaries complete locally
+Status: M1 technically complete locally; manual UI review deferred, so not promotable
 
 ## Progress
 
@@ -33,6 +33,15 @@ Status: in progress; M1a-M1c inbox policy boundaries complete locally
 - M1c verification: 166 broader inbox/messaging tests, extracted-module lint,
   TypeScript and three native-like no-jolt Playwright journeys passed; the
   production build completed with established warnings only.
+- M1d extracted typed source-specific row and preview builders for broadcast,
+  club, team, league/group, direct, club-admin and support conversations. All
+  source queries, filters, authorization, cache stabilization and Realtime
+  ownership remain in `MessagesPage`.
+- M1d verification: 174 broader inbox/messaging tests, extracted-module lint,
+  TypeScript and three native-like no-jolt Playwright journeys passed; the
+  production build completed with established warnings only. A focused test
+  also locks the partial-enrichment contract: authorized rows remain visible
+  when their latest-message preview is unavailable.
 
 ## Objective
 
