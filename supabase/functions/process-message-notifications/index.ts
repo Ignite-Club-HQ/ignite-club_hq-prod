@@ -5,13 +5,16 @@ import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 // Module-scope env + client: created once per isolate, reused across warm invocations.
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhYmNmaXVudHdxand2c2NobmppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MzI0MjcsImV4cCI6MjA4MzMwODQyN30.ew6qjjYM3BR3S1rYupohNEQmQ_3MeHFFn8zDXhLM4as';
+// No hardcoded fallback: a wrong-project anon key degrades push delivery to
+// silent 401s per recipient while the function still returns 200.
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 // Fail fast and loudly at isolate boot if required config is absent, rather than
 // throwing an opaque ReferenceError/401 deep inside a fan-out.
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !ANON_KEY) {
   const missing = [
     !SUPABASE_URL ? 'SUPABASE_URL' : null,
     !SUPABASE_SERVICE_KEY ? 'SUPABASE_SERVICE_ROLE_KEY' : null,
+    !ANON_KEY ? 'SUPABASE_ANON_KEY' : null,
   ].filter(Boolean).join(', ');
   console.error(`[NOTIFY] FATAL: missing required environment variable(s): ${missing}`);
   throw new Error(`process-message-notifications misconfigured: missing ${missing}`);
