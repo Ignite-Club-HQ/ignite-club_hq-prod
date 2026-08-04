@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 and M2 technically complete; M3a scope identity adapters complete locally; manual UI review deferred
+Status: M1 and M2 technically complete; M3a-M3b scope adapters complete locally; manual UI review deferred
 
 ## Progress
 
@@ -126,6 +126,18 @@ Status: M1 and M2 technically complete; M3a scope identity adapters complete loc
   The history journey's readiness assertion was hardened from a generic
   five-second text lookup to the exact heading with a realistic cold-build
   allowance after two artifacts showed correct late rendering.
+- M3b added explicit per-surface read/send policy boundaries and capability
+  modes for attachments, vault selection, polls, scheduling, pins, forwarding,
+  gallery publishing and club-announcement rows. Conditional behavior remains
+  owned by each page (including support-DM restrictions, group settings and
+  entitlement checks), and the contract explicitly does not replace database
+  RLS as the authoritative authorization layer.
+- M3b verification: 14 adapter tests, 6 source-backed capability parity tests,
+  47 six-surface orchestration contracts, 3 policy parity guards and the
+  relevant shared-history tests passed. TypeScript, new-module lint, production
+  build and six selected cross-surface Playwright send/authorization journeys
+  also passed. Team's exact send scope remains covered by the established
+  optimistic-send journey.
 
 ## Objective
 

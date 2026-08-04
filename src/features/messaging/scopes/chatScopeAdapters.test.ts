@@ -60,4 +60,92 @@ describe("chat scope adapters", () => {
       "broadcast",
     ]);
   });
+
+  it("keeps membership and participant authorization boundaries explicit", () => {
+    expect(CHAT_SCOPE_ADAPTERS.team).toMatchObject({
+      readBoundary: "team_membership",
+      sendBoundary: "team_membership",
+    });
+    expect(CHAT_SCOPE_ADAPTERS.club).toMatchObject({
+      readBoundary: "club_membership",
+      sendBoundary: "club_membership",
+    });
+    expect(CHAT_SCOPE_ADAPTERS.group).toMatchObject({
+      readBoundary: "group_membership",
+      sendBoundary: "group_membership",
+    });
+    for (const kind of ["direct", "club_admin"] as const) {
+      expect(CHAT_SCOPE_ADAPTERS[kind]).toMatchObject({
+        readBoundary: "conversation_participant",
+        sendBoundary: "conversation_participant",
+      });
+    }
+    expect(CHAT_SCOPE_ADAPTERS.broadcast).toMatchObject({
+      readBoundary: "authenticated",
+      sendBoundary: "app_admin",
+    });
+  });
+
+  it("preserves capability differences rather than flattening all chat surfaces", () => {
+    expect(CHAT_SCOPE_ADAPTERS.team.capabilities).toEqual({
+      attachments: "supported",
+      vaultPicker: "supported",
+      polls: "supported",
+      scheduling: "supported",
+      pinning: "supported",
+      forwarding: "supported",
+      galleryPublishing: "conditional",
+      clubAnnouncements: "supported",
+    });
+    expect(CHAT_SCOPE_ADAPTERS.club.capabilities).toEqual({
+      attachments: "supported",
+      vaultPicker: "supported",
+      polls: "supported",
+      scheduling: "supported",
+      pinning: "supported",
+      forwarding: "supported",
+      galleryPublishing: "unsupported",
+      clubAnnouncements: "unsupported",
+    });
+    expect(CHAT_SCOPE_ADAPTERS.group.capabilities).toEqual({
+      attachments: "supported",
+      vaultPicker: "conditional",
+      polls: "supported",
+      scheduling: "supported",
+      pinning: "supported",
+      forwarding: "conditional",
+      galleryPublishing: "conditional",
+      clubAnnouncements: "unsupported",
+    });
+    expect(CHAT_SCOPE_ADAPTERS.direct.capabilities).toEqual({
+      attachments: "conditional",
+      vaultPicker: "conditional",
+      polls: "unsupported",
+      scheduling: "conditional",
+      pinning: "conditional",
+      forwarding: "conditional",
+      galleryPublishing: "unsupported",
+      clubAnnouncements: "unsupported",
+    });
+    expect(CHAT_SCOPE_ADAPTERS.club_admin.capabilities).toEqual({
+      attachments: "supported",
+      vaultPicker: "conditional",
+      polls: "supported",
+      scheduling: "supported",
+      pinning: "unsupported",
+      forwarding: "supported",
+      galleryPublishing: "unsupported",
+      clubAnnouncements: "unsupported",
+    });
+    expect(CHAT_SCOPE_ADAPTERS.broadcast.capabilities).toEqual({
+      attachments: "supported",
+      vaultPicker: "unsupported",
+      polls: "supported",
+      scheduling: "conditional",
+      pinning: "unsupported",
+      forwarding: "supported",
+      galleryPublishing: "unsupported",
+      clubAnnouncements: "unsupported",
+    });
+  });
 });
