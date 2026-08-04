@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast consumption complete locally; manual UI review deferred
+Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast/club-admin consumption complete locally; manual UI review deferred
 
 ## Progress
 
@@ -146,6 +146,17 @@ Status: M1 and M2 technically complete; M3a-M3b and M3c broadcast consumption co
 - M3c broadcast verification: 96 adapter, history, navigation and page-contract
   tests, TypeScript, focused adapter lint, production build and both broadcast
   Playwright read/send authorization journeys passed.
+- M3c club-admin consumption now derives its conversation-scoped React Query
+  key and history-search table/filter from the adapter. Fetch, notification
+  refresh, bounded recovery, watchdog, reaction reconciliation, optimistic
+  mutation state, channel cleanup and visibility refresh all retain one cache
+  identity. Supabase and Realtime table/filter literals remain explicit.
+- M3c club-admin verification: 120 focused adapter, history, navigation,
+  metadata and recovery tests, TypeScript, focused adapter lint, production
+  build and all 8 club-admin Playwright non-blank/delayed/recovery/cache/error/
+  empty/send journeys passed. One source assertion was updated because it
+  intentionally required the removed cache-key literal; no runtime defect was
+  found.
 
 ## Objective
 

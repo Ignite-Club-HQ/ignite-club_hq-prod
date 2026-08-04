@@ -83,8 +83,15 @@ import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
+import {
+  buildChatScopeFilter,
+  CLUB_ADMIN_CHAT_SCOPE,
+} from "@/features/messaging/scopes/chatScopeAdapters";
 
 const MESSAGES_PER_PAGE = 15;
+
+const getClubAdminMessagesQueryKey = (conversationId?: string) =>
+  [CLUB_ADMIN_CHAT_SCOPE.cachePrefix, conversationId] as const;
 
 interface ClubAdminMessage {
   id: string;
@@ -317,7 +324,10 @@ export default function ClubAdminChatPage() {
     : `${club?.name || "Club"} admin chat`;
 
   // Memoize query key
-  const queryKey = useMemo(() => ["club-admin-messages", conversationId], [conversationId]);
+  const queryKey = useMemo(
+    () => getClubAdminMessagesQueryKey(conversationId),
+    [conversationId],
+  );
 
   // Fetch messages
   const {
@@ -445,8 +455,8 @@ export default function ClubAdminChatPage() {
   useEffect(() => {
     if (!openedFromNotificationRef.current) return;
     if (!conversationId || !user?.id) return;
-    queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] });
-  }, [conversationId, user?.id, queryClient]);
+    queryClient.invalidateQueries({ queryKey });
+  }, [conversationId, user?.id, queryClient, queryKey]);
 
   // Bounded automatic recovery. If the thread fetch returns zero messages (or
   // errors) while auth/RLS/connectivity is still settling after an Android
@@ -596,12 +606,12 @@ export default function ClubAdminChatPage() {
       () => virtualHandleRef.current,
       setHighlightedMessageId,
       {
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId, targetJumpNonce]);
+  }, [targetMessageId, targetParentId, targetJumpNonce, queryClient, queryKey]);
   // A push-preload-only local cache must still show the loading state —
   // otherwise the stranded stub paints for a frame before the real fetch
   // resolves. Everything else routes through the shared classifier, which
@@ -629,7 +639,7 @@ export default function ClubAdminChatPage() {
     (!!conversationId && (conversationLoading || showLoading)),
     [
       ["club-admin-conversation", conversationId],
-      ["club-admin-messages", conversationId],
+      queryKey,
     ],
     "club-admin-chat",
   );
@@ -712,8 +722,8 @@ export default function ClubAdminChatPage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] });
-  }, [queryClient, conversationId]);
+    await queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
@@ -842,8 +852,8 @@ export default function ClubAdminChatPage() {
     cacheKey: `club_admin:${conversationId ?? ""}`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "club_admin_messages",
-        scope: { conversation_id: conversationId! },
+        table: CLUB_ADMIN_CHAT_SCOPE.messageTable,
+        scope: buildChatScopeFilter(CLUB_ADMIN_CHAT_SCOPE, conversationId),
         query: q,
         signal,
         selectColumns: "id, text, image_url, created_at, author_id, conversation_id, reply_to_id",
@@ -1077,7 +1087,7 @@ export default function ClubAdminChatPage() {
           userId: user.id,
           // Scoped by CLUB id: losing club membership must revoke this channel.
           scope: { kind: "club_admin", id: conversation?.club_id ?? conversationId },
-          cacheKeys: [["club-admin-messages", conversationId]],
+          cacheKeys: [queryKey],
         })
       : null;
 

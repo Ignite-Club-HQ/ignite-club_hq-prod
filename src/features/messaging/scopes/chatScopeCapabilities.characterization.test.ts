@@ -115,4 +115,15 @@ describe("chat scope capability source parity", () => {
     expect(source).not.toContain('setQueryData(["broadcast-messages"]');
     expect(source).not.toContain('getQueryData(["broadcast-messages"]');
   });
+
+  it("uses the club-admin adapter for conversation cache and history scope identity", () => {
+    const source = page("ClubAdminChatPage.tsx");
+    expect(source).toContain("CLUB_ADMIN_CHAT_SCOPE.cachePrefix");
+    expect(source).toContain("table: CLUB_ADMIN_CHAT_SCOPE.messageTable");
+    expect(source).toContain(
+      "scope: buildChatScopeFilter(CLUB_ADMIN_CHAT_SCOPE, conversationId)",
+    );
+    expect(source).not.toContain('queryKey: ["club-admin-messages", conversationId]');
+    expect(source).not.toContain('cacheKeys: [["club-admin-messages", conversationId]]');
+  });
 });

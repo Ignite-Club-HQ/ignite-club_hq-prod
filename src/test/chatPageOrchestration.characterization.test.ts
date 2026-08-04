@@ -52,7 +52,11 @@ describe("six-surface messaging refactor contracts", () => {
 
     it(`${name} isolates its query cache scope`, () => {
       const text = page(name);
-      expect(text).toContain(cachePrefix);
+      if (name === "ClubAdminChatPage.tsx") {
+        expect(text).toContain("CLUB_ADMIN_CHAT_SCOPE.cachePrefix");
+      } else {
+        expect(text).toContain(cachePrefix);
+      }
       expect(text).toContain("queryClient.setQueryData");
     });
 
