@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
 
 /**
  * Silently auto-accepts any pending invites for the logged-in user.
@@ -117,15 +118,13 @@ export function PendingInviteWelcomeDialog() {
           createdChildIds.push(existingId);
         } else {
           // Create new child
-          const { data: newChild, error: childError } = await supabase
-            .from("children")
-            .insert({
-              parent_id: parentId,
-              name: childData.name,
-              year_of_birth: childData.yearOfBirth,
-            })
-            .select("id")
-            .single();
+          const { childId: createdChildId, error: childError } =
+            await createChildForParentOrReuse(
+              parentId,
+              childData.name,
+              childData.yearOfBirth ?? null
+            );
+          const newChild = createdChildId ? { id: createdChildId } : null;
 
           if (childError) {
             console.error("[InviteAutoAccept] Failed to create child:", childError.message);
@@ -143,24 +142,12 @@ export function PendingInviteWelcomeDialog() {
             // The server dedupes same-name children on a team: the new row may have
             // been merged into the canonical child and removed. Re-resolve the id so
             // downstream links (e.g. second parent) attach to the surviving record.
-            const { data: stillExists } = await supabase
-              .from("children")
-              .select("id")
-              .eq("id", effectiveChildId)
-              .maybeSingle();
-
-            if (!stillExists) {
-              const { data: canonical } = await supabase
-                .from("child_team_assignments")
-                .select("child_id, children:child_id(name)")
-                .eq("team_id", teamId);
-              const match = (canonical as any[] | null)?.find(
-                (row) =>
-                  row.children?.name?.toLowerCase().trim() ===
-                  childData.name?.toLowerCase().trim()
-              );
-              effectiveChildId = match?.child_id ?? undefined;
-            }
+            effectiveChildId =
+              (await resolveCanonicalChildId(
+                effectiveChildId,
+                teamId,
+                childData.name
+              )) ?? undefined;
           }
 
           if (effectiveChildId) createdChildIds.push(effectiveChildId);
