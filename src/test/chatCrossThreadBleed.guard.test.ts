@@ -45,4 +45,21 @@ describe("chat cross-thread bleed guard", () => {
     expect(page).not.toMatch(/^\s*if \(prev\) return prev;\s*$/m);
     expect(page).toMatch(/prevBelongsToThisGroup/);
   });
+
+  it("TeamChatPage scopes rendered/seeded/merged/realtime messages to the active team", () => {
+    const page = src("pages/TeamChatPage.tsx");
+    expect(page).toMatch(/const belongsToTeam/);
+    // render filter + placeholderData reuse check + seed filter + merge filter + realtime INSERT guard
+    const scopedGuards = page.match(/belongsToTeam\(/g) ?? [];
+    expect(scopedGuards.length).toBeGreaterThanOrEqual(6);
+    expect(page).toMatch(/prevBelongsToThisTeam/);
+    expect(page).not.toMatch(/^\s*if \(prev\) return prev;\s*$/m);
+  });
+
+  it("in-app notification taps resolve the owning club before navigating", () => {
+    const page = src("pages/NotificationsPage.tsx");
+    expect(page).toMatch(/requestClubSwitchForChatTarget\(/);
+    const lib = src("lib/notificationClubSwitch.ts");
+    expect(lib).toMatch(/export async function resolveClubIdForChatTarget/);
+  });
 });
