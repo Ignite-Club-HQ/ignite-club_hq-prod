@@ -50,6 +50,7 @@ import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 import { BROADCAST_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
+import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
 
 const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -372,10 +373,7 @@ export default function BroadcastChatPage() {
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
     const msgList = extractChatQueryMessages<Message>(messagesData);
-    // Sort by created_at to ensure proper ordering
-    const sorted = [...msgList].sort((a, b) => 
-      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
-    );
+    const sorted = orderChatMessagesChronologically(msgList);
     // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
     // restore pre-edit text or resurrect a deleted row.
     return reconcileMessages(reconcileScope, sorted) as Message[];

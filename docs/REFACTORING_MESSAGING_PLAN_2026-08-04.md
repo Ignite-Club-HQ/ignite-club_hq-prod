@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1, M2 and M3 technically complete locally; M4a query-envelope normalization complete; manual UI review deferred
+Status: M1, M2 and M3 technically complete locally; M4a query-envelope normalization and M4b query-message ordering complete; manual UI review deferred
 
 ## Progress
 
@@ -231,6 +231,19 @@ Status: M1, M2 and M3 technically complete locally; M4a query-envelope normaliza
   journeys. One over-broad source assertion was narrowed because Team still
   legitimately reads pagination metadata; this was a test issue, not a runtime
   defect.
+- M4b extracted the exact chronological query-message ordering rule shared by
+  all six chat surfaces. It retains the existing timestamp comparison,
+  deterministic immutable-id tie-break and non-mutating copy before the
+  existing Realtime reconciliation step. Pagination merges, cache writes,
+  Realtime handlers, search ordering and visual-scroll ownership remain in
+  their pages.
+- M4b verification passed 122 focused ordering, adapter, reconciliation,
+  load-state and page contracts, TypeScript and focused lint. Eleven selected
+  Playwright journeys passed across Broadcast, Direct, Club, Group, Club Admin
+  and Team/Realtime behavior; one inbox-preview assertion exceeded its existing
+  three-second timeout in the combined run and passed immediately in isolation.
+  The failure occurred before thread navigation and did not execute the new
+  ordering boundary. No runtime defect was found.
 
 ## Objective
 

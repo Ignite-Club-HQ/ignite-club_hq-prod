@@ -88,6 +88,7 @@ import {
   CLUB_ADMIN_CHAT_SCOPE,
 } from "@/features/messaging/scopes/chatScopeAdapters";
 import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
+import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
 
 const MESSAGES_PER_PAGE = 15;
 
@@ -546,9 +547,7 @@ export default function ClubAdminChatPage() {
   const messages = useMemo(() => {
     if (!messagesData) return [];
     const msgList = extractChatQueryMessages<ClubAdminMessage>(messagesData);
-    const sorted = [...msgList].sort((a, b) =>
-      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
-    );
+    const sorted = orderChatMessagesChronologically(msgList);
     // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
     // restore pre-edit text or resurrect a deleted row.
     return (reconcileMessages(reconcileScope, sorted) ?? []) as ClubAdminMessage[];

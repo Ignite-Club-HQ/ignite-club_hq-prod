@@ -105,6 +105,7 @@ import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { buildChatScopeFilter, TEAM_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
+import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -773,10 +774,7 @@ export default function TeamChatPage() {
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
     const msgList = extractChatQueryMessages<Message>(messagesData);
-    // Sort by created_at to ensure proper ordering
-    const sorted = [...msgList].sort((a, b) => 
-      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
-    );
+    const sorted = orderChatMessagesChronologically(msgList);
     // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
     // after a realtime UPDATE must never restore pre-edit text or resurrect a
     // deleted row.
