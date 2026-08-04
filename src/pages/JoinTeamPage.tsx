@@ -1229,16 +1229,35 @@ export default function JoinTeamPage() {
           })
           .select("id")
           .single();
-        
-        if (childErr) throw childErr;
-        
-        if (newChild?.id) {
+
+        let effectiveChildId = newChild?.id as string | undefined;
+
+        if (childErr) {
+          // The server blocks a second child with the same name for this parent.
+          // Reuse the child they already have rather than failing the join.
+          const isDuplicate =
+            childErr.code === "23505" ||
+            childErr.message?.includes("duplicate_child_for_parent");
+          if (!isDuplicate) throw childErr;
+
+          const { data: existingOwn } = await supabase
+            .from("children")
+            .select("id, name")
+            .eq("parent_id", user.id);
+          const target = addedLabel.toLowerCase();
+          effectiveChildId = (existingOwn ?? []).find(
+            (c: any) => c.name?.toLowerCase().trim() === target
+          )?.id;
+          if (!effectiveChildId) throw childErr;
+        }
+
+        if (effectiveChildId) {
           if (leagueLinkMiniLeagueId) {
             // Assign to mini league
             const { error: leagueErr } = await supabase
               .from("child_mini_league_assignments")
               .insert({
-                child_id: newChild.id,
+                child_id: effectiveChildId,
                 mini_league_id: leagueLinkMiniLeagueId,
                 ability_rating: 3,
               });
@@ -1248,13 +1267,14 @@ export default function JoinTeamPage() {
           } else if (invite?.team_id) {
             // Assign to team
             await supabase.from("child_team_assignments").insert({
-              child_id: newChild.id,
+              child_id: effectiveChildId,
               team_id: invite.team_id,
             });
           }
         }
         toast({ title: `${addedLabel} added to ${inviteEntityName}!` });
       }
+
 
       // Track the added child and reset the form so a sibling can be added next
       setAddedChildren(prev => [...prev, addedLabel]);
