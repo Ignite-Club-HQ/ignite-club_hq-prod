@@ -2,6 +2,20 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type QueuedMessageType = "team" | "club" | "group" | "broadcast" | "dm" | "club_admin";
 
+/**
+ * Vault destination context captured at queue time so a message delivered later
+ * (after reconnect) mirrors its attachment/file links to exactly the same Vault
+ * scope it would have used had it been sent online.
+ */
+export interface QueuedVaultContext {
+  clubId: string;
+  teamId?: string | null;
+  chatGroupId?: string | null;
+  chatGroupName?: string | null;
+  chatGroupAllowedRoles?: string[] | null;
+  isClubAdminChat?: boolean;
+}
+
 export interface QueuedMessage {
   id: string;
   type: QueuedMessageType;
@@ -12,6 +26,8 @@ export interface QueuedMessage {
   replyToId: string | null;
   createdAt: string;
   retryCount: number;
+  /** Present only for surfaces that mirror attachments to the Vault. */
+  vault?: QueuedVaultContext | null;
 }
 
 const QUEUE_KEY = "ignite_message_queue";
@@ -151,6 +167,11 @@ export async function syncQueuedMessages(): Promise<{ synced: number; failed: nu
     
     if (success) {
       synced++;
+      // Vault sync happens ONLY after a confirmed insert, exactly once per
+      // queued message (the row is dropped from the queue below, so a retry
+      // can never mirror the same message twice). Fire-and-forget: a Vault
+      // failure must never make a delivered message look undelivered.
+      await syncQueuedMessageToVault(message);
     } else {
       message.retryCount++;
       if (message.retryCount < MAX_RETRIES) {
@@ -164,6 +185,33 @@ export async function syncQueuedMessages(): Promise<{ synced: number; failed: nu
 
   saveQueue(remainingQueue);
   return { synced, failed };
+}
+
+/**
+ * Mirror a successfully-delivered queued message's attachment/file links into
+ * the Vault using the scope captured when it was queued. Failures are logged
+ * only — `chatVaultSync` performs its own duplicate-URL protection.
+ */
+async function syncQueuedMessageToVault(message: QueuedMessage): Promise<void> {
+  const vault = message.vault;
+  if (!vault?.clubId) return;
+  if (!message.imageUrl && !message.text) return;
+  try {
+    const { syncChatAttachmentToVault } = await import("@/lib/chatVaultSync");
+    await syncChatAttachmentToVault({
+      imageUrl: message.imageUrl,
+      text: message.text,
+      userId: message.authorId,
+      clubId: vault.clubId,
+      teamId: vault.teamId ?? null,
+      chatGroupId: vault.chatGroupId ?? null,
+      chatGroupName: vault.chatGroupName ?? null,
+      chatGroupAllowedRoles: vault.chatGroupAllowedRoles ?? null,
+      isClubAdminChat: vault.isClubAdminChat ?? false,
+    });
+  } catch (err) {
+    console.warn("Queued message vault sync failed:", err);
+  }
 }
 
 // Check if there are any queued messages
