@@ -52,9 +52,25 @@ async function verifyClubMembership(userId: string, clubId: string): Promise<Mem
   if (roleRes.error) sawError = true;
   else if (roleRes.data && roleRes.data.length > 0) return "yes";
 
-  // `as any` on the client: the embedded-join generic here trips TS2589
+  // `as any` on the client: the embedded-join generics here trip TS2589
   // (excessively deep instantiation) against the generated Supabase types.
   const db = supabase as any;
+
+  // PRIMARY missing path. `useClubTheme` builds both `availableClubThemes` and
+  // `userClubs` from a UNION of `user_roles.club_id` AND
+  // `user_roles.team_id -> teams.club_id`. A team-scoped role row has
+  // `club_id = NULL`, so the direct check above rejects members the rest of the
+  // app treats as belonging to the club — which is exactly why the switch was
+  // silently dropped. Mirror the union here.
+  const teamRoleRes = await db
+    .from("user_roles")
+    .select("id, teams!inner(club_id)")
+    .eq("user_id", userId)
+    .not("team_id", "is", null)
+    .eq("teams.club_id", clubId)
+    .limit(1);
+  if (teamRoleRes.error) sawError = true;
+  else if (teamRoleRes.data && teamRoleRes.data.length > 0) return "yes";
 
   const teamRes = await db
     .from("team_memberships")
