@@ -18,6 +18,7 @@ import {
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -1754,10 +1755,13 @@ export default function GroupChatPage() {
       const currentProfile = profileRef.current;
       await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
 
-      const previousData = queryClient.getQueryData(["group-messages", groupId]);
+      // Mutation-specific temp id so overlapping sends roll back independently.
+      const tempId = createSendTempId();
+      const previousReplyTo = replyTo;
+      const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
       const optimisticMessage: GroupMessage = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         group_id: groupId!,
         author_id: user!.id,
         text,
@@ -1791,7 +1795,13 @@ export default function GroupChatPage() {
       // re-pins still fire after composer reflow shrinks bottomPadding.
       virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
-      return { previousData };
+      return {
+        tempId,
+        sentText: unsentText,
+        sentImageUrl: image_url ?? null,
+        previousReplyTarget: previousReplyTo,
+        pendingPollId: unsentPollId,
+      } satisfies FailedSendContext<typeof previousReplyTo>;
     },
     onError: (err, variables, context) => {
       // Don't revert if offline - message is queued
@@ -1799,11 +1809,35 @@ export default function GroupChatPage() {
         toast.info("Message queued - will send when online");
         return;
       }
-      if (context?.previousData) {
-        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+
+      // Succeeded-but-errored: the row already arrived via realtime.
+      const currentData = queryClient.getQueryData<{ messages: GroupMessage[] }>(["group-messages", groupId]);
+      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text })) {
+        return;
       }
+
+      // Remove ONLY this mutation's optimistic row (no snapshot rollback).
+      if (context?.tempId) {
+        queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+          if (!old) return old;
+          const existingMessages: GroupMessage[] = old?.messages || [];
+          return { ...old, messages: existingMessages.filter((m) => m.id !== context.tempId) };
+        });
+        setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
+      }
+
+      restoreFailedSendComposer({
+        context,
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyTo,
+        setPoll: setPendingPollId,
+      });
+
+      console.error("Failed to send group message", err);
       toast.error("Failed to send message");
     },
+
     onSettled: (_, __, variables) => {
       // Invalidate messages page preview so latest message shows
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
