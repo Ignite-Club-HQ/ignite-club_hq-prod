@@ -1091,18 +1091,34 @@ export default function DirectMessagePage() {
       // Do NOT invoke send-push-notification directly here — it causes duplicate pushes
       // because the trigger and direct call use different notificationIds for dedup.
     },
-    onError: (error, variables) => {
+    onError: (error, variables, context) => {
       console.error('[DM] Send message error:', error, 'Message text:', variables.text?.slice(0, 20));
+      // Offline sends are queued, not failed.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+
       // Check if the message actually arrived via realtime before showing error
       const currentData = queryClient.getQueryData<{ messages: DirectMessage[] }>(["dm-messages", conversationId]);
-      const messageExists = currentData?.messages?.some(
-        m => !m.id.startsWith("temp-") && m.author_id === user?.id && m.text === variables.text
-      );
+      const messageExists =
+        authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text }) ||
+        authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text });
       if (!messageExists) {
         toast.error("Failed to send message. Please try again.");
-        // Remove optimistic message
-        setLocalMessages((prev) => prev?.filter(m => !m.id.startsWith("temp-")) || null);
+        // Remove ONLY this mutation's optimistic row.
+        if (context?.tempId) {
+          setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
+          queryClient.setQueryData(["dm-messages", conversationId], (old: any) => {
+            if (!old) return old;
+            return { ...old, messages: (old.messages || []).filter((m: DirectMessage) => m.id !== context.tempId) };
+          });
+        }
+        restoreFailedSendComposer({
+          context,
+          setText: setMessage,
+          setImage: setDmImageUrl,
+          setReply: setReplyTo,
+        });
       }
+
     },
   });
   const updateMessageMutation = useMutation({
