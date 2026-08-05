@@ -190,6 +190,33 @@ describe("QuickRSVPDialog business behaviour", () => {
     expect(assignment.in).toHaveBeenCalledWith("child_id", ["child-1", "child-2"]);
   });
 
+  it("a guardian RSVP is written against the exact assigned canonical child", async () => {
+    defaultResults("players_only");
+    queueResult("child_guardians", { data: [
+      { child_id: "canonical-child", children: { id: "canonical-child", name: "Ava" } },
+      { child_id: "wrong-child", children: { id: "wrong-child", name: "Ava duplicate" } },
+    ] });
+    queueResult("child_team_assignments", { data: [{ child_id: "canonical-child" }] });
+    queueResult("rsvps", { data: [] }, { data: [] }, { data: { id: "child-rsvp-1" } });
+    renderDialog();
+
+    const childBlock = (await screen.findByText("Ava")).parentElement!;
+    fireEvent.click(within(childBlock).getByRole("button", { name: /Going/i }));
+
+    await waitFor(() => {
+      const insert = mocks.queries
+        .filter(q => q.table === "rsvps")
+        .find(q => q.chain.insert.mock.calls.length)?.chain;
+      expect(insert?.insert).toHaveBeenCalledWith({
+        event_id: "event-1",
+        user_id: "parent-1",
+        child_id: "canonical-child",
+        status: "going",
+      });
+    });
+    expect(screen.queryByText("Ava duplicate")).not.toBeInTheDocument();
+  });
+
   it("updates an existing child RSVP regardless of which guardian created it", async () => {
     defaultResults("players_only");
     queueResult("children", { data: [{ id: "child-1", name: "Ava" }] });
