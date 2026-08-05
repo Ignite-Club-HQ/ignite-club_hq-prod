@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getJumpTarget, type ChatJumpKind } from "@/lib/pendingChatJump";
 
 const SS_KEY = "ignite_pending_notification_club_switch";
+const APPLIED_KEY = "ignite_notification_club_switch_applied";
 const EVENT = "ignite:notification-club-switch";
 /** Stale pending switches must never hijack a later, unrelated session. */
 const TTL_MS = 120_000;
@@ -33,6 +34,43 @@ interface PendingSwitch {
 
 export function clearPendingNotificationClubSwitch(): void {
   try { sessionStorage.removeItem(SS_KEY); } catch { /* noop */ }
+}
+
+/**
+ * Records that a notification-driven club switch has been APPLIED.
+ *
+ * `useClubTheme` re-asserts `activeClubTheme` from localStorage / the profile
+ * row during its async bootstrap. On a cold-start notification tap that
+ * bootstrap can finish *after* the switch, silently dragging the filter back to
+ * the previously selected club (the reported bug: Bridgewater thread open, app
+ * still filtered to Basket Range). The provider consults this marker and treats
+ * it as authoritative for its TTL instead of clobbering the switch.
+ */
+export function markNotificationClubSwitchApplied(clubId: string): void {
+  try {
+    sessionStorage.setItem(APPLIED_KEY, JSON.stringify({ clubId, ts: Date.now() } satisfies PendingSwitch));
+  } catch { /* noop */ }
+}
+
+/** The club id of a recently applied notification switch, or null. */
+export function getAppliedNotificationClubSwitch(): string | null {
+  try {
+    const raw = sessionStorage.getItem(APPLIED_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingSwitch;
+    if (!parsed?.clubId) return null;
+    if (Date.now() - parsed.ts > TTL_MS) {
+      clearAppliedNotificationClubSwitch();
+      return null;
+    }
+    return parsed.clubId;
+  } catch {
+    return null;
+  }
+}
+
+export function clearAppliedNotificationClubSwitch(): void {
+  try { sessionStorage.removeItem(APPLIED_KEY); } catch { /* noop */ }
 }
 
 export function peekPendingNotificationClubSwitch(): string | null {
