@@ -673,6 +673,22 @@ jobs:
               and r.content ~ '^\s*\{';
           " || true)
           if [ "$PVERDICT" != "verified" ]; then
+            # Diagnose without printing the body: report only whether the
+            # response was JSON, which top-level keys it carried, and whether
+            # each expected flag matched.
+            DIAG=$(run_sql -c "
+              select coalesce((
+                select 'json=' || (r.content ~ '^\s*\{')::text
+                    || ' keys=' || coalesce((select string_agg(k, ',' order by k)
+                                             from jsonb_object_keys(
+                                               case when r.content ~ '^\s*\{' then r.content::jsonb else '{}'::jsonb end
+                                             ) k), 'none')
+                    || ' ok=' || coalesce((case when r.content ~ '^\s*\{' then r.content::jsonb ->> 'ok' end), 'absent')
+                    || ' authenticated=' || coalesce((case when r.content ~ '^\s*\{' then r.content::jsonb ->> 'authenticated' end), 'absent')
+                    || ' correlation_matches=' || coalesce(((case when r.content ~ '^\s*\{' then r.content::jsonb ->> 'correlation' end) = $(printf "'%s'" "$CORRELATION"))::text, 'absent')
+                from net._http_response r where r.id = ${PROBE_ID}
+              ), 'no response row');" || true)
+            echo "Probe diagnostic: $DIAG"
             echo "::error::Notification authentication probe response did not correlate to this promotion's probe. Aborting before rewriting any notification caller."
             exit 1
           fi
