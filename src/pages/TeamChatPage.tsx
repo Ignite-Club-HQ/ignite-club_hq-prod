@@ -1593,8 +1593,10 @@ export default function TeamChatPage() {
 
       // Mutation-specific temp id so overlapping sends can be rolled back
       // independently (Date.now() alone collides on rapid double-sends).
-      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const tempId = createSendTempId();
       const previousReplyingTo = replyingTo;
+      const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
+
 
       const optimisticMessage: Message = {
         id: tempId,
