@@ -52,7 +52,11 @@ async function verifyClubMembership(userId: string, clubId: string): Promise<Mem
   if (roleRes.error) sawError = true;
   else if (roleRes.data && roleRes.data.length > 0) return "yes";
 
-  const teamRes = await supabase
+  // `as any` on the client: the embedded-join generic here trips TS2589
+  // (excessively deep instantiation) against the generated Supabase types.
+  const db = supabase as any;
+
+  const teamRes = await db
     .from("team_memberships")
     .select("id, teams!inner(club_id)")
     .eq("user_id", userId)
@@ -62,7 +66,7 @@ async function verifyClubMembership(userId: string, clubId: string): Promise<Mem
   if (teamRes.error) sawError = true;
   else if (teamRes.data && teamRes.data.length > 0) return "yes";
 
-  const playerRes = await supabase
+  const playerRes = await db
     .from("club_players")
     .select("id")
     .eq("user_id", userId)
