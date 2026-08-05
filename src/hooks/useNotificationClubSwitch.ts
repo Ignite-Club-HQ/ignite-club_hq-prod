@@ -94,6 +94,7 @@ async function verifyClubMembership(userId: string, clubId: string): Promise<Mem
   if (sawError) {
     console.warn("[NotificationClubSwitch] membership check incomplete", {
       roles: roleRes.error?.message,
+      teamRoles: teamRoleRes.error?.message,
       teams: teamRes.error?.message,
       players: playerRes.error?.message,
     });
