@@ -57,6 +57,7 @@ import {
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
 import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
+import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -723,6 +724,26 @@ export default function ClubAdminChatPage() {
     try { await handleRefresh(); } finally { setIsManualRefreshing(false); }
   }, [handleRefresh]);
 
+  // Vault mirroring runs ONLY for confirmed-delivered messages, always into the
+  // club-admin-restricted folder.
+  const clubIdForVault = conversation?.club_id ?? null;
+  const syncSendToVault = useCallback(
+    (vars: { text: string; imageUrl: string | null }) => {
+      if (!user || !clubIdForVault) return;
+      if (!vars.imageUrl && !vars.text) return;
+      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
+        syncChatAttachmentToVault({
+          imageUrl: vars.imageUrl ?? null,
+          text: vars.text,
+          userId: user.id,
+          clubId: clubIdForVault,
+          isClubAdminChat: true,
+        }).catch((err) => console.warn("Club admin chat vault sync failed", err));
+      });
+    },
+    [user, clubIdForVault],
+  );
+
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async ({ text, imageUrl, replyToId }: { text: string; imageUrl: string | null; replyToId?: string | null }) => {
@@ -736,6 +757,7 @@ export default function ClubAdminChatPage() {
           imageUrl: imageUrl ?? null,
           replyToId: replyToId || null,
           createdAt: new Date().toISOString(),
+          vault: clubIdForVault ? { clubId: clubIdForVault, isClubAdminChat: true } : null,
         });
         return {
           id: queued.id,
@@ -746,6 +768,7 @@ export default function ClubAdminChatPage() {
           reply_to_id: replyToId || null,
           created_at: queued.createdAt,
           __queued: true,
+          ...queuedSend(),
         } as any;
       }
       const { data, error } = await supabase
@@ -760,7 +783,7 @@ export default function ClubAdminChatPage() {
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return { ...data, ...deliveredSend() };
     },
     onMutate: async ({ text, imageUrl: optImageUrl, replyToId }) => {
       // Mutation-specific temp id so overlapping sends roll back independently.
@@ -803,7 +826,8 @@ export default function ClubAdminChatPage() {
       } satisfies FailedSendContext<typeof previousReplyTo>;
     },
 
-    onSuccess: (newMessage) => {
+    onSuccess: (newMessage, variables) => {
+      if (isConfirmedDelivery(newMessage)) syncSendToVault(variables);
       const currentReplyTo = replyToRef.current;
       queryClient.setQueryData(
         queryKey,
@@ -836,6 +860,8 @@ export default function ClubAdminChatPage() {
 
       // Succeeded-but-errored: the authoritative row already arrived.
       if (authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text, imageUrl: variables.imageUrl ?? null, replyToId: variables.replyToId || null, sentAtMs: context?.sentAtMs })) {
+        // Errored request, confirmed delivery: same Vault handling as success.
+        syncSendToVault(variables);
         return;
       }
 
@@ -860,22 +886,6 @@ export default function ClubAdminChatPage() {
       toast.error("Failed to send message. Please try again.");
     },
 
-    onSettled: (_data, _err, variables) => {
-      // Auto-sync any file/document links shared in this Club Admin Chat
-      // into a dedicated "Club Admin Chat" vault folder (club admins only).
-      const clubIdForSync = conversation?.club_id;
-      if (user && clubIdForSync && (variables?.text || variables?.imageUrl)) {
-        import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-          syncChatAttachmentToVault({
-            imageUrl: variables.imageUrl ?? null,
-            text: variables.text,
-            userId: user.id,
-            clubId: clubIdForSync,
-            isClubAdminChat: true,
-          }).catch(() => {});
-        });
-      }
-    },
   });
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<ClubAdminMessage>({
