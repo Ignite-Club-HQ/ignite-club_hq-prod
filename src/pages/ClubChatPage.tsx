@@ -1298,6 +1298,7 @@ export default function ClubChatPage() {
 
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
+      const sentAtMs = Date.now();
       const previousReplyingTo = replyingTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
@@ -1342,6 +1343,7 @@ export default function ClubChatPage() {
         sentImageUrl: image_url ?? null,
         previousReplyTarget: previousReplyingTo,
         pendingPollId: unsentPollId,
+        sentAtMs,
       } satisfies FailedSendContext<typeof previousReplyingTo>;
     },
     onError: (err, variables, context) => {

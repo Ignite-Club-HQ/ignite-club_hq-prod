@@ -997,6 +997,7 @@ export default function DirectMessagePage() {
     onMutate: async ({ text, imageUrl, replyToId }) => {
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
+      const sentAtMs = Date.now();
       const previousReplyTo = replyTo;
       const optimisticMessage: DirectMessage = {
         id: tempId,
@@ -1021,6 +1022,7 @@ export default function DirectMessagePage() {
         sentImageUrl: imageUrl || null,
         previousReplyTarget: previousReplyTo,
         pendingPollId: null,
+        sentAtMs,
       } satisfies FailedSendContext<typeof previousReplyTo>;
     },
 

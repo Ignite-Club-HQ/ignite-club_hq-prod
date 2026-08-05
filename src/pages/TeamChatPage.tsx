@@ -1595,6 +1595,7 @@ export default function TeamChatPage() {
       // Mutation-specific temp id so overlapping sends can be rolled back
       // independently (Date.now() alone collides on rapid double-sends).
       const tempId = createSendTempId();
+      const sentAtMs = Date.now();
       const previousReplyingTo = replyingTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
@@ -1643,6 +1644,7 @@ export default function TeamChatPage() {
         sentImageUrl: image_url ?? null,
         previousReplyTarget: previousReplyingTo,
         pendingPollId: unsentPollId,
+        sentAtMs,
       } satisfies FailedSendContext<typeof previousReplyingTo>;
     },
     onError: (err, variables, context) => {

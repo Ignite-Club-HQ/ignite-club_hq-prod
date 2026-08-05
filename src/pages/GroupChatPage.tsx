@@ -1757,6 +1757,7 @@ export default function GroupChatPage() {
 
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
+      const sentAtMs = Date.now();
       const previousReplyTo = replyTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
@@ -1801,6 +1802,7 @@ export default function GroupChatPage() {
         sentImageUrl: image_url ?? null,
         previousReplyTarget: previousReplyTo,
         pendingPollId: unsentPollId,
+        sentAtMs,
       } satisfies FailedSendContext<typeof previousReplyTo>;
     },
     onError: (err, variables, context) => {
