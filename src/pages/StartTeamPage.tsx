@@ -18,6 +18,8 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 export default function StartTeamPage() {
   usePageTitle("Start a team");
   const { user } = useAuth();
+  const { activeClubFilter } = useClubTheme();
+
   const { toast } = useToast();
   const navigate = useNavigate();
   const [working, setWorking] = useState(false);
