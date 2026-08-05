@@ -47,6 +47,12 @@ interface Child {
   isGuardianOnly?: boolean; // True if user is guardian but not primary parent
 }
 
+interface ChildMatch {
+  child_id: string;
+  name: string;
+  year_of_birth: number | null;
+}
+
 interface Team {
   id: string;
   name: string;
@@ -72,6 +78,7 @@ export default function ChildrenPage() {
   const [deleteChildId, setDeleteChildId] = useState<string | null>(null);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [newChildName, setNewChildName] = useState("");
+  const [ambiguousMatches, setAmbiguousMatches] = useState<ChildMatch[] | null>(null);
   const [newChildYear, setNewChildYear] = useState("");
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [filterClubId, setFilterClubId] = useState<string>("");
@@ -184,7 +191,9 @@ export default function ChildrenPage() {
       )
     : [];
 
-  // Add child mutation
+  // Add child mutation — routes through the de-duplicating RPC so a second
+  // parent adding an already-registered child links as a guardian instead of
+  // creating an orphan duplicate row.
   const addChild = useMutation({
     mutationFn: async () => {
       const trimmedName = newChildName.trim();
@@ -204,18 +213,39 @@ export default function ChildrenPage() {
         throw new Error("duplicate_child_for_parent");
       }
 
-      const { error } = await supabase.from("children").insert({
-        parent_id: user!.id,
-        name: trimmedName,
-        year_of_birth: parsedYear,
-      });
+      const { data, error } = await supabase.rpc("upsert_child_for_guardian", {
+        p_name: trimmedName,
+        p_year_of_birth: parsedYear,
+        p_guardian_user_id: user!.id,
+        p_relationship: "parent",
+        p_club_id: null,
+      } as any);
       if (error) throw error;
+      return (data ?? {}) as { status?: string; child_id?: string; matches?: ChildMatch[] };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      const status = result?.status;
+
+      if (status === "ambiguous") {
+        setAmbiguousMatches(result?.matches ?? []);
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["own_children"] });
+      queryClient.invalidateQueries({ queryKey: ["guardian_children"] });
       queryClient.invalidateQueries({ queryKey: ["children"] });
+      const addedName = newChildName.trim();
       setAddDialogOpen(false);
       setNewChildName("");
       setNewChildYear("");
+
+      if (status === "linked" || status === "existing") {
+        toast({
+          title: "Linked to existing child",
+          description: `${addedName} was already registered — we've linked you as a guardian.`,
+        });
+        return;
+      }
       toast({ title: "Child added successfully" });
     },
     onError: (error: any) => {
@@ -226,11 +256,44 @@ export default function ChildrenPage() {
         title: isDuplicate ? "Child already added" : "Failed to add child",
         description: isDuplicate
           ? `${newChildName.trim()} is already in your children list. Add a birth year if this is a different child with the same name.`
-          : undefined,
+          : error?.message || undefined,
         variant: "destructive",
       });
     },
   });
+
+  // Confirming which of several matching children belongs to this parent.
+  const linkExistingChild = useMutation({
+    mutationFn: async (childId: string) => {
+      const { error } = await supabase.rpc("link_existing_child_as_guardian", {
+        p_child_id: childId,
+        p_relationship: "parent",
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["own_children"] });
+      queryClient.invalidateQueries({ queryKey: ["guardian_children"] });
+      queryClient.invalidateQueries({ queryKey: ["children"] });
+      const addedName = newChildName.trim();
+      setAmbiguousMatches(null);
+      setAddDialogOpen(false);
+      setNewChildName("");
+      setNewChildYear("");
+      toast({
+        title: "Linked to existing child",
+        description: `${addedName} was already registered — we've linked you as a guardian.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to link child",
+        description: error?.message || undefined,
+        variant: "destructive",
+      });
+    },
+  });
+
 
 
   // Delete child mutation
@@ -375,6 +438,50 @@ export default function ChildrenPage() {
             </ResponsiveDialogFooter>
           </ResponsiveDialogContent>
         </ResponsiveDialog>
+
+        <ResponsiveDialog
+          open={!!ambiguousMatches?.length}
+          onOpenChange={(open) => {
+            if (!open) setAmbiguousMatches(null);
+          }}
+        >
+          <ResponsiveDialogContent>
+            <ResponsiveDialogHeader>
+              <ResponsiveDialogTitle>Is this your child?</ResponsiveDialogTitle>
+            </ResponsiveDialogHeader>
+            <div className="space-y-3 pt-2">
+              <p className="text-sm text-muted-foreground">
+                We found more than one child registered as{" "}
+                <span className="font-medium text-foreground">{newChildName.trim()}</span>. Pick the
+                right one so we can link you as a guardian instead of creating a duplicate.
+              </p>
+              {(ambiguousMatches ?? []).map((match) => (
+                <Button
+                  key={match.child_id}
+                  variant="outline"
+                  className="w-full justify-between"
+                  disabled={linkExistingChild.isPending}
+                  onClick={() => linkExistingChild.mutate(match.child_id)}
+                >
+                  <span>{match.name}</span>
+                  {match.year_of_birth ? (
+                    <Badge variant="secondary">{match.year_of_birth}</Badge>
+                  ) : null}
+                </Button>
+              ))}
+            </div>
+            <ResponsiveDialogFooter className="mt-4">
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => setAmbiguousMatches(null)}
+              >
+                None of these — cancel
+              </Button>
+            </ResponsiveDialogFooter>
+          </ResponsiveDialogContent>
+        </ResponsiveDialog>
+
       </div>
 
       {!children?.length ? (
