@@ -1171,7 +1171,7 @@ test("a cold offline Media remount displays its saved photo instead of freezing"
   await page.reload();
   await page.evaluate(() => window.dispatchEvent(new Event("offline")));
 
-  await expect(page.getByText("Offline", { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId("media-offline-label")).toBeVisible({ timeout: 5_000 });
   await expect(page.getByRole("heading", { name: "Media" })).toBeVisible({ timeout: 5_000 });
   await expect(page.getByRole("img", { name: offlinePhotoTitle }).first()).toBeVisible({ timeout: 5_000 });
   await page.getByRole("link", { name: "Messages" }).click({ timeout: 1_500 });
@@ -1412,7 +1412,11 @@ test(`${nativeCase.label} cold WebView restart returns to the exact open pitchbo
   // A native OS may destroy the WebView while the phone is locked. Reloading
   // deliberately drops all in-memory React/global state while retaining only
   // the same local persistence that survives a genuine process recreation.
-  await page.reload();
+  await page.reload().catch((error) => {
+    // Restoring the durable pitchboard route may redirect before Playwright's
+    // original reload load event completes. That interruption is expected.
+    if (!String(error).includes("Frame load interrupted")) throw error;
+  });
 
   await expect(page).toHaveURL(
     new RegExp(`/teams/${teamId}\\?from=game-day&tab=lineup&openPitchBoard=1$`),
