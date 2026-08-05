@@ -791,7 +791,16 @@ export default function ClubAdminChatPage() {
       [120, 320, 600].forEach((delay) => {
         setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto", { force: true }), delay);
       });
+
+      return {
+        tempId,
+        sentText: unsentText,
+        sentImageUrl: optImageUrl ?? null,
+        previousReplyTarget: previousReplyTo,
+        pendingPollId: unsentPollId,
+      } satisfies FailedSendContext<typeof previousReplyTo>;
     },
+
     onSuccess: (newMessage) => {
       const currentReplyTo = replyToRef.current;
       queryClient.setQueryData(
