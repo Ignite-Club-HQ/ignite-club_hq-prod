@@ -249,7 +249,7 @@ export default function ClubAdminChatPage() {
         .eq("id", clubId)
         .single();
       if (error) throw error;
-      return { ...data, ...deliveredSend() };
+      return data;
     },
     enabled: !!conversation?.club_id && authReady,
     staleTime: 5 * 60 * 1000,
@@ -263,7 +263,7 @@ export default function ClubAdminChatPage() {
       if (!memberId) return null;
       const { data, error } = await selectCachedProfileById(memberId);
       if (error) throw error;
-      return { ...data, ...deliveredSend() };
+      return data;
     },
     enabled: !!conversation?.member_user_id && authReady,
     staleTime: 5 * 60 * 1000,
