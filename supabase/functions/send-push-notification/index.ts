@@ -705,20 +705,24 @@ Deno.serve(async (req) => {
     let effectiveBody = body;
     if (notificationType && MESSAGE_TYPES.has(notificationType)) {
       // Per-user opt-out: hide message text on lock screen (sender name stays).
+      // Default is SHOW (matches the Settings UI default). Only an explicit
+      // `false` from the user's preference row redacts the body — a missing
+      // row or a transient read failure must not silently hide previews.
       try {
-        const { data: prefRow } = await supabase
+        const { data: prefRow, error: prefErr } = await supabase
           .from('notification_preferences')
           .select('show_message_preview')
           .eq('user_id', userId)
           .maybeSingle();
-        const showPreview = (prefRow as any)?.show_message_preview ?? false;
+        if (prefErr) throw prefErr;
+        const showPreview = (prefRow as any)?.show_message_preview !== false;
         if (!showPreview) {
           effectiveBody = 'New message';
         }
       } catch (err) {
-        console.warn('[PUSH] Could not read show_message_preview, defaulting to hide:', err);
-        effectiveBody = 'New message';
+        console.warn('[PUSH] Could not read show_message_preview, keeping preview:', err);
       }
+
 
 
       try {
