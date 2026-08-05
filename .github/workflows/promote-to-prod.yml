@@ -595,6 +595,21 @@ jobs:
       # correlated, and non-destructive: `process-message-notifications` returns
       # early for `x-notification-auth-probe`, creating no notifications and
       # sending no push/email.
+      # The probe relies on the `x-notification-auth-probe` early-return branch
+      # inside `process-message-notifications`. "Deploy changed edge functions"
+      # only ships functions touched by this promotion, so PROD can still be
+      # running an older build without that branch — it answers 200 from the
+      # normal path and the correlation check then fails for the wrong reason.
+      # Force-deploy the probe target unconditionally, exactly like
+      # sync-dispatch-credentials above.
+      - name: Ensure PROD process-message-notifications supports the auth probe
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          supabase functions deploy process-message-notifications \
+            --project-ref "$PROJECT_REF" --no-verify-jwt
+          echo "✅ process-message-notifications deployed (auth-probe branch guaranteed present)."
+
       - name: Probe PROD notification authentication (non-destructive)
         if: github.event_name == 'push'
         run: |
@@ -658,6 +673,22 @@ jobs:
               and r.content ~ '^\s*\{';
           " || true)
           if [ "$PVERDICT" != "verified" ]; then
+            # Diagnose without printing the body: report only whether the
+            # response was JSON, which top-level keys it carried, and whether
+            # each expected flag matched.
+            DIAG=$(run_sql -c "
+              select coalesce((
+                select 'json=' || (r.content ~ '^\s*\{')::text
+                    || ' keys=' || coalesce((select string_agg(k, ',' order by k)
+                                             from jsonb_object_keys(
+                                               case when r.content ~ '^\s*\{' then r.content::jsonb else '{}'::jsonb end
+                                             ) k), 'none')
+                    || ' ok=' || coalesce((case when r.content ~ '^\s*\{' then r.content::jsonb ->> 'ok' end), 'absent')
+                    || ' authenticated=' || coalesce((case when r.content ~ '^\s*\{' then r.content::jsonb ->> 'authenticated' end), 'absent')
+                    || ' correlation_matches=' || coalesce(((case when r.content ~ '^\s*\{' then r.content::jsonb ->> 'correlation' end) = $(printf "'%s'" "$CORRELATION"))::text, 'absent')
+                from net._http_response r where r.id = ${PROBE_ID}
+              ), 'no response row');" || true)
+            echo "Probe diagnostic: $DIAG"
             echo "::error::Notification authentication probe response did not correlate to this promotion's probe. Aborting before rewriting any notification caller."
             exit 1
           fi
