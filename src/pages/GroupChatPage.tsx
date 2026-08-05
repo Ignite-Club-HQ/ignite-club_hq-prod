@@ -18,6 +18,7 @@ import {
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
