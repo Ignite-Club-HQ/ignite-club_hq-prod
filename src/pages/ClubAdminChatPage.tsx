@@ -53,7 +53,9 @@ import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
 
@@ -1035,7 +1037,7 @@ export default function ClubAdminChatPage() {
 
           if (outcome === "deleted") {
             queryClient.setQueryData(queryKey, (old: any) =>
-              old ? { ...old, messages: removeMessage(old.messages || [], updated.id) } : old,
+              old ? removeMessageFromQueryEnvelope<ClubAdminMessage>(old, updated.id) : old,
             );
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
@@ -1044,7 +1046,7 @@ export default function ClubAdminChatPage() {
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
           queryClient.setQueryData(queryKey, (old: any) =>
-            old ? { ...old, messages: applyMessageUpdate(old.messages || [], updated) } : old,
+            old ? applyMessageUpdateToQueryEnvelope<ClubAdminMessage>(old, updated) : old,
           );
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }

@@ -331,6 +331,15 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   rendered-state updates remain page-owned. This preserves the recently added
   cross-team isolation protections while removing Team's duplicate envelope
   reconstruction.
+- M4e now extends the message-envelope edit/delete boundary to Group while
+  retaining Group's distinct `{ messages: [], reactions: [] }` fallback when
+  query data is absent. Reaction rows, channel ownership, Realtime filters,
+  reconciliation order and local rendered-state updates remain page-owned.
+- M4e completes the update/delete envelope extraction across Direct Message
+  and Club Admin while retaining their distinct absent-cache behavior. Direct
+  keeps both hard-delete and soft-delete paths; Club Admin continues to expose
+  only its existing soft-delete update path. Insert enrichment, reactions,
+  channel filters, local state and permission behavior remain unchanged.
 
 ## Objective
 

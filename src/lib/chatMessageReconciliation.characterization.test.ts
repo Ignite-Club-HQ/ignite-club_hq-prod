@@ -23,4 +23,58 @@ describe("Realtime message query-envelope boundary", () => {
       expect(source).toContain("removeMessage(prev, updated.id)");
     },
   );
+
+  it("GroupChatPage preserves its reactions fallback while sharing message envelope updates", () => {
+    const source = page("GroupChatPage.tsx");
+    const record = source.indexOf("const outcome = recordRealtimeMutation(reconcileScope, updated)");
+    const queryUpdate = source.indexOf(
+      "applyMessageUpdateToQueryEnvelope<GroupMessage>(old, updated)",
+      record,
+    );
+    const localUpdate = source.indexOf("applyMessageUpdate(prev, updated)", queryUpdate);
+
+    expect(record).toBeGreaterThan(-1);
+    expect(queryUpdate).toBeGreaterThan(record);
+    expect(localUpdate).toBeGreaterThan(queryUpdate);
+    expect(source).toContain("if (!old) return { messages: [], reactions: [] }");
+    expect(source).toContain("removeMessageFromQueryEnvelope<GroupMessage>(old, deletedId)");
+    expect(source).toContain("removeMessageFromQueryEnvelope<GroupMessage>(old, updated.id)");
+    expect(source).toContain("removeMessage(prev, deletedId)");
+    expect(source).toContain("removeMessage(prev, updated.id)");
+  });
+
+  it("DirectMessagePage preserves an absent cache while sharing message envelope updates", () => {
+    const source = page("DirectMessagePage.tsx");
+    const record = source.indexOf("const outcome = recordRealtimeMutation(reconcileScope, updated)");
+    const queryUpdate = source.indexOf(
+      "applyMessageUpdateToQueryEnvelope<DirectMessage>(old, updated)",
+      record,
+    );
+    const localUpdate = source.indexOf("applyMessageUpdate(prev, updated)", queryUpdate);
+
+    expect(record).toBeGreaterThan(-1);
+    expect(queryUpdate).toBeGreaterThan(record);
+    expect(localUpdate).toBeGreaterThan(queryUpdate);
+    expect(source).toContain("if (!old) return old");
+    expect(source).toContain("removeMessageFromQueryEnvelope<DirectMessage>(old, deletedId)");
+    expect(source).toContain("removeMessageFromQueryEnvelope<DirectMessage>(old, updated.id)");
+  });
+
+  it("ClubAdminChatPage preserves an absent cache while sharing soft-delete and edit updates", () => {
+    const source = page("ClubAdminChatPage.tsx");
+    const record = source.indexOf("const outcome = recordRealtimeMutation(reconcileScope, updated)");
+    const queryUpdate = source.indexOf(
+      "applyMessageUpdateToQueryEnvelope<ClubAdminMessage>(old, updated)",
+      record,
+    );
+    const localUpdate = source.indexOf("applyMessageUpdate(prev, updated)", queryUpdate);
+
+    expect(record).toBeGreaterThan(-1);
+    expect(queryUpdate).toBeGreaterThan(record);
+    expect(localUpdate).toBeGreaterThan(queryUpdate);
+    expect(source).toContain("removeMessageFromQueryEnvelope<ClubAdminMessage>(old, updated.id)");
+    expect(source).toContain(
+      "old ? applyMessageUpdateToQueryEnvelope<ClubAdminMessage>(old, updated) : old",
+    );
+  });
 });

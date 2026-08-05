@@ -54,7 +54,9 @@ import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
@@ -1266,7 +1268,7 @@ export default function DirectMessagePage() {
             dmQueryKey,
             (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
               if (!old) return old;
-              return { ...old, messages: removeMessage(old.messages, deletedId) };
+              return removeMessageFromQueryEnvelope<DirectMessage>(old, deletedId);
             }
           );
           setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
@@ -1291,7 +1293,7 @@ export default function DirectMessagePage() {
             queryClient.setQueryData(
               dmQueryKey,
               (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) =>
-                old ? { ...old, messages: removeMessage(old.messages, updated.id) } : old,
+                old ? removeMessageFromQueryEnvelope<DirectMessage>(old, updated.id) : old,
             );
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
@@ -1302,7 +1304,7 @@ export default function DirectMessagePage() {
           queryClient.setQueryData(
             dmQueryKey,
             (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) =>
-              old ? { ...old, messages: applyMessageUpdate(old.messages, updated) } : old,
+              old ? applyMessageUpdateToQueryEnvelope<DirectMessage>(old, updated) : old,
           );
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }

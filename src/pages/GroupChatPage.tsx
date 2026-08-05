@@ -14,7 +14,9 @@ import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
@@ -1651,7 +1653,7 @@ export default function GroupChatPage() {
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
           queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [], reactions: [] };
-            return { ...old, messages: removeMessage(old.messages, deletedId) };
+            return removeMessageFromQueryEnvelope<GroupMessage>(old, deletedId);
           });
           setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
@@ -1674,7 +1676,7 @@ export default function GroupChatPage() {
           if (outcome === "deleted") {
             queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
               if (!old) return { messages: [], reactions: [] };
-              return { ...old, messages: removeMessage(old.messages, updated.id) };
+              return removeMessageFromQueryEnvelope<GroupMessage>(old, updated.id);
             });
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
@@ -1684,7 +1686,7 @@ export default function GroupChatPage() {
           // can never diverge. Fields absent from the payload are preserved.
           queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [], reactions: [] };
-            return { ...old, messages: applyMessageUpdate(old.messages, updated) };
+            return applyMessageUpdateToQueryEnvelope<GroupMessage>(old, updated);
           });
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
