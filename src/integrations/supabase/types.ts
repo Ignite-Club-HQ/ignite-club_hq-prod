@@ -11780,6 +11780,10 @@ export type Database = {
         }[]
       }
       join_open_chat_group: { Args: { _group_id: string }; Returns: string }
+      link_existing_child_as_guardian: {
+        Args: { p_child_id: string; p_relationship?: string }
+        Returns: Json
+      }
       list_club_parents_for_team: {
         Args: { p_team_id: string }
         Returns: {
