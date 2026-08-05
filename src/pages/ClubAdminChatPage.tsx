@@ -836,7 +836,7 @@ export default function ClubAdminChatPage() {
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
 
       // Succeeded-but-errored: the authoritative row already arrived.
-      if (authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text })) {
+      if (authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text, imageUrl: variables.imageUrl ?? null, replyToId: variables.replyToId || null, sentAtMs: context?.sentAtMs })) {
         return;
       }
 

@@ -1654,7 +1654,7 @@ export default function TeamChatPage() {
       // If the insert actually landed and arrived via realtime, treat it as a
       // success: no failure toast and no draft restoration.
       const current = queryClient.getQueryData<{ messages: Message[] }>(["team-messages", teamId]);
-      if (authoritativeMessageExists(current?.messages, { authorId: user?.id, text: variables.text })) {
+      if (authoritativeMessageExists(current?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         return;
       }
 

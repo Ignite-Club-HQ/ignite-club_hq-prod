@@ -1814,7 +1814,7 @@ export default function GroupChatPage() {
 
       // Succeeded-but-errored: the row already arrived via realtime.
       const currentData = queryClient.getQueryData<{ messages: GroupMessage[] }>(["group-messages", groupId]);
-      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text })) {
+      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         return;
       }
 
