@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import {
   consumePendingNotificationClubSwitch,
+  markNotificationClubSwitchApplied,
   peekPendingNotificationClubSwitch,
   subscribeNotificationClubSwitch,
 } from "@/lib/notificationClubSwitch";
