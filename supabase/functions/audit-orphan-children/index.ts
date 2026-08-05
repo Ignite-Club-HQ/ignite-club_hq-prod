@@ -28,57 +28,67 @@ Deno.serve(async (req) => {
 
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: candidates, error: childrenError } = await supabase
-      .from("children")
-      .select("id, name, year_of_birth, parent_id, created_at")
-      .lt("created_at", cutoff)
-      .order("created_at", { ascending: true })
-      .limit(1000);
-    if (childrenError) throw childrenError;
+    // Paged scan: a single .limit(1000) would re-audit the same oldest page for
+    // ever once unresolved orphans exceed the page size, hiding newer ones.
+    const PAGE = 1000;
+    const MAX_PAGES = 25;
+    let scanned = 0;
+    const orphans: Array<Record<string, unknown>> = [];
 
-    const ids = (candidates ?? []).map((c) => c.id);
-    if (ids.length === 0) {
-      return new Response(JSON.stringify({ ok: true, orphan_count: 0, orphans: [] }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const { data: candidates, error: childrenError } = await supabase
+        .from("children")
+        .select("id, name, year_of_birth, parent_id, created_at")
+        .lt("created_at", cutoff)
+        .order("created_at", { ascending: true })
+        .range(page * PAGE, page * PAGE + PAGE - 1);
+      if (childrenError) throw childrenError;
+
+      const ids = (candidates ?? []).map((c) => c.id);
+      if (ids.length === 0) break;
+      scanned += ids.length;
+
+      const [{ data: assignments, error: aErr }, { data: guardians, error: gErr }] =
+        await Promise.all([
+          supabase.from("child_team_assignments").select("child_id").in("child_id", ids),
+          supabase
+            .from("child_guardians")
+            .select("child_id, guardian_id")
+            .in("child_id", ids),
+        ]);
+      if (aErr) throw aErr;
+      if (gErr) throw gErr;
+
+      // The creating parent's own guardian link does not make a child
+      // "referenced": upsert_child_for_guardian always writes one, so counting
+      // it would hide every orphan duplicate created through the RPC path.
+      const parentById = new Map(
+        (candidates ?? []).map((c) => [c.id as string, c.parent_id as string | null]),
+      );
+      const referenced = new Set<string>([
+        ...(assignments ?? []).map((r) => r.child_id as string),
+        ...(guardians ?? [])
+          .filter((r) => {
+            const parentId = parentById.get(r.child_id as string) ?? null;
+            return parentId === null || r.guardian_id !== parentId;
+          })
+          .map((r) => r.child_id as string),
+      ]);
+
+      for (const c of candidates ?? []) {
+        if (!referenced.has(c.id)) orphans.push(c as Record<string, unknown>);
+      }
+
+      if (ids.length < PAGE) break;
     }
 
-    const [{ data: assignments, error: aErr }, { data: guardians, error: gErr }] =
-      await Promise.all([
-        supabase.from("child_team_assignments").select("child_id").in("child_id", ids),
-        supabase
-          .from("child_guardians")
-          .select("child_id, guardian_id")
-          .in("child_id", ids),
-      ]);
-    if (aErr) throw aErr;
-    if (gErr) throw gErr;
-
-    // The creating parent's own guardian link does not make a child "referenced":
-    // upsert_child_for_guardian always writes one, so counting it would hide
-    // every orphan duplicate created through the RPC path.
-    const parentById = new Map(
-      (candidates ?? []).map((c) => [c.id as string, c.parent_id as string | null]),
-    );
-    const referenced = new Set<string>([
-      ...(assignments ?? []).map((r) => r.child_id as string),
-      ...(guardians ?? [])
-        .filter((r) => {
-          const parentId = parentById.get(r.child_id as string) ?? null;
-          return parentId === null || r.guardian_id !== parentId;
-        })
-        .map((r) => r.child_id as string),
-    ]);
-
-
-    const orphans = (candidates ?? []).filter((c) => !referenced.has(c.id));
-
-    console.log(`[audit-orphan-children] scanned=${ids.length} orphans=${orphans.length}`);
+    console.log(`[audit-orphan-children] scanned=${scanned} orphans=${orphans.length}`);
 
     return new Response(
-      JSON.stringify({ ok: true, scanned: ids.length, orphan_count: orphans.length, orphans }),
+      JSON.stringify({ ok: true, scanned, orphan_count: orphans.length, orphans }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+
   } catch (error) {
     console.error("[audit-orphan-children] failed:", error);
     return new Response(
