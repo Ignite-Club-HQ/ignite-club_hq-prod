@@ -1,0 +1,87 @@
+/**
+ * Guard: a notification-driven club switch must survive `useClubTheme`'s async
+ * bootstrap, and the native cold-start tap must stash the switch itself rather
+ * than relying on a CustomEvent that fires before React mounts.
+ *
+ * Both were real production defects: the app opened a Bridgewater group thread
+ * while the global filter stayed on Basket Range.
+ */
+import { describe, it, expect, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import {
+  markNotificationClubSwitchApplied,
+  getAppliedNotificationClubSwitch,
+  clearAppliedNotificationClubSwitch,
+} from "@/lib/notificationClubSwitch";
+
+beforeEach(() => {
+  clearAppliedNotificationClubSwitch();
+});
+
+describe("applied notification club switch pin", () => {
+  it("round-trips the pinned club id", () => {
+    expect(getAppliedNotificationClubSwitch()).toBeNull();
+    markNotificationClubSwitchApplied("club-B");
+    expect(getAppliedNotificationClubSwitch()).toBe("club-B");
+  });
+
+  it("expires so a stale pin cannot hijack a later session", () => {
+    sessionStorage.setItem(
+      "ignite_notification_club_switch_applied",
+      JSON.stringify({ clubId: "club-B", ts: Date.now() - 600_000 }),
+    );
+    expect(getAppliedNotificationClubSwitch()).toBeNull();
+  });
+
+  it("is cleared explicitly (club picker path)", () => {
+    markNotificationClubSwitchApplied("club-B");
+    clearAppliedNotificationClubSwitch();
+    expect(getAppliedNotificationClubSwitch()).toBeNull();
+  });
+
+  it("uses an ignite_ prefixed key so clearUserScopedCaches sweeps it", () => {
+    markNotificationClubSwitchApplied("club-B");
+    const keys = Object.keys(sessionStorage);
+    expect(keys.some((k) => k.startsWith("ignite_") && k.includes("club_switch_applied"))).toBe(true);
+  });
+});
+
+describe("provider must not clobber a pinned switch", () => {
+  const src = readFileSync("src/hooks/useClubTheme.tsx", "utf8");
+
+  it("routes bootstrap writes through a guard that honours the pin", () => {
+    expect(src).toContain("getAppliedNotificationClubSwitch");
+    // The guarded setter must exist and gate on the pin.
+    expect(src).toMatch(/const setActiveClubThemeState = \([\s\S]{0,400}getAppliedNotificationClubSwitch\(\)/);
+  });
+
+  it("keeps explicit user selection authoritative", () => {
+    expect(src).toContain("clearAppliedNotificationClubSwitch");
+    expect(src).toMatch(/const setActiveClubTheme = \([\s\S]{0,600}setActiveClubThemeStateRaw\(clubId\)/);
+  });
+});
+
+describe("native cold-start tap stashes the switch directly", () => {
+  const src = readFileSync("src/lib/notificationLaunchHandler.ts", "utf8");
+
+  it("calls requestClubSwitchForNotification without waiting for a listener", () => {
+    expect(src).toContain("requestClubSwitchForNotification");
+    // Must be invoked in the handler, not merely imported.
+    expect(src).toMatch(/requestClubSwitchForNotification\(data, path\)/);
+  });
+});
+
+describe("membership verification covers team-scoped roles", () => {
+  const src = readFileSync("src/hooks/useNotificationClubSwitch.ts", "utf8");
+
+  it("unions user_roles.club_id with user_roles.team_id -> teams.club_id", () => {
+    expect(src).toContain('.eq("club_id", clubId)');
+    expect(src).toContain('teams!inner(club_id)');
+    expect(src).toContain('.not("team_id", "is", null)');
+  });
+
+  it("distinguishes a failed lookup from a non-member so the switch can retry", () => {
+    expect(src).toContain('return "error"');
+    expect(src).toContain('=== "error"');
+  });
+});

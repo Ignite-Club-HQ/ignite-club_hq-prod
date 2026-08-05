@@ -5,6 +5,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
 import { preloadLogo } from "@/components/ui/logo-image";
 import { consumeAuthThemeHint } from "@/lib/authThemeHint";
+import {
+  clearAppliedNotificationClubSwitch,
+  getAppliedNotificationClubSwitch,
+} from "@/lib/notificationClubSwitch";
 
 
 interface HSLColor {
@@ -334,9 +338,34 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   };
 
   // Use lazy initialization to read from localStorage synchronously
-  const [activeClubTheme, setActiveClubThemeState] = useState<string | null>(() => {
+  const [activeClubTheme, setActiveClubThemeStateRaw] = useState<string | null>(() => {
+    const pinned = getAppliedNotificationClubSwitch();
+    if (pinned) return pinned;
     return getInitialThemeState().themeId;
   });
+
+  /**
+   * Guarded state setter.
+   *
+   * This provider re-asserts `activeClubTheme` from localStorage / the profile
+   * row in several async bootstrap paths (fresh-login restore, the layout-effect
+   * sync, the DB load, the CSS effect's fallback). On a notification tap for a
+   * DIFFERENT club those late writes raced the switch and dragged the filter
+   * back to the previously selected club — the app ended up showing a
+   * Bridgewater thread while filtered to Basket Range.
+   *
+   * While a notification-driven switch is pinned (short TTL), no bootstrap path
+   * may point the filter anywhere else. Explicit user selection via
+   * `setActiveClubTheme` clears the pin first, so the club picker is unaffected.
+   */
+  const setActiveClubThemeState = (next: string | null) => {
+    const pinned = getAppliedNotificationClubSwitch();
+    if (pinned && next !== pinned) {
+      console.log('[ClubTheme] ignoring bootstrap club write while notification switch is pinned', { next, pinned });
+      return;
+    }
+    setActiveClubThemeStateRaw(next);
+  };
   const [cachedThemeData, setCachedThemeData] = useState<ClubTheme | null>(() => {
     return getInitialThemeState().themeData;
   });
@@ -871,7 +900,12 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   }, [user?.id, isLoading, isLoadingFromDb, hasCheckedDefault]);
 
   const setActiveClubTheme = (clubId: string | null) => {
-    setActiveClubThemeState(clubId);
+    // Explicit selection (club picker, or an applied notification switch) is
+    // always authoritative: drop any pin so it cannot block this write, then
+    // set state directly rather than through the guarded setter.
+    const pinned = getAppliedNotificationClubSwitch();
+    if (pinned && pinned !== clubId) clearAppliedNotificationClubSwitch();
+    setActiveClubThemeStateRaw(clubId);
     if (user?.id) {
       const key = getStorageKey(user.id);
       const dataKey = getStorageDataKey(user.id);

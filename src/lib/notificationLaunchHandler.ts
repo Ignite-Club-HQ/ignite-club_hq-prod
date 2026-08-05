@@ -21,6 +21,7 @@ import { preloadMessageFromNotification } from './notificationPreload';
 import { captureJumpFromNotification, normalizeNotificationChatUrl, getJumpTarget } from './pendingChatJump';
 import { suppressChatScope, type SuppressedChatKind } from './pushTapSuppression';
 import { prefetchChatChunkForUrl } from './chatChunkPrefetch';
+import { requestClubSwitchForNotification } from './notificationClubSwitch';
 import { mark as coldMark, remark as coldRemark, startLongTaskWindow } from './coldStartMarks';
 
 // Store pending navigation URL until the app is ready to handle it
@@ -218,6 +219,14 @@ function handleNotificationTap(notification: any) {
 
     const isPitchBoard = !!type && PITCH_BOARD_TYPES.has(type);
     const path = url ? normalizeToPath(url) : (isPitchBoard ? '/' : null);
+
+    // Move the global club filter to the club that owns this notification.
+    // Called DIRECTLY here (not only via the CustomEvent below) because on a
+    // cold start this handler runs before React mounts, so no listener exists
+    // yet and the event would be dropped. The stash is sessionStorage-backed
+    // and idempotent, so the duplicate call from PushNotificationManager on a
+    // warm tap is harmless.
+    try { requestClubSwitchForNotification(data, path); } catch { /* noop */ }
 
     // Broadcast for cross-cutting consumers (active club switch, pitch board open).
     try {

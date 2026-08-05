@@ -605,15 +605,19 @@ jobs:
           CORRELATION="promote-$(date +%s)-$RANDOM"
           # Issued from inside the database with exactly the credential a trigger
           # or cron job would present (the Vault service-role key).
-          PROBE_ID=$(run_sql -v corr="$CORRELATION" -c "
-            select net.http_post(
-              url := public.internal_functions_base_url() || '/functions/v1/process-message-notifications',
-              headers := jsonb_build_object(
-                'Content-Type', 'application/json',
-                'x-notification-auth-probe', :'corr',
-                'Authorization', 'Bearer ' || public.internal_service_role_key()),
-              body := '{}'::jsonb
-            );")
+          # psql does not expand :'var' placeholders inside a -c argument, so the
+          # SQL is fed on stdin where substitution happens before parsing.
+          PROBE_ID=$(run_sql -v corr="$CORRELATION" <<'SQL'
+          select net.http_post(
+            url := public.internal_functions_base_url() || '/functions/v1/process-message-notifications',
+            headers := jsonb_build_object(
+              'Content-Type', 'application/json',
+              'x-notification-auth-probe', :'corr',
+              'Authorization', 'Bearer ' || public.internal_service_role_key()),
+            body := '{}'::jsonb
+          );
+          SQL
+          )
           if ! printf '%s' "$PROBE_ID" | grep -qE '^[0-9]+$'; then
             echo "::error::Could not issue the notification authentication probe (no pg_net request id). Aborting before any caller is rewritten."
             exit 1
