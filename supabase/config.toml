@@ -32,6 +32,8 @@ project_id = "ecsdwrarzfexssxtrymj"
     verify_jwt = false
   [functions.google-drive-import]
     verify_jwt = false
+  [functions.audit-orphan-children]
+    verify_jwt = false
   [functions.permanent-delete-photos]
     verify_jwt = false
   [functions.post-game-photo-prompts]
