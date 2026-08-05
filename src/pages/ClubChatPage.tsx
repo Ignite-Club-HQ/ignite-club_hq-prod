@@ -67,6 +67,7 @@ import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliati
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -198,9 +199,7 @@ export default function ClubChatPage() {
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget | null = clubId
-    ? { chat_type: "club", club_id: clubId }
-    : null;
+  const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("club", clubId);
   const [searchQuery, setSearchQuery] = useState("");
   // Persists the search text after tapping a result so highlights stay
   // visible on the jumped-to row; cleared when the highlight ring fades.
@@ -1851,11 +1850,11 @@ export default function ClubChatPage() {
               target={scheduleTarget}
               initialText={message}
               initialImageUrl={imageUrl}
-              onScheduled={() => {
-                setMessage("");
-                setImageUrl(null);
-                clearDraft?.();
-              }}
+              onScheduled={() => resetChatComposerAfterSchedule({
+                setComposerText: setMessage,
+                setImageUrl,
+                clearDraft,
+              })}
             />
           )}
           <EventPickerSheet

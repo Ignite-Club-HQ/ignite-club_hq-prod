@@ -71,6 +71,7 @@ import {
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -143,7 +144,7 @@ export default function BroadcastChatPage() {
   const [message, setMessage, clearDraft] = useChatDraft("broadcast");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget = { chat_type: "broadcast" };
+  const scheduleTarget: ScheduleTarget = buildChatScheduleTarget("broadcast");
   const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
   const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
@@ -1242,11 +1243,11 @@ export default function BroadcastChatPage() {
             target={scheduleTarget}
             initialText={message}
             initialImageUrl={imageUrl}
-            onScheduled={() => {
-              setMessage("");
-              setImageUrl(null);
-              clearDraft?.();
-            }}
+            onScheduled={() => resetChatComposerAfterSchedule({
+              setComposerText: setMessage,
+              setImageUrl,
+              clearDraft,
+            })}
           />
           <CreatePollDialog
             open={pollDialogOpen}

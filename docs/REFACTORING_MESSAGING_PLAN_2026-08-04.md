@@ -368,6 +368,16 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   Group Chat also retains its full message object and distinct focus behavior.
   Verification passed 85 focused composer/page contracts, TypeScript, focused
   lint, the production build and the real reply/edit Playwright journeys.
+- M5d extracts exact scheduled-message target construction and post-schedule
+  composer cleanup across all six surfaces. Missing scoped ids still suppress
+  Team, Club, Group, Direct and Club Admin targets, while Broadcast retains its
+  id-free global target. Existing image cleanup differences are explicit:
+  Team, Club, Group and Broadcast clear the image owned by their schedule
+  dialog; Direct and Club Admin retain their current text-only cleanup. Pro
+  checks, support-DM attachment restrictions, upload recovery, backend writes
+  and retry policies remain locally owned. Verification passed 123 focused
+  contracts, 73 scheduled-message tests, TypeScript, focused lint, production
+  build and seven cross-surface send/attachment Playwright journeys.
 
 ## Objective
 

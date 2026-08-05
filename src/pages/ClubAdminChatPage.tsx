@@ -61,6 +61,7 @@ import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliati
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -171,9 +172,7 @@ export default function ClubAdminChatPage() {
   );
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget | null = conversationId
-    ? { chat_type: "club_admin", conversation_id: conversationId }
-    : null;
+  const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("club_admin", conversationId);
   const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -1352,10 +1351,10 @@ export default function ClubAdminChatPage() {
             onOpenChange={setScheduleDialogOpen}
             target={scheduleTarget}
             initialText={message}
-            onScheduled={() => {
-              setMessage("");
-              clearDraft?.();
-            }}
+            onScheduled={() => resetChatComposerAfterSchedule({
+              setComposerText: setMessage,
+              clearDraft,
+            })}
           />
         )}
         {conversationId && (

@@ -97,6 +97,7 @@ import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliati
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -249,9 +250,7 @@ export default function TeamChatPage() {
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget | null = teamId
-    ? { chat_type: "team", team_id: teamId }
-    : null;
+  const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("team", teamId);
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -2195,11 +2194,11 @@ export default function TeamChatPage() {
             target={scheduleTarget}
             initialText={message}
             initialImageUrl={imageUrl}
-            onScheduled={() => {
-              setMessage("");
-              setImageUrl(null);
-              clearDraft?.();
-            }}
+            onScheduled={() => resetChatComposerAfterSchedule({
+              setComposerText: setMessage,
+              setImageUrl,
+              clearDraft,
+            })}
           />
         )}
         <EventPickerSheet

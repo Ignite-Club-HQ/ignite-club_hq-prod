@@ -63,6 +63,7 @@ import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliati
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -271,9 +272,7 @@ export default function DirectMessagePage() {
   const perfLoggedRef = useRef<boolean>(false);
   const [message, setMessage, clearDraft] = useChatDraft(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget | null = conversationId
-    ? { chat_type: "direct", conversation_id: conversationId }
-    : null;
+  const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("direct", conversationId);
   const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
   const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
@@ -1665,10 +1664,10 @@ export default function DirectMessagePage() {
                   onOpenChange={setScheduleDialogOpen}
                   target={scheduleTarget}
                   initialText={message}
-                  onScheduled={() => {
-                    setMessage("");
-                    clearDraft?.();
-                  }}
+                  onScheduled={() => resetChatComposerAfterSchedule({
+                    setComposerText: setMessage,
+                    clearDraft,
+                  })}
                 />
               )}
               {!isIgniteSupportConversation && (

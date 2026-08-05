@@ -23,6 +23,7 @@ import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliati
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -283,9 +284,7 @@ export default function GroupChatPage() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [miniLeagueInviteOpen, setMiniLeagueInviteOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget | null = groupId
-    ? { chat_type: "group", group_id: groupId }
-    : null;
+  const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("group", groupId);
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
@@ -2849,11 +2848,11 @@ export default function GroupChatPage() {
             target={scheduleTarget}
             initialText={message}
             initialImageUrl={imageUrl}
-            onScheduled={() => {
-              setMessage("");
-              setImageUrl(null);
-              clearDraft?.();
-            }}
+            onScheduled={() => resetChatComposerAfterSchedule({
+              setComposerText: setMessage,
+              setImageUrl,
+              clearDraft,
+            })}
           />
         )}
         <EventPickerSheet
