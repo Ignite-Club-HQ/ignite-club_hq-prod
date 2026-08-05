@@ -45,11 +45,7 @@ describe("chat realtime reconciliation guard", () => {
     });
 
     it(`${file} clears its reconciliation scope on thread switch/unmount`, () => {
-      if (file === "DirectMessagePage.tsx") {
-        expect(src).toContain("useChatReconciliationScopeLifecycle(reconcileScope)");
-      } else {
-        expect(src).toMatch(/clearReconciliationScope\(/);
-      }
+      expect(src).toContain("useChatReconciliationScopeLifecycle(reconcileScope)");
     });
   }
 });

@@ -67,8 +67,8 @@ import {
   removeMessage,
   removeMessageFromQueryEnvelope,
   isTombstoned,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -373,6 +373,7 @@ export default function BroadcastChatPage() {
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   // Broadcast is a single global thread, so the scope is constant.
   const reconcileScope = "broadcast";
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
@@ -389,9 +390,6 @@ export default function BroadcastChatPage() {
     () => reconcileMessages(reconcileScope, getCachedBroadcastMessages()) as Message[],
   );
 
-  // Tombstones/patches are per-thread; drop them when leaving the chat.
-  useEffect(() => () => clearReconciliationScope(reconcileScope), [reconcileScope]);
- 
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
   const reactionQueryKey = useMemo(() => BROADCAST_MESSAGES_QUERY_KEY, []);

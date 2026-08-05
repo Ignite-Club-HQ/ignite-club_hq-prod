@@ -18,8 +18,8 @@ import {
   removeMessage,
   removeMessageFromQueryEnvelope,
   isTombstoned,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -746,6 +746,7 @@ export default function GroupChatPage() {
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `group:${groupId ?? "none"}`;
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
   // Extract messages and reactions from query data
   const messages = useMemo(() => {
@@ -1023,10 +1024,6 @@ export default function GroupChatPage() {
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
 
-    return () => {
-      // Tombstones/patches are per-thread; drop them when leaving the thread.
-      clearReconciliationScope(`group:${groupId ?? "none"}`);
-    };
   }, [groupId, queryClient, reconcileScope]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll

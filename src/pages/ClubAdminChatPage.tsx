@@ -56,8 +56,8 @@ import {
   applyMessageUpdateToQueryEnvelope,
   removeMessage,
   removeMessageFromQueryEnvelope,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -542,6 +542,7 @@ export default function ClubAdminChatPage() {
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `club-admin:${conversationId ?? "none"}`;
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
 
   const messages = useMemo(() => {
@@ -663,10 +664,6 @@ export default function ClubAdminChatPage() {
         : undefined,
     );
 
-    return () => {
-      // Tombstones/patches are per-thread; drop them when leaving the thread.
-      clearReconciliationScope(`club-admin:${conversationId ?? "none"}`);
-    };
   }, [conversationId, reconcileScope]);
 
   // Sync localMessages with fetched messages

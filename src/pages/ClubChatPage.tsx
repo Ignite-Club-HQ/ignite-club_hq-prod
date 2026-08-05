@@ -62,8 +62,8 @@ import {
   removeMessage,
   removeMessageFromQueryEnvelope,
   isTombstoned,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -597,6 +597,7 @@ export default function ClubChatPage() {
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `club:${clubId ?? "none"}`;
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
@@ -673,10 +674,6 @@ export default function ClubChatPage() {
     );
     setInfiniteScrollEnabled(false);
 
-    return () => {
-      // Tombstones/patches are per-thread; drop them when leaving the thread.
-      clearReconciliationScope(`club:${clubId ?? "none"}`);
-    };
   }, [clubId, reconcileScope]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll

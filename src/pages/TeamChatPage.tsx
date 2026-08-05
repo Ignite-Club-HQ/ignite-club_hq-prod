@@ -92,8 +92,8 @@ import {
   removeMessage,
   removeMessageFromQueryEnvelope,
   isTombstoned,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -803,6 +803,7 @@ export default function TeamChatPage() {
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `team:${teamId ?? "none"}`;
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
@@ -925,10 +926,6 @@ export default function TeamChatPage() {
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
 
-    return () => {
-      // Tombstones/patches are per-thread; drop them when leaving the thread.
-      clearReconciliationScope(`team:${teamId}`);
-    };
   }, [teamId, queryClient, reconcileScope, teamMessagesQueryKey]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll

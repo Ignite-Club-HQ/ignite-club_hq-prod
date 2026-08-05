@@ -346,6 +346,10 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   stale response arrived. The correction moves cleanup into a scope-lifetime
   hook that runs only when the conversation scope changes or unmounts; cache
   seeding and all other Direct Message behavior remain unchanged.
+- M4f adopts the tested scope-lifetime cleanup hook across Team, Club, Group,
+  Club Admin and Broadcast. Each surface retains its exact scope key, cache
+  seeding, query dependencies and Realtime channel teardown; only the repeated
+  reconciliation-registry cleanup effect is shared.
 
 ## Objective
 
