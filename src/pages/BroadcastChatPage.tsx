@@ -70,6 +70,7 @@ import {
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
+import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -923,8 +924,9 @@ export default function BroadcastChatPage() {
 
   const updateMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!editingMessage) return;
-      const { error } = await supabase.from("broadcast_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      const edit = buildChatMessageEdit(editingMessage, message);
+      if (!edit) return;
+      const { error } = await supabase.from("broadcast_messages").update({ text: edit.text }).eq("id", edit.messageId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -948,14 +950,16 @@ export default function BroadcastChatPage() {
   };
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
-    setEditingMessage(msg);
-    setMessage(msg.text);
+    const edit = beginChatMessageEdit(msg);
+    setEditingMessage(edit.editingMessage);
+    setMessage(edit.composerText);
     setReplyingTo(null);
   }, []);
 
   const handleCancelEdit = useCallback(() => {
-    setEditingMessage(null);
-    setMessage("");
+    const edit = cancelChatMessageEdit();
+    setEditingMessage(edit.editingMessage);
+    setMessage(edit.composerText);
   }, []);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

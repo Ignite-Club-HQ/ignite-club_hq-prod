@@ -22,6 +22,7 @@ import {
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
+import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -1835,11 +1836,12 @@ export default function GroupChatPage() {
   // Update message mutation
   const updateMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!editingMessage) return;
+      const edit = buildChatMessageEdit(editingMessage, message);
+      if (!edit) return;
       const { error } = await supabase
         .from("group_messages")
-        .update({ text: message.trim() })
-        .eq("id", editingMessage.id);
+        .update({ text: edit.text })
+        .eq("id", edit.messageId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -2197,14 +2199,16 @@ export default function GroupChatPage() {
 
 
   const handleEdit = (msg: GroupMessage) => {
-    setEditingMessage(msg);
-    setMessage(msg.text);
+    const edit = beginChatMessageEdit(msg);
+    setEditingMessage(edit.editingMessage);
+    setMessage(edit.composerText);
     inputRef.current?.focus();
   };
 
   const handleCancelEdit = () => {
-    setEditingMessage(null);
-    setMessage("");
+    const edit = cancelChatMessageEdit();
+    setEditingMessage(edit.editingMessage);
+    setMessage(edit.composerText);
   };
 
   const handleReply = (msg: GroupMessage) => {

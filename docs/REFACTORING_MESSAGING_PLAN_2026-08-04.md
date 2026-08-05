@@ -360,6 +360,14 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   Rapid click coalescing is now explicitly protected at the shared send button.
   Scope permissions, mutation payloads, optimistic state and retry behavior
   remain page-owned.
+- M5c extracts the common edit intent shared by all six surfaces: beginning an
+  edit retains the original message identity, cancellation clears the edit and
+  draft, and persistence uses the immutable message id with trimmed text.
+  Message tables, Supabase mutations, authorization, query invalidation,
+  page-specific toasts and reply/focus behavior remain explicit in each page;
+  Group Chat also retains its full message object and distinct focus behavior.
+  Verification passed 85 focused composer/page contracts, TypeScript, focused
+  lint, the production build and the real reply/edit Playwright journeys.
 
 ## Objective
 

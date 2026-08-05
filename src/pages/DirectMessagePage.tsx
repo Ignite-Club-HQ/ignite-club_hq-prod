@@ -62,6 +62,7 @@ import {
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { hasChatComposerContent } from "@/lib/chatComposerIntent";
+import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -1100,8 +1101,9 @@ export default function DirectMessagePage() {
   });
   const updateMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!editingMessage) return;
-      const { error } = await supabase.from("direct_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      const edit = buildChatMessageEdit(editingMessage, message);
+      if (!edit) return;
+      const { error } = await supabase.from("direct_messages").update({ text: edit.text }).eq("id", edit.messageId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1114,14 +1116,16 @@ export default function DirectMessagePage() {
   });
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
-    setEditingMessage(msg);
-    setMessage(msg.text);
+    const edit = beginChatMessageEdit(msg);
+    setEditingMessage(edit.editingMessage);
+    setMessage(edit.composerText);
     setReplyTo(null);
   }, []);
 
   const handleCancelEdit = useCallback(() => {
-    setEditingMessage(null);
-    setMessage("");
+    const edit = cancelChatMessageEdit();
+    setEditingMessage(edit.editingMessage);
+    setMessage(edit.composerText);
   }, []);
 
   // Typing indicator
