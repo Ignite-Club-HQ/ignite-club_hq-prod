@@ -69,6 +69,7 @@ import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatCompose
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
+import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
 
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -1263,6 +1264,23 @@ export default function ClubChatPage() {
     return format(parseISO(dateStr), "MMM d, h:mm a");
   }, []);
 
+  // Vault mirroring runs ONLY for confirmed-delivered messages.
+  const syncSendToVault = useCallback(
+    (vars: { text: string; image_url: string | null }) => {
+      if (!user || !clubId) return;
+      if (!vars.image_url && !vars.text) return;
+      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
+        syncChatAttachmentToVault({
+          imageUrl: vars.image_url,
+          text: vars.text,
+          userId: user.id,
+          clubId,
+        }).catch((err) => console.warn("Club chat vault sync failed", err));
+      });
+    },
+    [user, clubId],
+  );
+
   const sendMutation = useMutation({
     mutationFn: async ({ text, image_url, reply_to_id }: { text: string; image_url: string | null; reply_to_id: string | null }) => {
       // If offline, queue the message
@@ -1275,8 +1293,9 @@ export default function ClubChatPage() {
           imageUrl: image_url,
           replyToId: reply_to_id,
           createdAt: new Date().toISOString(),
+          vault: clubId ? { clubId } : null,
         });
-        return;
+        return queuedSend();
       }
       
       const { error } = await supabase.from("club_messages").insert({
@@ -1287,6 +1306,7 @@ export default function ClubChatPage() {
         reply_to_id,
       });
       if (error) throw error;
+      return deliveredSend();
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
@@ -1351,6 +1371,8 @@ export default function ClubChatPage() {
       // Succeeded-but-errored: the row already arrived via realtime.
       const currentData = queryClient.getQueryData<{ messages: Message[] }>(clubMessagesQueryKey);
       if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
+        // Errored request, confirmed delivery: same Vault handling as success.
+        syncSendToVault(variables);
         return;
       }
 
@@ -1380,6 +1402,10 @@ export default function ClubChatPage() {
       });
     },
 
+    onSuccess: (result, variables) => {
+      if (isConfirmedDelivery(result)) syncSendToVault(variables);
+    },
+
     onSettled: (_, __, variables) => {
       // Don't invalidate here; realtime will sync messages
       // Award engagement points (fire and forget)
@@ -1392,17 +1418,6 @@ export default function ClubChatPage() {
             scopeId: clubId,
           }).catch(() => {});
         });
-        // Auto-sync attachments/file links to vault (fire and forget)
-        if (variables?.image_url || variables?.text) {
-          import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-            syncChatAttachmentToVault({
-              imageUrl: variables.image_url,
-              text: variables.text,
-              userId: user.id,
-              clubId: clubId,
-            }).catch(() => {});
-          });
-        }
       }
     },
    });
