@@ -396,7 +396,19 @@ export default function ChildrenPage() {
         <Button size="icon" variant="default" onClick={() => setAddDialogOpen(true)}>
           <Plus className="h-4 w-4" />
         </Button>
-        <ResponsiveDialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <ResponsiveDialog
+          open={addDialogOpen}
+          onOpenChange={(open) => {
+            setAddDialogOpen(open);
+            // Dismissing without submitting must not leave a stale name/year
+            // behind for the next add attempt.
+            if (!open) {
+              setNewChildName("");
+              setNewChildYear("");
+              setAmbiguousMatches(null);
+            }
+          }}
+        >
           <ResponsiveDialogContent>
             <ResponsiveDialogHeader>
               <ResponsiveDialogTitle>Add Child</ResponsiveDialogTitle>
