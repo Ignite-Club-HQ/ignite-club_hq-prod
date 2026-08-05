@@ -41,7 +41,7 @@ describe("failed-send recovery contract per chat surface", () => {
       });
 
       it("removes only that mutation's optimistic row", () => {
-        expect(src).toMatch(/m\.id !== context\.tempId/);
+        expect(src).toMatch(/m\.id !== (context\.tempId|tempId)\b/);
       });
 
       it("restores composer state through the shared conditional helper", () => {
