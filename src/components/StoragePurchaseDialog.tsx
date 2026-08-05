@@ -27,6 +27,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
+import { invalidateProAccessQueries } from "@/lib/invalidateProAccess";
 
 const STORAGE_PACKS = [
   { id: '10gb', gb: 10, priceMonthly: 4.99, priceAnnual: 49.99, popular: false },
@@ -170,6 +171,7 @@ export function StoragePurchaseDialog({
       setPromoCode("");
       queryClient.invalidateQueries({ queryKey: ["purchased-storage", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      invalidateProAccessQueries(queryClient);
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to apply promo code");
@@ -202,6 +204,7 @@ export function StoragePurchaseDialog({
       setShowDowngradeConfirm(false);
       queryClient.invalidateQueries({ queryKey: ["purchased-storage", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      invalidateProAccessQueries(queryClient);
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to schedule storage downgrade");
@@ -224,6 +227,7 @@ export function StoragePurchaseDialog({
       toast.success("Scheduled downgrade cancelled");
       queryClient.invalidateQueries({ queryKey: ["purchased-storage", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      invalidateProAccessQueries(queryClient);
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to cancel downgrade");
@@ -312,6 +316,7 @@ export function StoragePurchaseDialog({
 
       queryClient.invalidateQueries({ queryKey: ["purchased-storage", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      invalidateProAccessQueries(queryClient);
       toast.success("Storage purchased successfully!");
     } catch (err: any) {
       const msg = err?.message?.toLowerCase() || "";
