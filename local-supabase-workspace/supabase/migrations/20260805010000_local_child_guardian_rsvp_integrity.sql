@@ -129,6 +129,8 @@ to authenticated, service_role;
 -- Production attributes a child response to the acting guardian, so both
 -- user_id and child_id are present. The original local XOR check was stale.
 alter table public.rsvps drop constraint if exists rsvps_check;
+alter table public.rsvps
+  add constraint rsvps_subject_required check (user_id is not null or child_id is not null);
 
 drop policy if exists rsvps_self_insert on public.rsvps;
 drop policy if exists rsvps_self_update on public.rsvps;

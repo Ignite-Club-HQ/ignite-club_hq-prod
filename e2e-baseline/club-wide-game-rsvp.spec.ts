@@ -231,12 +231,18 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
       .filter({ hasText: /Group by (?:age level|team)/ })
       .first();
   await expect(editGrouping()).toContainText("Group by age level");
-  // Open the Radix select and choose the visible option. Avoid force-click
-  // polling: it can repeatedly toggle the portal without committing a value.
+  // Radix can replace an option node while its portal settles. Reacquire the
+  // currently attached option rather than retaining a detached locator action.
   await editGrouping().click();
-  const teamGroupingOption = page.getByRole("option", { name: /Group by team/ });
-  await expect(teamGroupingOption).toBeVisible();
-  await teamGroupingOption.click();
+  await expect(async () => {
+    let teamGroupingOption = page.getByRole("option", { name: /Group by team/ });
+    if (!(await teamGroupingOption.isVisible())) {
+      await editGrouping().click({ timeout: 1_500 });
+      teamGroupingOption = page.getByRole("option", { name: /Group by team/ });
+    }
+    await expect(teamGroupingOption).toBeVisible({ timeout: 1_500 });
+    await teamGroupingOption.click({ timeout: 1_500 });
+  }).toPass({ timeout: 8_000 });
   await expect(editGrouping()).toContainText("Group by team");
 
   await page.getByRole("checkbox", { name: "U8 Red" }).click();

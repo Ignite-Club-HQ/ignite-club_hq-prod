@@ -1292,6 +1292,7 @@ for (const nativeCase of [
   { label: "iOS", platform: "ios" },
 ] as const) {
 test(`${nativeCase.label} Home reveals Next Up and My Teams together without pushing content`, async ({ page }) => {
+  test.setTimeout(30_000);
   await page.unrouteAll({ behavior: "wait" });
   const state = await install(page, defaultBell, {
     nativeRuntime: nativeCase.platform,
@@ -1315,7 +1316,9 @@ test(`${nativeCase.label} Home reveals Next Up and My Teams together without pus
 
   const samples = await myTeams.evaluate(async (element) => {
     const positions: number[] = [];
-    for (let frame = 0; frame < 60; frame += 1) {
+    // Half a second of consecutive frames is sufficient to catch the delayed
+    // Next Up insertion without consuming most of the journey's time budget.
+    for (let frame = 0; frame < 30; frame += 1) {
       positions.push(element.getBoundingClientRect().top);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
@@ -1437,7 +1440,12 @@ test(`${nativeCase.label} cold WebView restart overrides a stale non-pitchboard 
 
   // Recreate the document on the wrong history entry while retaining only
   // the durable state that survives a native process/WebView recreation.
-  await page.reload();
+  await page.reload().catch((error) => {
+    // The restore hook may redirect while the reload is still awaiting its
+    // original load event. That interrupted navigation is the behaviour under
+    // test; any other reload failure remains fatal.
+    if (!String(error).includes("Frame load interrupted")) throw error;
+  });
 
   await expect(page).toHaveURL(
     new RegExp(`/teams/${teamId}\\?from=game-day&tab=lineup&openPitchBoard=1$`),

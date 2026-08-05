@@ -19,6 +19,7 @@ describe("local journey: archive a season and establish the next one", () => {
   let coach: SyntheticUser;
   let otherAdmin: SyntheticUser;
   const clubIds: string[] = [];
+  const childIds: string[] = [];
 
   beforeAll(async () => {
     await assertSyntheticLocalMarker();
@@ -31,9 +32,16 @@ describe("local journey: archive a season and establish the next one", () => {
   });
 
   afterEach(async () => {
-    if (!clubIds.length) return;
-    await service.from("clubs").update({ current_season_id: null }).in("id", clubIds);
-    await service.from("clubs").delete().in("id", clubIds.splice(0));
+    if (clubIds.length) {
+      await service.from("clubs").update({ current_season_id: null }).in("id", clubIds);
+      await service.from("clubs").delete().in("id", clubIds.splice(0));
+    }
+    // Children are parent-scoped rather than club-scoped, so deleting the
+    // synthetic club does not remove them. Explicit cleanup keeps the new
+    // duplicate-child guard meaningful while isolating each journey case.
+    if (childIds.length) {
+      await service.from("children").delete().in("id", childIds.splice(0));
+    }
   });
 
   afterAll(async () => {
@@ -43,6 +51,11 @@ describe("local journey: archive a season and establish the next one", () => {
   });
 
   async function createSeasonFixture(label: string): Promise<SeasonFixture> {
+    // The cross-club fixture is intentionally created before the first fixture
+    // is cleaned up. Give those children distinct identities so the canonical
+    // duplicate guard is exercised without making the test data collide.
+    const alexName = label === "cross-club" ? "Synthetic Cross Alex" : "Synthetic Alex";
+    const blairName = label === "cross-club" ? "Synthetic Cross Blair" : "Synthetic Blair";
     const club = await service.from("clubs").insert({
       name: `Synthetic rollover ${label} ${crypto.randomUUID()}`,
       created_by: admin.id,
@@ -94,12 +107,13 @@ describe("local journey: archive a season and establish the next one", () => {
     expect(roles.error).toBeNull();
 
     const children = await service.from("children").insert([
-      { parent_id: admin.id, name: "Synthetic Alex", year_of_birth: 2014 },
-      { parent_id: ordinaryMember.id, name: "Synthetic Blair", year_of_birth: 2012 },
+      { parent_id: admin.id, name: alexName, year_of_birth: 2014 },
+      { parent_id: ordinaryMember.id, name: blairName, year_of_birth: 2012 },
     ]).select("id, name");
     expect(children.error).toBeNull();
-    const alex = children.data!.find((child) => child.name === "Synthetic Alex")!;
-    const blair = children.data!.find((child) => child.name === "Synthetic Blair")!;
+    childIds.push(...children.data!.map((child) => child.id));
+    const alex = children.data!.find((child) => child.name === alexName)!;
+    const blair = children.data!.find((child) => child.name === blairName)!;
 
     const guardian = await service.from("child_guardians").insert({
       child_id: alex.id,
@@ -109,8 +123,8 @@ describe("local journey: archive a season and establish the next one", () => {
     expect(guardian.error).toBeNull();
 
     const players = await service.from("club_players").insert([
-      { club_id: club.data!.id, child_id: alex.id, display_name: "Synthetic Alex", date_of_birth: "2014-03-04" },
-      { club_id: club.data!.id, child_id: blair.id, display_name: "Synthetic Blair", date_of_birth: "2012-06-07" },
+      { club_id: club.data!.id, child_id: alex.id, display_name: alexName, date_of_birth: "2014-03-04" },
+      { club_id: club.data!.id, child_id: blair.id, display_name: blairName, date_of_birth: "2012-06-07" },
     ]).select("id, child_id");
     expect(players.error).toBeNull();
     const alexPlayer = players.data!.find((player) => player.child_id === alex.id)!;

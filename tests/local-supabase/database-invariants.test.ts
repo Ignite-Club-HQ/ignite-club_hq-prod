@@ -34,7 +34,7 @@ describe("local database: critical relational invariants", () => {
     })).error).not.toBeNull();
   });
 
-  it("requires an RSVP to identify exactly one user or child", async () => {
+  it("requires an RSVP actor while allowing a guardian to represent a child", async () => {
     const event = await service.from("events").insert({
       club_id: fixture.clubA, team_id: fixture.teamA, created_by: fixture.adminA.id,
       title: "Synthetic RSVP invariant", type: "training", event_date: "2099-01-02T10:00:00Z",
@@ -45,7 +45,7 @@ describe("local database: critical relational invariants", () => {
       event_id: event.data!.id, user_id: fixture.memberA.id, child_id: fixture.childA, status: "going",
     });
     expect(neither.error).not.toBeNull();
-    expect(both.error).not.toBeNull();
+    expect(both.error).toBeNull();
   });
 
   it("rejects duplicate user RSVPs for one event", async () => {

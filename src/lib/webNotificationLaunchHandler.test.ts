@@ -17,6 +17,7 @@ vi.mock("./notificationPreload", () => ({ preloadMessageFromNotification: mocks.
 vi.mock("./pendingChatJump", () => ({
   captureJumpFromNotification: mocks.captureJump,
   normalizeNotificationChatUrl: mocks.normalizeChatUrl,
+  getJumpTarget: vi.fn(() => null),
 }));
 vi.mock("./chatChunkPrefetch", () => ({ prefetchChatChunkForUrl: mocks.prefetch }));
 vi.mock("./coldStartMarks", () => ({
@@ -27,6 +28,7 @@ vi.mock("./coldStartMarks", () => ({
 
 class BroadcastChannelMock {
   private handler?: (event: { data: any }) => void;
+  private listeners = new Set<(event: { data: any }) => void>();
 
   constructor(name: string) {
     mocks.broadcastConstruct(name);
@@ -35,6 +37,25 @@ class BroadcastChannelMock {
   set onmessage(handler: ((event: { data: any }) => void) | null) {
     this.handler = handler ?? undefined;
     mocks.broadcastHandler = this.handler;
+  }
+
+  addEventListener(type: string, handler: (event: { data: any }) => void) {
+    if (type === "message") this.listeners.add(handler);
+  }
+
+  removeEventListener(type: string, handler: (event: { data: any }) => void) {
+    if (type === "message") this.listeners.delete(handler);
+  }
+
+  postMessage(data: any) {
+    const event = { data };
+    this.handler?.(event);
+    for (const listener of this.listeners) listener(event);
+  }
+
+  close() {
+    this.handler = undefined;
+    this.listeners.clear();
   }
 }
 
@@ -74,8 +95,11 @@ describe("web notification launch routing", () => {
   it("installs one BroadcastChannel and service-worker message listener", async () => {
     await initialise();
 
-    expect(mocks.broadcastConstruct).toHaveBeenCalledOnce();
-    expect(mocks.broadcastConstruct).toHaveBeenCalledWith("push-nav");
+    // Supabase Auth also owns a BroadcastChannel. Assert only this feature's
+    // channel rather than treating unrelated standards-compliant consumers as
+    // an error.
+    expect(mocks.broadcastConstruct.mock.calls.filter(([name]) => name === "push-nav"))
+      .toHaveLength(1);
     expect(mocks.broadcastHandler).toBeTypeOf("function");
     expect(mocks.serviceWorkerHandler).toBeTypeOf("function");
   });
@@ -83,7 +107,8 @@ describe("web notification launch routing", () => {
   it("does not install web listeners on a native platform", async () => {
     await initialise(true);
 
-    expect(mocks.broadcastConstruct).not.toHaveBeenCalled();
+    expect(mocks.broadcastConstruct.mock.calls.filter(([name]) => name === "push-nav"))
+      .toHaveLength(0);
     expect(mocks.serviceWorkerHandler).toBeUndefined();
   });
 

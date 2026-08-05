@@ -22,7 +22,10 @@ describe("chat chronological-order boundary consumption", () => {
       expect(source).toContain(
         'from "@/features/messaging/thread/chatMessageOrdering"',
       );
-      expect(source).toContain("orderChatMessagesChronologically(msgList)");
+      // The security-scoping boundary may intentionally rename/filter the
+      // input before ordering it. Protect consumption of the shared rule,
+      // rather than coupling this test to a local variable name.
+      expect(source).toMatch(/orderChatMessagesChronologically\([^)]*\)/);
       expect(source).toContain("reconcileMessages(reconcileScope, sorted)");
     },
   );
