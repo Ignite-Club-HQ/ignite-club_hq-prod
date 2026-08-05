@@ -100,6 +100,7 @@ import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } fro
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
+import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -1549,26 +1550,12 @@ export default function TeamChatPage() {
     });
   }, []);
 
-  // Vault mirroring runs ONLY for confirmed-delivered messages (see
-  // `chatSendResult`). Fire-and-forget: a Vault failure must never turn a
-  // delivered chat message into a failed send.
   const clubIdForVault = team?.club_id ?? null;
-  const syncSendToVault = useCallback(
-    (vars: { text: string; image_url: string | null }) => {
-      if (!user || !clubIdForVault || !teamId) return;
-      if (!vars.image_url && !vars.text) return;
-      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-        syncChatAttachmentToVault({
-          imageUrl: vars.image_url,
-          text: vars.text,
-          userId: user.id,
-          clubId: clubIdForVault,
-          teamId,
-        }).catch((err) => console.warn("Team chat vault sync failed", err));
-      });
-    },
-    [user, clubIdForVault, teamId],
-  );
+  const syncSendToVault = useChatVaultDeliverySync({
+    userId: user?.id,
+    scope: clubIdForVault && teamId ? { clubId: clubIdForVault, teamId } : null,
+    surfaceLabel: "Team chat",
+  });
 
   const sendMessageMutation = useMutation({
     mutationFn: async ({ text, image_url, reply_to_id }: { text: string; image_url: string | null; reply_to_id: string | null }) => {
@@ -1667,7 +1654,7 @@ export default function TeamChatPage() {
       const current = queryClient.getQueryData<{ messages: Message[] }>(teamMessagesQueryKey);
       if (authoritativeMessageExists(current?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         // Errored request, confirmed delivery: same Vault handling as success.
-        syncSendToVault(variables);
+        syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
         return;
       }
 
@@ -1698,7 +1685,7 @@ export default function TeamChatPage() {
     },
 
     onSuccess: (result, variables) => {
-      if (isConfirmedDelivery(result)) syncSendToVault(variables);
+      if (isConfirmedDelivery(result)) syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
     },
 
     onSettled: (_, __, variables) => {

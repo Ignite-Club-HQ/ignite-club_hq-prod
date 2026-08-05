@@ -70,6 +70,7 @@ import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } fro
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
+import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -1264,22 +1265,11 @@ export default function ClubChatPage() {
     return format(parseISO(dateStr), "MMM d, h:mm a");
   }, []);
 
-  // Vault mirroring runs ONLY for confirmed-delivered messages.
-  const syncSendToVault = useCallback(
-    (vars: { text: string; image_url: string | null }) => {
-      if (!user || !clubId) return;
-      if (!vars.image_url && !vars.text) return;
-      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-        syncChatAttachmentToVault({
-          imageUrl: vars.image_url,
-          text: vars.text,
-          userId: user.id,
-          clubId,
-        }).catch((err) => console.warn("Club chat vault sync failed", err));
-      });
-    },
-    [user, clubId],
-  );
+  const syncSendToVault = useChatVaultDeliverySync({
+    userId: user?.id,
+    scope: clubId ? { clubId } : null,
+    surfaceLabel: "Club chat",
+  });
 
   const sendMutation = useMutation({
     mutationFn: async ({ text, image_url, reply_to_id }: { text: string; image_url: string | null; reply_to_id: string | null }) => {
@@ -1372,7 +1362,7 @@ export default function ClubChatPage() {
       const currentData = queryClient.getQueryData<{ messages: Message[] }>(clubMessagesQueryKey);
       if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         // Errored request, confirmed delivery: same Vault handling as success.
-        syncSendToVault(variables);
+        syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
         return;
       }
 
@@ -1403,7 +1393,7 @@ export default function ClubChatPage() {
     },
 
     onSuccess: (result, variables) => {
-      if (isConfirmedDelivery(result)) syncSendToVault(variables);
+      if (isConfirmedDelivery(result)) syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
     },
 
     onSettled: (_, __, variables) => {

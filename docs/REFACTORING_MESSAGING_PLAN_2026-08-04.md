@@ -393,6 +393,16 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   verification a pre-existing refactor defect was exposed and corrected:
   Club Chat's optimistic row passed an undefined `queryKeyMemo`; it now uses
   its canonical `clubMessagesQueryKey`.
+- M5f extracts the confirmed-delivery Vault side effect shared by Team, Club,
+  Group and Club Admin into one typed hook. Each page still owns its delivery
+  decision, offline queue payload and exact Vault scope; the hook owns only the
+  fire-and-forget mirror after confirmation. Direct Message and Broadcast keep
+  their intentional no-Vault behavior. Rejected inserts still perform zero
+  Vault work, queued sends mirror only after server delivery, restricted group
+  and club-admin scopes are preserved, and Vault failures cannot turn a sent
+  message into a failed send. Verification passed 96 focused contracts, 35
+  messaging/Vault Playwright journeys, TypeScript, focused lint and the
+  production build. No runtime defect was found.
 
 ## Objective
 

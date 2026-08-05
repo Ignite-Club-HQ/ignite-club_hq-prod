@@ -26,6 +26,7 @@ import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } fro
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
 import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
+import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -1718,8 +1719,6 @@ export default function GroupChatPage() {
   }, [groupId, queryClient, groupRealtimeMode, user?.id, reconcileScope, applyGroupReaction, applyGroupReactionDelete, groupMessagesQueryKey]);
 
 
-  // Vault mirroring runs ONLY for confirmed-delivered messages, preserving the
-  // group's exact folder scope (restricted roles included).
   const vaultGroupScope = useMemo(
     () =>
       group?.club_id
@@ -1733,21 +1732,11 @@ export default function GroupChatPage() {
         : null,
     [group?.club_id, group?.team_id, group?.id, group?.name, group?.allowed_roles],
   );
-  const syncSendToVault = useCallback(
-    (vars: { text: string; image_url: string | null }) => {
-      if (!user || !vaultGroupScope) return;
-      if (!vars.image_url && !vars.text) return;
-      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-        syncChatAttachmentToVault({
-          imageUrl: vars.image_url,
-          text: vars.text,
-          userId: user.id,
-          ...vaultGroupScope,
-        }).catch((err) => console.warn("Group chat vault sync failed", err));
-      });
-    },
-    [user, vaultGroupScope],
-  );
+  const syncSendToVault = useChatVaultDeliverySync({
+    userId: user?.id,
+    scope: vaultGroupScope,
+    surfaceLabel: "Group chat",
+  });
 
   // Send message mutation
   const sendMessageMutation = useMutation({
@@ -1843,7 +1832,7 @@ export default function GroupChatPage() {
       const currentData = queryClient.getQueryData<{ messages: GroupMessage[] }>(groupMessagesQueryKey);
       if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         // Errored request, confirmed delivery: same Vault handling as success.
-        syncSendToVault(variables);
+        syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
         return;
       }
 
@@ -1870,7 +1859,7 @@ export default function GroupChatPage() {
     },
 
     onSuccess: (result, variables) => {
-      if (isConfirmedDelivery(result)) syncSendToVault(variables);
+      if (isConfirmedDelivery(result)) syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
     },
 
     onSettled: (_, __, variables) => {
