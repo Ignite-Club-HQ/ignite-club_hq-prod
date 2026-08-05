@@ -20,6 +20,7 @@ import {
   isTombstoned,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
+import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -2178,21 +2179,7 @@ export default function GroupChatPage() {
   });
 
   const handleSend = (imeFlushed = false) => {
-    if (!imeFlushed) {
-      try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
-    }
-    // Flush IME composition before reading composer state (see TeamChatPage).
-    // Re-focus on next tick so the keyboard stays open and the thread does
-    // not jump upward after sending.
-    const ae = document.activeElement as HTMLElement | null;
-    if (!imeFlushed && ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
-      ae.blur();
-      setTimeout(() => {
-        handleSend(true);
-        try { ae.focus({ preventScroll: true } as FocusOptions); } catch { /* noop */ }
-      }, 0);
-      return;
-    }
+    if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
     if ((!message.trim() && !imageUrl && !pendingPollId) || !user) return;
     if (editingMessage) {

@@ -64,6 +64,7 @@ import {
   isTombstoned,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
+import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -1398,24 +1399,7 @@ export default function ClubChatPage() {
   });
 
   const handleSend = (imeFlushed = false) => {
-    if (!imeFlushed) {
-      try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
-    }
-    // Flush any in-flight IME composition (Gboard swipe-type / iOS QuickType)
-    // BEFORE reading message state. Without this, a tap on Send mid-word
-    // sends the partial/garbled composing fragment ("wothpur" → "without").
-    // We re-focus the same element on the next tick so the on-screen keyboard
-    // never actually dismisses — otherwise the viewport grows and the whole
-    // thread visibly jumps up after each send.
-    const ae = document.activeElement as HTMLElement | null;
-    if (!imeFlushed && ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
-      ae.blur();
-      setTimeout(() => {
-        handleSend(true);
-        try { ae.focus({ preventScroll: true } as FocusOptions); } catch { /* noop */ }
-      }, 0);
-      return;
-    }
+    if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
     if (!message.trim() && !imageUrl && !pendingPollId) return;
     if (!user?.id || !clubId) return;

@@ -350,6 +350,11 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   Club Admin and Broadcast. Each surface retains its exact scope key, cache
   seeding, query dependencies and Realtime channel teardown; only the repeated
   reconciliation-registry cleanup effect is shared.
+- M5a begins composer extraction with the identical native IME submission
+  boundary shared by Team, Club, Group, Direct and Club Admin. It preserves the
+  `chat:message-sent` event, blur-before-read, one-task retry and
+  `preventScroll` refocus behavior that protects Gboard/iOS composition and
+  viewport stability. Broadcast retains its distinct non-IME send path.
 
 ## Objective
 
