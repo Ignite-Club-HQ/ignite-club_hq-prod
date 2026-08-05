@@ -5,6 +5,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
 import { preloadLogo } from "@/components/ui/logo-image";
 import { consumeAuthThemeHint } from "@/lib/authThemeHint";
+import {
+  clearAppliedNotificationClubSwitch,
+  getAppliedNotificationClubSwitch,
+} from "@/lib/notificationClubSwitch";
 
 
 interface HSLColor {
