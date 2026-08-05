@@ -46,15 +46,30 @@ Deno.serve(async (req) => {
     const [{ data: assignments, error: aErr }, { data: guardians, error: gErr }] =
       await Promise.all([
         supabase.from("child_team_assignments").select("child_id").in("child_id", ids),
-        supabase.from("child_guardians").select("child_id").in("child_id", ids),
+        supabase
+          .from("child_guardians")
+          .select("child_id, guardian_id")
+          .in("child_id", ids),
       ]);
     if (aErr) throw aErr;
     if (gErr) throw gErr;
 
+    // The creating parent's own guardian link does not make a child "referenced":
+    // upsert_child_for_guardian always writes one, so counting it would hide
+    // every orphan duplicate created through the RPC path.
+    const parentById = new Map(
+      (candidates ?? []).map((c) => [c.id as string, c.parent_id as string | null]),
+    );
     const referenced = new Set<string>([
       ...(assignments ?? []).map((r) => r.child_id as string),
-      ...(guardians ?? []).map((r) => r.child_id as string),
+      ...(guardians ?? [])
+        .filter((r) => {
+          const parentId = parentById.get(r.child_id as string) ?? null;
+          return parentId === null || r.guardian_id !== parentId;
+        })
+        .map((r) => r.child_id as string),
     ]);
+
 
     const orphans = (candidates ?? []).filter((c) => !referenced.has(c.id));
 
