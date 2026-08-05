@@ -25,6 +25,63 @@ import {
   subscribeNotificationClubSwitch,
 } from "@/lib/notificationClubSwitch";
 
+type MembershipVerdict = "yes" | "no" | "error";
+
+/**
+ * Verifies the user actually belongs to `clubId` before we move the global
+ * filter there.
+ *
+ * `user_roles` alone is NOT sufficient: plenty of legitimate members (parents,
+ * players carried in on a roster) hold only team-scoped rows, or rows whose
+ * `club_id` is null. Rejecting those silently left the app filtered to the old
+ * club while the notification's thread was open — the reported bug. So we also
+ * accept a team membership that resolves to the club, and a club_players row.
+ *
+ * Returns "error" (not "no") when every lookup failed, so the caller can retry
+ * rather than dropping the switch.
+ */
+async function verifyClubMembership(userId: string, clubId: string): Promise<MembershipVerdict> {
+  let sawError = false;
+
+  const roleRes = await supabase
+    .from("user_roles")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("club_id", clubId)
+    .limit(1);
+  if (roleRes.error) sawError = true;
+  else if (roleRes.data && roleRes.data.length > 0) return "yes";
+
+  const teamRes = await supabase
+    .from("team_memberships")
+    .select("id, teams!inner(club_id)")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .eq("teams.club_id", clubId)
+    .limit(1);
+  if (teamRes.error) sawError = true;
+  else if (teamRes.data && teamRes.data.length > 0) return "yes";
+
+  const playerRes = await supabase
+    .from("club_players")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("club_id", clubId)
+    .limit(1);
+  if (playerRes.error) sawError = true;
+  else if (playerRes.data && playerRes.data.length > 0) return "yes";
+
+  if (sawError) {
+    console.warn("[NotificationClubSwitch] membership check incomplete", {
+      roles: roleRes.error?.message,
+      teams: teamRes.error?.message,
+      players: playerRes.error?.message,
+    });
+    return "error";
+  }
+  return "no";
+}
+
 export function useNotificationClubSwitch() {
   const { user } = useAuth();
   const { activeClubTheme, setActiveClubTheme } = useClubTheme();
