@@ -505,6 +505,22 @@ jobs:
             supabase functions deploy "$name" --project-ref "$PROJECT_REF"
           done
 
+      # The bootstrap request is authenticated by a single-use `x-bootstrap-token`
+      # header, NOT a bearer JWT — that is the whole point (the stored key may be
+      # the stale credential we're repairing). If PROD's deployed copy of
+      # `sync-dispatch-credentials` still has platform JWT verification enabled,
+      # the gateway rejects that request with HTTP 401 before the function runs,
+      # and promotion aborts. The step above only deploys *changed* functions, so
+      # a `config.toml` verify_jwt change can never reach PROD on its own. Force
+      # the correct gateway setting here, every promotion, unconditionally.
+      - name: Ensure PROD sync-dispatch-credentials accepts the bootstrap token
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          supabase functions deploy sync-dispatch-credentials \
+            --project-ref "$PROJECT_REF" --no-verify-jwt
+          echo "✅ sync-dispatch-credentials deployed with platform JWT verification off (token auth is enforced inside the function)."
+
       # The Vault copy of the service-role key can drift from the runtime key the
       # Edge Function gateway actually accepts (a stale copy silently 403s every
       # chat notification). Ask the runtime to write its authoritative key back
@@ -523,7 +539,10 @@ jobs:
           DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
           run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
 
-          REQ_ID=$(run_sql -c "select public.bootstrap_dispatch_credentials((select decrypted_secret from vault.decrypted_secrets where name='functions_base_url' limit 1));")
+          # Fall back to the canonical project URL when Vault has no base url yet,
+          # otherwise the function raises 'invalid base url' on a NULL argument.
+          REQ_ID=$(run_sql -c "select public.bootstrap_dispatch_credentials(coalesce((select decrypted_secret from vault.decrypted_secrets where name='functions_base_url' limit 1), 'https://${PROJECT_REF}.supabase.co'));")
+
           if ! printf '%s' "$REQ_ID" | grep -qE '^[0-9]+$'; then
             echo "::error::bootstrap_dispatch_credentials did not return a pg_net request id — cannot verify the notification credential refresh."
             exit 1
