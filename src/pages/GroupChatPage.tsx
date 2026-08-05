@@ -18,6 +18,8 @@ import {
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
+import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -1569,9 +1571,7 @@ export default function GroupChatPage() {
             }
             
             // Check for temp message to replace
-            const tempIndex = old.messages.findIndex(
-              m => m.id.startsWith('temp-') && m.author_id === newMsg.author_id
-            );
+            const tempIndex = findSupersededOptimisticIndex(old.messages, newMsg);
             
             const messageToAdd: GroupMessage = {
               ...newMsg,
@@ -1722,6 +1722,37 @@ export default function GroupChatPage() {
   }, [groupId, queryClient, groupRealtimeMode, user?.id, reconcileScope, applyGroupReaction, applyGroupReactionDelete]);
 
 
+  // Vault mirroring runs ONLY for confirmed-delivered messages, preserving the
+  // group's exact folder scope (restricted roles included).
+  const vaultGroupScope = useMemo(
+    () =>
+      group?.club_id
+        ? {
+            clubId: group.club_id as string,
+            teamId: (group.team_id as string | null) ?? null,
+            chatGroupId: group.id as string,
+            chatGroupName: group.name as string,
+            chatGroupAllowedRoles: (group.allowed_roles as string[] | null) ?? null,
+          }
+        : null,
+    [group?.club_id, group?.team_id, group?.id, group?.name, group?.allowed_roles],
+  );
+  const syncSendToVault = useCallback(
+    (vars: { text: string; image_url: string | null }) => {
+      if (!user || !vaultGroupScope) return;
+      if (!vars.image_url && !vars.text) return;
+      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
+        syncChatAttachmentToVault({
+          imageUrl: vars.image_url,
+          text: vars.text,
+          userId: user.id,
+          ...vaultGroupScope,
+        }).catch((err) => console.warn("Group chat vault sync failed", err));
+      });
+    },
+    [user, vaultGroupScope],
+  );
+
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async ({ text, image_url, reply_to_id }: { text: string; image_url: string | null; reply_to_id: string | null }) => {
@@ -1737,8 +1768,9 @@ export default function GroupChatPage() {
           imageUrl: image_url,
           replyToId: reply_to_id,
           createdAt: new Date().toISOString(),
+          vault: vaultGroupScope,
         });
-        return;
+        return queuedSend();
       }
       
       const { error } = await supabase.from("group_messages").insert({
@@ -1749,15 +1781,20 @@ export default function GroupChatPage() {
         reply_to_id,
       });
       if (error) throw error;
+      return deliveredSend();
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
       await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
 
-      const previousData = queryClient.getQueryData(["group-messages", groupId]);
+      // Mutation-specific temp id so overlapping sends roll back independently.
+      const tempId = createSendTempId();
+      const sentAtMs = Date.now();
+      const previousReplyTo = replyTo;
+      const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
       const optimisticMessage: GroupMessage = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         group_id: groupId!,
         author_id: user!.id,
         text,
@@ -1791,7 +1828,14 @@ export default function GroupChatPage() {
       // re-pins still fire after composer reflow shrinks bottomPadding.
       virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
-      return { previousData };
+      return {
+        tempId,
+        sentText: unsentText,
+        sentImageUrl: image_url ?? null,
+        previousReplyTarget: previousReplyTo,
+        pendingPollId: unsentPollId,
+        sentAtMs,
+      } satisfies FailedSendContext<typeof previousReplyTo>;
     },
     onError: (err, variables, context) => {
       // Don't revert if offline - message is queued
@@ -1799,11 +1843,41 @@ export default function GroupChatPage() {
         toast.info("Message queued - will send when online");
         return;
       }
-      if (context?.previousData) {
-        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+
+      // Succeeded-but-errored: the row already arrived via realtime.
+      const currentData = queryClient.getQueryData<{ messages: GroupMessage[] }>(["group-messages", groupId]);
+      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
+        // Errored request, confirmed delivery: same Vault handling as success.
+        syncSendToVault(variables);
+        return;
       }
+
+      // Remove ONLY this mutation's optimistic row (no snapshot rollback).
+      if (context?.tempId) {
+        queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+          if (!old) return old;
+          const existingMessages: GroupMessage[] = old?.messages || [];
+          return { ...old, messages: existingMessages.filter((m) => m.id !== context.tempId) };
+        });
+        setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
+      }
+
+      restoreFailedSendComposer({
+        context,
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyTo,
+        setPoll: setPendingPollId,
+      });
+
+      console.error("Failed to send group message", err);
       toast.error("Failed to send message");
     },
+
+    onSuccess: (result, variables) => {
+      if (isConfirmedDelivery(result)) syncSendToVault(variables);
+    },
+
     onSettled: (_, __, variables) => {
       // Invalidate messages page preview so latest message shows
       queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages"] });
@@ -1817,21 +1891,6 @@ export default function GroupChatPage() {
             scopeId: groupId,
           }).catch(() => {});
         });
-        // Auto-sync attachments/file links to vault (fire and forget)
-        if (variables?.image_url || variables?.text) {
-          import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-            syncChatAttachmentToVault({
-              imageUrl: variables.image_url,
-              text: variables.text,
-              userId: user.id,
-              clubId: group.club_id!,
-              teamId: group.team_id,
-              chatGroupId: group.id,
-              chatGroupName: group.name,
-              chatGroupAllowedRoles: group.allowed_roles as any,
-            }).catch(() => {});
-          });
-        }
       }
     },
    });

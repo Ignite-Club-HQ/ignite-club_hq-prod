@@ -61,6 +61,7 @@ import {
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -707,9 +708,7 @@ export default function BroadcastChatPage() {
             }
             
             // Check for temp message to replace
-            const tempIndex = existingMessages.findIndex(
-              m => m.id.startsWith('temp-') && m.author_id === newMsg.author_id
-            );
+            const tempIndex = findSupersededOptimisticIndex(existingMessages, newMsg);
             
             if (tempIndex !== -1) {
               // Replace temp message with real one
@@ -865,10 +864,15 @@ export default function BroadcastChatPage() {
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       await queryClient.cancelQueries({ queryKey: ["broadcast-messages"] });
-      const previousData = queryClient.getQueryData(["broadcast-messages"]);
+
+      // Mutation-specific temp id so overlapping sends roll back independently.
+      const tempId = createSendTempId();
+      const sentAtMs = Date.now();
+      const previousReplyingTo = replyingTo;
+      const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
       const optimisticMessage: Message = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         author_id: user!.id,
         text,
         image_url,
@@ -897,7 +901,14 @@ export default function BroadcastChatPage() {
       // re-pins still fire after composer reflow shrinks bottomPadding.
       virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
-      return { previousData };
+      return {
+        tempId,
+        sentText: unsentText,
+        sentImageUrl: image_url ?? null,
+        previousReplyTarget: previousReplyingTo,
+        pendingPollId: unsentPollId,
+        sentAtMs,
+      } satisfies FailedSendContext<typeof previousReplyingTo>;
     },
     onError: (err, variables, context) => {
       // Don't revert if offline - message is queued
@@ -905,14 +916,38 @@ export default function BroadcastChatPage() {
         toast({ title: "Message queued - will send when online" });
         return;
       }
-      if (context?.previousData) {
-        queryClient.setQueryData(["broadcast-messages"], context.previousData);
+
+      // Succeeded-but-errored: the row already arrived via realtime.
+      const currentData = queryClient.getQueryData<{ messages: Message[] }>(["broadcast-messages"]);
+      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
+        return;
       }
+
+      // Remove ONLY this mutation's optimistic row (no snapshot rollback).
+      if (context?.tempId) {
+        queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+          if (!old) return old;
+          const existingMessages: Message[] = old?.messages || [];
+          return { ...old, messages: existingMessages.filter((m) => m.id !== context.tempId) };
+        });
+        setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
+      }
+
+      restoreFailedSendComposer({
+        context,
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyingTo,
+        setPoll: setPendingPollId,
+      });
+
+      console.error("Failed to send broadcast message", err);
       toast({
         title: "Failed to send message",
         variant: "destructive",
       });
     },
+
     onSettled: () => {
       // Don't invalidate here; realtime will sync messages
     },

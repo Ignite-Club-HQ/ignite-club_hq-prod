@@ -62,6 +62,8 @@ import {
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
+import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
 
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -1073,9 +1075,7 @@ export default function ClubChatPage() {
             }
             
             // Check for temp message to replace
-            const tempIndex = existingMessages.findIndex(
-              m => m.id.startsWith('temp-') && m.author_id === newMsg.author_id
-            );
+            const tempIndex = findSupersededOptimisticIndex(existingMessages, newMsg);
             
             const messageToAdd: Message = {
               ...newMsg,
@@ -1266,6 +1266,23 @@ export default function ClubChatPage() {
     return format(parseISO(dateStr), "MMM d, h:mm a");
   }, []);
 
+  // Vault mirroring runs ONLY for confirmed-delivered messages.
+  const syncSendToVault = useCallback(
+    (vars: { text: string; image_url: string | null }) => {
+      if (!user || !clubId) return;
+      if (!vars.image_url && !vars.text) return;
+      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
+        syncChatAttachmentToVault({
+          imageUrl: vars.image_url,
+          text: vars.text,
+          userId: user.id,
+          clubId,
+        }).catch((err) => console.warn("Club chat vault sync failed", err));
+      });
+    },
+    [user, clubId],
+  );
+
   const sendMutation = useMutation({
     mutationFn: async ({ text, image_url, reply_to_id }: { text: string; image_url: string | null; reply_to_id: string | null }) => {
       // If offline, queue the message
@@ -1278,8 +1295,9 @@ export default function ClubChatPage() {
           imageUrl: image_url,
           replyToId: reply_to_id,
           createdAt: new Date().toISOString(),
+          vault: clubId ? { clubId } : null,
         });
-        return;
+        return queuedSend();
       }
       
       const { error } = await supabase.from("club_messages").insert({
@@ -1290,15 +1308,20 @@ export default function ClubChatPage() {
         reply_to_id,
       });
       if (error) throw error;
+      return deliveredSend();
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
       await queryClient.cancelQueries({ queryKey: ["club-messages", clubId] });
 
-      const previousData = queryClient.getQueryData(["club-messages", clubId]);
+      // Mutation-specific temp id so overlapping sends roll back independently.
+      const tempId = createSendTempId();
+      const sentAtMs = Date.now();
+      const previousReplyingTo = replyingTo;
+      const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
       const optimisticMessage: Message = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         club_id: clubId!,
         author_id: user!.id,
         text,
@@ -1332,7 +1355,14 @@ export default function ClubChatPage() {
       // re-pins still fire after composer reflow shrinks bottomPadding.
       virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
-      return { previousData };
+      return {
+        tempId,
+        sentText: unsentText,
+        sentImageUrl: image_url ?? null,
+        previousReplyTarget: previousReplyingTo,
+        pendingPollId: unsentPollId,
+        sentAtMs,
+      } satisfies FailedSendContext<typeof previousReplyingTo>;
     },
     onError: (err, variables, context) => {
       // Don't revert if offline - message is queued
@@ -1340,14 +1370,45 @@ export default function ClubChatPage() {
         toast({ title: "Message queued - will send when online" });
         return;
       }
-      if (context?.previousData) {
-        queryClient.setQueryData(["club-messages", clubId], context.previousData);
+
+      // Succeeded-but-errored: the row already arrived via realtime.
+      const currentData = queryClient.getQueryData<{ messages: Message[] }>(["club-messages", clubId]);
+      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
+        // Errored request, confirmed delivery: same Vault handling as success.
+        syncSendToVault(variables);
+        return;
       }
+
+      // Remove ONLY this mutation's optimistic row — never a whole-cache
+      // snapshot rollback, which would discard concurrent/realtime messages.
+      if (context?.tempId) {
+        queryClient.setQueryData(["club-messages", clubId], (old: any) => {
+          if (!old) return old;
+          const existingMessages: Message[] = old?.messages || [];
+          return { ...old, messages: existingMessages.filter((m) => m.id !== context.tempId) };
+        });
+        setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
+      }
+
+      restoreFailedSendComposer({
+        context,
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyingTo,
+        setPoll: setPendingPollId,
+      });
+
+      console.error("Failed to send club message", err);
       toast({
         title: "Failed to send message",
         variant: "destructive",
       });
     },
+
+    onSuccess: (result, variables) => {
+      if (isConfirmedDelivery(result)) syncSendToVault(variables);
+    },
+
     onSettled: (_, __, variables) => {
       // Don't invalidate here; realtime will sync messages
       // Award engagement points (fire and forget)
@@ -1360,17 +1421,6 @@ export default function ClubChatPage() {
             scopeId: clubId,
           }).catch(() => {});
         });
-        // Auto-sync attachments/file links to vault (fire and forget)
-        if (variables?.image_url || variables?.text) {
-          import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-            syncChatAttachmentToVault({
-              imageUrl: variables.image_url,
-              text: variables.text,
-              userId: user.id,
-              clubId: clubId,
-            }).catch(() => {});
-          });
-        }
       }
     },
    });

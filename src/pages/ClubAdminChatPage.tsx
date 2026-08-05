@@ -56,6 +56,8 @@ import {
   removeMessage,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
+import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -722,6 +724,26 @@ export default function ClubAdminChatPage() {
     try { await handleRefresh(); } finally { setIsManualRefreshing(false); }
   }, [handleRefresh]);
 
+  // Vault mirroring runs ONLY for confirmed-delivered messages, always into the
+  // club-admin-restricted folder.
+  const clubIdForVault = conversation?.club_id ?? null;
+  const syncSendToVault = useCallback(
+    (vars: { text: string; imageUrl: string | null }) => {
+      if (!user || !clubIdForVault) return;
+      if (!vars.imageUrl && !vars.text) return;
+      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
+        syncChatAttachmentToVault({
+          imageUrl: vars.imageUrl ?? null,
+          text: vars.text,
+          userId: user.id,
+          clubId: clubIdForVault,
+          isClubAdminChat: true,
+        }).catch((err) => console.warn("Club admin chat vault sync failed", err));
+      });
+    },
+    [user, clubIdForVault],
+  );
+
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async ({ text, imageUrl, replyToId }: { text: string; imageUrl: string | null; replyToId?: string | null }) => {
@@ -735,6 +757,7 @@ export default function ClubAdminChatPage() {
           imageUrl: imageUrl ?? null,
           replyToId: replyToId || null,
           createdAt: new Date().toISOString(),
+          vault: clubIdForVault ? { clubId: clubIdForVault, isClubAdminChat: true } : null,
         });
         return {
           id: queued.id,
@@ -745,6 +768,7 @@ export default function ClubAdminChatPage() {
           reply_to_id: replyToId || null,
           created_at: queued.createdAt,
           __queued: true,
+          ...queuedSend(),
         } as any;
       }
       const { data, error } = await supabase
@@ -759,11 +783,17 @@ export default function ClubAdminChatPage() {
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return { ...data, ...deliveredSend() };
     },
     onMutate: async ({ text, imageUrl: optImageUrl, replyToId }) => {
+      // Mutation-specific temp id so overlapping sends roll back independently.
+      const tempId = createSendTempId();
+      const sentAtMs = Date.now();
+      const previousReplyTo = replyTo;
+      const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
       const optimisticMessage: ClubAdminMessage = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
+
         text,
         image_url: optImageUrl ?? null,
         created_at: new Date().toISOString(),
@@ -785,8 +815,19 @@ export default function ClubAdminChatPage() {
       [120, 320, 600].forEach((delay) => {
         setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto", { force: true }), delay);
       });
+
+      return {
+        tempId,
+        sentText: unsentText,
+        sentImageUrl: optImageUrl ?? null,
+        previousReplyTarget: previousReplyTo,
+        pendingPollId: unsentPollId,
+        sentAtMs,
+      } satisfies FailedSendContext<typeof previousReplyTo>;
     },
-    onSuccess: (newMessage) => {
+
+    onSuccess: (newMessage, variables) => {
+      if (isConfirmedDelivery(newMessage)) syncSendToVault(variables);
       const currentReplyTo = replyToRef.current;
       queryClient.setQueryData(
         queryKey,
@@ -802,8 +843,7 @@ export default function ClubAdminChatPage() {
               hasOlderMessages: false,
             };
           }
-          const updatedMessages = oldData.messages
-            .filter((m) => !m.id.startsWith("temp-"))
+          const updatedMessages = dropSupersededOptimisticRow(oldData.messages, newMessage)
             .concat({
               ...newMessage,
               author: { display_name: profileRef.current?.display_name || null, avatar_url: profileRef.current?.avatar_url || null },
@@ -814,26 +854,38 @@ export default function ClubAdminChatPage() {
         }
       );
     },
-    onError: () => {
-      toast.error("Failed to send message. Please try again.");
-      setLocalMessages((prev) => prev?.filter(m => !m.id.startsWith("temp-")) || null);
-    },
-    onSettled: (_data, _err, variables) => {
-      // Auto-sync any file/document links shared in this Club Admin Chat
-      // into a dedicated "Club Admin Chat" vault folder (club admins only).
-      const clubIdForSync = conversation?.club_id;
-      if (user && clubIdForSync && (variables?.text || variables?.imageUrl)) {
-        import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-          syncChatAttachmentToVault({
-            imageUrl: variables.imageUrl ?? null,
-            text: variables.text,
-            userId: user.id,
-            clubId: clubIdForSync,
-            isClubAdminChat: true,
-          }).catch(() => {});
+    onError: (err, variables, context) => {
+      // Offline sends are queued, not failed — leave the optimistic row alone.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+
+      // Succeeded-but-errored: the authoritative row already arrived.
+      if (authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text, imageUrl: variables.imageUrl ?? null, replyToId: variables.replyToId || null, sentAtMs: context?.sentAtMs })) {
+        // Errored request, confirmed delivery: same Vault handling as success.
+        syncSendToVault(variables);
+        return;
+      }
+
+      // Remove ONLY this mutation's optimistic row.
+      if (context?.tempId) {
+        setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
+        queryClient.setQueryData(queryKey, (old: any) => {
+          if (!old) return old;
+          return { ...old, messages: (old.messages || []).filter((m: ClubAdminMessage) => m.id !== context.tempId) };
         });
       }
+
+      restoreFailedSendComposer({
+        context,
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyTo,
+        setPoll: setPendingPollId,
+      });
+
+      console.error("Failed to send club admin message", err);
+      toast.error("Failed to send message. Please try again.");
     },
+
   });
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<ClubAdminMessage>({
@@ -993,7 +1045,7 @@ export default function ClubAdminChatPage() {
             (old: { messages: ClubAdminMessage[]; hasOlderMessages: boolean } | undefined) => {
               if (!old) return old;
               if (old.messages.some(m => m.id === newMsg.id)) return old;
-              const filtered = old.messages.filter(m => !(m.id.startsWith('temp-') && m.author_id === newMsg.author_id));
+              const filtered = dropSupersededOptimisticRow(old.messages, newMsg);
               return {
                 ...old,
                 messages: [...filtered, { ...newMsg, author: null, reactions: [], reply_to: null }].sort(
