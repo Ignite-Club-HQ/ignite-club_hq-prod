@@ -185,6 +185,7 @@ export default function CreateTeamPage() {
       .from("teams")
       .select("id")
       .eq("club_id", clubId!)
+      .is("deleted_at", null)
       .ilike("name", name.trim())
       .maybeSingle();
 
