@@ -35,27 +35,29 @@ export function useNotificationClubSwitch() {
 
     const apply = async (clubId: string) => {
       if (cancelled) return;
-      if (!clubId || clubId === activeClubTheme) {
+      if (!clubId) {
+        consumePendingNotificationClubSwitch();
+        return;
+      }
+      if (clubId === activeClubTheme) {
+        // Already correct — still mark it so the provider's async bootstrap
+        // cannot drag the filter back to a previously stored club.
+        markNotificationClubSwitchApplied(clubId);
         consumePendingNotificationClubSwitch();
         return;
       }
       try {
-        const { data, error } = await supabase
-          .from("user_roles")
-          .select("club_id")
-          .eq("user_id", user.id)
-          .eq("club_id", clubId)
-          .limit(1);
-        if (error) {
+        const verified = await verifyClubMembership(user.id, clubId);
+        if (verified === "error") {
           // Lookup failed (offline / flaky) — keep the request pending so the
           // next drain can retry instead of silently dropping the switch.
-          console.warn("[NotificationClubSwitch] membership check failed", error.message);
           return;
         }
         if (cancelled) return;
         consumePendingNotificationClubSwitch();
-        if (!data || data.length === 0) return; // not a member — never switch
+        if (verified === "no") return; // not a member — never switch
         console.log("[NotificationClubSwitch] switching active club", { from: activeClubTheme, to: clubId });
+        markNotificationClubSwitchApplied(clubId);
         setActiveClubTheme(clubId);
       } catch (err) {
         console.warn("[NotificationClubSwitch] switch failed", err);
