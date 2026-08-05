@@ -438,6 +438,50 @@ export default function ChildrenPage() {
             </ResponsiveDialogFooter>
           </ResponsiveDialogContent>
         </ResponsiveDialog>
+
+        <ResponsiveDialog
+          open={!!ambiguousMatches?.length}
+          onOpenChange={(open) => {
+            if (!open) setAmbiguousMatches(null);
+          }}
+        >
+          <ResponsiveDialogContent>
+            <ResponsiveDialogHeader>
+              <ResponsiveDialogTitle>Is this your child?</ResponsiveDialogTitle>
+            </ResponsiveDialogHeader>
+            <div className="space-y-3 pt-2">
+              <p className="text-sm text-muted-foreground">
+                We found more than one child registered as{" "}
+                <span className="font-medium text-foreground">{newChildName.trim()}</span>. Pick the
+                right one so we can link you as a guardian instead of creating a duplicate.
+              </p>
+              {(ambiguousMatches ?? []).map((match) => (
+                <Button
+                  key={match.child_id}
+                  variant="outline"
+                  className="w-full justify-between"
+                  disabled={linkExistingChild.isPending}
+                  onClick={() => linkExistingChild.mutate(match.child_id)}
+                >
+                  <span>{match.name}</span>
+                  {match.year_of_birth ? (
+                    <Badge variant="secondary">{match.year_of_birth}</Badge>
+                  ) : null}
+                </Button>
+              ))}
+            </div>
+            <ResponsiveDialogFooter className="mt-4">
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => setAmbiguousMatches(null)}
+              >
+                None of these — cancel
+              </Button>
+            </ResponsiveDialogFooter>
+          </ResponsiveDialogContent>
+        </ResponsiveDialog>
+
       </div>
 
       {!children?.length ? (
