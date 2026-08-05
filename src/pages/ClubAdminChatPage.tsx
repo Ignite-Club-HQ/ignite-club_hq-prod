@@ -829,10 +829,36 @@ export default function ClubAdminChatPage() {
         }
       );
     },
-    onError: () => {
+    onError: (err, variables, context) => {
+      // Offline sends are queued, not failed — leave the optimistic row alone.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+
+      // Succeeded-but-errored: the authoritative row already arrived.
+      if (authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text })) {
+        return;
+      }
+
+      // Remove ONLY this mutation's optimistic row.
+      if (context?.tempId) {
+        setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
+        queryClient.setQueryData(queryKey, (old: any) => {
+          if (!old) return old;
+          return { ...old, messages: (old.messages || []).filter((m: ClubAdminMessage) => m.id !== context.tempId) };
+        });
+      }
+
+      restoreFailedSendComposer({
+        context,
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyTo,
+        setPoll: setPendingPollId,
+      });
+
+      console.error("Failed to send club admin message", err);
       toast.error("Failed to send message. Please try again.");
-      setLocalMessages((prev) => prev?.filter(m => !m.id.startsWith("temp-")) || null);
     },
+
     onSettled: (_data, _err, variables) => {
       // Auto-sync any file/document links shared in this Club Admin Chat
       // into a dedicated "Club Admin Chat" vault folder (club admins only).
