@@ -61,15 +61,23 @@ export function LevelAgeCombobox({ value, onChange, className }: LevelAgeCombobo
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-        <Command shouldFilter={false}>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0 max-h-[min(60dvh,var(--radix-popover-content-available-height))] overflow-hidden"
+        align="start"
+        side="bottom"
+        sideOffset={4}
+        collisionPadding={12}
+        avoidCollisions
+      >
+        <Command shouldFilter={false} className="max-h-full">
           <CommandInput
             placeholder="Search or type custom..."
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
-          <CommandList>
+          <CommandList className="max-h-[min(48dvh,320px)] overflow-y-auto overscroll-contain">
             <CommandEmpty>No matches found.</CommandEmpty>
+
             <CommandGroup>
               {showCustomOption && (
                 <CommandItem
