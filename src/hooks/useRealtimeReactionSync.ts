@@ -61,6 +61,9 @@ export function useRealtimeReactionSync<T extends ReactionCarrier>(opts: {
   writeRef.current = write;
   const getLocalMessagesRef = useRef(getLocalMessages);
   getLocalMessagesRef.current = getLocalMessages;
+  const setLocalMessagesRef = useRef(setLocalMessages);
+  setLocalMessagesRef.current = setLocalMessages;
+
   // Whether scope enforcement is active is a structural decision of the caller,
   // not a per-render value; latch it once so it cannot flip callback identity.
   const scopeEnforcedRef = useRef(Boolean(getLocalMessages));
