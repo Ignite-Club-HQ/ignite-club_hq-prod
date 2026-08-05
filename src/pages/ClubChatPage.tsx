@@ -68,6 +68,7 @@ import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -1293,10 +1294,13 @@ export default function ClubChatPage() {
       const currentProfile = profileRef.current;
       await queryClient.cancelQueries({ queryKey: clubMessagesQueryKey });
 
-      const previousData = queryClient.getQueryData(clubMessagesQueryKey);
+      // Mutation-specific temp id so overlapping sends roll back independently.
+      const tempId = createSendTempId();
+      const previousReplyingTo = replyingTo;
+      const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
       const optimisticMessage: Message = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         club_id: clubId!,
         author_id: user!.id,
         text,
@@ -1330,7 +1334,13 @@ export default function ClubChatPage() {
       // re-pins still fire after composer reflow shrinks bottomPadding.
       virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
-      return { previousData };
+      return {
+        tempId,
+        sentText: unsentText,
+        sentImageUrl: image_url ?? null,
+        previousReplyTarget: previousReplyingTo,
+        pendingPollId: unsentPollId,
+      } satisfies FailedSendContext<typeof previousReplyingTo>;
     },
     onError: (err, variables, context) => {
       // Don't revert if offline - message is queued
@@ -1338,14 +1348,38 @@ export default function ClubChatPage() {
         toast({ title: "Message queued - will send when online" });
         return;
       }
-      if (context?.previousData) {
-        queryClient.setQueryData(clubMessagesQueryKey, context.previousData);
+      // Succeeded-but-errored: the row already arrived via realtime.
+      const currentData = queryClient.getQueryData<{ messages: Message[] }>(clubMessagesQueryKey);
+      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text })) {
+        return;
       }
+
+      // Remove ONLY this mutation's optimistic row — never a whole-cache
+      // snapshot rollback, which would discard concurrent/realtime messages.
+      if (context?.tempId) {
+        queryClient.setQueryData(clubMessagesQueryKey, (old: any) => {
+          if (!old) return old;
+          const existingMessages: Message[] = old?.messages || [];
+          return { ...old, messages: existingMessages.filter((m) => m.id !== context.tempId) };
+        });
+        setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
+      }
+
+      restoreFailedSendComposer({
+        context,
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyingTo,
+        setPoll: setPendingPollId,
+      });
+
+      console.error("Failed to send club message", err);
       toast({
         title: "Failed to send message",
         variant: "destructive",
       });
     },
+
     onSettled: (_, __, variables) => {
       // Don't invalidate here; realtime will sync messages
       // Award engagement points (fire and forget)
@@ -1747,7 +1781,7 @@ export default function ClubChatPage() {
                       reactions={msg.reactions}
                       currentUserId={user?.id}
                       messageType="club"
-                      queryKey={queryKeyMemo}
+                      queryKey={clubMessagesQueryKey}
                       replyToMessage={
                         msg.reply_to
                           ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }

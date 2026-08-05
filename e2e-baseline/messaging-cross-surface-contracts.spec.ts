@@ -25,6 +25,7 @@ function json(route: Route, body: unknown, status = 200) {
 async function install(page: Page, options: {
   appAdmin?: boolean;
   insertFailure?: boolean;
+  insertFailureDelayMs?: number;
   canDm?: boolean;
   clubAdminPreviewMessage?: boolean;
   clubAdminThreadDelayMs?: number;
@@ -127,6 +128,9 @@ async function install(page: Page, options: {
     if (surfaces.some(surface => surface.table === table) || table === "team_messages" || table === "broadcast_messages") {
       if (request.method() === "POST") {
         inserts.push({ table, body: (request.postDataJSON() ?? {}) as Record<string, unknown> });
+        if (options.insertFailureDelayMs) {
+          await new Promise(resolve => setTimeout(resolve, options.insertFailureDelayMs));
+        }
         if (options.insertFailure) return json(route, { code: "42501", message: "synthetic insert denied" }, 403);
         return json(route, [], 201);
       }
@@ -377,6 +381,40 @@ for (const surface of surfaces) {
     });
   });
 }
+
+for (const surface of [
+  { name: "team", path: `/messages/${teamId}`, table: "team_messages" },
+  ...surfaces.map(({ name, path, table }) => ({ name, path, table })),
+  { name: "broadcast", path: "/messages/broadcast", table: "broadcast_messages" },
+]) {
+  test(`${surface.name} chat restores an unsent draft after an online insert failure`, async ({ page }) => {
+    const { inserts } = await install(page, { insertFailure: true, appAdmin: true });
+    await page.goto(surface.path);
+    const composer = page.getByRole("textbox", { name: "Type a message..." });
+    const draft = `Retryable ${surface.name} draft`;
+    await expect(composer).toBeVisible({ timeout: 15_000 });
+    await composer.fill(draft);
+    await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+
+    await expect.poll(() => inserts.filter(row => row.table === surface.table).length).toBe(1);
+    await expect(page.getByText(/Failed to send message/, { exact: false }).first()).toBeVisible();
+    await expect(composer).toHaveValue(draft);
+  });
+}
+
+test("a delayed failed send never overwrites a newer club-chat draft", async ({ page }) => {
+  const { inserts } = await install(page, { insertFailure: true, insertFailureDelayMs: 500 });
+  await page.goto(`/messages/club/${clubId}`);
+  const composer = page.getByRole("textbox", { name: "Type a message..." });
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+  await composer.fill("Original failed draft");
+  await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+  await composer.fill("New draft typed while sending");
+
+  await expect.poll(() => inserts.filter(row => row.table === "club_messages").length).toBe(1);
+  await expect(page.getByText("Failed to send message", { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue("New draft typed while sending");
+});
 
 for (const viewport of [
   { name: "desktop", width: 1280, height: 800 },

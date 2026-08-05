@@ -26,8 +26,8 @@ describe("chat scheduling intent consumption", () => {
   });
 
   it("retains failed Team attachment restoration locally", () => {
-    expect(page("TeamChatPage.tsx")).toContain(
-      "setImageUrl((current) => current ?? context.sentImageUrl!)",
-    );
+    const source = page("TeamChatPage.tsx");
+    expect(source).toContain("restoreFailedSendComposer({");
+    expect(source).toContain("setImage: setImageUrl");
   });
 });
