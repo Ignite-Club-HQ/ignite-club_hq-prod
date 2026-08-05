@@ -900,7 +900,12 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   }, [user?.id, isLoading, isLoadingFromDb, hasCheckedDefault]);
 
   const setActiveClubTheme = (clubId: string | null) => {
-    setActiveClubThemeState(clubId);
+    // Explicit selection (club picker, or an applied notification switch) is
+    // always authoritative: drop any pin so it cannot block this write, then
+    // set state directly rather than through the guarded setter.
+    const pinned = getAppliedNotificationClubSwitch();
+    if (pinned && pinned !== clubId) clearAppliedNotificationClubSwitch();
+    setActiveClubThemeStateRaw(clubId);
     if (user?.id) {
       const key = getStorageKey(user.id);
       const dataKey = getStorageDataKey(user.id);
