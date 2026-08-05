@@ -16,13 +16,17 @@ name: Promote to Prod
 #   SUPABASE_ACCESS_TOKEN          — https://supabase.com/dashboard/account/tokens
 #   SUPABASE_PROD_PROJECT_REF      — yabcfiuntwqjwvschnji
 #   SUPABASE_DB_PASSWORD           — prod DB password (Project Settings → Database)
-#   SUPABASE_PROD_SERVICE_ROLE_KEY — the PROD service-role key, seeded into the
-#                                prod Vault so the push-delivery preflight
-#                                migration passes. REQUIRED and production
-#                                specific: the old generic SUPABASE_SERVICE_ROLE_KEY
-#                                fallback was removed because it could point at a
-#                                non-prod project, and opaque `sb_` keys carry no
+#   SUPABASE_PROD_SERVICE_ROLE_KEY — the PROD service-role key. Only REQUIRED
+#                                when the PROD Vault has no usable
+#                                service_role_key (first setup, or after the
+#                                entry is wiped). When Vault already holds a
+#                                valid key it is left untouched and this secret
+#                                is not needed. Must be production specific: the
+#                                generic SUPABASE_SERVICE_ROLE_KEY fallback was
+#                                removed because it could point at a non-prod
+#                                project, and opaque `sb_` keys carry no
 #                                verifiable project ref for the workflow to check.
+
 
 
 
@@ -296,13 +300,9 @@ jobs:
         run: |
           set -euo pipefail
           KEY="${PROD_SERVICE_ROLE_KEY:-}"
-          if [ -z "$KEY" ]; then
-            echo "::error::Repository secret SUPABASE_PROD_SERVICE_ROLE_KEY is not set. Promotion refuses to modify the PROD Vault without the production-specific service-role key."
-            exit 1
-          fi
           # Best-effort extra guard for legacy JWT keys. Opaque keys skip this;
           # they are never accepted from the generic secret in the first place.
-          if [ "${KEY:0:2}" = "ey" ]; then
+          if [ -n "$KEY" ] && [ "${KEY:0:2}" = "ey" ]; then
             PAYLOAD=$(echo "$KEY" | cut -d. -f2 | tr '_-' '/+')
             while [ $(( ${#PAYLOAD} % 4 )) -ne 0 ]; do PAYLOAD="${PAYLOAD}="; done
             KEY_REF=$(echo "$PAYLOAD" | base64 -d 2>/dev/null | grep -oE '"ref"[[:space:]]*:[[:space:]]*"[^"]+"' | cut -d'"' -f4 || true)
@@ -335,10 +335,14 @@ jobs:
           # NEVER clobber a working PROD Vault key. A hotfix may have written the
           # canonical runtime service-role key directly into Vault; overwriting it
           # with a (possibly stale/rotated) GitHub secret would re-break dispatch.
-          # Seed only when the Vault entry is absent or obviously invalid.
+          # Seed only when the Vault entry is absent or obviously invalid — and
+          # only in that case is SUPABASE_PROD_SERVICE_ROLE_KEY actually required.
           EXISTING_KEY_OK=$(run_sql -c "select coalesce((select 1 from vault.decrypted_secrets where name='service_role_key' and length(decrypted_secret) >= 20 and decrypted_secret !~ '\s' limit 1), 0);")
           if [ "$EXISTING_KEY_OK" = "1" ]; then
             echo "🔒 Existing PROD Vault service_role_key looks valid — leaving it untouched (hotfix-safe)."
+          elif [ -z "$KEY" ]; then
+            echo "::error::PROD Vault has no usable service_role_key and repository secret SUPABASE_PROD_SERVICE_ROLE_KEY is not set. Add the production service-role key (Supabase → Project Settings → API) as that secret, or write it into the PROD Vault directly, then re-run."
+            exit 1
           else
             run_sql -v key="$KEY" <<'SQL' >/dev/null
               select vault.create_secret(:'key', 'service_role_key', 'Service role key for pg_net dispatch')
@@ -350,6 +354,7 @@ jobs:
           SQL
             echo "✅ Vault service_role_key seeded from SUPABASE_PROD_SERVICE_ROLE_KEY (was missing/invalid)."
           fi
+
 
 
           echo "=== Push delivery prerequisite report (no secret values) ==="
@@ -500,6 +505,22 @@ jobs:
             supabase functions deploy "$name" --project-ref "$PROJECT_REF"
           done
 
+      # The bootstrap request is authenticated by a single-use `x-bootstrap-token`
+      # header, NOT a bearer JWT — that is the whole point (the stored key may be
+      # the stale credential we're repairing). If PROD's deployed copy of
+      # `sync-dispatch-credentials` still has platform JWT verification enabled,
+      # the gateway rejects that request with HTTP 401 before the function runs,
+      # and promotion aborts. The step above only deploys *changed* functions, so
+      # a `config.toml` verify_jwt change can never reach PROD on its own. Force
+      # the correct gateway setting here, every promotion, unconditionally.
+      - name: Ensure PROD sync-dispatch-credentials accepts the bootstrap token
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          supabase functions deploy sync-dispatch-credentials \
+            --project-ref "$PROJECT_REF" --no-verify-jwt
+          echo "✅ sync-dispatch-credentials deployed with platform JWT verification off (token auth is enforced inside the function)."
+
       # The Vault copy of the service-role key can drift from the runtime key the
       # Edge Function gateway actually accepts (a stale copy silently 403s every
       # chat notification). Ask the runtime to write its authoritative key back
@@ -518,7 +539,10 @@ jobs:
           DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
           run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
 
-          REQ_ID=$(run_sql -c "select public.bootstrap_dispatch_credentials((select decrypted_secret from vault.decrypted_secrets where name='functions_base_url' limit 1));")
+          # Fall back to the canonical project URL when Vault has no base url yet,
+          # otherwise the function raises 'invalid base url' on a NULL argument.
+          REQ_ID=$(run_sql -c "select public.bootstrap_dispatch_credentials(coalesce((select decrypted_secret from vault.decrypted_secrets where name='functions_base_url' limit 1), 'https://${PROJECT_REF}.supabase.co'));")
+
           if ! printf '%s' "$REQ_ID" | grep -qE '^[0-9]+$'; then
             echo "::error::bootstrap_dispatch_credentials did not return a pg_net request id — cannot verify the notification credential refresh."
             exit 1

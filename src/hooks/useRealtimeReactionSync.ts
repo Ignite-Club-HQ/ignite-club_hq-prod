@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+
 import {
   recordRealtimeReaction,
   recordRealtimeReactionDelete,
@@ -47,20 +48,38 @@ export function useRealtimeReactionSync<T extends ReactionCarrier>(opts: {
   const read = readMessages ?? ((old: any) => (old?.messages || []) as T[]);
   const write = writeMessages ?? ((old: any, next: T[]) => ({ ...(old || {}), messages: next }));
 
+  // Callers commonly pass inline arrow functions (`() => localMessagesRef.current`,
+  // inline `readMessages`/`writeMessages`). Those change identity on EVERY render,
+  // which would churn the returned callbacks and — because chat pages list them in
+  // their realtime effect dependency arrays — tear down and recreate the Postgres
+  // channel on ordinary renders (observed as a chat stuck on its loading spinner
+  // while the same thread request repeats). Latch them into refs so the returned
+  // callbacks are referentially stable while still invoking the latest closures.
+  const readRef = useRef(read);
+  readRef.current = read;
+  const writeRef = useRef(write);
+  writeRef.current = write;
+  const getLocalMessagesRef = useRef(getLocalMessages);
+  getLocalMessagesRef.current = getLocalMessages;
+  const setLocalMessagesRef = useRef(setLocalMessages);
+  setLocalMessagesRef.current = setLocalMessages;
+
+  // Whether scope enforcement is active is a structural decision of the caller,
+  // not a per-render value; latch it once so it cannot flip callback identity.
+  const scopeEnforcedRef = useRef(Boolean(getLocalMessages));
+  if (getLocalMessages) scopeEnforcedRef.current = true;
+
   const mutateStores = useCallback(
     (mutator: (messages: T[]) => T[]) => {
       const key = JSON.parse(keyToken) as unknown[];
       queryClient.setQueryData(key, (old: any) => {
         if (!old) return old;
-        return write(old, mutator(read(old)));
+        return writeRef.current(old, mutator(readRef.current(old)));
       });
-      setLocalMessages((prev) => (prev ? mutator(prev) : prev));
+      setLocalMessagesRef.current((prev) => (prev ? mutator(prev) : prev));
     },
-    // `read`/`write` are recreated each render but are pure by contract; the
-    // identity churn is intentionally excluded so the returned callbacks stay
-    // stable for realtime effect dependency arrays.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [queryClient, keyToken, setLocalMessages],
+    [queryClient, keyToken],
+
   );
 
   const isKnownMessage = useCallback(
@@ -68,18 +87,16 @@ export function useRealtimeReactionSync<T extends ReactionCarrier>(opts: {
       if (!messageId) return false;
       const key = JSON.parse(keyToken) as unknown[];
       const cached = queryClient.getQueryData(key);
-      if (cached && read(cached).some((m) => m.id === messageId)) return true;
-      return Boolean(getLocalMessages?.()?.some((m) => m.id === messageId));
+      if (cached && readRef.current(cached).some((m) => m.id === messageId)) return true;
+      return Boolean(getLocalMessagesRef.current?.()?.some((m) => m.id === messageId));
     },
-    // `read` is pure by contract; excluded to keep this callback stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [queryClient, keyToken, getLocalMessages],
+    [queryClient, keyToken],
   );
 
   const applyRealtimeReaction = useCallback(
     (messageId: string, raw: { id: string; user_id: string; reaction_type: string }) => {
       if (!messageId || !raw?.id) return;
-      if (getLocalMessages && !isKnownMessage(messageId)) return;
+      if (scopeEnforcedRef.current && !isKnownMessage(messageId)) return;
       const reaction: ReconcilableReaction = {
         id: raw.id,
         user_id: raw.user_id,
@@ -88,18 +105,19 @@ export function useRealtimeReactionSync<T extends ReactionCarrier>(opts: {
       recordRealtimeReaction(scopeKey, messageId, reaction);
       mutateStores((messages) => upsertReactionInMessages(messages, messageId, reaction));
     },
-    [scopeKey, mutateStores, getLocalMessages, isKnownMessage],
+    [scopeKey, mutateStores, isKnownMessage],
   );
 
   const applyRealtimeReactionDelete = useCallback(
     (messageId: string | null | undefined, reactionId: string) => {
       if (!reactionId) return;
-      if (getLocalMessages && messageId && !isKnownMessage(messageId)) return;
+      if (scopeEnforcedRef.current && messageId && !isKnownMessage(messageId)) return;
       recordRealtimeReactionDelete(scopeKey, messageId, reactionId);
       mutateStores((messages) => removeReactionFromMessages(messages, reactionId));
     },
-    [scopeKey, mutateStores, getLocalMessages, isKnownMessage],
+    [scopeKey, mutateStores, isKnownMessage],
   );
+
 
   return { applyRealtimeReaction, applyRealtimeReactionDelete };
 }
