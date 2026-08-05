@@ -10490,6 +10490,16 @@ export type Database = {
         Returns: undefined
       }
       archive_season: { Args: { _season_id: string }; Returns: undefined }
+      audit_orphan_children: {
+        Args: never
+        Returns: {
+          child_id: string
+          created_at: string
+          name: string
+          parent_id: string
+          year_of_birth: number
+        }[]
+      }
       authorize_storage_objects: {
         Args: { _items: Json; _user_id: string }
         Returns: {
@@ -12332,6 +12342,16 @@ export type Database = {
       update_user_activity_duration: {
         Args: { _activity_log_id: string; _duration_seconds: number }
         Returns: undefined
+      }
+      upsert_child_for_guardian: {
+        Args: {
+          p_club_id?: string
+          p_guardian_user_id?: string
+          p_name: string
+          p_relationship?: string
+          p_year_of_birth?: number
+        }
+        Returns: Json
       }
       user_email_matches_invite: {
         Args: { _invited_email: string; _user_id: string }
