@@ -32,7 +32,11 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned: resolving "latest" calls the unauthenticated GitHub
+          # releases API and fails with "rate limit exceeded" on busy runners.
+          version: 2.34.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify required secrets are present
         run: |
