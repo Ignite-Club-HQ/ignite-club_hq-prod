@@ -334,9 +334,34 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   };
 
   // Use lazy initialization to read from localStorage synchronously
-  const [activeClubTheme, setActiveClubThemeState] = useState<string | null>(() => {
+  const [activeClubTheme, setActiveClubThemeStateRaw] = useState<string | null>(() => {
+    const pinned = getAppliedNotificationClubSwitch();
+    if (pinned) return pinned;
     return getInitialThemeState().themeId;
   });
+
+  /**
+   * Guarded state setter.
+   *
+   * This provider re-asserts `activeClubTheme` from localStorage / the profile
+   * row in several async bootstrap paths (fresh-login restore, the layout-effect
+   * sync, the DB load, the CSS effect's fallback). On a notification tap for a
+   * DIFFERENT club those late writes raced the switch and dragged the filter
+   * back to the previously selected club — the app ended up showing a
+   * Bridgewater thread while filtered to Basket Range.
+   *
+   * While a notification-driven switch is pinned (short TTL), no bootstrap path
+   * may point the filter anywhere else. Explicit user selection via
+   * `setActiveClubTheme` clears the pin first, so the club picker is unaffected.
+   */
+  const setActiveClubThemeState = (next: string | null) => {
+    const pinned = getAppliedNotificationClubSwitch();
+    if (pinned && next !== pinned) {
+      console.log('[ClubTheme] ignoring bootstrap club write while notification switch is pinned', { next, pinned });
+      return;
+    }
+    setActiveClubThemeStateRaw(next);
+  };
   const [cachedThemeData, setCachedThemeData] = useState<ClubTheme | null>(() => {
     return getInitialThemeState().themeData;
   });
