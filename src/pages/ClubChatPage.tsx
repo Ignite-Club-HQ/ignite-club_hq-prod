@@ -619,6 +619,8 @@ export default function ClubChatPage() {
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
+    // Scope guard: message_reactions realtime events are unfiltered platform-wide.
+    getLocalMessages: () => localMessagesRef.current,
     queryKey: clubMessagesQueryKey,
     setLocalMessages,
   });

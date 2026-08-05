@@ -187,10 +187,27 @@ export default function ChildrenPage() {
   // Add child mutation
   const addChild = useMutation({
     mutationFn: async () => {
+      const trimmedName = newChildName.trim();
+      const parsedYear = newChildYear ? parseInt(newChildYear) : null;
+
+      // Guard against the same parent creating the same child twice. The server
+      // enforces this too, but catching it here gives a clear message instead of
+      // a generic failure.
+      const duplicate = children.find(
+        (c) =>
+          c.name?.toLowerCase().trim() === trimmedName.toLowerCase() &&
+          (c.year_of_birth == null ||
+            parsedYear == null ||
+            c.year_of_birth === parsedYear)
+      );
+      if (duplicate) {
+        throw new Error("duplicate_child_for_parent");
+      }
+
       const { error } = await supabase.from("children").insert({
         parent_id: user!.id,
-        name: newChildName.trim(),
-        year_of_birth: newChildYear ? parseInt(newChildYear) : null,
+        name: trimmedName,
+        year_of_birth: parsedYear,
       });
       if (error) throw error;
     },
@@ -201,10 +218,20 @@ export default function ChildrenPage() {
       setNewChildYear("");
       toast({ title: "Child added successfully" });
     },
-    onError: () => {
-      toast({ title: "Failed to add child", variant: "destructive" });
+    onError: (error: any) => {
+      const isDuplicate =
+        typeof error?.message === "string" &&
+        error.message.includes("duplicate_child_for_parent");
+      toast({
+        title: isDuplicate ? "Child already added" : "Failed to add child",
+        description: isDuplicate
+          ? `${newChildName.trim()} is already in your children list. Add a birth year if this is a different child with the same name.`
+          : undefined,
+        variant: "destructive",
+      });
     },
   });
+
 
   // Delete child mutation
   const deleteChild = useMutation({

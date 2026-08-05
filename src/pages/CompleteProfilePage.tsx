@@ -22,6 +22,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { resolveCanonicalChildId, createChildForParentOrReuse } from "@/lib/childDedup";
+
 
 interface PendingInvite {
   id: string;
@@ -565,15 +567,13 @@ export default function CompleteProfilePage() {
                     }
 
                     // No existing child — create new
-                    const { data: newChild, error: childError } = await supabase
-                      .from("children")
-                      .insert({
-                        parent_id: user.id,
-                        name: childData.name,
-                        year_of_birth: childData.yearOfBirth,
-                      })
-                      .select("id")
-                      .single();
+                    const { childId: createdChildId, error: childError } =
+                      await createChildForParentOrReuse(
+                        user.id,
+                        childData.name,
+                        childData.yearOfBirth ?? null
+                      );
+                    const newChild = createdChildId ? { id: createdChildId } : null;
                     
                     if (childError) {
                       console.error("[CompleteProfile] Failed to create child:", childError.message);
@@ -698,55 +698,83 @@ export default function CompleteProfilePage() {
                 
                 if (existingChild) {
                   console.log("[CompleteProfile] Child already exists:", childData.name);
+                  // The server dedupes same-name children on a team and may
+                  // merge (and delete) this row during the roster insert, so the
+                  // id must be re-resolved before any chained write. Errors are
+                  // checked so a child is never silently dropped off the roster.
+                  let existingEffectiveChildId: string | undefined = existingChild.id;
                   if (invite.team_id) {
-                    await supabase
+                    const { error: assignError } = await supabase
                       .from("child_team_assignments")
-                      .insert({ child_id: existingChild.id, team_id: invite.team_id })
-                      .select();
+                      .insert({ child_id: existingChild.id, team_id: invite.team_id });
+                    if (assignError && assignError.code !== "23505") {
+                      console.error(
+                        "[CompleteProfile] Failed to assign existing child to team:",
+                        assignError.message
+                      );
+                    }
+                    existingEffectiveChildId =
+                      (await resolveCanonicalChildId(
+                        existingChild.id,
+                        invite.team_id,
+                        childData.name
+                      )) ?? undefined;
                   }
-                  if (invite.metadata?.mini_league_id) {
-                    await supabase
+                  if (existingEffectiveChildId && invite.metadata?.mini_league_id) {
+                    const { error: leagueError } = await supabase
                       .from("child_mini_league_assignments")
-                      .insert({ 
-                        child_id: existingChild.id, 
+                      .insert({
+                        child_id: existingEffectiveChildId,
                         mini_league_id: invite.metadata.mini_league_id,
-                        ability_rating: 3 
-                      })
-                      .select();
+                        ability_rating: 3,
+                      });
+                    if (leagueError && leagueError.code !== "23505") {
+                      console.error(
+                        "[CompleteProfile] Failed to assign existing child to mini league:",
+                        leagueError.message
+                      );
+                    }
                   }
                   continue;
                 }
                 
-                const { data: newChild, error: childError } = await supabase
-                  .from("children")
-                  .insert({
-                    parent_id: user.id,
-                    name: childData.name,
-                    year_of_birth: childData.yearOfBirth,
-                  })
-                  .select("id")
-                  .single();
+                const { childId: createdChildId, error: childError } =
+                  await createChildForParentOrReuse(
+                    user.id,
+                    childData.name,
+                    childData.yearOfBirth ?? null
+                  );
+                const newChild = createdChildId ? { id: createdChildId } : null;
                 
                 if (childError) {
                   console.error("[CompleteProfile] Failed to create child:", childError.message);
                   continue;
                 }
                 
-                if (newChild?.id && invite.team_id) {
+                let effectiveChildId = newChild?.id as string | undefined;
+
+                if (effectiveChildId && invite.team_id) {
                   await supabase
                     .from("child_team_assignments")
                     .insert({
-                      child_id: newChild.id,
+                      child_id: effectiveChildId,
                       team_id: invite.team_id,
                     });
+                  // Server may have merged this child into an existing roster child
+                  effectiveChildId =
+                    (await resolveCanonicalChildId(
+                      effectiveChildId,
+                      invite.team_id,
+                      childData.name
+                    )) ?? undefined;
                   console.log("[CompleteProfile] Child created and assigned to team:", childData.name);
                 }
                 
-                if (newChild?.id && invite.metadata?.mini_league_id) {
+                if (effectiveChildId && invite.metadata?.mini_league_id) {
                   await supabase
                     .from("child_mini_league_assignments")
                     .insert({
-                      child_id: newChild.id,
+                      child_id: effectiveChildId,
                       mini_league_id: invite.metadata.mini_league_id,
                       ability_rating: 3,
                     });
@@ -754,10 +782,11 @@ export default function CompleteProfilePage() {
                   if (invite.metadata.player_id) {
                     await supabase
                       .from("mini_league_players")
-                      .update({ parent_user_id: user.id, child_id: newChild.id })
+                      .update({ parent_user_id: user.id, child_id: effectiveChildId })
                       .eq("id", invite.metadata.player_id);
                   }
                   console.log("[CompleteProfile] Child created and assigned to mini league:", childData.name);
+
                 }
               }
             }

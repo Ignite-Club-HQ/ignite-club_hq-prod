@@ -665,6 +665,8 @@ export default function DirectMessagePage() {
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<DirectMessage>({
     scopeKey: reconcileScope,
+    // Scope guard: message_reactions realtime events are unfiltered platform-wide.
+    getLocalMessages: () => localMessagesRef.current,
     queryKey: dmQueryKey,
     setLocalMessages,
   });

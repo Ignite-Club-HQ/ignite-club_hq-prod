@@ -1,0 +1,2 @@
+DROP FUNCTION IF EXISTS public.create_child_for_parent_on_team(p_parent_user_id uuid, p_name text, p_team_id uuid, p_year_of_birth integer);
+DROP FUNCTION IF EXISTS public.admin_link_child_to_parent(p_child_name text, p_existing_child_id uuid, p_parent_user_id uuid, p_team_id uuid, p_club_id uuid, p_pending_invite_ids uuid[]);

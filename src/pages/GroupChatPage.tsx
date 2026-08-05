@@ -793,12 +793,32 @@ export default function GroupChatPage() {
   // the group-specific flat reactions array.
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<GroupMessage>({
     scopeKey: reconcileScope,
+    // Scope guard: message_reactions realtime events are unfiltered platform-wide.
+    getLocalMessages: () => localMessagesRef.current,
     queryKey: groupMessagesQueryKey,
     setLocalMessages,
   });
+  // The message_reactions realtime subscription cannot be filtered by group in
+  // Postgres changes (no IN-list support), so EVERY reaction in the platform
+  // reaches these handlers. Scope must be enforced here: a reaction is only
+  // ours when its parent message is loaded in THIS group's stores. Without this
+  // gate the flat `reactions` array grows unboundedly with other groups' rows.
+  const reactionBelongsToThisGroup = useCallback(
+    (groupMessageId: string | null | undefined) => {
+      if (!groupMessageId) return false;
+      const cached = queryClient.getQueryData<{ messages?: GroupMessage[] }>([
+        "group-messages",
+        groupId,
+      ]);
+      if (cached?.messages?.some((m) => m.id === groupMessageId)) return true;
+      return Boolean(localMessagesRef.current?.some((m) => m.id === groupMessageId));
+    },
+    [queryClient, groupId],
+  );
   const applyGroupReaction = useCallback(
     (reaction: any) => {
       if (!reaction?.id || !reaction.group_message_id) return;
+      if (!reactionBelongsToThisGroup(reaction.group_message_id)) return;
       applyRealtimeReaction(reaction.group_message_id, reaction);
       queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
         if (!old) return old;

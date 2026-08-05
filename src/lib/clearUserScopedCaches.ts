@@ -46,6 +46,24 @@ import { clearAllFromNotificationFlags } from "./notificationPreload";
 
 const IGNITE_PREFIX = "ignite_";
 
+// Historical hyphenated namespace. Pitch-board state, club theme data, EOI
+// drafts, schedule and photo scaffolding all use `ignite-` (hyphen), which the
+// underscore sweep silently missed — on a shared device the next user could be
+// force-navigated into the previous coach's pitch board (open flag + open path
+// survived) and hydrate their lineup/live clock. Swept as user-scoped data.
+const LEGACY_LOCAL_PREFIXES = [
+  "ignite-",
+  // Pitch board timer state: `pitch-board-timer-state` and the per-team
+  // variants. Carry lineup/clock state for one coach's team.
+  "pitch-board-timer-state",
+  // Which notification opened the board for the previous user.
+  "pitch-board-open-source",
+  // Per-user dismissal of the live-game widget.
+  "pitch-widget-dismissed",
+  // Inbox scaffolding for the previous user (all versions of the key).
+  "messages-page-cache",
+];
+
 // Auth / session / device-identity keys that MUST survive a user switch.
 // Anything else under the `ignite_` prefix (in either storage) is treated
 // as user-scoped data.
@@ -74,6 +92,7 @@ const EXPLICIT_SESSION_KEYS = [
 function sweepStorage(
   storage: Storage | undefined | null,
   preserve: Set<string>,
+  extraPrefixes: string[] = [],
 ): void {
   if (!storage) return;
   try {
@@ -81,7 +100,10 @@ function sweepStorage(
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i);
       if (!key) continue;
-      if (!key.startsWith(IGNITE_PREFIX)) continue;
+      const matches =
+        key.startsWith(IGNITE_PREFIX) ||
+        extraPrefixes.some((prefix) => key.startsWith(prefix));
+      if (!matches) continue;
       if (preserve.has(key)) continue;
       toRemove.push(key);
     }
@@ -122,6 +144,7 @@ export function clearUserScopedCaches(): void {
   sweepStorage(
     typeof localStorage !== "undefined" ? localStorage : null,
     PRESERVE_LOCAL_KEYS,
+    LEGACY_LOCAL_PREFIXES,
   );
 
   // 4. Sweep namespaced sessionStorage entries — same rule as localStorage.

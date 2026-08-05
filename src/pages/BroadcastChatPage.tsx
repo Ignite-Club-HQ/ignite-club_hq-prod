@@ -397,6 +397,8 @@ export default function BroadcastChatPage() {
   const reactionQueryKey = useMemo(() => BROADCAST_MESSAGES_QUERY_KEY, []);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
+    // Scope guard: message_reactions realtime events are unfiltered platform-wide.
+    getLocalMessages: () => localMessagesRef.current,
     queryKey: reactionQueryKey,
     setLocalMessages,
   });
