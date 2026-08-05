@@ -763,8 +763,13 @@ export default function ClubAdminChatPage() {
       return data;
     },
     onMutate: async ({ text, imageUrl: optImageUrl, replyToId }) => {
+      // Mutation-specific temp id so overlapping sends roll back independently.
+      const tempId = createSendTempId();
+      const previousReplyTo = replyTo;
+      const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
       const optimisticMessage: ClubAdminMessage = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
+
         text,
         image_url: optImageUrl ?? null,
         created_at: new Date().toISOString(),
