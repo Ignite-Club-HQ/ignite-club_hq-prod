@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useClubTheme } from "@/hooks/useClubTheme";
+
 
 /**
  * Tap-to-proceed chooser. If the user has zero admin clubs, we auto-route
@@ -16,6 +18,8 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 export default function StartTeamPage() {
   usePageTitle("Start a team");
   const { user } = useAuth();
+  const { activeClubFilter } = useClubTheme();
+
   const { toast } = useToast();
   const navigate = useNavigate();
   const [working, setWorking] = useState(false);
@@ -86,10 +90,17 @@ export default function StartTeamPage() {
     navigate(`/clubs/${clubId}/teams/new`, { replace: true });
   };
 
-  // Auto-skip the chooser when there's only one logical option.
+  // Auto-skip the chooser when there's only one logical option, or when the app
+  // is filtered to a club the user can create teams in.
   useEffect(() => {
     if (isLoading || autoRoutedRef.current) return;
-    if (clubs.length === 0) {
+    const filtered = activeClubFilter
+      ? clubs.find((c: any) => c.id === activeClubFilter)
+      : null;
+    if (filtered) {
+      autoRoutedRef.current = true;
+      goClub(filtered.id);
+    } else if (clubs.length === 0) {
       autoRoutedRef.current = true;
       void goPersonal();
     } else if (clubs.length === 1) {
@@ -97,7 +108,8 @@ export default function StartTeamPage() {
       goClub(clubs[0].id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, clubs.length]);
+  }, [isLoading, clubs.length, activeClubFilter]);
+
 
   // While we're loading or auto-routing, render a calm spinner instead of flashing the chooser.
   if (isLoading || autoRoutedRef.current) {

@@ -1,28 +1,84 @@
 import { describe, expect, it } from "vitest";
 import {
   authoritativeMessageExists,
+  AUTHORITATIVE_MATCH_SKEW_MS,
   createSendTempId,
   restoreFailedSendComposer,
   splitPollMarkup,
   type FailedSendContext,
 } from "./failedSendRestore";
 
+const NOW = 1_760_000_000_000;
+const AUTHOR = "author-1";
+
+function row(over: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: "real-1",
+    author_id: AUTHOR,
+    text: "hello",
+    image_url: null,
+    reply_to_id: null,
+    created_at: new Date(NOW + 500).toISOString(),
+    ...over,
+  } as never;
+}
+
+const base = { authorId: AUTHOR, text: "hello", imageUrl: null, replyToId: null, sentAtMs: NOW };
+
 const stateSetter = <T>(state: { current: T }) =>
   (update: (current: T) => T) => { state.current = update(state.current); };
 
-describe("failed send restoration", () => {
-  it("creates collision-resistant optimistic ids", () => {
+describe("authoritativeMessageExists", () => {
+  it("matches a recent exact payload", () => {
+    expect(authoritativeMessageExists([row()], base)).toBe(true);
+  });
+
+  it("does not match an old same-author, same-text message", () => {
+    const old = row({ created_at: new Date(NOW - 3 * 60 * 60 * 1000).toISOString() });
+    expect(authoritativeMessageExists([old], base)).toBe(false);
+  });
+
+  it("does not match a different author, text, attachment or reply target", () => {
+    expect(authoritativeMessageExists([row({ author_id: "other" })], base)).toBe(false);
+    expect(authoritativeMessageExists([row({ text: "hello there" })], base)).toBe(false);
+    expect(authoritativeMessageExists([row({ image_url: "https://x/y.jpg" })], base)).toBe(false);
+    expect(authoritativeMessageExists([row()], { ...base, imageUrl: "https://x/y.jpg" })).toBe(false);
+    expect(authoritativeMessageExists([row({ reply_to_id: "msg-9" })], base)).toBe(false);
+    expect(authoritativeMessageExists([row()], { ...base, replyToId: "msg-9" })).toBe(false);
+  });
+
+  it("ignores optimistic and queued rows", () => {
+    expect(authoritativeMessageExists([row({ id: "temp-abc" })], base)).toBe(false);
+    expect(authoritativeMessageExists([row({ id: "queued-abc" })], base)).toBe(false);
+  });
+
+  it("tolerates bounded clock skew but rejects older messages", () => {
+    const skewed = row({ created_at: new Date(NOW - (AUTHORITATIVE_MATCH_SKEW_MS - 1000)).toISOString() });
+    expect(authoritativeMessageExists([skewed], base)).toBe(true);
+    const tooEarly = row({ created_at: new Date(NOW - (AUTHORITATIVE_MATCH_SKEW_MS + 5000)).toISOString() });
+    expect(authoritativeMessageExists([tooEarly], base)).toBe(false);
+  });
+
+  it("fails safe on malformed or missing timestamps and empty inputs", () => {
+    expect(authoritativeMessageExists([row({ created_at: "not-a-date" })], base)).toBe(false);
+    expect(authoritativeMessageExists([row({ created_at: null })], base)).toBe(false);
+    expect(authoritativeMessageExists([row()], { ...base, sentAtMs: undefined })).toBe(false);
+    expect(authoritativeMessageExists([row()], { ...base, sentAtMs: NaN })).toBe(false);
+    expect(authoritativeMessageExists([], base)).toBe(false);
+    expect(authoritativeMessageExists(null, base)).toBe(false);
+  });
+});
+
+describe("failed send composer restoration", () => {
+  it("creates unique optimistic ids and separates poll markup", () => {
     const ids = new Set(Array.from({ length: 50 }, () => createSendTempId()));
     expect(ids.size).toBe(50);
     expect([...ids].every((id) => id.startsWith("temp-"))).toBe(true);
-  });
-
-  it("separates a poll chip from its caption for user-friendly restoration", () => {
     expect(splitPollMarkup("Training update [poll:poll-123]")).toEqual({
       baseText: "Training update",
       pollId: "poll-123",
     });
-    expect(splitPollMarkup("[poll:poll-123]")).toEqual({ baseText: "", pollId: "poll-123" });
+    expect(splitPollMarkup("plain")).toEqual({ baseText: "plain", pollId: null });
   });
 
   it("restores every still-empty composer slot", () => {
@@ -36,6 +92,7 @@ describe("failed send restoration", () => {
       sentImageUrl: "https://local.invalid/image.png",
       previousReplyTarget: { id: "parent-one" },
       pendingPollId: "poll-one",
+      sentAtMs: NOW,
     };
 
     restoreFailedSendComposer({
@@ -67,6 +124,7 @@ describe("failed send restoration", () => {
         sentImageUrl: "old-image",
         previousReplyTarget: { id: "old-parent" },
         pendingPollId: "old-poll",
+        sentAtMs: NOW,
       },
       setText: stateSetter(text),
       setImage: stateSetter(image),
@@ -80,20 +138,5 @@ describe("failed send restoration", () => {
       reply: { id: "new-parent" },
       poll: "new-poll",
     });
-  });
-
-  it("recognizes only an authoritative matching message", () => {
-    const args = { authorId: "author-one", text: "Sent message" };
-    expect(authoritativeMessageExists([
-      { id: "temp-one", author_id: "author-one", text: "Sent message" },
-      { id: "queued-one", author_id: "author-one", text: "Sent message" },
-    ], args)).toBe(false);
-    expect(authoritativeMessageExists([
-      { id: "server-one", author_id: "other-author", text: "Sent message" },
-      { id: "server-two", author_id: "author-one", text: "Other text" },
-    ], args)).toBe(false);
-    expect(authoritativeMessageExists([
-      { id: "server-three", author_id: "author-one", text: "Sent message" },
-    ], args)).toBe(true);
   });
 });

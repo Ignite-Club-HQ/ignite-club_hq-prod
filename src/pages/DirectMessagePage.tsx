@@ -1003,6 +1003,7 @@ export default function DirectMessagePage() {
     onMutate: async ({ text, imageUrl, replyToId }) => {
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
+      const sentAtMs = Date.now();
       const previousReplyTo = replyTo;
       const optimisticMessage: DirectMessage = {
         id: tempId,
@@ -1027,6 +1028,7 @@ export default function DirectMessagePage() {
         sentImageUrl: imageUrl || null,
         previousReplyTarget: previousReplyTo,
         pendingPollId: null,
+        sentAtMs,
       } satisfies FailedSendContext<typeof previousReplyTo>;
     },
 
@@ -1105,8 +1107,8 @@ export default function DirectMessagePage() {
       // Check if the message actually arrived via realtime before showing error
       const currentData = queryClient.getQueryData<{ messages: DirectMessage[] }>(dmQueryKey);
       const messageExists =
-        authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text }) ||
-        authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text });
+        authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.imageUrl || null, replyToId: variables.replyToId || null, sentAtMs: context?.sentAtMs }) ||
+        authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text, imageUrl: variables.imageUrl || null, replyToId: variables.replyToId || null, sentAtMs: context?.sentAtMs });
       if (!messageExists) {
         toast.error("Failed to send message. Please try again.");
         // Remove ONLY this mutation's optimistic row.

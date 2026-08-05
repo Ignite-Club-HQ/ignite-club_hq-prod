@@ -1753,6 +1753,7 @@ export default function GroupChatPage() {
 
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
+      const sentAtMs = Date.now();
       const previousReplyTo = replyTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
@@ -1797,6 +1798,7 @@ export default function GroupChatPage() {
         sentImageUrl: image_url ?? null,
         previousReplyTarget: previousReplyTo,
         pendingPollId: unsentPollId,
+        sentAtMs,
       } satisfies FailedSendContext<typeof previousReplyTo>;
     },
     onError: (err, variables, context) => {
@@ -1807,7 +1809,7 @@ export default function GroupChatPage() {
       }
       // Succeeded-but-errored: the row already arrived via realtime.
       const currentData = queryClient.getQueryData<{ messages: GroupMessage[] }>(groupMessagesQueryKey);
-      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text })) {
+      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         return;
       }
 

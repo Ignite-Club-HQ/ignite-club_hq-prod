@@ -772,6 +772,7 @@ export default function ClubAdminChatPage() {
     onMutate: async ({ text, imageUrl: optImageUrl, replyToId }) => {
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
+      const sentAtMs = Date.now();
       const previousReplyTo = replyTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
       const optimisticMessage: ClubAdminMessage = {
@@ -805,6 +806,7 @@ export default function ClubAdminChatPage() {
         sentImageUrl: optImageUrl ?? null,
         previousReplyTarget: previousReplyTo,
         pendingPollId: unsentPollId,
+        sentAtMs,
       } satisfies FailedSendContext<typeof previousReplyTo>;
     },
 
@@ -841,7 +843,7 @@ export default function ClubAdminChatPage() {
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
 
       // Succeeded-but-errored: the authoritative row already arrived.
-      if (authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text })) {
+      if (authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text, imageUrl: variables.imageUrl ?? null, replyToId: variables.replyToId || null, sentAtMs: context?.sentAtMs })) {
         return;
       }
 

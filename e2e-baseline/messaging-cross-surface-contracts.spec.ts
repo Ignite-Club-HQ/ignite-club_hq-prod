@@ -26,6 +26,7 @@ async function install(page: Page, options: {
   appAdmin?: boolean;
   insertFailure?: boolean;
   insertFailureDelayMs?: number;
+  seedOldDuplicateClubMessage?: boolean;
   canDm?: boolean;
   clubAdminPreviewMessage?: boolean;
   clubAdminThreadDelayMs?: number;
@@ -133,6 +134,18 @@ async function install(page: Page, options: {
         }
         if (options.insertFailure) return json(route, { code: "42501", message: "synthetic insert denied" }, 403);
         return json(route, [], 201);
+      }
+      if (table === "club_messages" && options.seedOldDuplicateClubMessage) {
+        const oldDuplicate = {
+          id: "00000000-0000-4000-8000-000000008088",
+          club_id: clubId,
+          author_id: userId,
+          text: "Repeated identical draft",
+          image_url: null,
+          reply_to_id: null,
+          created_at: "2025-01-01T00:00:00.000Z",
+        };
+        return json(route, singular ? oldDuplicate : [oldDuplicate]);
       }
       if (table === "club_admin_messages" && options.clubAdminPreviewMessage) {
         const row = {
@@ -414,6 +427,26 @@ test("a delayed failed send never overwrites a newer club-chat draft", async ({ 
   await expect.poll(() => inserts.filter(row => row.table === "club_messages").length).toBe(1);
   await expect(page.getByText("Failed to send message", { exact: true })).toBeVisible();
   await expect(composer).toHaveValue("New draft typed while sending");
+});
+
+test("an older identical club message cannot falsely confirm a failed new send", async ({ page }) => {
+  const { inserts } = await install(page, {
+    insertFailure: true,
+    seedOldDuplicateClubMessage: true,
+  });
+  await page.goto(`/messages/club/${clubId}`);
+  const composer = page.getByRole("textbox", { name: "Type a message..." });
+  await expect(composer).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Repeated identical draft", { exact: true })).toHaveCount(1);
+
+  await composer.fill("Repeated identical draft");
+  await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+
+  await expect.poll(() => inserts.filter(row => row.table === "club_messages").length).toBe(1);
+  await expect(page.getByText("Failed to send message", { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue("Repeated identical draft");
+  await expect(page.locator("#message-00000000-0000-4000-8000-000000008088")).toContainText("Repeated identical draft");
+  await expect(page.locator('div[id^="message-temp-"]')).toHaveCount(0);
 });
 
 for (const viewport of [

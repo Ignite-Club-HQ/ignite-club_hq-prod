@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Camera, Loader2, AlertCircle, Users, Sparkles, Baby, UserCheck, Crown, ShieldAlert, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import { AssignTeamAdminSection, TeamAdminAssignment } from "@/components/Assign
 import { ClassFieldsSection } from "@/components/ClassFieldsSection";
 import { LevelAgeCombobox } from "@/components/LevelAgeCombobox";
 import { defaultRsvpAudienceForTeam } from "@/lib/teamAgeDefaults";
+import { invalidateTeamLists } from "@/lib/invalidateTeamLists";
 // TeamAdminInviteDialog now shown on TeamDetailPage via navigation state
 import type { Database } from "@/integrations/supabase/types";
 
@@ -36,6 +37,7 @@ export default function CreateTeamPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [name, setName] = useState("");
   const [levelAge, setLevelAge] = useState("");
@@ -340,6 +342,7 @@ export default function CreateTeamPage() {
           variant: "destructive",
         });
       }
+      await invalidateTeamLists(queryClient, user?.id);
       navigate(`/teams/${team.id}`);
     } else if (adminAssignment?.type === 'email_invite' && adminAssignment.inviteEmail && adminAssignment.inviteName) {
       // Create pending invite with email
@@ -364,7 +367,8 @@ export default function CreateTeamPage() {
           description: `${entityLabel(club)} created but couldn't create invite.`,
           variant: "destructive",
         });
-        navigate(`/teams/${team.id}`);
+        await invalidateTeamLists(queryClient, user?.id);
+      navigate(`/teams/${team.id}`);
         return;
       }
       
@@ -402,6 +406,7 @@ export default function CreateTeamPage() {
       }
 
       setSaving(false);
+      await invalidateTeamLists(queryClient, user?.id);
       navigate(`/teams/${team.id}`, {
         state: { 
           showAdminInvite: true, 
@@ -434,9 +439,11 @@ export default function CreateTeamPage() {
       if (pendingCompToken) {
         sessionStorage.removeItem("pendingCompetitionJoinToken");
         sessionStorage.removeItem("redirectAfterAuth");
+        await invalidateTeamLists(queryClient, user?.id);
         navigate(`/competitions/join?token=${pendingCompToken}`);
         return;
       }
+      await invalidateTeamLists(queryClient, user?.id);
       navigate(`/teams/${team.id}`);
     }
   };
