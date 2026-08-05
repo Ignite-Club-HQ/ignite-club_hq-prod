@@ -21,6 +21,7 @@ import { preloadMessageFromNotification } from './notificationPreload';
 import { captureJumpFromNotification, normalizeNotificationChatUrl, getJumpTarget } from './pendingChatJump';
 import { suppressChatScope, type SuppressedChatKind } from './pushTapSuppression';
 import { prefetchChatChunkForUrl } from './chatChunkPrefetch';
+import { requestClubSwitchForNotification } from './notificationClubSwitch';
 import { mark as coldMark, remark as coldRemark, startLongTaskWindow } from './coldStartMarks';
 
 // Store pending navigation URL until the app is ready to handle it
