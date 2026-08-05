@@ -95,6 +95,7 @@ import {
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -1696,16 +1697,13 @@ export default function TeamChatPage() {
   const handleSend = (imeFlushed = false) => {
     if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
-    if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!hasChatComposerContent({ text: message, imageUrl, pendingPollId })) return;
     if (!user?.id || !teamId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
-    const baseText = message.trim();
-    const finalText = pendingPollId
-      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-      : baseText;
+    const finalText = buildChatComposerText(message, pendingPollId);
     const hadImage = !!imageUrl;
     sendMessageMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
     if (hadImage) nudgeGalleryAfterSend();
@@ -2181,9 +2179,9 @@ export default function TeamChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !imageUrl && !pendingPollId}
+            disabled={!hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+            canSend={hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
           />
         </ChatComposerShell>
         {scheduleTarget && (

@@ -65,6 +65,7 @@ import {
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -1401,16 +1402,13 @@ export default function ClubChatPage() {
   const handleSend = (imeFlushed = false) => {
     if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
-    if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!hasChatComposerContent({ text: message, imageUrl, pendingPollId })) return;
     if (!user?.id || !clubId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
-    const baseText = message.trim();
-    const finalText = pendingPollId
-      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-      : baseText;
+    const finalText = buildChatComposerText(message, pendingPollId);
     const hadImage = !!imageUrl;
     sendMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
     if (hadImage) nudgeGalleryAfterSend();
@@ -1837,9 +1835,9 @@ export default function ClubChatPage() {
                 handleSend();
               }}
               onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-              disabled={!message.trim() && !imageUrl && !pendingPollId}
+              disabled={!hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
               loading={sendMutation.isPending}
-              canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+              canSend={hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
             />
           </ChatComposerShell>
           {scheduleTarget && (

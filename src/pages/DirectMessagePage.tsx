@@ -61,6 +61,7 @@ import {
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { hasChatComposerContent } from "@/lib/chatComposerIntent";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -1133,7 +1134,7 @@ export default function DirectMessagePage() {
   const handleSend = (imeFlushed = false) => {
     if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
-    if (!message.trim() && !dmImageUrl) return;
+    if (!hasChatComposerContent({ text: message, imageUrl: dmImageUrl })) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
@@ -1649,9 +1650,9 @@ export default function DirectMessagePage() {
                 <ChatSendButton
                   onSend={handleSend}
                   onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-                  disabled={!message.trim() && !dmImageUrl}
+                  disabled={!hasChatComposerContent({ text: message, imageUrl: dmImageUrl })}
                   loading={sendMessageMutation.isPending}
-                  canSend={!!message.trim() || !!dmImageUrl}
+                  canSend={hasChatComposerContent({ text: message, imageUrl: dmImageUrl })}
                 />
               </ChatComposerShell>
               {scheduleTarget && (

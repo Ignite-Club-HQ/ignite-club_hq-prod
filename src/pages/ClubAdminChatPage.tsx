@@ -59,6 +59,7 @@ import {
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -947,16 +948,13 @@ export default function ClubAdminChatPage() {
   const handleSend = (imeFlushed = false) => {
     if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
-    if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!hasChatComposerContent({ text: message, imageUrl, pendingPollId })) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
     stopTyping();
-    const baseText = message.trim();
-    const finalText = pendingPollId
-      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-      : baseText;
+    const finalText = buildChatComposerText(message, pendingPollId);
     sendMessageMutation.mutate({
       text: finalText,
       imageUrl,
@@ -1339,9 +1337,9 @@ export default function ClubAdminChatPage() {
           <ChatSendButton
             onSend={handleSend}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !imageUrl && !pendingPollId}
+            disabled={!hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+            canSend={hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
           />
         </ChatComposerShell>
         {scheduleTarget && (

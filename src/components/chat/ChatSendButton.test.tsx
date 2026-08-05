@@ -34,6 +34,19 @@ describe("ChatSendButton visibility and send contract", () => {
     expect(mocks.haptic).toHaveBeenCalledTimes(1);
   });
 
+  it("coalesces rapid clicks into one send gesture", () => {
+    const onSend = vi.fn();
+    render(<ChatSendButton onSend={onSend} canSend />);
+    const send = screen.getByRole("button", { name: "Send message" });
+
+    fireEvent.click(send);
+    fireEvent.click(send);
+    fireEvent.click(send);
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(mocks.haptic).toHaveBeenCalledTimes(1);
+  });
+
   it("supports keyboard activation through the semantic button", () => {
     const onSend = vi.fn();
     render(<ChatSendButton onSend={onSend} canSend />);

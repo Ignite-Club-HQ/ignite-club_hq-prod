@@ -663,7 +663,13 @@ test("send is optimistic, keeps exact scope, and never renders a duplicate while
   await page.goto(`/messages/${teamId}`);
   const composer = page.getByRole("textbox", { name: "Type a message..." });
   await composer.fill("Synthetic optimistic send");
-  await page.getByRole("button", { name: "Send message (hold to schedule)" }).click();
+  await page.getByRole("button", { name: "Send message (hold to schedule)" }).evaluate((button) => {
+    // Keep all attempts in one browser task so neither React's loading render
+    // nor the backend response can mask a duplicate-submit race.
+    button.click();
+    button.click();
+    button.click();
+  });
 
   await expect(page.getByText("Synthetic optimistic send", { exact: true })).toBeVisible();
   await expect(page.getByText("Synthetic optimistic send", { exact: true })).toHaveCount(1);

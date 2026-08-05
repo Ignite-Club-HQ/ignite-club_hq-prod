@@ -355,6 +355,11 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   `chat:message-sent` event, blur-before-read, one-task retry and
   `preventScroll` refocus behavior that protects Gboard/iOS composition and
   viewport stability. Broadcast retains its distinct non-IME send path.
+- M5b extracts the pure sendable-content and inline-poll text rules used by
+  all composers, so handler guards and button state share one definition.
+  Rapid click coalescing is now explicitly protected at the shared send button.
+  Scope permissions, mutation payloads, optimistic state and retry behavior
+  remain page-owned.
 
 ## Objective
 

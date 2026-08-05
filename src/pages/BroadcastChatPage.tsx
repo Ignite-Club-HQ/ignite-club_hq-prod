@@ -69,6 +69,7 @@ import {
   isTombstoned,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
+import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -936,16 +937,13 @@ export default function BroadcastChatPage() {
   });
 
   const handleSend = () => {
-    if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!hasChatComposerContent({ text: message, imageUrl, pendingPollId })) return;
     try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
-    const baseText = message.trim();
-    const finalText = pendingPollId
-      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-      : baseText;
+    const finalText = buildChatComposerText(message, pendingPollId);
     sendMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
   };
 
@@ -1229,9 +1227,9 @@ export default function BroadcastChatPage() {
                 handleSend();
               }}
               onSchedule={() => setScheduleDialogOpen(true)}
-              disabled={!message.trim() && !imageUrl && !pendingPollId}
+              disabled={!hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
               loading={sendMutation.isPending}
-              canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+              canSend={hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
             />
           </ChatComposerShell>
           <ScheduleMessageDialog

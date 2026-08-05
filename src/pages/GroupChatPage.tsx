@@ -21,6 +21,7 @@ import {
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -2181,14 +2182,11 @@ export default function GroupChatPage() {
   const handleSend = (imeFlushed = false) => {
     if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
-    if ((!message.trim() && !imageUrl && !pendingPollId) || !user) return;
+    if (!hasChatComposerContent({ text: message, imageUrl, pendingPollId }) || !user) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
     } else {
-      const baseText = message.trim();
-      const finalText = pendingPollId
-        ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-        : baseText;
+      const finalText = buildChatComposerText(message, pendingPollId);
       sendMessageMutation.mutate({
         text: finalText,
         image_url: imageUrl,
@@ -2835,9 +2833,9 @@ export default function GroupChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !imageUrl && !pendingPollId}
+            disabled={!hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+            canSend={hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
           />
         </ChatComposerShell>
         {scheduleTarget && (
