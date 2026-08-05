@@ -58,7 +58,7 @@ import {
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -1047,8 +1047,7 @@ export default function DirectMessagePage() {
           }
           
           // Replace optimistic message with real one
-          const updatedMessages = oldData.messages
-            .filter((m) => !m.id.startsWith("temp-"))
+          const updatedMessages = dropSupersededOptimisticRow(oldData.messages, newMessage)
             .concat({
               ...newMessage,
               author: {
@@ -1065,8 +1064,7 @@ export default function DirectMessagePage() {
       
       // Also update the local message cache for offline/fast reload
       const currentMessages = localMessagesRef.current || [];
-      const realMessages = currentMessages
-        .filter((m) => !m.id.startsWith("temp-"))
+      const realMessages = dropSupersededOptimisticRow(currentMessages, newMessage)
         .concat({
           ...newMessage,
           author: {
@@ -1219,9 +1217,7 @@ export default function DirectMessagePage() {
               if (!old) return old;
               if (old.messages.some(m => m.id === newMsg.id)) return old;
               // Remove any temp message from same author
-              const filtered = old.messages.filter(
-                m => !(m.id.startsWith('temp-') && m.author_id === newMsg.author_id)
-              );
+              const filtered = dropSupersededOptimisticRow(old.messages, newMsg);
               const messageToAdd: DirectMessage = {
                 ...newMsg,
                 author: null,

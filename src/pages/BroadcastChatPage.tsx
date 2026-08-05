@@ -61,7 +61,7 @@ import {
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -708,9 +708,7 @@ export default function BroadcastChatPage() {
             }
             
             // Check for temp message to replace
-            const tempIndex = existingMessages.findIndex(
-              m => m.id.startsWith('temp-') && m.author_id === newMsg.author_id
-            );
+            const tempIndex = findSupersededOptimisticIndex(existingMessages, newMsg);
             
             if (tempIndex !== -1) {
               // Replace temp message with real one

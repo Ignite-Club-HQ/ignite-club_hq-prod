@@ -152,3 +152,65 @@ export function authoritativeMessageExists(
     return createdMs >= lowerBound && createdMs <= upperBound;
   });
 }
+
+/* ------------------------------------------------------------------ *
+ * Concurrent-send isolation
+ *
+ * Replacing an optimistic row with its authoritative counterpart (in a
+ * mutation's `onSuccess` or in the Realtime INSERT handler) must remove ONLY
+ * the temp row that corresponds to THAT payload. Blanket `!id.startsWith("temp-")`
+ * filters — or "first temp row by the same author" lookups — silently discard a
+ * second, still-pending optimistic send made moments earlier.
+ * ------------------------------------------------------------------ */
+
+export interface OptimisticRowLike {
+  id: string;
+  author_id?: string | null;
+  text?: string | null;
+  image_url?: string | null;
+  reply_to_id?: string | null;
+}
+
+/** Payload of the authoritative row that just landed (insert result / Realtime). */
+export interface AuthoritativeRowLike {
+  author_id?: string | null;
+  text?: string | null;
+  image_url?: string | null;
+  reply_to_id?: string | null;
+}
+
+function optimisticRowMatches(row: OptimisticRowLike, authoritative: AuthoritativeRowLike): boolean {
+  if (!row?.id || !row.id.startsWith("temp-")) return false;
+  if ((row.author_id ?? null) !== (authoritative.author_id ?? null)) return false;
+  if ((row.text ?? "") !== (authoritative.text ?? "")) return false;
+  if (!sameOptionalId(row.image_url, authoritative.image_url)) return false;
+  if (!sameOptionalId(row.reply_to_id, authoritative.reply_to_id)) return false;
+  return true;
+}
+
+/**
+ * Index of the single optimistic row superseded by `authoritative`, or -1.
+ * Matches on every immutable send attribute so a concurrent optimistic send
+ * with different content (or a different reply target) is never consumed.
+ */
+export function findSupersededOptimisticIndex<T extends OptimisticRowLike>(
+  rows: T[] | null | undefined,
+  authoritative: AuthoritativeRowLike,
+): number {
+  if (!rows?.length) return -1;
+  return rows.findIndex((row) => optimisticRowMatches(row, authoritative));
+}
+
+/**
+ * Removes exactly one superseded optimistic row (the first payload-identical
+ * match). All other temp rows — concurrent in-flight sends — survive.
+ */
+export function dropSupersededOptimisticRow<T extends OptimisticRowLike>(
+  rows: T[] | null | undefined,
+  authoritative: AuthoritativeRowLike,
+): T[] {
+  if (!rows?.length) return rows ? [...rows] : [];
+  const index = findSupersededOptimisticIndex(rows, authoritative);
+  if (index === -1) return [...rows];
+  return [...rows.slice(0, index), ...rows.slice(index + 1)];
+}

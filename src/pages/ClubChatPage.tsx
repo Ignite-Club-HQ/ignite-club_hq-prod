@@ -62,7 +62,7 @@ import {
   isTombstoned,
   clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { PinnedMessagesBanner } from "@/components/chat/PinnedMessagesBanner";
@@ -1074,9 +1074,7 @@ export default function ClubChatPage() {
             }
             
             // Check for temp message to replace
-            const tempIndex = existingMessages.findIndex(
-              m => m.id.startsWith('temp-') && m.author_id === newMsg.author_id
-            );
+            const tempIndex = findSupersededOptimisticIndex(existingMessages, newMsg);
             
             const messageToAdd: Message = {
               ...newMsg,
