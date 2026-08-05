@@ -1298,6 +1298,7 @@ export default function ClubChatPage() {
 
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
+      const sentAtMs = Date.now();
       const previousReplyingTo = replyingTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
@@ -1342,6 +1343,7 @@ export default function ClubChatPage() {
         sentImageUrl: image_url ?? null,
         previousReplyTarget: previousReplyingTo,
         pendingPollId: unsentPollId,
+        sentAtMs,
       } satisfies FailedSendContext<typeof previousReplyingTo>;
     },
     onError: (err, variables, context) => {
@@ -1353,7 +1355,7 @@ export default function ClubChatPage() {
 
       // Succeeded-but-errored: the row already arrived via realtime.
       const currentData = queryClient.getQueryData<{ messages: Message[] }>(["club-messages", clubId]);
-      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text })) {
+      if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         return;
       }
 

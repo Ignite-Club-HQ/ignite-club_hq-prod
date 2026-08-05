@@ -20,6 +20,12 @@ export interface FailedSendContext<TReply = unknown> {
   previousReplyTarget: TReply | null;
   /** Poll attached to the failed send (surfaces that support polls). */
   pendingPollId: string | null;
+  /**
+   * `Date.now()` captured once in `onMutate`, i.e. when this send attempt
+   * started. Used to bound the authoritative-match window so an OLDER message
+   * with identical text can never confirm a new send.
+   */
+  sentAtMs: number;
 }
 
 /** Mutation-specific temp id — `Date.now()` alone collides on rapid sends. */
@@ -79,20 +85,70 @@ export function restoreFailedSendComposer<TReply>({
 }
 
 /**
- * True when the authoritative (non-temp) message already exists — i.e. the
- * insert actually succeeded and arrived via Realtime despite the error. In
- * that case we must not show a failure or restore the draft.
+ * How far before the mutation start an authoritative row's `created_at` may
+ * sit and still be considered "this send". Covers server/client clock skew
+ * only — deliberately small so an older identical message never matches.
+ */
+export const AUTHORITATIVE_MATCH_SKEW_MS = 10_000;
+
+/** Upper bound: a row created long after the attempt is a different send. */
+export const AUTHORITATIVE_MATCH_FORWARD_MS = 120_000;
+
+export interface AuthoritativeMatchArgs {
+  authorId?: string | null;
+  /** Exact text as submitted to the database (poll markup included). */
+  text: string;
+  imageUrl?: string | null;
+  replyToId?: string | null;
+  /** `FailedSendContext.sentAtMs`. Missing/invalid ⇒ no match (fail safe). */
+  sentAtMs?: number | null;
+}
+
+function sameOptionalId(a: unknown, b: unknown): boolean {
+  return (a ?? null) === (b ?? null);
+}
+
+/**
+ * True when an authoritative (non-temp) message plausibly corresponding to
+ * THIS send attempt already exists — i.e. the insert actually landed and
+ * arrived via Realtime despite the request reporting an error.
+ *
+ * Matching requires every immutable send attribute to agree (author, exact
+ * text, attachment URL, reply target) AND a `created_at` inside a bounded
+ * window around the mutation start. Text alone is never sufficient: a user
+ * re-sending identical text must not be confirmed by their older message.
  */
 export function authoritativeMessageExists(
-  messages: Array<{ id: string; author_id?: string | null; text?: string | null }> | null | undefined,
-  args: { authorId?: string | null; text: string },
+  messages:
+    | Array<{
+        id: string;
+        author_id?: string | null;
+        text?: string | null;
+        image_url?: string | null;
+        reply_to_id?: string | null;
+        created_at?: string | null;
+      }>
+    | null
+    | undefined,
+  args: AuthoritativeMatchArgs,
 ): boolean {
   if (!messages?.length) return false;
-  return messages.some(
-    (m) =>
-      !m.id.startsWith("temp-") &&
-      !m.id.startsWith("queued-") &&
-      (!args.authorId || m.author_id === args.authorId) &&
-      (m.text ?? "") === args.text,
-  );
+
+  const sentAtMs = args.sentAtMs;
+  if (typeof sentAtMs !== "number" || !Number.isFinite(sentAtMs)) return false;
+
+  const lowerBound = sentAtMs - AUTHORITATIVE_MATCH_SKEW_MS;
+  const upperBound = sentAtMs + AUTHORITATIVE_MATCH_FORWARD_MS;
+
+  return messages.some((m) => {
+    if (!m?.id || m.id.startsWith("temp-") || m.id.startsWith("queued-")) return false;
+    if (args.authorId && m.author_id !== args.authorId) return false;
+    if ((m.text ?? "") !== args.text) return false;
+    if (!sameOptionalId(m.image_url, args.imageUrl)) return false;
+    if (!sameOptionalId(m.reply_to_id, args.replyToId)) return false;
+
+    const createdMs = m.created_at ? Date.parse(m.created_at) : NaN;
+    if (!Number.isFinite(createdMs)) return false;
+    return createdMs >= lowerBound && createdMs <= upperBound;
+  });
 }

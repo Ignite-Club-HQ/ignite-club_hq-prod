@@ -1595,6 +1595,7 @@ export default function TeamChatPage() {
       // Mutation-specific temp id so overlapping sends can be rolled back
       // independently (Date.now() alone collides on rapid double-sends).
       const tempId = createSendTempId();
+      const sentAtMs = Date.now();
       const previousReplyingTo = replyingTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
 
@@ -1643,6 +1644,7 @@ export default function TeamChatPage() {
         sentImageUrl: image_url ?? null,
         previousReplyTarget: previousReplyingTo,
         pendingPollId: unsentPollId,
+        sentAtMs,
       } satisfies FailedSendContext<typeof previousReplyingTo>;
     },
     onError: (err, variables, context) => {
@@ -1652,7 +1654,7 @@ export default function TeamChatPage() {
       // If the insert actually landed and arrived via realtime, treat it as a
       // success: no failure toast and no draft restoration.
       const current = queryClient.getQueryData<{ messages: Message[] }>(["team-messages", teamId]);
-      if (authoritativeMessageExists(current?.messages, { authorId: user?.id, text: variables.text })) {
+      if (authoritativeMessageExists(current?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         return;
       }
 
