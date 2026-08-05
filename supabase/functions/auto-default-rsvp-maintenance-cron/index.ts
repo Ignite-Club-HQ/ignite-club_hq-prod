@@ -123,11 +123,11 @@ Deno.serve(async (req) => {
         const recipient = d.user_id ?? (
           await admin
             .from("child_guardians")
-            .select("guardian_user_id")
+            .select("guardian_id")
             .eq("child_id", d.child_id!)
             .limit(1)
             .maybeSingle()
-        ).data?.guardian_user_id;
+        ).data?.guardian_id;
 
         if (recipient) {
           await dmSystemMessage(
@@ -157,11 +157,11 @@ Deno.serve(async (req) => {
         const recipient = d.user_id ?? (
           await admin
             .from("child_guardians")
-            .select("guardian_user_id")
+            .select("guardian_id")
             .eq("child_id", d.child_id!)
             .limit(1)
             .maybeSingle()
-        ).data?.guardian_user_id;
+        ).data?.guardian_id;
 
         if (recipient) {
           await dmSystemMessage(

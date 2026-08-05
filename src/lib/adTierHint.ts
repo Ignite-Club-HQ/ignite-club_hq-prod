@@ -55,3 +55,21 @@ export function writeAdTierHint(
     /* noop */
   }
 }
+
+/**
+ * Removes every persisted ad-tier hint. Called on entitlement changes
+ * (upgrade / promo redemption) so a stale "free-ads" hint can't paint the
+ * upgrade ad on the next render after the club has become Pro.
+ */
+export function clearAdTierHints(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(PREFIX)) keys.push(k);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* noop */
+  }
+}

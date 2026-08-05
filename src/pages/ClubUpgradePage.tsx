@@ -38,6 +38,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { invalidateProAccessQueries } from "@/lib/invalidateProAccess";
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
@@ -121,6 +122,7 @@ export default function ClubUpgradePage() {
         description: "Your club subscription is now active.",
       });
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      invalidateProAccessQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["club", clubId] });
     } else if (paymentStatus === 'cancelled') {
       toast({
@@ -258,6 +260,7 @@ export default function ClubUpgradePage() {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+          invalidateProAccessQueries(queryClient);
           queryClient.invalidateQueries({ queryKey: ["club", clubId] });
           queryClient.invalidateQueries({ queryKey: ["club-active-sponsors", clubId] });
         }
@@ -379,6 +382,7 @@ export default function ClubUpgradePage() {
     },
     onSuccess: ({ tier, plan }) => {
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      invalidateProAccessQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["club", clubId] });
       queryClient.invalidateQueries({ queryKey: ["upgradable-clubs"] });
       queryClient.invalidateQueries({ queryKey: ["upgradable-teams"] });
@@ -403,6 +407,7 @@ export default function ClubUpgradePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      invalidateProAccessQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["club", clubId] });
       toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
     },
@@ -459,6 +464,7 @@ export default function ClubUpgradePage() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      invalidateProAccessQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["club", clubId] });
       queryClient.invalidateQueries({ queryKey: ["upgradable-clubs"] });
       queryClient.invalidateQueries({ queryKey: ["upgradable-teams"] });
@@ -581,6 +587,7 @@ export default function ClubUpgradePage() {
       if (error || data?.error) throw new Error(data?.error || "Verification failed");
 
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
+      invalidateProAccessQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["club", clubId] });
       toast({ title: "Upgrade Successful!", description: "Your club subscription is now active." });
     } catch (err: any) {
