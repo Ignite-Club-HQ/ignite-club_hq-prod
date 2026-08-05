@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useClubTheme } from "@/hooks/useClubTheme";
+
 
 /**
  * Tap-to-proceed chooser. If the user has zero admin clubs, we auto-route
