@@ -27,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
+import { invalidateProAccessQueries } from "@/lib/invalidateProAccess";
 
 const PRO_FEATURES = [
   "Team & club chat (club-wide messaging)",
@@ -95,6 +96,7 @@ export default function UpgradeProPage() {
         description: "Your subscription is now active.",
       });
       queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      invalidateProAccessQueries(queryClient);
     } else if (paymentStatus === 'cancelled') {
       toast({
         title: "Payment Cancelled",
@@ -276,6 +278,7 @@ export default function UpgradeProPage() {
     },
     onSuccess: (tier) => {
       queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      invalidateProAccessQueries(queryClient);
       const tierName = tier === "pro" ? "Pro" : "Pro Football";
       toast({ title: `${tierName} Activated!`, description: `Your team now has ${tierName} features.` });
       setPromoCode("");
@@ -296,6 +299,7 @@ export default function UpgradeProPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      invalidateProAccessQueries(queryClient);
       toast({ title: "Subscription Cancelled", description: "Your subscription has been cancelled. Pro features will remain until the trial ends." });
     },
     onError: (error: Error) => {
@@ -328,6 +332,7 @@ export default function UpgradeProPage() {
     },
     onSuccess: (targetTier) => {
       queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      invalidateProAccessQueries(queryClient);
       const message = targetTier === "free" 
         ? "Subscription cancelled. Team is now on Free plan."
         : "Downgraded to Pro plan.";
@@ -435,6 +440,7 @@ export default function UpgradeProPage() {
       if (error || data?.error) throw new Error(data?.error || "Verification failed");
 
       queryClient.invalidateQueries({ queryKey: ["team-subscription", teamId] });
+      invalidateProAccessQueries(queryClient);
       toast({ title: "Upgrade Successful!", description: "Your team subscription is now active." });
     } catch (err: any) {
       if (err?.message?.toLowerCase().includes("cancel") || err?.message?.toLowerCase().includes("not purchased")) return;
