@@ -62,7 +62,7 @@ import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -826,8 +826,7 @@ export default function ClubAdminChatPage() {
               hasOlderMessages: false,
             };
           }
-          const updatedMessages = oldData.messages
-            .filter((m) => !m.id.startsWith("temp-"))
+          const updatedMessages = dropSupersededOptimisticRow(oldData.messages, newMessage)
             .concat({
               ...newMessage,
               author: { display_name: profileRef.current?.display_name || null, avatar_url: profileRef.current?.avatar_url || null },
@@ -1029,7 +1028,7 @@ export default function ClubAdminChatPage() {
             (old: { messages: ClubAdminMessage[]; hasOlderMessages: boolean } | undefined) => {
               if (!old) return old;
               if (old.messages.some(m => m.id === newMsg.id)) return old;
-              const filtered = old.messages.filter(m => !(m.id.startsWith('temp-') && m.author_id === newMsg.author_id));
+              const filtered = dropSupersededOptimisticRow(old.messages, newMsg);
               return {
                 ...old,
                 messages: [...filtered, { ...newMsg, author: null, reactions: [], reply_to: null }].sort(

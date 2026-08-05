@@ -6,6 +6,8 @@ import {
   restoreFailedSendComposer,
   splitPollMarkup,
   type FailedSendContext,
+  findSupersededOptimisticIndex,
+  dropSupersededOptimisticRow,
 } from "./failedSendRestore";
 
 const NOW = 1_760_000_000_000;
@@ -138,5 +140,46 @@ describe("failed send composer restoration", () => {
       reply: { id: "new-parent" },
       poll: "new-poll",
     });
+  });
+});
+
+describe("concurrent-send isolation", () => {
+  const a = { id: "temp-1", author_id: AUTHOR, text: "one", image_url: null, reply_to_id: null };
+  const b = { id: "temp-2", author_id: AUTHOR, text: "two", image_url: null, reply_to_id: null };
+  const real = { id: "real-1", author_id: AUTHOR, text: "one", image_url: null, reply_to_id: null };
+
+  it("finds only the payload-identical optimistic row", () => {
+    expect(findSupersededOptimisticIndex([a, b], real)).toBe(0);
+    expect(findSupersededOptimisticIndex([b, a], real)).toBe(1);
+    expect(findSupersededOptimisticIndex([b], real)).toBe(-1);
+  });
+
+  it("never matches a non-temp row or another author", () => {
+    expect(findSupersededOptimisticIndex([{ ...a, id: "real-x" }], real)).toBe(-1);
+    expect(findSupersededOptimisticIndex([{ ...a, author_id: "other" }], real)).toBe(-1);
+    expect(findSupersededOptimisticIndex([{ ...a, id: "queued-1" }], real)).toBe(-1);
+  });
+
+  it("distinguishes attachment and reply target", () => {
+    expect(findSupersededOptimisticIndex([{ ...a, image_url: "https://x/y.jpg" }], real)).toBe(-1);
+    expect(findSupersededOptimisticIndex([{ ...a, reply_to_id: "m9" }], real)).toBe(-1);
+    expect(
+      findSupersededOptimisticIndex([{ ...a, reply_to_id: "m9" }], { ...real, reply_to_id: "m9" }),
+    ).toBe(0);
+  });
+
+  it("drops exactly one row and keeps concurrent optimistic sends", () => {
+    expect(dropSupersededOptimisticRow([a, b], real).map((m) => m.id)).toEqual(["temp-2"]);
+    // two identical concurrent sends: each success consumes one
+    const dup = { ...a, id: "temp-3" };
+    const once = dropSupersededOptimisticRow([a, dup, b], real);
+    expect(once.map((m) => m.id)).toEqual(["temp-3", "temp-2"]);
+    expect(dropSupersededOptimisticRow(once, real).map((m) => m.id)).toEqual(["temp-2"]);
+  });
+
+  it("is a no-op when nothing matches, and handles empty input", () => {
+    expect(dropSupersededOptimisticRow([b], real).map((m) => m.id)).toEqual(["temp-2"]);
+    expect(dropSupersededOptimisticRow([], real)).toEqual([]);
+    expect(dropSupersededOptimisticRow(null, real)).toEqual([]);
   });
 });

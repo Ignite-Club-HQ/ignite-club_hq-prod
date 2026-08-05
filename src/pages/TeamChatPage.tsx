@@ -98,7 +98,7 @@ import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -1366,9 +1366,7 @@ export default function TeamChatPage() {
             
             // Check for temp message to replace — match by author AND text to avoid
             // replacing the wrong temp message when a user sends multiple messages quickly
-            const tempIndex = existingMessages.findIndex(
-              m => m.id.startsWith('temp-') && m.author_id === newMsg.author_id && m.text === newMsg.text
-            );
+            const tempIndex = findSupersededOptimisticIndex(existingMessages, newMsg);
             
             const messageToAdd: Message = {
               ...newMsg,

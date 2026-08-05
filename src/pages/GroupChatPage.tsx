@@ -24,7 +24,7 @@ import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
@@ -1566,9 +1566,7 @@ export default function GroupChatPage() {
             }
             
             // Check for temp message to replace
-            const tempIndex = old.messages.findIndex(
-              m => m.id.startsWith('temp-') && m.author_id === newMsg.author_id
-            );
+            const tempIndex = findSupersededOptimisticIndex(old.messages, newMsg);
             
             const messageToAdd: GroupMessage = {
               ...newMsg,
