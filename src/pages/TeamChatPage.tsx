@@ -1637,11 +1637,24 @@ export default function TeamChatPage() {
       // would otherwise leave the new bubble below the visible area).
       virtualHandleRef.current?.scrollToBottom("auto", { force: true });
 
-      return { tempId, previousReplyingTo, sentText: text, sentImageUrl: image_url ?? null };
+      return {
+        tempId,
+        sentText: unsentText,
+        sentImageUrl: image_url ?? null,
+        previousReplyTarget: previousReplyingTo,
+        pendingPollId: unsentPollId,
+      } satisfies FailedSendContext<typeof previousReplyingTo>;
     },
     onError: (err, variables, context) => {
       // If offline, don't revert - message is queued
       if (!navigator.onLine) return;
+
+      // If the insert actually landed and arrived via realtime, treat it as a
+      // success: no failure toast and no draft restoration.
+      const current = queryClient.getQueryData<{ messages: Message[] }>(["team-messages", teamId]);
+      if (authoritativeMessageExists(current?.messages, { authorId: user?.id, text: variables.text })) {
+        return;
+      }
 
       const tempId = context?.tempId;
       if (tempId) {
@@ -1656,14 +1669,19 @@ export default function TeamChatPage() {
         setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== tempId) : prev));
       }
 
-      // Restore the unsent content only if the user hasn't typed since.
-      setMessage((current) => (current.trim().length === 0 ? (context?.sentText ?? "") : current));
-      if (context?.sentImageUrl) setImageUrl((current) => current ?? context.sentImageUrl!);
-      if (context?.previousReplyingTo) setReplyingTo((current) => current ?? context.previousReplyingTo!);
+      // Restore each composer field only when its slot is still empty.
+      restoreFailedSendComposer({
+        context,
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyingTo,
+        setPoll: setPendingPollId,
+      });
 
       console.error("Failed to send team message", err);
       toast.error("Failed to send message");
     },
+
     onSettled: (_, __, variables) => {
       // Invalidate messages page preview so latest message shows
       queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages"] });
