@@ -73,9 +73,10 @@ export function useRealtimeReactionSync<T extends ReactionCarrier>(opts: {
         if (!old) return old;
         return writeRef.current(old, mutator(readRef.current(old)));
       });
-      setLocalMessages((prev) => (prev ? mutator(prev) : prev));
+      setLocalMessagesRef.current((prev) => (prev ? mutator(prev) : prev));
     },
-    [queryClient, keyToken, setLocalMessages],
+    [queryClient, keyToken],
+
   );
 
   const isKnownMessage = useCallback(
