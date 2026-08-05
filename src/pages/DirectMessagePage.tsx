@@ -995,8 +995,11 @@ export default function DirectMessagePage() {
       return data;
     },
     onMutate: async ({ text, imageUrl, replyToId }) => {
+      // Mutation-specific temp id so overlapping sends roll back independently.
+      const tempId = createSendTempId();
+      const previousReplyTo = replyTo;
       const optimisticMessage: DirectMessage = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         text,
         image_url: imageUrl || null,
         created_at: new Date().toISOString(),
@@ -1011,7 +1014,16 @@ export default function DirectMessagePage() {
       };
       setLocalMessages((prev) => [...(prev || []), optimisticMessage]);
       setTimeout(scrollToBottom, 50);
+
+      return {
+        tempId,
+        sentText: text,
+        sentImageUrl: imageUrl || null,
+        previousReplyTarget: previousReplyTo,
+        pendingPollId: null,
+      } satisfies FailedSendContext<typeof previousReplyTo>;
     },
+
     onSuccess: async (newMessage) => {
       const currentReplyTo = replyToRef.current;
       
