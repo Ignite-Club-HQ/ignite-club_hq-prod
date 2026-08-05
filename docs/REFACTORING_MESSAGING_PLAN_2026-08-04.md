@@ -378,6 +378,21 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   and retry policies remain locally owned. Verification passed 123 focused
   contracts, 73 scheduled-message tests, TypeScript, focused lint, production
   build and seven cross-surface send/attachment Playwright journeys.
+- M5e adopts one typed failed-send recovery boundary across all six surfaces.
+  Each mutation now owns a collision-resistant temporary id and captures its
+  text, attachment, reply, poll and start time before optimistic composer
+  cleanup. A genuine online failure removes only that mutation's temporary row
+  and restores only still-empty composer fields, preserving newer input and
+  concurrent/Realtime rows. Authoritative-success suppression now requires a
+  bounded creation time plus exact author, text, attachment and reply identity,
+  so an older identical message cannot mask a failed new send. Offline queues,
+  permissions, tables, payloads, toasts and Realtime ownership remain local.
+  Verification passed focused helper and orchestration tests, failed-send and
+  attachment rollback journeys across all six surfaces, the older-identical-
+  message browser regression, TypeScript and the production build. During
+  verification a pre-existing refactor defect was exposed and corrected:
+  Club Chat's optimistic row passed an undefined `queryKeyMemo`; it now uses
+  its canonical `clubMessagesQueryKey`.
 
 ## Objective
 
