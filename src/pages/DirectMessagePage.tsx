@@ -58,8 +58,8 @@ import {
   removeMessage,
   removeMessageFromQueryEnvelope,
   isTombstoned,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -645,6 +645,7 @@ export default function DirectMessagePage() {
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `dm:${conversationId ?? "none"}`;
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
@@ -747,11 +748,6 @@ export default function DirectMessagePage() {
       );
     }
     setInfiniteScrollEnabled(false);
-
-    return () => {
-      // Tombstones/patches are per-thread; drop them when leaving the thread.
-      clearReconciliationScope(`dm:${conversationId ?? "none"}`);
-    };
   }, [conversationId, messagesData, reconcileScope]);
 
   const isPinned = true;

@@ -340,6 +340,12 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   keeps both hard-delete and soft-delete paths; Club Admin continues to expose
   only its existing soft-delete update path. Insert enrichment, reactions,
   channel filters, local state and permission behavior remain unchanged.
+- The subsequent lifecycle inventory found a pre-existing Direct Message
+  defect: its reconciliation cleanup shared an effect with `messagesData`, so
+  ordinary query-cache transitions could clear edit/delete tombstones before a
+  stale response arrived. The correction moves cleanup into a scope-lifetime
+  hook that runs only when the conversation scope changes or unmounts; cache
+  seeding and all other Direct Message behavior remain unchanged.
 
 ## Objective
 
