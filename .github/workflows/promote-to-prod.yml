@@ -16,13 +16,17 @@ name: Promote to Prod
 #   SUPABASE_ACCESS_TOKEN          — https://supabase.com/dashboard/account/tokens
 #   SUPABASE_PROD_PROJECT_REF      — yabcfiuntwqjwvschnji
 #   SUPABASE_DB_PASSWORD           — prod DB password (Project Settings → Database)
-#   SUPABASE_PROD_SERVICE_ROLE_KEY — the PROD service-role key, seeded into the
-#                                prod Vault so the push-delivery preflight
-#                                migration passes. REQUIRED and production
-#                                specific: the old generic SUPABASE_SERVICE_ROLE_KEY
-#                                fallback was removed because it could point at a
-#                                non-prod project, and opaque `sb_` keys carry no
+#   SUPABASE_PROD_SERVICE_ROLE_KEY — the PROD service-role key. Only REQUIRED
+#                                when the PROD Vault has no usable
+#                                service_role_key (first setup, or after the
+#                                entry is wiped). When Vault already holds a
+#                                valid key it is left untouched and this secret
+#                                is not needed. Must be production specific: the
+#                                generic SUPABASE_SERVICE_ROLE_KEY fallback was
+#                                removed because it could point at a non-prod
+#                                project, and opaque `sb_` keys carry no
 #                                verifiable project ref for the workflow to check.
+
 
 
 
