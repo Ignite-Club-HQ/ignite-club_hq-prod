@@ -50,10 +50,9 @@ describe("failed-send recovery contract per chat surface", () => {
 
       it("does not roll back a whole query-cache snapshot on send failure", () => {
         // Reaction/delete mutations may snapshot; the SEND mutation must not.
-        const sendError = src.slice(
-          src.indexOf("satisfies FailedSendContext"),
-          src.indexOf("satisfies FailedSendContext") + 4000,
-        );
+        const start = src.indexOf("satisfies FailedSendContext");
+        const end = src.indexOf("\n  });", start);
+        const sendError = src.slice(start, end === -1 ? src.length : end);
         expect(sendError).not.toMatch(/context\.previousMessages/);
         expect(sendError).not.toMatch(/previousData\b/);
       });
