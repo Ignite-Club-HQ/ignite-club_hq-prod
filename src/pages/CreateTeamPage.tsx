@@ -543,37 +543,8 @@ export default function CreateTeamPage() {
               />
             </div>
 
-            {/* Level / Age Group */}
-            <div className="space-y-2">
-              <Label htmlFor="levelAge" className="text-sm font-medium">
-                Level / Age Group
-              </Label>
-              <LevelAgeCombobox
-                value={levelAge}
-                onChange={setLevelAge}
-                teamType={teamType}
-              />
-
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-sm font-medium">
-                Description
-              </Label>
-              <Textarea
-                id="description"
-                placeholder={club?.class_mode_enabled ? "Describe this class, what students will learn..." : "Tell members about this team..."}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                maxLength={500}
-                rows={4}
-                className="text-base resize-none bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
-              />
-              <p className="text-xs text-muted-foreground text-right">{description.length}/500</p>
-            </div>
-
-            {/* Team Type */}
+            {/* Team Type — must come before Level / Age Group because it
+                drives which levels the combobox offers. */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Team Type</Label>
               <div className="grid grid-cols-3 gap-2">
@@ -623,6 +594,37 @@ export default function CreateTeamPage() {
                 {teamType === "mixed" && "All member types can be added"}
               </p>
             </div>
+
+            {/* Level / Age Group */}
+            <div className="space-y-2">
+              <Label htmlFor="levelAge" className="text-sm font-medium">
+                Level / Age Group
+              </Label>
+              <LevelAgeCombobox
+                value={levelAge}
+                onChange={setLevelAge}
+                teamType={teamType}
+              />
+
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm font-medium">
+                Description
+              </Label>
+              <Textarea
+                id="description"
+                placeholder={club?.class_mode_enabled ? "Describe this class, what students will learn..." : "Tell members about this team..."}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={500}
+                rows={4}
+                className="text-base resize-none bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors"
+              />
+              <p className="text-xs text-muted-foreground text-right">{description.length}/500</p>
+            </div>
+
 
 
             {/* Class Mode Fields */}

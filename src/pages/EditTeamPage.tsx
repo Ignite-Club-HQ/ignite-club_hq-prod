@@ -326,30 +326,8 @@ export default function EditTeamPage() {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="levelAge" className="text-base">Level / Age Group</Label>
-            <LevelAgeCombobox
-              value={levelAge}
-              onChange={setLevelAge}
-              teamType={teamType}
-            />
-
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description" className="text-base">Description</Label>
-            <Textarea
-              id="description"
-              placeholder="Optional team description..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={500}
-              rows={4}
-              className="text-base resize-none"
-            />
-          </div>
-
-          {/* Team Type */}
+          {/* Team Type — placed before Level / Age Group because it drives
+              which levels the combobox offers. */}
           <div className="space-y-2">
             <Label className="text-base">Team Type</Label>
             <div className="grid grid-cols-3 gap-2">
@@ -399,6 +377,30 @@ export default function EditTeamPage() {
               {teamType === "mixed" && "All member types can be added"}
             </p>
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="levelAge" className="text-base">Level / Age Group</Label>
+            <LevelAgeCombobox
+              value={levelAge}
+              onChange={setLevelAge}
+              teamType={teamType}
+            />
+
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description" className="text-base">Description</Label>
+            <Textarea
+              id="description"
+              placeholder="Optional team description..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={500}
+              rows={4}
+              className="text-base resize-none"
+            />
+          </div>
+
 
           {/* Folder Selection */}
           {folders.length > 0 && (
