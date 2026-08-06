@@ -786,6 +786,16 @@ export default function TeamDetailPage() {
       }
       queryClient.invalidateQueries({ queryKey: ["my-teams"] });
 
+      // Picker query families that list selectable teams — these must drop the
+      // deleted team immediately, otherwise Event creation / Gallery / Vault
+      // pickers keep showing it from a stale cache until an app restart.
+      queryClient.invalidateQueries({ queryKey: ["club-teams-for-event"] });
+      queryClient.invalidateQueries({ queryKey: ["all-club-teams-for-target"] });
+      queryClient.invalidateQueries({ queryKey: ["user-teams-upload-sheet"] });
+      queryClient.invalidateQueries({ queryKey: ["media-filter-teams"] });
+      queryClient.invalidateQueries({ queryKey: ["vault-club-teams"] });
+
+
       // Purge every client-side cache that still holds this team, so a
       // soft-deleted team can never repaint as a phantom second chat thread
       // (e.g. after a team with the same name is recreated).
