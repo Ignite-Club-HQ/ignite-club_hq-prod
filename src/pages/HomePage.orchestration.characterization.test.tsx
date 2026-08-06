@@ -97,7 +97,7 @@ function queryFor(table: string) {
   const query: any = {};
   const filters: any[] = [];
   let operation = "read";
-  for (const method of ["select", "eq", "in", "is", "gte", "order", "limit", "or", "maybeSingle", "single"]) {
+  for (const method of ["select", "eq", "in", "is", "gte", "order", "limit", "or", "maybeSingle", "single", "returns"]) {
     query[method] = vi.fn((...args: any[]) => {
       mocks.queryCalls.push({ table, method, args });
       filters.push([method, ...args]);
@@ -203,10 +203,15 @@ describe("HomePage consolidated membership and event orchestration", () => {
     expect(result.memberships.roles).not.toContainEqual(expect.objectContaining({ club_id: "club-deleted" }));
     expect(result.events.map((item: any) => item.id)).toEqual(["club-event", "team-event"]);
 
-    const scope = mocks.queryCalls.find((call) => call.table === "events" && call.method === "or");
-    expect(scope?.args[0]).toContain("club_id.in.(club-active,club-deleted)");
-    expect(scope?.args[0]).toContain("team_id.in.(team-active,team-active,team-deleted)");
-    expect(mocks.queryCalls).toContainEqual({ table: "events", method: "limit", args: [100] });
+    const eventScopes = mocks.queryCalls
+      .filter((call) => call.table === "events" && call.method === "eq")
+      .map((call) => call.args);
+    expect(eventScopes).toContainEqual(["club_id", "club-active"]);
+    expect(eventScopes).toContainEqual(["club_id", "club-deleted"]);
+    expect(eventScopes).toContainEqual(["team_id", "team-active"]);
+    expect(eventScopes).toContainEqual(["team_id", "team-deleted"]);
+    expect(mocks.queryCalls.filter((call) => call.table === "events" && call.method === "or")).toEqual([]);
+    expect(mocks.queryCalls).toContainEqual({ table: "events", method: "limit", args: [25] });
   });
 
   it("throws on role-fetch failure instead of replacing cached dashboard data with empty state", async () => {
