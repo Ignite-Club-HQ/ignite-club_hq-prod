@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatComposerController } from "@/hooks/useChatComposerController";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
@@ -58,11 +58,10 @@ import {
   removeMessageFromQueryEnvelope,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
-import { prepareChatComposerSubmission, resetChatComposerAfterSend } from "@/lib/chatComposerSubmission";
-import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
-import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { buildChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, splitPollMarkup, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
 import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
 import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 
@@ -174,17 +173,31 @@ export default function ClubAdminChatPage() {
   const openedFromNotificationRef = useRef<number | null>(
     conversationId ? consumeFromNotificationFlag("club_admin", conversationId) : null,
   );
-  const [message, setMessage, clearDraft] = useChatDraft(conversationId);
+  const {
+    text: message,
+    setText: setMessage,
+    clearDraft,
+    imageUrl,
+    setImageUrl,
+    replyingTo: replyTo,
+    setReplyingTo: setReplyTo,
+    editingMessage,
+    pendingPollId,
+    setPendingPollId,
+    canSend,
+    beginEdit,
+    cancelEdit,
+    finishEdit,
+    buildSubmission,
+    resetAfterSend,
+    restoreAfterFailedSend,
+  } = useChatComposerController<ClubAdminMessage>(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("club_admin", conversationId);
-  const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
-  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
-  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -870,13 +883,7 @@ export default function ClubAdminChatPage() {
         });
       }
 
-      restoreFailedSendComposer({
-        context,
-        setText: setMessage,
-        setImage: setImageUrl,
-        setReply: setReplyTo,
-        setPoll: setPendingPollId,
-      });
+      restoreAfterFailedSend(context);
 
       console.error("Failed to send club admin message", err);
       toast.error("Failed to send message. Please try again.");
@@ -961,8 +968,7 @@ export default function ClubAdminChatPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      setMessage("");
-      setEditingMessage(null);
+      finishEdit();
       queryClient.invalidateQueries({ queryKey });
       // silent success
     },
@@ -970,17 +976,12 @@ export default function ClubAdminChatPage() {
   });
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
-    const edit = beginChatMessageEdit(msg);
-    setEditingMessage(edit.editingMessage);
-    setMessage(edit.composerText);
-    setReplyTo(null);
-  }, []);
+    beginEdit(msg);
+  }, [beginEdit]);
 
   const handleCancelEdit = useCallback(() => {
-    const edit = cancelChatMessageEdit();
-    setEditingMessage(edit.editingMessage);
-    setMessage(edit.composerText);
-  }, []);
+    cancelEdit();
+  }, [cancelEdit]);
 
   // Typing indicator
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
@@ -992,24 +993,19 @@ export default function ClubAdminChatPage() {
   const handleSend = (imeFlushed = false) => {
     if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
-    if (!hasChatComposerContent({ text: message, imageUrl, pendingPollId })) return;
+    if (!canSend) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
     stopTyping();
-    const finalText = buildChatComposerText(message, pendingPollId);
+    const submission = buildSubmission();
     sendMessageMutation.mutate({
-      text: finalText,
-      imageUrl,
-      replyToId: replyTo?.id || null,
+      text: submission.text,
+      imageUrl: submission.imageUrl,
+      replyToId: submission.replyToId,
     });
-    resetChatComposerAfterSend({
-      setText: setMessage,
-      setImage: setImageUrl,
-      setReply: setReplyTo,
-      setPoll: setPendingPollId,
-    });
+    resetAfterSend();
   };
 
 
@@ -1383,9 +1379,9 @@ export default function ClubAdminChatPage() {
           <ChatSendButton
             onSend={handleSend}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
+            disabled={!canSend}
             loading={sendMessageMutation.isPending}
-            canSend={hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
+            canSend={canSend}
           />
         </ChatComposerShell>
         {scheduleTarget && (

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatComposerController } from "@/hooks/useChatComposerController";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
@@ -20,11 +20,10 @@ import {
   isTombstoned,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
-import { prepareChatComposerSubmission, resetChatComposerAfterSend } from "@/lib/chatComposerSubmission";
-import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
-import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { buildChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, splitPollMarkup, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
 import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 
@@ -284,17 +283,33 @@ export default function GroupChatPage() {
   );
   const mountTsRef = useRef<number>(Date.now());
   const perfLoggedRef = useRef<boolean>(false);
-  const [message, setMessage, clearDraft] = useChatDraft(groupId);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const {
+    text: message,
+    setText: setMessage,
+    clearDraft,
+    imageUrl,
+    setImageUrl,
+    replyingTo: replyTo,
+    setReplyingTo: setReplyTo,
+    editingMessage,
+    pendingPollId,
+    setPendingPollId,
+    canSend,
+    beginEdit,
+    cancelEdit,
+    finishEdit,
+    buildSubmission,
+    resetAfterSend,
+    restoreAfterFailedSend,
+  } = useChatComposerController<GroupMessage, GroupMessage>(groupId, {
+    clearReplyOnEdit: false,
+  });
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [miniLeagueInviteOpen, setMiniLeagueInviteOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("group", groupId);
-  const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
-  const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
-  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   // Persists the search text after the user taps a result so highlights
   // remain visible on the jumped-to message. Cleared when the highlight
@@ -1805,12 +1820,7 @@ export default function GroupChatPage() {
       });
 
       // Clear input immediately
-      resetChatComposerAfterSend({
-        setText: setMessage,
-        setImage: setImageUrl,
-        setReply: setReplyTo,
-        setPoll: setPendingPollId,
-      });
+      resetAfterSend();
       
       // Scroll to bottom — force bypasses the touch-guard so the deferred
       // re-pins still fire after composer reflow shrinks bottomPadding.
@@ -1849,13 +1859,7 @@ export default function GroupChatPage() {
         setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
       }
 
-      restoreFailedSendComposer({
-        context,
-        setText: setMessage,
-        setImage: setImageUrl,
-        setReply: setReplyTo,
-        setPoll: setPendingPollId,
-      });
+      restoreAfterFailedSend(context);
 
       console.error("Failed to send group message", err);
       toast.error("Failed to send message");
@@ -1894,8 +1898,7 @@ export default function GroupChatPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      setMessage("");
-      setEditingMessage(null);
+      finishEdit();
       queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
       // silent success
     },
@@ -2233,31 +2236,27 @@ export default function GroupChatPage() {
   const handleSend = (imeFlushed = false) => {
     if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
-    if (!hasChatComposerContent({ text: message, imageUrl, pendingPollId }) || !user) return;
+    if (!canSend || !user) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
     } else {
-      const finalText = buildChatComposerText(message, pendingPollId);
+      const submission = buildSubmission();
       sendMessageMutation.mutate({
-        text: finalText,
-        image_url: imageUrl,
-        reply_to_id: replyTo?.id || null,
+        text: submission.text,
+        image_url: submission.imageUrl,
+        reply_to_id: submission.replyToId,
       });
     }
   };
 
 
   const handleEdit = (msg: GroupMessage) => {
-    const edit = beginChatMessageEdit(msg);
-    setEditingMessage(edit.editingMessage);
-    setMessage(edit.composerText);
+    beginEdit(msg);
     inputRef.current?.focus();
   };
 
   const handleCancelEdit = () => {
-    const edit = cancelChatMessageEdit();
-    setEditingMessage(edit.editingMessage);
-    setMessage(edit.composerText);
+    cancelEdit();
   };
 
   const handleReply = (msg: GroupMessage) => {
@@ -2881,9 +2880,9 @@ export default function GroupChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
+            disabled={!canSend}
             loading={sendMessageMutation.isPending}
-            canSend={hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
+            canSend={canSend}
           />
         </ChatComposerShell>
         {scheduleTarget && (

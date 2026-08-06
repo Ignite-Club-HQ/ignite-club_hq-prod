@@ -5,7 +5,7 @@ import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePend
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
-import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatComposerController } from "@/hooks/useChatComposerController";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
@@ -95,11 +95,10 @@ import {
   isTombstoned,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
-import { prepareChatComposerSubmission, resetChatComposerAfterSend } from "@/lib/chatComposerSubmission";
-import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
-import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { buildChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, splitPollMarkup, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
 import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
@@ -241,18 +240,32 @@ export default function TeamChatPage() {
   );
   const mountTsRef = useRef<number>(Date.now());
   const perfLoggedRef = useRef<boolean>(false);
-  const [message, setMessage, clearDraft] = useChatDraft(teamId);
+  const {
+    text: message,
+    setText: setMessage,
+    clearDraft,
+    imageUrl,
+    setImageUrl,
+    replyingTo,
+    setReplyingTo,
+    editingMessage,
+    pendingPollId,
+    setPendingPollId,
+    canSend,
+    beginEdit,
+    cancelEdit,
+    finishEdit,
+    buildSubmission,
+    resetAfterSend,
+    restoreAfterFailedSend,
+  } = useChatComposerController<{ id: string; text: string; authorName: string | null }>(teamId);
   // Gate non-critical chat-page queries (pinned, vault, club-pro, online count)
   // until after first paint + idle so they don't compete with the messages
   // fetch and visual-settle window on notification opens.
   const chatReady = useChatPageReady();
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
-  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
-  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("team", teamId);
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
@@ -1625,12 +1638,7 @@ export default function TeamChatPage() {
       });
 
       // Clear input immediately
-      resetChatComposerAfterSend({
-        setText: setMessage,
-        setImage: setImageUrl,
-        setReply: setReplyingTo,
-        setPoll: setPendingPollId,
-      });
+      resetAfterSend();
       
       // Scroll to bottom to show new message — force=true bypasses the
       // "user is touching viewport" guard, which can spuriously cancel the
@@ -1675,13 +1683,7 @@ export default function TeamChatPage() {
       }
 
       // Restore each composer field only when its slot is still empty.
-      restoreFailedSendComposer({
-        context,
-        setText: setMessage,
-        setImage: setImageUrl,
-        setReply: setReplyingTo,
-        setPoll: setPendingPollId,
-      });
+      restoreAfterFailedSend(context);
 
       console.error("Failed to send team message", err);
       toast.error("Failed to send message");
@@ -1716,8 +1718,7 @@ export default function TeamChatPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      setMessage("");
-      setEditingMessage(null);
+      finishEdit();
       queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
       // silent success
     },
@@ -1727,25 +1728,26 @@ export default function TeamChatPage() {
   const handleSend = (imeFlushed = false) => {
     if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
-    if (!hasChatComposerContent({ text: message, imageUrl, pendingPollId })) return;
+    if (!canSend) return;
     if (!user?.id || !teamId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
-    const finalText = buildChatComposerText(message, pendingPollId);
+    const submission = buildSubmission();
     const hadImage = !!imageUrl;
-    sendMessageMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
+    sendMessageMutation.mutate({
+      text: submission.text,
+      image_url: submission.imageUrl,
+      reply_to_id: submission.replyToId,
+    });
     if (hadImage) nudgeGalleryAfterSend();
   };
 
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
-    const edit = beginChatMessageEdit(msg);
-    setEditingMessage(edit.editingMessage);
-    setMessage(edit.composerText);
-    setReplyingTo(null);
-  }, []);
+    beginEdit(msg);
+  }, [beginEdit]);
 
   const {
     publishingIds,
@@ -1762,10 +1764,8 @@ export default function TeamChatPage() {
   });
 
   const handleCancelEdit = useCallback(() => {
-    const edit = cancelChatMessageEdit();
-    setEditingMessage(edit.editingMessage);
-    setMessage(edit.composerText);
-  }, []);
+    cancelEdit();
+  }, [cancelEdit]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -2206,9 +2206,9 @@ export default function TeamChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
+            disabled={!canSend}
             loading={sendMessageMutation.isPending}
-            canSend={hasChatComposerContent({ text: message, imageUrl, pendingPollId })}
+            canSend={canSend}
           />
         </ChatComposerShell>
         {scheduleTarget && (

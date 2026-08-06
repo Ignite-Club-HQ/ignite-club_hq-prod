@@ -27,7 +27,12 @@ describe("six-surface messaging refactor contracts", () => {
       expect(text).toMatch(/temp-|optimisticMessage/);
       expect(text).toContain("clearDraft");
       expect(text).toContain("reply_to_id");
-      expect(text).toContain("resetChatComposerAfterSend({");
+      if (["BroadcastChatPage.tsx", "DirectMessagePage.tsx", "ClubAdminChatPage.tsx", "ClubChatPage.tsx", "TeamChatPage.tsx", "GroupChatPage.tsx"].includes(name)) {
+        expect(text).toContain("useChatComposerController");
+        expect(text).toContain("resetAfterSend()");
+      } else {
+        expect(text).toContain("resetChatComposerAfterSend({");
+      }
     });
 
     it(`${name} reconciles Realtime insert, update and delete before subscribing`, () => {

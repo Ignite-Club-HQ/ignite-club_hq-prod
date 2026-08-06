@@ -570,6 +570,77 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   anchoring, attachment and reaction-first-paint journeys, the Android exact-row
   no-jolt journey, TypeScript, focused lint and the production build. No runtime
   defect was found.
+- M8a begins page-level controller adoption with a typed composer controller on
+  Broadcast. It owns only persisted draft, attachment, reply, edit and poll
+  state plus send eligibility, payload construction, successful reset and
+  conditional failed-send restoration. Broadcast retains app-admin permission,
+  Supabase writes, optimistic cache rows, offline queueing, upload, scheduling,
+  typing and scroll timing. Five direct controller contracts protect draft and
+  eligibility behavior, edit transitions, exact poll/reply payloads, atomic
+  reset and non-destructive failure restoration. Verification passed 83 focused
+  contracts, Broadcast failed-send, exact-table send and ordinary-reader
+  Playwright journeys, TypeScript, clean controller lint and the production
+  build. No runtime defect was found.
+- M8b adopts the same composer controller on Direct Message while preserving
+  its distinct timing: the page still performs native IME flushing, permission
+  checks and mutation dispatch before invoking the controller's reset. Support
+  conversation reply/attachment restrictions, shared-club gates, offline
+  queueing, exact conversation payloads, optimistic rows, cache replacement,
+  typing, upload and scheduling remain page-owned. The controller's reply type
+  was generalized to require only immutable identity so Direct Message retains
+  its richer author metadata without conversion. Verification passed 91
+  focused contracts, all six Direct Message permission/start/send/failure and
+  desktop/mobile composer Playwright journeys, TypeScript, clean controller
+  lint and the production build. No runtime defect was found.
+- M8c adopts the composer controller on Club Admin chat without changing its
+  conversation/participant resolution, cached-message preservation, transient
+  empty retry policy or authoritative-empty state. Native IME timing, exact
+  conversation writes, optimistic rows, offline queueing, Vault delivery,
+  attachment and poll handling, scheduling, typing and scrolling remain
+  page-owned. Verification passed 123 focused composer/Vault/orchestration
+  contracts, all nine Club Admin non-blank/delayed/empty/retry/send/failure
+  Playwright journeys, TypeScript, clean controller lint and the production
+  build. No runtime defect was found.
+- M8d adopts the composer controller on Club Chat while preserving its
+  optimistic reset boundary inside `onMutate` and mutation-specific rollback.
+  Club Pro access, announcement behavior, exact `club_messages` scope, offline
+  queueing, Vault delivery, gallery publishing, polls, scheduling, typing and
+  scroll timing remain page-owned. Verification passed 123 focused
+  composer/Vault/orchestration contracts, both exact Club Chat send and online
+  failure-restoration Playwright journeys, TypeScript and the production build.
+  No runtime defect was found.
+- M8e adopts the composer controller on Team Chat while preserving immutable
+  `team_id` scoping and the optimistic reset boundary inside `onMutate`. Team
+  membership and role behavior, cross-team cache isolation, Pro access, Vault
+  delivery, recent-match gallery publishing, event/board/poll attachments,
+  scheduling, typing and scroll timing remain page-owned. Verification passed
+  123 focused composer/Vault/orchestration contracts, three cached-scope
+  guards, and five Team Chat browser journeys covering duplicate-safe
+  optimistic delivery, failed-send rollback, scoped image upload and complete
+  attachment restoration. TypeScript and the production build passed. No
+  runtime defect was found.
+- M8f completes composer-controller adoption across the six messaging surfaces
+  with Group Chat. Exact `group_id` writes, membership and allowed-role access,
+  operational-group behavior, Vault audience metadata, offline queueing,
+  optimistic cache rows, attachment/poll/scheduling behavior, typing and scroll
+  timing remain page-owned. Group Chat's existing edit transition uniquely
+  retains a selected reply target; a narrow controller option and direct test
+  preserve that behavior rather than normalizing it silently. Verification
+  passed 124 focused composer/Vault/orchestration contracts and four Group Chat
+  browser journeys covering exact-scope send, failed-send restoration and
+  optimistic reaction success/rollback. TypeScript and the production build
+  passed. No runtime defect was found.
+- M8g consolidates the completed controller tranche across the broader
+  messaging baseline. Source-text characterizations were updated to assert the
+  new controller boundary instead of requiring the retired page-local helper
+  calls; the underlying edit, permission, attachment-restoration and schedule
+  guarantees remain asserted. All 1,196 tests across 128 messaging-related
+  unit/component/characterization files passed. The combined cross-surface and
+  navigation Playwright run passed 88 of 89 journeys; the sole inbox Realtime
+  preview convergence miss passed 3/3 unchanged isolated reruns and exercises
+  inbox orchestration outside the composer tranche, so it is recorded as a
+  suite-load timing flake rather than a runtime defect. TypeScript, focused
+  lint and the production build passed.
 
 ## Objective
 

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatComposerController } from "@/hooks/useChatComposerController";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
@@ -60,11 +60,10 @@ import {
   isTombstoned,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
-import { prepareChatComposerSubmission, resetChatComposerAfterSend } from "@/lib/chatComposerSubmission";
-import { hasChatComposerContent } from "@/lib/chatComposerIntent";
-import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
+import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { buildChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
+import { createSendTempId, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
@@ -272,12 +271,26 @@ export default function DirectMessagePage() {
   );
   const mountTsRef = useRef<number>(Date.now());
   const perfLoggedRef = useRef<boolean>(false);
-  const [message, setMessage, clearDraft] = useChatDraft(conversationId);
+  const {
+    text: message,
+    setText: setMessage,
+    clearDraft,
+    imageUrl: dmImageUrl,
+    setImageUrl: setDmImageUrl,
+    replyingTo: replyTo,
+    setReplyingTo: setReplyTo,
+    editingMessage,
+    canSend,
+    beginEdit,
+    cancelEdit,
+    finishEdit,
+    buildSubmission,
+    resetAfterSend,
+    restoreAfterFailedSend,
+  } = useChatComposerController<DirectMessage>(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("direct", conversationId);
   const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
-  const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
-  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -285,7 +298,6 @@ export default function DirectMessagePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [dmImageUrl, setDmImageUrl] = useState<string | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
 
@@ -1118,12 +1130,7 @@ export default function DirectMessagePage() {
             return { ...old, messages: (old.messages || []).filter((m: DirectMessage) => m.id !== context.tempId) };
           });
         }
-        restoreFailedSendComposer({
-          context,
-          setText: setMessage,
-          setImage: setDmImageUrl,
-          setReply: setReplyTo,
-        });
+        restoreAfterFailedSend(context);
       }
 
     },
@@ -1136,8 +1143,7 @@ export default function DirectMessagePage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      setMessage("");
-      setEditingMessage(null);
+      finishEdit();
       queryClient.invalidateQueries({ queryKey: dmQueryKey });
       // silent success
     },
@@ -1145,17 +1151,12 @@ export default function DirectMessagePage() {
   });
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
-    const edit = beginChatMessageEdit(msg);
-    setEditingMessage(edit.editingMessage);
-    setMessage(edit.composerText);
-    setReplyTo(null);
-  }, []);
+    beginEdit(msg);
+  }, [beginEdit]);
 
   const handleCancelEdit = useCallback(() => {
-    const edit = cancelChatMessageEdit();
-    setEditingMessage(edit.editingMessage);
-    setMessage(edit.composerText);
-  }, []);
+    cancelEdit();
+  }, [cancelEdit]);
 
   // Typing indicator
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
@@ -1167,7 +1168,7 @@ export default function DirectMessagePage() {
   const handleSend = (imeFlushed = false) => {
     if (prepareChatComposerSubmission(imeFlushed, handleSend)) return;
 
-    if (!hasChatComposerContent({ text: message, imageUrl: dmImageUrl })) return;
+    if (!canSend) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
@@ -1179,16 +1180,13 @@ export default function DirectMessagePage() {
       return;
     }
     stopTyping();
+    const submission = buildSubmission();
     sendMessageMutation.mutate({
-      text: message.trim(),
-      imageUrl: dmImageUrl,
-      replyToId: replyTo?.id || null,
+      text: submission.text,
+      imageUrl: submission.imageUrl,
+      replyToId: submission.replyToId,
     });
-    resetChatComposerAfterSend({
-      setText: setMessage,
-      setImage: setDmImageUrl,
-      setReply: setReplyTo,
-    });
+    resetAfterSend();
   };
 
 
@@ -1678,9 +1676,9 @@ export default function DirectMessagePage() {
                 <ChatSendButton
                   onSend={handleSend}
                   onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-                  disabled={!hasChatComposerContent({ text: message, imageUrl: dmImageUrl })}
+                  disabled={!canSend}
                   loading={sendMessageMutation.isPending}
-                  canSend={hasChatComposerContent({ text: message, imageUrl: dmImageUrl })}
+                  canSend={canSend}
                 />
               </ChatComposerShell>
               {scheduleTarget && (
