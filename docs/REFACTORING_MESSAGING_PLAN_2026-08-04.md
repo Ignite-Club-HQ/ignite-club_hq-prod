@@ -672,6 +672,16 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   permission matrix. Verification passed 123 focused inbox and lifecycle tests,
   TypeScript and focused lint; Android cached-order no-jolt plus Android/iOS
   inactivity re-entry journeys also passed. No runtime defect was found.
+- M9d extracts deterministic inbox search and active-club filtering for league,
+  group, team, club and direct-message rows. Exact club/team and competition
+  isolation, personal-group and DM membership resolution, hidden-conversation
+  revival, empty-DM suppression, Ignite Support visibility and source ordering
+  retain their existing behaviour. Query ownership and the deliberate
+  keep-visible state while club membership is loading remain page-owned. Fourteen
+  direct contracts cover the policy matrix. Verification passed 137 focused
+  inbox and lifecycle tests, TypeScript and focused lint; the cross-club
+  notification route, Android cached-order no-jolt and iOS inactivity re-entry
+  journeys passed. No runtime defect was found.
 
 ## Objective
 
