@@ -445,22 +445,20 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
 
 
-  const deleteEventMutation = useMutation({
-    mutationFn: async (deleteType: "single" | "series") => {
-      if (deleteType === "series" && event.parent_event_id) {
-        await supabase.from("events").delete().eq("parent_event_id", event.parent_event_id);
-        await supabase.from("events").delete().eq("id", event.parent_event_id);
-      } else if (deleteType === "series" && event.is_recurring) {
-        await supabase.from("events").delete().eq("parent_event_id", event.id);
-        await supabase.from("events").delete().eq("id", event.id);
-      } else {
-        const { error } = await supabase.from("events").delete().eq("id", event.id);
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["events"] });
-    },
+  // Shared reliable deletion: awaited, error-checked, cache-purged. The dialog
+  // stays open and disabled until the database confirms.
+  const { deleteEvent, isPending: deletePending } = useDeleteEvent({
+    entityLabel: typeLabel,
+    onDeleted: () => setDeleteDialogOpen(false),
+  });
+
+  const handleConfirmDelete = (deleteType: "single" | "series") => {
+    void deleteEvent(
+      { id: event.id, is_recurring: event.is_recurring, parent_event_id: event.parent_event_id },
+      deleteType,
+    );
+  };
+
     onError: () => {
       toast({ title: "Failed to delete event", variant: "destructive" });
     },
