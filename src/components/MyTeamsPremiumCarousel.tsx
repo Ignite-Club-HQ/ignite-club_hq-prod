@@ -656,17 +656,24 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
         return title;
       };
 
+      // PER-SCOPE FAN-OUT: one `.in(...)` query with a global limit lets a
+      // busy team's fixture list consume the whole window and starve quieter
+      // teams of their "next event" label. Bound each team individually.
       if (teamIds.length > 0) {
-        const { data } = await supabase
-          .from("events")
-          .select("team_id, title, type, opponent, event_date, is_bye")
-          .in("team_id", teamIds)
-          .gte("event_date", now)
-          .eq("is_cancelled", false)
-          .order("event_date", { ascending: true })
-          .limit(50);
-
-        if (data) {
+        const results = await Promise.all(
+          teamIds.map((teamId) =>
+            supabase
+              .from("events")
+              .select("team_id, title, type, opponent, event_date, is_bye")
+              .eq("team_id", teamId)
+              .gte("event_date", now)
+              .eq("is_cancelled", false)
+              .order("event_date", { ascending: true })
+              .limit(1)
+          )
+        );
+        const data = results.flatMap((r) => r.data || []);
+        {
           for (const event of data) {
             if (event.team_id && !map[event.team_id]) {
               map[event.team_id] = {
@@ -681,16 +688,20 @@ export function MyTeamsPremiumCarousel({ onReadyChange }: MyTeamsPremiumCarousel
       }
 
       if (leagueItemIds.length > 0) {
-        const { data } = await supabase
-          .from("events")
-          .select("mini_league_id, title, type, opponent, event_date, is_bye")
-          .in("mini_league_id", leagueItemIds)
-          .gte("event_date", now)
-          .eq("is_cancelled", false)
-          .order("event_date", { ascending: true })
-          .limit(50);
-
-        if (data) {
+        const results = await Promise.all(
+          leagueItemIds.map((leagueId) =>
+            supabase
+              .from("events")
+              .select("mini_league_id, title, type, opponent, event_date, is_bye")
+              .eq("mini_league_id", leagueId)
+              .gte("event_date", now)
+              .eq("is_cancelled", false)
+              .order("event_date", { ascending: true })
+              .limit(1)
+          )
+        );
+        const data = results.flatMap((r) => r.data || []);
+        {
           for (const event of data) {
             if (event.mini_league_id && !map[event.mini_league_id]) {
               map[event.mini_league_id] = {
