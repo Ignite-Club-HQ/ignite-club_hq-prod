@@ -393,7 +393,8 @@ export default function CreateEventPage() {
       const { data: allTeams } = await supabase
         .from("teams")
         .select("id, name, club_id")
-        .eq("club_id", clubId);
+        .eq("club_id", clubId)
+        .is("deleted_at", null);
 
       if (!allTeams) return [];
 
@@ -420,6 +421,7 @@ export default function CreateEventPage() {
         .from("teams")
         .select("id, name")
         .eq("club_id", clubId!)
+        .is("deleted_at", null)
         .order("name");
       return data ?? [];
     },
