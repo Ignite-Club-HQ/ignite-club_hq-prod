@@ -1396,8 +1396,7 @@ export default function VaultPage() {
       const { data: miniLeaguesData } = await supabase
         .from("mini_leagues")
         .select("id, name")
-        .eq("club_id", currentClub.id)
-        .is("deleted_at", null);
+        .eq("club_id", currentClub.id);
       
       const teamsMap = new Map<string, string>();
       (teamsData || []).forEach(t => teamsMap.set(t.id, t.name));
