@@ -90,6 +90,12 @@ import {
   fetchInboxVaultFileNameMap,
   fetchInboxVaultFolderNameMap,
 } from "@/features/messaging/inbox/inboxRepositories";
+import {
+  areInboxSortSourcesSettled,
+  resolveInboxRevealPolicy,
+} from "@/features/messaging/inbox/inboxRevealPolicy";
+import { resolveInboxDisplayList } from "@/features/messaging/inbox/inboxDisplaySources";
+import { filterInboxGroupsByVisibility } from "@/features/messaging/inbox/inboxGroupVisibility";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
 // warm re-entries paint cached rows immediately instead of re-running the
@@ -1849,7 +1855,6 @@ export default function MessagesPage() {
   );
 
   const hasAnyDisplayData = !!(teams?.length || memberClubs?.length || chatGroups?.length);
-  const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingClubProStatus);
   // Wait for fresh latest-message data before sorting/rendering, so the most
   // recent thread is at the top on first paint (cached `lastActivity` may be
   // stale). We keep this gate even when cached data exists — otherwise the
@@ -1874,12 +1879,14 @@ export default function MessagesPage() {
   // means the first reveal always happens on server-authoritative ordering.
   // Errored queries still settle (isFetching flips false), and offline/paused
   // queries also report `isFetching === false`, so neither can wedge the gate.
-  const sortSourcesSettled =
-    (teamsFetched || teamsError) && !teamsFetching &&
-    (memberClubsFetched || memberClubsError) && !memberClubsFetching &&
-    (chatGroupsFetched || chatGroupsError) && !chatGroupsFetching &&
-    (latestBroadcastFetched || latestBroadcastError) && !latestBroadcastFetching &&
-    (dmFetched || dmError) && !dmFetching;
+  const sortSources = [
+    { isFetched: teamsFetched, isFetching: teamsFetching, isError: teamsError },
+    { isFetched: memberClubsFetched, isFetching: memberClubsFetching, isError: memberClubsError },
+    { isFetched: chatGroupsFetched, isFetching: chatGroupsFetching, isError: chatGroupsError },
+    { isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError },
+    { isFetched: dmFetched, isFetching: dmFetching, isError: dmError },
+  ];
+  const sortSourcesSettled = areInboxSortSourcesSettled(sortSources);
 
   // Hard ceiling: never hold the skeleton longer than this, even if one query
   // is pathologically slow. Order may correct in place after this point, but
@@ -1890,9 +1897,6 @@ export default function MessagesPage() {
     const t = window.setTimeout(() => setSortGateExpired(true), 3500);
     return () => window.clearTimeout(t);
   }, [sortSourcesSettled]);
-
-  // `freshSortDataReady` describes *initial ordering readiness only*.
-  const freshSortDataReady = !isOnline || sortSourcesSettled || sortGateExpired;
 
   // FIRST-REVEAL LATCH.
   // `sortSourcesSettled` depends on `isFetching`, which flips true again for
@@ -1929,9 +1933,19 @@ export default function MessagesPage() {
   // a cached inbox never waits on the *loading* half of the gate). Offline is
   // excluded entirely by the leading `isOnline`, so the cached inbox is still
   // revealed instantly with no network.
-  const initialRevealBlocked =
-    isOnline &&
-    (isLoadingFreshData || !freshSortDataReady);
+  const {
+    isLoadingFreshData,
+    initialRevealBlocked,
+    showSkeletonLoading,
+  } = resolveInboxRevealPolicy({
+    isOnline,
+    hasAnyDisplayData,
+    hasCachedData: !!hasCachedData,
+    hasLoadingSource: !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingClubProStatus),
+    sortSources,
+    sortGateExpired,
+    hasRevealedStableInbox: hasRevealedStableInboxRef.current,
+  });
 
 
   useEffect(() => {
@@ -1947,11 +1961,6 @@ export default function MessagesPage() {
       setHasRevealedStableInbox(false);
     }
   }, [hasRevealedStableInbox, user?.id]);
-
-  const showSkeletonLoading = isOnline && !hasRevealedStableInboxRef.current && initialRevealBlocked;
-
-
-
 
   // Resume/reconnect stability: an inbox source query can transiently resolve
   // to undefined/[] while it is refetching or errored (auth refresh, RLS
@@ -1990,63 +1999,42 @@ export default function MessagesPage() {
   // first fetch for this mount (`!isFetched`) — that's what makes a warm inbox
   // open paint instantly instead of showing an empty list. A *settled* empty
   // online result stays authoritative.
-  const displayTeams = (stickyTeams?.length ? stickyTeams : ((!isOnline || !teamsFetched) ? (cachedData?.teams as any) : null)) || stickyTeams || cachedData?.teams || [];
-  const displayMemberClubs = (stickyMemberClubs?.length ? stickyMemberClubs : ((!isOnline || !memberClubsFetched) ? (cachedData?.memberClubs as any) : null)) || stickyMemberClubs || cachedData?.memberClubs || [];
+  const displayTeams = resolveInboxDisplayList({
+    sticky: stickyTeams,
+    cached: cachedData?.teams,
+    isOnline,
+    isFetched: teamsFetched,
+  });
+  const displayMemberClubs = resolveInboxDisplayList({
+    sticky: stickyMemberClubs,
+    cached: cachedData?.memberClubs,
+    isOnline,
+    isFetched: memberClubsFetched,
+  });
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
   // Important: an empty fresh chat-group result is authoritative *while
   // online*. Falling back to cached groups when `chatGroups.length === 0`
   // kept soft-deleted/purged club chats visible forever after the server
   // correctly returned no rows. Offline, an empty/failed result carries no
   // authority, so cached rows stay visible.
-  const allChatGroups = (stickyChatGroups?.length ? stickyChatGroups : ((!isOnline || !chatGroupsFetched) ? (cachedData?.chatGroups as any) : null)) ?? stickyChatGroups ?? (cachedData?.chatGroups as any) ?? [];
+  const allChatGroups = resolveInboxDisplayList({
+    sticky: stickyChatGroups,
+    cached: cachedData?.chatGroups,
+    isOnline,
+    isFetched: chatGroupsFetched,
+  });
 
 
   
   // Filter chat groups by user's roles
-  const displayChatGroups = useMemo(() => {
-    if (isAppAdmin || isCommitteeMember) return allChatGroups;
-
-    // Offline with no roles loaded: the cached groups were already RLS- and
-    // role-filtered for THIS user when they were written (cache is
-    // user-scoped and cleared on sign-out), so render them rather than
-    // dropping every club/team chat.
-    const rolesUnavailableOffline = !isOnline && !userAllRoles?.length;
-    if (rolesUnavailableOffline) return allChatGroups;
-
-    return allChatGroups.filter((group: any) => {
-      // Personal/custom groups (no club, team, or mini-league scope) are
-      // membership-based via group_members and RLS already filtered them.
-      // Always show them — do NOT gate on user_roles.
-      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
-      if (isPersonalGroup) return true;
-
-      if (!userAllRoles?.length) return false;
-
-
-      const allowedRoles: string[] = group.allowed_roles || [];
-      if (allowedRoles.length === 0) return true;
-
-      if (group.mini_league_id) {
-        const isLeagueAdmin = userAllRoles.some((ur: any) => 
-          ["club_admin", "league_admin", "coach", "team_admin"].includes(ur.role) && 
-          ur.club_id === group.club_id
-        );
-        if (isLeagueAdmin) return true;
-        if (!userLeagueIds?.has(group.mini_league_id)) return false;
-      }
-      
-      return userAllRoles.some((ur: any) => {
-        if (!allowedRoles.includes(ur.role)) return false;
-        if (group.club_id && !group.team_id && !group.mini_league_id) {
-          return ur.club_id === group.club_id;
-        }
-        if (group.team_id) {
-          return ur.team_id === group.team_id;
-        }
-        return true;
-      });
-    });
-  }, [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember, isOnline]);
+  const displayChatGroups = useMemo(() => filterInboxGroupsByVisibility({
+    groups: allChatGroups,
+    roles: userAllRoles,
+    leagueIds: userLeagueIds,
+    isAppAdmin: !!isAppAdmin,
+    isCommitteeMember: !!isCommitteeMember,
+    isOnline,
+  }), [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember, isOnline]);
 
   const displayLatestBroadcast = latestBroadcast || cachedData?.latestBroadcast;
   const displayLatestTeamMessages = latestTeamMessages || {};

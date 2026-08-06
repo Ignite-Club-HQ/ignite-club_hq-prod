@@ -14,6 +14,10 @@ const messages = readFileSync(
   path.resolve(__dirname, "../pages/MessagesPage.tsx"),
   "utf8",
 );
+const revealPolicy = readFileSync(
+  path.resolve(__dirname, "../features/messaging/inbox/inboxRevealPolicy.ts"),
+  "utf8",
+);
 
 describe("inbox first-reveal latch", () => {
   it("declares an explicit per-mount reveal latch", () => {
@@ -22,15 +26,16 @@ describe("inbox first-reveal latch", () => {
   });
 
   it("gates the skeleton on the latch, not on raw fetching state", () => {
-    expect(messages).toMatch(
-      /const showSkeletonLoading = isOnline && !hasRevealedStableInboxRef\.current && initialRevealBlocked/,
-    );
+    expect(messages).toMatch(/resolveInboxRevealPolicy/);
+    expect(messages).toMatch(/hasRevealedStableInbox: hasRevealedStableInboxRef\.current/);
+    expect(revealPolicy).toMatch(/!input\.hasRevealedStableInbox && initialRevealBlocked/);
   });
 
   it("keeps ordering readiness separate from the permanent render decision", () => {
-    expect(messages).toMatch(/const freshSortDataReady = !isOnline \|\|/);
-    expect(messages).toMatch(/const initialRevealBlocked =\s*\n?\s*isOnline &&/);
-    expect(messages).toMatch(/isLoadingFreshData \|\| !freshSortDataReady/);
+    expect(messages).toMatch(/isLoadingFreshData,\s*\n\s*initialRevealBlocked/);
+    expect(revealPolicy).toMatch(/const freshSortDataReady =/);
+    expect(revealPolicy).toMatch(/const initialRevealBlocked =/);
+    expect(revealPolicy).toMatch(/isLoadingFreshData \|\| !freshSortDataReady/);
   });
 
   it("never blocks a warm re-entry reveal (session latch, not a cache bypass)", () => {
@@ -39,17 +44,15 @@ describe("inbox first-reveal latch", () => {
     // bypass must NOT appear in the first-reveal gate itself: cached rows carry
     // stale ordering timestamps, and releasing on them produced the Android
     // reload/resume stale-order jolt.
-    const gate = messages.slice(
-      messages.indexOf("const initialRevealBlocked ="),
-      messages.indexOf("useEffect(() => {\n    if (hasRevealedStableInboxRef.current) return;"),
+    const gate = revealPolicy.slice(
+      revealPolicy.indexOf("const initialRevealBlocked ="),
+      revealPolicy.indexOf("const showSkeletonLoading ="),
     );
     expect(gate).not.toMatch(/!hasCachedData/);
     expect(gate).not.toMatch(/!hasAnyDisplayData/);
     // The cache is still consulted for the *loading* half of the gate, so a
     // cached inbox never waits on query loading state.
-    expect(messages).toMatch(
-      /const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData &&/,
-    );
+    expect(revealPolicy).toMatch(/!input\.hasAnyDisplayData && !input\.hasCachedData/);
   });
 
 
@@ -59,6 +62,6 @@ describe("inbox first-reveal latch", () => {
   });
 
   it("still shows the offline cached inbox immediately", () => {
-    expect(messages).toMatch(/const showSkeletonLoading = isOnline &&/);
+    expect(revealPolicy).toMatch(/input\.isOnline && !input\.hasRevealedStableInbox/);
   });
 });

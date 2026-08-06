@@ -641,6 +641,37 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   inbox orchestration outside the composer tranche, so it is recorded as a
   suite-load timing flake rather than a runtime defect. TypeScript, focused
   lint and the production build passed.
+- M9a begins the next inbox-maintainability tranche by extracting the pure
+  first-reveal policy from `MessagesPage`. Five ordering-source states, cached
+  and live data availability, online/offline behavior, the bounded release
+  ceiling and the one-way stable-reveal latch now enter one typed decision
+  boundary. Query ownership, the 3.5-second timer, session latch, cache reads,
+  rendering and native lifecycle effects remain page-owned. Eight direct
+  contracts protect cold online loading, React Query `initialData` refetches,
+  settled errors, offline cached reveal, ceiling expiry, warm-latch behavior
+  and prevention of stale cached-order bypass. Verification passed 105 focused
+  inbox/resume tests, TypeScript and focused lint. The Android cached-order
+  no-jolt journey and Android/iOS inactivity re-entry journeys all passed. A
+  browser-only wiring omission found during the first run was corrected before
+  completion and is now protected by a source-consumption assertion.
+- M9b extracts the sticky-versus-cached display-source decision shared by the
+  Team, Club and Group inbox lists. Non-empty sticky snapshots still win;
+  offline and not-yet-fetched sources may use the user-scoped cache; and a
+  settled online empty array remains authoritative so deleted conversations
+  cannot be resurrected. `useStickyList`, query lifecycle state, cache reads,
+  role filtering and rendering remain page-owned. Seven direct contracts pin
+  identity preservation and the complete live/cache/offline/empty matrix.
+  Verification passed 113 focused inbox and resume tests, TypeScript, focused
+  lint, Android cached-order no-jolt, Android inactivity re-entry and iOS
+  inactivity re-entry journeys. No runtime defect was found.
+- M9c extracts role-aware Group inbox visibility into a typed pure boundary.
+  App-admin and committee access, personal groups, exact club/team scope,
+  mini-league membership, unrestricted groups and the offline cached-role
+  fallback retain their existing behaviour. Online scoped groups continue to
+  fail closed while roles are unavailable. Ten direct contracts cover the
+  permission matrix. Verification passed 123 focused inbox and lifecycle tests,
+  TypeScript and focused lint; Android cached-order no-jolt plus Android/iOS
+  inactivity re-entry journeys also passed. No runtime defect was found.
 
 ## Objective
 
