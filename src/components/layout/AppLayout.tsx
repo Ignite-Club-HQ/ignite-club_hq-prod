@@ -25,6 +25,10 @@ export function AppLayout() {
   useAdMobInit();
   useActivityTracking();
   useTrackPresence(user?.id);
+  // Retroactively reconcile pre-tombstone inbox snapshots (runs once per user).
+  useEffect(() => {
+    sweepStaleDeletedTeams(user?.id);
+  }, [user?.id]);
   const { isThemeReady } = useClubTheme();
   const location = useLocation();
   const [retrying, setRetrying] = useState(false);
