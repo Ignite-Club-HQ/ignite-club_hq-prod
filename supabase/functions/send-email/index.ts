@@ -503,7 +503,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           otp: data.otp,
           expiresInMinutes: data.expiresInMinutes || 60,
           actionType: data.actionType,
-          appName: data.appName || "Ignite Club HQ",
+          appName: data.appName || "Ignite",
           logoUrl: data.logoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
         })
@@ -875,7 +875,7 @@ serve(async (req: Request): Promise<Response> => {
     if (senderName) {
       sender = `${senderName} <support@igniteclubhq.app>`;
     } else {
-      sender = from || "Ignite Club HQ <support@igniteclubhq.app>";
+      sender = from || "Ignite <support@igniteclubhq.app>";
     }
 
     console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)${replyTo ? ` (reply-to: ${replyTo})` : ''}`);
