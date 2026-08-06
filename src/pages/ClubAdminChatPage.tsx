@@ -68,6 +68,7 @@ import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
+import { ChatPageFrame } from "@/components/chat/ChatPageFrame";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
@@ -1183,7 +1184,7 @@ export default function ClubAdminChatPage() {
 
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
+    <ChatPageFrame height={chatHeight} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
@@ -1467,6 +1468,6 @@ export default function ClubAdminChatPage() {
           </SheetContent>
         </Sheet>
       )}
-    </div>
+    </ChatPageFrame>
   );
 }

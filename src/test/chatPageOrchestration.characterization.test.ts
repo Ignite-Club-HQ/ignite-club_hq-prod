@@ -74,7 +74,10 @@ describe("six-surface messaging refactor contracts", () => {
       expect(text).toContain("MentionInput");
       expect(text).toMatch(/replyingTo|replyTo/);
       expect(text).toContain("editingMessage");
-      expect(text).toContain('data-lock-keyboard-scroll="true"');
+      expect(text).toContain("<ChatPageFrame");
+      expect(text).toContain("height={chatHeight}");
+      expect(text).toContain("onTouchStart={swipeBack.onTouchStart}");
+      expect(text).toContain("onTouchEnd={swipeBack.onTouchEnd}");
       expect(text).toContain("scrollToBottom");
     });
   }

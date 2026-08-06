@@ -413,6 +413,14 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   passed 160 focused contracts, all 29 cross-surface messaging Playwright
   journeys, TypeScript, focused production-helper lint and the production
   build. No runtime defect was found.
+- M6a begins page composition with one native-safe outer chat frame shared by
+  all six surfaces. It owns only the measured viewport height, overflow and
+  overscroll containment, the keyboard-scroll lock marker and forwarding of
+  swipe-back touch boundaries. Header, thread, Virtuoso, composer, routing,
+  permissions and all child ordering remain page-owned. Verification passed
+  65 focused viewport/composition contracts, TypeScript, focused lint, Android
+  and iOS exact-message no-jolt journeys, reply/edit identity journeys and the
+  production build. No runtime defect was found.
 
 ## Objective
 

@@ -68,6 +68,7 @@ import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authorita
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
+import { ChatPageFrame } from "@/components/chat/ChatPageFrame";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache, selectCachedProfileById } from "@/lib/profileCache";
@@ -1464,7 +1465,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
+    <ChatPageFrame height={chatHeight} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
       <ChatHeaderShell
         type={isIgniteSupportConversation ? "support" : "dm"}
@@ -1723,6 +1724,6 @@ export default function DirectMessagePage() {
            </div>
         </>
       )}
-    </div>
+    </ChatPageFrame>
   );
 }
