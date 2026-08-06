@@ -1,4 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { purgeEventsFromScheduleCache } from "@/lib/scheduleCache";
+
 
 /**
  * Extra top-level query keys that hold event rows but are not named "event*".
@@ -31,7 +33,13 @@ export async function purgeDeletedEventFromCaches(
 ): Promise<void> {
   const ids = new Set(deletedIds.filter(Boolean));
 
+  // Persisted (localStorage) schedule cache first: the list view falls back to
+  // it on offline/error and on the next cold open, so leaving it stale is what
+  // makes a deleted event reappear in List but not Calendar.
+  purgeEventsFromScheduleCache([...ids]);
+
   queryClient.getQueryCache().getAll().forEach((query) => {
+
     if (!isEventRelatedQueryKey(query.queryKey)) return;
     const data = query.state.data;
     if (Array.isArray(data)) {
