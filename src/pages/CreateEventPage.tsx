@@ -1732,9 +1732,9 @@ export default function CreateEventPage() {
       </Card>
 
       {/* Submit Button - Sticky on mobile */}
-      <div className="sticky bottom-4 pt-2">
+      <div className="sticky bottom-0 z-20 -mx-4 border-t border-border bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button
-          className="w-full h-12 text-base font-semibold shadow-lg"
+          className="w-full h-12 text-base font-semibold shadow-lg disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground"
           onClick={() => handleSubmit()}
           disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim() || (type === "training" && !teamId)}
         >
@@ -1745,6 +1745,7 @@ export default function CreateEventPage() {
           )}
         </Button>
       </div>
+
 
       {/* Conflict Detection Dialog */}
       <AlertDialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
