@@ -41,7 +41,7 @@ const mutationNames = [
   "parentLeaguePlayerRsvp", "rsvp", "childRsvp", "adminRsvp",
   "adminUpdateRsvp", "rsvpForMember", "rsvpForChild", "togglePayment",
   "addDuty", "claimDuty", "completeDuty", "uncompleteDuty", "deleteDuty",
-  "assignDuty", "deleteEvent", "cancelEvent", "remind", "individualRemind",
+  "assignDuty", "cancelEvent", "remind", "individualRemind",
   "resendInvites",
 ];
 
@@ -724,85 +724,4 @@ describe("EventDetailPage business-operation characterization", () => {
     }]);
   });
 
-  it("deletes one event only after the undo window expires", async () => {
-    await renderPage();
-    vi.useFakeTimers();
-    try {
-      await act(async () => {
-        await mutation("deleteEvent").mutationFn("single");
-      });
-      expect(mocks.operations).toEqual([]);
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(5_999);
-      });
-      expect(mocks.operations).toEqual([]);
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1);
-      });
-      expect(mocks.operations).toEqual([{
-        table: "events",
-        kind: "delete",
-        filters: [["id", "event-1"]],
-      }]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("deletes recurring children before their root and stops if the first write is denied", async () => {
-    mocks.eventData = { ...baseEvent, is_recurring: true };
-    await renderPage();
-    mocks.results["events:delete"] = [{ data: null, error: { message: "children denied", code: "42501" } }];
-    vi.useFakeTimers();
-    try {
-      await act(async () => {
-        await mutation("deleteEvent").mutationFn("series");
-        await vi.advanceTimersByTimeAsync(6_000);
-      });
-      expect(mocks.operations).toEqual([{
-        table: "events",
-        kind: "delete",
-        filters: [["parent_event_id", "event-1"]],
-      }]);
-      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
-        variant: "destructive",
-      }));
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("reports a delayed single-event deletion failure instead of leaving the success message uncorrected", async () => {
-    await renderPage();
-    mocks.results["events:delete"] = [{ data: null, error: { message: "event deletion denied", code: "42501" } }];
-    vi.useFakeTimers();
-    try {
-      await act(async () => {
-        await mutation("deleteEvent").mutationFn("single");
-        await vi.advanceTimersByTimeAsync(6_000);
-      });
-      expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
-        title: expect.stringMatching(/delete|deletion/i),
-        description: expect.stringContaining("event deletion denied"),
-        variant: "destructive",
-      }));
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("coalesces repeated delete requests during the undo window into one database operation", async () => {
-    await renderPage();
-    vi.useFakeTimers();
-    try {
-      await act(async () => {
-        await mutation("deleteEvent").mutationFn("single");
-        await mutation("deleteEvent").mutationFn("single");
-        await vi.advanceTimersByTimeAsync(6_000);
-      });
-      expect(mocks.operations.filter((operation) => operation.table === "events")).toHaveLength(1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
 });

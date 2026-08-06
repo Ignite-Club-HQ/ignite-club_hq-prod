@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   deletedAt: null as string | null,
   toast: vi.fn(),
   invalidateQueries: vi.fn(),
+  setQueryData: vi.fn(),
   writes: [] as Array<{ table: string; kind: string; payload?: any; filters: any[] }>,
   operations: [] as string[],
   results: {} as Record<string, Array<{ data: any; error: any }>>,
@@ -33,7 +34,10 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
       return { data: undefined, isLoading: false, isFetching: false, fetchStatus: "idle", refetch: vi.fn() };
     },
     useMutation: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
-    useQueryClient: () => ({ invalidateQueries: mocks.invalidateQueries }),
+    useQueryClient: () => ({
+      invalidateQueries: mocks.invalidateQueries,
+      setQueryData: mocks.setQueryData,
+    }),
   };
 });
 
@@ -229,6 +233,16 @@ describe("TeamDetailPage role-aware rendering", () => {
       variant: "destructive",
     }));
     expect(mocks.toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Team deleted" }));
+    const invalidatedRoots = mocks.invalidateQueries.mock.calls.map(
+      ([filters]) => filters?.queryKey?.[0],
+    );
+    expect(invalidatedRoots).not.toEqual(expect.arrayContaining([
+      "club-teams-for-event",
+      "all-club-teams-for-target",
+      "user-teams-upload-sheet",
+      "media-filter-teams",
+      "vault-club-teams",
+    ]));
   });
 
   it("commits the team deletion before telling members that it was deleted", async () => {
@@ -247,6 +261,27 @@ describe("TeamDetailPage role-aware rendering", () => {
       { user_id: "member-2", type: "membership", message: "Synthetic Team has been deleted", related_id: "club-1" },
       { user_id: "member-3", type: "membership", message: "Synthetic Team has been deleted", related_id: "club-1" },
     ]);
+  });
+
+  it("evicts every event, Gallery and Vault team picker after a team deletion commits", async () => {
+    mocks.isClubAdmin = true;
+    mocks.results["user_roles:select"] = [{ data: [], error: null }];
+    renderPage();
+    fireEvent.click(await screen.findByText("Delete Team"));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm team deletion" }));
+
+    await waitFor(() => expect(mocks.operations).toContain("teams:update"));
+
+    const invalidatedRoots = mocks.invalidateQueries.mock.calls.map(
+      ([filters]) => filters?.queryKey?.[0],
+    );
+    expect(invalidatedRoots).toEqual(expect.arrayContaining([
+      "club-teams-for-event",
+      "all-club-teams-for-target",
+      "user-teams-upload-sheet",
+      "media-filter-teams",
+      "vault-club-teams",
+    ]));
   });
 
   it("invokes permanent deletion with the exact team boundary", async () => {

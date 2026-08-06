@@ -9,6 +9,7 @@ const otherClubId = "00000000-0000-4000-8000-000000009013";
 const targetId = "00000000-0000-4000-8000-000000009020";
 const olderSearchId = "00000000-0000-4000-8000-000000009021";
 const oldPushTargetId = "00000000-0000-4000-8000-000000009022";
+const recreatedTeamMessageId = "00000000-0000-4000-8000-000000009023";
 const syntheticImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='30'%3E%3Crect width='40' height='30' fill='%23007acc'/%3E%3C/svg%3E";
 const offlineEventTitle = "Synthetic cached offline fixture";
 const offlinePhotoTitle = "Synthetic cached offline photo";
@@ -41,6 +42,7 @@ type HarnessBehavior = {
   pitchBoardController?: boolean;
   wrongActiveClub?: boolean;
   wrongScopeCachedMessages?: boolean;
+  recreatedTeamIsolation?: boolean;
 };
 type HarnessState = {
   inserts: Record<string, unknown>[];
@@ -248,7 +250,9 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
     const singular = req.headers()["accept"]?.includes("application/vnd.pgrst.object");
     if (url.pathname === "/auth/v1/user") return json(route, user);
     if (url.pathname === "/rest/v1/teams") {
-      const teamRows = [
+      const teamRows = behavior.recreatedTeamIsolation ? [
+        { id: secondTeamId, club_id: clubId, name: "Synthetic Messaging Team", logo_url: null, team_type: "mixed", deleted_at: null, clubs: { id: clubId, name: "Synthetic Club", logo_url: null, sport: null, is_pro: true } },
+      ] : [
         { id: teamId, club_id: clubId, name: "Synthetic Messaging Team", logo_url: null, team_type: "mixed", clubs: { id: clubId, name: "Synthetic Club", logo_url: null, sport: behavior.pitchBoardController ? "soccer" : null, is_pro: true } },
         ...(behavior.multipleInboxTeams
           ? [{ id: secondTeamId, club_id: clubId, name: "Synthetic Older Team", logo_url: null, clubs: { id: clubId, name: "Synthetic Club", logo_url: null } }]
@@ -271,7 +275,7 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       return json(route, singular || exactId ? rows.find(row => row.id === exactId) ?? rows[0] : rows);
     }
     if (url.pathname === "/rest/v1/user_roles") return json(route, [
-      { user_id: userId, role: behavior.pitchBoardController ? "coach" : "player", club_id: clubId, team_id: teamId },
+      { user_id: userId, role: behavior.pitchBoardController ? "coach" : "player", club_id: clubId, team_id: behavior.recreatedTeamIsolation ? secondTeamId : teamId },
       ...(behavior.wrongActiveClub
         ? [{ user_id: userId, role: "club_member", club_id: otherClubId, team_id: null }]
         : []),
@@ -407,6 +411,20 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
         }]);
       }
       const requested = url.searchParams.get("id")?.replace("eq.", "");
+      if (behavior.recreatedTeamIsolation) {
+        const requestedTeam = url.searchParams.get("team_id")?.replace("eq.", "");
+        const newTeamMessage = {
+          ...messages[0],
+          id: recreatedTeamMessageId,
+          team_id: secondTeamId,
+          text: "New event auto-post for the recreated team",
+          is_system_message: true,
+          created_at: "2026-08-06T01:00:00.000Z",
+        };
+        if (requested === recreatedTeamMessageId) return json(route, singular ? newTeamMessage : [newTeamMessage]);
+        if (requestedTeam === teamId) return json(route, singular ? null : []);
+        if (requestedTeam === secondTeamId || !requestedTeam) return json(route, singular ? newTeamMessage : [newTeamMessage]);
+      }
       const isHistorySearch = [...url.searchParams.keys()].some(key => key === "text") &&
         [...url.searchParams.getAll("text")].some(value => value.includes("ilike"));
       const olderSearchMessage = {
@@ -450,7 +468,21 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       const row = { id: targetId, [bell.scopeColumn]: bell.scopeId, author_id: "00000000-0000-4000-8000-000000009099" };
       return json(route, bell.targetExists === false ? (singular ? null : []) : (singular ? row : [row]));
     }
-    if (url.pathname === "/rest/v1/notifications") return json(route, [{ id: "00000000-0000-4000-8000-000000009030", user_id: userId, type: bell.type, message: "Alex sent a message", read: false, is_read: false, related_id: targetId, club_id: clubId, created_at: "2026-07-27T12:00:00Z" }]);
+    if (url.pathname === "/rest/v1/notifications") return json(route, [{ id: "00000000-0000-4000-8000-000000009030", user_id: userId, type: bell.type, message: behavior.recreatedTeamIsolation ? "New team event posted" : "Alex sent a message", read: false, is_read: false, related_id: behavior.recreatedTeamIsolation ? recreatedTeamMessageId : targetId, club_id: clubId, created_at: "2026-07-27T12:00:00Z" }]);
+    if (
+      behavior.recreatedTeamIsolation &&
+      url.pathname === "/rest/v1/rpc/get_inbox_latest_team_messages"
+    ) {
+      return json(route, [{
+        team_id: secondTeamId,
+        text: "New event auto-post for the recreated team",
+        author_display_name: "Ignite Bot",
+        created_at: "2026-08-06T01:00:00.000Z",
+        image_url: null,
+        is_club_announcement: true,
+        club_announcement_name: "Synthetic Club",
+      }]);
+    }
     if (
       behavior.multipleInboxTeams &&
       url.pathname === "/rest/v1/rpc/get_inbox_latest_team_messages"
@@ -907,6 +939,42 @@ test("a realtime inbox preview and the subsequently opened thread converge on th
   await expect(page.locator(`#message-${row.id}`)).toContainText(
     "Realtime preview and thread must agree",
     { timeout: 5_000 },
+  );
+});
+
+test("deleting and recreating a same-named team produces a fresh chat, event post and notification route", async ({ page }) => {
+  await page.unrouteAll({ behavior: "wait" });
+  await install(page, {
+    type: "team_message",
+    table: "team_messages",
+    scopeColumn: "team_id",
+    scopeId: secondTeamId,
+    expectedPath: `/messages/${secondTeamId}`,
+  }, { recreatedTeamIsolation: true });
+
+  await page.goto("/messages");
+  const recreatedTeam = page.locator(`a[href="/messages/${secondTeamId}"]`);
+  await expect(recreatedTeam).toContainText("Synthetic Messaging Team", { timeout: 15_000 });
+  await expect(recreatedTeam).toContainText("New event auto-post for the recreated team");
+  await expect(page.locator(`a[href="/messages/${teamId}"]`)).toHaveCount(0);
+  await expect(page.getByText("Synthetic history message 0", { exact: true })).toHaveCount(0);
+
+  await recreatedTeam.click();
+  await expect(page).toHaveURL(new RegExp(`/messages/${secondTeamId}$`));
+  await expect(page.locator(`#message-${recreatedTeamMessageId}`)).toContainText(
+    "New event auto-post for the recreated team",
+    { timeout: 8_000 },
+  );
+  await expect(page.getByText("Synthetic history message 0", { exact: true })).toHaveCount(0);
+
+  await page.goto("/notifications");
+  await page.getByText("New team event posted", { exact: true }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/messages/${secondTeamId}\\?.*message=${recreatedTeamMessageId}`),
+  );
+  await expect(page.locator(`#message-${recreatedTeamMessageId}`)).toContainText(
+    "New event auto-post for the recreated team",
+    { timeout: 8_000 },
   );
 });
 
