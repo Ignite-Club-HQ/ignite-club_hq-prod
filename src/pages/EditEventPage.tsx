@@ -451,6 +451,7 @@ export default function EditEventPage() {
         .from("teams")
         .select("id, name")
         .eq("club_id", selectedClubId)
+        .is("deleted_at", null)
         .order("name");
       return data ?? [];
     },
