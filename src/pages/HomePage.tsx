@@ -493,38 +493,64 @@ export default function HomePage() {
       // limit-50 cut-off would land before the quieter club's next event
       // (manifesting as an empty Next Up after switching club themes).
       const clubIdsFromRolesArr = Array.from(clubIds);
-      const eventScopeOr: string[] = [];
-      if (clubIdsFromRolesArr.length > 0) {
-        eventScopeOr.push(`club_id.in.(${clubIdsFromRolesArr.join(",")})`);
-      }
-      if (teamIds.length > 0) {
-        eventScopeOr.push(`team_id.in.(${teamIds.join(",")})`);
-      }
 
-      let eventsQuery = supabase
-        .from("events")
-        .select(`id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, adults_only, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)`)
-        // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
-        // today's local-morning fixtures are stored as YESTERDAY's UTC date
-        // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing
-        // against today's local YYYY-MM-DD therefore excludes them at the
-        // server, so morning home-team games disappeared from Next Up
-        // while still appearing on the Schedule page (which uses a wider
-        // window). Widen the lower bound by one day; the client-side
-        // `isStillUpcomingForNextUp` strictly filters past events using
-        // local date + start_time, so this only admits candidates that may
-        // belong to today locally.
-        .gte(
-          "event_date",
-          getLocalDateKey(new Date(now.getTime() - 24 * 60 * 60 * 1000))
-        )
-        .order("event_date", { ascending: true })
-        .limit(100);
-      if (eventScopeOr.length > 0) {
-        eventsQuery = eventsQuery.or(eventScopeOr.join(","));
-      }
+      // PER-SCOPE FAN-OUT. A single `.or(club_id.in..., team_id.in...)` query
+      // with one global `.limit()` starves quiet clubs: on a multi-club
+      // account the busy club's recurring training consumed all 100 rows and
+      // the quiet club's only fixture (ranked #116) never reached the client,
+      // leaving Next Up empty under that club's theme. Each club (and each
+      // team whose club is not already in scope) now gets its own bounded
+      // query, all issued in the same Promise.all so there is no new
+      // waterfall.
+      const EVENTS_PER_SCOPE_LIMIT = 25;
+      // Pass the select string through a plain-string helper so supabase-js
+      // does not re-parse it at the type level for every query in the loop
+      // (that is a known tsc blow-up). Row shape is pinned via .returns<T>().
+      const sel = (s: string): string => s;
+      const EVENT_SELECT =
+        "id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, adults_only, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)";
+      // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
+      // today's local-morning fixtures are stored as YESTERDAY's UTC date
+      // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing against
+      // today's local YYYY-MM-DD therefore excludes them at the server, so
+      // morning home-team games disappeared from Next Up while still
+      // appearing on the Schedule page (which uses a wider window). Widen the
+      // lower bound by one day; the client-side `isStillUpcomingForNextUp`
+      // strictly filters past events using local date + start_time, so this
+      // only admits candidates that may belong to today locally.
+      const eventsLowerBound = getLocalDateKey(
+        new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      );
 
-      const [teamsResult, playerLeaguesResult, adminLeaguesResult, eventsResult, activeClubsResult] = await Promise.all([
+      type HomeEventRow = Event & { mini_league_id: string | null };
+
+      const scopedEventsQuery = (column: "club_id" | "team_id", value: string) =>
+        supabase
+          .from("events")
+          .select(sel(EVENT_SELECT))
+          .eq(column, value)
+          .gte("event_date", eventsLowerBound)
+          .order("event_date", { ascending: true })
+          .limit(EVENTS_PER_SCOPE_LIMIT)
+          .returns<HomeEventRow[]>();
+
+      const clubEventQueries = clubIdsFromRolesArr.map((clubId) =>
+        scopedEventsQuery("club_id", clubId)
+      );
+      // Team events are normally covered by their club's query, but a team can
+      // sit in a club the user has no direct role in — fetch those separately
+      // so they are not lost. De-duplication by event id happens on merge.
+      const teamEventQueries = teamIds.map((teamId) =>
+        scopedEventsQuery("team_id", teamId)
+      );
+
+      const [
+        teamsResult,
+        playerLeaguesResult,
+        adminLeaguesResult,
+        activeClubsResult,
+        ...eventResults
+      ] = await Promise.all([
         teamIds.length > 0
           ? supabase.from("teams").select("id, club_id").in("id", teamIds).is("deleted_at", null)
           : Promise.resolve({ data: [] as { id: string; club_id: string }[], error: null as any }),
@@ -532,7 +558,6 @@ export default function HomePage() {
         leagueAdminArr.length > 0
           ? supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr)
           : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
-        eventsQuery,
         // Filter out soft-deleted clubs from role-derived memberships. Without
         // this, deleting a club leaves orphan user_roles rows that still make
         // the user look like a member (empty-state welcome hidden, ghost
@@ -541,7 +566,25 @@ export default function HomePage() {
         clubIdsFromRolesArr.length > 0
           ? supabase.from("clubs").select("id").in("id", clubIdsFromRolesArr).is("deleted_at", null)
           : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
+        ...clubEventQueries,
+        ...teamEventQueries,
       ]);
+
+      // Same protection as every other leg: if ANY per-scope events query
+      // failed (RLS race on resume, token rotation), throw so React Query
+      // preserves the previous Next Up data instead of caching a partial or
+      // empty list.
+      const mergedEventsById = new Map<string, HomeEventRow>();
+      for (const res of eventResults as { data: HomeEventRow[] | null; error: any }[]) {
+        if (res.error) throw res.error;
+        if (!res.data) throw new Error("events fetch returned null data");
+        for (const row of res.data) mergedEventsById.set(row.id, row);
+      }
+      const mergedEvents = Array.from(mergedEventsById.values()).sort(
+        (a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
+      );
+      const eventsResult = { data: mergedEvents, error: null as any };
+
 
       // Validate every parallel result before using any of it. A transient
       // failure (token refresh, RLS race, network blip) must throw so React
