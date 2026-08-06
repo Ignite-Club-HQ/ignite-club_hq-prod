@@ -1,10 +1,246 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   hydrateCachedDirectMessages,
   buildPreviousDirectMessagePeerMap,
+  loadDirectMessagePeerProfiles,
+  assembleDirectMessageInboxConversations,
+  buildDirectMessageCachePayload,
   resolveDirectMessagePeerProfile,
   resolveEffectiveDirectMessages,
 } from "./inboxDirectMessageSources";
+
+describe("buildDirectMessageCachePayload", () => {
+  const peer = { id: "peer-1", display_name: "Peer One", avatar_url: "peer.jpg" };
+  const base = {
+    id: "dm-1",
+    participant_1: "me",
+    participant_2: "peer-1",
+    updated_at: "2026-08-06T11:00:00Z",
+    created_at: "2026-08-01T10:00:00Z",
+    created_by: "me",
+    other_user: peer,
+  };
+
+  it("keeps only the established persistent conversation metadata", () => {
+    const payload = buildDirectMessageCachePayload({
+      conversations: [{ ...base, transient: "not persisted", last_message: null }],
+      currentUserId: "me",
+    });
+    expect(payload.dmConversations).toEqual([{
+      id: "dm-1",
+      participant_1: "me",
+      participant_2: "peer-1",
+      updated_at: "2026-08-06T11:00:00Z",
+      created_at: "2026-08-01T10:00:00Z",
+      created_by: "me",
+      other_user: peer,
+    }]);
+    expect(payload.dmConversations[0]).not.toHaveProperty("transient");
+  });
+
+  it("normalizes missing creation ownership to null", () => {
+    const payload = buildDirectMessageCachePayload({
+      conversations: [{ ...base, created_by: undefined, last_message: null }],
+      currentUserId: "me",
+    });
+    expect(payload.dmConversations[0].created_by).toBeNull();
+  });
+
+  it("labels a current-user preview as You and preserves its media", () => {
+    const payload = buildDirectMessageCachePayload({
+      conversations: [{
+        ...base,
+        last_message: { text: "Sent", image_url: "photo.jpg", created_at: "now", author_id: "me" },
+      }],
+      currentUserId: "me",
+    });
+    expect(payload.latestDMMessages).toEqual({
+      "dm-1": { text: "Sent", author: "You", created_at: "now", image_url: "photo.jpg" },
+    });
+  });
+
+  it("labels a received preview with the resolved peer name or an empty fallback", () => {
+    const message = { text: "Received", image_url: null, created_at: "now", author_id: "peer-1" };
+    const payload = buildDirectMessageCachePayload({
+      conversations: [
+        { ...base, last_message: message },
+        { ...base, id: "dm-2", other_user: { ...peer, display_name: null }, last_message: message },
+      ],
+      currentUserId: "me",
+    });
+    expect(payload.latestDMMessages["dm-1"].author).toBe("Peer One");
+    expect(payload.latestDMMessages["dm-2"].author).toBe("");
+  });
+
+  it("omits preview entries for conversations without a latest message", () => {
+    const payload = buildDirectMessageCachePayload({
+      conversations: [{ ...base, last_message: null }],
+      currentUserId: "me",
+    });
+    expect(payload.latestDMMessages).toEqual({});
+  });
+});
+
+describe("assembleDirectMessageInboxConversations", () => {
+  const peerOne = { id: "peer-1", display_name: "Peer One", avatar_url: null };
+  const peerTwo = { id: "peer-2", display_name: "Peer Two", avatar_url: "two.jpg" };
+  const conversations = [
+    { id: "dm-1", participant_1: "me", participant_2: "peer-1", updated_at: "newer", marker: "kept-1" },
+    { id: "dm-2", participant_1: "peer-2", participant_2: "me", updated_at: "older", marker: "kept-2" },
+  ];
+
+  it("derives the peer from either participant position and preserves source row fields", () => {
+    const result = assembleDirectMessageInboxConversations({
+      conversations,
+      currentUserId: "me",
+      fetchedProfiles: new Map([["peer-1", peerOne], ["peer-2", peerTwo]]),
+      previousProfiles: new Map(),
+      latestMessages: new Map(),
+      getGlobalProfile: () => null,
+    });
+    expect(result.map(({ id, marker, other_user }) => ({ id, marker, other_user }))).toEqual([
+      { id: "dm-1", marker: "kept-1", other_user: peerOne },
+      { id: "dm-2", marker: "kept-2", other_user: peerTwo },
+    ]);
+  });
+
+  it("joins each latest message only through its immutable conversation id", () => {
+    const messageTwo = { text: "Second", image_url: null, created_at: "now", author_id: "peer-2" };
+    const result = assembleDirectMessageInboxConversations({
+      conversations,
+      currentUserId: "me",
+      fetchedProfiles: new Map(),
+      previousProfiles: new Map(),
+      latestMessages: new Map([["dm-2", messageTwo], ["different-dm", { ...messageTwo, text: "Wrong" }]]),
+      getGlobalProfile: () => null,
+    });
+    expect(result[0].last_message).toBeNull();
+    expect(result[1].last_message).toBe(messageTwo);
+  });
+
+  it("passes previous and global identities through the established profile precedence", () => {
+    const previous = { id: "peer-1", display_name: "Previous One", avatar_url: null };
+    const global = { id: "peer-2", display_name: "Global Two", avatar_url: "global.jpg" };
+    const getGlobalProfile = vi.fn((id: string) => id === "peer-2" ? global : null);
+    const result = assembleDirectMessageInboxConversations({
+      conversations,
+      currentUserId: "me",
+      fetchedProfiles: new Map(),
+      previousProfiles: new Map([["peer-1", previous]]),
+      latestMessages: new Map(),
+      getGlobalProfile,
+    });
+    expect(result[0].other_user).toBe(previous);
+    expect(result[1].other_user).toEqual(global);
+    expect(getGlobalProfile).toHaveBeenCalledWith("peer-1");
+    expect(getGlobalProfile).toHaveBeenCalledWith("peer-2");
+  });
+
+  it("keeps an identity-only fetched peer when no named fallback exists", () => {
+    const result = assembleDirectMessageInboxConversations({
+      conversations: [conversations[0]],
+      currentUserId: "me",
+      fetchedProfiles: new Map([["peer-1", { id: "peer-1", display_name: null, avatar_url: "avatar.jpg" }]]),
+      previousProfiles: new Map(),
+      latestMessages: new Map(),
+      getGlobalProfile: () => null,
+    });
+    expect(result[0].other_user).toEqual({ id: "peer-1", display_name: null, avatar_url: "avatar.jpg" });
+  });
+
+  it("returns an empty assembled list without consulting global profiles", () => {
+    const getGlobalProfile = vi.fn();
+    expect(assembleDirectMessageInboxConversations({
+      conversations: [],
+      currentUserId: "me",
+      fetchedProfiles: new Map(),
+      previousProfiles: new Map(),
+      latestMessages: new Map(),
+      getGlobalProfile,
+    })).toEqual([]);
+    expect(getGlobalProfile).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadDirectMessagePeerProfiles", () => {
+  it("publishes fresh profiles to the global cache and timestamps one returned map", async () => {
+    const profiles = [
+      { id: "peer-1", display_name: "Peer One", avatar_url: null },
+      { id: "peer-2", display_name: "Peer Two", avatar_url: "two.jpg" },
+    ];
+    const selectProfiles = vi.fn(async () => ({ data: profiles, error: null }));
+    const refreshCache = vi.fn();
+    const fetchStale = vi.fn();
+
+    const result = await loadDirectMessagePeerProfiles(["peer-1", "peer-2"], {
+      selectProfiles: selectProfiles as unknown as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+      refreshCache,
+      fetchStale,
+      now: () => 1234,
+    });
+
+    expect(refreshCache).toHaveBeenCalledOnce();
+    expect(refreshCache).toHaveBeenCalledWith(profiles);
+    expect([...result.entries()]).toEqual([
+      ["peer-1", { ...profiles[0], cached_at: 1234 }],
+      ["peer-2", { ...profiles[1], cached_at: 1234 }],
+    ]);
+    expect(fetchStale).not.toHaveBeenCalled();
+  });
+
+  it("treats a successful empty fresh response as authoritative without refreshing cache", async () => {
+    const selectProfiles = vi.fn(async () => ({ data: [], error: null }));
+    const refreshCache = vi.fn();
+    const fetchStale = vi.fn();
+
+    const result = await loadDirectMessagePeerProfiles(["peer-1"], {
+      selectProfiles: selectProfiles as unknown as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+      refreshCache,
+      fetchStale,
+      now: () => 1234,
+    });
+    expect(result.size).toBe(0);
+    expect(refreshCache).not.toHaveBeenCalled();
+    expect(fetchStale).not.toHaveBeenCalled();
+  });
+
+  it("falls back to stale cache with the established timeout after a fresh-read failure", async () => {
+    const selectProfiles = vi.fn(async () => { throw new Error("profiles unavailable"); });
+    const stale = new Map([["peer-1", { id: "peer-1", display_name: "Cached Peer", avatar_url: null }]]);
+    const fetchStale = vi.fn(async () => stale);
+
+    await expect(loadDirectMessagePeerProfiles(["peer-1"], {
+      selectProfiles: selectProfiles as unknown as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+      refreshCache: vi.fn(),
+      fetchStale,
+    })).resolves.toBe(stale);
+    expect(fetchStale).toHaveBeenCalledWith(["peer-1"], { allowStale: true, timeout: 15_000 });
+  });
+
+  it("uses stale cache if refreshing the global cache fails after a fresh read", async () => {
+    const selectProfiles = vi.fn(async () => ({
+      data: [{ id: "peer-1", display_name: "Fresh Peer", avatar_url: null }],
+      error: null,
+    }));
+    const stale = new Map([["peer-1", { id: "peer-1", display_name: "Cached Peer", avatar_url: null }]]);
+    const fetchStale = vi.fn(async () => stale);
+
+    await expect(loadDirectMessagePeerProfiles(["peer-1"], {
+      selectProfiles: selectProfiles as unknown as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+      refreshCache: () => { throw new Error("cache refresh failed"); },
+      fetchStale,
+    })).resolves.toBe(stale);
+  });
+
+  it("propagates a stale-cache failure after the fresh path has failed", async () => {
+    const failure = new Error("all profile sources unavailable");
+    await expect(loadDirectMessagePeerProfiles(["peer-1"], {
+      selectProfiles: (async () => { throw new Error("fresh unavailable"); }) as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+      refreshCache: vi.fn(),
+      fetchStale: async () => { throw failure; },
+    })).rejects.toBe(failure);
+  });
+});
 
 describe("buildPreviousDirectMessagePeerMap", () => {
   const livePeer = { id: "peer-1", display_name: "Current Name", avatar_url: "current.jpg" };

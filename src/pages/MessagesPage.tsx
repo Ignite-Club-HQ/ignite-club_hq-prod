@@ -40,7 +40,7 @@ import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
-import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfilesByIds } from "@/lib/profileCache";
+import { cacheProfiles, getProfileFromCache, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview } from "@/lib/messagePreview";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
@@ -101,9 +101,11 @@ import {
   partitionInboxGroups,
 } from "@/features/messaging/inbox/inboxFilterPolicy";
 import {
+  assembleDirectMessageInboxConversations,
+  buildDirectMessageCachePayload,
   buildPreviousDirectMessagePeerMap,
   hydrateCachedDirectMessages,
-  resolveDirectMessagePeerProfile,
+  loadDirectMessagePeerProfiles,
   resolveEffectiveDirectMessages,
 } from "@/features/messaging/inbox/inboxDirectMessageSources";
 import { buildUnifiedInboxConversations } from "@/features/messaging/inbox/inboxUnifiedComposition";
@@ -634,23 +636,7 @@ export default function MessagesPage() {
         // other participant are reflected in the inbox on the next load.
         // Falls back to whatever the global profile cache has if the network
         // fetch fails or returns empty (handled by the layered fallbacks below).
-        (async () => {
-          try {
-            const { data } = await selectCachedProfilesByIds(otherUserIds);
-            if (data && data.length) {
-              // Refresh the global profile cache so every other surface
-              // (chat rows, member lists, mention chips) picks up the new name.
-              cacheProfiles(data);
-            }
-            const map = new Map<string, { id: string; display_name: string | null; avatar_url: string | null; cached_at: number }>();
-            const now = Date.now();
-            (data ?? []).forEach((p) => map.set(p.id, { ...p, cached_at: now }));
-            return map;
-          } catch {
-            // Network/RLS hiccup — fall back to whatever the cache has.
-            return await fetchProfilesWithCache(otherUserIds, { allowStale: true, timeout: 15000 });
-          }
-        })(),
+        loadDirectMessagePeerProfiles(otherUserIds),
         fetchInboxLatestDirectMessages(conversationIds),
       ]);
 
@@ -663,48 +649,21 @@ export default function MessagesPage() {
         cached: cachedData?.dmConversations,
       });
 
-      const result = convos.map(conv => {
-        const otherUserId = conv.participant_1 === user!.id ? conv.participant_2 : conv.participant_1;
-        const fetchedProfile = profilesMap.get(otherUserId);
-        const fallbackProfile = previousOtherUserMap.get(otherUserId);
-        // Final defence: the global in-memory profile cache (populated by
-        // every other surface in the app — chat rows, member lists, etc).
-        const globalCached = getProfileFromCache(otherUserId);
-        const otherUser = resolveDirectMessagePeerProfile({
-          otherUserId,
-          fetched: fetchedProfile,
-          previous: fallbackProfile,
-          globalCached,
-        });
-        return {
-          ...conv,
-          other_user: otherUser,
-          last_message: messageMap.get(conv.id) || null,
-        };
+      const result = assembleDirectMessageInboxConversations({
+        conversations: convos,
+        currentUserId: user!.id,
+        fetchedProfiles: profilesMap,
+        previousProfiles: previousOtherUserMap,
+        latestMessages: messageMap,
+        getGlobalProfile: getProfileFromCache,
       });
 
       // Cache
-      const dmConversationsForCache = result.map(conv => ({
-        id: conv.id,
-        participant_1: conv.participant_1,
-        participant_2: conv.participant_2,
-        updated_at: conv.updated_at,
-        created_at: (conv as any).created_at,
-        created_by: (conv as any).created_by ?? null,
-        other_user: conv.other_user,
-      }));
-      const latestDMMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-      result.forEach(conv => {
-        if (conv.last_message) {
-          latestDMMessages[conv.id] = {
-            text: conv.last_message.text,
-            author: conv.last_message.author_id === user!.id ? "You" : (conv.other_user?.display_name || ""),
-            created_at: conv.last_message.created_at,
-            image_url: conv.last_message.image_url,
-          };
-        }
+      const cachePayload = buildDirectMessageCachePayload({
+        conversations: result,
+        currentUserId: user!.id,
       });
-      cacheMessagesPageData(user!.id, { dmConversations: dmConversationsForCache, latestDMMessages });
+      cacheMessagesPageData(user!.id, cachePayload);
 
       return result;
     },
@@ -717,18 +676,12 @@ export default function MessagesPage() {
     initialDataUpdatedAt: 0,
     refetchInterval: jitteredInboxInterval,
     placeholderData: () => {
-      if (!cachedData?.dmConversations?.length) return undefined;
-      return cachedData.dmConversations.map(conv => ({
-        ...conv,
-        created_at: (conv as any).created_at || conv.updated_at,
-        created_by: (conv as any).created_by || null,
-        last_message: cachedData.latestDMMessages?.[conv.id] ? {
-          text: cachedData.latestDMMessages[conv.id].text,
-          image_url: cachedData.latestDMMessages[conv.id].image_url || null,
-          created_at: cachedData.latestDMMessages[conv.id].created_at,
-          author_id: cachedData.latestDMMessages[conv.id].author === "You" ? user?.id || "" : conv.other_user?.id || "",
-        } : null,
-      })) as any;
+      const hydrated = hydrateCachedDirectMessages({
+        conversations: cachedData?.dmConversations,
+        latestMessages: cachedData?.latestDMMessages,
+        currentUserId: user?.id,
+      });
+      return hydrated.length > 0 ? hydrated : undefined;
     },
   });
 

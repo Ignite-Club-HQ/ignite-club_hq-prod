@@ -1,3 +1,10 @@
+import {
+  cacheProfiles,
+  fetchProfilesWithCache,
+  selectCachedProfilesByIds,
+  type CachedProfile,
+} from "@/lib/profileCache";
+
 export interface CachedDirectMessagePreview {
   text?: string | null;
   image_url?: string | null;
@@ -34,6 +41,34 @@ export interface DirectMessagePeerProfile {
 
 export interface DirectMessageConversationIdentitySource {
   other_user?: DirectMessagePeerProfile | null;
+}
+
+export type LoadedDirectMessagePeerProfile = CachedProfile & { cached_at?: number };
+
+export async function loadDirectMessagePeerProfiles(
+  userIds: readonly string[],
+  options: {
+    selectProfiles?: typeof selectCachedProfilesByIds;
+    refreshCache?: typeof cacheProfiles;
+    fetchStale?: typeof fetchProfilesWithCache;
+    now?: () => number;
+  } = {},
+): Promise<Map<string, LoadedDirectMessagePeerProfile>> {
+  const selectProfiles = options.selectProfiles ?? selectCachedProfilesByIds;
+  const refreshCache = options.refreshCache ?? cacheProfiles;
+  const fetchStale = options.fetchStale ?? fetchProfilesWithCache;
+  const now = options.now ?? Date.now;
+
+  try {
+    const { data } = await selectProfiles(userIds);
+    if (data?.length) refreshCache(data);
+    const loaded = new Map<string, LoadedDirectMessagePeerProfile>();
+    const cachedAt = now();
+    for (const profile of data ?? []) loaded.set(profile.id, { ...profile, cached_at: cachedAt });
+    return loaded;
+  } catch {
+    return fetchStale(userIds, { allowStale: true, timeout: 15_000 });
+  }
 }
 
 export function buildPreviousDirectMessagePeerMap(options: {
@@ -83,6 +118,105 @@ export function resolveDirectMessagePeerProfile(options: {
     };
   }
   return null;
+}
+
+export interface DirectMessageConversationSource {
+  id: string;
+  participant_1: string;
+  participant_2: string;
+  [key: string]: unknown;
+}
+
+export interface DirectMessagePreviewSource {
+  text: string;
+  image_url: string | null;
+  created_at: string;
+  author_id: string;
+}
+
+export type AssembledDirectMessageConversation<T extends DirectMessageConversationSource> = T & {
+  other_user: DirectMessagePeerProfile | null;
+  last_message: DirectMessagePreviewSource | null;
+};
+
+export function assembleDirectMessageInboxConversations<T extends DirectMessageConversationSource>(options: {
+  conversations: readonly T[];
+  currentUserId: string;
+  fetchedProfiles: ReadonlyMap<string, DirectMessagePeerProfile>;
+  previousProfiles: ReadonlyMap<string, DirectMessagePeerProfile>;
+  latestMessages: ReadonlyMap<string, DirectMessagePreviewSource | null>;
+  getGlobalProfile: (userId: string) => DirectMessagePeerProfile | null | undefined;
+}): AssembledDirectMessageConversation<T>[] {
+  return options.conversations.map((conversation) => {
+    const otherUserId = conversation.participant_1 === options.currentUserId
+      ? conversation.participant_2
+      : conversation.participant_1;
+    const otherUser = resolveDirectMessagePeerProfile({
+      otherUserId,
+      fetched: options.fetchedProfiles.get(otherUserId),
+      previous: options.previousProfiles.get(otherUserId),
+      globalCached: options.getGlobalProfile(otherUserId),
+    });
+    return {
+      ...conversation,
+      other_user: otherUser,
+      last_message: options.latestMessages.get(conversation.id) || null,
+    };
+  });
+}
+
+export interface DirectMessageCacheConversationSource extends DirectMessageConversationSource {
+  updated_at: string | null;
+  created_at?: string | null;
+  created_by?: string | null;
+  other_user: DirectMessagePeerProfile | null;
+  last_message: DirectMessagePreviewSource | null;
+}
+
+export interface DirectMessageCachePayload {
+  dmConversations: Array<{
+    id: string;
+    participant_1: string;
+    participant_2: string;
+    updated_at: string | null;
+    created_at: string | null | undefined;
+    created_by: string | null;
+    other_user: DirectMessagePeerProfile | null;
+  }>;
+  latestDMMessages: Record<string, {
+    text: string;
+    author: string;
+    created_at: string;
+    image_url?: string | null;
+  }>;
+}
+
+export function buildDirectMessageCachePayload(options: {
+  conversations: readonly DirectMessageCacheConversationSource[];
+  currentUserId: string;
+}): DirectMessageCachePayload {
+  const dmConversations = options.conversations.map((conversation) => ({
+    id: conversation.id,
+    participant_1: conversation.participant_1,
+    participant_2: conversation.participant_2,
+    updated_at: conversation.updated_at,
+    created_at: conversation.created_at,
+    created_by: conversation.created_by ?? null,
+    other_user: conversation.other_user,
+  }));
+  const latestDMMessages: DirectMessageCachePayload["latestDMMessages"] = {};
+  for (const conversation of options.conversations) {
+    if (!conversation.last_message) continue;
+    latestDMMessages[conversation.id] = {
+      text: conversation.last_message.text,
+      author: conversation.last_message.author_id === options.currentUserId
+        ? "You"
+        : (conversation.other_user?.display_name || ""),
+      created_at: conversation.last_message.created_at,
+      image_url: conversation.last_message.image_url,
+    };
+  }
+  return { dmConversations, latestDMMessages };
 }
 
 export function hydrateCachedDirectMessages<T extends CachedDirectMessageRow>(options: {

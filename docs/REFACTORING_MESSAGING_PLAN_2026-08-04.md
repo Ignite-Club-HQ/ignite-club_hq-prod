@@ -841,6 +841,58 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   routing and Android/iOS inactivity recovery. TypeScript, focused policy lint
   and the production build passed. `MessagesPage` reduced from 2,671 to 2,664
   lines. No runtime defect was found.
+- M10e5 extracts DM peer-profile loading as a separate asynchronous boundary.
+  Fresh cached-profile selection remains preferred, successful non-empty data
+  still refreshes the global profile cache, one timestamp is attached to the
+  returned fresh map, and a thrown fresh/cache-refresh path falls back to stale
+  profiles with the established 15-second bound. Successful empty data remains
+  authoritative, and a failed stale fallback still propagates. Conversation
+  assembly, previous/global profile selection, persistence, React Query,
+  Realtime and mutations remain page-owned. Five new contracts cover the full
+  I/O matrix. Verification passed 97 direct-source/repository tests, 264 focused
+  inbox/guard tests and five browser journeys covering DM entry, exact DM
+  notification routing, Android no-jolt and Android/iOS inactivity recovery.
+  TypeScript, focused source lint and the production build passed.
+  `MessagesPage` reduced from 2,664 to 2,649 lines. No runtime defect was found.
+- M10e6 extracts pure DM conversation assembly. Each immutable conversation ID
+  joins only its matching latest-message entry; peer identity is derived from
+  either participant position; source metadata is preserved; and the already
+  tested fresh/previous/global/identity-only profile policy remains the sole
+  identity decision. Persistence payload construction, cache writes, React
+  Query, hidden policy, Realtime and mutations remain page-owned. Five new
+  contracts cover both participant positions, exact message joining, profile
+  inputs, identity-only peers and empty assembly. Verification passed 102
+  direct-source/repository tests, 269 focused inbox/guard tests and six browser
+  journeys covering DM entry/send, exact notification routing, Android no-jolt
+  and Android/iOS inactivity recovery. TypeScript, focused source lint and the
+  production build passed. `MessagesPage` reduced from 2,649 to 2,638 lines.
+  No runtime defect was found.
+- M10e7 extracts pure persistent DM cache-payload construction while retaining
+  the actual user-scoped cache write in `MessagesPage`. Only established
+  conversation metadata is persisted, absent creation ownership normalizes to
+  null, current-user previews retain the `You` label, received previews use the
+  resolved peer name or empty fallback, media metadata is preserved, and
+  conversations without a latest message create no preview entry. Five new
+  contracts cover this complete mapping. Verification passed 107 direct-source/
+  repository tests, 274 focused inbox/guard tests and seven browser journeys
+  covering DM entry/send, offline cache recovery, exact notification routing,
+  Android no-jolt and Android/iOS inactivity recovery. TypeScript, focused
+  source lint and the production build passed. `MessagesPage` reduced from
+  2,638 to 2,623 lines. No runtime defect was found.
+- M10e8 completes the DM inbox tranche by replacing duplicate page-local
+  placeholder reconstruction with the existing tested cache hydrator. Cached
+  creation metadata, `You`/peer author IDs, image previews, empty placeholders
+  and user scoping retain the same contract. The React Query key, polling,
+  initial-data freshness, placeholder invocation and actual cache writes remain
+  page-owned. Cumulative verification passed 130 DM source/cache/guard tests,
+  274 focused inbox/guard tests and twelve browser journeys covering DM entry,
+  desktop/mobile send affordances, exact send and notification scope, normal
+  inbox paint budget, offline persistence/recovery, Android no-jolt and Android/
+  iOS inactivity recovery. TypeScript, focused source lint and the production
+  build passed. `MessagesPage` reduced from 2,623 to 2,617 lines. The DM query
+  is now a thin coordinator over independently tested membership, preview,
+  profile, assembly, persistence and hydration boundaries. No runtime defect
+  was found.
 
 ## Objective
 
