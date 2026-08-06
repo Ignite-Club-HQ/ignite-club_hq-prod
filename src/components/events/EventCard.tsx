@@ -459,10 +459,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     );
   };
 
-    onError: () => {
-      toast({ title: "Failed to delete event", variant: "destructive" });
-    },
-  });
+
 
   const cancelEventMutation = useMutation({
     mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { cancelType: "single" | "series"; customMessage?: string; sendPushNotification?: boolean }) => {
