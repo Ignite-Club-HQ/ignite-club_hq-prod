@@ -703,6 +703,15 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   composition matrix. Verification passed 150 focused inbox and policy tests,
   TypeScript and focused lint; DM-start, club-admin preview/thread parity and
   Android cached-order no-jolt journeys passed. No runtime defect was found.
+- M9g consolidates event, Vault-folder and Vault-file preview-reference
+  extraction into one deterministic pass over the published inbox model.
+  Established token parsing, lower-case normalization, de-duplication and
+  first-seen ordering remain unchanged, preserving stable query keys. The
+  three enrichment queries, cache cadence and rendering remain page-owned.
+  Six direct contracts cover empty, mixed, repeated, ordered, upper-case and
+  malformed token inputs. Verification passed 141 focused inbox tests,
+  TypeScript and focused lint; the Android cached-order no-jolt journey passed.
+  No runtime defect was found.
 
 ## Objective
 
