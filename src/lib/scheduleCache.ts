@@ -74,3 +74,63 @@ export function getCachedEventRsvps(eventId: string, userId?: string | null): un
 export function cacheEventRsvps(eventId: string, rsvps: unknown[], userId?: string | null): void {
   safeSet(`${EVENT_RSVPS_PREFIX}${userScope(userId)}_${eventId}`, rsvps);
 }
+
+/**
+ * Remove deleted events from the persisted schedule cache.
+ *
+ * React Query caches are in-memory, so purging them alone is not enough: the
+ * list view falls back to `getCachedEventsList` on offline/error and on the
+ * next cold open, which would repaint a row the server has already deleted.
+ * Scans every list entry (all users/filter scopes on this device) plus the
+ * per-event detail and RSVP entries.
+ */
+export function purgeEventsFromScheduleCache(deletedIds: string[]): void {
+  const ids = new Set(deletedIds.filter(Boolean));
+  if (ids.size === 0) return;
+  try {
+    if (typeof localStorage === "undefined") return;
+
+    const listKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(EVENTS_LIST_PREFIX)) listKeys.push(key);
+    }
+
+    for (const key of listKeys) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const entry = JSON.parse(raw) as Entry<unknown[]>;
+        if (!Array.isArray(entry?.data)) continue;
+        const next = entry.data.filter(
+          (row: any) =>
+            !(row && typeof row === "object" && typeof row.id === "string" && ids.has(row.id)),
+        );
+        if (next.length !== entry.data.length) {
+          // Preserve the original timestamp so purging never extends the TTL.
+          localStorage.setItem(key, JSON.stringify({ data: next, timestamp: entry.timestamp }));
+        }
+      } catch {
+        // Corrupt entry - drop it rather than leave a deleted event behind.
+        try { localStorage.removeItem(key); } catch {}
+      }
+    }
+
+    for (const id of ids) {
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        if (
+          (key.startsWith(EVENT_DETAIL_PREFIX) || key.startsWith(EVENT_RSVPS_PREFIX)) &&
+          key.endsWith(`_${id}`)
+        ) {
+          try { localStorage.removeItem(key); } catch {}
+          i -= 1; // localStorage indices shift after a removal
+        }
+      }
+    }
+  } catch {
+    // never let cache maintenance break a successful deletion
+  }
+}
+
