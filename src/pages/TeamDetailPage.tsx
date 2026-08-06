@@ -28,6 +28,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { markTeamDeleted, unmarkTeamDeleted } from "@/lib/deletedTeamTombstones";
+import { removeTeamFromMessagesPageCache } from "@/lib/messagesPageCache";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -784,6 +786,28 @@ export default function TeamDetailPage() {
       }
       queryClient.invalidateQueries({ queryKey: ["my-teams"] });
 
+      // Purge every client-side cache that still holds this team, so a
+      // soft-deleted team can never repaint as a phantom second chat thread
+      // (e.g. after a team with the same name is recreated).
+      markTeamDeleted(id!);
+      if (user?.id) {
+        removeTeamFromMessagesPageCache(user.id, id!);
+        queryClient.setQueryData(
+          ["my-teams-with-messages", user.id],
+          (old: any) => {
+            if (!old?.teams) return old;
+            const latestMessages = { ...(old.latestMessages || {}) };
+            delete latestMessages[id!];
+            return {
+              ...old,
+              teams: old.teams.filter((t: any) => t?.id !== id),
+              latestMessages,
+            };
+          },
+        );
+        queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] });
+      }
+
       setShowDeleteDialog(false);
 
       if (notificationError) {
@@ -814,8 +838,12 @@ export default function TeamDetailPage() {
       return;
     }
 
+    unmarkTeamDeleted(id!);
     toast({ title: "Team restored!" });
     queryClient.invalidateQueries({ queryKey: ["team", id] });
+    if (user?.id) {
+      queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] });
+    }
   };
 
   const handlePermanentDeleteTeam = async () => {

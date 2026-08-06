@@ -551,7 +551,9 @@ export default function CreateTeamPage() {
               <LevelAgeCombobox
                 value={levelAge}
                 onChange={setLevelAge}
+                teamType={teamType}
               />
+
             </div>
 
             {/* Description */}
