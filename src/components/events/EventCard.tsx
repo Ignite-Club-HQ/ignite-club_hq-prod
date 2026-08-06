@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDeleteEvent } from "@/hooks/useDeleteEvent";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1049,9 +1050,10 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
             description={`This will permanently delete the ${typeLabel.toLowerCase()}(s). This action cannot be undone.`}
             actionLabel="Delete"
             actionVariant="destructive"
-            onSingleAction={() => deleteEventMutation.mutate("single")}
-            onSeriesAction={() => deleteEventMutation.mutate("series")}
-            isPending={deleteEventMutation.isPending}
+            onSingleAction={() => handleConfirmDelete("single")}
+            onSeriesAction={() => handleConfirmDelete("series")}
+            isPending={deletePending}
+            keepOpenOnAction
           />
         ) : (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1064,8 +1066,8 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => deleteEventMutation.mutate("single")} className="bg-destructive text-destructive-foreground">
-                  Delete
+                <AlertDialogAction onClick={(e) => { e.preventDefault(); handleConfirmDelete("single"); }} disabled={deletePending} className="bg-destructive text-destructive-foreground">
+                  {deletePending ? "Deleting…" : "Delete"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
