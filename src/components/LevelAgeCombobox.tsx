@@ -1,8 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Command,
@@ -35,39 +34,26 @@ const SENIOR_GROUPS = [
   "Premier League", "Reserve Grade",
 ];
 
-type Category = "junior" | "senior" | "custom";
-
-const CATEGORIES: { key: Category; label: string; hint: string }[] = [
-  { key: "junior", label: "Junior", hint: "Age groups (U5 – U21)" },
-  { key: "senior", label: "Senior", hint: "Grades and divisions" },
-  { key: "custom", label: "Custom", hint: "Type your own label" },
-];
-
-function inferCategory(value: string): Category | null {
-  if (!value) return null;
-  if (JUNIOR_GROUPS.includes(value)) return "junior";
-  if (SENIOR_GROUPS.includes(value)) return "senior";
-  return "custom";
-}
+export type TeamTypeForLevel = "junior" | "senior" | "mixed";
 
 interface LevelAgeComboboxProps {
   value: string;
   onChange: (value: string) => void;
+  /** Drives which levels are offered — comes from the Team Type selector. */
+  teamType?: TeamTypeForLevel;
   className?: string;
 }
 
-export function LevelAgeCombobox({ value, onChange, className }: LevelAgeComboboxProps) {
+export function LevelAgeCombobox({ value, onChange, teamType = "mixed", className }: LevelAgeComboboxProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [category, setCategory] = useState<Category | null>(() => inferCategory(value));
   const isMobile = useIsMobile();
 
-  // Adopt the category implied by an externally-loaded value (e.g. edit page hydration)
-  useEffect(() => {
-    if (!category && value) setCategory(inferCategory(value));
-  }, [value, category]);
-
-  const options = category === "junior" ? JUNIOR_GROUPS : category === "senior" ? SENIOR_GROUPS : [];
+  const options = useMemo(() => {
+    if (teamType === "junior") return JUNIOR_GROUPS;
+    if (teamType === "senior") return SENIOR_GROUPS;
+    return [...JUNIOR_GROUPS, ...SENIOR_GROUPS];
+  }, [teamType]);
 
   const filteredOptions = useMemo(() => {
     if (!searchQuery) return options;
@@ -79,14 +65,12 @@ export function LevelAgeCombobox({ value, onChange, className }: LevelAgeCombobo
     (opt) => opt.toLowerCase() === searchQuery.toLowerCase()
   );
 
-  const selectCategory = (next: Category) => {
-    setCategory(next);
-    setSearchQuery("");
-    setOpen(false);
-    if (value && inferCategory(value) !== next) onChange("");
-  };
-
-  const placeholder = category === "junior" ? "Select age group" : "Select grade / division";
+  const placeholder =
+    teamType === "junior"
+      ? "Select age group"
+      : teamType === "senior"
+      ? "Select grade / division"
+      : "Select level / age group";
 
   const commandList = (
     <Command shouldFilter={false} className="max-h-full">
@@ -151,73 +135,39 @@ export function LevelAgeCombobox({ value, onChange, className }: LevelAgeCombobo
     </Button>
   );
 
-  return (
-    <div className={cn("space-y-3", className)}>
-      <div className="grid grid-cols-3 gap-2">
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            onClick={() => selectCategory(c.key)}
-            aria-pressed={category === c.key}
-            className={cn(
-              "rounded-lg border px-2 py-2 text-sm font-medium transition-colors min-h-11",
-              category === c.key
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-muted-foreground/20 bg-muted/50 text-muted-foreground hover:bg-background"
-            )}
-          >
-            {c.label}
-          </button>
-        ))}
+  if (isMobile) {
+    return (
+      <div className={className}>
+        {trigger}
+        <Drawer open={open} onOpenChange={setOpen} autoFocus={false}>
+          <DrawerContent>
+            <div className="mx-auto w-full max-w-lg px-4 pb-safe">
+              <DrawerHeader className="px-0">
+                <DrawerTitle>{placeholder}</DrawerTitle>
+              </DrawerHeader>
+              <div className="pb-4">{commandList}</div>
+            </div>
+          </DrawerContent>
+        </Drawer>
       </div>
+    );
+  }
 
-      {!category && (
-        <p className="text-xs text-muted-foreground">
-          Choose Junior, Senior or Custom to see the available levels.
-        </p>
-      )}
-
-      {category === "custom" && (
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="e.g., Development Squad"
-          className="h-12 text-base bg-muted/50 border-muted-foreground/20"
-        />
-      )}
-
-      {(category === "junior" || category === "senior") && (
-        isMobile ? (
-          <>
-            {trigger}
-            <Drawer open={open} onOpenChange={setOpen} autoFocus={false}>
-              <DrawerContent>
-                <div className="mx-auto w-full max-w-lg px-4 pb-safe">
-                  <DrawerHeader className="px-0">
-                    <DrawerTitle>{placeholder}</DrawerTitle>
-                  </DrawerHeader>
-                  <div className="pb-4">{commandList}</div>
-                </div>
-              </DrawerContent>
-            </Drawer>
-          </>
-        ) : (
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-            <PopoverContent
-              className="w-[--radix-popover-trigger-width] p-0 max-h-[min(60dvh,var(--radix-popover-content-available-height))] overflow-hidden"
-              align="start"
-              side="bottom"
-              sideOffset={4}
-              collisionPadding={12}
-              avoidCollisions
-            >
-              {commandList}
-            </PopoverContent>
-          </Popover>
-        )
-      )}
+  return (
+    <div className={className}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent
+          className="w-[--radix-popover-trigger-width] p-0 max-h-[min(60dvh,var(--radix-popover-content-available-height))] overflow-hidden"
+          align="start"
+          side="bottom"
+          sideOffset={4}
+          collisionPadding={12}
+          avoidCollisions
+        >
+          {commandList}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
