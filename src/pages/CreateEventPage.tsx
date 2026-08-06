@@ -864,7 +864,14 @@ export default function CreateEventPage() {
       if (error) throw error;
       if (!newEventId) throw new Error("Event could not be created.");
 
-      
+      try {
+        await queryClient.invalidateQueries({
+          queryKey: ["user-memberships-and-events", user!.id],
+        });
+      } catch (invalidationError) {
+        console.warn("Next Up invalidation failed after event creation:", invalidationError);
+      }
+
       navigate(`/events/${newEventId}`);
     } catch (error: any) {
       console.error("Error creating event:", error);
