@@ -488,6 +488,7 @@ export default function MediaPage() {
         .from("teams")
         .select("id, name, club_id, clubs!club_id(name)")
         .in("id", teamIds)
+        .is("deleted_at", null)
         .order("name");
       return data || [];
     },

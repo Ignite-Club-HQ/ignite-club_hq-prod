@@ -128,7 +128,8 @@ function useThreadLabels(rows: ScheduledMessageRow[]) {
           const { data } = await supabase
             .from("teams")
             .select("id, name, clubs!club_id(name)")
-            .in("id", teamIds);
+            .in("id", teamIds)
+            .is("deleted_at", null);
           (data || []).forEach((t: any) => {
             labels[`team:${t.id}`] = {
               label: `${t.name} chat`,
