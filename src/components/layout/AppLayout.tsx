@@ -17,6 +17,7 @@ import { useActivityTracking } from "@/hooks/useActivityTracking";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
 import { mark as coldMark } from "@/lib/coldStartMarks";
+import { sweepStaleDeletedTeams } from "@/lib/staleDeletedTeamSweep";
 
 const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
@@ -25,6 +26,10 @@ export function AppLayout() {
   useAdMobInit();
   useActivityTracking();
   useTrackPresence(user?.id);
+  // Retroactively reconcile pre-tombstone inbox snapshots (runs once per user).
+  useEffect(() => {
+    sweepStaleDeletedTeams(user?.id);
+  }, [user?.id]);
   const { isThemeReady } = useClubTheme();
   const location = useLocation();
   const [retrying, setRetrying] = useState(false);
