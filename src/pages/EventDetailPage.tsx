@@ -70,7 +70,6 @@ import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
-import { ToastAction } from "@/components/ui/toast";
 import { format, parseISO, isSameDay } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponsorStrip";
