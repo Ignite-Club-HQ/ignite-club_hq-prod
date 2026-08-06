@@ -2942,9 +2942,11 @@ export default function EventDetailPage() {
             description={`This will permanently delete the ${eventTypeLabel.toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
             actionLabel="Delete"
             actionVariant="destructive"
-            onSingleAction={() => deleteEventMutation.mutate('single')}
-            onSeriesAction={() => deleteEventMutation.mutate('series')}
-            isPending={deleteEventMutation.isPending || deletePending}
+            onSingleAction={() => handleConfirmDelete('single')}
+            onSeriesAction={() => handleConfirmDelete('series')}
+            isPending={deletePending}
+            keepOpenOnAction
+
           />
         ) : (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
