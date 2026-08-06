@@ -697,6 +697,27 @@ export default function CreateEventPage() {
       return;
     }
 
+    // Guard against a stale team selection: if the team was soft-deleted
+    // (possibly from another device) the event — and its auto "event created"
+    // system message — would land in a dead chat thread.
+    if (teamId) {
+      const { data: teamRow, error: teamCheckError } = await supabase
+        .from("teams")
+        .select("id, deleted_at")
+        .eq("id", teamId)
+        .maybeSingle();
+      if (teamCheckError || !teamRow || (teamRow as any).deleted_at) {
+        toast({
+          title: "Team no longer available",
+          description: teamCheckError
+            ? "Could not verify the selected team. Please try again."
+            : "The selected team has been deleted. Please pick a current team.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Frontend club/team scope guard — matches the backend
     // validate_event_team_club_scope trigger. Fail closed if the team list
     // is unavailable or stale so we never submit an ambiguous combination.

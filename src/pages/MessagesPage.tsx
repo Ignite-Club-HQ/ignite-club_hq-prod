@@ -25,6 +25,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { WifiOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
+import { filterDeletedTeams } from "@/lib/deletedTeamTombstones";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
@@ -687,13 +688,19 @@ export default function MessagesPage() {
     refetchInterval: jitteredInboxInterval,
     gcTime: 10 * 60 * 1000,
     initialData: cachedData?.teams
-      ? { teams: cachedData.teams as any, latestMessages: cachedData.latestTeamMessages ?? {} }
+      ? { teams: filterDeletedTeams(cachedData.teams as any) as any, latestMessages: cachedData.latestTeamMessages ?? {} }
       : undefined,
     placeholderData: (prev) => prev,
   });
   
   // Extract teams and latest messages from combined query
-  const teams = teamsWithMessages?.teams ?? [];
+  // Locally tombstoned (soft-deleted) teams are dropped at render time too —
+  // any cache layer or realtime patch that still holds one can never surface a
+  // duplicate/empty thread for a recreated team of the same name.
+  const teams = useMemo(
+    () => filterDeletedTeams(teamsWithMessages?.teams as any) as typeof teamsWithMessages.teams,
+    [teamsWithMessages?.teams],
+  );
   const latestTeamMessages = teamsWithMessages?.latestMessages ?? {};
 
   // Get admin teams where user can create groups
