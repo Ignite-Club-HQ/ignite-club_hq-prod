@@ -74,6 +74,13 @@ export function LevelAgeCombobox({ value, onChange, teamType = "mixed", classNam
       ? "Select grade / division"
       : "Select level / age group";
 
+  const commit = (next: string) => {
+    onChange(next);
+    setSearchQuery("");
+    setOpen(false);
+  };
+
+
   const commandList = (
     <Command shouldFilter={false} className="max-h-full">
       <CommandInput
