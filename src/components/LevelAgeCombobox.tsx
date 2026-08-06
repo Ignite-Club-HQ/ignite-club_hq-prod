@@ -136,22 +136,65 @@ export function LevelAgeCombobox({ value, onChange, teamType = "mixed", classNam
   );
 
   if (isMobile) {
+    // Mobile: full-width drawer with a tap-friendly chip grid instead of a
+    // long single-column list, so short values like "U12" don't force the
+    // sheet to overflow the viewport on narrow screens.
     return (
-      <div className={className}>
+      <div className={cn("w-full min-w-0", className)}>
         {trigger}
         <Drawer open={open} onOpenChange={setOpen} autoFocus={false}>
-          <DrawerContent>
-            <div className="mx-auto w-full max-w-lg px-4 pb-safe">
-              <DrawerHeader className="px-0">
-                <DrawerTitle>{placeholder}</DrawerTitle>
+          <DrawerContent className="max-h-[85dvh]">
+            <div className="mx-auto flex w-full max-w-lg min-w-0 flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <DrawerHeader className="px-0 pb-2">
+                <DrawerTitle className="text-base">{placeholder}</DrawerTitle>
               </DrawerHeader>
-              <div className="pb-4">{commandList}</div>
+              <Input
+                autoFocus={false}
+                inputMode="text"
+                placeholder="Search or type custom..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 text-base"
+              />
+              <div className="mt-3 overflow-y-auto overscroll-contain max-h-[55dvh]">
+                {showCustomOption && (
+                  <button
+                    type="button"
+                    onClick={() => commit(searchQuery)}
+                    className="mb-3 w-full rounded-xl border-2 border-primary/40 bg-primary/5 px-3 py-3 text-left text-base font-medium text-primary"
+                  >
+                    <span className="block truncate">Use "{searchQuery}"</span>
+                  </button>
+                )}
+                {filteredOptions.length === 0 && !showCustomOption ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">No matches found.</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 pb-2 sm:grid-cols-4">
+                    {filteredOptions.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => commit(option)}
+                        className={cn(
+                          "flex min-h-11 items-center justify-center rounded-xl border-2 px-2 py-2 text-center text-sm font-medium transition-colors",
+                          value === option
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-muted/40 text-foreground"
+                        )}
+                      >
+                        <span className="block w-full truncate leading-tight">{option}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </DrawerContent>
         </Drawer>
       </div>
     );
   }
+
 
   return (
     <div className={className}>
