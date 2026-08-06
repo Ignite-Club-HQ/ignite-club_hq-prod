@@ -247,7 +247,8 @@ export function UploadPhotoSheet({
         const { data } = await supabase
           .from("teams")
           .select("id, name")
-          .eq("club_id", selectedClubId);
+          .eq("club_id", selectedClubId)
+          .is("deleted_at", null);
         teams = data || [];
       } else if (userTeamIds.length > 0) {
         // Regular users can only upload to teams they have a role in
@@ -255,7 +256,8 @@ export function UploadPhotoSheet({
           .from("teams")
           .select("id, name")
           .eq("club_id", selectedClubId)
-          .in("id", userTeamIds);
+          .in("id", userTeamIds)
+          .is("deleted_at", null);
         teams = data || [];
       }
       

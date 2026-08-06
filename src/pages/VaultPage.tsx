@@ -523,6 +523,7 @@ export default function VaultPage() {
           .from("teams")
           .select("id, name, folder_id")
           .eq("club_id", currentView.clubId)
+          .is("deleted_at", null)
           .order("name");
         teams = data || [];
       } else {
@@ -534,6 +535,7 @@ export default function VaultPage() {
           .select("id, name, folder_id")
           .eq("club_id", currentView.clubId)
           .in("id", userTeamIds)
+          .is("deleted_at", null)
           .order("name");
         teams = data || [];
       }
@@ -1387,7 +1389,8 @@ export default function VaultPage() {
       const { data: teamsData } = await supabase
         .from("teams")
         .select("id, name")
-        .eq("club_id", currentClub.id);
+        .eq("club_id", currentClub.id)
+        .is("deleted_at", null);
       
       // Get all mini-leagues for the club
       const { data: miniLeaguesData } = await supabase
@@ -2249,7 +2252,8 @@ export default function VaultPage() {
       const { data: teamsData } = await supabase
         .from("teams")
         .select("id, name")
-        .eq("club_id", currentClub.id);
+        .eq("club_id", currentClub.id)
+        .is("deleted_at", null);
       
       const teamsMap = new Map<string | null, string>();
       (teamsData || []).forEach(t => teamsMap.set(t.id, t.name));

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDeleteEvent } from "@/hooks/useDeleteEvent";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -445,26 +446,21 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
 
 
-  const deleteEventMutation = useMutation({
-    mutationFn: async (deleteType: "single" | "series") => {
-      if (deleteType === "series" && event.parent_event_id) {
-        await supabase.from("events").delete().eq("parent_event_id", event.parent_event_id);
-        await supabase.from("events").delete().eq("id", event.parent_event_id);
-      } else if (deleteType === "series" && event.is_recurring) {
-        await supabase.from("events").delete().eq("parent_event_id", event.id);
-        await supabase.from("events").delete().eq("id", event.id);
-      } else {
-        const { error } = await supabase.from("events").delete().eq("id", event.id);
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["events"] });
-    },
-    onError: () => {
-      toast({ title: "Failed to delete event", variant: "destructive" });
-    },
+  // Shared reliable deletion: awaited, error-checked, cache-purged. The dialog
+  // stays open and disabled until the database confirms.
+  const { deleteEvent, isPending: deletePending } = useDeleteEvent({
+    entityLabel: typeLabel,
+    onDeleted: () => setDeleteDialogOpen(false),
   });
+
+  const handleConfirmDelete = (deleteType: "single" | "series") => {
+    void deleteEvent(
+      { id: event.id, is_recurring: event.is_recurring, parent_event_id: event.parent_event_id },
+      deleteType,
+    );
+  };
+
+
 
   const cancelEventMutation = useMutation({
     mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { cancelType: "single" | "series"; customMessage?: string; sendPushNotification?: boolean }) => {
@@ -1054,9 +1050,10 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
             description={`This will permanently delete the ${typeLabel.toLowerCase()}(s). This action cannot be undone.`}
             actionLabel="Delete"
             actionVariant="destructive"
-            onSingleAction={() => deleteEventMutation.mutate("single")}
-            onSeriesAction={() => deleteEventMutation.mutate("series")}
-            isPending={deleteEventMutation.isPending}
+            onSingleAction={() => handleConfirmDelete("single")}
+            onSeriesAction={() => handleConfirmDelete("series")}
+            isPending={deletePending}
+            keepOpenOnAction
           />
         ) : (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1069,8 +1066,8 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => deleteEventMutation.mutate("single")} className="bg-destructive text-destructive-foreground">
-                  Delete
+                <AlertDialogAction onClick={(e) => { e.preventDefault(); handleConfirmDelete("single"); }} disabled={deletePending} className="bg-destructive text-destructive-foreground">
+                  {deletePending ? "Deleting…" : "Delete"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
