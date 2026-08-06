@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { prepareChatComposerSubmission } from "./chatComposerSubmission";
+import { prepareChatComposerSubmission, resetChatComposerAfterSend } from "./chatComposerSubmission";
 
 describe("prepareChatComposerSubmission", () => {
   afterEach(() => {
@@ -42,5 +42,29 @@ describe("prepareChatComposerSubmission", () => {
     vi.runAllTimers();
     expect(retry).toHaveBeenCalledExactlyOnceWith(true);
     expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+  });
+});
+
+describe("resetChatComposerAfterSend", () => {
+  it("clears text, attachment, reply and poll together", () => {
+    const setText = vi.fn();
+    const setImage = vi.fn();
+    const setReply = vi.fn();
+    const setPoll = vi.fn();
+
+    resetChatComposerAfterSend({ setText, setImage, setReply, setPoll });
+
+    expect(setText).toHaveBeenCalledExactlyOnceWith("");
+    expect(setImage).toHaveBeenCalledExactlyOnceWith(null);
+    expect(setReply).toHaveBeenCalledExactlyOnceWith(null);
+    expect(setPoll).toHaveBeenCalledExactlyOnceWith(null);
+  });
+
+  it("supports composers that do not own a poll field", () => {
+    const setText = vi.fn();
+    const setImage = vi.fn();
+    const setReply = vi.fn();
+
+    expect(() => resetChatComposerAfterSend({ setText, setImage, setReply })).not.toThrow();
   });
 });

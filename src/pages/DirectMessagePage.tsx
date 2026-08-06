@@ -60,7 +60,7 @@ import {
   isTombstoned,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
-import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { prepareChatComposerSubmission, resetChatComposerAfterSend } from "@/lib/chatComposerSubmission";
 import { hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
@@ -1183,9 +1183,11 @@ export default function DirectMessagePage() {
       imageUrl: dmImageUrl,
       replyToId: replyTo?.id || null,
     });
-    setMessage("");
-    setDmImageUrl(null);
-    setReplyTo(null);
+    resetChatComposerAfterSend({
+      setText: setMessage,
+      setImage: setDmImageUrl,
+      setReply: setReplyTo,
+    });
   };
 
 

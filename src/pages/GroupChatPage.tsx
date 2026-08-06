@@ -20,7 +20,7 @@ import {
   isTombstoned,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
-import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { prepareChatComposerSubmission, resetChatComposerAfterSend } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
@@ -1804,10 +1804,12 @@ export default function GroupChatPage() {
       });
 
       // Clear input immediately
-      setMessage("");
-      setImageUrl(null);
-      setReplyTo(null);
-      setPendingPollId(null);
+      resetChatComposerAfterSend({
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyTo,
+        setPoll: setPendingPollId,
+      });
       
       // Scroll to bottom — force bypasses the touch-guard so the deferred
       // re-pins still fire after composer reflow shrinks bottomPadding.

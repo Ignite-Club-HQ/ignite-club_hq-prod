@@ -72,6 +72,7 @@ import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliati
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
+import { resetChatComposerAfterSend } from "@/lib/chatComposerSubmission";
 import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
@@ -897,10 +898,12 @@ export default function BroadcastChatPage() {
       });
 
       // Clear input immediately
-      setMessage("");
-      setImageUrl(null);
-      setReplyingTo(null);
-      setPendingPollId(null);
+      resetChatComposerAfterSend({
+        setText: setMessage,
+        setImage: setImageUrl,
+        setReply: setReplyingTo,
+        setPoll: setPendingPollId,
+      });
       
       // Scroll to bottom — force bypasses touch-guard so the post-send
       // re-pins still fire after composer reflow shrinks bottomPadding.

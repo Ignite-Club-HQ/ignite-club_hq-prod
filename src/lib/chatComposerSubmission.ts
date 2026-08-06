@@ -1,5 +1,28 @@
 export type RetryChatSubmission = (imeFlushed: true) => void;
 
+interface ResetChatComposerAfterSendOptions {
+  setText: (value: string) => void;
+  setImage: (value: null) => void;
+  setReply: (value: null) => void;
+  setPoll?: (value: null) => void;
+}
+
+/**
+ * Clears the fields owned by a completed composer submission. Callers retain
+ * timing ownership so optimistic-send and permission behavior remain local.
+ */
+export function resetChatComposerAfterSend({
+  setText,
+  setImage,
+  setReply,
+  setPoll,
+}: ResetChatComposerAfterSendOptions): void {
+  setText("");
+  setImage(null);
+  setReply(null);
+  setPoll?.(null);
+}
+
 /**
  * Commit any active native IME composition before a chat page reads its draft.
  * Returns true when submission has been deferred to the next task.

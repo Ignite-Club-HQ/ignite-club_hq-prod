@@ -27,6 +27,7 @@ describe("six-surface messaging refactor contracts", () => {
       expect(text).toMatch(/temp-|optimisticMessage/);
       expect(text).toContain("clearDraft");
       expect(text).toContain("reply_to_id");
+      expect(text).toContain("resetChatComposerAfterSend({");
     });
 
     it(`${name} reconciles Realtime insert, update and delete before subscribing`, () => {

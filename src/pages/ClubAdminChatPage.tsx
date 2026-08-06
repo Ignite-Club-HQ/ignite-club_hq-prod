@@ -58,7 +58,7 @@ import {
   removeMessageFromQueryEnvelope,
 } from "@/lib/chatMessageReconciliation";
 import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
-import { prepareChatComposerSubmission } from "@/lib/chatComposerSubmission";
+import { prepareChatComposerSubmission, resetChatComposerAfterSend } from "@/lib/chatComposerSubmission";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { beginChatMessageEdit, buildChatMessageEdit, cancelChatMessageEdit } from "@/lib/chatComposerEdit";
 import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
@@ -1003,10 +1003,12 @@ export default function ClubAdminChatPage() {
       imageUrl,
       replyToId: replyTo?.id || null,
     });
-    setMessage("");
-    setImageUrl(null);
-    setReplyTo(null);
-    setPendingPollId(null);
+    resetChatComposerAfterSend({
+      setText: setMessage,
+      setImage: setImageUrl,
+      setReply: setReplyTo,
+      setPoll: setPendingPollId,
+    });
   };
 
 

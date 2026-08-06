@@ -403,6 +403,16 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   message into a failed send. Verification passed 96 focused contracts, 35
   messaging/Vault Playwright journeys, TypeScript, focused lint and the
   production build. No runtime defect was found.
+- M5g extracts the successful-send composer reset shared by all six surfaces.
+  It clears text, attachment and reply state together, plus poll state only on
+  composers that own it. Each page retains the original reset timing: Team,
+  Club, Group and Broadcast clear inside optimistic `onMutate`, while Direct
+  Message and Club Admin clear after dispatch. Permission checks, support-DM
+  attachment restrictions, gallery nudges, upload behavior, offline queueing
+  and failed-send attachment restoration remain page-owned. Verification
+  passed 160 focused contracts, all 29 cross-surface messaging Playwright
+  journeys, TypeScript, focused production-helper lint and the production
+  build. No runtime defect was found.
 
 ## Objective
 
