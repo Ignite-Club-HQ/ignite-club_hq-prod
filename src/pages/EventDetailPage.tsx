@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, lazy, Suspense, useRef, useCallback } from "react";
-import { performEventDeletion, type EventDeletionOutcome } from "@/lib/eventSeriesDeletion";
+import { useDeleteEvent } from "@/hooks/useDeleteEvent";
 
 import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
 import { Share } from "@capacitor/share";
@@ -70,7 +70,6 @@ import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
-import { ToastAction } from "@/components/ui/toast";
 import { format, parseISO, isSameDay } from "date-fns";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponsorStrip";
@@ -2130,125 +2129,27 @@ export default function EventDetailPage() {
     },
   });
 
-  // ---- Event deletion with six-second undo -------------------------------
-  // All duplicate-prevention and cleanup state lives in refs: two taps can
-  // occur before React re-renders, so `useState` cannot gate scheduling.
-  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const deletePendingRef = useRef(false);
-  const [deletePending, setDeletePending] = useState(false);
-
-  const clearPendingDeletion = useCallback(() => {
-    if (deleteTimerRef.current) {
-      clearTimeout(deleteTimerRef.current);
-      deleteTimerRef.current = null;
-    }
-    deletePendingRef.current = false;
-    if (isMountedRef.current) setDeletePending(false);
-  }, []);
-
-  // Idempotent unmount cleanup — a delayed callback must never update state
-  // after unmount.
-  useEffect(() => {
-    return () => {
-      if (deleteTimerRef.current) {
-        clearTimeout(deleteTimerRef.current);
-        deleteTimerRef.current = null;
-      }
-      deletePendingRef.current = false;
-    };
-  }, []);
-
-  const handleDeleteWithUndo = (deleteType: 'single' | 'series') => {
-    // Exactly one pending deletion at a time — repeated requests during the
-    // undo window are ignored (no extra timer, no extra delete, no new toast).
-    if (deletePendingRef.current) return;
-    if (!event || !id) return;
-
-    const snapshot = {
-      id,
-      is_recurring: event.is_recurring,
-      parent_event_id: event.parent_event_id,
-    };
-
-    deletePendingRef.current = true;
-    setDeletePending(true);
-
-    navigate(-1);
-
-    const timeoutId = setTimeout(() => {
-      // Never leave an unhandled rejection inside the timer callback.
-      void (async () => {
-        let outcome: EventDeletionOutcome;
-        try {
-          outcome = await performEventDeletion(supabase, snapshot, deleteType);
-        } catch (err: any) {
-          outcome = { kind: "failed", message: err?.message ?? "Unknown error" };
-        }
-
-        if (deleteTimerRef.current === timeoutId) deleteTimerRef.current = null;
-        deletePendingRef.current = false;
-        if (isMountedRef.current) setDeletePending(false);
-
-        if (outcome.kind === "success") {
-          queryClient.invalidateQueries({ queryKey: ["events"] });
-          return;
-        }
-
-        console.error("[EventDelete] deletion failed", {
-          eventId: snapshot.id,
-          deleteType,
-          kind: outcome.kind,
-          error: outcome.message,
-        });
-
-        if (outcome.kind === "partial-series") {
-          toast({
-            title: "Series only partially deleted",
-            description: `The repeating events were removed but the original event could not be deleted. ${outcome.message}`,
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Event deletion failed",
-            description: `The event was not deleted and still exists. ${outcome.message}`,
-            variant: "destructive",
-          });
-        }
-
-        // Send the user back so they can see the event still exists.
-        navigate(`/events/${snapshot.id}`);
-      })();
-    }, 6000);
-
-    deleteTimerRef.current = timeoutId;
-
-    toast({
-      title: "Deleting event…",
-      description:
-        deleteType === 'series'
-          ? "The entire series will be deleted in a few seconds."
-          : "The event will be deleted in a few seconds.",
-      action: (
-        <ToastAction
-          altText="Undo deletion"
-          onClick={() => {
-            clearPendingDeletion();
-            navigate(`/events/${snapshot.id}`);
-            toast({ title: "Deletion cancelled" });
-          }}
-        >
-          Undo
-        </ToastAction>
-      ),
-      duration: 6000,
-    });
-  };
-
-  const deleteEventMutation = useMutation({
-    mutationFn: async (deleteType: 'single' | 'series') => {
-      handleDeleteWithUndo(deleteType);
+  // ---- Event deletion ----------------------------------------------------
+  // One awaited request per confirmation. The dialog stays open and disabled
+  // while pending; navigation and the success toast happen only after the
+  // database confirms the row is gone (see useDeleteEvent).
+  const { deleteEvent, isPending: deletePending } = useDeleteEvent({
+    entityLabel: eventTypeLabel,
+    onDeleted: () => {
+      setDeleteDialogOpen(false);
+      navigate(-1);
     },
   });
+
+  const handleConfirmDelete = (deleteType: 'single' | 'series') => {
+    void deleteEvent(
+      event
+        ? { id: id!, is_recurring: event.is_recurring, parent_event_id: event.parent_event_id }
+        : null,
+      deleteType,
+    );
+  };
+
 
 
   // Thrown when a recurring-series cancellation committed only one of its two
@@ -3040,9 +2941,11 @@ export default function EventDetailPage() {
             description={`This will permanently delete the ${eventTypeLabel.toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
             actionLabel="Delete"
             actionVariant="destructive"
-            onSingleAction={() => deleteEventMutation.mutate('single')}
-            onSeriesAction={() => deleteEventMutation.mutate('series')}
-            isPending={deleteEventMutation.isPending || deletePending}
+            onSingleAction={() => handleConfirmDelete('single')}
+            onSeriesAction={() => handleConfirmDelete('series')}
+            isPending={deletePending}
+            keepOpenOnAction
+
           />
         ) : (
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -3056,8 +2959,9 @@ export default function EventDetailPage() {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction 
-                  onClick={() => deleteEventMutation.mutate('single')} 
-                  disabled={deleteEventMutation.isPending || deletePending}
+                  onClick={(e) => { e.preventDefault(); handleConfirmDelete('single'); }}
+                  disabled={deletePending}
+
                   className="bg-destructive text-destructive-foreground"
 
                 >
