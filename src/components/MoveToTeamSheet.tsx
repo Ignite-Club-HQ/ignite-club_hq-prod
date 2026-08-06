@@ -52,6 +52,7 @@ export function MoveToTeamSheet({
         .select("id, name, level_age, is_archived")
         .eq("club_id", clubId)
         .neq("id", fromTeamId)
+        .is("deleted_at", null)
         .order("name");
       if (error) throw error;
       return (data || []).filter((t) => !t.is_archived);

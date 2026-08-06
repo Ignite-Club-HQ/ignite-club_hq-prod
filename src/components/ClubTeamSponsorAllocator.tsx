@@ -55,6 +55,7 @@ export function ClubTeamSponsorAllocator({ clubId }: ClubTeamSponsorAllocatorPro
         .from("teams")
         .select("id, name")
         .eq("club_id", clubId)
+        .is("deleted_at", null)
         .order("name", { ascending: true });
       
       if (error) throw error;

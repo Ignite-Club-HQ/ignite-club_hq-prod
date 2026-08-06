@@ -393,7 +393,8 @@ export default function CreateEventPage() {
       const { data: allTeams } = await supabase
         .from("teams")
         .select("id, name, club_id")
-        .eq("club_id", clubId);
+        .eq("club_id", clubId)
+        .is("deleted_at", null);
 
       if (!allTeams) return [];
 
@@ -420,6 +421,7 @@ export default function CreateEventPage() {
         .from("teams")
         .select("id, name")
         .eq("club_id", clubId!)
+        .is("deleted_at", null)
         .order("name");
       return data ?? [];
     },
@@ -695,6 +697,27 @@ export default function CreateEventPage() {
         description: "Please select a team for training sessions.",
       });
       return;
+    }
+
+    // Guard against a stale team selection: if the team was soft-deleted
+    // (possibly from another device) the event — and its auto "event created"
+    // system message — would land in a dead chat thread.
+    if (teamId) {
+      const { data: teamRow, error: teamCheckError } = await supabase
+        .from("teams")
+        .select("id, deleted_at")
+        .eq("id", teamId)
+        .maybeSingle();
+      if (teamCheckError || !teamRow || (teamRow as any).deleted_at) {
+        toast({
+          title: "Team no longer available",
+          description: teamCheckError
+            ? "Could not verify the selected team. Please try again."
+            : "The selected team has been deleted. Please pick a current team.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // Frontend club/team scope guard — matches the backend
@@ -1732,9 +1755,9 @@ export default function CreateEventPage() {
       </Card>
 
       {/* Submit Button - Sticky on mobile */}
-      <div className="sticky bottom-4 pt-2">
+      <div className="sticky bottom-0 z-20 -mx-4 border-t border-border bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Button
-          className="w-full h-12 text-base font-semibold shadow-lg"
+          className="w-full h-12 text-base font-semibold shadow-lg disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground"
           onClick={() => handleSubmit()}
           disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim() || (type === "training" && !teamId)}
         >
@@ -1745,6 +1768,7 @@ export default function CreateEventPage() {
           )}
         </Button>
       </div>
+
 
       {/* Conflict Detection Dialog */}
       <AlertDialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>

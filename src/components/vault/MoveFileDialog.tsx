@@ -64,6 +64,7 @@ export function MoveFileDialog({
         .from("teams")
         .select("id, name")
         .eq("club_id", clubId!)
+        .is("deleted_at", null)
         .order("name");
       return data || [];
     },

@@ -20,6 +20,11 @@ interface RecurringEventActionDialogProps {
   onSingleAction: () => void;
   onSeriesAction: () => void;
   isPending?: boolean;
+  /**
+   * Keep the dialog mounted while the action runs (destructive awaited
+   * operations): the caller closes it only after the database confirms.
+   */
+  keepOpenOnAction?: boolean;
 }
 
 export function RecurringEventActionDialog({
@@ -32,6 +37,7 @@ export function RecurringEventActionDialog({
   onSingleAction,
   onSeriesAction,
   isPending,
+  keepOpenOnAction,
 }: RecurringEventActionDialogProps) {
   const actionClasses = {
     default: "",
@@ -40,7 +46,7 @@ export function RecurringEventActionDialog({
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={(next) => { if (isPending) return; onOpenChange(next); }}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -51,16 +57,18 @@ export function RecurringEventActionDialog({
           <Button
             variant="outline"
             onClick={() => {
-              onOpenChange(false);
+              if (isPending) return;
+              if (!keepOpenOnAction) onOpenChange(false);
               onSingleAction();
             }}
             disabled={isPending}
           >
-            {actionLabel} This Event Only
+            {isPending && keepOpenOnAction ? "Working…" : `${actionLabel} This Event Only`}
           </Button>
           <Button
             onClick={() => {
-              onOpenChange(false);
+              if (isPending) return;
+              if (!keepOpenOnAction) onOpenChange(false);
               onSeriesAction();
             }}
             className={actionClasses[actionVariant]}
@@ -68,6 +76,7 @@ export function RecurringEventActionDialog({
           >
             {actionLabel} Entire Series
           </Button>
+
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

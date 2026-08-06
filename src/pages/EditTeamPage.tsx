@@ -331,7 +331,9 @@ export default function EditTeamPage() {
             <LevelAgeCombobox
               value={levelAge}
               onChange={setLevelAge}
+              teamType={teamType}
             />
+
           </div>
 
           <div className="space-y-2">

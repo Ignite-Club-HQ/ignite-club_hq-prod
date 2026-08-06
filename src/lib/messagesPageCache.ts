@@ -227,6 +227,27 @@ function clearOldCaches(): void {
   } catch { /* ignore */ }
 }
 
+/**
+ * Purge a single team from the persisted inbox snapshot.
+ *
+ * Called the moment a team is soft-deleted so the stale row can never be
+ * repainted as a phantom second thread on the next cold load.
+ */
+export function removeTeamFromMessagesPageCache(userId: string, teamId: string): void {
+  try {
+    ensureMemCache();
+    if (!memCache || memCache.userId !== userId) return;
+    const nextTeams = (memCache.teams || []).filter((t: any) => t?.id !== teamId);
+    const nextLatest = { ...(memCache.latestTeamMessages || {}) };
+    delete nextLatest[teamId];
+    memCache = { ...memCache, teams: nextTeams, latestTeamMessages: nextLatest };
+    scheduleFlush();
+  } catch {
+    /* best-effort */
+  }
+}
+
+
 export function clearMessagesPageCache(): void {
   memCache = null;
   memCacheLoaded = true;
