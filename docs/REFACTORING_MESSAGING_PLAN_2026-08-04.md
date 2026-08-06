@@ -693,6 +693,16 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   session because its 40.9-second runtime outlived the initial command wrapper;
   this was a runner-session issue, not an application defect. No runtime defect
   was found.
+- M9f extracts unified inbox composition behind one typed orchestration
+  boundary while retaining explicit broadcast, club, team, league, group,
+  direct-message, club-admin and support builders. Cross-surface row order,
+  unread and mute precedence, definitive Pro locking, personal-group hiding,
+  club-admin search, support de-duplication and final draft attachment remain
+  unchanged. Queries, permissions inputs, stable-model publication, Realtime,
+  rendering and navigation remain page-owned. Six direct contracts cover the
+  composition matrix. Verification passed 150 focused inbox and policy tests,
+  TypeScript and focused lint; DM-start, club-admin preview/thread parity and
+  Android cached-order no-jolt journeys passed. No runtime defect was found.
 
 ## Objective
 

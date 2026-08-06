@@ -53,24 +53,12 @@ import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
 import {
-  attachInboxDrafts,
   filterInboxConversations,
   normalizeInboxTypeFilter,
   partitionInboxByReadState,
-  resolveClubProEntitlement,
-  resolveGroupUnreadCount,
   resolveOperationalConversationDisclosure,
   type InboxConversation as UnifiedConversation,
 } from "@/features/messaging/inbox/inboxReadModel";
-import {
-  buildBroadcastInboxConversation,
-  buildClubAdminInboxConversation,
-  buildClubInboxConversation,
-  buildDirectMessageInboxConversation,
-  buildGroupInboxConversation,
-  buildSupportInboxConversation,
-  buildTeamInboxConversation,
-} from "@/features/messaging/inbox/inboxConversationBuilders";
 import {
   fetchInboxAdminTeamIds,
   fetchInboxAdminClubs,
@@ -110,6 +98,7 @@ import {
   hydrateCachedDirectMessages,
   resolveEffectiveDirectMessages,
 } from "@/features/messaging/inbox/inboxDirectMessageSources";
+import { buildUnifiedInboxConversations } from "@/features/messaging/inbox/inboxUnifiedComposition";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
 // warm re-entries paint cached rows immediately instead of re-running the
@@ -2193,139 +2182,37 @@ export default function MessagesPage() {
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
 
   // Build unified conversation list
-  const freshUnifiedConversations = useMemo(() => {
-    const items: UnifiedConversation[] = [];
-
-    // Broadcast
-    if (showBroadcast) {
-      items.push(buildBroadcastInboxConversation({
-        message: displayLatestBroadcast,
-        unreadCount: unreadCounts?.broadcast || 0,
-      }));
-    }
-
-    // Clubs
-    filteredClubs.forEach((club: any) => {
-      const lastMsg = displayLatestClubMessages?.[club.id];
-      // Treat as Pro until we have a definitive answer. This prevents a flash of
-      // "Pro only" lock state after returning from phone lock / visibility refetch
-      // when clubProStatus is briefly unavailable.
-      const { known: proStatusKnown, hasAccess: hasProAccess } = resolveClubProEntitlement({
-        clubId: club.id,
-        statuses: clubProStatus,
-        isLoading: isLoadingClubProStatus,
-        isFetching: isFetchingClubProStatus,
-      });
-      items.push(buildClubInboxConversation({
-        club,
-        lastMessage: lastMsg,
-        unreadCount: unreadCounts?.clubs[club.id] || 0,
-        isMuted: mutedChats?.clubs.has(club.id) || false,
-        proStatusKnown,
-        hasProAccess,
-      }));
-    });
-
-    // Teams
-    filteredTeams.forEach((team: any) => {
-      const lastMsg = displayLatestTeamMessages?.[team.id];
-      items.push(buildTeamInboxConversation({
-        team,
-        lastMessage: lastMsg,
-        unreadCount: unreadCounts?.teams[team.id] || 0,
-        isMuted: mutedChats?.teams.has(team.id) || false,
-      }));
-    });
-
-    // League chats
-    filteredLeagueChats.forEach((group: any) => {
-      const lastMsg = displayLatestGroupMessages?.[group.id];
-      items.push(buildGroupInboxConversation({
-        type: 'league',
-        group,
-        avatarUrl: group.clubs?.logo_url ?? null,
-        lastMessage: lastMsg,
-        unreadCount: resolveGroupUnreadCount(groupUnreadCache?.[group.id], unreadCounts?.groups[group.id]),
-        isMuted: mutedChats?.groups.has(group.id) || false,
-      }));
-    });
-
-    // Chat groups
-    filteredChatGroups.forEach((group: any) => {
-      const lastMsg = displayLatestGroupMessages?.[group.id];
-      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
-      const allowedRoles: string[] = group.allowed_roles || [];
-      const isClubRoleGroup =
-        !!group.club_id &&
-        !group.team_id &&
-        !group.mini_league_id &&
-        allowedRoles.some((r) =>
-          ["coach", "team_admin", "committee_member", "club_admin"].includes(r)
-        );
-      const { known: proStatusKnown, hasAccess: clubHasPro } = group.club_id
-        ? resolveClubProEntitlement({
-            clubId: group.club_id,
-            statuses: clubProStatus,
-            isLoading: isLoadingClubProStatus,
-            isFetching: isFetchingClubProStatus,
-          })
-        : { known: false, hasAccess: true };
-      const isLocked =
-        isClubRoleGroup && proStatusKnown && !clubHasPro && !isAppAdmin;
-      items.push(buildGroupInboxConversation({
-        type: 'group',
-        group,
-        lastMessage: lastMsg,
-        unreadCount: resolveGroupUnreadCount(groupUnreadCache?.[group.id], unreadCounts?.groups[group.id]),
-        isMuted: mutedChats?.groups.has(group.id) || false,
-        canHide: isPersonalGroup,
-        isLocked,
-        lockedLink: `/clubs/${group.club_id}/upgrade`,
-      }));
-    });
-
-
-    // DM conversations
-    filteredDMs.forEach((conv: any) => {
-      const isSupport = isIgniteSupportUser(conv.other_user?.id);
-      items.push(buildDirectMessageInboxConversation({
-        conversation: conv,
-        currentUserId: user?.id,
-        unreadCount: unreadCounts?.dms[conv.id] || 0,
-        isSupport,
-      }));
-    });
-
-    // Club admin conversations (filter by search query against member name / club name / last message)
-    const filteredAdminConvs = query
-      ? clubAdminConversations.filter((conv) => {
-          const name = conv.member_name?.toLowerCase() || "";
-          const club = conv.club_name?.toLowerCase() || "";
-          const text = conv.last_text?.toLowerCase() || "";
-          return name.includes(query) || club.includes(query) || text.includes(query);
-        })
-      : clubAdminConversations;
-    filteredAdminConvs.forEach((conv) => {
-      items.push(buildClubAdminInboxConversation({
-        conversation: conv,
-        currentUserId: user?.id,
-      }));
-    });
-
-
-    // Ignite Support system message (if not already shown as a DM)
-    if (showIgniteSupport && !filteredDMs.some((conv: any) => isIgniteSupportUser(conv.other_user?.id))) {
-      items.push(buildSupportInboxConversation(systemMessage));
-    }
-
-    // Attach drafts and bump lastActivity if draft is more recent than last message
-    return attachInboxDrafts(items, allDrafts);
-  }, [
+  const freshUnifiedConversations = useMemo(() => buildUnifiedInboxConversations({
+    showBroadcast,
+    latestBroadcast: displayLatestBroadcast,
+    clubs: filteredClubs,
+    teams: filteredTeams,
+    leagueChats: filteredLeagueChats,
+    chatGroups: filteredChatGroups,
+    directMessages: filteredDMs,
+    adminConversations: clubAdminConversations,
+    latestClubMessages: displayLatestClubMessages,
+    latestTeamMessages: displayLatestTeamMessages,
+    latestGroupMessages: displayLatestGroupMessages,
+    unreadCounts,
+    realtimeGroupUnread: groupUnreadCache,
+    muted: mutedChats,
+    clubProStatuses: clubProStatus,
+    isClubProLoading: isLoadingClubProStatus,
+    isClubProFetching: isFetchingClubProStatus,
+    isAppAdmin: !!isAppAdmin,
+    query,
+    currentUserId: user?.id,
+    showSupport: !!showIgniteSupport,
+    systemMessage,
+    drafts: allDrafts,
+    isSupportUser: isIgniteSupportUser,
+  }), [
     showBroadcast, displayLatestBroadcast, unreadCounts, groupUnreadCache,
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
-    filteredDMs, clubAdminConversations, query, user?.id, showIgniteSupport, systemMessage, allDrafts,
+    filteredDMs, clubAdminConversations, query, user?.id, showIgniteSupport, systemMessage, allDrafts, isAppAdmin,
   ]);
 
   // Keep the final authorised read model coherent across native resume and
