@@ -682,6 +682,17 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   inbox and lifecycle tests, TypeScript and focused lint; the cross-club
   notification route, Android cached-order no-jolt and iOS inactivity re-entry
   journeys passed. No runtime defect was found.
+- M9e extracts cached direct-message hydration and sticky/live/offline source
+  selection. Cached preview author identity, image/text normalization, creation
+  metadata fallback, sticky-row precedence and offline-only cache fallback retain
+  their existing behaviour. Query ownership, `useStickyList`, filtering,
+  Realtime and rendering remain page-owned. Eight direct contracts cover the
+  source matrix. Verification passed 133 focused inbox and lifecycle tests,
+  TypeScript and focused lint; the Android cached-order no-jolt and cold-offline
+  cache-remount journeys passed. The latter required a persistent command
+  session because its 40.9-second runtime outlived the initial command wrapper;
+  this was a runner-session issue, not an application defect. No runtime defect
+  was found.
 
 ## Objective
 

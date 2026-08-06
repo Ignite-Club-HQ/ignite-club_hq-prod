@@ -106,6 +106,10 @@ import {
   normalizeInboxSearchQuery,
   partitionInboxGroups,
 } from "@/features/messaging/inbox/inboxFilterPolicy";
+import {
+  hydrateCachedDirectMessages,
+  resolveEffectiveDirectMessages,
+} from "@/features/messaging/inbox/inboxDirectMessageSources";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
 // warm re-entries paint cached rows immediately instead of re-running the
@@ -2146,23 +2150,11 @@ export default function MessagesPage() {
   // the placeholder and `dmConversations` is undefined. Rebuild the list from
   // the user-scoped cache so saved conversations stay selectable offline.
   const offlineCachedDMs = useMemo(() => {
-    if (!cachedData?.dmConversations?.length) return [];
-    return cachedData.dmConversations.map((conv: any) => ({
-      ...conv,
-      created_at: conv.created_at || conv.updated_at,
-      created_by: conv.created_by || null,
-      last_message: cachedData.latestDMMessages?.[conv.id]
-        ? {
-            text: cachedData.latestDMMessages[conv.id].text,
-            image_url: cachedData.latestDMMessages[conv.id].image_url || null,
-            created_at: cachedData.latestDMMessages[conv.id].created_at,
-            author_id:
-              cachedData.latestDMMessages[conv.id].author === "You"
-                ? user?.id || ""
-                : conv.other_user?.id || "",
-          }
-        : null,
-    })) as any[];
+    return hydrateCachedDirectMessages({
+      conversations: cachedData?.dmConversations,
+      latestMessages: cachedData?.latestDMMessages,
+      currentUserId: user?.id,
+    });
   }, [cachedData, user?.id]);
 
   // Resume stability: keep the last non-empty DM list while the query is
@@ -2175,9 +2167,11 @@ export default function MessagesPage() {
   });
 
   const effectiveDMConversations = useMemo(() => {
-    if (stickyDMConversations?.length) return stickyDMConversations as any[];
-    if (!isOnline && offlineCachedDMs.length) return offlineCachedDMs;
-    return (stickyDMConversations as any[]) ?? [];
+    return resolveEffectiveDirectMessages({
+      sticky: stickyDMConversations as any[] | undefined,
+      offlineCached: offlineCachedDMs,
+      isOnline,
+    });
   }, [stickyDMConversations, isOnline, offlineCachedDMs]);
 
   // Filtered DM conversations
