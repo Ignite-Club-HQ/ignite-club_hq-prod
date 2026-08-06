@@ -2960,8 +2960,9 @@ export default function EventDetailPage() {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction 
-                  onClick={() => deleteEventMutation.mutate('single')} 
-                  disabled={deleteEventMutation.isPending || deletePending}
+                  onClick={(e) => { e.preventDefault(); handleConfirmDelete('single'); }}
+                  disabled={deletePending}
+
                   className="bg-destructive text-destructive-foreground"
 
                 >
