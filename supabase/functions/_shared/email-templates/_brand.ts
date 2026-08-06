@@ -1,4 +1,4 @@
-// Shared Ignite Club HQ brand styling for auth emails.
+// Shared Ignite brand styling for auth emails.
 // Brand tokens mirror src/index.css design tokens (light mode).
 
 export const LOGO_URL = 'https://igniteclubhq.app/ignite-email-logo.png'

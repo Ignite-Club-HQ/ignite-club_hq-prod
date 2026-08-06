@@ -151,7 +151,7 @@ export const TeamInviteEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                  {clubName} is using <strong>Ignite</strong> to manage teams, events, and communication — all in one place.
                 </Text>
 
                 <Text style={sectionLabel}>👀 As {roleName}, you'll be able to:</Text>
@@ -205,8 +205,8 @@ export const TeamInviteEmail = ({
 
                 <Text style={bodyText}>
                   {hasChildren
-                    ? `You can now view ${childLabel}'s team in Ignite Club HQ.`
-                    : `You can now view your child's team in Ignite Club HQ.`}
+                    ? `You can now view ${childLabel}'s team in Ignite.`
+                    : `You can now view your child's team in Ignite.`}
                 </Text>
                 <Text style={bodyText}>
                   It's our club app — built by a Bridgewater parent — where you'll find team details, updates and other important club information all in one place.
@@ -232,7 +232,7 @@ export const TeamInviteEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                  {clubName} is using <strong>Ignite</strong> to manage teams, events, and communication — all in one place.
                 </Text>
 
                 <Text style={sectionLabel}>👀 Once you join, you'll be able to:</Text>
@@ -253,7 +253,7 @@ export const TeamInviteEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  {clubName} is using <strong>Ignite Club HQ</strong> to manage teams, events, and communication — all in one place.
+                  {clubName} is using <strong>Ignite</strong> to manage teams, events, and communication — all in one place.
                 </Text>
 
                 <Text style={sectionLabel}>👀 Once you join, you'll be able to:</Text>
@@ -277,7 +277,7 @@ export const TeamInviteEmail = ({
               <>
                 <Text style={sectionLabel}>👇 Open the app</Text>
                 <Text style={bodyText}>
-                  You're already on Ignite Club HQ — just tap below to jump straight to {teamName}.
+                  You're already on Ignite — just tap below to jump straight to {teamName}.
                 </Text>
 
                 <Section style={mainCtaSection}>
@@ -361,13 +361,13 @@ export const TeamInviteEmail = ({
                     src={IGNITE_ICON_URL}
                     width="20"
                     height="20"
-                    alt="Ignite Club HQ"
+                    alt="Ignite"
                     style={{ display: 'block', borderRadius: '4px' }}
                   />
                 </td>
                 <td style={{ verticalAlign: 'middle' }}>
                   <Link href={PRODUCTION_DOMAIN} style={footerBrandLink}>
-                    Powered by Ignite Club HQ
+                    Powered by Ignite
                   </Link>
                 </td>
               </tr>

@@ -177,7 +177,7 @@ export const EventReminderEmail = ({
               <Link href={normalizedEventLink} style={{ color: primaryColor }}> Manage your notification preferences</Link>
             </Text>
             <Text style={photoConsentText}>
-              📷 Photos may be shared within the app by team members. Photo consent is managed by your club, not Ignite Club HQ. 
+              📷 Photos may be shared within the app by team members. Photo consent is managed by your club, not Ignite. 
               Please contact your club or team admin if you have concerns or wish to opt out.
             </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
@@ -187,13 +187,13 @@ export const EventReminderEmail = ({
                     src={IGNITE_ICON_URL}
                     width="24"
                     height="24"
-                    alt="Ignite Club HQ"
+                    alt="Ignite"
                     style={igniteLogoStyle}
                   />
                 </td>
                 <td style={{ verticalAlign: 'middle' }}>
                   <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
-                    Powered by Ignite Club HQ
+                    Powered by Ignite
                   </Link>
                 </td>
               </tr>
