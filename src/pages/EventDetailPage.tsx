@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, lazy, Suspense, useRef, useCallback } from "react";
-import { performEventDeletion, type EventDeletionOutcome } from "@/lib/eventSeriesDeletion";
+import { useDeleteEvent } from "@/hooks/useDeleteEvent";
 
 import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
 import { Share } from "@capacitor/share";
