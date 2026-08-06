@@ -7,10 +7,12 @@ const source = (path: string) => readFileSync(resolve(process.cwd(), path), "utf
 describe("deleted and recreated team chat identity", () => {
   it("keeps inbox discovery on active team IDs and fetches previews by those IDs", () => {
     const inbox = source("src/pages/MessagesPage.tsx");
-    expect(inbox).toContain('.is("deleted_at", null)');
-    expect(inbox).toContain("const activeTeamIds = teams.map((team) => team.id)");
-    expect(inbox).toContain('{ _team_ids: activeTeamIds }');
-    expect(inbox).toContain('.eq("team_id", team.id)');
+    const repositories = source("src/features/messaging/inbox/inboxRepositories.ts");
+    expect(inbox).toContain("fetchInboxMemberTeamsWithMessages(user!.id)");
+    expect(repositories).toContain('.is("deleted_at", null)');
+    expect(repositories).toContain("const activeTeamIds = teams.map((team) => team.id)");
+    expect(repositories).toContain('{ _team_ids: activeTeamIds }');
+    expect(repositories).toContain('.eq("team_id", team.id)');
   });
 
   it("posts a new event only to the event row's immutable team ID", () => {

@@ -40,7 +40,7 @@ import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
-import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
+import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview } from "@/lib/messagePreview";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
@@ -72,6 +72,12 @@ import {
   fetchInboxHiddenGroups,
   fetchInboxHasAnyProAccess,
   fetchInboxMutedChats,
+  fetchInboxMemberClubsWithMessages,
+  fetchInboxMemberTeamsWithMessages,
+  fetchInboxChatGroupsWithMessages,
+  fetchInboxLatestBroadcast,
+  fetchInboxLatestDirectMessages,
+  fetchInboxDirectConversationMembership,
   fetchInboxUserLeagueIds,
   fetchInboxUserRoles,
   fetchInboxVaultFileNameMap,
@@ -95,7 +101,9 @@ import {
   partitionInboxGroups,
 } from "@/features/messaging/inbox/inboxFilterPolicy";
 import {
+  buildPreviousDirectMessagePeerMap,
   hydrateCachedDirectMessages,
+  resolveDirectMessagePeerProfile,
   resolveEffectiveDirectMessages,
 } from "@/features/messaging/inbox/inboxDirectMessageSources";
 import { buildUnifiedInboxConversations } from "@/features/messaging/inbox/inboxUnifiedComposition";
@@ -232,14 +240,6 @@ const abbreviateClubName = (name: string): string => {
 
 // MessagePreview lives in its own module so the memoized ConversationRow can
 // share the exact same render path. See: components/chat/MessagePreview.tsx
-
-interface Team {
-  id: string;
-  name: string;
-  logo_url: string | null;
-  deleted_at?: string | null;
-  clubs: { id: string; name: string; logo_url: string | null; sport: string | null; deleted_at?: string | null; purged_at?: string | null };
-}
 
 interface Club {
   id: string;
@@ -439,88 +439,7 @@ export default function MessagesPage() {
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
     refetchOnReconnect: "always",
-    queryFn: async () => {
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .not("club_id", "is", null);
-
-      if (rolesError) throw rolesError;
-      if (!roles || roles.length === 0) return { clubs: [] as Club[], latestMessages: {} };
-
-      const clubIds = [...new Set(roles.map((r) => r.club_id).filter(Boolean))];
-      const { data } = await supabase
-        .from("clubs")
-        .select("id, name, logo_url, sport")
-        .in("id", clubIds)
-        .is("deleted_at", null)
-        .neq("kind", "shell");
-
-      const clubs = data as Club[];
-      
-      // Fetch latest messages for all clubs in parallel, then batch a single
-      // profiles lookup for all authors. M1 perf: removes the per-club N+1
-      // profile query that previously serialized after each last-message fetch.
-      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-
-      // Fast path: single RPC returning latest message + author display name per club.
-      try {
-        const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
-          "get_inbox_latest_club_messages",
-          { _club_ids: clubIds }
-        );
-        if (rpcErr) throw rpcErr;
-        for (const row of (rpcRows ?? []) as any[]) {
-          latestMessages[row.club_id] = {
-            text: row.text,
-            author: row.author_display_name ?? "",
-            created_at: row.created_at,
-            image_url: row.image_url,
-          };
-        }
-        return { clubs, latestMessages };
-      } catch {
-        // Fall through to legacy per-club fetch.
-      }
-
-      const msgRows = await Promise.all(
-        clubs.map(async (club) => {
-          const { data: msgData } = await supabase
-            .from("club_messages")
-            .select("text, created_at, image_url, author_id")
-            .eq("club_id", club.id)
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          return { clubId: club.id, msg: msgData };
-        })
-      );
-
-      const authorIds = Array.from(new Set(
-        msgRows.map(r => r.msg?.author_id).filter((id): id is string => !!id)
-      ));
-      const authorNameById: Record<string, string> = {};
-      if (authorIds.length > 0) {
-        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
-        for (const p of profiles ?? []) {
-          if (p.display_name) authorNameById[p.id] = p.display_name;
-        }
-      }
-
-      for (const { clubId, msg } of msgRows) {
-        if (!msg) continue;
-        latestMessages[clubId] = {
-          text: msg.text,
-          author: msg.author_id ? (authorNameById[msg.author_id] ?? "") : "",
-          created_at: msg.created_at,
-          image_url: msg.image_url,
-        };
-      }
-      
-      return { clubs, latestMessages };
-    },
+    queryFn: () => fetchInboxMemberClubsWithMessages(user!.id),
     enabled: !!user && initialized,
     // Warm revisits render instantly from cache; realtime + 30s poll keep
     // previews fresh. Forcing refetch on every mount/focus caused 10-25s
@@ -543,32 +462,7 @@ export default function MessagesPage() {
   const { data: latestBroadcast, isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError } = useQuery({
     queryKey: ["latest-broadcast"],
     refetchOnReconnect: "always",
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("broadcast_messages")
-        .select("text, created_at, image_url, author_id")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (!data) return null;
-      
-      let authorName = "";
-      if (data.author_id) {
-        const { data: profile } = await selectCachedProfileById(data.author_id);
-        if (profile?.display_name) {
-          authorName = profile.display_name;
-        }
-      }
-      
-      return {
-        text: data.text,
-        created_at: data.created_at,
-        image_url: data.image_url,
-        author_id: data.author_id,
-        profiles: { display_name: authorName }
-      };
-    },
+    queryFn: () => fetchInboxLatestBroadcast(),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
@@ -581,111 +475,7 @@ export default function MessagesPage() {
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
     refetchOnReconnect: "always",
-    queryFn: async () => {
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("team_id")
-        .eq("user_id", user!.id)
-        .not("team_id", "is", null);
-
-      if (rolesError) throw rolesError;
-
-      const teamIds = roles.map((r) => r.team_id).filter(Boolean);
-      if (teamIds.length === 0) return { teams: [] as Team[], latestMessages: {} };
-
-      const { data, error } = await supabase
-        .from("teams")
-        .select(`
-          id,
-          name,
-          logo_url,
-          deleted_at,
-          clubs!club_id (id, name, logo_url, sport, deleted_at, purged_at)
-        `)
-        .in("id", teamIds)
-        .is("deleted_at", null);
-
-      if (error) throw error;
-      const teams = ((data || []) as Team[]).filter((team: any) => {
-        if (team.deleted_at) return false;
-        if (team.clubs?.deleted_at || team.clubs?.purged_at) return false;
-        return true;
-      });
-      const activeTeamIds = teams.map((team) => team.id);
-      if (activeTeamIds.length === 0) return { teams: [] as Team[], latestMessages: {} };
-      
-      // M1 perf: batch profile lookups for all team last-message authors.
-      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
-
-      // Fast path: single RPC returning latest message + author display name per team.
-      try {
-        const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
-          "get_inbox_latest_team_messages",
-          { _team_ids: activeTeamIds }
-        );
-        if (rpcErr) throw rpcErr;
-        for (const row of (rpcRows ?? []) as any[]) {
-          const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
-          latestMessages[row.team_id] = {
-            text: row.text,
-            author: isAnnouncement
-              ? row.club_announcement_name
-              : (row.author_display_name ?? ""),
-            created_at: row.created_at,
-            image_url: row.image_url,
-            is_announcement: isAnnouncement,
-          };
-        }
-        return { teams, latestMessages };
-      } catch {
-        // Fall through to legacy per-team fetch path below.
-      }
-
-      const msgRows = await Promise.all(
-        teams.map(async (team) => {
-          const { data: msgData } = await supabase
-            .from("team_messages")
-            .select("text, created_at, image_url, author_id, is_club_announcement, club_announcement_name")
-            .eq("team_id", team.id)
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          return { teamId: team.id, msg: msgData };
-        })
-      );
-
-      const authorIds = Array.from(new Set(
-        msgRows
-          .map(r => r.msg)
-          .filter((m): m is NonNullable<typeof m> => !!m && !(m.is_club_announcement && m.club_announcement_name) && !!m.author_id)
-          .map(m => m.author_id as string)
-      ));
-      const authorNameById: Record<string, string> = {};
-      if (authorIds.length > 0) {
-        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
-        for (const p of profiles ?? []) {
-          if (p.display_name) authorNameById[p.id] = p.display_name;
-        }
-      }
-
-      for (const { teamId, msg } of msgRows) {
-        if (!msg) continue;
-        const isAnnouncement = !!(msg.is_club_announcement && msg.club_announcement_name);
-        const authorName = isAnnouncement
-          ? msg.club_announcement_name!
-          : (msg.author_id ? (authorNameById[msg.author_id] ?? "") : "");
-        latestMessages[teamId] = {
-          text: msg.text,
-          author: authorName,
-          created_at: msg.created_at,
-          image_url: msg.image_url,
-          is_announcement: isAnnouncement,
-        };
-      }
-
-      return { teams, latestMessages };
-    },
+    queryFn: () => fetchInboxMemberTeamsWithMessages(user!.id),
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
@@ -772,107 +562,12 @@ export default function MessagesPage() {
   const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched, isFetching: chatGroupsFetching, isError: chatGroupsError } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
     refetchOnReconnect: "always",
-    queryFn: async () => {
-      // Perf: pre-filter via SECURITY DEFINER RPC that returns just the
-      // accessible group ids (scope-table lookup), then do a PK select on
-      // chat_groups. Avoids per-row RLS policy evaluation on inbox cold load.
-      // Kill-switch: localStorage.msg_accessible_ids_rpc = "0" to bypass.
-      let accessibleIds: string[] | null = null;
-      try {
-        if (typeof window === "undefined" || window.localStorage.getItem("msg_accessible_ids_rpc") !== "0") {
-          const { data: ids, error: idsErr } = await (supabase as any).rpc(
-            "get_my_accessible_chat_group_ids",
-            { _user_id: user!.id }
-          );
-          if (!idsErr && Array.isArray(ids)) accessibleIds = ids as string[];
-        }
-      } catch {
-        accessibleIds = null;
-      }
-
-      if (accessibleIds && accessibleIds.length === 0) {
-        return { groups: [], latestMessages: {} };
-      }
-
-      let query = supabase
-        .from("chat_groups")
-        .select("*, teams(name, deleted_at), clubs!club_id(name, logo_url, deleted_at, purged_at), mini_leagues:mini_league_id(name)")
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
-      if (accessibleIds) query = query.in("id", accessibleIds);
-      const { data, error } = await query;
-
-      
-      const groups = ((data || []) as any[]).filter((group: any) => {
-        if (group.deleted_at) return false;
-        if (group.clubs?.deleted_at || group.clubs?.purged_at) return false;
-        if (group.teams?.deleted_at) return false;
-        return true;
-      });
-      
-      // M1 perf: batch profile lookups for all group last-message authors.
-      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-
-      // Fast path: single RPC returning latest message + author display name per group.
-      const groupIds = groups.map((g: any) => g.id);
-      if (groupIds.length > 0) {
-        try {
-          const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
-            "get_inbox_latest_group_messages",
-            { _group_ids: groupIds }
-          );
-          if (rpcErr) throw rpcErr;
-          for (const row of (rpcRows ?? []) as any[]) {
-            latestMessages[row.group_id] = {
-              text: row.text,
-              author: row.author_display_name ?? "",
-              created_at: row.created_at,
-              image_url: row.image_url,
-            };
-          }
-          return { groups, latestMessages };
-        } catch {
-          // Fall through to legacy per-group fetch.
-        }
-      }
-
-      const msgRows = await Promise.all(
-        groups.map(async (group) => {
-          const { data: msgData } = await supabase
-            .from("group_messages")
-            .select("text, created_at, image_url, author_id")
-            .eq("group_id", group.id)
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          return { groupId: group.id, msg: msgData };
-        })
-      );
-
-      const authorIds = Array.from(new Set(
-        msgRows.map(r => r.msg?.author_id).filter((id): id is string => !!id)
-      ));
-      const authorNameById: Record<string, string> = {};
-      if (authorIds.length > 0) {
-        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
-        for (const p of profiles ?? []) {
-          if (p.display_name) authorNameById[p.id] = p.display_name;
-        }
-      }
-
-      for (const { groupId, msg } of msgRows) {
-        if (!msg) continue;
-        latestMessages[groupId] = {
-          text: msg.text,
-          author: msg.author_id ? (authorNameById[msg.author_id] ?? "") : "",
-          created_at: msg.created_at,
-          image_url: msg.image_url,
-        };
-      }
-
-      return { groups, latestMessages };
-    },
+    queryFn: () => fetchInboxChatGroupsWithMessages(user!.id, {
+      // Kill-switch retained for deployments where the optional scope RPC is
+      // unavailable; the repository then relies on the existing RLS query.
+      accessibleIdsRpcEnabled:
+        typeof window === "undefined" || window.localStorage.getItem("msg_accessible_ids_rpc") !== "0",
+    }),
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
@@ -927,53 +622,11 @@ export default function MessagesPage() {
 
 
 
-      const { data: convos, error } = await supabase
-        .from("direct_conversations")
-        .select("*")
-        .or(`participant_1.eq.${user!.id},participant_2.eq.${user!.id}`)
-        .order("updated_at", { ascending: false });
+      const { conversations: convos, otherUserIds } =
+        await fetchInboxDirectConversationMembership(user!.id);
+      if (convos.length === 0) return [];
 
-      if (error) throw error;
-      if (!convos?.length) return [];
-
-      const otherUserIds = convos.map(c => 
-        c.participant_1 === user!.id ? c.participant_2 : c.participant_1
-      );
-
-      // Fast path: single RPC for latest message across all conversations.
-      // Falls back to legacy per-conversation queries on error.
       const conversationIds = convos.map((c) => c.id);
-      const fetchLatestMessages = async (): Promise<Map<string, { text: string; image_url: string | null; created_at: string; author_id: string } | null>> => {
-        try {
-          const { data, error } = await supabase.rpc("get_inbox_latest_dm_messages", { _conversation_ids: conversationIds });
-          if (error) throw error;
-          const map = new Map<string, { text: string; image_url: string | null; created_at: string; author_id: string } | null>();
-          (data || []).forEach((row: any) => {
-            map.set(row.conversation_id, {
-              text: row.text,
-              image_url: row.image_url,
-              created_at: row.created_at,
-              author_id: row.author_id,
-            });
-          });
-          return map;
-        } catch {
-          // Legacy fallback
-          const messagesResult = await Promise.all(
-            convos.map(async (conv) => {
-              const { data } = await supabase
-                .from("direct_messages")
-                .select("text, image_url, created_at, author_id")
-                .eq("conversation_id", conv.id)
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              return { conversationId: conv.id, message: data };
-            })
-          );
-          return new Map(messagesResult.map((m) => [m.conversationId, m.message as any]));
-        }
-      };
 
       const [profilesMap, messageMap] = await Promise.all([
         // Always fetch DM other-user profiles directly from the DB (bypassing
@@ -998,24 +651,16 @@ export default function MessagesPage() {
             return await fetchProfilesWithCache(otherUserIds, { allowStale: true, timeout: 15000 });
           }
         })(),
-        fetchLatestMessages(),
+        fetchInboxLatestDirectMessages(conversationIds),
       ]);
 
       // Build a fallback map of previously-known other_user data so that a
       // transient empty profile fetch (RLS / network blip after lock screen)
       // never downgrades a real name back to "Unknown User".
       const previousResult = queryClient.getQueryData<any[]>(["dm-conversations", user?.id]);
-      const previousOtherUserMap = new Map<string, any>();
-      previousResult?.forEach((c: any) => {
-        if (c?.other_user?.id && c.other_user.display_name) {
-          previousOtherUserMap.set(c.other_user.id, c.other_user);
-        }
-      });
-      // Also seed from the persistent cache as a second layer of defence.
-      cachedData?.dmConversations?.forEach((c: any) => {
-        if (c?.other_user?.id && c.other_user.display_name && !previousOtherUserMap.has(c.other_user.id)) {
-          previousOtherUserMap.set(c.other_user.id, c.other_user);
-        }
+      const previousOtherUserMap = buildPreviousDirectMessagePeerMap({
+        live: previousResult,
+        cached: cachedData?.dmConversations,
       });
 
       const result = convos.map(conv => {
@@ -1025,25 +670,12 @@ export default function MessagesPage() {
         // Final defence: the global in-memory profile cache (populated by
         // every other surface in the app — chat rows, member lists, etc).
         const globalCached = getProfileFromCache(otherUserId);
-        // Prefer freshly fetched data, but never overwrite a known good
-        // profile with null/empty values.
-        const otherUser = (fetchedProfile && fetchedProfile.display_name)
-          ? {
-              id: otherUserId,
-              display_name: fetchedProfile.display_name,
-              avatar_url: fetchedProfile.avatar_url ?? fallbackProfile?.avatar_url ?? globalCached?.avatar_url ?? null,
-            }
-          : (fallbackProfile && fallbackProfile.display_name)
-            ? fallbackProfile
-            : globalCached
-              ? {
-                  id: otherUserId,
-                  display_name: globalCached.display_name,
-                  avatar_url: globalCached.avatar_url ?? null,
-                }
-              : (fetchedProfile
-                  ? { id: otherUserId, display_name: null, avatar_url: fetchedProfile.avatar_url ?? null }
-                  : null);
+        const otherUser = resolveDirectMessagePeerProfile({
+          otherUserId,
+          fetched: fetchedProfile,
+          previous: fallbackProfile,
+          globalCached,
+        });
         return {
           ...conv,
           other_user: otherUser,

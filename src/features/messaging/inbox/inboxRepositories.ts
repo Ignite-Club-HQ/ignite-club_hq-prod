@@ -2,9 +2,552 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { resolveClubProAccess } from "@/lib/proEntitlement";
+import { selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { deriveActiveMutedChats, type ActiveMutedChats } from "./inboxReadModel";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
+
+export interface InboxBroadcastPreview {
+  text: string;
+  created_at: string;
+  image_url: string | null;
+  author_id: string | null;
+  profiles: { display_name: string };
+}
+
+export async function fetchInboxLatestBroadcast(
+  options: {
+    client?: IgniteSupabaseClient;
+    selectProfile?: typeof selectCachedProfileById;
+  } = {},
+): Promise<InboxBroadcastPreview | null> {
+  const client = options.client ?? supabase;
+  const selectProfile = options.selectProfile ?? selectCachedProfileById;
+  const { data } = await client
+    .from("broadcast_messages")
+    .select("text, created_at, image_url, author_id")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data) return null;
+
+  let authorName = "";
+  if (data.author_id) {
+    const { data: profile } = await selectProfile(data.author_id);
+    if (profile?.display_name) authorName = profile.display_name;
+  }
+
+  return {
+    text: data.text,
+    created_at: data.created_at,
+    image_url: data.image_url,
+    author_id: data.author_id,
+    profiles: { display_name: authorName },
+  };
+}
+
+export interface InboxLatestDirectMessage {
+  text: string;
+  image_url: string | null;
+  created_at: string;
+  author_id: string;
+}
+
+interface InboxLatestDirectMessageRpcRow extends InboxLatestDirectMessage {
+  conversation_id: string;
+}
+
+export async function fetchInboxLatestDirectMessages(
+  conversationIds: readonly string[],
+  client: IgniteSupabaseClient = supabase,
+): Promise<Map<string, InboxLatestDirectMessage | null>> {
+  if (conversationIds.length === 0) return new Map();
+
+  try {
+    const rpcClient = client as unknown as {
+      rpc: (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: InboxLatestDirectMessageRpcRow[] | null; error: unknown }>;
+    };
+    const { data, error } = await rpcClient.rpc(
+      "get_inbox_latest_dm_messages",
+      { _conversation_ids: [...conversationIds] },
+    );
+    if (error) throw error;
+    const messages = new Map<string, InboxLatestDirectMessage | null>();
+    for (const row of data ?? []) {
+      messages.set(row.conversation_id, {
+        text: row.text,
+        image_url: row.image_url,
+        created_at: row.created_at,
+        author_id: row.author_id,
+      });
+    }
+    return messages;
+  } catch {
+    const messageRows = await Promise.all(
+      conversationIds.map(async (conversationId) => {
+        const { data } = await client
+          .from("direct_messages")
+          .select("text, image_url, created_at, author_id")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return { conversationId, message: data };
+      }),
+    );
+    return new Map(messageRows.map(({ conversationId, message }) => [conversationId, message]));
+  }
+}
+
+export type InboxDirectConversation = Database["public"]["Tables"]["direct_conversations"]["Row"];
+
+export interface InboxDirectConversationMembership {
+  conversations: InboxDirectConversation[];
+  otherUserIds: string[];
+}
+
+export async function fetchInboxDirectConversationMembership(
+  userId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<InboxDirectConversationMembership> {
+  const { data, error } = await client
+    .from("direct_conversations")
+    .select("*")
+    .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  const conversations = data ?? [];
+  const otherUserIds = conversations.map((conversation) => (
+    conversation.participant_1 === userId
+      ? conversation.participant_2
+      : conversation.participant_1
+  ));
+  return { conversations, otherUserIds };
+}
+
+export interface InboxMemberClub {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  sport: string | null;
+}
+
+export interface InboxLatestClubMessage {
+  text: string;
+  author: string;
+  created_at: string;
+  image_url?: string | null;
+}
+
+export interface InboxMemberClubsWithMessages {
+  clubs: InboxMemberClub[];
+  latestMessages: Record<string, InboxLatestClubMessage>;
+}
+
+interface InboxLatestClubMessageRpcRow {
+  club_id: string;
+  text: string;
+  author_display_name: string | null;
+  created_at: string;
+  image_url: string | null;
+}
+
+/**
+ * Reads the club section of the inbox without owning React Query policy.
+ * The RPC remains the preferred path; its legacy per-club fallback is kept so
+ * deployments can roll forward independently from the database function.
+ */
+export async function fetchInboxMemberClubsWithMessages(
+  userId: string,
+  options: {
+    client?: IgniteSupabaseClient;
+    selectProfiles?: typeof selectCachedProfilesByIds;
+  } = {},
+): Promise<InboxMemberClubsWithMessages> {
+  const client = options.client ?? supabase;
+  const selectProfiles = options.selectProfiles ?? selectCachedProfilesByIds;
+  const { data: roles, error: rolesError } = await client
+    .from("user_roles")
+    .select("club_id")
+    .eq("user_id", userId)
+    .not("club_id", "is", null);
+
+  if (rolesError) throw rolesError;
+  if (!roles?.length) return { clubs: [], latestMessages: {} };
+
+  const clubIds = [...new Set(
+    roles.map((role) => role.club_id).filter((clubId): clubId is string => !!clubId),
+  )];
+  const { data } = await client
+    .from("clubs")
+    .select("id, name, logo_url, sport")
+    .in("id", clubIds)
+    .is("deleted_at", null)
+    .neq("kind", "shell");
+
+  const clubs = data as InboxMemberClub[];
+  const latestMessages: Record<string, InboxLatestClubMessage> = {};
+
+  try {
+    const rpcClient = client as unknown as {
+      rpc: (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: InboxLatestClubMessageRpcRow[] | null; error: unknown }>;
+    };
+    const { data: rpcRows, error: rpcError } = await rpcClient.rpc(
+      "get_inbox_latest_club_messages",
+      { _club_ids: clubIds },
+    );
+    if (rpcError) throw rpcError;
+    for (const row of rpcRows ?? []) {
+      latestMessages[row.club_id] = {
+        text: row.text,
+        author: row.author_display_name ?? "",
+        created_at: row.created_at,
+        image_url: row.image_url,
+      };
+    }
+    return { clubs, latestMessages };
+  } catch {
+    // Preserve the deployed legacy fallback while the RPC remains optional.
+  }
+
+  const messageRows = await Promise.all(
+    clubs.map(async (club) => {
+      const { data: message } = await client
+        .from("club_messages")
+        .select("text, created_at, image_url, author_id")
+        .eq("club_id", club.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return { clubId: club.id, message };
+    }),
+  );
+
+  const authorIds = [...new Set(
+    messageRows
+      .map(({ message }) => message?.author_id)
+      .filter((authorId): authorId is string => !!authorId),
+  )];
+  const authorNameById: Record<string, string> = {};
+  if (authorIds.length > 0) {
+    const { data: profiles } = await selectProfiles(authorIds);
+    for (const profile of profiles ?? []) {
+      if (profile.display_name) authorNameById[profile.id] = profile.display_name;
+    }
+  }
+
+  for (const { clubId, message } of messageRows) {
+    if (!message) continue;
+    latestMessages[clubId] = {
+      text: message.text,
+      author: message.author_id ? (authorNameById[message.author_id] ?? "") : "",
+      created_at: message.created_at,
+      image_url: message.image_url,
+    };
+  }
+
+  return { clubs, latestMessages };
+}
+
+export interface InboxMemberTeam {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  deleted_at?: string | null;
+  clubs: {
+    id: string;
+    name: string;
+    logo_url: string | null;
+    sport: string | null;
+    deleted_at?: string | null;
+    purged_at?: string | null;
+  };
+}
+
+export interface InboxLatestTeamMessage extends InboxLatestClubMessage {
+  is_announcement?: boolean;
+}
+
+export interface InboxMemberTeamsWithMessages {
+  teams: InboxMemberTeam[];
+  latestMessages: Record<string, InboxLatestTeamMessage>;
+}
+
+interface InboxLatestTeamMessageRpcRow {
+  team_id: string;
+  text: string;
+  author_display_name: string | null;
+  created_at: string;
+  image_url: string | null;
+  is_club_announcement: boolean | null;
+  club_announcement_name: string | null;
+}
+
+export async function fetchInboxMemberTeamsWithMessages(
+  userId: string,
+  options: {
+    client?: IgniteSupabaseClient;
+    selectProfiles?: typeof selectCachedProfilesByIds;
+  } = {},
+): Promise<InboxMemberTeamsWithMessages> {
+  const client = options.client ?? supabase;
+  const selectProfiles = options.selectProfiles ?? selectCachedProfilesByIds;
+  const { data: roles, error: rolesError } = await client
+    .from("user_roles")
+    .select("team_id")
+    .eq("user_id", userId)
+    .not("team_id", "is", null);
+
+  if (rolesError) throw rolesError;
+  const teamIds = (roles ?? [])
+    .map((role) => role.team_id)
+    .filter((teamId): teamId is string => !!teamId);
+  if (teamIds.length === 0) return { teams: [], latestMessages: {} };
+
+  const { data, error } = await client
+    .from("teams")
+    .select(`
+      id,
+      name,
+      logo_url,
+      deleted_at,
+      clubs!club_id (id, name, logo_url, sport, deleted_at, purged_at)
+    `)
+    .in("id", teamIds)
+    .is("deleted_at", null);
+
+  if (error) throw error;
+  const teams = ((data ?? []) as unknown as InboxMemberTeam[]).filter((team) => (
+    !team.deleted_at && !team.clubs?.deleted_at && !team.clubs?.purged_at
+  ));
+  const activeTeamIds = teams.map((team) => team.id);
+  if (activeTeamIds.length === 0) return { teams: [], latestMessages: {} };
+
+  const latestMessages: Record<string, InboxLatestTeamMessage> = {};
+  try {
+    const rpcClient = client as unknown as {
+      rpc: (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: InboxLatestTeamMessageRpcRow[] | null; error: unknown }>;
+    };
+    const { data: rpcRows, error: rpcError } = await rpcClient.rpc(
+      "get_inbox_latest_team_messages",
+      { _team_ids: activeTeamIds },
+    );
+    if (rpcError) throw rpcError;
+    for (const row of rpcRows ?? []) {
+      const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
+      latestMessages[row.team_id] = {
+        text: row.text,
+        author: isAnnouncement ? row.club_announcement_name! : (row.author_display_name ?? ""),
+        created_at: row.created_at,
+        image_url: row.image_url,
+        is_announcement: isAnnouncement,
+      };
+    }
+    return { teams, latestMessages };
+  } catch {
+    // Preserve the deployed legacy fallback while the RPC remains optional.
+  }
+
+  const messageRows = await Promise.all(
+    teams.map(async (team) => {
+      const { data: message } = await client
+        .from("team_messages")
+        .select("text, created_at, image_url, author_id, is_club_announcement, club_announcement_name")
+        .eq("team_id", team.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return { teamId: team.id, message };
+    }),
+  );
+
+  const authorIds = [...new Set(
+    messageRows
+      .map(({ message }) => message)
+      .filter((message) => (
+        !!message &&
+        !(message.is_club_announcement && message.club_announcement_name) &&
+        !!message.author_id
+      ))
+      .map((message) => message!.author_id as string),
+  )];
+  const authorNameById: Record<string, string> = {};
+  if (authorIds.length > 0) {
+    const { data: profiles } = await selectProfiles(authorIds);
+    for (const profile of profiles ?? []) {
+      if (profile.display_name) authorNameById[profile.id] = profile.display_name;
+    }
+  }
+
+  for (const { teamId, message } of messageRows) {
+    if (!message) continue;
+    const isAnnouncement = !!(message.is_club_announcement && message.club_announcement_name);
+    latestMessages[teamId] = {
+      text: message.text,
+      author: isAnnouncement
+        ? message.club_announcement_name!
+        : (message.author_id ? (authorNameById[message.author_id] ?? "") : ""),
+      created_at: message.created_at,
+      image_url: message.image_url,
+      is_announcement: isAnnouncement,
+    };
+  }
+
+  return { teams, latestMessages };
+}
+
+export type InboxChatGroup = Database["public"]["Tables"]["chat_groups"]["Row"] & {
+  teams: { name: string; deleted_at: string | null } | null;
+  clubs: {
+    name: string;
+    logo_url: string | null;
+    deleted_at: string | null;
+    purged_at: string | null;
+  } | null;
+  mini_leagues: { name: string } | null;
+};
+
+export interface InboxChatGroupsWithMessages {
+  groups: InboxChatGroup[];
+  latestMessages: Record<string, InboxLatestClubMessage>;
+}
+
+interface InboxLatestGroupMessageRpcRow {
+  group_id: string;
+  text: string;
+  author_display_name: string | null;
+  created_at: string;
+  image_url: string | null;
+}
+
+export async function fetchInboxChatGroupsWithMessages(
+  userId: string,
+  options: {
+    client?: IgniteSupabaseClient;
+    selectProfiles?: typeof selectCachedProfilesByIds;
+    accessibleIdsRpcEnabled?: boolean;
+  } = {},
+): Promise<InboxChatGroupsWithMessages> {
+  const client = options.client ?? supabase;
+  const selectProfiles = options.selectProfiles ?? selectCachedProfilesByIds;
+  let accessibleIds: string[] | null = null;
+
+  if (options.accessibleIdsRpcEnabled !== false) {
+    try {
+      const rpcClient = client as unknown as {
+        rpc: (
+          name: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: string[] | null; error: unknown }>;
+      };
+      const { data: ids, error } = await rpcClient.rpc(
+        "get_my_accessible_chat_group_ids",
+        { _user_id: userId },
+      );
+      if (!error && Array.isArray(ids)) accessibleIds = ids;
+    } catch {
+      accessibleIds = null;
+    }
+  }
+
+  if (accessibleIds?.length === 0) return { groups: [], latestMessages: {} };
+
+  let query = client
+    .from("chat_groups")
+    .select("*, teams(name, deleted_at), clubs!club_id(name, logo_url, deleted_at, purged_at), mini_leagues:mini_league_id(name)")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+  if (accessibleIds) query = query.in("id", accessibleIds);
+  const { data } = await query;
+
+  const groups = ((data ?? []) as unknown as InboxChatGroup[]).filter((group) => (
+    !group.deleted_at &&
+    !group.clubs?.deleted_at &&
+    !group.clubs?.purged_at &&
+    !group.teams?.deleted_at
+  ));
+  const latestMessages: Record<string, InboxLatestClubMessage> = {};
+  const groupIds = groups.map((group) => group.id);
+
+  if (groupIds.length > 0) {
+    try {
+      const rpcClient = client as unknown as {
+        rpc: (
+          name: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: InboxLatestGroupMessageRpcRow[] | null; error: unknown }>;
+      };
+      const { data: rpcRows, error: rpcError } = await rpcClient.rpc(
+        "get_inbox_latest_group_messages",
+        { _group_ids: groupIds },
+      );
+      if (rpcError) throw rpcError;
+      for (const row of rpcRows ?? []) {
+        latestMessages[row.group_id] = {
+          text: row.text,
+          author: row.author_display_name ?? "",
+          created_at: row.created_at,
+          image_url: row.image_url,
+        };
+      }
+      return { groups, latestMessages };
+    } catch {
+      // Preserve the deployed legacy fallback while the RPC remains optional.
+    }
+  }
+
+  const messageRows = await Promise.all(
+    groups.map(async (group) => {
+      const { data: message } = await client
+        .from("group_messages")
+        .select("text, created_at, image_url, author_id")
+        .eq("group_id", group.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return { groupId: group.id, message };
+    }),
+  );
+
+  const authorIds = [...new Set(
+    messageRows
+      .map(({ message }) => message?.author_id)
+      .filter((authorId): authorId is string => !!authorId),
+  )];
+  const authorNameById: Record<string, string> = {};
+  if (authorIds.length > 0) {
+    const { data: profiles } = await selectProfiles(authorIds);
+    for (const profile of profiles ?? []) {
+      if (profile.display_name) authorNameById[profile.id] = profile.display_name;
+    }
+  }
+
+  for (const { groupId, message } of messageRows) {
+    if (!message) continue;
+    latestMessages[groupId] = {
+      text: message.text,
+      author: message.author_id ? (authorNameById[message.author_id] ?? "") : "",
+      created_at: message.created_at,
+      image_url: message.image_url,
+    };
+  }
+
+  return { groups, latestMessages };
+}
 
 export async function fetchInboxHasAnyProAccess(
   userId: string,

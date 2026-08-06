@@ -1098,6 +1098,10 @@ test("a team draft survives leaving the chat and remounting the route", async ({
 
 test("offline navigation shows saved Home, Schedule, Media and chat data then recovers without freezing", async ({ page, context }) => {
   test.setTimeout(60_000);
+  // This journey verifies cache persistence and responsive offline navigation,
+  // not deep-link positioning. Use a row guaranteed to be in Virtuoso's
+  // initial rendered window so virtualization cannot masquerade as cache loss.
+  const cachedChatMessage = messages[0];
 
   // Warm each user-facing cache using synthetic local responses.
   await page.goto("/");
@@ -1112,8 +1116,8 @@ test("offline navigation shows saved Home, Schedule, Media and chat data then re
   await expect(page.getByRole("img", { name: offlinePhotoTitle }).first()).toBeVisible();
 
   await page.goto(`/messages/${teamId}`);
-  await expect(page.locator(`#message-${targetId}`)).toContainText(
-    "Exact synthetic notification target",
+  await expect(page.locator(`#message-${cachedChatMessage.id}`)).toContainText(
+    cachedChatMessage.text,
     { timeout: 15_000 },
   );
   // Message and media disk writes are intentionally idle/debounced to avoid
@@ -1143,8 +1147,8 @@ test("offline navigation shows saved Home, Schedule, Media and chat data then re
   const thread = page.getByText("Synthetic Messaging Team", { exact: true }).first();
   await expect(thread).toBeVisible({ timeout: 3_000 });
   await thread.click({ timeout: 1_500 });
-  await expect(page.locator(`#message-${targetId}`)).toContainText(
-    "Exact synthetic notification target",
+  await expect(page.locator(`#message-${cachedChatMessage.id}`)).toContainText(
+    cachedChatMessage.text,
     { timeout: 3_000 },
   );
 

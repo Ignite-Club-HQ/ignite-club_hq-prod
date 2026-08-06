@@ -14,6 +14,12 @@ import {
   fetchInboxHiddenGroups,
   fetchInboxHasAnyProAccess,
   fetchInboxMutedChats,
+  fetchInboxMemberClubsWithMessages,
+  fetchInboxMemberTeamsWithMessages,
+  fetchInboxChatGroupsWithMessages,
+  fetchInboxLatestBroadcast,
+  fetchInboxLatestDirectMessages,
+  fetchInboxDirectConversationMembership,
   fetchInboxUserLeagueIds,
   fetchInboxUserRoles,
   fetchInboxVaultFileNameMap,
@@ -29,6 +35,9 @@ function queryClient(result: { data: unknown; error: unknown }) {
     in: vi.fn(),
     is: vi.fn(),
     neq: vi.fn(),
+    order: vi.fn(),
+    limit: vi.fn(),
+    or: vi.fn(),
     maybeSingle: vi.fn(),
     then: (
       resolve: (value: typeof result) => unknown,
@@ -40,6 +49,9 @@ function queryClient(result: { data: unknown; error: unknown }) {
   builder.in.mockReturnValue(builder);
   builder.is.mockReturnValue(builder);
   builder.neq.mockReturnValue(builder);
+  builder.order.mockReturnValue(builder);
+  builder.limit.mockReturnValue(builder);
+  builder.or.mockReturnValue(builder);
   builder.maybeSingle.mockResolvedValue(result);
   const from = vi.fn().mockReturnValue(builder);
 
@@ -63,6 +75,635 @@ function tableQueryClient(results: Record<string, { data: unknown; error: unknow
 }
 
 describe("messaging inbox repositories", () => {
+  it("reads direct-conversation membership for either participant in latest-update order", async () => {
+    const conversations = [
+      { id: "dm-2", participant_1: "user-2", participant_2: "user-1", updated_at: "2026-08-06T11:00:00Z" },
+      { id: "dm-1", participant_1: "user-1", participant_2: "user-3", updated_at: "2026-08-06T10:00:00Z" },
+    ];
+    const fake = queryClient({ data: conversations, error: null });
+
+    await expect(fetchInboxDirectConversationMembership("user-1", fake.client)).resolves.toEqual({
+      conversations,
+      otherUserIds: ["user-2", "user-3"],
+    });
+    expect(fake.from).toHaveBeenCalledWith("direct_conversations");
+    expect(fake.builder.select).toHaveBeenCalledWith("*");
+    expect(fake.builder.or).toHaveBeenCalledWith("participant_1.eq.user-1,participant_2.eq.user-1");
+    expect(fake.builder.order).toHaveBeenCalledWith("updated_at", { ascending: false });
+  });
+
+  it("returns an empty direct-conversation membership result without inventing peers", async () => {
+    const fake = queryClient({ data: [], error: null });
+
+    await expect(fetchInboxDirectConversationMembership("user-1", fake.client))
+      .resolves.toEqual({ conversations: [], otherUserIds: [] });
+  });
+
+  it("does not convert a direct-conversation membership failure into an empty inbox", async () => {
+    const failure = new Error("conversation membership unavailable");
+    const fake = queryClient({ data: null, error: failure });
+
+    await expect(fetchInboxDirectConversationMembership("user-1", fake.client)).rejects.toBe(failure);
+  });
+
+  function latestDirectMessagesClient(options: {
+    rpc: { data: unknown; error: unknown } | Error;
+    messages?: Record<string, { data: unknown; error: unknown }>;
+  }) {
+    const operations: Array<[string, string, ...unknown[]]> = [];
+    const from = vi.fn((table: string) => {
+      let conversationId = "";
+      const result = () => options.messages?.[conversationId] ?? { data: null, error: null };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const builder: any = {};
+      for (const method of ["select", "order", "limit"]) {
+        builder[method] = vi.fn((...args: unknown[]) => {
+          operations.push([table, method, ...args]);
+          return builder;
+        });
+      }
+      builder.eq = vi.fn((column: string, value: unknown) => {
+        operations.push([table, "eq", column, value]);
+        if (column === "conversation_id") conversationId = String(value);
+        return builder;
+      });
+      builder.maybeSingle = vi.fn(async () => result());
+      return builder;
+    });
+    const rpc = vi.fn(async () => {
+      if (options.rpc instanceof Error) throw options.rpc;
+      return options.rpc;
+    });
+    return { client: { from, rpc } as unknown as IgniteSupabaseClient, from, rpc, operations };
+  }
+
+  it("keeps an empty direct-message preview scope query-free", async () => {
+    const fake = latestDirectMessagesClient({ rpc: { data: [], error: null } });
+
+    const result = await fetchInboxLatestDirectMessages([], fake.client);
+    expect([...result.entries()]).toEqual([]);
+    expect(fake.rpc).not.toHaveBeenCalled();
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it("maps the batched latest-direct-message RPC by immutable conversation id", async () => {
+    const fake = latestDirectMessagesClient({
+      rpc: { data: [
+        { conversation_id: "dm-1", text: "One", image_url: null, created_at: "2026-08-06T10:00:00Z", author_id: "user-1" },
+        { conversation_id: "dm-2", text: "Two", image_url: "photo.jpg", created_at: "2026-08-06T11:00:00Z", author_id: "user-2" },
+      ], error: null },
+    });
+
+    const result = await fetchInboxLatestDirectMessages(["dm-1", "dm-2"], fake.client);
+    expect([...result.entries()]).toEqual([
+      ["dm-1", { text: "One", image_url: null, created_at: "2026-08-06T10:00:00Z", author_id: "user-1" }],
+      ["dm-2", { text: "Two", image_url: "photo.jpg", created_at: "2026-08-06T11:00:00Z", author_id: "user-2" }],
+    ]);
+    expect(fake.rpc).toHaveBeenCalledWith("get_inbox_latest_dm_messages", { _conversation_ids: ["dm-1", "dm-2"] });
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it("treats a successful empty latest-direct-message RPC as authoritative", async () => {
+    const fake = latestDirectMessagesClient({ rpc: { data: [], error: null } });
+
+    const result = await fetchInboxLatestDirectMessages(["dm-1"], fake.client);
+    expect([...result.entries()]).toEqual([]);
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it("falls back to one exact latest-message read per conversation when the DM RPC fails", async () => {
+    const fake = latestDirectMessagesClient({
+      rpc: { data: null, error: new Error("RPC unavailable") },
+      messages: {
+        "dm-1": { data: { text: "One", image_url: null, created_at: "2026-08-06T10:00:00Z", author_id: "user-1" }, error: null },
+        "dm-2": { data: null, error: null },
+      },
+    });
+
+    const result = await fetchInboxLatestDirectMessages(["dm-1", "dm-2"], fake.client);
+    expect([...result.entries()]).toEqual([
+      ["dm-1", { text: "One", image_url: null, created_at: "2026-08-06T10:00:00Z", author_id: "user-1" }],
+      ["dm-2", null],
+    ]);
+    expect(fake.from.mock.calls).toEqual([["direct_messages"], ["direct_messages"]]);
+    expect(fake.operations).toContainEqual(["direct_messages", "select", "text, image_url, created_at, author_id"]);
+    expect(fake.operations).toContainEqual(["direct_messages", "eq", "conversation_id", "dm-1"]);
+    expect(fake.operations).toContainEqual(["direct_messages", "eq", "conversation_id", "dm-2"]);
+    expect(fake.operations).toContainEqual(["direct_messages", "order", "created_at", { ascending: false }]);
+    expect(fake.operations).toContainEqual(["direct_messages", "limit", 1]);
+  });
+
+  it("returns null for an empty broadcast feed and preserves the exact latest-row query", async () => {
+    const fake = queryClient({ data: null, error: null });
+    const selectProfile = vi.fn();
+
+    await expect(fetchInboxLatestBroadcast({
+      client: fake.client,
+      selectProfile: selectProfile as unknown as typeof import("@/lib/profileCache").selectCachedProfileById,
+    })).resolves.toBeNull();
+    expect(fake.from).toHaveBeenCalledWith("broadcast_messages");
+    expect(fake.builder.select).toHaveBeenCalledWith("text, created_at, image_url, author_id");
+    expect(fake.builder.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(fake.builder.limit).toHaveBeenCalledWith(1);
+    expect(fake.builder.maybeSingle).toHaveBeenCalledOnce();
+    expect(selectProfile).not.toHaveBeenCalled();
+  });
+
+  it("returns an author-free broadcast without issuing a profile lookup", async () => {
+    const row = { text: "System notice", created_at: "2026-08-06T10:00:00Z", image_url: null, author_id: null };
+    const fake = queryClient({ data: row, error: null });
+    const selectProfile = vi.fn();
+
+    await expect(fetchInboxLatestBroadcast({
+      client: fake.client,
+      selectProfile: selectProfile as unknown as typeof import("@/lib/profileCache").selectCachedProfileById,
+    })).resolves.toEqual({ ...row, profiles: { display_name: "" } });
+    expect(selectProfile).not.toHaveBeenCalled();
+  });
+
+  it("maps the cached display name for an authored broadcast", async () => {
+    const row = { text: "Latest notice", created_at: "2026-08-06T10:00:00Z", image_url: "notice.jpg", author_id: "author-1" };
+    const fake = queryClient({ data: row, error: null });
+    const selectProfile = vi.fn(async () => ({ data: { id: "author-1", display_name: "App Admin" }, error: null }));
+
+    await expect(fetchInboxLatestBroadcast({
+      client: fake.client,
+      selectProfile: selectProfile as unknown as typeof import("@/lib/profileCache").selectCachedProfileById,
+    })).resolves.toEqual({ ...row, profiles: { display_name: "App Admin" } });
+    expect(selectProfile).toHaveBeenCalledOnce();
+    expect(selectProfile).toHaveBeenCalledWith("author-1");
+  });
+
+  it("preserves an empty display name when an authored broadcast profile is unavailable", async () => {
+    const row = { text: "Latest notice", created_at: "2026-08-06T10:00:00Z", image_url: null, author_id: "author-1" };
+    const fake = queryClient({ data: row, error: null });
+    const selectProfile = vi.fn(async () => ({ data: null, error: null }));
+
+    await expect(fetchInboxLatestBroadcast({
+      client: fake.client,
+      selectProfile: selectProfile as unknown as typeof import("@/lib/profileCache").selectCachedProfileById,
+    })).resolves.toEqual({ ...row, profiles: { display_name: "" } });
+  });
+
+  function memberClubsClient(options: {
+    roles?: { data: unknown; error: unknown };
+    clubs?: { data: unknown; error: unknown };
+    rpc?: { data: unknown; error: unknown } | Error;
+    messages?: Record<string, { data: unknown; error: unknown }>;
+  }) {
+    const operations: Array<[string, string, ...unknown[]]> = [];
+    const from = vi.fn((table: string) => {
+      let selectedClubId = "";
+      const result = () => table === "user_roles"
+        ? (options.roles ?? { data: [], error: null })
+        : table === "clubs"
+          ? (options.clubs ?? { data: [], error: null })
+          : (options.messages?.[selectedClubId] ?? { data: null, error: null });
+      // A deliberately small fluent PostgREST test double; production types
+      // are asserted at the repository boundary by TypeScript.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const builder: any = {};
+      for (const method of ["select", "in", "is", "neq", "not", "order", "limit"]) {
+        builder[method] = vi.fn((...args: unknown[]) => {
+          operations.push([table, method, ...args]);
+          return builder;
+        });
+      }
+      builder.eq = vi.fn((column: string, value: unknown) => {
+        operations.push([table, "eq", column, value]);
+        if (table === "club_messages" && column === "club_id") selectedClubId = String(value);
+        return builder;
+      });
+      builder.maybeSingle = vi.fn(async () => result());
+      builder.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+        Promise.resolve(result()).then(resolve, reject);
+      return builder;
+    });
+    const rpc = vi.fn(async () => {
+      if (options.rpc instanceof Error) throw options.rpc;
+      return options.rpc ?? { data: [], error: null };
+    });
+    return {
+      client: { from, rpc } as unknown as IgniteSupabaseClient,
+      from,
+      rpc,
+      operations,
+    };
+  }
+
+  function memberTeamsClient(options: {
+    roles?: { data: unknown; error: unknown };
+    teams?: { data: unknown; error: unknown };
+    rpc?: { data: unknown; error: unknown } | Error;
+    messages?: Record<string, { data: unknown; error: unknown }>;
+  }) {
+    const operations: Array<[string, string, ...unknown[]]> = [];
+    const from = vi.fn((table: string) => {
+      let selectedTeamId = "";
+      const result = () => table === "user_roles"
+        ? (options.roles ?? { data: [], error: null })
+        : table === "teams"
+          ? (options.teams ?? { data: [], error: null })
+          : (options.messages?.[selectedTeamId] ?? { data: null, error: null });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const builder: any = {};
+      for (const method of ["select", "in", "is", "not", "order", "limit"]) {
+        builder[method] = vi.fn((...args: unknown[]) => {
+          operations.push([table, method, ...args]);
+          return builder;
+        });
+      }
+      builder.eq = vi.fn((column: string, value: unknown) => {
+        operations.push([table, "eq", column, value]);
+        if (table === "team_messages" && column === "team_id") selectedTeamId = String(value);
+        return builder;
+      });
+      builder.maybeSingle = vi.fn(async () => result());
+      builder.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+        Promise.resolve(result()).then(resolve, reject);
+      return builder;
+    });
+    const rpc = vi.fn(async () => {
+      if (options.rpc instanceof Error) throw options.rpc;
+      return options.rpc ?? { data: [], error: null };
+    });
+    return {
+      client: { from, rpc } as unknown as IgniteSupabaseClient,
+      from,
+      rpc,
+      operations,
+    };
+  }
+
+  function chatGroupsClient(options: {
+    groups?: { data: unknown; error: unknown };
+    accessibleIds?: { data: unknown; error: unknown } | Error;
+    latestMessages?: { data: unknown; error: unknown } | Error;
+    messages?: Record<string, { data: unknown; error: unknown }>;
+  }) {
+    const operations: Array<[string, string, ...unknown[]]> = [];
+    const from = vi.fn((table: string) => {
+      let selectedGroupId = "";
+      const result = () => table === "chat_groups"
+        ? (options.groups ?? { data: [], error: null })
+        : (options.messages?.[selectedGroupId] ?? { data: null, error: null });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const builder: any = {};
+      for (const method of ["select", "in", "is", "order", "limit"]) {
+        builder[method] = vi.fn((...args: unknown[]) => {
+          operations.push([table, method, ...args]);
+          return builder;
+        });
+      }
+      builder.eq = vi.fn((column: string, value: unknown) => {
+        operations.push([table, "eq", column, value]);
+        if (table === "group_messages" && column === "group_id") selectedGroupId = String(value);
+        return builder;
+      });
+      builder.maybeSingle = vi.fn(async () => result());
+      builder.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+        Promise.resolve(result()).then(resolve, reject);
+      return builder;
+    });
+    const rpc = vi.fn(async (name: string) => {
+      const result = name === "get_my_accessible_chat_group_ids"
+        ? (options.accessibleIds ?? { data: null, error: null })
+        : (options.latestMessages ?? { data: [], error: null });
+      if (result instanceof Error) throw result;
+      return result;
+    });
+    return {
+      client: { from, rpc } as unknown as IgniteSupabaseClient,
+      from,
+      rpc,
+      operations,
+    };
+  }
+
+  it("returns an empty member-club inbox without querying clubs or messages when no roles exist", async () => {
+    const fake = memberClubsClient({ roles: { data: [], error: null } });
+
+    await expect(fetchInboxMemberClubsWithMessages("user-1", { client: fake.client }))
+      .resolves.toEqual({ clubs: [], latestMessages: {} });
+    expect(fake.from).toHaveBeenCalledTimes(1);
+    expect(fake.operations).toContainEqual(["user_roles", "not", "club_id", "is", null]);
+    expect(fake.rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when member-club role discovery fails", async () => {
+    const failure = new Error("roles unavailable");
+    const fake = memberClubsClient({ roles: { data: null, error: failure } });
+
+    await expect(fetchInboxMemberClubsWithMessages("user-1", { client: fake.client }))
+      .rejects.toBe(failure);
+    expect(fake.from).not.toHaveBeenCalledWith("clubs");
+  });
+
+  it("deduplicates club scope, excludes deleted/shell clubs and uses the RPC fast path", async () => {
+    const clubs = [{ id: "club-1", name: "Riverside", logo_url: null, sport: "football" }];
+    const fake = memberClubsClient({
+      roles: { data: [{ club_id: "club-1" }, { club_id: "club-1" }, { club_id: null }], error: null },
+      clubs: { data: clubs, error: null },
+      rpc: { data: [{ club_id: "club-1", text: "Latest", author_display_name: "Alex", created_at: "2026-08-06T10:00:00Z", image_url: null }], error: null },
+    });
+    const selectProfiles = vi.fn();
+
+    await expect(fetchInboxMemberClubsWithMessages("user-1", {
+      client: fake.client,
+      selectProfiles: selectProfiles as unknown as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+    })).resolves.toEqual({
+      clubs,
+      latestMessages: {
+        "club-1": { text: "Latest", author: "Alex", created_at: "2026-08-06T10:00:00Z", image_url: null },
+      },
+    });
+    expect(fake.operations).toContainEqual(["clubs", "in", "id", ["club-1"]]);
+    expect(fake.operations).toContainEqual(["clubs", "is", "deleted_at", null]);
+    expect(fake.operations).toContainEqual(["clubs", "neq", "kind", "shell"]);
+    expect(fake.rpc).toHaveBeenCalledWith("get_inbox_latest_club_messages", { _club_ids: ["club-1"] });
+    expect(fake.from).not.toHaveBeenCalledWith("club_messages");
+    expect(selectProfiles).not.toHaveBeenCalled();
+  });
+
+  it("treats an empty successful RPC result as authoritative instead of starting the fallback", async () => {
+    const clubs = [{ id: "club-1", name: "Riverside", logo_url: null, sport: "football" }];
+    const fake = memberClubsClient({
+      roles: { data: [{ club_id: "club-1" }], error: null },
+      clubs: { data: clubs, error: null },
+      rpc: { data: [], error: null },
+    });
+
+    await expect(fetchInboxMemberClubsWithMessages("user-1", { client: fake.client }))
+      .resolves.toEqual({ clubs, latestMessages: {} });
+    expect(fake.from).not.toHaveBeenCalledWith("club_messages");
+  });
+
+  it("preserves the legacy fallback and batches unique author profile lookup when the RPC fails", async () => {
+    const clubs = [
+      { id: "club-1", name: "Riverside", logo_url: null, sport: "football" },
+      { id: "club-2", name: "Hills", logo_url: null, sport: "football" },
+      { id: "club-3", name: "Empty", logo_url: null, sport: "football" },
+    ];
+    const fake = memberClubsClient({
+      roles: { data: clubs.map(({ id }) => ({ club_id: id })), error: null },
+      clubs: { data: clubs, error: null },
+      rpc: { data: null, error: new Error("RPC unavailable") },
+      messages: {
+        "club-1": { data: { text: "One", author_id: "author-1", created_at: "2026-08-06T10:00:00Z", image_url: null }, error: null },
+        "club-2": { data: { text: "Two", author_id: "author-1", created_at: "2026-08-06T11:00:00Z", image_url: "photo.jpg" }, error: null },
+        "club-3": { data: null, error: null },
+      },
+    });
+    const selectProfiles = vi.fn(async () => ({
+      data: [{ id: "author-1", display_name: "Alex Member" }],
+      error: null,
+    }));
+
+    const result = await fetchInboxMemberClubsWithMessages("user-1", {
+      client: fake.client,
+      selectProfiles: selectProfiles as unknown as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+    });
+
+    expect(result).toEqual({
+      clubs,
+      latestMessages: {
+        "club-1": { text: "One", author: "Alex Member", created_at: "2026-08-06T10:00:00Z", image_url: null },
+        "club-2": { text: "Two", author: "Alex Member", created_at: "2026-08-06T11:00:00Z", image_url: "photo.jpg" },
+      },
+    });
+    expect(selectProfiles).toHaveBeenCalledOnce();
+    expect(selectProfiles).toHaveBeenCalledWith(["author-1"]);
+    expect(fake.from.mock.calls.filter(([table]) => table === "club_messages")).toHaveLength(3);
+    expect(fake.operations).toContainEqual(["club_messages", "is", "deleted_at", null]);
+    expect(fake.operations).toContainEqual(["club_messages", "order", "created_at", { ascending: false }]);
+    expect(fake.operations).toContainEqual(["club_messages", "limit", 1]);
+  });
+
+  it("keeps the team inbox query-free beyond role discovery when no team membership exists", async () => {
+    const fake = memberTeamsClient({ roles: { data: [], error: null } });
+
+    await expect(fetchInboxMemberTeamsWithMessages("user-1", { client: fake.client }))
+      .resolves.toEqual({ teams: [], latestMessages: {} });
+    expect(fake.from).toHaveBeenCalledTimes(1);
+    expect(fake.operations).toContainEqual(["user_roles", "not", "team_id", "is", null]);
+    expect(fake.rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when team membership or active-team discovery fails", async () => {
+    const rolesFailure = new Error("roles unavailable");
+    const failedRoles = memberTeamsClient({ roles: { data: null, error: rolesFailure } });
+    await expect(fetchInboxMemberTeamsWithMessages("user-1", { client: failedRoles.client }))
+      .rejects.toBe(rolesFailure);
+
+    const teamsFailure = new Error("teams unavailable");
+    const failedTeams = memberTeamsClient({
+      roles: { data: [{ team_id: "team-1" }], error: null },
+      teams: { data: null, error: teamsFailure },
+    });
+    await expect(fetchInboxMemberTeamsWithMessages("user-1", { client: failedTeams.client }))
+      .rejects.toBe(teamsFailure);
+    expect(failedTeams.rpc).not.toHaveBeenCalled();
+  });
+
+  it("excludes deleted teams and teams belonging to deleted or purged clubs before reading previews", async () => {
+    const inactiveTeams = [
+      { id: "team-1", name: "Deleted team", logo_url: null, deleted_at: "2026-01-01", clubs: { id: "club-1", name: "Club", logo_url: null, sport: "football" } },
+      { id: "team-2", name: "Deleted club", logo_url: null, deleted_at: null, clubs: { id: "club-2", name: "Club", logo_url: null, sport: "football", deleted_at: "2026-01-01" } },
+      { id: "team-3", name: "Purged club", logo_url: null, deleted_at: null, clubs: { id: "club-3", name: "Club", logo_url: null, sport: "football", purged_at: "2026-01-01" } },
+    ];
+    const fake = memberTeamsClient({
+      roles: { data: inactiveTeams.map(({ id }) => ({ team_id: id })), error: null },
+      teams: { data: inactiveTeams, error: null },
+    });
+
+    await expect(fetchInboxMemberTeamsWithMessages("user-1", { client: fake.client }))
+      .resolves.toEqual({ teams: [], latestMessages: {} });
+    expect(fake.operations).toContainEqual(["teams", "is", "deleted_at", null]);
+    expect(fake.rpc).not.toHaveBeenCalled();
+    expect(fake.from).not.toHaveBeenCalledWith("team_messages");
+  });
+
+  it("uses only active team ids in the RPC and preserves club-announcement authorship", async () => {
+    const activeTeam = { id: "team-1", name: "U8 Blue", logo_url: null, deleted_at: null, clubs: { id: "club-1", name: "Riverside", logo_url: null, sport: "football", deleted_at: null, purged_at: null } };
+    const deletedTeam = { ...activeTeam, id: "team-2", deleted_at: "2026-01-01" };
+    const fake = memberTeamsClient({
+      roles: { data: [{ team_id: "team-1" }, { team_id: "team-2" }], error: null },
+      teams: { data: [activeTeam, deletedTeam], error: null },
+      rpc: { data: [{ team_id: "team-1", text: "Club update", author_display_name: "Ignored", created_at: "2026-08-06T10:00:00Z", image_url: null, is_club_announcement: true, club_announcement_name: "Riverside FC" }], error: null },
+    });
+
+    await expect(fetchInboxMemberTeamsWithMessages("user-1", { client: fake.client })).resolves.toEqual({
+      teams: [activeTeam],
+      latestMessages: {
+        "team-1": { text: "Club update", author: "Riverside FC", created_at: "2026-08-06T10:00:00Z", image_url: null, is_announcement: true },
+      },
+    });
+    expect(fake.rpc).toHaveBeenCalledWith("get_inbox_latest_team_messages", { _team_ids: ["team-1"] });
+    expect(fake.from).not.toHaveBeenCalledWith("team_messages");
+  });
+
+  it("treats an empty successful team RPC result as authoritative", async () => {
+    const team = { id: "team-1", name: "U8 Blue", logo_url: null, deleted_at: null, clubs: { id: "club-1", name: "Riverside", logo_url: null, sport: "football" } };
+    const fake = memberTeamsClient({
+      roles: { data: [{ team_id: "team-1" }], error: null },
+      teams: { data: [team], error: null },
+      rpc: { data: [], error: null },
+    });
+
+    await expect(fetchInboxMemberTeamsWithMessages("user-1", { client: fake.client }))
+      .resolves.toEqual({ teams: [team], latestMessages: {} });
+    expect(fake.from).not.toHaveBeenCalledWith("team_messages");
+  });
+
+  it("preserves the team fallback, announcement metadata and one batched regular-author lookup", async () => {
+    const teams = [
+      { id: "team-1", name: "U8 Blue", logo_url: null, deleted_at: null, clubs: { id: "club-1", name: "Riverside", logo_url: null, sport: "football" } },
+      { id: "team-2", name: "U9 Blue", logo_url: null, deleted_at: null, clubs: { id: "club-1", name: "Riverside", logo_url: null, sport: "football" } },
+      { id: "team-3", name: "U10 Blue", logo_url: null, deleted_at: null, clubs: { id: "club-1", name: "Riverside", logo_url: null, sport: "football" } },
+    ];
+    const fake = memberTeamsClient({
+      roles: { data: teams.map(({ id }) => ({ team_id: id })), error: null },
+      teams: { data: teams, error: null },
+      rpc: new Error("RPC unavailable"),
+      messages: {
+        "team-1": { data: { text: "One", author_id: "author-1", created_at: "2026-08-06T10:00:00Z", image_url: null, is_club_announcement: false, club_announcement_name: null }, error: null },
+        "team-2": { data: { text: "Two", author_id: "author-1", created_at: "2026-08-06T11:00:00Z", image_url: null, is_club_announcement: false, club_announcement_name: null }, error: null },
+        "team-3": { data: { text: "Announcement", author_id: "author-2", created_at: "2026-08-06T12:00:00Z", image_url: "notice.jpg", is_club_announcement: true, club_announcement_name: "Riverside FC" }, error: null },
+      },
+    });
+    const selectProfiles = vi.fn(async () => ({ data: [{ id: "author-1", display_name: "Alex Member" }], error: null }));
+
+    const result = await fetchInboxMemberTeamsWithMessages("user-1", {
+      client: fake.client,
+      selectProfiles: selectProfiles as unknown as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+    });
+
+    expect(result.latestMessages).toEqual({
+      "team-1": { text: "One", author: "Alex Member", created_at: "2026-08-06T10:00:00Z", image_url: null, is_announcement: false },
+      "team-2": { text: "Two", author: "Alex Member", created_at: "2026-08-06T11:00:00Z", image_url: null, is_announcement: false },
+      "team-3": { text: "Announcement", author: "Riverside FC", created_at: "2026-08-06T12:00:00Z", image_url: "notice.jpg", is_announcement: true },
+    });
+    expect(selectProfiles).toHaveBeenCalledOnce();
+    expect(selectProfiles).toHaveBeenCalledWith(["author-1"]);
+    expect(fake.from.mock.calls.filter(([table]) => table === "team_messages")).toHaveLength(3);
+    expect(fake.operations).toContainEqual(["team_messages", "order", "created_at", { ascending: false }]);
+    expect(fake.operations).toContainEqual(["team_messages", "limit", 1]);
+  });
+
+  it("returns immediately when the accessible-group RPC authoritatively returns no scope", async () => {
+    const fake = chatGroupsClient({ accessibleIds: { data: [], error: null } });
+
+    await expect(fetchInboxChatGroupsWithMessages("user-1", { client: fake.client }))
+      .resolves.toEqual({ groups: [], latestMessages: {} });
+    expect(fake.rpc).toHaveBeenCalledWith("get_my_accessible_chat_group_ids", { _user_id: "user-1" });
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the existing RLS-protected group read when accessible-id discovery fails", async () => {
+    const fake = chatGroupsClient({
+      accessibleIds: { data: null, error: new Error("scope RPC unavailable") },
+      groups: { data: [], error: null },
+    });
+
+    await expect(fetchInboxChatGroupsWithMessages("user-1", { client: fake.client }))
+      .resolves.toEqual({ groups: [], latestMessages: {} });
+    expect(fake.from).toHaveBeenCalledWith("chat_groups");
+    expect(fake.operations.some(([table, method]) => table === "chat_groups" && method === "in")).toBe(false);
+  });
+
+  it("honours the accessible-id RPC kill switch without changing the RLS-backed query", async () => {
+    const fake = chatGroupsClient({ groups: { data: [], error: null } });
+
+    await fetchInboxChatGroupsWithMessages("user-1", {
+      client: fake.client,
+      accessibleIdsRpcEnabled: false,
+    });
+    expect(fake.rpc).not.toHaveBeenCalledWith("get_my_accessible_chat_group_ids", expect.anything());
+    expect(fake.from).toHaveBeenCalledWith("chat_groups");
+  });
+
+  it("scopes the group read to accessible IDs and excludes deleted team or club parents", async () => {
+    const active = { id: "group-1", deleted_at: null, teams: { name: "U8", deleted_at: null }, clubs: { name: "Riverside", logo_url: null, deleted_at: null, purged_at: null }, mini_leagues: null };
+    const deletedTeam = { ...active, id: "group-2", teams: { name: "Old", deleted_at: "2026-01-01" } };
+    const purgedClub = { ...active, id: "group-3", clubs: { ...active.clubs, purged_at: "2026-01-01" } };
+    const fake = chatGroupsClient({
+      accessibleIds: { data: ["group-1", "group-2", "group-3"], error: null },
+      groups: { data: [active, deletedTeam, purgedClub], error: null },
+      latestMessages: { data: [], error: null },
+    });
+
+    await expect(fetchInboxChatGroupsWithMessages("user-1", { client: fake.client }))
+      .resolves.toEqual({ groups: [active], latestMessages: {} });
+    expect(fake.operations).toContainEqual(["chat_groups", "in", "id", ["group-1", "group-2", "group-3"]]);
+    expect(fake.operations).toContainEqual(["chat_groups", "is", "deleted_at", null]);
+    expect(fake.rpc).toHaveBeenCalledWith("get_inbox_latest_group_messages", { _group_ids: ["group-1"] });
+  });
+
+  it("maps the latest-group RPC result and does not start the legacy fallback", async () => {
+    const group = { id: "group-1", deleted_at: null, teams: null, clubs: { name: "Riverside", logo_url: null, deleted_at: null, purged_at: null }, mini_leagues: null };
+    const fake = chatGroupsClient({
+      accessibleIds: { data: ["group-1"], error: null },
+      groups: { data: [group], error: null },
+      latestMessages: { data: [{ group_id: "group-1", text: "Latest", author_display_name: "Alex", created_at: "2026-08-06T10:00:00Z", image_url: null }], error: null },
+    });
+    const selectProfiles = vi.fn();
+
+    await expect(fetchInboxChatGroupsWithMessages("user-1", {
+      client: fake.client,
+      selectProfiles: selectProfiles as unknown as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+    })).resolves.toEqual({
+      groups: [group],
+      latestMessages: { "group-1": { text: "Latest", author: "Alex", created_at: "2026-08-06T10:00:00Z", image_url: null } },
+    });
+    expect(fake.from).not.toHaveBeenCalledWith("group_messages");
+    expect(selectProfiles).not.toHaveBeenCalled();
+  });
+
+  it("treats a successful empty latest-group RPC as authoritative", async () => {
+    const group = { id: "group-1", deleted_at: null, teams: null, clubs: null, mini_leagues: { name: "Mini League" } };
+    const fake = chatGroupsClient({
+      accessibleIds: { data: ["group-1"], error: null },
+      groups: { data: [group], error: null },
+      latestMessages: { data: [], error: null },
+    });
+
+    await expect(fetchInboxChatGroupsWithMessages("user-1", { client: fake.client }))
+      .resolves.toEqual({ groups: [group], latestMessages: {} });
+    expect(fake.from).not.toHaveBeenCalledWith("group_messages");
+  });
+
+  it("preserves the group fallback and batches unique message-author profiles", async () => {
+    const groups = ["group-1", "group-2", "group-3"].map((id) => ({
+      id, deleted_at: null, teams: null, clubs: null, mini_leagues: null,
+    }));
+    const fake = chatGroupsClient({
+      accessibleIds: { data: groups.map(({ id }) => id), error: null },
+      groups: { data: groups, error: null },
+      latestMessages: new Error("latest RPC unavailable"),
+      messages: {
+        "group-1": { data: { text: "One", author_id: "author-1", created_at: "2026-08-06T10:00:00Z", image_url: null }, error: null },
+        "group-2": { data: { text: "Two", author_id: "author-1", created_at: "2026-08-06T11:00:00Z", image_url: "photo.jpg" }, error: null },
+        "group-3": { data: null, error: null },
+      },
+    });
+    const selectProfiles = vi.fn(async () => ({ data: [{ id: "author-1", display_name: "Alex Member" }], error: null }));
+
+    const result = await fetchInboxChatGroupsWithMessages("user-1", {
+      client: fake.client,
+      selectProfiles: selectProfiles as unknown as typeof import("@/lib/profileCache").selectCachedProfilesByIds,
+    });
+
+    expect(result.latestMessages).toEqual({
+      "group-1": { text: "One", author: "Alex Member", created_at: "2026-08-06T10:00:00Z", image_url: null },
+      "group-2": { text: "Two", author: "Alex Member", created_at: "2026-08-06T11:00:00Z", image_url: "photo.jpg" },
+    });
+    expect(selectProfiles).toHaveBeenCalledOnce();
+    expect(selectProfiles).toHaveBeenCalledWith(["author-1"]);
+    expect(fake.from.mock.calls.filter(([table]) => table === "group_messages")).toHaveLength(3);
+    expect(fake.operations).toContainEqual(["group_messages", "order", "created_at", { ascending: false }]);
+    expect(fake.operations).toContainEqual(["group_messages", "limit", 1]);
+  });
+
   it("returns false without querying entitlement tables when the user has no roles", async () => {
     const fake = tableQueryClient({
       user_roles: { data: [], error: null },

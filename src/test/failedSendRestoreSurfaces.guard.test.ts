@@ -19,6 +19,10 @@ const SURFACES = [
 
 const pagesDir = join(__dirname, "..", "pages");
 const read = (f: string) => readFileSync(join(pagesDir, f), "utf8");
+const composerController = readFileSync(
+  join(__dirname, "..", "hooks", "useChatComposerController.ts"),
+  "utf8",
+);
 
 describe("failed-send recovery contract per chat surface", () => {
   for (const file of SURFACES) {
@@ -45,7 +49,7 @@ describe("failed-send recovery contract per chat surface", () => {
       });
 
       it("restores composer state through the shared conditional helper", () => {
-        expect(src).toMatch(/restoreFailedSendComposer\(\{/);
+        expect(src).toMatch(/restoreAfterFailedSend\(context\)/);
       });
 
       it("does not roll back a whole query-cache snapshot on send failure", () => {
@@ -71,10 +75,18 @@ describe("failed-send recovery contract per chat surface", () => {
   }
 
   it("surfaces that support polls restore the pending poll", () => {
-    for (const file of ["TeamChatPage.tsx", "GroupChatPage.tsx", "ClubAdminChatPage.tsx", "BroadcastChatPage.tsx"]) {
+    for (const file of ["TeamChatPage.tsx", "ClubChatPage.tsx", "GroupChatPage.tsx", "ClubAdminChatPage.tsx", "BroadcastChatPage.tsx"]) {
       const src = read(file);
       expect(src).toMatch(/splitPollMarkup\(/);
-      expect(src).toMatch(/setPoll:\s*setPendingPollId/);
+      expect(src).toMatch(/pendingPollId:\s*unsentPollId/);
     }
+  });
+
+  it("the shared composer controller conditionally restores every failed-send field", () => {
+    expect(composerController).toMatch(/restoreFailedSendComposer\(\{/);
+    expect(composerController).toMatch(/setText,/);
+    expect(composerController).toMatch(/setImage:\s*setImageUrl/);
+    expect(composerController).toMatch(/setReply:\s*setReplyingTo/);
+    expect(composerController).toMatch(/setPoll:\s*setPendingPollId/);
   });
 });

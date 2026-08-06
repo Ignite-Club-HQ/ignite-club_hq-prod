@@ -25,6 +25,66 @@ export type HydratedDirectMessageRow<T extends CachedDirectMessageRow> = T & {
   } | null;
 };
 
+export interface DirectMessagePeerProfile {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  [key: string]: unknown;
+}
+
+export interface DirectMessageConversationIdentitySource {
+  other_user?: DirectMessagePeerProfile | null;
+}
+
+export function buildPreviousDirectMessagePeerMap(options: {
+  live?: readonly DirectMessageConversationIdentitySource[] | null;
+  cached?: readonly DirectMessageConversationIdentitySource[] | null;
+}): Map<string, DirectMessagePeerProfile> {
+  const peers = new Map<string, DirectMessagePeerProfile>();
+  for (const conversation of options.live ?? []) {
+    const peer = conversation.other_user;
+    if (peer?.id && peer.display_name) peers.set(peer.id, peer);
+  }
+  for (const conversation of options.cached ?? []) {
+    const peer = conversation.other_user;
+    if (peer?.id && peer.display_name && !peers.has(peer.id)) peers.set(peer.id, peer);
+  }
+  return peers;
+}
+
+export function resolveDirectMessagePeerProfile(options: {
+  otherUserId: string;
+  fetched?: DirectMessagePeerProfile | null;
+  previous?: DirectMessagePeerProfile | null;
+  globalCached?: DirectMessagePeerProfile | null;
+}): DirectMessagePeerProfile | null {
+  const { otherUserId, fetched, previous, globalCached } = options;
+
+  if (fetched?.display_name) {
+    return {
+      id: otherUserId,
+      display_name: fetched.display_name,
+      avatar_url: fetched.avatar_url ?? previous?.avatar_url ?? globalCached?.avatar_url ?? null,
+    };
+  }
+  if (previous?.display_name) return previous;
+  if (globalCached) {
+    return {
+      id: otherUserId,
+      display_name: globalCached.display_name,
+      avatar_url: globalCached.avatar_url ?? null,
+    };
+  }
+  if (fetched) {
+    return {
+      id: otherUserId,
+      display_name: null,
+      avatar_url: fetched.avatar_url ?? null,
+    };
+  }
+  return null;
+}
+
 export function hydrateCachedDirectMessages<T extends CachedDirectMessageRow>(options: {
   conversations?: readonly T[] | null;
   latestMessages?: Record<string, CachedDirectMessagePreview | null | undefined> | null;

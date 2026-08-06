@@ -721,6 +721,126 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   154 focused inbox and policy tests, TypeScript and focused lint; the
   new-message/DM entry and Android cached-order no-jolt journeys passed. No
   runtime defect was found.
+- M9 closeout verifies the cumulative inbox-policy tranche before any
+  higher-risk query-orchestration work. The complete frontend estate passed
+  3,869 tests across 341 files, with three intentional environment/feature
+  skips. All 90 messaging browser journeys passed cumulatively: the combined
+  run completed 89/90, and the sole miss passed its corrected focused rerun.
+  That miss was a harness defect which required an off-screen Virtuoso row to
+  remain mounted while testing offline cache persistence; the journey now uses
+  a guaranteed initial-window row, while dedicated notification tests continue
+  to protect exact old-message landing. TypeScript and the production build
+  passed. No runtime defect was found. M9 is closed; M10 must begin as a fresh,
+  independently reviewable tranche.
+- M10a begins read-only inbox query extraction with the member-club preview
+  repository. The exact `user_roles` scope, active non-shell club filters,
+  deduplicated club identifiers, optional latest-message RPC, legacy per-club
+  fallback and batched cached-profile lookup are preserved. React Query's key,
+  enablement, retries, reconnect policy, stale time, jittered polling, cache
+  lifetime, initial data and placeholder behaviour remain page-owned and
+  unchanged; Realtime and mutations are untouched. Five new repository
+  contracts cover empty membership, fail-closed role discovery, RPC mapping,
+  authoritative empty RPC results and fallback/profile batching. Verification
+  passed all 48 repository tests, 173 focused inbox/guard tests and four
+  targeted browser journeys covering exact club-chat scope, inbox paint budget,
+  Realtime preview convergence and offline recovery. TypeScript, focused lint
+  for the extracted boundary and the production build passed. `MessagesPage`
+  reduced from 3,032 to 2,952 lines. No runtime defect was found.
+- M10b extracts the member-team preview read behind the same typed repository
+  boundary. Exact user-role and team identifiers, active-team filtering,
+  deleted/purged parent-club exclusion, latest-message RPC, legacy per-team
+  fallback, announcement authorship and batched regular-author profiles remain
+  unchanged. React Query keys, retries, reconnect handling, polling, cache
+  timing, initial-data tombstone filtering and placeholder behaviour remain
+  page-owned; Realtime and mutations are untouched. Six new contracts protect
+  no-membership behavior, fail-closed reads, inactive scope exclusion, exact
+  active-team RPC arguments, authoritative empty RPC results and mixed regular/
+  announcement fallback mapping. Verification passed all 54 repository tests,
+  179 focused inbox/guard tests and three targeted browser journeys covering
+  Realtime preview convergence, deleted/recreated-team identity and Android
+  cached-order stability. TypeScript, focused repository lint and the
+  production build passed. The stale team-recreation source guard was updated
+  to assert page delegation plus the extracted repository statements rather
+  than requiring those statements to remain page-local. `MessagesPage` reduced
+  from 2,952 to 2,841 lines. No runtime defect was found.
+- M10c extracts the chat-group preview read while keeping visibility policy
+  outside the repository. The optional accessible-group-ID RPC, its deployment
+  kill switch, fail-safe RLS-backed full query, active group/team/club filters,
+  exact latest-message RPC scope, legacy per-group fallback and batched author
+  lookup remain unchanged. Role, personal-group, competition and mini-league
+  visibility decisions remain in their existing typed policy boundary. React
+  Query keys and timing, cache hydration, Realtime and mutations are untouched.
+  Seven new contracts cover authoritative empty access, RPC failure fallback,
+  kill-switch behavior, deleted parent isolation, latest-message mapping,
+  authoritative empty previews and fallback/profile batching. Verification
+  passed all 61 repository tests, 186 focused inbox/guard tests and four browser
+  journeys covering exact group send scope, optimistic group reactions, exact
+  group-notification routing and Android cached-order stability. TypeScript,
+  focused repository lint and the production build passed. `MessagesPage`
+  reduced from 2,841 to 2,747 lines. No runtime defect was found.
+- M10d extracts the latest broadcast preview read before the higher-risk direct
+  message tranche. Exact descending timestamp order, one-row limit, empty-feed
+  result, optional cached author lookup and the established nested profile
+  shape remain unchanged. Broadcast authorization, composer access, React Query
+  keys and timing, Realtime and mutations remain page- or backend-owned. Four
+  new contracts protect the exact query, unauthored broadcasts, resolved author
+  display names and unavailable-profile fallback. Verification passed all 65
+  repository tests, 190 focused inbox/guard tests and four browser journeys
+  covering app-admin send, ordinary-user read-only access, exact broadcast
+  notification routing and Android cached-order stability. TypeScript, focused
+  repository lint and the production build passed. `MessagesPage` reduced from
+  2,747 to 2,723 lines. No runtime defect was found.
+- M10e1 begins direct-message extraction with only latest-message retrieval.
+  The batch RPC remains preferred; a successful empty RPC remains authoritative;
+  and RPC failure retains one descending, one-row query per immutable
+  conversation ID. Participant selection, profile fetching and layered profile
+  fallbacks, hidden-conversation policy, persistent cache writes, React Query,
+  Realtime and mutations remain page-owned. Four new contracts cover an empty
+  scope, exact RPC mapping, authoritative empty results and the complete legacy
+  fallback query. Verification passed all 69 repository tests, 194 focused
+  inbox/guard tests and four browser journeys covering DM creation entry, exact
+  DM send scope, exact DM-notification routing and Android cached-order
+  stability. TypeScript, focused repository lint and the production build
+  passed. `MessagesPage` reduced from 2,723 to 2,691 lines. No runtime defect
+  was found.
+- M10e2 extracts the current user's direct-conversation membership read and
+  peer-ID derivation. The exact participant-one-or-participant-two filter,
+  descending `updated_at` order, error propagation, empty result and peer
+  selection from either participant position remain unchanged. Profile reads,
+  layered current/previous/global profile fallback, latest-message joining,
+  hidden-conversation policy, persistent caching, React Query, Realtime and
+  mutations remain page-owned. Three new contracts protect exact scoping and
+  order, empty membership and fail-closed errors. Verification passed all 72
+  repository tests, 197 focused inbox/guard tests and four browser journeys
+  covering DM creation entry, exact DM send scope, exact DM-notification
+  routing and Android cached-order stability. TypeScript, focused repository
+  lint and the production build passed. `MessagesPage` reduced from 2,691 to
+  2,683 lines. No runtime defect was found.
+- M10e3 extracts only the pure DM peer-profile selection policy. A fresh named
+  profile remains authoritative; its missing avatar falls back to the previous
+  inbox identity and then global cache; a previous known name survives a fresh
+  null/empty name; global cache is the next fallback; and an identity-only fresh
+  result remains usable when no named source exists. Profile reads, cache
+  refreshes, previous-profile map construction, message joining, persistence,
+  React Query, Realtime and mutations remain page-owned. Seven new contracts
+  cover the complete precedence and avatar matrix. Verification passed 87
+  direct-source/repository tests, 204 focused inbox/guard tests and five browser
+  journeys covering DM entry, exact notification routing, Android no-jolt and
+  Android/iOS inactivity recovery. TypeScript, focused policy lint and the
+  production build passed. `MessagesPage` reduced from 2,683 to 2,671 lines.
+  No runtime defect was found.
+- M10e4 extracts the pure previous-known peer map used during DM refresh. Live
+  React Query identities remain authoritative; persistent cache fills only
+  missing peers or peers whose live identity has no usable name; malformed and
+  unnamed rows remain excluded. Query-cache reads and persistent-cache reads
+  still occur in `MessagesPage`; only deterministic map construction moved.
+  Five new contracts cover live-over-disk precedence, cached gap filling,
+  invalid live rows, valid cache recovery and empty sources. Verification
+  passed 92 direct-source/repository tests, 209 focused inbox/guard tests and
+  four browser journeys covering inbox paint budget, exact DM notification
+  routing and Android/iOS inactivity recovery. TypeScript, focused policy lint
+  and the production build passed. `MessagesPage` reduced from 2,671 to 2,664
+  lines. No runtime defect was found.
 
 ## Objective
 
