@@ -712,6 +712,15 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   malformed token inputs. Verification passed 141 focused inbox tests,
   TypeScript and focused lint; the Android cached-order no-jolt journey passed.
   No runtime defect was found.
+- M9h extracts inbox group-creation capability, empty/search presentation and
+  scoped Free/Pro upgrade-banner decisions. App-admin bypass, administrator and
+  committee Pro requirements, unresolved-entitlement no-flash behaviour,
+  selected-club isolation and upgrade-target fallbacks remain unchanged.
+  Queries, backend entitlement enforcement, rendering and navigation remain
+  page-owned. Ten direct contracts cover the policy matrix. Verification passed
+  154 focused inbox and policy tests, TypeScript and focused lint; the
+  new-message/DM entry and Android cached-order no-jolt journeys passed. No
+  runtime defect was found.
 
 ## Objective
 

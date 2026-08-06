@@ -100,6 +100,11 @@ import {
 } from "@/features/messaging/inbox/inboxDirectMessageSources";
 import { buildUnifiedInboxConversations } from "@/features/messaging/inbox/inboxUnifiedComposition";
 import { collectInboxPreviewReferences } from "@/features/messaging/inbox/inboxPreviewReferences";
+import {
+  resolveInboxEmptyState,
+  resolveInboxGroupCreationCapability,
+  resolveInboxUpgradePresentation,
+} from "@/features/messaging/inbox/inboxPresentationPolicy";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
 // warm re-entries paint cached rows immediately instead of re-running the
@@ -2047,7 +2052,13 @@ export default function MessagesPage() {
 
   const displayClubsWithAnnouncements = displayMemberClubs;
 
-  const canCreateGroups = (adminTeamIds?.length || adminClubs?.length || isAppAdmin || isCommitteeMember) && (hasAnyProAccess || isAppAdmin);
+  const { hasAdminRole: hasAdminRoleForGroups, canCreateGroups } = resolveInboxGroupCreationCapability({
+    adminTeamCount: adminTeamIds?.length || 0,
+    adminClubCount: adminClubs?.length || 0,
+    isAppAdmin: !!isAppAdmin,
+    isCommitteeMember: !!isCommitteeMember,
+    hasAnyProAccess,
+  });
 
   // Filter all items based on search query and active club filter
   const query = normalizeInboxSearchQuery(searchQuery);
@@ -2353,8 +2364,14 @@ export default function MessagesPage() {
   );
 
 
-  const hasNoResults = query && unifiedConversations.length === 0;
-  const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0 && filteredDMs.length === 0;
+  const { hasNoResults, hasNoMessages } = resolveInboxEmptyState({
+    query,
+    unifiedConversationCount: unifiedConversations.length,
+    teamCount: displayTeams.length,
+    memberClubCount: displayMemberClubs.length,
+    visibleGroupCount: displayChatGroups.length,
+    directMessageCount: filteredDMs.length,
+  });
 
   // If a specific club is in scope (active club theme or local filter), use that
   // club's Pro status — otherwise fall back to the global "any Pro" check. This
@@ -2366,19 +2383,19 @@ export default function MessagesPage() {
   // login (especially noticeable on iOS WebView resume) — without this guard
   // the upgrade banner flashes for admins of a Pro club. Mirrors the lock
   // logic at line ~1394.
-  const proAccessQueryReady = !isLoadingProAccess && !isFetchingProAccess && hasAnyProAccess !== undefined;
-  const clubProQueryReady = !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
-  const scopedClubIsPro = effectiveClubFilter ? clubProStatus?.[effectiveClubFilter] === true : null;
-  const proGateFails = effectiveClubFilter
-    ? clubProQueryReady && scopedClubIsPro === false
-    : proAccessQueryReady && hasAnyProAccess === false;
-  const hasAdminRoleButNoPro = proAccessQueryReady && clubProQueryReady && !!(adminTeamIds?.length || adminClubs?.length) && proGateFails && isAppAdmin === false;
-  const scopedAdminClubId = effectiveClubFilter
-    ? displayAdminClubs.find((club: any) => club.id === effectiveClubFilter)?.id ?? null
-    : null;
-  const upgradeClubId = effectiveClubFilter
-    ? scopedAdminClubId ?? effectiveClubFilter
-    : displayAdminClubs[0]?.id ?? displayMemberClubs[0]?.id ?? null;
+  const { scopedClubIsPro, hasAdminRoleButNoPro, upgradeClubId } = resolveInboxUpgradePresentation({
+    effectiveClubId: effectiveClubFilter,
+    clubProStatuses: clubProStatus,
+    hasAnyProAccess,
+    isProAccessLoading: isLoadingProAccess,
+    isProAccessFetching: isFetchingProAccess,
+    isClubProLoading: isLoadingClubProStatus,
+    isClubProFetching: isFetchingClubProStatus,
+    adminTeamCount: adminTeamIds?.length || 0,
+    adminClubs: displayAdminClubs,
+    memberClubs: displayMemberClubs,
+    isAppAdmin: !!isAppAdmin,
+  });
 
   // Type label map
   const typeLabels: Record<string, string> = {
@@ -2535,7 +2552,7 @@ export default function MessagesPage() {
         open={showNewMessageSheet}
         onOpenChange={setShowNewMessageSheet}
         canCreateGroups={!!canCreateGroups}
-        hasAdminRoleForGroups={!!(adminTeamIds?.length || adminClubs?.length || isAppAdmin || isCommitteeMember)}
+        hasAdminRoleForGroups={hasAdminRoleForGroups}
         hasPro={effectiveClubFilter ? scopedClubIsPro === true : !!hasAnyProAccess}
         isAppAdmin={!!isAppAdmin}
         upgradeClubId={upgradeClubId}
