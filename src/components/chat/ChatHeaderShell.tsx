@@ -1,7 +1,9 @@
 import { ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { ConversationAvatar } from "@/components/chat/ConversationAvatar";
+import { ChatSearchBar } from "@/components/chat/ChatSearch";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ChatHeaderType = "team" | "club" | "group" | "dm" | "broadcast" | "support" | "league";
@@ -20,6 +22,12 @@ interface ChatHeaderShellProps {
   interactive?: boolean;
   /** Render an "online" indicator (green dot on avatar + "Online" subtitle). */
   showOnlineDot?: boolean;
+  search?: {
+    onSearch: (query: string) => void;
+    isOpen: boolean;
+    onOpenChange: (open: boolean) => void;
+    isSearching?: boolean;
+  };
 }
 
 /**
@@ -36,8 +44,9 @@ export function ChatHeaderShell({
   leftSlot,
   interactive = true,
   showOnlineDot = false,
+  search,
 }: ChatHeaderShellProps) {
-  const TitleEl: any = interactive && onOpenDetails ? "button" : "div";
+  const TitleEl: "button" | "div" = interactive && onOpenDetails ? "button" : "div";
   const titleProps =
     interactive && onOpenDetails
       ? {
@@ -57,7 +66,7 @@ export function ChatHeaderShell({
         "min-h-14",
       )}
     >
-      {leftSlot}
+      {search ? <ChatSearchBar {...search} /> : leftSlot}
       <ChatBackButton />
 
       <TitleEl
@@ -111,8 +120,19 @@ export function ChatHeaderShell({
         </div>
       </TitleEl>
 
-      {rightSlot ? (
+      {search || rightSlot ? (
         <div className="flex items-center gap-0.5 shrink-0 [&_button]:transition-transform [&_button]:active:scale-95">
+          {search && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => search.onOpenChange(true)}
+              aria-label="Search messages"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          )}
           {rightSlot}
         </div>
       ) : null}

@@ -82,6 +82,24 @@ describe("six-surface messaging refactor contracts", () => {
     });
   }
 
+  it("keeps shared header search composition on the five standard chat surfaces", () => {
+    for (const name of [
+      "TeamChatPage.tsx",
+      "ClubChatPage.tsx",
+      "GroupChatPage.tsx",
+      "DirectMessagePage.tsx",
+      "BroadcastChatPage.tsx",
+    ]) {
+      const text = page(name);
+      expect(text).toContain("<ChatHeaderShell");
+      expect(text).toContain("search={{");
+    }
+
+    const clubAdmin = page("ClubAdminChatPage.tsx");
+    expect(clubAdmin).not.toContain("<ChatHeaderShell");
+    expect(clubAdmin).toContain("<ChatSearchBar");
+  });
+
   it("preserves Group Chat's distinct top-level reaction merge", () => {
     const text = page("GroupChatPage.tsx");
     expect(text).toContain("top-level reactions");

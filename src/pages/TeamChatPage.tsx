@@ -18,7 +18,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Search, UserPlus, ChevronRight } from "lucide-react";
+import { ArrowLeft, Send, Loader2, UserPlus, ChevronRight } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
@@ -30,7 +30,7 @@ import { markChatOpened } from "@/hooks/useChatCatchUp";
 import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
-import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
+import { ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
@@ -1910,14 +1910,9 @@ export default function TeamChatPage() {
         sublabel={teamHeaderSublabel}
         avatarUrl={team.logo_url || team.clubs?.logo_url}
         onOpenDetails={() => setMembersOpen(true)}
-        leftSlot={
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
-        }
+        search={{ onSearch: setSearchQuery, isOpen: searchOpen, onOpenChange: setSearchOpen, isSearching: isSearchFetching }}
         rightSlot={
           <>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)} aria-label="Search messages">
-              <Search className="h-4 w-4" />
-            </Button>
             {isAdmin && (
               <Button
                 variant="ghost"

@@ -42,7 +42,7 @@ import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
 import { ChatPageFrame } from "@/components/chat/ChatPageFrame";
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search, UserPlus, ChevronRight, Lock } from "lucide-react";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, UserPlus, ChevronRight, Lock } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
@@ -54,7 +54,7 @@ import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
-import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
+import { ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
@@ -2576,14 +2576,9 @@ export default function GroupChatPage() {
         name={group.name}
         sublabel={groupHeaderSublabel}
         onOpenDetails={() => setMembersOpen(true)}
-        leftSlot={
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
-        }
+        search={{ onSearch: setSearchQuery, isOpen: searchOpen, onOpenChange: setSearchOpen, isSearching: isSearchFetching }}
         rightSlot={
           <>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-              <Search className="h-4 w-4" />
-            </Button>
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}

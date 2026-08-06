@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -80,7 +80,7 @@ import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
 import { queueMessage } from "@/lib/messageQueue";
-import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
+import { ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
@@ -1474,14 +1474,9 @@ export default function DirectMessagePage() {
         avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
         showOnlineDot={!isIgniteSupportConversation && isOtherUserOnline}
         onOpenDetails={() => setDetailsOpen(true)}
-        leftSlot={
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
-        }
+        search={{ onSearch: setSearchQuery, isOpen: searchOpen, onOpenChange: setSearchOpen, isSearching: isSearchFetching }}
         rightSlot={
           <>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-              <Search className="h-4 w-4" />
-            </Button>
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}

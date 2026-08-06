@@ -12,14 +12,14 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Flame, Search, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Flame, CalendarPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
-import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
+import { ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
@@ -1104,14 +1104,9 @@ export default function BroadcastChatPage() {
         name="Announcements"
         sublabel="Official updates & news"
         onOpenDetails={() => setDetailsOpen(true)}
-        leftSlot={
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
-        }
+        search={{ onSearch: setSearchQuery, isOpen: searchOpen, onOpenChange: setSearchOpen, isSearching: isSearchFetching }}
         rightSlot={
           <>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-              <Search className="h-4 w-4" />
-            </Button>
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}

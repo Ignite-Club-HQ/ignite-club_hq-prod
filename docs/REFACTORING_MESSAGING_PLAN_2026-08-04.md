@@ -421,6 +421,155 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   65 focused viewport/composition contracts, TypeScript, focused lint, Android
   and iOS exact-message no-jolt journeys, reply/edit identity journeys and the
   production build. No runtime defect was found.
+- M6b moves the repeated header search overlay and trigger into the existing
+  `ChatHeaderShell` for Team, Club, Group, Direct Message and Broadcast. Each
+  page still owns its search state, remote history callback and page-specific
+  actions/menu, whose ordering and contents are unchanged. Club Admin retains
+  its intentionally custom participant header and page-owned search control.
+  Verification passed 63 focused component/orchestration/search contracts,
+  the full-history older-message Playwright journey, TypeScript, focused lint
+  and the production build. No runtime defect was found; the first component
+  test failure was a test-harness omission of the existing router context.
+- M7a begins the optional virtualization tranche by moving rich-token and
+  external-link preview measurement out of the 2,300-line Virtuoso component
+  into a pure tested module. All reservation constants and calculation order
+  remain unchanged; Virtuoso ownership, row signatures, measured-height cache,
+  scroll timing and anchoring are untouched. Six direct contracts now protect
+  mention/markdown visibility, rich-token removal, event/YouTube handling,
+  ordinary-URL bounds, case-insensitive deduplication, preview caps and every
+  reserved card height. Verification passed 61 focused contracts, three
+  Chromium anchor/media/reaction journeys, the Android exact-row no-jolt
+  journey, TypeScript, focused new-module lint and the production build. No
+  runtime defect was found. The broad Virtuoso file retains its pre-existing
+  lint debt; this slice introduced no new lint findings.
+- M7b moves the measured-height cache signature into a second pure module,
+  without changing its compact format or any cache/scroll behavior. Twelve
+  direct contracts prove invalidation for text edits, edited state, replies,
+  reactions, preview hydration, read-state layout, author-label length,
+  ownership, date separators, previous/next grouping and newly known image
+  aspect ratios; non-layout preview metadata remains intentionally stable.
+  Verification passed 73 focused contracts, Chromium prepend-anchor and
+  reaction-first-paint journeys, the Android exact-row no-jolt journey,
+  TypeScript, focused extracted-module lint and the production build. No
+  runtime defect was found.
+- M7c completes the pure measurement boundary by extracting the remaining
+  static row-height estimator from the Virtuoso component. Its viewport-width
+  calculation, grouping/date chrome, author header, reply, image, preview,
+  reaction, edited-state, minimum/maximum bounds and measured-cache preference
+  retain the same constants and calculation order. Seven direct contracts now
+  pin representative exact heights, grouped-row behavior, reply/image space,
+  reaction wrapping, long-message capping and signature-aware cache reuse.
+  Verification passed 80 focused contracts, Chromium prepend-anchor,
+  attachment and reaction-first-paint journeys, the Android exact-row no-jolt
+  journey, TypeScript, focused extracted-module lint and the production build.
+  No runtime defect was found.
+- M7d extracts Virtuoso's stable header, footer, native-safe scroller and
+  layout-contained item wrappers into a dedicated presentation module. The
+  component identities, padding context, scroll-lock/virtualized markers,
+  scrollbar class, overscroll containment, iOS momentum scrolling and
+  `layout style` (not paint) row containment are unchanged and now protected
+  by direct component tests. Pagination, anchoring, jump hydration and timing
+  remain in the parent. Verification passed 83 focused contracts, Chromium
+  prepend anchoring, the Android exact-row no-jolt journey, TypeScript,
+  focused extracted-module lint and the production build. No runtime defect
+  was found.
+- M7e extracts the remaining platform/DOM safety helpers: Capacitor and
+  user-agent Android WebView detection, message-id CSS escaping, and the
+  narrowly scoped ResizeObserver-loop error guard. Five direct contracts pin
+  native-bridge detection and failure fallback, both Android markers, CSS
+  native/fallback escaping, and ensure unrelated errors are never suppressed.
+  Verification passed 88 focused contracts, exact out-of-window notification
+  and full-history-search journeys, TypeScript, focused lint and the production
+  build. The Android exact-row no-jolt sampler intermittently recorded one
+  32px movement while the correct target remained open; it then passed three
+  consecutive isolated repetitions. No threshold was weakened and no runtime
+  defect attributable to this extraction was found.
+- M7f extracts the diagnostics-only row probe from the Virtuoso controller.
+  Its render-churn tracking, layout-effect measurement, estimator comparison
+  and row classification markers are unchanged and now have direct tests for
+  initial measurement and estimator/row-type updates. The probe remains
+  mounted only when virtualization diagnostics are enabled, so normal runtime
+  behavior is unaffected. Verification passed 90 focused contracts, Chromium
+  prepend anchoring, the Android exact-row no-jolt journey, TypeScript,
+  focused lint and the production build. No runtime defect was found.
+- M7g extracts the exact-message jump hydration overlay into a stable tested
+  presentation component. The solid semantic background, no-pointer-events
+  behavior, seven alternating fixed skeleton rows, 75% cap and 260ms opacity
+  fade are unchanged; backdrop filtering remains absent to protect Android
+  WebView compositing. Jump target selection, hydration state, reveal timing
+  and timers remain in the controller. Verification passed 93 focused
+  contracts, exact out-of-window notification landing, Android in-app
+  exact-row no-jolt and Android cold old-history push journeys, TypeScript,
+  focused lint and the production build. No runtime defect was found.
+- M7h extracts the always-mounted measured-height cache wrapper from the
+  controller while preserving its two layout effects and 600ms idle policy.
+  Initial/signature writes, non-Android live observation, Android observer
+  avoidance, rAF/120ms/360ms late captures, short observer lifetime and full
+  cleanup retain their existing order and timing. Three direct contracts now
+  protect initial measurement, signature-aware rewrites, observer updates and
+  disconnection. Verification passed 96 focused contracts, Chromium prepend
+  anchoring and reaction-first-paint journeys, the Android exact-row no-jolt
+  journey, TypeScript, focused lint and the production build. No runtime
+  defect was found.
+- M7i extracts the memoized row adapter and replaces its `any`-based render,
+  message-array and ref contract with explicit adapter types. The intentional
+  memo rule remains ID + layout signature: upstream object churn does not
+  repaint a stable row, while signature changes do; an ID absent from the live
+  index renders nothing. Four direct contracts now protect those behaviors.
+  Image predecode access was typed without changing its URL fallback order.
+  Verification passed 100 focused contracts, Chromium prepend anchoring and
+  reaction-first-paint journeys, the Android exact-row no-jolt journey,
+  TypeScript, focused lint and the production build. No runtime defect was
+  found.
+- M7j removes the controller's final three explicit `any` boundaries by
+  deriving the safe scroll payload from `VirtuosoHandle`, typing the Virtuoso
+  component map with its message/context generics, and relying on the
+  structurally identical basic-list handle for the kill-switch ref. Runtime
+  expressions and branch behavior are unchanged. Verification passed 100
+  focused contracts, Chromium prepend anchoring, the Android exact-row
+  no-jolt journey, TypeScript and the production build. The controller now
+  has zero explicit-`any` lint errors; only its separately deferred hook
+  dependency warning remains. No runtime defect was found.
+- M7k resolves the controller's final hook dependency warning after confirming
+  that `safeScrollToIndex` has stable `useCallback(..., [])` identity and reads
+  changing values only through refs. Adding it to the own-message pin effect
+  cannot restart that effect today, while preventing a stale closure if the
+  helper later gains dependencies. Verification passed 100 focused contracts,
+  optimistic-send/reply/edit Playwright journeys, the Android exact-row
+  no-jolt journey, TypeScript, clean controller lint and the production build.
+  No runtime defect was found.
+- M7l extracts the prepend-defer state machine and its user-input/scroll-session
+  bridge from the Virtuoso controller. Its 250ms motion window, 300ms input
+  session, stationary-page hold and next-upward-motion flush are unchanged.
+  Four direct hook contracts now prove immediate append/edit delivery, holding
+  a stationary pure prepend, flushing it on the next user-driven upward motion,
+  and immediate prepending during active motion. Verification passed 104
+  focused contracts, the Chromium older-history anchor journey, the isolated
+  Android exact-row no-jolt journey, TypeScript, focused lint and the production
+  build. A concurrent Android run timed out while the build and Vitest were
+  saturating the Codespace; its isolated rerun passed without a positioning
+  assertion failure. No runtime defect was found.
+- M7m extracts the global jump-hydration lifecycle from the Virtuoso controller
+  into a dedicated hook. Pre-mount jump seeding, start/end event subscription,
+  the 650ms quiet and 8000ms maximum visual-settle gate, 80ms settled fade,
+  120ms no-scroller fallback, 300ms overlay unmount and all cancellation paths
+  remain unchanged. Four direct contracts now protect pre-mount notification
+  jumps, settle-before-reveal behavior, restart/unmount cancellation and the
+  fallback timing. Verification passed 108 focused contracts, Chromium cold
+  exact-message landing, the Android exact-row no-jolt journey, TypeScript,
+  focused lint and the production build. A parallel Playwright attempt could
+  not start its second fixed-port web server; the affected Android journey
+  passed sequentially. No runtime defect was found.
+- M7n extracts message-window preparation from the Virtuoso controller. The
+  first occurrence of every message ID remains authoritative, duplicate
+  diagnostics retain their total-occurrence count, the ID map remains indexed
+  against the de-duplicated window, and image predecode preserves snake-case
+  URL precedence with camel-case fallback. Five direct contracts protect those
+  rules, including preventing a discarded duplicate image from being warmed.
+  Verification passed 113 focused contracts, Chromium duplicate-boundary
+  anchoring, attachment and reaction-first-paint journeys, the Android exact-row
+  no-jolt journey, TypeScript, focused lint and the production build. No runtime
+  defect was found.
 
 ## Objective
 
