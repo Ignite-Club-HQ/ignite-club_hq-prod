@@ -150,3 +150,28 @@ describe("purgeDeletedEventFromCaches", () => {
     expect(queryClient.getQueryData(["photos"])).toEqual([{ id: "e1" }]);
   });
 });
+
+describe("persisted schedule cache purge", () => {
+  it("removes the deleted event from the localStorage events list, detail and rsvps", async () => {
+    const { purgeEventsFromScheduleCache } = await import("@/lib/scheduleCache");
+    const ts = Date.now();
+    localStorage.setItem(
+      "ignite_events_list_user-1_user-1_all_all_all",
+      JSON.stringify({ data: [{ id: "e1" }, { id: "e2" }], timestamp: ts }),
+    );
+    localStorage.setItem("ignite_event_detail_user-1_e1", JSON.stringify({ data: { id: "e1" }, timestamp: ts }));
+    localStorage.setItem("ignite_event_rsvps_user-1_e1", JSON.stringify({ data: [], timestamp: ts }));
+    localStorage.setItem("ignite_event_detail_user-1_e2", JSON.stringify({ data: { id: "e2" }, timestamp: ts }));
+
+    purgeEventsFromScheduleCache(["e1"]);
+
+    const list = JSON.parse(localStorage.getItem("ignite_events_list_user-1_user-1_all_all_all")!);
+    expect(list.data).toEqual([{ id: "e2" }]);
+    // TTL must not be extended by maintenance.
+    expect(list.timestamp).toBe(ts);
+    expect(localStorage.getItem("ignite_event_detail_user-1_e1")).toBeNull();
+    expect(localStorage.getItem("ignite_event_rsvps_user-1_e1")).toBeNull();
+    // Untouched events survive.
+    expect(localStorage.getItem("ignite_event_detail_user-1_e2")).not.toBeNull();
+  });
+});
