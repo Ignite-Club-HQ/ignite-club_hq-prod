@@ -1,4 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { purgeEventsFromScheduleCache } from "@/lib/scheduleCache";
+
 
 /**
  * Extra top-level query keys that hold event rows but are not named "event*".
