@@ -71,6 +71,14 @@ import {
   isVaultCoachOrTeamAdmin,
   resolveVaultContextPro,
 } from "@/features/vault/vaultAccess";
+import {
+  fetchVaultAccessibleClubs,
+  fetchVaultAnyProAccess,
+  fetchVaultAppAdmin,
+  fetchVaultClubHasPro,
+  fetchVaultTeamHasPro,
+  fetchVaultUserRoles,
+} from "@/features/vault/vaultAccessRepository";
 
 
 import {
@@ -270,28 +278,13 @@ export default function VaultPage() {
 
   const { data: isAppAdmin, isLoading: isLoadingAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user!.id)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      return !!data;
-    },
+    queryFn: () => fetchVaultAppAdmin(user!.id),
     enabled: !!user,
   });
 
   const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["user-admin-roles", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role, club_id, team_id")
-        .eq("user_id", user!.id);
-      console.log("[Vault] Fetched userRoles for user", user!.id, ":", data);
-      return data || [];
-    },
+    queryFn: () => fetchVaultUserRoles(user!.id),
     enabled: !!user,
   });
 
@@ -302,51 +295,7 @@ export default function VaultPage() {
 
   const { data: userClubs, isLoading: isLoadingClubs } = useQuery({
     queryKey: ["vault-clubs", user?.id, isAppAdmin],
-    queryFn: async () => {
-      if (isAppAdmin) {
-        const { data: clubs } = await supabase
-          .from("clubs")
-          .select("id, name, is_pro, storage_used_bytes")
-          .order("name");
-        return clubs || [];
-      }
-
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("club_id, team_id")
-        .eq("user_id", user!.id);
-
-      if (!roles || roles.length === 0) return [];
-
-      // Get clubs from direct club roles
-      const clubIds = [...new Set(roles.map((r) => r.club_id).filter(Boolean))] as string[];
-      
-      // Also get clubs from team memberships
-      const teamIds = roles.map((r) => r.team_id).filter(Boolean) as string[];
-      if (teamIds.length > 0) {
-        const { data: teams } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        
-        if (teams) {
-          teams.forEach(t => {
-            if (t.club_id && !clubIds.includes(t.club_id)) {
-              clubIds.push(t.club_id);
-            }
-          });
-        }
-      }
-      
-      if (clubIds.length === 0) return [];
-      
-      const { data: clubs } = await supabase
-        .from("clubs")
-        .select("id, name, is_pro, storage_used_bytes")
-        .in("id", clubIds);
-
-      return clubs || [];
-    },
+    queryFn: () => fetchVaultAccessibleClubs(user!.id, Boolean(isAppAdmin)),
     enabled: !!user && isAppAdmin !== undefined,
   });
 
@@ -456,31 +405,18 @@ export default function VaultPage() {
   // Check if the current club has Pro
   const { data: currentClubHasPro, isLoading: isLoadingClubHasPro } = useQuery({
     queryKey: ["vault-club-has-pro", (currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league") ? currentView.clubId : null],
-    queryFn: async () => {
-      if (currentView.type !== "club" && currentView.type !== "team" && currentView.type !== "mini-league") return false;
-      const clubId = currentView.clubId;
-      const { data } = await supabase
-        .from("club_subscriptions")
-        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-        .eq("club_id", clubId)
-        .maybeSingle();
-      return hasVaultProEntitlement(data);
-    },
+    queryFn: () => currentView.type === "root"
+      ? false
+      : fetchVaultClubHasPro(currentView.clubId),
     enabled: currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league",
   });
 
   // Check if the current team has Pro (for teams in non-Pro clubs)
   const { data: currentTeamHasPro, isLoading: isLoadingTeamHasPro } = useQuery({
     queryKey: ["vault-team-has-pro", currentView.type === "team" ? currentView.teamId : null],
-    queryFn: async () => {
-      if (currentView.type !== "team") return false;
-      const { data } = await supabase
-        .from("team_subscriptions")
-        .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-        .eq("team_id", currentView.teamId)
-        .maybeSingle();
-      return hasVaultProEntitlement(data);
-    },
+    queryFn: () => currentView.type === "team"
+      ? fetchVaultTeamHasPro(currentView.teamId)
+      : false,
     enabled: currentView.type === "team",
   });
 
@@ -971,75 +907,7 @@ export default function VaultPage() {
   // Logic: Club Pro → all teams inherit Pro; Free club → check team subscription
   const { data: proAccessInfo, isLoading: isLoadingProClub } = useQuery({
     queryKey: ["pro-access-info", user?.id],
-    queryFn: async () => {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("club_id, team_id")
-        .eq("user_id", user!.id);
-
-      if (!roles || roles.length === 0) return false;
-
-      const clubIds = roles.map((r) => r.club_id).filter(Boolean) as string[];
-      const teamIds = roles.map((r) => r.team_id).filter(Boolean) as string[];
-      
-      // Fetch team info to get parent club IDs
-      let allClubIds = [...clubIds];
-      if (teamIds.length > 0) {
-        const { data: teams } = await supabase
-          .from("teams")
-          .select("id, club_id")
-          .in("id", teamIds);
-        
-        if (teams) {
-          teams.forEach(t => {
-            if (t.club_id && !allClubIds.includes(t.club_id)) {
-              allClubIds.push(t.club_id);
-            }
-          });
-        }
-      }
-      
-      // Check club-level Pro subscriptions first
-      if (allClubIds.length > 0) {
-        const { data: clubSubs } = await supabase
-          .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("club_id", allClubIds);
-        
-        const hasClubPro = (clubSubs || []).some(sub => 
-          sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
-        );
-        
-        if (hasClubPro) return true;
-      }
-      
-      // For teams in free clubs, check team-level subscriptions
-      if (teamIds.length > 0) {
-        const { data: teamSubs } = await supabase
-          .from("team_subscriptions")
-          .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("team_id", teamIds);
-        
-        const teamHasPro = (teamSubs || []).some(sub => 
-          sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
-        );
-        
-        if (teamHasPro) return true;
-      }
-
-      // Fallback: Check for club is_pro flag
-      if (allClubIds.length > 0) {
-        const { data: clubs } = await supabase
-          .from("clubs")
-          .select("is_pro")
-          .in("id", allClubIds)
-          .eq("is_pro", true);
-
-        return clubs && clubs.length > 0;
-      }
-      
-      return false;
-    },
+    queryFn: () => fetchVaultAnyProAccess(user!.id),
     enabled: !!user,
   });
 

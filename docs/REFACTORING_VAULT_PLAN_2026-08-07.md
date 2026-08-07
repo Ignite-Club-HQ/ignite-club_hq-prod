@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1 committed; V2a access decisions complete locally; V2b data boundary pending
+**Status:** V1 and V2a committed; V2b access repository complete locally; review/commit pending
 
 ## Objective
 
@@ -110,6 +110,17 @@ does not move Supabase ownership.
 - The first verification run exposed a refactoring-only missing derived value
   used by the denied-access UI. It was restored before completion; the full
   focused suite then passed.
+
+**V2b completed locally 7 August 2026:**
+
+- Moved app-admin, user-role, accessible-club, current club/team entitlement
+  and any-Pro reads into a typed feature repository.
+- Kept React Query keys, enablement, loading aggregation and UI decisions in
+  `VaultPage`.
+- Added nine repository-contract cases for exact identifiers, direct and
+  team-derived club scope, query short-circuiting, supported entitlement
+  sources, the legacy club fallback and empty-scope fail-closed behaviour.
+- Focused verification passes 115/115 tests across ten files.
 
 ### V3 — Read-model boundary
 
