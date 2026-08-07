@@ -8734,6 +8734,41 @@ export type Database = {
         }
         Relationships: []
       }
+      team_captains: {
+        Row: {
+          assigned_by: string | null
+          created_at: string
+          id: string
+          team_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          team_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          team_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_captains_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_creation_requests: {
         Row: {
           class_capacity: number | null
@@ -9853,6 +9888,7 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
           team_id: string | null
           user_id: string
+          via_captain: boolean
         }
         Insert: {
           club_id?: string | null
@@ -9861,6 +9897,7 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
           team_id?: string | null
           user_id: string
+          via_captain?: boolean
         }
         Update: {
           club_id?: string | null
@@ -9869,6 +9906,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           team_id?: string | null
           user_id?: string
+          via_captain?: boolean
         }
         Relationships: [
           {
@@ -10588,6 +10626,10 @@ export type Database = {
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
       can_manage_event_groups: {
         Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_manage_team_captains: {
+        Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
       can_manage_team_roster: {
@@ -11760,6 +11802,10 @@ export type Database = {
         Returns: boolean
       }
       is_team_admin_for_entry: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_team_captain: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
