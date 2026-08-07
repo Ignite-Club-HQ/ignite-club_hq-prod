@@ -54,6 +54,13 @@ import {
   settleVaultStorage,
 } from "@/lib/vaultUpload";
 import { permanentlyDeleteVaultItems } from "@/lib/vaultDelete";
+import type { VaultFolderView } from "@/features/vault/types";
+import {
+  abbreviateVaultOrganisationName,
+  collectVaultClubRoles,
+  filterVisibleVaultFolders,
+  getVaultScope,
+} from "@/features/vault/vaultScope";
 
 
 import {
@@ -82,12 +89,6 @@ import {
   SheetTitle as UISheetTitle,
 } from "@/components/ui/sheet";
 
-type FolderView = 
-  | { type: "root" }
-  | { type: "club"; clubId: string; clubName: string; folderId?: string; folderName?: string }
-  | { type: "team"; clubId: string; clubName: string; teamId: string; teamName: string; folderId?: string; folderName?: string }
-  | { type: "mini-league"; clubId: string; clubName: string; miniLeagueId: string; miniLeagueName: string; folderId?: string; folderName?: string };
-
 // Clubs allowed to use Google Drive import / sync features.
 const DRIVE_IMPORT_ALLOWED_CLUB_IDS = new Set<string>([
   "966bdaec-ebf1-46da-b2b3-cc53bf05c422", // Bridgewater Soccer Club
@@ -109,7 +110,7 @@ export default function VaultPage() {
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const { activeClubFilter } = useClubTheme();
-  const [currentView, setCurrentView] = useState<FolderView>({ type: "root" });
+  const [currentView, setCurrentView] = useState<VaultFolderView>({ type: "root" });
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -654,42 +655,16 @@ export default function VaultPage() {
     enabled: currentView.type === "club" && !!user,
   });
 
-  const getCurrentFolderId = () => {
-    if (currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league") {
-      return currentView.folderId || null;
-    }
-    return null;
-  };
-
-  const getCurrentClubId = () => {
-    if (currentView.type === "club") return currentView.clubId;
-    if (currentView.type === "team") return currentView.clubId;
-    if (currentView.type === "mini-league") return currentView.clubId;
-    return null;
-  };
-
-  const getCurrentTeamId = () => {
-    if (currentView.type === "team") return currentView.teamId;
-    return null;
-  };
-
-  const getCurrentMiniLeagueId = () => {
-    if (currentView.type === "mini-league") return currentView.miniLeagueId;
-    return null;
-  };
-
-  const CHAT_FOLDER_NAMES = ["Chat Images", "Chat Links"];
+  const currentScope = getVaultScope(currentView);
+  const getCurrentFolderId = () => currentScope.folderId;
+  const getCurrentClubId = () => currentScope.clubId;
+  const getCurrentTeamId = () => currentScope.teamId;
+  const getCurrentMiniLeagueId = () => currentScope.miniLeagueId;
 
   // Roles the current user holds in the active club (used to filter
   // role-restricted chat folders like "Coaches Chat", "Club Admin Chat", etc.)
   const userClubRoleSet = useMemo(() => {
-    const set = new Set<string>();
-    const clubId = getCurrentClubId();
-    if (!clubId || !userRoles) return set;
-    userRoles.forEach((r: any) => {
-      if (r.club_id === clubId && r.role) set.add(r.role as string);
-    });
-    return set;
+    return collectVaultClubRoles(userRoles, getCurrentClubId());
   }, [userRoles, currentView]);
 
   const { data: subfolders } = useQuery({
@@ -741,23 +716,12 @@ export default function VaultPage() {
 
       // Apply role-restriction filtering for chat-scoped folders.
       // Club admins, committee members, and app admins can always see them.
-      const isPrivilegedViewer = isAppAdmin || isClubAdmin;
-      folders = folders.filter((f) => {
-        if (!f.restricted_roles || f.restricted_roles.length === 0) return true;
-        if (isPrivilegedViewer) return true;
-        return f.restricted_roles.some((r) => userClubRoleSet.has(r));
+      folders = filterVisibleVaultFolders(folders, {
+        isPrivilegedViewer: isAppAdmin || isClubAdmin,
+        restrictClubRootToChatFolders:
+          currentView.type === "club" && !isClubAdmin && isCoachOrTeamAdmin,
+        clubRoles: userClubRoleSet,
       });
-
-      // Non-admin coaches/team admins at club root can only see chat-scoped folders
-      // (generic Chat Images / Chat Links, plus any role-restricted chat folder
-      // they qualify for via restricted_roles above).
-      if (currentView.type === "club" && !isClubAdmin && isCoachOrTeamAdmin) {
-        folders = folders.filter(
-          (f) =>
-            CHAT_FOLDER_NAMES.includes(f.name) ||
-            (f.restricted_roles && f.restricted_roles.length > 0)
-        );
-      }
 
       return folders;
     },
@@ -2516,22 +2480,6 @@ export default function VaultPage() {
   // as a large title); the rest become clickable chips in the secondary path.
   type CrumbNode = { key: string; label: string; onClick?: () => void };
 
-  const abbreviateOrgName = (name: string): string => {
-    if (!name) return name;
-    return name
-      .replace(/\bSoccer Club\b/gi, "SC")
-      .replace(/\bFootball Club\b/gi, "FC")
-      .replace(/\bBasketball Club\b/gi, "BC")
-      .replace(/\bNetball Club\b/gi, "NC")
-      .replace(/\bRugby Club\b/gi, "RC")
-      .replace(/\bCricket Club\b/gi, "CC")
-      .replace(/\bTennis Club\b/gi, "TC")
-      .replace(/\bHockey Club\b/gi, "HC")
-      .replace(/\bAthletic Club\b/gi, "AC")
-      .replace(/\bSports Club\b/gi, "SC")
-      .trim();
-  };
-
   const getHierarchyNodes = (): CrumbNode[] => {
     const nodes: CrumbNode[] = [];
 
@@ -2541,7 +2489,7 @@ export default function VaultPage() {
     if (currentView.type === "club" || currentView.type === "team") {
       nodes.push({
         key: "club",
-        label: abbreviateOrgName(currentView.clubName || "Club"),
+        label: abbreviateVaultOrganisationName(currentView.clubName || "Club"),
         onClick: navigateToClub,
       });
     }
