@@ -54,6 +54,10 @@ import {
   settleVaultStorage,
 } from "@/lib/vaultUpload";
 import { permanentlyDeleteVaultItems } from "@/lib/vaultDelete";
+import {
+  permanentlyDeleteVaultTrash,
+  softDeleteVaultSelection,
+} from "@/features/vault/vaultBulkMutationService";
 import type { VaultFolderView } from "@/features/vault/types";
 import {
   abbreviateVaultOrganisationName,
@@ -1526,25 +1530,9 @@ export default function VaultPage() {
     if (isEmptyingTrash) return;
     setIsEmptyingTrash(true);
     try {
-      const allPhotoIds = (trashItems.photos || []).map((p: any) => p.id);
-      const allFileIds = (trashItems.files || []).map((f: any) => f.id);
-      
-      // Find corresponding photos table records for vault_files photos
-      const photoTableIds: string[] = [];
-      for (const photo of trashItems.photos || []) {
-        if (photo.file_url) {
-          const { data: photoRecord } = await supabase
-            .from("photos")
-            .select("id")
-            .eq("image_url", photo.file_url)
-            .maybeSingle();
-          if (photoRecord) photoTableIds.push(photoRecord.id);
-        }
-      }
-      
-      const result = await permanentlyDeleteVaultItems({
-        photoIds: photoTableIds,
-        fileIds: [...allPhotoIds, ...allFileIds],
+      const result = await permanentlyDeleteVaultTrash({
+        photos: trashItems.photos || [],
+        files: trashItems.files || [],
       });
 
       const succeededCount = (result.photosDeleted ?? 0) + (result.filesDeleted ?? 0);
@@ -1587,38 +1575,19 @@ export default function VaultPage() {
   const deleteSelectedItems = async () => {
     setIsDeletingSelected(true);
     const { photos: selectedPhotoItems, files: selectedFileItems } = getSelectedItems();
-    let deletedCount = 0;
-    let errorCount = 0;
 
     try {
-      // Soft delete photos (vault photos are stored in vault_files)
-      for (const photo of selectedPhotoItems) {
-        try {
-          const { error } = await supabase.from("vault_files")
-            .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
-            .eq("id", photo.id);
-          if (error) throw error;
-          removePhotoFromCache(photo.id);
-          deletedCount++;
-        } catch (e) {
-          console.error("Failed to soft-delete photo", photo.id, e);
-          errorCount++;
-        }
-      }
-
-      // Soft delete files
-      for (const file of selectedFileItems) {
-        try {
-          const { error } = await supabase.from("vault_files")
-            .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
-            .eq("id", file.id);
-          if (error) throw error;
-          deletedCount++;
-        } catch (e) {
-          console.error("Failed to soft-delete file", file.id, e);
-          errorCount++;
-        }
-      }
+      const result = await softDeleteVaultSelection({
+        photoIds: selectedPhotoItems.map((photo) => photo.id),
+        fileIds: selectedFileItems.map((file) => file.id),
+        deletedBy: user?.id,
+      });
+      result.deletedPhotoIds.forEach(removePhotoFromCache);
+      result.failed.forEach((failure) => {
+        console.error(`Failed to soft-delete ${failure.kind}`, failure.id, failure.error);
+      });
+      const deletedCount = result.deletedPhotoIds.length + result.deletedFileIds.length;
+      const errorCount = result.failed.length;
 
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });

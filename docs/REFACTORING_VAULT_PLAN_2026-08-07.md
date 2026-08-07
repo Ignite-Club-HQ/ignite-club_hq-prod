@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V4b committed; V4c permanent single-item deletion complete locally; review/commit pending
+**Status:** V1–V4c committed; V4d bulk/trash orchestration complete locally; review/commit pending
 
 ## Objective
 
@@ -245,6 +245,19 @@ does not move Supabase ownership.
 - Focused verification passes 168/168 tests across thirteen files.
 - Batch soft-delete and empty-trash orchestration remain page-owned for the
   separate partial-success V4d slice.
+
+**V4d completed locally 7 August 2026:**
+
+- Extracted sequential bulk soft-delete and empty-trash preparation into a
+  focused service without changing the existing server deletion contract.
+- Preserved photo-before-file processing, continuation after individual
+  failures, exact successful IDs, legacy photo-mirror lookup and bounded Edge
+  Function batching through the existing permanent-delete service.
+- Kept photo-cache cleanup, failure logging, invalidation, selection/loading
+  state and truthful single-toast outcomes in `VaultPage`.
+- Added six contracts for complete success, partial failure, empty selection,
+  mirror mapping, missing mirrors/URLs and unchanged server failure results.
+- Focused verification passes 174/174 tests across fourteen files.
 
 ### V5 — Upload and external-link workflows
 
