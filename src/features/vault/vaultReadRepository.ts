@@ -16,6 +16,27 @@ export type VaultFolderTree = {
   pathById: Map<string, string>;
   descendantIds: string[];
 };
+export type VaultSearchFolder = VaultFolderTreeRow & { folder_path: string };
+export type VaultSearchFile = Pick<
+  VaultFileRow,
+  | "id"
+  | "folder_id"
+  | "club_id"
+  | "team_id"
+  | "mini_league_id"
+  | "name"
+  | "file_url"
+  | "file_size"
+  | "file_type"
+  | "uploaded_by"
+  | "created_at"
+  | "is_external_link"
+> & {
+  image_url: VaultFileRow["file_url"];
+  uploader_id: VaultFileRow["uploaded_by"];
+  title: VaultFileRow["name"];
+  folder_path: string;
+};
 export type VaultPhotoItem = VaultFileRow & {
   image_url: VaultFileRow["file_url"];
   uploader_id: VaultFileRow["uploaded_by"];
@@ -192,4 +213,71 @@ export async function fetchVaultFolderTree(
     : query.eq("team_id", scope.teamId);
   const { data } = await query;
   return buildVaultFolderTree(data ?? [], scope.folderId, options);
+}
+
+export async function searchVaultContents(
+  options: {
+    view: VaultFolderView;
+    searchQuery: string;
+    tree: VaultFolderTree;
+  },
+  client: IgniteSupabaseClient = supabase,
+): Promise<{ folders: VaultSearchFolder[]; files: VaultSearchFile[] }> {
+  if (options.view.type === "root") return { folders: [], files: [] };
+
+  const normalized = options.searchQuery.trim();
+  const escaped = normalized.replace(/[\\%_]/g, (character) => `\\${character}`);
+  const pattern = `%${escaped}%`;
+  const scope = getVaultScope(options.view);
+
+  let query = client
+    .from("vault_files")
+    .select("id,folder_id,club_id,team_id,mini_league_id,name,file_url,file_size,file_type,uploaded_by,created_at,is_external_link")
+    .is("deleted_at", null)
+    .ilike("name", pattern)
+    .limit(200);
+
+  if (options.view.type === "club") {
+    query = query
+      .eq("club_id", scope.clubId)
+      .is("team_id", null)
+      .is("mini_league_id", null);
+  } else if (options.view.type === "team") {
+    query = query.eq("team_id", scope.teamId);
+  } else {
+    query = query.eq("mini_league_id", scope.miniLeagueId);
+  }
+
+  if (scope.folderId) {
+    query = query.in("folder_id", [scope.folderId, ...options.tree.descendantIds]);
+  }
+
+  const lowerQuery = normalized.toLowerCase();
+  const folders = options.tree.descendants
+    .filter((folder) => folder.name.toLowerCase().includes(lowerQuery))
+    .map((folder) => ({
+      ...folder,
+      folder_path: options.tree.pathById.get(folder.id) || folder.name,
+    }));
+
+  const { data } = await query.order("created_at", { ascending: false });
+  const visibleFolderIds = new Set(options.tree.descendantIds);
+  const files = (data ?? [])
+    .filter(
+      (file) =>
+        !file.folder_id ||
+        visibleFolderIds.has(file.folder_id) ||
+        file.folder_id === scope.folderId,
+    )
+    .map((file) => ({
+      ...file,
+      image_url: file.file_url,
+      uploader_id: file.uploaded_by,
+      title: file.name,
+      folder_path: file.folder_id
+        ? options.tree.pathById.get(file.folder_id) || ""
+        : "",
+    }));
+
+  return { folders, files };
 }

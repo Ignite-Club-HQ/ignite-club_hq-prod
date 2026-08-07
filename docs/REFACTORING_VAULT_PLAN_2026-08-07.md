@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V3b committed; V3c recursive folder-tree boundary complete locally; review/commit pending
+**Status:** V1–V3c committed; V3d recursive search boundary complete locally; review/commit pending
 
 ## Objective
 
@@ -163,6 +163,17 @@ does not move Supabase ownership.
   child cannot be reached through a hidden restricted parent.
 - Focused verification passes 134/134 tests across eleven files.
 - The debounced recursive file search remains page-owned for V3d.
+
+**V3d completed locally 7 August 2026:**
+
+- Extracted the recursive file search and folder/file result mapping.
+- Preserved escaped `ilike` matching, the 200-row bound, newest-first order,
+  exact club/team/mini-league scope and selected-folder descendant constraint.
+- Preserved root-file inclusion, hidden-folder exclusion, selected-folder
+  inclusion and cached path mapping.
+- Reused the characterized image classifier for recursive result partitioning.
+- Added six search contracts; focused verification passes 140/140 tests across
+  eleven files.
 
 ### V4 — Mutation boundary
 

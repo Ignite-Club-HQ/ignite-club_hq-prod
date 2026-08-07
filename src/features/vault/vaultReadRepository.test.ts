@@ -8,6 +8,7 @@ import {
   fetchVaultSubfolders,
   isVaultImage,
   partitionVaultItems,
+  searchVaultContents,
 } from "./vaultReadRepository";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
@@ -65,6 +66,29 @@ function treeClient(data: unknown[]) {
   query.eq = record("eq");
   query.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
     Promise.resolve({ data, error: null }).then(resolve, reject);
+  return {
+    client: { from: () => query } as unknown as IgniteSupabaseClient,
+    calls,
+  };
+}
+
+function searchClient(data: unknown[]) {
+  const calls: Call[] = [];
+  const query: Record<string, unknown> = {};
+  const record = (method: string) => (...args: unknown[]) => {
+    calls.push({ table: "vault_files", method, args });
+    return query;
+  };
+  query.select = record("select");
+  query.is = record("is");
+  query.eq = record("eq");
+  query.in = record("in");
+  query.ilike = record("ilike");
+  query.limit = record("limit");
+  query.order = async (...args: unknown[]) => {
+    calls.push({ table: "vault_files", method: "order", args });
+    return { data, error: null };
+  };
   return {
     client: { from: () => query } as unknown as IgniteSupabaseClient,
     calls,
@@ -376,5 +400,87 @@ describe("Vault recursive folder tree", () => {
     }, fake.client);
     expect(fake.calls).toContainEqual({ table: "vault_folders", method: "eq", args: ["team_id", "team-a"] });
     expect(fake.calls.some((call) => call.method === "eq" && call.args[0] === "club_id")).toBe(false);
+  });
+});
+
+describe("Vault recursive content search", () => {
+  const tree = {
+    descendants: [
+      { id: "public", name: "Public Policies", parent_id: null, restricted_roles: null },
+      { id: "nested", name: "Match Folder", parent_id: "public", restricted_roles: null },
+    ],
+    descendantIds: ["public", "nested"],
+    pathById: new Map([
+      ["public", "Public Policies"],
+      ["nested", "Public Policies / Match Folder"],
+    ]),
+  };
+
+  it("escapes wildcard characters and preserves the bounded newest-first query", async () => {
+    const fake = searchClient([]);
+    await searchVaultContents({ view: clubView, searchQuery: "  50%_docs\\  ", tree }, fake.client);
+    expect(fake.calls).toEqual(expect.arrayContaining([
+      { table: "vault_files", method: "ilike", args: ["name", "%50\\%\\_docs\\\\%"] },
+      { table: "vault_files", method: "limit", args: [200] },
+      { table: "vault_files", method: "order", args: ["created_at", { ascending: false }] },
+    ]));
+  });
+
+  it("uses exact club scope and excludes team and mini-league rows", async () => {
+    const fake = searchClient([]);
+    await searchVaultContents({ view: clubView, searchQuery: "policy", tree }, fake.client);
+    expect(fake.calls).toEqual(expect.arrayContaining([
+      { table: "vault_files", method: "eq", args: ["club_id", "club-a"] },
+      { table: "vault_files", method: "is", args: ["team_id", null] },
+      { table: "vault_files", method: "is", args: ["mini_league_id", null] },
+    ]));
+  });
+
+  it("constrains a selected folder search to that folder and visible descendants", async () => {
+    const fake = searchClient([]);
+    await searchVaultContents({
+      view: { ...clubView, folderId: "selected" },
+      searchQuery: "policy",
+      tree,
+    }, fake.client);
+    expect(fake.calls).toContainEqual({
+      table: "vault_files",
+      method: "in",
+      args: ["folder_id", ["selected", "public", "nested"]],
+    });
+  });
+
+  it("keeps root-level and visible-folder files while excluding hidden-folder rows", async () => {
+    const fake = searchClient([
+      { id: "root", folder_id: null, name: "Root", file_url: "root", uploaded_by: "u" },
+      { id: "visible", folder_id: "nested", name: "Visible", file_url: "visible", uploaded_by: "u" },
+      { id: "hidden", folder_id: "hidden", name: "Hidden", file_url: "hidden", uploaded_by: "u" },
+    ]);
+    const result = await searchVaultContents({ view: clubView, searchQuery: "i", tree }, fake.client);
+    expect(result.files.map((file) => file.id)).toEqual(["root", "visible"]);
+    expect(result.files[1]?.folder_path).toBe("Public Policies / Match Folder");
+  });
+
+  it("keeps the selected folder itself even though the tree contains only descendants", async () => {
+    const fake = searchClient([
+      { id: "selected-file", folder_id: "selected", name: "Selected", file_url: "url", uploaded_by: "u" },
+    ]);
+    const result = await searchVaultContents({
+      view: { ...clubView, folderId: "selected" },
+      searchQuery: "selected",
+      tree,
+    }, fake.client);
+    expect(result.files.map((file) => file.id)).toEqual(["selected-file"]);
+  });
+
+  it("matches folder names case-insensitively and attaches their cached paths", async () => {
+    const fake = searchClient([]);
+    const result = await searchVaultContents({ view: clubView, searchQuery: "MATCH", tree }, fake.client);
+    expect(result.folders).toEqual([
+      expect.objectContaining({
+        id: "nested",
+        folder_path: "Public Policies / Match Folder",
+      }),
+    ]);
   });
 });

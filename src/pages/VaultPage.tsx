@@ -82,7 +82,9 @@ import {
   fetchVaultFolderTree,
   fetchVaultItems,
   fetchVaultSubfolders,
+  isVaultImage,
   partitionVaultItems,
+  searchVaultContents,
 } from "@/features/vault/vaultReadRepository";
 
 
@@ -658,56 +660,11 @@ export default function VaultPage() {
       isCoachOrTeamAdmin,
       Array.from(userClubRoleSet).sort().join(","),
     ],
-    queryFn: async () => {
-      const safe = debouncedVaultSearchQuery.trim().replace(/[\\%_]/g, (m) => `\\${m}`);
-      const pattern = `%${safe}%`;
-      const tree = folderTree || { descendants: [], pathById: new Map<string, string>(), descendantIds: [] };
-      const startFolderId = recursiveScope.startFolderId;
-
-      // Server-side ilike on file name — only matches come back.
-      let fileQuery: any = supabase
-        .from("vault_files")
-        .select("id,folder_id,club_id,team_id,mini_league_id,name,file_url,file_size,file_type,uploaded_by,created_at,is_external_link")
-        .is("deleted_at", null)
-        .ilike("name", pattern)
-        .limit(200);
-      if (recursiveScope.type === "club") {
-        fileQuery = fileQuery.eq("club_id", recursiveScope.clubId).is("team_id", null).is("mini_league_id", null);
-      } else if (recursiveScope.type === "team") {
-        fileQuery = fileQuery.eq("team_id", recursiveScope.teamId);
-      } else if (recursiveScope.type === "mini-league") {
-        fileQuery = fileQuery.eq("mini_league_id", recursiveScope.miniLeagueId);
-      }
-      if (startFolderId) {
-        const folderIds = [startFolderId, ...tree.descendantIds];
-        fileQuery = fileQuery.in("folder_id", folderIds);
-      }
-
-      // Folder name matches come from the cached tree — no extra round-trip.
-      const lower = debouncedVaultSearchQuery.trim().toLowerCase();
-      const matchedFolders = (tree.descendants as any[]).filter((f) =>
-        (f.name || "").toLowerCase().includes(lower)
-      );
-
-      const { data: rawFiles } = await fileQuery.order("created_at", { ascending: false });
-      const visibleFolderIds = new Set(tree.descendants.map((d: any) => d.id));
-      // For root searches with no startFolderId, also allow root-level files (folder_id null)
-      const files = (rawFiles || [])
-        .filter((f: any) => !f.folder_id || visibleFolderIds.has(f.folder_id) || f.folder_id === startFolderId)
-        .map((f: any) => ({
-          ...f,
-          image_url: f.file_url,
-          uploader_id: f.uploaded_by,
-          title: f.name,
-          folder_path: f.folder_id ? tree.pathById.get(f.folder_id) || "" : "",
-        }));
-
-      const foldersWithPath = matchedFolders.map((f: any) => ({
-        ...f,
-        folder_path: tree.pathById.get(f.id) || f.name,
-      }));
-      return { folders: foldersWithPath, files };
-    },
+    queryFn: () => searchVaultContents({
+      view: currentView,
+      searchQuery: debouncedVaultSearchQuery,
+      tree: folderTree!,
+    }),
     enabled: recursiveEnabled && !!folderTree,
     keepPreviousData: true,
     staleTime: 30_000,
@@ -719,10 +676,10 @@ export default function VaultPage() {
   const recursiveResult = recursiveData as { folders: any[]; files: any[] } | undefined;
   const searchSourceFolders = recursiveEnabled ? (recursiveResult?.folders || []) : (subfolders || []);
   const searchSourcePhotos = recursiveEnabled
-    ? ((recursiveResult?.files || []).filter((f: any) => f.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(f.name || f.file_url || "")))
+    ? ((recursiveResult?.files || []).filter(isVaultImage))
     : (photos || []);
   const searchSourceFiles = recursiveEnabled
-    ? ((recursiveResult?.files || []).filter((f: any) => !f.file_type?.startsWith("image/") && !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(f.name || f.file_url || "")))
+    ? ((recursiveResult?.files || []).filter((file: any) => !isVaultImage(file)))
     : (files || []);
   const displaySubfolders = useMemo(() => {
     return fuzzyFilter(searchSourceFolders as any[], normalizedSearch, (f: any) => f.name || "");
