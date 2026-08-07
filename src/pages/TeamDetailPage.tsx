@@ -2218,6 +2218,17 @@ export default function TeamDetailPage() {
                     </CardContent>
                   </Card>
 
+                  {/* Captain (senior / mixed teams only) — same management rights as a team admin */}
+                  {["senior", "mixed"].includes(String((team as any).team_type || "mixed").toLowerCase()) && (
+                    <TeamCaptainCard
+                      teamId={id!}
+                      teamName={team.name}
+                      members={members}
+                      canManage={canManageCaptains}
+                    />
+                  )}
+
+
                   {/* PlayHQ Link */}
                   <PlayHQTeamLinkCard teamId={id!} clubId={team.club_id} />
           
