@@ -385,7 +385,7 @@ export default function ClubsPage() {
             </p>
           </div>
           <div className="space-y-2">
-            {removedClubs.map((club) => {
+            {scopedRemovedClubs.map((club) => {
               const daysLeft = Math.max(
                 0,
                 30 - Math.floor((Date.now() - new Date(club.deleted_at).getTime()) / (1000 * 60 * 60 * 24))
