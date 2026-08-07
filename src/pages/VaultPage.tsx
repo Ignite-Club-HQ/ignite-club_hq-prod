@@ -93,9 +93,13 @@ import {
   fetchVaultStorageSubscription,
 } from "@/features/vault/vaultStorageRepository";
 import {
+  createVaultFolder,
+  deleteVaultFolder,
   moveVaultFile,
   renameVaultFolder,
   renameVaultItem,
+  restoreVaultItem,
+  softDeleteVaultItem,
 } from "@/features/vault/vaultMutationRepository";
 
 
@@ -1132,23 +1136,12 @@ export default function VaultPage() {
   }, [isAppAdmin, user?.id, getCurrentClubId, getCurrentTeamId, userRoles]);
 
   const createFolderMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const insertData: any = {
-        name,
-        created_by: user!.id,
-        parent_id: getCurrentFolderId(),
-      };
-
-      if (currentView.type === "club") {
-        insertData.club_id = currentView.clubId;
-      } else if (currentView.type === "team") {
-        insertData.club_id = currentView.clubId;
-        insertData.team_id = currentView.teamId;
-      }
-
-      const { error } = await supabase.from("vault_folders").insert(insertData);
-      if (error) throw error;
-    },
+    mutationFn: (name: string) => createVaultFolder({
+      name,
+      userId: user!.id,
+      parentFolderId: getCurrentFolderId(),
+      view: currentView,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-subfolders"] });
       setNewFolderDialogOpen(false);
@@ -1161,10 +1154,7 @@ export default function VaultPage() {
   });
 
   const deleteFolderMutation = useMutation({
-    mutationFn: async (folderId: string) => {
-      const { error } = await supabase.from("vault_folders").delete().eq("id", folderId);
-      if (error) throw error;
-    },
+    mutationFn: deleteVaultFolder,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-subfolders"] });
       setDeleteFolderId(null);
@@ -1420,14 +1410,7 @@ export default function VaultPage() {
 
   // Vault photos are now stored in vault_files
   const deletePhotoMutation = useMutation({
-    mutationFn: async (photoId: string) => {
-      // Soft delete - set deleted_at and deleted_by in vault_files
-      const { error } = await supabase.from("vault_files")
-        .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
-        .eq("id", photoId);
-      if (error) throw error;
-      return photoId;
-    },
+    mutationFn: (photoId: string) => softDeleteVaultItem(photoId, user?.id),
     onMutate: async (photoId: string) => {
       // Close dialogs immediately
       setDeletePhotoId(null);
@@ -1466,13 +1449,7 @@ export default function VaultPage() {
   });
 
   const deleteFileMutation = useMutation({
-    mutationFn: async (fileId: string) => {
-      // Soft delete - set deleted_at and deleted_by
-      const { error } = await supabase.from("vault_files")
-        .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
-        .eq("id", fileId);
-      if (error) throw error;
-    },
+    mutationFn: (fileId: string) => softDeleteVaultItem(fileId, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
@@ -1486,13 +1463,7 @@ export default function VaultPage() {
 
   // Restore photo from trash (vault photos are in vault_files)
   const restorePhotoMutation = useMutation({
-    mutationFn: async (photoId: string) => {
-      const { error } = await supabase.from("vault_files")
-        .update({ deleted_at: null, deleted_by: null })
-        .eq("id", photoId);
-      if (error) throw error;
-      return photoId;
-    },
+    mutationFn: restoreVaultItem,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
@@ -1505,12 +1476,7 @@ export default function VaultPage() {
 
   // Restore file from trash
   const restoreFileMutation = useMutation({
-    mutationFn: async (fileId: string) => {
-      const { error } = await supabase.from("vault_files")
-        .update({ deleted_at: null, deleted_by: null })
-        .eq("id", fileId);
-      if (error) throw error;
-    },
+    mutationFn: restoreVaultItem,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });

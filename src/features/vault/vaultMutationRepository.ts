@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import type { VaultFolderView } from "./types";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 
@@ -48,4 +49,63 @@ export async function moveVaultFile(
     .update(update)
     .eq("id", options.fileId);
   if (error) throw error;
+}
+
+export async function createVaultFolder(
+  options: {
+    name: string;
+    userId: string;
+    parentFolderId: string | null;
+    view: VaultFolderView;
+  },
+  client: IgniteSupabaseClient = supabase,
+): Promise<void> {
+  const insert: Database["public"]["Tables"]["vault_folders"]["Insert"] = {
+    name: options.name,
+    created_by: options.userId,
+    parent_id: options.parentFolderId,
+  };
+  if (options.view.type === "club") {
+    insert.club_id = options.view.clubId;
+  } else if (options.view.type === "team") {
+    insert.club_id = options.view.clubId;
+    insert.team_id = options.view.teamId;
+  }
+
+  const { error } = await client.from("vault_folders").insert(insert);
+  if (error) throw error;
+}
+
+export async function deleteVaultFolder(
+  folderId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<void> {
+  const { error } = await client.from("vault_folders").delete().eq("id", folderId);
+  if (error) throw error;
+}
+
+export async function softDeleteVaultItem(
+  itemId: string,
+  deletedBy: string | undefined,
+  deletedAt: Date = new Date(),
+  client: IgniteSupabaseClient = supabase,
+): Promise<string> {
+  const { error } = await client
+    .from("vault_files")
+    .update({ deleted_at: deletedAt.toISOString(), deleted_by: deletedBy })
+    .eq("id", itemId);
+  if (error) throw error;
+  return itemId;
+}
+
+export async function restoreVaultItem(
+  itemId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<string> {
+  const { error } = await client
+    .from("vault_files")
+    .update({ deleted_at: null, deleted_by: null })
+    .eq("id", itemId);
+  if (error) throw error;
+  return itemId;
 }

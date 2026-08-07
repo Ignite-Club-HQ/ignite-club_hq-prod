@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V3f committed; V4a rename/move mutations complete locally; review/commit pending
+**Status:** V1–V4a committed; V4b folder/trash-state mutations complete locally; review/commit pending
 
 ## Objective
 
@@ -218,6 +218,21 @@ does not move Supabase ownership.
   toasts in `VaultPage`.
 - Added five mutation contracts including original permission-error
   propagation; focused verification passes 156/156 tests across thirteen files.
+
+**V4b completed locally 7 August 2026:**
+
+- Extracted folder creation/deletion and single-item soft-delete/restore writes
+  into the typed mutation repository.
+- Preserved exact creator, parent, club/team scope, row ID, deletion actor and
+  timestamp payloads. Folder creation deliberately retains the existing rule
+  that only club and team views add scope fields.
+- Kept dialogs, optimistic cache rollback, invalidation, UI state and toasts in
+  `VaultPage`.
+- Added seven lifecycle contracts, including exact-row targeting, restoration
+  field clearing and original error propagation; focused verification passes
+  163/163 tests across thirteen files.
+- Permanent deletion, bulk deletion, empty-trash and upload workflows remain
+  page-owned for later V4/V5 slices.
 
 ### V5 — Upload and external-link workflows
 
