@@ -1540,7 +1540,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // needs to fire when a new pin revision is requested or when the list
     // transitions between empty / non-empty.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomPinRevision, messages.length === 0, initialBottomPinned]);
+    // `initialTargetMessageId` is included so a NEW deep-link target starts a
+    // fresh hydration lifecycle (and cancels the previous one) rather than
+    // inheriting an already-expired deadline from another notification.
+  }, [bottomPinRevision, messages.length === 0, initialBottomPinned, initialTargetMessageId]);
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
