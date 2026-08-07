@@ -2228,11 +2228,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let hardTimer: number | null = null;
     // Overlay lifecycle budget, anchored at the START of each jump (i.e. each
     // notification/deep-link), never extended by rerenders or by repeated
-    // settle passes. Guarantees the overlay cannot outlive the budget.
-    const OVERLAY_HARD_DEADLINE_MS = 7000;
+    // settle passes. SAFETY backstop only — the overlay's normal exit is the
+    // settle-driven `onEnd` path, so the reveal always shows a settled thread.
+    // Longer than the jump poller's own lifetime (~30s) on purpose.
+    const OVERLAY_HARD_DEADLINE_MS = 32000;
     let lifecycleStartedAt = performance.now();
     const remainingBudget = () =>
       Math.max(0, OVERLAY_HARD_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
+
     const onStart = () => {
       if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
       if (unmountTimer) { clearTimeout(unmountTimer); unmountTimer = null; }
