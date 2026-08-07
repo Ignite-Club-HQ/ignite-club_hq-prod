@@ -366,7 +366,7 @@ export default function ClubsPage() {
       </section>
 
       {/* Recently removed - clubs the user soft-deleted, restorable within 30 days */}
-      {removedClubs && removedClubs.length > 0 && (
+      {scopedRemovedClubs.length > 0 && (
         <section className="space-y-3">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
