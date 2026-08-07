@@ -1323,15 +1323,35 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       let cancelled = false;
       let cleanup: (() => void) | null = null;
       let revealFrame: number | null = null;
+      let retryTimer: number | null = null;
+      let hardTimer: number | null = null;
+      // Hard, lifecycle-anchored reveal deadline. Measured ONCE from the
+      // start of this target hydration lifecycle (this effect run), never
+      // restarted by rerenders, message-window growth or repeated
+      // `isChatJumpActive()` retries. Without it the retry loop below could
+      // re-arm a fresh settle wait forever and leave the user staring at a
+      // blank thread (observed >20s on Android).
+      const lifecycleStartedAt = performance.now();
+      const HARD_REVEAL_DEADLINE_MS = 7000;
+      const remainingBudget = () =>
+        Math.max(0, HARD_REVEAL_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
+      const finish = () => {
+        if (cancelled) return;
+        cancelled = true;
+        cleanup?.();
+        if (retryTimer !== null) window.clearTimeout(retryTimer);
+        if (hardTimer !== null) window.clearTimeout(hardTimer);
+        revealFrame = requestAnimationFrame(() => setInitialRevealReady(true));
+      };
       const reveal = () => {
         if (cancelled) return;
-        if (isChatJumpActive()) {
-          window.setTimeout(wait, 80);
+        // The jump is still repositioning: give it another slice, but only
+        // within the lifecycle budget.
+        if (isChatJumpActive() && remainingBudget() > 120) {
+          retryTimer = window.setTimeout(wait, 80);
           return;
         }
-        revealFrame = requestAnimationFrame(() => {
-          if (!cancelled) setInitialRevealReady(true);
-        });
+        finish();
       };
       const wait = () => {
         if (cancelled) return;
@@ -1340,19 +1360,24 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           revealFrame = requestAnimationFrame(wait);
           return;
         }
+        cleanup?.();
         cleanup = waitForChatVisualContentSettle(
           scroller,
-          { quietMs: 650, maxMs: 6500 },
+          { quietMs: 650, maxMs: Math.max(200, Math.min(6500, remainingBudget())) },
           reveal,
         );
       };
+      hardTimer = window.setTimeout(finish, HARD_REVEAL_DEADLINE_MS);
       wait();
       return () => {
         cancelled = true;
         cleanup?.();
+        if (retryTimer !== null) window.clearTimeout(retryTimer);
+        if (hardTimer !== null) window.clearTimeout(hardTimer);
         if (revealFrame !== null) cancelAnimationFrame(revealFrame);
       };
     }
+
     if (!initialBottomPinned) {
       bottomPinReadyRef.current = true;
       pinnedRevisionRef.current = bottomPinRevision;
@@ -1515,7 +1540,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // needs to fire when a new pin revision is requested or when the list
     // transitions between empty / non-empty.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomPinRevision, messages.length === 0, initialBottomPinned]);
+    // `initialTargetMessageId` is included so a NEW deep-link target starts a
+    // fresh hydration lifecycle (and cancels the previous one) rather than
+    // inheriting an already-expired deadline from another notification.
+  }, [bottomPinRevision, messages.length === 0, initialBottomPinned, initialTargetMessageId]);
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
@@ -2194,14 +2222,30 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let fadeTimer: ReturnType<typeof setTimeout> | null = null;
     let unmountTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelSettleWait: (() => void) | null = null;
+    let hardTimer: number | null = null;
+    // Overlay lifecycle budget, anchored at the START of each jump (i.e. each
+    // notification/deep-link), never extended by rerenders or by repeated
+    // settle passes. Guarantees the overlay cannot outlive the budget.
+    const OVERLAY_HARD_DEADLINE_MS = 7000;
+    let lifecycleStartedAt = performance.now();
+    const remainingBudget = () =>
+      Math.max(0, OVERLAY_HARD_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
     const onStart = () => {
       if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
       if (unmountTimer) { clearTimeout(unmountTimer); unmountTimer = null; }
       if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
+      if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
+      lifecycleStartedAt = performance.now();
+      hardTimer = window.setTimeout(() => {
+        hardTimer = null;
+        if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
+        fadeOut();
+      }, OVERLAY_HARD_DEADLINE_MS);
       setRenderJumpOverlay(true);
       setIsJumpHydrating(true);
     };
     const fadeOut = () => {
+      if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
       setIsJumpHydrating(false);
       if (unmountTimer) clearTimeout(unmountTimer);
       unmountTimer = setTimeout(() => setRenderJumpOverlay(false), 300);
@@ -2213,12 +2257,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // previews, row heights, scroll metrics) actually stops moving. Without
       // this gate the overlay disappears on a fixed timer while rows are
       // still re-anchoring, which the user perceives as "messages moving
-      // around before settling".
+      // around before settling". Bounded by the remaining lifecycle budget so
+      // a late-hydrating thread can never hold the overlay open indefinitely.
       const scroller = scrollerElRef.current;
-      if (scroller) {
+      const budget = remainingBudget();
+      if (scroller && budget > 200) {
         cancelSettleWait = waitForChatVisualContentSettle(
           scroller,
-          { quietMs: 650, maxMs: 8000 },
+          { quietMs: 650, maxMs: Math.min(8000, budget) },
           () => {
             cancelSettleWait = null;
             // Tiny intentional cross-fade so the reveal reads as "settled".
@@ -2229,18 +2275,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         fadeTimer = setTimeout(fadeOut, 120);
       }
     };
+
     window.addEventListener("chat:jump-hydration-start", onStart);
     window.addEventListener("chat:jump-hydration-end", onEnd);
     const unsubscribe = subscribeChatJumpActive((value) => {
       if (value) onStart();
       else onEnd();
     });
+    // Jump was already active before this list mounted (cold push tap): the
+    // start event was dispatched before our listener existed, so arm the
+    // lifecycle budget now — otherwise the seeded overlay would have no
+    // deadline at all.
+    if (isChatJumpActive()) onStart();
     return () => {
       window.removeEventListener("chat:jump-hydration-start", onStart);
       window.removeEventListener("chat:jump-hydration-end", onEnd);
       unsubscribe();
       if (fadeTimer) clearTimeout(fadeTimer);
       if (unmountTimer) clearTimeout(unmountTimer);
+      if (hardTimer !== null) window.clearTimeout(hardTimer);
       if (cancelSettleWait) cancelSettleWait();
     };
   }, []);
