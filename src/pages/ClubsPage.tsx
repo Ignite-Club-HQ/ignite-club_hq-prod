@@ -237,6 +237,13 @@ export default function ClubsPage() {
     })
   );
 
+  // Recently removed: respect the active club filter so other clubs don't leak in
+  const scopedRemovedClubs = (removedClubs ?? []).filter((club) =>
+    activeClubFilter ? club.id === activeClubFilter : true
+  );
+
+
+
   // Only show search results (other clubs) when user is actively searching
   const isSearching = searchQuery.trim().length > 0;
   const searchResults = isSearching 
