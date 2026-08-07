@@ -1325,16 +1325,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       let revealFrame: number | null = null;
       let retryTimer: number | null = null;
       let hardTimer: number | null = null;
-      // Hard, lifecycle-anchored reveal deadline. Measured ONCE from the
-      // start of this target hydration lifecycle (this effect run), never
-      // restarted by rerenders, message-window growth or repeated
-      // `isChatJumpActive()` retries. Without it the retry loop below could
-      // re-arm a fresh settle wait forever and leave the user staring at a
-      // blank thread (observed >20s on Android).
+      // Lifecycle-anchored SAFETY backstop (not a UX deadline). Measured ONCE
+      // from the start of this target hydration lifecycle (this effect run),
+      // never restarted by rerenders, message-window growth or repeated
+      // `isChatJumpActive()` retries — that non-restarting property is what
+      // prevents the "forever blank thread" hang seen on Android.
+      // It is deliberately longer than the jump poller's own lifetime (~30s)
+      // so it can never reveal an UNSETTLED thread: the normal reveal path is
+      // always settle-driven.
       const lifecycleStartedAt = performance.now();
-      const HARD_REVEAL_DEADLINE_MS = 7000;
+      const HARD_REVEAL_DEADLINE_MS = 32000;
       const remainingBudget = () =>
         Math.max(0, HARD_REVEAL_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
+
       const finish = () => {
         if (cancelled) return;
         cancelled = true;
