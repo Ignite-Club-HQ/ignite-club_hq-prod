@@ -1466,6 +1466,12 @@ test(`${nativeCase.label} in-app message notification reveals and pins the exact
   state.releaseMessageHistory();
   const target = page.locator(`#message-${targetId}`);
   await expect(target).toContainText("Exact synthetic notification target", { timeout: 8_000 });
+  // Finding the target is not itself permission to reveal it. At least one
+  // opaque hydration mask must still cover Virtuoso while its final exact-DOM
+  // alignment and row measurements settle.
+  await expect.poll(() => page.locator('[data-chat-jump-hydration="true"]').evaluateAll((overlays) =>
+    overlays.some((overlay) => Number(getComputedStyle(overlay).opacity) > 0.99),
+  )).toBe(true);
   // The jump overlay intentionally masks Virtuoso's final target alignment.
   // Measure stability only once the row is actually visible to the user.
   await expect.poll(
