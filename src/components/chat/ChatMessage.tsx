@@ -553,8 +553,15 @@ function ChatMessageInner({
       try {
         localStorage.removeItem('messages-page-cache');
       } catch {}
+      // The parent row's denormalised last_message_* columns are recomputed by
+      // the AFTER DELETE preview triggers, so refetch every surface that reads
+      // them or the inbox keeps showing the deleted message.
+      queryClient.invalidateQueries({ queryKey: ["team-chat-preview"] });
+      queryClient.invalidateQueries({ queryKey: ["messages-page-threads"] });
+      queryClient.invalidateQueries({ queryKey: ["inbox-threads"] });
       // Silent success - no toast
     },
+
     onError: (err, variables, context) => {
       if (context?.previousMessages) {
         queryClient.setQueryData(queryKey, context.previousMessages);
