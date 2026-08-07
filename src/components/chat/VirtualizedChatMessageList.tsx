@@ -1325,16 +1325,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       let revealFrame: number | null = null;
       let retryTimer: number | null = null;
       let hardTimer: number | null = null;
-      // Hard, lifecycle-anchored reveal deadline. Measured ONCE from the
-      // start of this target hydration lifecycle (this effect run), never
-      // restarted by rerenders, message-window growth or repeated
-      // `isChatJumpActive()` retries. Without it the retry loop below could
-      // re-arm a fresh settle wait forever and leave the user staring at a
-      // blank thread (observed >20s on Android).
+      // Lifecycle-anchored SAFETY backstop (not a UX deadline). Measured ONCE
+      // from the start of this target hydration lifecycle (this effect run),
+      // never restarted by rerenders, message-window growth or repeated
+      // `isChatJumpActive()` retries — that non-restarting property is what
+      // prevents the "forever blank thread" hang seen on Android.
+      // It is deliberately longer than the jump poller's own lifetime (~30s)
+      // so it can never reveal an UNSETTLED thread: the normal reveal path is
+      // always settle-driven.
       const lifecycleStartedAt = performance.now();
-      const HARD_REVEAL_DEADLINE_MS = 7000;
+      const HARD_REVEAL_DEADLINE_MS = 32000;
       const remainingBudget = () =>
         Math.max(0, HARD_REVEAL_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
+
       const finish = () => {
         if (cancelled) return;
         cancelled = true;
@@ -2225,11 +2228,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let hardTimer: number | null = null;
     // Overlay lifecycle budget, anchored at the START of each jump (i.e. each
     // notification/deep-link), never extended by rerenders or by repeated
-    // settle passes. Guarantees the overlay cannot outlive the budget.
-    const OVERLAY_HARD_DEADLINE_MS = 7000;
+    // settle passes. SAFETY backstop only — the overlay's normal exit is the
+    // settle-driven `onEnd` path, so the reveal always shows a settled thread.
+    // Longer than the jump poller's own lifetime (~30s) on purpose.
+    const OVERLAY_HARD_DEADLINE_MS = 32000;
     let lifecycleStartedAt = performance.now();
     const remainingBudget = () =>
       Math.max(0, OVERLAY_HARD_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
+
     const onStart = () => {
       if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
       if (unmountTimer) { clearTimeout(unmountTimer); unmountTimer = null; }

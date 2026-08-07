@@ -7,7 +7,7 @@ const jump = readFileSync("src/lib/jumpToMessage.ts", "utf8");
 describe("chat jump hydration reveal deadline", () => {
   it("anchors the deep-link reveal deadline once per hydration lifecycle", () => {
     expect(list).toContain("const lifecycleStartedAt = performance.now()");
-    expect(list).toContain("const HARD_REVEAL_DEADLINE_MS = 7000");
+    expect(list).toContain("const HARD_REVEAL_DEADLINE_MS = 32000");
     expect(list).toContain("hardTimer = window.setTimeout(finish, HARD_REVEAL_DEADLINE_MS)");
   });
 
@@ -23,17 +23,21 @@ describe("chat jump hydration reveal deadline", () => {
   });
 
   it("gives the jump overlay its own non-restartable lifecycle budget", () => {
-    expect(list).toContain("const OVERLAY_HARD_DEADLINE_MS = 7000");
+    expect(list).toContain("const OVERLAY_HARD_DEADLINE_MS = 32000");
     expect(list).toContain("lifecycleStartedAt = performance.now()");
     expect(list).toContain("maxMs: Math.min(8000, budget)");
     expect(list).toContain("if (isChatJumpActive()) onStart();");
   });
 
-  it("releases the overlay from jumpToMessage even when polling never lands", () => {
-    expect(jump).toContain("const OVERLAY_RELEASE_MS = 7000");
+  it("never reveals early: overlay release is a backstop beyond the poller lifetime", () => {
+    expect(jump).toContain("const OVERLAY_RELEASE_MS = maxAttempts * intervalMs + 3000");
     expect(jump).toContain("overlayReleaseTimer");
     expect(jump).toContain('new CustomEvent("chat:jump-hydration-end")');
+    // Backstop must also drop the jump-active flag so the list's settle-driven
+    // reveal path can complete rather than looping on isChatJumpActive().
+    expect(jump).toMatch(/overlayReleaseTimer = null;\s*if \(hydrationEnded\) return;\s*hydrationEnded = true;\s*setChatJumpActive\(false\);/);
   });
+
 
   it("keeps the skeleton masking and exact-target selection intact", () => {
     expect(list).toContain("{!initialRevealReady ? <JumpHydrationSkeleton /> : null}");
