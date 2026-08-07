@@ -83,7 +83,25 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   }
   setChatJumpActive(true);
   let hydrationEnded = false;
+  // SAFETY backstop only. The overlay must stay up until the thread has
+  // actually settled on the target, so we do NOT release it early: the normal
+  // exits are (a) target found + settled, (b) parent-context fallback, or
+  // (c) polling exhaustion — all of which call `endHydration`. This timer only
+  // guards against a lost terminal path (e.g. the poller being torn down mid
+  // flight) and is set beyond the poller's own lifetime.
+  const OVERLAY_RELEASE_MS = maxAttempts * intervalMs + 3000;
+  let overlayReleaseTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    overlayReleaseTimer = null;
+    if (hydrationEnded) return;
+    hydrationEnded = true;
+    setChatJumpActive(false);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("chat:jump-hydration-end"));
+    }
+  }, OVERLAY_RELEASE_MS);
+
   const endHydration = () => {
+    if (overlayReleaseTimer) { clearTimeout(overlayReleaseTimer); overlayReleaseTimer = null; }
     if (hydrationEnded) return;
     hydrationEnded = true;
     setChatJumpActive(false);
@@ -91,6 +109,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       window.dispatchEvent(new CustomEvent("chat:jump-hydration-end"));
     }
   };
+
 
 
   let attempts = 0;

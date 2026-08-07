@@ -237,6 +237,13 @@ export default function ClubsPage() {
     })
   );
 
+  // Recently removed: respect the active club filter so other clubs don't leak in
+  const scopedRemovedClubs = (removedClubs ?? []).filter((club) =>
+    activeClubFilter ? club.id === activeClubFilter : true
+  );
+
+
+
   // Only show search results (other clubs) when user is actively searching
   const isSearching = searchQuery.trim().length > 0;
   const searchResults = isSearching 
@@ -366,7 +373,7 @@ export default function ClubsPage() {
       </section>
 
       {/* Recently removed - clubs the user soft-deleted, restorable within 30 days */}
-      {removedClubs && removedClubs.length > 0 && (
+      {scopedRemovedClubs.length > 0 && (
         <section className="space-y-3">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -378,7 +385,7 @@ export default function ClubsPage() {
             </p>
           </div>
           <div className="space-y-2">
-            {removedClubs.map((club) => {
+            {scopedRemovedClubs.map((club) => {
               const daysLeft = Math.max(
                 0,
                 30 - Math.floor((Date.now() - new Date(club.deleted_at).getTime()) / (1000 * 60 * 60 * 24))

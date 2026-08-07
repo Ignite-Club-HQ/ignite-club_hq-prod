@@ -158,13 +158,13 @@ export const MembershipConfirmationEmail = ({
                     src={IGNITE_ICON_URL}
                     width="24"
                     height="24"
-                    alt="Ignite Club HQ"
+                    alt="Ignite"
                     style={igniteLogoStyle}
                   />
                 </td>
                 <td style={{ verticalAlign: 'middle' }}>
                   <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
-                    Powered by Ignite Club HQ
+                    Powered by Ignite
                   </Link>
                 </td>
               </tr>

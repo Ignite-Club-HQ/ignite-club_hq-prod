@@ -36,8 +36,8 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = 'Ignite Club HQ'
-const FROM_EMAIL = 'Ignite Club HQ <support@igniteclubhq.app>'
+const SITE_NAME = 'Ignite'
+const FROM_EMAIL = 'Ignite <support@igniteclubhq.app>'
 
 interface SupabaseSendEmailHookPayload {
   user?: {

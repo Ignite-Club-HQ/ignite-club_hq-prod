@@ -105,7 +105,7 @@ export const ChildAddedEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  Tap the button below to open Ignite Club HQ and see their team, teammates, and any updates for the season.
+                  Tap the button below to open Ignite and see their team, teammates, and any updates for the season.
                 </Text>
               </>
             )}
@@ -148,13 +148,13 @@ export const ChildAddedEmail = ({
                     src={IGNITE_ICON_URL}
                     width="20"
                     height="20"
-                    alt="Ignite Club HQ"
+                    alt="Ignite"
                     style={{ display: 'block', borderRadius: '4px' }}
                   />
                 </td>
                 <td style={{ verticalAlign: 'middle' }}>
                   <Link href={PRODUCTION_DOMAIN} style={footerBrandLink}>
-                    Powered by Ignite Club HQ
+                    Powered by Ignite
                   </Link>
                 </td>
               </tr>
