@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1 complete locally; focused verification green; review/commit pending
+**Status:** V1 committed; V2a access decisions complete locally; V2b data boundary pending
 
 ## Objective
 
@@ -94,6 +94,22 @@ does not move Supabase ownership.
 - Return a small typed access model rather than exposing raw query rows.
 - Preserve fail-closed loading and error behaviour.
 - Run characterization, entitlement and membership suites.
+
+**V2a completed locally 7 August 2026:**
+
+- Extracted pure role access, current-club privilege, coach/team-admin
+  visibility, upgrade routing, team-scope collection, Pro flag resolution,
+  context inheritance and final Vault-access decisions.
+- Added 14 permission-matrix cases covering cross-club isolation, missing-role
+  fail-closed behaviour, app-admin handling, all supported Pro flags, team Pro
+  inheritance and root-versus-inner context.
+- Kept every Supabase read and its query key/loading behaviour in `VaultPage`;
+  moving those reads is the separate V2b slice.
+- Focused verification passes 106/106 tests across nine files. New access files
+  pass targeted lint.
+- The first verification run exposed a refactoring-only missing derived value
+  used by the denied-access UI. It was restored before completion; the full
+  focused suite then passed.
 
 ### V3 — Read-model boundary
 

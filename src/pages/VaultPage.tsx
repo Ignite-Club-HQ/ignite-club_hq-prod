@@ -61,6 +61,16 @@ import {
   filterVisibleVaultFolders,
   getVaultScope,
 } from "@/features/vault/vaultScope";
+import {
+  canAccessVault as resolveCanAccessVault,
+  getVaultAdminUpgradeInfo,
+  getVaultTeamIds,
+  hasVaultProEntitlement,
+  hasVaultRoleAccess as resolveHasVaultRoleAccess,
+  isVaultClubAdminOrCommittee,
+  isVaultCoachOrTeamAdmin,
+  resolveVaultContextPro,
+} from "@/features/vault/vaultAccess";
 
 
 import {
@@ -287,11 +297,7 @@ export default function VaultPage() {
 
   // Check if user has vault access (admins and coaches only)
   const hasVaultRoleAccess = useMemo(() => {
-    if (isAppAdmin) return true;
-    if (!userRoles) return false;
-    return userRoles.some(r => 
-      ['club_admin', 'team_admin', 'coach', 'league_admin', 'committee_member'].includes(r.role)
-    );
+    return resolveHasVaultRoleAccess(Boolean(isAppAdmin), userRoles);
   }, [isAppAdmin, userRoles]);
 
   const { data: userClubs, isLoading: isLoadingClubs } = useQuery({
@@ -426,12 +432,7 @@ export default function VaultPage() {
 
   // Check if user is a club admin or committee member for the current club (can see all teams)
   const isClubAdminOrCommittee = useMemo(() => {
-    if (isAppAdmin) return true;
-    if (currentView.type !== "club" && currentView.type !== "team" && currentView.type !== "mini-league") return false;
-    const clubId = currentView.clubId;
-    return userRoles?.some(r => 
-      (r.role === "club_admin" || r.role === "committee_member") && r.club_id === clubId
-    ) || false;
+    return isVaultClubAdminOrCommittee(Boolean(isAppAdmin), currentView, userRoles);
   }, [isAppAdmin, currentView, userRoles]);
 
   // Alias for backward compatibility
@@ -439,28 +440,17 @@ export default function VaultPage() {
 
   // Check if user is a coach or team admin in the current club (can see club-level chat folders)
   const isCoachOrTeamAdmin = useMemo(() => {
-    if (isClubAdmin) return true;
-    if (currentView.type !== "club" && currentView.type !== "team" && currentView.type !== "mini-league") return false;
-    const clubId = currentView.clubId;
-    return userRoles?.some(r => 
-      (r.role === "coach" || r.role === "team_admin") && r.club_id === clubId
-    ) || false;
+    return isVaultCoachOrTeamAdmin(isClubAdmin, currentView, userRoles);
   }, [isClubAdmin, currentView, userRoles]);
 
   // Get first admin club/team for upgrade link
   const adminUpgradeInfo = useMemo(() => {
-    if (!userRoles) return { clubId: undefined, teamId: undefined };
-    const clubAdminRole = userRoles.find(r => r.role === "club_admin" && r.club_id);
-    if (clubAdminRole?.club_id) return { clubId: clubAdminRole.club_id as string, teamId: undefined };
-    const teamAdminRole = userRoles.find(r => r.role === "team_admin" && r.team_id);
-    if (teamAdminRole?.team_id) return { clubId: undefined, teamId: teamAdminRole.team_id as string };
-    return { clubId: undefined, teamId: undefined };
+    return getVaultAdminUpgradeInfo(userRoles);
   }, [userRoles]);
 
   // Get teams user has access to
   const userTeamIds = useMemo(() => {
-    if (!userRoles) return [];
-    return userRoles.filter(r => r.team_id).map(r => r.team_id as string);
+    return getVaultTeamIds(userRoles);
   }, [userRoles]);
 
   // Check if the current club has Pro
@@ -474,7 +464,7 @@ export default function VaultPage() {
         .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
         .eq("club_id", clubId)
         .maybeSingle();
-      return !!(data?.is_pro || data?.is_pro_football || data?.admin_pro_override || data?.admin_pro_football_override);
+      return hasVaultProEntitlement(data);
     },
     enabled: currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league",
   });
@@ -489,25 +479,14 @@ export default function VaultPage() {
         .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
         .eq("team_id", currentView.teamId)
         .maybeSingle();
-      return !!(data?.is_pro || data?.is_pro_football || data?.admin_pro_override || data?.admin_pro_football_override);
+      return hasVaultProEntitlement(data);
     },
     enabled: currentView.type === "team",
   });
 
   // Determine if current context has Pro access for uploads
   const currentContextHasPro = useMemo(() => {
-    if (currentView.type === "club") {
-      return currentClubHasPro || false;
-    }
-    if (currentView.type === "team") {
-      // Team inherits Pro if club has Pro, or team has individual Pro
-      return currentClubHasPro || currentTeamHasPro || false;
-    }
-    if (currentView.type === "mini-league") {
-      // Mini-leagues are only available for Pro Football clubs
-      return currentClubHasPro || false;
-    }
-    return false;
+    return resolveVaultContextPro(currentView, currentClubHasPro, currentTeamHasPro);
   }, [currentView.type, currentClubHasPro, currentTeamHasPro]);
 
   const { data: clubTeams } = useQuery({
@@ -555,7 +534,7 @@ export default function VaultPage() {
       
       const proTeamIds = new Set(
         (teamSubs || [])
-          .filter(sub => sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override)
+          .filter(hasVaultProEntitlement)
           .map(sub => sub.team_id)
       );
       
@@ -1068,7 +1047,13 @@ export default function VaultPage() {
   const isLoadingAccess = isLoadingAppAdmin || isLoadingProClub || isLoadingRoles || isLoadingClubHasPro || isLoadingTeamHasPro;
   // Vault access requires: 1) Pro subscription in current context AND 2) Admin/coach role
   const vaultAccessContextHasPro = currentView.type === "root" ? hasProClub : currentContextHasPro;
-  const canAccessVault = (isAppAdmin || vaultAccessContextHasPro) && hasVaultRoleAccess;
+  const canAccessVault = resolveCanAccessVault({
+    isAppAdmin: Boolean(isAppAdmin),
+    hasRoleAccess: hasVaultRoleAccess,
+    hasAnyPro: hasProClub,
+    currentContextHasPro,
+    isRoot: currentView.type === "root",
+  });
 
   // Handle storage purchase success redirect
   useEffect(() => {
