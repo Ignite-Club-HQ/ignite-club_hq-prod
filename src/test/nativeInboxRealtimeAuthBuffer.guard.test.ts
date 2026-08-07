@@ -4,7 +4,7 @@ import { readFileSync } from "fs";
 const src = readFileSync("src/pages/MessagesPage.tsx", "utf8");
 
 // Isolate the native lightweight realtime effect.
-const nativeBlock = src.slice(src.indexOf("messages-inbox-light-"));
+const nativeBlock = src.slice(src.indexOf("Native-only: lightweight realtime"));
 
 describe("native inbox realtime authorization-hydration buffer", () => {
   it("buffers native events while authorized scopes are not ready", () => {
