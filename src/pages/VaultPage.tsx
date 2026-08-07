@@ -58,7 +58,6 @@ import type { VaultFolderView } from "@/features/vault/types";
 import {
   abbreviateVaultOrganisationName,
   collectVaultClubRoles,
-  filterVisibleVaultFolders,
   getVaultScope,
 } from "@/features/vault/vaultScope";
 import {
@@ -79,6 +78,7 @@ import {
   fetchVaultTeamHasPro,
   fetchVaultUserRoles,
 } from "@/features/vault/vaultAccessRepository";
+import { fetchVaultSubfolders } from "@/features/vault/vaultReadRepository";
 
 
 import {
@@ -584,62 +584,13 @@ export default function VaultPage() {
 
   const { data: subfolders } = useQuery({
     queryKey: ["vault-subfolders", currentView, isClubAdmin, isCoachOrTeamAdmin, isAppAdmin, Array.from(userClubRoleSet).sort().join(",")],
-    queryFn: async () => {
-      const clubId = getCurrentClubId();
-      const teamId = getCurrentTeamId();
-      const miniLeagueId = getCurrentMiniLeagueId();
-      const parentFolderId = getCurrentFolderId();
-      
-      // Build filter conditions based on view type
-      let filters: Record<string, any> = {};
-      let nullFilters: string[] = [];
-      
-      if (currentView.type === "club") {
-        // Allow non-admin users into the club view ONLY if they may have
-        // role-restricted chat folders to see (coaches, team admins, league admins).
-        // Generic vault access stays admin-only.
-        if (!isClubAdmin && !isCoachOrTeamAdmin && userClubRoleSet.size === 0) return [];
-        filters.club_id = clubId;
-        // vault_folders does not have a mini_league_id column; only filter by team_id.
-        nullFilters = ["team_id"];
-      } else if (currentView.type === "team") {
-        filters.team_id = teamId;
-      } else if (currentView.type === "mini-league") {
-        // vault_folders has no mini_league_id column — there are no folders for mini-leagues.
-        return [];
-      }
-      
-      if (parentFolderId) {
-        filters.parent_id = parentFolderId;
-      } else {
-        nullFilters.push("parent_id");
-      }
-      
-      // Execute query with filters - use type assertion to avoid deep type instantiation
-      let query: any = supabase.from("vault_folders").select("*").is("deleted_at", null);
-      
-      for (const [key, value] of Object.entries(filters)) {
-        query = query.eq(key, value);
-      }
-      
-      for (const nullField of nullFilters) {
-        query = query.is(nullField, null);
-      }
-      
-      const { data } = await query.order("name");
-      let folders = (data || []) as { id: string; name: string; parent_id: string | null; club_id: string | null; team_id: string | null; mini_league_id: string | null; chat_group_id: string | null; restricted_roles: string[] | null; created_at: string }[];
-
-      // Apply role-restriction filtering for chat-scoped folders.
-      // Club admins, committee members, and app admins can always see them.
-      folders = filterVisibleVaultFolders(folders, {
-        isPrivilegedViewer: isAppAdmin || isClubAdmin,
-        restrictClubRootToChatFolders:
-          currentView.type === "club" && !isClubAdmin && isCoachOrTeamAdmin,
-        clubRoles: userClubRoleSet,
-      });
-
-      return folders;
-    },
+    queryFn: () => fetchVaultSubfolders({
+      view: currentView,
+      isAppAdmin: Boolean(isAppAdmin),
+      isClubAdmin,
+      isCoachOrTeamAdmin,
+      clubRoles: userClubRoleSet,
+    }),
     enabled: currentView.type !== "root",
   });
 

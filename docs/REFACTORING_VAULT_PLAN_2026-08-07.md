@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1 and V2a committed; V2b access repository complete locally; review/commit pending
+**Status:** V1–V2 committed; V3a active-folder read boundary complete locally; review/commit pending
 
 ## Objective
 
@@ -130,6 +130,17 @@ does not move Supabase ownership.
 - Separate data mapping from rendering without introducing a generic global
   data layer.
 - Verify exact scope filters and stale/deleted-row exclusion.
+
+**V3a completed locally 7 August 2026:**
+
+- Extracted the active-folder read into the typed Vault read repository.
+- Preserved React Query ownership and its existing key/enablement in the page.
+- Added six direct contracts for root and mini-league no-query behaviour,
+  role-less fail-closed access, exact club/team/parent/deleted filters, coach
+  chat-folder restriction and privileged visibility.
+- Focused verification passes 121/121 tests across eleven files.
+- File content, recursive search, trash and storage reads remain deliberately
+  page-owned for later V3 slices.
 
 ### V4 — Mutation boundary
 
