@@ -2075,11 +2075,12 @@ export default function MessagesPage() {
 
     return () => {
       unregister();
-      unregister();
+      if (flushTimer) clearTimeout(flushTimer);
       nativeRealtimeFlushRef.current = null;
       nativeRealtimeDiscardRef.current = null;
       pendingNativeRealtimeRef.current = [];
     };
+
   }, [user?.id, queryClient]);
 
   // Force-refresh inbox previews on mount and whenever the page becomes
