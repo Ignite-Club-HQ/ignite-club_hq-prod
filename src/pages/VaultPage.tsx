@@ -78,7 +78,12 @@ import {
   fetchVaultTeamHasPro,
   fetchVaultUserRoles,
 } from "@/features/vault/vaultAccessRepository";
-import { fetchVaultItems, fetchVaultSubfolders, partitionVaultItems } from "@/features/vault/vaultReadRepository";
+import {
+  fetchVaultFolderTree,
+  fetchVaultItems,
+  fetchVaultSubfolders,
+  partitionVaultItems,
+} from "@/features/vault/vaultReadRepository";
 
 
 import {
@@ -635,45 +640,11 @@ export default function VaultPage() {
       isAppAdmin,
       Array.from(userClubRoleSet).sort().join(","),
     ],
-    queryFn: async () => {
-      let folderQuery: any = supabase
-        .from("vault_folders")
-        .select("id,name,parent_id,restricted_roles");
-      if (recursiveScope.type === "club") {
-        folderQuery = folderQuery.eq("club_id", recursiveScope.clubId).is("team_id", null);
-      } else if (recursiveScope.type === "team") {
-        folderQuery = folderQuery.eq("team_id", recursiveScope.teamId);
-      } else {
-        return { descendants: [] as any[], pathById: new Map<string, string>(), descendantIds: [] as string[] };
-      }
-      const { data: rawFolders } = await folderQuery;
-      const all = (rawFolders || []) as Array<{ id: string; name: string; parent_id: string | null; restricted_roles: string[] | null }>;
-      const isPrivilegedViewer = isAppAdmin || isClubAdmin;
-      const visible = all.filter((f) => {
-        if (!f.restricted_roles || f.restricted_roles.length === 0) return true;
-        if (isPrivilegedViewer) return true;
-        return f.restricted_roles.some((r) => userClubRoleSet.has(r));
-      });
-      const childMap = new Map<string | null, typeof visible>();
-      for (const f of visible) {
-        const k = f.parent_id;
-        if (!childMap.has(k)) childMap.set(k, []);
-        childMap.get(k)!.push(f);
-      }
-      const descendants: typeof visible = [];
-      const pathById = new Map<string, string>();
-      const stack: { id: string | null; path: string }[] = [{ id: recursiveScope.startFolderId, path: "" }];
-      while (stack.length) {
-        const { id, path } = stack.pop()!;
-        for (const k of (childMap.get(id) || [])) {
-          const kPath = path ? `${path} / ${k.name}` : k.name;
-          descendants.push(k);
-          pathById.set(k.id, kPath);
-          stack.push({ id: k.id, path: kPath });
-        }
-      }
-      return { descendants, pathById, descendantIds: descendants.map((d) => d.id) };
-    },
+    queryFn: () => fetchVaultFolderTree({
+      view: currentView,
+      isPrivilegedViewer: Boolean(isAppAdmin || isClubAdmin),
+      clubRoles: userClubRoleSet,
+    }),
     enabled: recursiveScope.type === "club" || recursiveScope.type === "team",
     staleTime: 60_000,
   });

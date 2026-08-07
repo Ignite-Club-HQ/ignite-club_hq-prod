@@ -7,6 +7,15 @@ import { filterVisibleVaultFolders, getVaultScope } from "./vaultScope";
 type IgniteSupabaseClient = SupabaseClient<Database>;
 export type VaultFolderRow = Database["public"]["Tables"]["vault_folders"]["Row"];
 export type VaultFileRow = Database["public"]["Tables"]["vault_files"]["Row"];
+export type VaultFolderTreeRow = Pick<
+  VaultFolderRow,
+  "id" | "name" | "parent_id" | "restricted_roles"
+>;
+export type VaultFolderTree = {
+  descendants: VaultFolderTreeRow[];
+  pathById: Map<string, string>;
+  descendantIds: string[];
+};
 export type VaultPhotoItem = VaultFileRow & {
   image_url: VaultFileRow["file_url"];
   uploader_id: VaultFileRow["uploaded_by"];
@@ -41,6 +50,46 @@ export function partitionVaultItems(items: readonly VaultFileRow[] | null | unde
     }
   }
   return { photos, files };
+}
+
+export function buildVaultFolderTree(
+  folders: readonly VaultFolderTreeRow[],
+  startFolderId: string | null,
+  options: {
+    isPrivilegedViewer: boolean;
+    clubRoles: ReadonlySet<string>;
+  },
+): VaultFolderTree {
+  const visible = folders.filter((folder) => {
+    if (!folder.restricted_roles?.length) return true;
+    if (options.isPrivilegedViewer) return true;
+    return folder.restricted_roles.some((role) => options.clubRoles.has(role));
+  });
+
+  const childMap = new Map<string | null, VaultFolderTreeRow[]>();
+  for (const folder of visible) {
+    const siblings = childMap.get(folder.parent_id) ?? [];
+    siblings.push(folder);
+    childMap.set(folder.parent_id, siblings);
+  }
+
+  const descendants: VaultFolderTreeRow[] = [];
+  const pathById = new Map<string, string>();
+  const stack: Array<{ id: string | null; path: string }> = [
+    { id: startFolderId, path: "" },
+  ];
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current) break;
+    for (const child of childMap.get(current.id) ?? []) {
+      const path = current.path ? `${current.path} / ${child.name}` : child.name;
+      descendants.push(child);
+      pathById.set(child.id, path);
+      stack.push({ id: child.id, path });
+    }
+  }
+
+  return { descendants, pathById, descendantIds: descendants.map((folder) => folder.id) };
 }
 
 export async function fetchVaultSubfolders(
@@ -117,4 +166,30 @@ export async function fetchVaultItems(
     : query.is("folder_id", null);
   const { data } = await query.order("created_at", { ascending: false });
   return data ?? [];
+}
+
+export async function fetchVaultFolderTree(
+  options: {
+    view: VaultFolderView;
+    isPrivilegedViewer: boolean;
+    clubRoles: ReadonlySet<string>;
+  },
+  client: IgniteSupabaseClient = supabase,
+): Promise<VaultFolderTree> {
+  const empty = (): VaultFolderTree => ({
+    descendants: [],
+    pathById: new Map(),
+    descendantIds: [],
+  });
+  if (options.view.type !== "club" && options.view.type !== "team") return empty();
+
+  const scope = getVaultScope(options.view);
+  let query = client
+    .from("vault_folders")
+    .select("id,name,parent_id,restricted_roles");
+  query = options.view.type === "club"
+    ? query.eq("club_id", scope.clubId).is("team_id", null)
+    : query.eq("team_id", scope.teamId);
+  const { data } = await query;
+  return buildVaultFolderTree(data ?? [], scope.folderId, options);
 }

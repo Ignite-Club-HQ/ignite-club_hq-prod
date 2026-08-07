@@ -1,7 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import type { Database } from "@/integrations/supabase/types";
-import { fetchVaultItems, fetchVaultSubfolders, isVaultImage, partitionVaultItems } from "./vaultReadRepository";
+import {
+  buildVaultFolderTree,
+  fetchVaultFolderTree,
+  fetchVaultItems,
+  fetchVaultSubfolders,
+  isVaultImage,
+  partitionVaultItems,
+} from "./vaultReadRepository";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 type Call = { table: string; method: string; args: unknown[] };
@@ -40,6 +47,24 @@ function fileClient(data: unknown[]) {
     calls.push({ table: "vault_files", method: "order", args });
     return { data, error: null };
   };
+  return {
+    client: { from: () => query } as unknown as IgniteSupabaseClient,
+    calls,
+  };
+}
+
+function treeClient(data: unknown[]) {
+  const calls: Call[] = [];
+  const query: Record<string, unknown> = {};
+  const record = (method: string) => (...args: unknown[]) => {
+    calls.push({ table: "vault_folders", method, args });
+    return query;
+  };
+  query.select = record("select");
+  query.is = record("is");
+  query.eq = record("eq");
+  query.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+    Promise.resolve({ data, error: null }).then(resolve, reject);
   return {
     client: { from: () => query } as unknown as IgniteSupabaseClient,
     calls,
@@ -262,5 +287,94 @@ describe("Vault active-item read model", () => {
     }, league.client);
     expect(league.calls).toContainEqual({ table: "vault_files", method: "eq", args: ["mini_league_id", "league-a"] });
     expect(league.calls.some((call) => call.args[0] === "team_id")).toBe(false);
+  });
+});
+
+describe("Vault recursive folder tree", () => {
+  const rows = [
+    { id: "public", name: "Public", parent_id: null, restricted_roles: null },
+    { id: "nested", name: "Nested", parent_id: "public", restricted_roles: null },
+    { id: "coach", name: "Coaches", parent_id: null, restricted_roles: ["coach"] },
+    { id: "admin", name: "Admins", parent_id: null, restricted_roles: ["club_admin"] },
+    { id: "admin-child", name: "Private child", parent_id: "admin", restricted_roles: null },
+  ];
+
+  it("builds descendant ids and stable display paths from the selected root", () => {
+    const tree = buildVaultFolderTree(rows, null, {
+      isPrivilegedViewer: true,
+      clubRoles: new Set(),
+    });
+    expect(tree.descendantIds).toEqual(["public", "coach", "admin", "admin-child", "nested"]);
+    expect(tree.pathById.get("nested")).toBe("Public / Nested");
+    expect(tree.pathById.get("admin-child")).toBe("Admins / Private child");
+  });
+
+  it("starts below an explicit folder without including that folder itself", () => {
+    const tree = buildVaultFolderTree(rows, "public", {
+      isPrivilegedViewer: true,
+      clubRoles: new Set(),
+    });
+    expect(tree.descendantIds).toEqual(["nested"]);
+    expect(tree.pathById.get("nested")).toBe("Nested");
+  });
+
+  it("does not traverse an otherwise generic child through a hidden restricted parent", () => {
+    const tree = buildVaultFolderTree(rows, null, {
+      isPrivilegedViewer: false,
+      clubRoles: new Set(["coach"]),
+    });
+    expect(tree.descendantIds).toEqual(["public", "coach", "nested"]);
+    expect(tree.pathById.has("admin-child")).toBe(false);
+  });
+
+  it("returns an empty tree without querying unsupported root and league views", async () => {
+    const fake = treeClient(rows);
+    await expect(fetchVaultFolderTree({
+      view: { type: "root" },
+      isPrivilegedViewer: false,
+      clubRoles: new Set(),
+    }, fake.client)).resolves.toMatchObject({ descendants: [], descendantIds: [] });
+    await expect(fetchVaultFolderTree({
+      view: {
+        type: "mini-league",
+        clubId: "club-a",
+        clubName: "Club A",
+        miniLeagueId: "league-a",
+        miniLeagueName: "League A",
+      },
+      isPrivilegedViewer: false,
+      clubRoles: new Set(),
+    }, fake.client)).resolves.toMatchObject({ descendants: [], descendantIds: [] });
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("queries the exact club tree and excludes team folders", async () => {
+    const fake = treeClient([]);
+    await fetchVaultFolderTree({
+      view: clubView,
+      isPrivilegedViewer: true,
+      clubRoles: new Set(),
+    }, fake.client);
+    expect(fake.calls).toEqual(expect.arrayContaining([
+      { table: "vault_folders", method: "eq", args: ["club_id", "club-a"] },
+      { table: "vault_folders", method: "is", args: ["team_id", null] },
+    ]));
+  });
+
+  it("queries an exact team tree without adding a broader club filter", async () => {
+    const fake = treeClient([]);
+    await fetchVaultFolderTree({
+      view: {
+        type: "team",
+        clubId: "club-a",
+        clubName: "Club A",
+        teamId: "team-a",
+        teamName: "Team A",
+      },
+      isPrivilegedViewer: false,
+      clubRoles: new Set(["team_admin"]),
+    }, fake.client);
+    expect(fake.calls).toContainEqual({ table: "vault_folders", method: "eq", args: ["team_id", "team-a"] });
+    expect(fake.calls.some((call) => call.method === "eq" && call.args[0] === "club_id")).toBe(false);
   });
 });

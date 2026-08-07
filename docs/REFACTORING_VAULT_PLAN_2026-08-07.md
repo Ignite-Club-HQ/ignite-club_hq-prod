@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V3a committed; V3b active-file read/model complete locally; review/commit pending
+**Status:** V1–V3b committed; V3c recursive folder-tree boundary complete locally; review/commit pending
 
 ## Objective
 
@@ -153,6 +153,16 @@ does not move Supabase ownership.
   existed. Existing behaviour gives the filename precedence; the test was
   corrected to characterize that behaviour rather than changing production.
 - Focused verification passes 128/128 tests across eleven files.
+
+**V3c completed locally 7 August 2026:**
+
+- Extracted the recursive folder-tree read and pure visibility/path builder.
+- Added six contracts for nested paths, subtree starts, restricted-parent
+  isolation, unsupported-context no-query behaviour and exact club/team scope.
+- Preserved the existing traversal order and the rule that a visible generic
+  child cannot be reached through a hidden restricted parent.
+- Focused verification passes 134/134 tests across eleven files.
+- The debounced recursive file search remains page-owned for V3d.
 
 ### V4 — Mutation boundary
 
