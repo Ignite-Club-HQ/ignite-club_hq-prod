@@ -86,6 +86,8 @@ import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import ChildDetailSheet from "@/components/ChildDetailSheet";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
+import TeamCaptainCard from "@/components/TeamCaptainCard";
+
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
