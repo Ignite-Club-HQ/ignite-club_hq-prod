@@ -5,13 +5,16 @@ import {
   fetchInboxAdminTeamIds,
   fetchInboxAdminClubs,
   fetchInboxAppAdminStatus,
+  fetchInboxBroadcastPrefetchPage,
   fetchInboxClubScopeFilter,
   fetchInboxClubProStatus,
+  fetchInboxClubPrefetchPage,
   fetchInboxCommitteeMemberStatus,
   fetchInboxCompetitionClubMap,
   fetchInboxEventTitleMap,
   fetchInboxHiddenDirectMessages,
   fetchInboxHiddenGroups,
+  fetchInboxGroupPrefetchPage,
   fetchInboxHasAnyProAccess,
   fetchInboxMutedChats,
   fetchInboxMemberClubsWithMessages,
@@ -19,6 +22,8 @@ import {
   fetchInboxChatGroupsWithMessages,
   fetchInboxLatestBroadcast,
   fetchInboxLatestDirectMessages,
+  fetchInboxSystemMessage,
+  fetchInboxTeamPrefetchPage,
   fetchInboxDirectConversationMembership,
   fetchInboxUserLeagueIds,
   fetchInboxUserRoles,
@@ -75,6 +80,235 @@ function tableQueryClient(results: Record<string, { data: unknown; error: unknow
 }
 
 describe("messaging inbox repositories", () => {
+  it("prefetches only the requested immutable group scope", async () => {
+    const rows = Array.from({ length: 3 }, (_, index) => ({
+      id: `group-message-${3 - index}`,
+      text: `Message ${3 - index}`,
+      created_at: `2026-08-06T12:0${3 - index}:00Z`,
+      author_id: "member-1",
+      image_url: null,
+      reply_to_id: null,
+      group_id: "group-1",
+    }));
+    const fake = queryClient({ data: rows, error: null });
+
+    await expect(fetchInboxGroupPrefetchPage("group-1", 2, fake.client)).resolves.toEqual({
+      messages: [rows[1], rows[0]],
+      hasOlderMessages: true,
+    });
+    expect(fake.from).toHaveBeenCalledWith("group_messages");
+    expect(fake.builder.select).toHaveBeenCalledWith(
+      "id, text, created_at, author_id, image_url, reply_to_id, group_id",
+    );
+    expect(fake.builder.eq).toHaveBeenCalledWith("group_id", "group-1");
+    expect(fake.builder.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(fake.builder.limit).toHaveBeenCalledWith(3);
+  });
+
+  it("returns a short group prefetch page in chronological order", async () => {
+    const newest = {
+      id: "newest", text: "Newest", created_at: "2026-08-06T12:02:00Z",
+      author_id: "member-1", image_url: null, reply_to_id: null, group_id: "group-1",
+    };
+    const oldest = {
+      id: "oldest", text: "Oldest", created_at: "2026-08-06T12:01:00Z",
+      author_id: "member-1", image_url: null, reply_to_id: null, group_id: "group-1",
+    };
+    const fake = queryClient({ data: [newest, oldest], error: null });
+
+    await expect(fetchInboxGroupPrefetchPage("group-1", 15, fake.client)).resolves.toEqual({
+      messages: [oldest, newest],
+      hasOlderMessages: false,
+    });
+  });
+
+  it("keeps an unavailable group prefetch non-blocking", async () => {
+    const unavailable = queryClient({ data: null, error: new Error("group messages unavailable") });
+    await expect(fetchInboxGroupPrefetchPage("group-1", 15, unavailable.client)).resolves.toEqual({
+      messages: [], hasOlderMessages: false,
+    });
+  });
+
+  it("prefetches only the requested immutable club scope", async () => {
+    const rows = Array.from({ length: 3 }, (_, index) => ({
+      id: `club-message-${3 - index}`,
+      text: `Message ${3 - index}`,
+      created_at: `2026-08-06T12:0${3 - index}:00Z`,
+      author_id: "admin-1",
+      image_url: null,
+      reply_to_id: null,
+      club_id: "club-1",
+    }));
+    const fake = queryClient({ data: rows, error: null });
+
+    await expect(fetchInboxClubPrefetchPage("club-1", 2, fake.client)).resolves.toEqual({
+      messages: [rows[1], rows[0]],
+      hasOlderMessages: true,
+    });
+    expect(fake.from).toHaveBeenCalledWith("club_messages");
+    expect(fake.builder.select).toHaveBeenCalledWith(
+      "id, text, created_at, author_id, image_url, reply_to_id, club_id",
+    );
+    expect(fake.builder.eq).toHaveBeenCalledWith("club_id", "club-1");
+    expect(fake.builder.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(fake.builder.limit).toHaveBeenCalledWith(3);
+  });
+
+  it("returns a short club prefetch page in chronological order", async () => {
+    const newest = {
+      id: "newest", text: "Newest", created_at: "2026-08-06T12:02:00Z",
+      author_id: "admin-1", image_url: null, reply_to_id: null, club_id: "club-1",
+    };
+    const oldest = {
+      id: "oldest", text: "Oldest", created_at: "2026-08-06T12:01:00Z",
+      author_id: "admin-1", image_url: null, reply_to_id: null, club_id: "club-1",
+    };
+    const fake = queryClient({ data: [newest, oldest], error: null });
+
+    await expect(fetchInboxClubPrefetchPage("club-1", 15, fake.client)).resolves.toEqual({
+      messages: [oldest, newest],
+      hasOlderMessages: false,
+    });
+  });
+
+  it("keeps an unavailable club prefetch non-blocking", async () => {
+    const unavailable = queryClient({ data: null, error: new Error("club messages unavailable") });
+    await expect(fetchInboxClubPrefetchPage("club-1", 15, unavailable.client)).resolves.toEqual({
+      messages: [], hasOlderMessages: false,
+    });
+  });
+
+  it("prefetches only the requested immutable team scope", async () => {
+    const rows = Array.from({ length: 3 }, (_, index) => ({
+      id: `team-message-${3 - index}`,
+      text: `Message ${3 - index}`,
+      created_at: `2026-08-06T12:0${3 - index}:00Z`,
+      author_id: "coach-1",
+      image_url: null,
+      reply_to_id: null,
+      team_id: "team-1",
+    }));
+    const fake = queryClient({ data: rows, error: null });
+
+    await expect(fetchInboxTeamPrefetchPage("team-1", 2, fake.client)).resolves.toEqual({
+      messages: [rows[1], rows[0]],
+      hasOlderMessages: true,
+    });
+    expect(fake.from).toHaveBeenCalledWith("team_messages");
+    expect(fake.builder.select).toHaveBeenCalledWith(
+      "id, text, created_at, author_id, image_url, reply_to_id, team_id",
+    );
+    expect(fake.builder.eq).toHaveBeenCalledWith("team_id", "team-1");
+    expect(fake.builder.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(fake.builder.limit).toHaveBeenCalledWith(3);
+  });
+
+  it("returns a short team prefetch page in chronological order", async () => {
+    const newest = {
+      id: "newest", text: "Newest", created_at: "2026-08-06T12:02:00Z",
+      author_id: "coach-1", image_url: null, reply_to_id: null, team_id: "team-1",
+    };
+    const oldest = {
+      id: "oldest", text: "Oldest", created_at: "2026-08-06T12:01:00Z",
+      author_id: "coach-1", image_url: null, reply_to_id: null, team_id: "team-1",
+    };
+    const fake = queryClient({ data: [newest, oldest], error: null });
+
+    await expect(fetchInboxTeamPrefetchPage("team-1", 15, fake.client)).resolves.toEqual({
+      messages: [oldest, newest],
+      hasOlderMessages: false,
+    });
+  });
+
+  it("keeps an unavailable team prefetch non-blocking", async () => {
+    const unavailable = queryClient({ data: null, error: new Error("team messages unavailable") });
+    await expect(fetchInboxTeamPrefetchPage("team-1", 15, unavailable.client)).resolves.toEqual({
+      messages: [], hasOlderMessages: false,
+    });
+  });
+
+  it("prefetches one descending broadcast page plus an older-page sentinel", async () => {
+    const rows = Array.from({ length: 16 }, (_, index) => ({
+      id: `message-${16 - index}`,
+      text: `Message ${16 - index}`,
+      created_at: `2026-08-06T12:${String(16 - index).padStart(2, "0")}:00Z`,
+      author_id: "admin-1",
+      image_url: null,
+      reply_to_id: null,
+    }));
+    const fake = queryClient({ data: rows, error: null });
+
+    const result = await fetchInboxBroadcastPrefetchPage(15, fake.client);
+    expect(result.hasOlderMessages).toBe(true);
+    expect(result.messages).toHaveLength(15);
+    expect(result.messages[0].id).toBe("message-2");
+    expect(result.messages[14].id).toBe("message-16");
+    expect(fake.from).toHaveBeenCalledWith("broadcast_messages");
+    expect(fake.builder.select).toHaveBeenCalledWith(
+      "id, text, created_at, author_id, image_url, reply_to_id",
+    );
+    expect(fake.builder.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(fake.builder.limit).toHaveBeenCalledWith(16);
+  });
+
+  it("preserves chronological order for a short broadcast prefetch page", async () => {
+    const newest = {
+      id: "newest", text: "Newest", created_at: "2026-08-06T12:02:00Z",
+      author_id: "admin-1", image_url: null, reply_to_id: null,
+    };
+    const oldest = {
+      id: "oldest", text: "Oldest", created_at: "2026-08-06T12:01:00Z",
+      author_id: "admin-1", image_url: null, reply_to_id: null,
+    };
+    const fake = queryClient({ data: [newest, oldest], error: null });
+
+    await expect(fetchInboxBroadcastPrefetchPage(15, fake.client)).resolves.toEqual({
+      messages: [oldest, newest],
+      hasOlderMessages: false,
+    });
+  });
+
+  it("keeps an empty or unavailable broadcast prefetch non-blocking", async () => {
+    const empty = queryClient({ data: [], error: null });
+    await expect(fetchInboxBroadcastPrefetchPage(15, empty.client)).resolves.toEqual({
+      messages: [], hasOlderMessages: false,
+    });
+
+    const unavailable = queryClient({ data: null, error: new Error("broadcast unavailable") });
+    await expect(fetchInboxBroadcastPrefetchPage(15, unavailable.client)).resolves.toEqual({
+      messages: [], hasOlderMessages: false,
+    });
+  });
+
+  it("reads only the current user's newest welcome system message", async () => {
+    const welcome = {
+      id: "welcome-1",
+      user_id: "user-1",
+      message_type: "welcome",
+      text: "Welcome to Ignite",
+      created_at: "2026-08-06T12:00:00Z",
+      read_at: null,
+    };
+    const fake = queryClient({ data: welcome, error: null });
+
+    await expect(fetchInboxSystemMessage("user-1", fake.client)).resolves.toEqual(welcome);
+    expect(fake.from).toHaveBeenCalledWith("system_messages");
+    expect(fake.builder.select).toHaveBeenCalledWith("*");
+    expect(fake.builder.eq).toHaveBeenNthCalledWith(1, "user_id", "user-1");
+    expect(fake.builder.eq).toHaveBeenNthCalledWith(2, "message_type", "welcome");
+    expect(fake.builder.order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(fake.builder.limit).toHaveBeenCalledWith(1);
+    expect(fake.builder.maybeSingle).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the established empty and unavailable system-message behavior", async () => {
+    const empty = queryClient({ data: null, error: null });
+    await expect(fetchInboxSystemMessage("user-1", empty.client)).resolves.toBeNull();
+
+    const unavailable = queryClient({ data: null, error: new Error("welcome unavailable") });
+    await expect(fetchInboxSystemMessage("user-1", unavailable.client)).resolves.toBeNull();
+  });
+
   it("reads direct-conversation membership for either participant in latest-update order", async () => {
     const conversations = [
       { id: "dm-2", participant_1: "user-2", participant_2: "user-1", updated_at: "2026-08-06T11:00:00Z" },

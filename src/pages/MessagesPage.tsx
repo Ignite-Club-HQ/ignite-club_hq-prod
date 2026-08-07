@@ -63,13 +63,16 @@ import {
   fetchInboxAdminTeamIds,
   fetchInboxAdminClubs,
   fetchInboxAppAdminStatus,
+  fetchInboxBroadcastPrefetchPage,
   fetchInboxClubScopeFilter,
   fetchInboxClubProStatus,
+  fetchInboxClubPrefetchPage,
   fetchInboxCommitteeMemberStatus,
   fetchInboxCompetitionClubMap,
   fetchInboxEventTitleMap,
   fetchInboxHiddenDirectMessages,
   fetchInboxHiddenGroups,
+  fetchInboxGroupPrefetchPage,
   fetchInboxHasAnyProAccess,
   fetchInboxMutedChats,
   fetchInboxMemberClubsWithMessages,
@@ -77,6 +80,8 @@ import {
   fetchInboxChatGroupsWithMessages,
   fetchInboxLatestBroadcast,
   fetchInboxLatestDirectMessages,
+  fetchInboxSystemMessage,
+  fetchInboxTeamPrefetchPage,
   fetchInboxDirectConversationMembership,
   fetchInboxUserLeagueIds,
   fetchInboxUserRoles,
@@ -738,18 +743,7 @@ export default function MessagesPage() {
   // Fetch system messages (welcome message from Ignite Support)
   const { data: systemMessage } = useQuery({
     queryKey: ["system-messages", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("system_messages")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("message_type", "welcome")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) return null;
-      return data;
-    },
+    queryFn: () => fetchInboxSystemMessage(user!.id),
     enabled: !!user,
   });
 
@@ -799,18 +793,7 @@ export default function MessagesPage() {
       if (cancelled) return;
       queryClient.prefetchQuery({
         queryKey: ["broadcast-messages"],
-        queryFn: async () => {
-          const { data: messagesData } = await supabase
-            .from("broadcast_messages")
-            .select("id, text, created_at, author_id, image_url, reply_to_id")
-            .order("created_at", { ascending: false })
-            .limit(MESSAGES_PER_PAGE + 1);
-          
-          if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-          const hasMore = messagesData.length > MESSAGES_PER_PAGE;
-          const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-          return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
-        },
+        queryFn: () => fetchInboxBroadcastPrefetchPage(MESSAGES_PER_PAGE),
         staleTime: 1000 * 60,
       });
 
@@ -818,19 +801,7 @@ export default function MessagesPage() {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["team-messages", team.id],
-          queryFn: async () => {
-            const { data: messagesData } = await supabase
-              .from("team_messages")
-              .select("id, text, created_at, author_id, image_url, reply_to_id, team_id")
-              .eq("team_id", team.id)
-              .order("created_at", { ascending: false })
-              .limit(MESSAGES_PER_PAGE + 1);
-            
-            if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-            const hasMore = messagesData.length > MESSAGES_PER_PAGE;
-            const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-            return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
-          },
+          queryFn: () => fetchInboxTeamPrefetchPage(team.id, MESSAGES_PER_PAGE),
           staleTime: 1000 * 60,
         });
       });
@@ -839,19 +810,7 @@ export default function MessagesPage() {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["club-messages", club.id],
-          queryFn: async () => {
-            const { data: messagesData } = await supabase
-              .from("club_messages")
-              .select("id, text, created_at, author_id, image_url, reply_to_id, club_id")
-              .eq("club_id", club.id)
-              .order("created_at", { ascending: false })
-              .limit(MESSAGES_PER_PAGE + 1);
-            
-            if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-            const hasMore = messagesData.length > MESSAGES_PER_PAGE;
-            const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-            return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
-          },
+          queryFn: () => fetchInboxClubPrefetchPage(club.id, MESSAGES_PER_PAGE),
           staleTime: 1000 * 60,
         });
       });
@@ -860,19 +819,7 @@ export default function MessagesPage() {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["group-messages", group.id],
-          queryFn: async () => {
-            const { data: messagesData } = await supabase
-              .from("group_messages")
-              .select("id, text, created_at, author_id, image_url, reply_to_id, group_id")
-              .eq("group_id", group.id)
-              .order("created_at", { ascending: false })
-              .limit(MESSAGES_PER_PAGE + 1);
-            
-            if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-            const hasMore = messagesData.length > MESSAGES_PER_PAGE;
-            const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-            return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
-          },
+          queryFn: () => fetchInboxGroupPrefetchPage(group.id, MESSAGES_PER_PAGE),
           staleTime: 1000 * 60,
         });
       });

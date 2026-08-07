@@ -893,6 +893,65 @@ Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pag
   is now a thin coordinator over independently tested membership, preview,
   profile, assembly, persistence and hydration boundaries. No runtime defect
   was found.
+- M10f extracts the latest welcome-system-message read behind the typed inbox
+  repository boundary. The exact user and `welcome` filters, descending
+  creation order, one-row limit and established unavailable-as-empty behavior
+  remain unchanged. React Query key, enablement and support-row composition
+  remain page-owned. Verification passed all 74 repository tests, 86 focused
+  repository/composition/inbox-guard tests, TypeScript, focused lint, the
+  production build and the Android cached-order no-jolt journey.
+  `MessagesPage` reduced from 2,617 to 2,607 lines. No runtime defect was found.
+- M10g1 begins bounded thread-prefetch extraction with Broadcast only. The
+  exact selected columns, descending read, page-plus-one sentinel, chronological
+  cache result and established non-blocking unavailable behavior remain
+  unchanged. Native prefetch suppression, idle scheduling, React Query key and
+  stale time remain page-owned; Team, Club and Group are deliberately deferred
+  until this slice is independently verified. Verification passed all 77
+  repository tests, 89 focused repository/composition/inbox-guard tests,
+  TypeScript, focused lint and the production build. Both Broadcast read/send
+  journeys and the Android cached-order no-jolt journey passed.
+  `MessagesPage` reduced from 2,607 to 2,597 lines. No runtime defect was found.
+- M10g2 extends the bounded prefetch repository boundary to Team while keeping
+  its immutable `team_id` filter explicit. Selected columns, descending
+  page-plus-one read, chronological cache result and non-blocking unavailable
+  behavior remain unchanged. Scheduling, native suppression, cap selection,
+  React Query keys/stale time and Club/Group prefetch remain page-owned.
+  Verification passed all 80 repository tests, 92 focused repository/
+  composition/inbox-guard tests, TypeScript, focused lint and the production
+  build. Exact Team send scope, cross-team cached-row isolation and Android
+  cached-order no-jolt journeys passed. `MessagesPage` reduced from 2,597 to
+  2,586 lines. No runtime defect was found.
+- M10g3 extends bounded thread-prefetch extraction to Club with its immutable
+  `club_id` scope kept explicit. Selected columns, descending page-plus-one
+  read, chronological cache result and non-blocking unavailable behavior remain
+  unchanged. Scheduling, native suppression, cap selection, React Query key/
+  stale time and Group prefetch remain page-owned. Verification passed all 83
+  repository tests, 95 focused repository/composition/inbox-guard tests,
+  TypeScript, focused lint and the production build. Exact Club Chat send scope
+  and Android cached-order no-jolt journeys passed. `MessagesPage` reduced from
+  2,586 to 2,575 lines. No runtime defect was found.
+- M10g4 completes bounded thread-prefetch extraction with Group while keeping
+  its immutable `group_id` scope explicit. Selected columns, descending
+  page-plus-one read, chronological cache result and non-blocking unavailable
+  behavior remain unchanged. Group visibility stays outside this data read;
+  scheduling, native suppression, cap selection and React Query ownership
+  remain page-owned. Verification passed all 86 repository tests, 98 focused
+  repository/composition/inbox-guard tests, TypeScript, focused lint and the
+  production build. Exact Group Chat send scope, optimistic reaction delivery
+  and Android cached-order no-jolt journeys passed. `MessagesPage` reduced from
+  2,575 to 2,564 lines. No runtime defect was found. M10g is complete across
+  Broadcast, Team, Club and Group.
+- M10 closeout confirms that all inbox reads now delegate to explicit typed
+  repositories or existing query modules. The direct Supabase operations left
+  in `MessagesPage` are user-triggered hide/delete mutations and two scoped
+  Realtime channel lifecycles; moving those begins a separate higher-risk
+  tranche. The complete frontend estate passed 3,939 tests across 341 files,
+  with three intentional skips. The 90-case messaging Playwright pack completed
+  88/90 under combined load; the Realtime-preview convergence and Android
+  exact-row no-jolt timing misses each passed unchanged 3/3 in isolated reruns.
+  No threshold or production behavior was changed. TypeScript, focused lint and
+  the production build also passed. M10 is technically complete and ready for
+  a clean commit checkpoint before any mutation or Realtime refactor.
 
 ## Objective
 

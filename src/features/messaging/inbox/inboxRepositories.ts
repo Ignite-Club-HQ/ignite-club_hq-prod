@@ -7,12 +7,154 @@ import { deriveActiveMutedChats, type ActiveMutedChats } from "./inboxReadModel"
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 
+export type InboxSystemMessage = Database["public"]["Tables"]["system_messages"]["Row"];
+
+/**
+ * Reads the current user's latest welcome message without owning React Query
+ * policy. The legacy inbox treats an unavailable read as no welcome message;
+ * that failure contract remains explicit here until product behaviour changes.
+ */
+export async function fetchInboxSystemMessage(
+  userId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<InboxSystemMessage | null> {
+  const { data, error } = await client
+    .from("system_messages")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("message_type", "welcome")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return null;
+  return data;
+}
+
 export interface InboxBroadcastPreview {
   text: string;
   created_at: string;
   image_url: string | null;
   author_id: string | null;
   profiles: { display_name: string };
+}
+
+export type InboxBroadcastPrefetchMessage = Pick<
+  Database["public"]["Tables"]["broadcast_messages"]["Row"],
+  "id" | "text" | "created_at" | "author_id" | "image_url" | "reply_to_id"
+>;
+
+export interface InboxBroadcastPrefetchPage {
+  messages: InboxBroadcastPrefetchMessage[];
+  hasOlderMessages: boolean;
+}
+
+export type InboxTeamPrefetchMessage = Pick<
+  Database["public"]["Tables"]["team_messages"]["Row"],
+  "id" | "text" | "created_at" | "author_id" | "image_url" | "reply_to_id" | "team_id"
+>;
+
+export interface InboxTeamPrefetchPage {
+  messages: InboxTeamPrefetchMessage[];
+  hasOlderMessages: boolean;
+}
+
+export type InboxClubPrefetchMessage = Pick<
+  Database["public"]["Tables"]["club_messages"]["Row"],
+  "id" | "text" | "created_at" | "author_id" | "image_url" | "reply_to_id" | "club_id"
+>;
+
+export interface InboxClubPrefetchPage {
+  messages: InboxClubPrefetchMessage[];
+  hasOlderMessages: boolean;
+}
+
+export type InboxGroupPrefetchMessage = Pick<
+  Database["public"]["Tables"]["group_messages"]["Row"],
+  "id" | "text" | "created_at" | "author_id" | "image_url" | "reply_to_id" | "group_id"
+>;
+
+export interface InboxGroupPrefetchPage {
+  messages: InboxGroupPrefetchMessage[];
+  hasOlderMessages: boolean;
+}
+
+/** Reads one immutable group scope for the inbox's idle thread prefetch. */
+export async function fetchInboxGroupPrefetchPage(
+  groupId: string,
+  pageSize: number,
+  client: IgniteSupabaseClient = supabase,
+): Promise<InboxGroupPrefetchPage> {
+  const { data } = await client
+    .from("group_messages")
+    .select("id, text, created_at, author_id, image_url, reply_to_id, group_id")
+    .eq("group_id", groupId)
+    .order("created_at", { ascending: false })
+    .limit(pageSize + 1);
+
+  if (!data?.length) return { messages: [], hasOlderMessages: false };
+  const hasOlderMessages = data.length > pageSize;
+  const page = hasOlderMessages ? data.slice(0, pageSize) : data;
+  return { messages: [...page].reverse(), hasOlderMessages };
+}
+
+/** Reads one immutable club scope for the inbox's idle thread prefetch. */
+export async function fetchInboxClubPrefetchPage(
+  clubId: string,
+  pageSize: number,
+  client: IgniteSupabaseClient = supabase,
+): Promise<InboxClubPrefetchPage> {
+  const { data } = await client
+    .from("club_messages")
+    .select("id, text, created_at, author_id, image_url, reply_to_id, club_id")
+    .eq("club_id", clubId)
+    .order("created_at", { ascending: false })
+    .limit(pageSize + 1);
+
+  if (!data?.length) return { messages: [], hasOlderMessages: false };
+  const hasOlderMessages = data.length > pageSize;
+  const page = hasOlderMessages ? data.slice(0, pageSize) : data;
+  return { messages: [...page].reverse(), hasOlderMessages };
+}
+
+/** Reads one immutable team scope for the inbox's idle thread prefetch. */
+export async function fetchInboxTeamPrefetchPage(
+  teamId: string,
+  pageSize: number,
+  client: IgniteSupabaseClient = supabase,
+): Promise<InboxTeamPrefetchPage> {
+  const { data } = await client
+    .from("team_messages")
+    .select("id, text, created_at, author_id, image_url, reply_to_id, team_id")
+    .eq("team_id", teamId)
+    .order("created_at", { ascending: false })
+    .limit(pageSize + 1);
+
+  if (!data?.length) return { messages: [], hasOlderMessages: false };
+  const hasOlderMessages = data.length > pageSize;
+  const page = hasOlderMessages ? data.slice(0, pageSize) : data;
+  return { messages: [...page].reverse(), hasOlderMessages };
+}
+
+/**
+ * Reads the initial broadcast thread page for the inbox's idle prefetch. The
+ * caller continues to own whether/when prefetching runs and its React Query
+ * cache policy.
+ */
+export async function fetchInboxBroadcastPrefetchPage(
+  pageSize: number,
+  client: IgniteSupabaseClient = supabase,
+): Promise<InboxBroadcastPrefetchPage> {
+  const { data } = await client
+    .from("broadcast_messages")
+    .select("id, text, created_at, author_id, image_url, reply_to_id")
+    .order("created_at", { ascending: false })
+    .limit(pageSize + 1);
+
+  if (!data?.length) return { messages: [], hasOlderMessages: false };
+  const hasOlderMessages = data.length > pageSize;
+  const page = hasOlderMessages ? data.slice(0, pageSize) : data;
+  return { messages: [...page].reverse(), hasOlderMessages };
 }
 
 export async function fetchInboxLatestBroadcast(
