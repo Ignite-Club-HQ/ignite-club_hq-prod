@@ -18,16 +18,29 @@ export function useChatJumpHydration(
     let fadeTimer: ReturnType<typeof setTimeout> | null = null;
     let unmountTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelSettleWait: (() => void) | null = null;
+    let hardTimer: number | null = null;
+    const OVERLAY_HARD_DEADLINE_MS = 7000;
+    let lifecycleStartedAt = performance.now();
+    const remainingBudget = () =>
+      Math.max(0, OVERLAY_HARD_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
 
     const onStart = () => {
       if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
       if (unmountTimer) { clearTimeout(unmountTimer); unmountTimer = null; }
       if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
+      if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
+      lifecycleStartedAt = performance.now();
+      hardTimer = window.setTimeout(() => {
+        hardTimer = null;
+        if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
+        fadeOut();
+      }, OVERLAY_HARD_DEADLINE_MS);
       setRenderJumpOverlay(true);
       setIsJumpHydrating(true);
     };
 
     const fadeOut = () => {
+      if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
       setIsJumpHydrating(false);
       if (unmountTimer) clearTimeout(unmountTimer);
       unmountTimer = setTimeout(() => setRenderJumpOverlay(false), 300);
@@ -37,10 +50,11 @@ export function useChatJumpHydration(
       if (fadeTimer) clearTimeout(fadeTimer);
       if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
       const scroller = scrollerRef.current;
-      if (scroller) {
+      const budget = remainingBudget();
+      if (scroller && budget > 200) {
         cancelSettleWait = waitForChatVisualContentSettle(
           scroller,
-          { quietMs: 650, maxMs: 8000 },
+          { quietMs: 650, maxMs: Math.min(8000, budget) },
           () => {
             cancelSettleWait = null;
             fadeTimer = setTimeout(fadeOut, 80);
@@ -57,6 +71,7 @@ export function useChatJumpHydration(
       if (value) onStart();
       else onEnd();
     });
+    if (isChatJumpActive()) onStart();
 
     return () => {
       window.removeEventListener("chat:jump-hydration-start", onStart);
@@ -64,6 +79,7 @@ export function useChatJumpHydration(
       unsubscribe();
       if (fadeTimer) clearTimeout(fadeTimer);
       if (unmountTimer) clearTimeout(unmountTimer);
+      if (hardTimer !== null) window.clearTimeout(hardTimer);
       if (cancelSettleWait) cancelSettleWait();
     };
   }, [scrollerRef]);

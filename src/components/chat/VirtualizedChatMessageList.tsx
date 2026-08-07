@@ -493,15 +493,35 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       let cancelled = false;
       let cleanup: (() => void) | null = null;
       let revealFrame: number | null = null;
+      let retryTimer: number | null = null;
+      let hardTimer: number | null = null;
+      // Hard, lifecycle-anchored reveal deadline. Measured ONCE from the
+      // start of this target hydration lifecycle (this effect run), never
+      // restarted by rerenders, message-window growth or repeated
+      // `isChatJumpActive()` retries. Without it the retry loop below could
+      // re-arm a fresh settle wait forever and leave the user staring at a
+      // blank thread (observed >20s on Android).
+      const lifecycleStartedAt = performance.now();
+      const HARD_REVEAL_DEADLINE_MS = 7000;
+      const remainingBudget = () =>
+        Math.max(0, HARD_REVEAL_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
+      const finish = () => {
+        if (cancelled) return;
+        cancelled = true;
+        cleanup?.();
+        if (retryTimer !== null) window.clearTimeout(retryTimer);
+        if (hardTimer !== null) window.clearTimeout(hardTimer);
+        revealFrame = requestAnimationFrame(() => setInitialRevealReady(true));
+      };
       const reveal = () => {
         if (cancelled) return;
-        if (isChatJumpActive()) {
-          window.setTimeout(wait, 80);
+        // The jump is still repositioning: give it another slice, but only
+        // within the lifecycle budget.
+        if (isChatJumpActive() && remainingBudget() > 120) {
+          retryTimer = window.setTimeout(wait, 80);
           return;
         }
-        revealFrame = requestAnimationFrame(() => {
-          if (!cancelled) setInitialRevealReady(true);
-        });
+        finish();
       };
       const wait = () => {
         if (cancelled) return;
@@ -510,19 +530,24 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           revealFrame = requestAnimationFrame(wait);
           return;
         }
+        cleanup?.();
         cleanup = waitForChatVisualContentSettle(
           scroller,
-          { quietMs: 650, maxMs: 6500 },
+          { quietMs: 650, maxMs: Math.max(200, Math.min(6500, remainingBudget())) },
           reveal,
         );
       };
+      hardTimer = window.setTimeout(finish, HARD_REVEAL_DEADLINE_MS);
       wait();
       return () => {
         cancelled = true;
         cleanup?.();
+        if (retryTimer !== null) window.clearTimeout(retryTimer);
+        if (hardTimer !== null) window.clearTimeout(hardTimer);
         if (revealFrame !== null) cancelAnimationFrame(revealFrame);
       };
     }
+
     if (!initialBottomPinned) {
       bottomPinReadyRef.current = true;
       pinnedRevisionRef.current = bottomPinRevision;
@@ -685,7 +710,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // needs to fire when a new pin revision is requested or when the list
     // transitions between empty / non-empty.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bottomPinRevision, messages.length === 0, initialBottomPinned]);
+    // `initialTargetMessageId` is included so a NEW deep-link target starts a
+    // fresh hydration lifecycle (and cancels the previous one) rather than
+    // inheriting an already-expired deadline from another notification.
+  }, [bottomPinRevision, messages.length === 0, initialBottomPinned, initialTargetMessageId]);
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
