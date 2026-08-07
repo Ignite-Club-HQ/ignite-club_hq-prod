@@ -934,7 +934,7 @@ export default function TeamDetailPage() {
             Invite
           </Button>
         )}
-        {isAdmin && isClassMode && (
+        {canEditTeamSettings && isClassMode && (
           <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
             <Pencil className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -947,7 +947,7 @@ export default function TeamDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canManageTeam && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+              {canEditTeamSettings && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit {isClassMode ? "Class" : "Team"}
               </DropdownMenuItem>}
@@ -1045,8 +1045,8 @@ export default function TeamDetailPage() {
                   </AlertDialog>
                 </>
               )}
-              {canManageTeam && <DropdownMenuSeparator />}
-              {canManageTeam && <ArchiveTeamDialog
+              {canEditTeamSettings && <DropdownMenuSeparator />}
+              {canEditTeamSettings && <ArchiveTeamDialog
                 teamId={id!}
                 teamName={team?.name || ""}
                 clubId={team?.club_id || ""}
@@ -1064,7 +1064,7 @@ export default function TeamDetailPage() {
                 }
               />
               }
-              {canManageTeam && <DropdownMenuItem
+              {canEditTeamSettings && <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
               >
