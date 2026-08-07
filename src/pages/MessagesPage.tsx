@@ -1920,8 +1920,9 @@ export default function MessagesPage() {
           };
         });
         bumpUnread('team', row.team_id, row.author_id);
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (payload: any) => {
+      },
+      club_messages: (payload: any) => {
+
         const row = payload.new;
         if (!isAuthorized('club', row?.club_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'club', targetId: row.club_id });
@@ -1942,8 +1943,9 @@ export default function MessagesPage() {
           };
         });
         bumpUnread('club', row.club_id, row.author_id);
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (payload: any) => {
+      },
+      group_messages: (payload: any) => {
+
         const row = payload.new;
         if (!isAuthorized('group', row?.group_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'group', targetId: row.group_id });
@@ -1964,8 +1966,9 @@ export default function MessagesPage() {
           };
         });
         bumpUnread('group', row.group_id, row.author_id);
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload: any) => {
+      },
+      direct_messages: (payload: any) => {
+
         const row = payload.new;
         if (!isAuthorized('dm', row?.conversation_id)) return;
         queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
@@ -1996,8 +1999,9 @@ export default function MessagesPage() {
           resolveAuthor(otherId, { kind: 'dm', targetId: row.conversation_id });
         }
         bumpUnread('dm', row.conversation_id, row.author_id);
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (payload: any) => {
+      },
+      broadcast_messages: (payload: any) => {
+
         if (authStatusRef.current !== 'ready') return;
         const row = payload.new;
         queryClient.setQueryData(["latest-broadcast"], (old: any) => ({
@@ -2007,7 +2011,59 @@ export default function MessagesPage() {
           profiles: old?.profiles ?? null,
         }));
         bumpUnread('broadcast', null);
-      })
+      },
+    };
+
+    // Bounded buffer-then-replay. While the membership snapshot is loading we
+    // hold events (max 50, oldest dropped) instead of discarding them; the
+    // replay re-runs the same fail-closed `isAuthorized` check.
+    const MAX_PENDING_NATIVE = 50;
+    // Idempotency: a replayed event must not double-apply a preview/unread
+    // update that polling (or a duplicate delivery) already handled.
+    const appliedEventKeys = new Set<string>();
+    const eventKey = (table: string, payload: any) => {
+      const id = payload?.new?.id;
+      return id ? `${table}:${id}` : null;
+    };
+    const applyOnce = (table: string, payload: any) => {
+      const key = eventKey(table, payload);
+      if (key) {
+        if (appliedEventKeys.has(key)) return;
+        appliedEventKeys.add(key);
+        if (appliedEventKeys.size > 200) {
+          const oldest = appliedEventKeys.values().next().value as string | undefined;
+          if (oldest) appliedEventKeys.delete(oldest);
+        }
+      }
+      handlers[table]?.(payload);
+    };
+    const dispatch = (table: string, payload: any) => {
+      if (authStatusRef.current !== 'ready') {
+        const buf = pendingNativeRealtimeRef.current;
+        buf.push({ table, payload });
+        if (buf.length > MAX_PENDING_NATIVE) buf.splice(0, buf.length - MAX_PENDING_NATIVE);
+        return;
+      }
+      applyOnce(table, payload);
+    };
+
+    nativeRealtimeFlushRef.current = () => {
+      const buffered = pendingNativeRealtimeRef.current;
+      if (buffered.length === 0) return;
+      pendingNativeRealtimeRef.current = [];
+      for (const item of buffered) applyOnce(item.table, item.payload);
+    };
+    nativeRealtimeDiscardRef.current = () => {
+      pendingNativeRealtimeRef.current = [];
+    };
+
+    const channel = supabase
+      .channel(`messages-inbox-light-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (p: any) => dispatch('team_messages', p))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'club_messages' }, (p: any) => dispatch('club_messages', p))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p))
       .subscribe();
 
     const unregister = registerChannel({
@@ -2019,7 +2075,10 @@ export default function MessagesPage() {
 
     return () => {
       unregister();
-      if (flushTimer) clearTimeout(flushTimer);
+      unregister();
+      nativeRealtimeFlushRef.current = null;
+      nativeRealtimeDiscardRef.current = null;
+      pendingNativeRealtimeRef.current = [];
     };
   }, [user?.id, queryClient]);
 
