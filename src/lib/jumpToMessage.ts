@@ -83,7 +83,22 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   }
   setChatJumpActive(true);
   let hydrationEnded = false;
+  // Hard, lifecycle-anchored overlay release. Polling can legitimately run up
+  // to maxAttempts * intervalMs (~30s) when the target row never arrives; the
+  // user must NOT stare at the hydration skeleton for that long. Release the
+  // overlay after this budget while polling continues in the background. The
+  // jump-active flag stays set so bottom-pin compensators still don't yank the
+  // viewport. Measured once from the start of this jump — never restarted.
+  const OVERLAY_RELEASE_MS = 7000;
+  let overlayReleaseTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    overlayReleaseTimer = null;
+    if (hydrationEnded) return;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("chat:jump-hydration-end"));
+    }
+  }, OVERLAY_RELEASE_MS);
   const endHydration = () => {
+    if (overlayReleaseTimer) { clearTimeout(overlayReleaseTimer); overlayReleaseTimer = null; }
     if (hydrationEnded) return;
     hydrationEnded = true;
     setChatJumpActive(false);
@@ -91,6 +106,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
       window.dispatchEvent(new CustomEvent("chat:jump-hydration-end"));
     }
   };
+
 
 
   let attempts = 0;
