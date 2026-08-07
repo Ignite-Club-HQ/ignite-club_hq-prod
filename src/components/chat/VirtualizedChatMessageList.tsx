@@ -2282,12 +2282,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (value) onStart();
       else onEnd();
     });
+    // Jump was already active before this list mounted (cold push tap): the
+    // start event was dispatched before our listener existed, so arm the
+    // lifecycle budget now — otherwise the seeded overlay would have no
+    // deadline at all.
+    if (isChatJumpActive()) onStart();
     return () => {
       window.removeEventListener("chat:jump-hydration-start", onStart);
       window.removeEventListener("chat:jump-hydration-end", onEnd);
       unsubscribe();
       if (fadeTimer) clearTimeout(fadeTimer);
       if (unmountTimer) clearTimeout(unmountTimer);
+      if (hardTimer !== null) window.clearTimeout(hardTimer);
       if (cancelSettleWait) cancelSettleWait();
     };
   }, []);
