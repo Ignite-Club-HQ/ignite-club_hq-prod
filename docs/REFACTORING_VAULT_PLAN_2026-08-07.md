@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V3e committed; V3f storage reporting complete locally; review/commit pending
+**Status:** V1–V3f committed; V4a rename/move mutations complete locally; review/commit pending
 
 ## Objective
 
@@ -207,6 +207,17 @@ does not move Supabase ownership.
 - Preserve optimistic cache rollback, upload compensation and partial failure
   reporting.
 - Do not combine database-contract changes with this extraction.
+
+**V4a completed locally 7 August 2026:**
+
+- Extracted folder rename, file/photo rename and file move writes into a typed
+  mutation repository.
+- Preserved exact table/ID/payload contracts, including the distinction between
+  omitted `targetTeamId` (retain scope) and explicit `null` (clear scope).
+- Kept React Query lifecycle callbacks, path state, dialogs, invalidation and
+  toasts in `VaultPage`.
+- Added five mutation contracts including original permission-error
+  propagation; focused verification passes 156/156 tests across thirteen files.
 
 ### V5 — Upload and external-link workflows
 

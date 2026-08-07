@@ -92,6 +92,11 @@ import {
   fetchVaultStorageBreakdown,
   fetchVaultStorageSubscription,
 } from "@/features/vault/vaultStorageRepository";
+import {
+  moveVaultFile,
+  renameVaultFolder,
+  renameVaultItem,
+} from "@/features/vault/vaultMutationRepository";
 
 
 import {
@@ -1171,10 +1176,8 @@ export default function VaultPage() {
   });
 
   const renameFolderMutation = useMutation({
-    mutationFn: async ({ folderId, newName }: { folderId: string; newName: string }) => {
-      const { error } = await supabase.from("vault_folders").update({ name: newName }).eq("id", folderId);
-      if (error) throw error;
-    },
+    mutationFn: ({ folderId, newName }: { folderId: string; newName: string }) =>
+      renameVaultFolder(folderId, newName),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["vault-subfolders"] });
       // Update folder path if renamed folder is in the path
@@ -1189,10 +1192,8 @@ export default function VaultPage() {
   });
 
   const renameFileMutation = useMutation({
-    mutationFn: async ({ fileId, newName }: { fileId: string; newName: string }) => {
-      const { error } = await supabase.from("vault_files").update({ name: newName }).eq("id", fileId);
-      if (error) throw error;
-    },
+    mutationFn: ({ fileId, newName }: { fileId: string; newName: string }) =>
+      renameVaultItem(fileId, newName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       setRenameFileId(null);
@@ -1206,10 +1207,8 @@ export default function VaultPage() {
 
   // Vault photos are stored in vault_files, so rename updates vault_files.name
   const renamePhotoMutation = useMutation({
-    mutationFn: async ({ photoId, newName }: { photoId: string; newName: string }) => {
-      const { error } = await supabase.from("vault_files").update({ name: newName }).eq("id", photoId);
-      if (error) throw error;
-    },
+    mutationFn: ({ photoId, newName }: { photoId: string; newName: string }) =>
+      renameVaultItem(photoId, newName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       setRenamePhotoId(null);
@@ -1634,21 +1633,8 @@ export default function VaultPage() {
 
   // Move file to a different folder or team
   const moveFileMutation = useMutation({
-    mutationFn: async ({ fileId, targetFolderId, targetTeamId }: { fileId: string; targetFolderId: string | null; targetTeamId?: string | null }) => {
-      const updateData: { folder_id: string | null; team_id?: string | null } = { 
-        folder_id: targetFolderId 
-      };
-      
-      // If moving to a team (or to root), update team_id as well
-      if (targetTeamId !== undefined) {
-        updateData.team_id = targetTeamId;
-      }
-      
-      const { error } = await supabase.from("vault_files")
-        .update(updateData)
-        .eq("id", fileId);
-      if (error) throw error;
-    },
+    mutationFn: (variables: { fileId: string; targetFolderId: string | null; targetTeamId?: string | null }) =>
+      moveVaultFile(variables),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       setMoveFileDialogOpen(false);
