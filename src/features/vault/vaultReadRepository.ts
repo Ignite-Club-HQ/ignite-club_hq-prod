@@ -6,6 +6,42 @@ import { filterVisibleVaultFolders, getVaultScope } from "./vaultScope";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 export type VaultFolderRow = Database["public"]["Tables"]["vault_folders"]["Row"];
+export type VaultFileRow = Database["public"]["Tables"]["vault_files"]["Row"];
+export type VaultPhotoItem = VaultFileRow & {
+  image_url: VaultFileRow["file_url"];
+  uploader_id: VaultFileRow["uploaded_by"];
+  title: VaultFileRow["name"];
+};
+
+const IMAGE_FILE_EXTENSION = /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i;
+
+export function isVaultImage(item: Pick<VaultFileRow, "file_type" | "name" | "file_url">): boolean {
+  return Boolean(
+    item.file_type?.startsWith("image/") ||
+    IMAGE_FILE_EXTENSION.test(item.name || item.file_url || ""),
+  );
+}
+
+export function partitionVaultItems(items: readonly VaultFileRow[] | null | undefined): {
+  photos: VaultPhotoItem[];
+  files: VaultFileRow[];
+} {
+  const photos: VaultPhotoItem[] = [];
+  const files: VaultFileRow[] = [];
+  for (const item of items ?? []) {
+    if (isVaultImage(item)) {
+      photos.push({
+        ...item,
+        image_url: item.file_url,
+        uploader_id: item.uploaded_by,
+        title: item.name,
+      });
+    } else {
+      files.push(item);
+    }
+  }
+  return { photos, files };
+}
 
 export async function fetchVaultSubfolders(
   options: {
@@ -48,4 +84,37 @@ export async function fetchVaultSubfolders(
       view.type === "club" && !options.isClubAdmin && options.isCoachOrTeamAdmin,
     clubRoles: options.clubRoles,
   });
+}
+
+export async function fetchVaultItems(
+  options: {
+    view: VaultFolderView;
+    isClubAdmin: boolean;
+    isCoachOrTeamAdmin: boolean;
+  },
+  client: IgniteSupabaseClient = supabase,
+): Promise<VaultFileRow[]> {
+  const { view } = options;
+  if (view.type === "root") return [];
+  const scope = getVaultScope(view);
+  let query = client.from("vault_files").select("*").is("deleted_at", null);
+
+  if (view.type === "club") {
+    if (!options.isClubAdmin && !options.isCoachOrTeamAdmin) return [];
+    query = query
+      .eq("club_id", view.clubId)
+      .is("team_id", null)
+      .is("mini_league_id", null);
+    if (!options.isClubAdmin && options.isCoachOrTeamAdmin && !scope.folderId) return [];
+  } else if (view.type === "team") {
+    query = query.eq("team_id", view.teamId);
+  } else {
+    query = query.eq("mini_league_id", view.miniLeagueId);
+  }
+
+  query = scope.folderId
+    ? query.eq("folder_id", scope.folderId)
+    : query.is("folder_id", null);
+  const { data } = await query.order("created_at", { ascending: false });
+  return data ?? [];
 }

@@ -78,7 +78,7 @@ import {
   fetchVaultTeamHasPro,
   fetchVaultUserRoles,
 } from "@/features/vault/vaultAccessRepository";
-import { fetchVaultSubfolders } from "@/features/vault/vaultReadRepository";
+import { fetchVaultItems, fetchVaultSubfolders, partitionVaultItems } from "@/features/vault/vaultReadRepository";
 
 
 import {
@@ -601,59 +601,12 @@ export default function VaultPage() {
   // Photos uploaded directly to Vault stay in vault_files only (not in photos table)
   const { data: vaultItems } = useQuery({
     queryKey: ["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin],
-    queryFn: async () => {
-      const folderId = getCurrentFolderId();
-      let query = supabase.from("vault_files").select("*").is("deleted_at", null);
-      
-      if (currentView.type === "club") {
-        if (!isClubAdmin && !isCoachOrTeamAdmin) return [];
-        query = query.eq("club_id", currentView.clubId).is("team_id", null).is("mini_league_id", null);
-        
-        // Non-admin coaches/team admins can only see files inside chat folders
-        if (!isClubAdmin && isCoachOrTeamAdmin && !folderId) {
-          // At root level with no folder selected, they won't see loose files
-          return [];
-        }
-      } else if (currentView.type === "team") {
-        query = query.eq("team_id", currentView.teamId);
-      } else if (currentView.type === "mini-league") {
-        query = query.eq("mini_league_id", currentView.miniLeagueId);
-      }
-      
-      if (folderId) {
-        query = query.eq("folder_id", folderId);
-      } else {
-        query = query.is("folder_id", null);
-      }
-      
-      const { data } = await query.order("created_at", { ascending: false });
-      return data || [];
-    },
+    queryFn: () => fetchVaultItems({ view: currentView, isClubAdmin, isCoachOrTeamAdmin }),
     enabled: currentView.type !== "root" && !showTrash,
   });
 
   // Separate vault items into photos and files based on file_type
-  const photos = useMemo(() => {
-    if (!vaultItems) return [];
-    return vaultItems.filter(item => 
-      item.file_type?.startsWith('image/') || 
-      /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
-    ).map(item => ({
-      ...item,
-      // Map vault_files fields to photo-like structure for compatibility
-      image_url: item.file_url,
-      uploader_id: item.uploaded_by,
-      title: item.name, // Map name to title for compatibility with existing code
-    }));
-  }, [vaultItems]);
-
-  const files = useMemo(() => {
-    if (!vaultItems) return [];
-    return vaultItems.filter(item => 
-      !item.file_type?.startsWith('image/') && 
-      !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
-    );
-  }, [vaultItems]);
+  const { photos, files } = useMemo(() => partitionVaultItems(vaultItems), [vaultItems]);
 
   // Recursive search - always search inside subfolders when a query is active.
   // Performance strategy:

@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V2 committed; V3a active-folder read boundary complete locally; review/commit pending
+**Status:** V1–V3a committed; V3b active-file read/model complete locally; review/commit pending
 
 ## Objective
 
@@ -141,6 +141,18 @@ does not move Supabase ownership.
 - Focused verification passes 121/121 tests across eleven files.
 - File content, recursive search, trash and storage reads remain deliberately
   page-owned for later V3 slices.
+
+**V3b completed locally 7 August 2026:**
+
+- Extracted the active `vault_files` read and pure photo/document partitioning.
+- Preserved active-row filtering, descending creation order, exact club/team/
+  mini-league/folder scope and the coach club-root loose-file restriction.
+- Added seven active-item contracts (13 total in the read-repository suite),
+  including MIME/extension classification and compatibility-field mapping.
+- A first test assumed image URLs were inspected when a non-extension filename
+  existed. Existing behaviour gives the filename precedence; the test was
+  corrected to characterize that behaviour rather than changing production.
+- Focused verification passes 128/128 tests across eleven files.
 
 ### V4 — Mutation boundary
 
