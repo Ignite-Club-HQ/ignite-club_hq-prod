@@ -2619,52 +2619,62 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     });
   }, [autoSubActive, autoSubPaused, autoSubPlan, ballPosition, goals, mockMode, onUnlinkEvent, players, queryClient, selectedFormation, teamId, teamSize, toast, user?.id]);
 
-  // Reset game - clears all player minutes, timer, and positions
-  const handleResetGame = useCallback((silent = false) => {
+  // Reset game - clears all player minutes, timer, and positions.
+  // `preserveLineup` keeps the coach's current positions, settings and
+  // auto-sub plan (used when re-opening Set up game after full time) and only
+  // resets the clock.
+  const handleResetGame = useCallback((silent = false, opts?: { preserveLineup?: boolean }) => {
+    const preserveLineup = opts?.preserveLineup === true;
+
     // Stop the timer first
     gameTimerRef.current?.resetTimer();
-    
-    // Reset pitch settings to last saved team defaults
-    const savedDefaults = savedTeamDefaultsRef.current;
-    setMinutesPerHalf(savedDefaults.minutesPerHalf);
-    setRotationSpeed(savedDefaults.rotationSpeed);
-    setDisablePositionSwaps(savedDefaults.disablePositionSwaps);
-    setDisableBatchSubs(savedDefaults.disableBatchSubs);
-    setRotateGkAtHalftime(savedDefaults.rotateGkAtHalftime);
-    setMaxSpreadMinutes(savedDefaults.maxSpreadMinutes);
-    
-    // Reset team size to saved default value
-    const defaultTeamSize: TeamSize = savedDefaults.teamSize;
-    setTeamSize(defaultTeamSize);
-    
-    // Reset formation to saved default value for the team size
-    const formations = FORMATIONS[defaultTeamSize];
-    let defaultFormationIndex = 0;
-    if (savedDefaults.formation) {
-      const index = formations.findIndex(f => f.name === savedDefaults.formation);
-      if (index >= 0) defaultFormationIndex = index;
+
+    if (!preserveLineup) {
+      // Reset pitch settings to last saved team defaults
+      const savedDefaults = savedTeamDefaultsRef.current;
+      setMinutesPerHalf(savedDefaults.minutesPerHalf);
+      setRotationSpeed(savedDefaults.rotationSpeed);
+      setDisablePositionSwaps(savedDefaults.disablePositionSwaps);
+      setDisableBatchSubs(savedDefaults.disableBatchSubs);
+      setRotateGkAtHalftime(savedDefaults.rotateGkAtHalftime);
+      setMaxSpreadMinutes(savedDefaults.maxSpreadMinutes);
+
+      // Reset team size to saved default value
+      const defaultTeamSize: TeamSize = savedDefaults.teamSize;
+      setTeamSize(defaultTeamSize);
+
+      // Reset formation to saved default value for the team size
+      const formations = FORMATIONS[defaultTeamSize];
+      let defaultFormationIndex = 0;
+      if (savedDefaults.formation) {
+        const index = formations.findIndex(f => f.name === savedDefaults.formation);
+        if (index >= 0) defaultFormationIndex = index;
+      }
+      setSelectedFormation(defaultFormationIndex);
+
+      // Reset players - remove temporary fill-ins, clear minutes, and re-place
+      // regular roster players with the default formation. Fill-ins are per-game
+      // only and must not survive Reset Game / Set up game.
+      const resetPlayers = players
+        .filter(p => !p.isFillIn)
+        .map(p => ({
+          ...p,
+          minutesPlayed: 0,
+        }));
+
+      // Re-place players using default formation
+      const placedPlayers = autoPlacePlayersOnPitch(resetPlayers, defaultTeamSize, defaultFormationIndex);
+      setPlayers(placedPlayers);
+
+      // Clear auto-sub plan
+      setAutoSubPlan([]);
+      setAutoSubActive(false);
+      setAutoSubPaused(false);
+    } else {
+      // Keep positions and plan, just zero the clock-derived minutes.
+      setPlayers(prev => prev.map(p => ({ ...p, minutesPlayed: 0 })));
     }
-    setSelectedFormation(defaultFormationIndex);
-    
-    // Reset players - remove temporary fill-ins, clear minutes, and re-place
-    // regular roster players with the default formation. Fill-ins are per-game
-    // only and must not survive Reset Game / Set up game.
-    const resetPlayers = players
-      .filter(p => !p.isFillIn)
-      .map(p => ({
-        ...p,
-        minutesPlayed: 0,
-      }));
-    
-    // Re-place players using default formation
-    const placedPlayers = autoPlacePlayersOnPitch(resetPlayers, defaultTeamSize, defaultFormationIndex);
-    setPlayers(placedPlayers);
-    
-    // Clear auto-sub plan
-    setAutoSubPlan([]);
-    setAutoSubActive(false);
-    setAutoSubPaused(false);
-    
+
     // Reset sub mode
     setSubMode(false);
     setSelectedOnPitch(null);
@@ -2676,11 +2686,13 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     // Force remount all GameTimer instances to pick up clean state
     setTimerResetKey(prev => prev + 1);
     
-    // Clear persisted state
-    clearPitchState(teamId);
-    
-    // Reset hasLoadedRef so fresh state can be saved
-    hasLoadedRef.current = false;
+    if (!preserveLineup) {
+      // Clear persisted state
+      clearPitchState(teamId);
+
+      // Reset hasLoadedRef so fresh state can be saved
+      hasLoadedRef.current = false;
+    }
     
     if (!silent) {
       toast({
@@ -2690,13 +2702,16 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [players, autoPlacePlayersOnPitch, teamId, toast]);
 
-  // Helper: if the game is at full time, silently reset before showing lineup picker
+  // Helper: if the game is at full time, reset the clock before showing the
+  // lineup picker — but never wipe the coach's positions or auto-sub plan, so
+  // re-opening Set up game shows the current lineup rather than team defaults.
   const handleSetupGame = useCallback(() => {
     if (gameTimerRef.current?.isGameFinished()) {
-      handleResetGame(true);
+      handleResetGame(true, { preserveLineup: true });
     }
     setShowLineupPicker(true);
   }, [handleResetGame]);
+
 
   // Execute deferred auto-reset after handleResetGame is available
   useEffect(() => {
