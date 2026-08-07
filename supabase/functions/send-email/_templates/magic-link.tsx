@@ -46,7 +46,7 @@ export const MagicLinkEmail = ({
   otp,
   expiresInMinutes = 60,
   actionType = 'login',
-  appName = "Ignite Club HQ",
+  appName = "Ignite",
   logoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
 }: MagicLinkEmailProps) => {
@@ -167,13 +167,13 @@ export const MagicLinkEmail = ({
                     src={IGNITE_ICON_URL}
                     width="24"
                     height="24"
-                    alt="Ignite Club HQ"
+                    alt="Ignite"
                     style={igniteLogoStyle}
                   />
                 </td>
                 <td style={{ verticalAlign: 'middle' }}>
                   <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
-                    Powered by Ignite Club HQ
+                    Powered by Ignite
                   </Link>
                 </td>
               </tr>

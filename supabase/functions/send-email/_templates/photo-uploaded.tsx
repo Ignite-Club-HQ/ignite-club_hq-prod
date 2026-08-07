@@ -136,7 +136,7 @@ export const PhotoUploadedEmail = ({
               <Link href={`${PRODUCTION_DOMAIN}/profile`} style={{ color: primaryColor }}> Manage notification preferences</Link>
             </Text>
             <Text style={photoConsentText}>
-              📷 Photo consent is managed by your club, not Ignite Club HQ. 
+              📷 Photo consent is managed by your club, not Ignite. 
               Please contact your club or team admin if you have concerns or wish to opt out.
             </Text>
             <table cellPadding="0" cellSpacing="0" style={{ margin: '0 auto' }}>
@@ -146,13 +146,13 @@ export const PhotoUploadedEmail = ({
                     src={IGNITE_ICON_URL}
                     width="24"
                     height="24"
-                    alt="Ignite Club HQ"
+                    alt="Ignite"
                     style={igniteLogoStyle}
                   />
                 </td>
                 <td style={{ verticalAlign: 'middle' }}>
                   <Link href={PRODUCTION_DOMAIN} style={footerBrandTextLink}>
-                    Powered by Ignite Club HQ
+                    Powered by Ignite
                   </Link>
                 </td>
               </tr>
