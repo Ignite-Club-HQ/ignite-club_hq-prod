@@ -1547,6 +1547,26 @@ export default function MessagesPage() {
     realtimeFlushRef.current?.();
   }, [authScopes.status]);
 
+  // Same bounded buffer-then-replay for the NATIVE lightweight inbox channel
+  // (below). Without it, a message arriving on Android before the membership
+  // snapshot resolves was permanently discarded, leaving the inbox preview /
+  // unread badge stale until the 120s poll. Fail-closed is preserved: replay
+  // re-runs the same `isAuthorized` check, and `failed` discards the buffer.
+  const pendingNativeRealtimeRef = useRef<Array<{ table: string; payload: any }>>([]);
+  const nativeRealtimeFlushRef = useRef<(() => void) | null>(null);
+  const nativeRealtimeDiscardRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (authScopes.status === "ready") {
+      nativeRealtimeFlushRef.current?.();
+      return;
+    }
+    if (authScopes.status === "failed") {
+      pendingNativeRealtimeRef.current = [];
+      nativeRealtimeDiscardRef.current?.();
+    }
+  }, [authScopes.status]);
+
+
 
   useEffect(() => {
     if (!user?.id) return;
