@@ -752,22 +752,33 @@ function applyEqualTimeOverride(
     // that meets the cap; otherwise keep whichever produced the least spread.
     const cadenceFloor =
       rotationSpeed >= 2 ? eff.frequentIntervalFloor : eff.standardIntervalFloor;
+    const rawCadences = [
+      eff.standardTargetInterval,
+      cadenceFloor,
+      Math.max(60, eff.minShiftSeconds),
+      240,
+      180,
+      120,
+      90,
+      60,
+    ]
+      .map(v => Math.max(60, Math.round(v)))
+      .filter(v => v <= halfDurationSeconds);
+    // Keep the sweep on the correct side of the selected mode's own cadence
+    // floor. Without this, Standard and Frequent sweep the same superset and
+    // both stop on whichever cadence first meets the spread cap — producing
+    // identical plans regardless of the chosen rotation mode.
+    const modeCadences = rawCadences.filter(v =>
+      rotationSpeed >= 2 ? v <= eff.frequentIntervalFloor : v >= eff.standardIntervalFloor,
+    );
     const cadences = Array.from(
       new Set(
-        [
-          eff.standardTargetInterval,
-          cadenceFloor,
-          Math.max(60, eff.minShiftSeconds),
-          240,
-          180,
-          120,
-          90,
-          60,
-        ]
-          .map(v => Math.max(60, Math.round(v)))
-          .filter(v => v <= halfDurationSeconds),
+        (modeCadences.length > 0
+          ? modeCadences
+          : [Math.max(60, Math.min(halfDurationSeconds, Math.round(cadenceFloor)))]),
       ),
     ).sort((a, b) => b - a);
+
 
     let best: { plan: SubstitutionEvent[]; spread: number } | null = null;
     for (const minShiftSec of cadences) {
