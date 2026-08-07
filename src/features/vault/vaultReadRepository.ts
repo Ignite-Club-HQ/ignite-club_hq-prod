@@ -281,3 +281,23 @@ export async function searchVaultContents(
 
   return { folders, files };
 }
+
+export async function fetchVaultTrash(
+  view: VaultFolderView,
+  client: IgniteSupabaseClient = supabase,
+): Promise<{ photos: VaultPhotoItem[]; files: VaultFileRow[] }> {
+  if (view.type === "root") return { photos: [], files: [] };
+
+  const { data } = await client
+    .from("vault_files")
+    .select(`
+      *,
+      folder:vault_folders(id, name),
+      team:teams(id, name)
+    `)
+    .eq("club_id", view.clubId)
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+
+  return partitionVaultItems(data as unknown as VaultFileRow[] | null);
+}

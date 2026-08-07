@@ -82,6 +82,7 @@ import {
   fetchVaultFolderTree,
   fetchVaultItems,
   fetchVaultSubfolders,
+  fetchVaultTrash,
   isVaultImage,
   partitionVaultItems,
   searchVaultContents,
@@ -694,44 +695,7 @@ export default function VaultPage() {
   // Trash query - fetches ALL deleted items from vault_files for the current club
   const { data: trashItems, isLoading: isLoadingTrash } = useQuery({
     queryKey: ["vault-trash", currentView.type !== "root" ? (currentView.type === "club" ? currentView.clubId : currentView.clubId) : null],
-    queryFn: async () => {
-      const clubId = currentView.type === "club" ? currentView.clubId : currentView.type === "team" ? currentView.clubId : currentView.type === "mini-league" ? currentView.clubId : null;
-      if (!clubId) return { photos: [], files: [] };
-      
-      // Fetch all deleted items from vault_files for this club
-      const { data: allData } = await supabase
-        .from("vault_files")
-        .select(`
-          *,
-          folder:vault_folders(id, name),
-          team:teams(id, name)
-        `)
-        .eq("club_id", clubId)
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-      
-      // Separate into photos and files based on file type
-      const items = allData || [];
-      const photosData = items.filter(item => 
-        item.file_type?.startsWith('image/') || 
-        /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
-      ).map(item => ({
-        ...item,
-        image_url: item.file_url,
-        uploader_id: item.uploaded_by,
-        title: item.name,
-      }));
-      
-      const filesData = items.filter(item => 
-        !item.file_type?.startsWith('image/') && 
-        !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
-      );
-      
-      return {
-        photos: photosData,
-        files: filesData,
-      };
-    },
+    queryFn: () => fetchVaultTrash(currentView),
     enabled: showTrash && currentView.type !== "root",
   });
 

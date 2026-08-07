@@ -6,6 +6,7 @@ import {
   fetchVaultFolderTree,
   fetchVaultItems,
   fetchVaultSubfolders,
+  fetchVaultTrash,
   isVaultImage,
   partitionVaultItems,
   searchVaultContents,
@@ -85,6 +86,26 @@ function searchClient(data: unknown[]) {
   query.in = record("in");
   query.ilike = record("ilike");
   query.limit = record("limit");
+  query.order = async (...args: unknown[]) => {
+    calls.push({ table: "vault_files", method: "order", args });
+    return { data, error: null };
+  };
+  return {
+    client: { from: () => query } as unknown as IgniteSupabaseClient,
+    calls,
+  };
+}
+
+function trashClient(data: unknown[]) {
+  const calls: Call[] = [];
+  const query: Record<string, unknown> = {};
+  const record = (method: string) => (...args: unknown[]) => {
+    calls.push({ table: "vault_files", method, args });
+    return query;
+  };
+  query.select = record("select");
+  query.eq = record("eq");
+  query.not = record("not");
   query.order = async (...args: unknown[]) => {
     calls.push({ table: "vault_files", method: "order", args });
     return { data, error: null };
@@ -482,5 +503,68 @@ describe("Vault recursive content search", () => {
         folder_path: "Public Policies / Match Folder",
       }),
     ]);
+  });
+});
+
+describe("Vault trash read model", () => {
+  it("returns empty trash at root without querying", async () => {
+    const fake = trashClient([]);
+    await expect(fetchVaultTrash({ type: "root" }, fake.client)).resolves.toEqual({
+      photos: [],
+      files: [],
+    });
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("uses club-wide trash scope even when opened from a team", async () => {
+    const fake = trashClient([]);
+    await fetchVaultTrash({
+      type: "team",
+      clubId: "club-a",
+      clubName: "Club A",
+      teamId: "team-a",
+      teamName: "Team A",
+    }, fake.client);
+    expect(fake.calls).toEqual(expect.arrayContaining([
+      { table: "vault_files", method: "eq", args: ["club_id", "club-a"] },
+      { table: "vault_files", method: "not", args: ["deleted_at", "is", null] },
+      { table: "vault_files", method: "order", args: ["deleted_at", { ascending: false }] },
+    ]));
+    expect(fake.calls.some((call) => call.method === "eq" && call.args[0] === "team_id")).toBe(false);
+  });
+
+  it("requests joined folder and team labels for trash presentation", async () => {
+    const fake = trashClient([]);
+    await fetchVaultTrash(clubView, fake.client);
+    const select = fake.calls.find((call) => call.method === "select");
+    expect(String(select?.args[0])).toContain("folder:vault_folders(id, name)");
+    expect(String(select?.args[0])).toContain("team:teams(id, name)");
+  });
+
+  it("partitions deleted images and documents while retaining joined metadata", async () => {
+    const photo = {
+      id: "photo-a",
+      name: "Photo.jpg",
+      file_type: null,
+      file_url: "photo-url",
+      uploaded_by: "user-a",
+      folder: { id: "folder-a", name: "Gallery" },
+      team: { id: "team-a", name: "Team A" },
+    };
+    const file = {
+      id: "file-a",
+      name: "Policy.pdf",
+      file_type: "application/pdf",
+      file_url: "file-url",
+      uploaded_by: "user-a",
+      folder: null,
+      team: null,
+    };
+    const fake = trashClient([photo, file]);
+    const result = await fetchVaultTrash(clubView, fake.client);
+    expect(result.photos).toEqual([
+      expect.objectContaining({ id: "photo-a", image_url: "photo-url", folder: photo.folder }),
+    ]);
+    expect(result.files).toEqual([file]);
   });
 });

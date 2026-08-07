@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V3c committed; V3d recursive search boundary complete locally; review/commit pending
+**Status:** V1–V3d committed; V3e trash read boundary complete locally; review/commit pending
 
 ## Objective
 
@@ -174,6 +174,17 @@ does not move Supabase ownership.
 - Reused the characterized image classifier for recursive result partitioning.
 - Added six search contracts; focused verification passes 140/140 tests across
   eleven files.
+
+**V3e completed locally 7 August 2026:**
+
+- Extracted the club-wide trash read and reused the characterized photo/file
+  partitioning boundary.
+- Preserved deleted-only filtering, newest-deleted ordering, folder/team label
+  joins and club scope when trash is opened from team or mini-league context.
+- Added four contracts for root no-query, club-wide scope, joined metadata and
+  compatibility mapping.
+- Focused verification passes 144/144 tests across eleven files.
+- Restore, permanent-delete and empty-trash mutations remain page-owned for V4.
 
 ### V4 — Mutation boundary
 
