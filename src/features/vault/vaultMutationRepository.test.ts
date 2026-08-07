@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Database } from "@/integrations/supabase/types";
 import {
   createVaultFolder,
   deleteVaultFolder,
   moveVaultFile,
+  permanentlyDeleteVaultFile,
+  permanentlyDeleteVaultPhoto,
   renameVaultFolder,
   renameVaultItem,
   restoreVaultItem,
@@ -219,5 +221,102 @@ describe("Vault folder and trash-state mutations", () => {
     const denied = { code: "42501", message: "permission denied" };
     const fake = lifecycleClient(denied);
     await expect(deleteVaultFolder("folder-a", fake.client)).rejects.toBe(denied);
+  });
+});
+
+function permanentDeleteClient(options: {
+  vaultFile?: { file_url: string | null } | null;
+  photoRecord?: { id: string } | null;
+  invokeError?: { message: string } | null;
+} = {}) {
+  const reads: Array<{ table: string; select: string; filters: Array<[string, unknown]> }> = [];
+  const invoke = async (name: string, request: unknown) => ({
+    data: null,
+    error: options.invokeError ?? null,
+    name,
+    request,
+  });
+  const from = (table: string) => {
+    const read = { table, select: "", filters: [] as Array<[string, unknown]> };
+    const query = {
+      select(columns: string) {
+        read.select = columns;
+        reads.push(read);
+        return query;
+      },
+      eq(column: string, value: unknown) {
+        read.filters.push([column, value]);
+        return query;
+      },
+      async maybeSingle() {
+        return {
+          data: table === "vault_files"
+            ? (options.vaultFile === undefined ? { file_url: "https://files/photo-a.jpg" } : options.vaultFile)
+            : (options.photoRecord === undefined ? { id: "photo-row-a" } : options.photoRecord),
+          error: null,
+        };
+      },
+    };
+    return query;
+  };
+  const client = { from, functions: { invoke } } as unknown as IgniteSupabaseClient;
+  return { client, reads, invoke: vi.fn(invoke) };
+}
+
+describe("Vault permanent single-item deletion", () => {
+  it("resolves the legacy photo mirror and deletes both exact records through the server boundary", async () => {
+    const fake = permanentDeleteClient();
+    fake.client.functions.invoke = fake.invoke;
+
+    await expect(permanentlyDeleteVaultPhoto("file-a", fake.client)).resolves.toBe("file-a");
+
+    expect(fake.reads).toEqual([
+      { table: "vault_files", select: "file_url", filters: [["id", "file-a"]] },
+      { table: "photos", select: "id", filters: [["image_url", "https://files/photo-a.jpg"]] },
+    ]);
+    expect(fake.invoke).toHaveBeenCalledWith("permanent-delete-photos", {
+      body: { photoIds: ["photo-row-a"], fileIds: ["file-a"], deletionType: "permanent" },
+    });
+  });
+
+  it("still deletes the Vault row when no legacy photo mirror exists", async () => {
+    const fake = permanentDeleteClient({ photoRecord: null });
+    fake.client.functions.invoke = fake.invoke;
+
+    await permanentlyDeleteVaultPhoto("file-a", fake.client);
+
+    expect(fake.invoke).toHaveBeenCalledWith("permanent-delete-photos", {
+      body: { photoIds: [], fileIds: ["file-a"], deletionType: "permanent" },
+    });
+  });
+
+  it("does not query photos when the Vault row has no file URL", async () => {
+    const fake = permanentDeleteClient({ vaultFile: { file_url: null } });
+    fake.client.functions.invoke = fake.invoke;
+
+    await permanentlyDeleteVaultPhoto("file-a", fake.client);
+
+    expect(fake.reads).toEqual([
+      { table: "vault_files", select: "file_url", filters: [["id", "file-a"]] },
+    ]);
+  });
+
+  it("permanently deletes a file by exact ID without a photo lookup", async () => {
+    const fake = permanentDeleteClient();
+    fake.client.functions.invoke = fake.invoke;
+
+    await permanentlyDeleteVaultFile("file-a", fake.client);
+
+    expect(fake.reads).toEqual([]);
+    expect(fake.invoke).toHaveBeenCalledWith("permanent-delete-photos", {
+      body: { fileIds: ["file-a"], deletionType: "permanent" },
+    });
+  });
+
+  it("propagates the Edge Function message and never reports success", async () => {
+    const fake = permanentDeleteClient({ invokeError: { message: "permission denied" } });
+    fake.client.functions.invoke = fake.invoke;
+
+    await expect(permanentlyDeleteVaultFile("file-a", fake.client)).rejects.toThrow("permission denied");
   });
 });

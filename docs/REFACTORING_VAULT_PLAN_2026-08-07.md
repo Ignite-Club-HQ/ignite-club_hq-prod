@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V4a committed; V4b folder/trash-state mutations complete locally; review/commit pending
+**Status:** V1–V4b committed; V4c permanent single-item deletion complete locally; review/commit pending
 
 ## Objective
 
@@ -233,6 +233,18 @@ does not move Supabase ownership.
   163/163 tests across thirteen files.
 - Permanent deletion, bulk deletion, empty-trash and upload workflows remain
   page-owned for later V4/V5 slices.
+
+**V4c completed locally 7 August 2026:**
+
+- Extracted single-photo and single-file permanent deletion into the typed
+  mutation repository while retaining the authorized Edge Function boundary.
+- Preserved the legacy photo mirror lookup by exact `file_url`, exact Vault row
+  targeting, deletion type, cache invalidation and page-owned success/error UI.
+- Added five contracts covering mirror resolution, missing mirrors, missing
+  URLs, file-only deletion and Edge Function failure propagation.
+- Focused verification passes 168/168 tests across thirteen files.
+- Batch soft-delete and empty-trash orchestration remain page-owned for the
+  separate partial-success V4d slice.
 
 ### V5 — Upload and external-link workflows
 

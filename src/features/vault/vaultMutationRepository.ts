@@ -109,3 +109,40 @@ export async function restoreVaultItem(
   if (error) throw error;
   return itemId;
 }
+
+export async function permanentlyDeleteVaultPhoto(
+  itemId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<string> {
+  const { data: vaultFile } = await client
+    .from("vault_files")
+    .select("file_url")
+    .eq("id", itemId)
+    .maybeSingle();
+
+  const photoIds: string[] = [];
+  if (vaultFile?.file_url) {
+    const { data: photoRecord } = await client
+      .from("photos")
+      .select("id")
+      .eq("image_url", vaultFile.file_url)
+      .maybeSingle();
+    if (photoRecord) photoIds.push(photoRecord.id);
+  }
+
+  const response = await client.functions.invoke("permanent-delete-photos", {
+    body: { photoIds, fileIds: [itemId], deletionType: "permanent" },
+  });
+  if (response.error) throw new Error(response.error.message);
+  return itemId;
+}
+
+export async function permanentlyDeleteVaultFile(
+  itemId: string,
+  client: IgniteSupabaseClient = supabase,
+): Promise<void> {
+  const response = await client.functions.invoke("permanent-delete-photos", {
+    body: { fileIds: [itemId], deletionType: "permanent" },
+  });
+  if (response.error) throw new Error(response.error.message);
+}

@@ -96,6 +96,8 @@ import {
   createVaultFolder,
   deleteVaultFolder,
   moveVaultFile,
+  permanentlyDeleteVaultFile,
+  permanentlyDeleteVaultPhoto,
   renameVaultFolder,
   renameVaultItem,
   restoreVaultItem,
@@ -1489,33 +1491,7 @@ export default function VaultPage() {
 
   // Permanently delete photo via edge function (handles storage + DB + audit log)
   const permanentDeletePhotoMutation = useMutation({
-    mutationFn: async (photoId: string) => {
-      // Find the corresponding photos table record via file_url match
-      const { data: vaultFile } = await supabase
-        .from("vault_files")
-        .select("file_url")
-        .eq("id", photoId)
-        .maybeSingle();
-      
-      const photoIds: string[] = [];
-      const fileIds: string[] = [photoId];
-      
-      if (vaultFile?.file_url) {
-        const { data: photoRecord } = await supabase
-          .from("photos")
-          .select("id")
-          .eq("image_url", vaultFile.file_url)
-          .maybeSingle();
-        if (photoRecord) photoIds.push(photoRecord.id);
-      }
-      
-      const response = await supabase.functions.invoke("permanent-delete-photos", {
-        body: { photoIds, fileIds, deletionType: "permanent" },
-      });
-      
-      if (response.error) throw new Error(response.error.message);
-      return photoId;
-    },
+    mutationFn: permanentlyDeleteVaultPhoto,
     onSuccess: (photoId) => {
       removePhotoFromCache(photoId);
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
@@ -1531,12 +1507,7 @@ export default function VaultPage() {
 
   // Permanently delete file via edge function (handles storage + DB + audit log)
   const permanentDeleteFileMutation = useMutation({
-    mutationFn: async (fileId: string) => {
-      const response = await supabase.functions.invoke("permanent-delete-photos", {
-        body: { fileIds: [fileId], deletionType: "permanent" },
-      });
-      if (response.error) throw new Error(response.error.message);
-    },
+    mutationFn: permanentlyDeleteVaultFile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
