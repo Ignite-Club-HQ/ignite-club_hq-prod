@@ -43,6 +43,7 @@ type HarnessBehavior = {
   wrongActiveClub?: boolean;
   wrongScopeCachedMessages?: boolean;
   recreatedTeamIsolation?: boolean;
+  deferAuthorizedScopes?: boolean;
 };
 type HarnessState = {
   inserts: Record<string, unknown>[];
@@ -61,6 +62,7 @@ type HarnessState = {
   setReactionAvailable: (available: boolean) => void;
   releaseHomeEvents: () => void;
   releaseMessageHistory: () => void;
+  releaseAuthorizedScopes: () => void;
 };
 const defaultBell: BellCase = { type: "team_message", table: "team_messages", scopeColumn: "team_id", scopeId: teamId, expectedPath: `/messages/${teamId}` };
 
@@ -70,11 +72,13 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
   let resumeRelease!: () => void;
   let homeEventsRelease!: () => void;
   let messageHistoryRelease!: () => void;
+  let authorizedScopesRelease!: () => void;
   const insertGate = new Promise<void>(resolve => { insertRelease = resolve; });
   const olderGate = new Promise<void>(resolve => { olderRelease = resolve; });
   const resumeGate = new Promise<void>(resolve => { resumeRelease = resolve; });
   const homeEventsGate = new Promise<void>(resolve => { homeEventsRelease = resolve; });
   const messageHistoryGate = new Promise<void>(resolve => { messageHistoryRelease = resolve; });
+  const authorizedScopesGate = new Promise<void>(resolve => { authorizedScopesRelease = resolve; });
   let inboxResumeActive = false;
   let inboxResumeRequests = 0;
   let apiAvailable = true;
@@ -92,6 +96,7 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
     setReactionAvailable: (available) => { reactionAvailable = available; },
     releaseHomeEvents: homeEventsRelease,
     releaseMessageHistory: messageHistoryRelease,
+    releaseAuthorizedScopes: authorizedScopesRelease,
   };
   if (behavior.nativeRuntime) {
     // Capacitor detects Android/iOS from their native bridge globals when
@@ -273,6 +278,13 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       const rows = [{ id: userId, display_name: "Synthetic Member", avatar_url: null, active_club_id: clubId, active_club_theme_id: behavior.wrongActiveClub ? otherClubId : null }, { id: "00000000-0000-4000-8000-000000009099", display_name: "Alex Member", avatar_url: null, active_club_id: clubId }];
       const exactId = url.searchParams.get("id")?.startsWith("eq.") ? url.searchParams.get("id")!.slice(3) : null;
       return json(route, singular || exactId ? rows.find(row => row.id === exactId) ?? rows[0] : rows);
+    }
+    if (
+      behavior.deferAuthorizedScopes &&
+      url.pathname === "/rest/v1/user_roles" &&
+      url.searchParams.get("select") === "club_id,team_id"
+    ) {
+      await authorizedScopesGate;
     }
     if (url.pathname === "/rest/v1/user_roles") return json(route, [
       { user_id: userId, role: behavior.pitchBoardController ? "coach" : "player", club_id: clubId, team_id: behavior.recreatedTeamIsolation ? secondTeamId : teamId },
@@ -942,6 +954,41 @@ test("a realtime inbox preview and the subsequently opened thread converge on th
   );
 });
 
+test("Android replays an inbox message that arrives while authorization scopes are hydrating", async ({ page }) => {
+  test.setTimeout(40_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page, defaultBell, {
+    mockRealtime: true,
+    nativeRuntime: "android",
+    deferAuthorizedScopes: true,
+  });
+
+  try {
+    await page.goto("/messages");
+    await expect(page.getByText("Synthetic Messaging Team", { exact: true }).first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect.poll(() => page.evaluate(() => (window as any).__syntheticRealtimeSockets
+      .flatMap((socket: any) => socket.channels.flatMap((channel: any) => channel.bindings))
+      .filter((binding: any) => binding.table === "team_messages").length)).toBeGreaterThan(0);
+
+    const row = {
+      ...messages[0],
+      id: "00000000-0000-4000-8000-000000009778",
+      text: "Message received during authorization hydration",
+      created_at: "2026-08-07T01:00:00.000Z",
+    };
+    await page.evaluate(({ row }) => {
+      (window as any).__emitSyntheticPostgresChange("team_messages", "INSERT", row);
+    }, { row });
+
+    state.releaseAuthorizedScopes();
+    await expect(page.getByText(row.text, { exact: true })).toBeVisible({ timeout: 3_000 });
+  } finally {
+    state.releaseAuthorizedScopes();
+  }
+});
+
 test("deleting and recreating a same-named team produces a fresh chat, event post and notification route", async ({ page }) => {
   await page.unrouteAll({ behavior: "wait" });
   await install(page, {
@@ -1419,6 +1466,20 @@ test(`${nativeCase.label} in-app message notification reveals and pins the exact
   state.releaseMessageHistory();
   const target = page.locator(`#message-${targetId}`);
   await expect(target).toContainText("Exact synthetic notification target", { timeout: 8_000 });
+  // The jump overlay intentionally masks Virtuoso's final target alignment.
+  // Measure stability only once the row is actually visible to the user.
+  await expect.poll(
+    () => target.evaluate((element) => {
+      let current: Element | null = element;
+      while (current) {
+        const style = getComputedStyle(current);
+        if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return false;
+        current = current.parentElement;
+      }
+      return true;
+    }),
+    { timeout: 10_000 },
+  ).toBe(true);
   const geometry = await target.evaluate(async (element) => {
     const tops: number[] = [];
     const bottoms: number[] = [];
