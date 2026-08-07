@@ -4,7 +4,38 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1, M2 and M3 technically complete locally; M4a/M4b complete and M4c pagination merge extraction started; manual UI review deferred
+Status: M1–M10 technically complete on `codespaces-review`; automated closeout complete; native manual UI review deferred, so promotion remains pending
+
+## 2026-08-07 messaging closeout
+
+- The planned messaging refactor is complete through M10. Further extraction
+  of page-owned hide/delete mutations or scoped Realtime lifecycles is a new,
+  higher-risk tranche and is not recommended without a concrete feature or
+  defect requiring it.
+- Notification/deep-link hydration now has bounded reveal lifecycles. Tests
+  prove that loaded messages remain masked until visual settling completes,
+  newer jumps cancel stale reveals, the mask survives its full fade, and the
+  seven-second deadline is used only as an emergency blank-screen escape.
+- The complete frontend estate passed 3,957 tests across 343 files, with three
+  intentional dependency-monitoring skips.
+- The full Playwright estate completed 114/115 in the combined run. The sole
+  failure was a WebKit internal `page.reload` error in an iOS pitchboard test;
+  the unchanged journey then passed 3/3 in isolation. All messaging journeys,
+  including Android/iOS settled exact-message reveal, passed in the full run.
+- Local Supabase integration completed 214/215 in the combined run. The sole
+  failure was a test-window ambiguity around an event queued before confirmed
+  channel removal; the corrected post-removal-only assertion passed against
+  the isolated local Realtime service.
+- The one-click lifecycle was hardened for slow fresh Codespaces: startup stays
+  bounded at six minutes, and cleanup performs bounded repeated scans of only
+  the explicit local container allowlist to catch services created after a
+  timed-out startup. No hosted Supabase environment is involved.
+- Vendor-handover maintainability is assessed at approximately 7.5/10. Routine
+  maintenance and feature work are well protected; virtualization, Realtime
+  ownership and native notification navigation remain specialist areas.
+- Required before promotion: manual Android and iOS checks for inbox resume,
+  push/bell exact-message routing, historical-message landing, club-admin and
+  operational chats, reactions/send, and offline/reconnect recovery.
 
 ## Progress
 

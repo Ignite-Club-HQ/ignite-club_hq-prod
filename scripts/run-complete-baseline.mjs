@@ -75,10 +75,22 @@ function cleanupLocalStack() {
   assertOnlyAllowedLocalNames(LOCAL_CONTAINERS, LOCAL_CONTAINERS);
   assertOnlyAllowedLocalNames(LOCAL_VOLUMES, LOCAL_VOLUMES);
 
-  const existingContainers = LOCAL_CONTAINERS.filter((name) => targetExists("container", name));
-  if (existingContainers.length) {
-    const removed = docker(["rm", "-f", ...existingContainers], { stdio: "inherit" });
-    if (removed.status !== 0) return false;
+  // A timed-out `supabase start` can leave its compose process creating the
+  // remaining services for a few seconds after the first cleanup snapshot.
+  // Re-scan the explicit allowlist so those late local-only containers cannot
+  // escape cleanup or poison the next one-click run.
+  let consecutiveEmptyPasses = 0;
+  for (let pass = 0; pass < 5; pass += 1) {
+    const existingContainers = LOCAL_CONTAINERS.filter((name) => targetExists("container", name));
+    if (existingContainers.length) {
+      consecutiveEmptyPasses = 0;
+      const removed = docker(["rm", "-f", ...existingContainers], { stdio: "inherit" });
+      if (removed.status !== 0) return false;
+    } else {
+      consecutiveEmptyPasses += 1;
+    }
+    if (consecutiveEmptyPasses >= 2) break;
+    if (pass < 4) command("sleep", ["1"]);
   }
 
   const existingVolumes = LOCAL_VOLUMES.filter((name) => targetExists("volume", name));
@@ -266,7 +278,11 @@ try {
   if (!cleanupLocalStack()) throw new Error("Unable to establish an empty isolated local stack");
   cleanupStarted = false;
   const started = command("npx", ["--yes", LOCAL_SUPABASE_CLI, "start"], {
-    cwd: LOCAL_WORKSPACE, stdio: "inherit", timeout: 180_000,
+    // A fresh Codespace may need several minutes to initialise Postgres and
+    // start every optional local service even when all images are cached.
+    // Keep this bounded, but do not kill compose halfway through startup and
+    // create a late-container cleanup race.
+    cwd: LOCAL_WORKSPACE, stdio: "inherit", timeout: 360_000,
   });
   if (started.status !== 0 || !(await isLocalStackHealthy())) {
     throw new Error("Isolated local Supabase startup or health verification failed");

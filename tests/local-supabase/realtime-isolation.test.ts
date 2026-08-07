@@ -272,11 +272,16 @@ realtimeDescribe("local Realtime RLS and lifecycle isolation", () => {
 
   it("delivers nothing after explicit channel removal", async () => {
     const received = deferred<void>();
+    let removalConfirmed = false;
     const channel = eventUpdateChannel(
-      fixture.adminA.client, `removed-${crypto.randomUUID()}`, eventA, () => received.resolve(),
+      fixture.adminA.client,
+      `removed-${crypto.randomUUID()}`,
+      eventA,
+      () => { if (removalConfirmed) received.resolve(); },
     );
     await subscribe(channel);
-    await fixture.adminA.client.removeChannel(channel);
+    expect(await fixture.adminA.client.removeChannel(channel)).toBe("ok");
+    removalConfirmed = true;
     // removeChannel resolves before the local websocket server has always
     // finished detaching the binding; enforce a short, fixed upper allowance.
     await new Promise((resolve) => setTimeout(resolve, 250));
