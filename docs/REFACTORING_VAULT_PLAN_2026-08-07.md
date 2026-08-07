@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V3d committed; V3e trash read boundary complete locally; review/commit pending
+**Status:** V1–V3e committed; V3f storage reporting complete locally; review/commit pending
 
 ## Objective
 
@@ -185,6 +185,19 @@ does not move Supabase ownership.
   compatibility mapping.
 - Focused verification passes 144/144 tests across eleven files.
 - Restore, permanent-delete and empty-trash mutations remain page-owned for V4.
+
+**V3f completed locally 7 August 2026:**
+
+- Extracted purchased-storage retrieval and storage-breakdown accounting into a
+  dedicated typed repository.
+- Preserved exact club scope, active photo/file/team filtering, mini-league
+  attribution, filename-only image classification, descending scope totals and
+  the legacy 500KB fallback for absent or zero photo size.
+- Added seven contracts for accounting, labels/order, subscription defaults and
+  repository filters.
+- Focused verification passes 151/151 tests across twelve files.
+- The page continues to own React Query policy, warning thresholds, plan limits
+  and all storage presentation.
 
 ### V4 — Mutation boundary
 

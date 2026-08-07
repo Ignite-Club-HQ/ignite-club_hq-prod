@@ -87,6 +87,11 @@ import {
   partitionVaultItems,
   searchVaultContents,
 } from "@/features/vault/vaultReadRepository";
+import {
+  emptyVaultStorageBreakdown,
+  fetchVaultStorageBreakdown,
+  fetchVaultStorageSubscription,
+} from "@/features/vault/vaultStorageRepository";
 
 
 import {
@@ -941,15 +946,9 @@ export default function VaultPage() {
   // Query for purchased storage and scheduled downgrade info for current club
   const { data: storageSubscriptionData } = useQuery({
     queryKey: ["purchased-storage", currentClub?.id],
-    queryFn: async () => {
-      if (!currentClub?.id) return { storage_purchased_gb: 0, scheduled_storage_downgrade_gb: null, storage_downgrade_at: null };
-      const { data } = await supabase
-        .from("club_subscriptions")
-        .select("storage_purchased_gb, scheduled_storage_downgrade_gb, storage_downgrade_at")
-        .eq("club_id", currentClub.id)
-        .maybeSingle();
-      return data || { storage_purchased_gb: 0, scheduled_storage_downgrade_gb: null, storage_downgrade_at: null };
-    },
+    queryFn: () => currentClub?.id
+      ? fetchVaultStorageSubscription(currentClub.id)
+      : { storage_purchased_gb: 0, scheduled_storage_downgrade_gb: null, storage_downgrade_at: null },
     enabled: !!currentClub?.id,
   });
 
@@ -963,146 +962,9 @@ export default function VaultPage() {
   // Query for storage breakdown by file type, team, and mini-league
   const { data: storageBreakdown } = useQuery({
     queryKey: ["storage-breakdown", currentClub?.id],
-    queryFn: async () => {
-      if (!currentClub?.id) return { 
-        photos: 0, 
-        documents: 0, 
-        total: 0, 
-        byTeam: [] as { teamId: string | null; teamName: string; size: number; photosSize: number; documentsSize: number }[],
-        byMiniLeague: [] as { miniLeagueId: string; miniLeagueName: string; size: number; photosSize: number; documentsSize: number }[]
-      };
-      
-      // Helper to check if a filename is an image
-      const isImageFile = (filename: string) => {
-        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif', '.tiff', '.tif'];
-        const lowerName = filename.toLowerCase();
-        return imageExtensions.some(ext => lowerName.endsWith(ext));
-      };
-      
-      // Default estimated size for photos without file_size (500KB per photo)
-      const DEFAULT_PHOTO_SIZE = 500 * 1024;
-      
-      // Get photos storage with team and mini-league info (exclude soft-deleted)
-      const { data: photosData } = await supabase
-        .from("photos")
-        .select("file_size, team_id, mini_league_id")
-        .eq("club_id", currentClub.id)
-        .is("deleted_at", null);
-      
-      // Get documents storage with team info and name to check file type (exclude soft-deleted)
-      // Note: mini_league_id may not be in types yet, cast to handle this
-      const { data: rawFilesData } = await supabase
-        .from("vault_files")
-        .select("*")
-        .eq("club_id", currentClub.id)
-        .is("deleted_at", null);
-      const filesData = (rawFilesData || []) as { file_size: number | null; team_id: string | null; mini_league_id?: string | null; name: string | null }[];
-      
-      // Get all teams for the club
-      const { data: teamsData } = await supabase
-        .from("teams")
-        .select("id, name")
-        .eq("club_id", currentClub.id)
-        .is("deleted_at", null);
-      
-      // Get all mini-leagues for the club
-      const { data: miniLeaguesData } = await supabase
-        .from("mini_leagues")
-        .select("id, name")
-        .eq("club_id", currentClub.id);
-      
-      const teamsMap = new Map<string, string>();
-      (teamsData || []).forEach(t => teamsMap.set(t.id, t.name));
-      
-      const miniLeaguesMap = new Map<string, string>();
-      (miniLeaguesData || []).forEach(ml => miniLeaguesMap.set(ml.id, ml.name));
-      
-      // Separate vault_files into images and documents based on file extension
-      const imageFiles = (filesData || []).filter(f => isImageFile(f.name || ''));
-      const documentFiles = (filesData || []).filter(f => !isImageFile(f.name || ''));
-      
-      // Calculate photos size - use actual size if available, otherwise use default estimate
-      const photosSize = (photosData || []).reduce((sum, p) => sum + (p.file_size || DEFAULT_PHOTO_SIZE), 0) +
-                         imageFiles.reduce((sum, f) => sum + (f.file_size || 0), 0);
-      const documentsSize = documentFiles.reduce((sum, f) => sum + (f.file_size || 0), 0);
-      
-      // Calculate storage by team with breakdown
-      const teamStorageMap = new Map<string | null, { photos: number; documents: number }>();
-      (photosData || []).forEach(p => {
-        // Only count towards team if not a mini-league photo
-        if (!p.mini_league_id) {
-          const current = teamStorageMap.get(p.team_id) || { photos: 0, documents: 0 };
-          current.photos += p.file_size || DEFAULT_PHOTO_SIZE;
-          teamStorageMap.set(p.team_id, current);
-        }
-      });
-      // Add image files from vault_files to photos count
-      imageFiles.forEach(f => {
-        if (!f.mini_league_id) {
-          const current = teamStorageMap.get(f.team_id) || { photos: 0, documents: 0 };
-          current.photos += f.file_size || 0;
-          teamStorageMap.set(f.team_id, current);
-        }
-      });
-      // Add non-image files to documents count
-      documentFiles.forEach(f => {
-        if (!f.mini_league_id) {
-          const current = teamStorageMap.get(f.team_id) || { photos: 0, documents: 0 };
-          current.documents += f.file_size || 0;
-          teamStorageMap.set(f.team_id, current);
-        }
-      });
-      
-      // Calculate storage by mini-league with breakdown
-      const miniLeagueStorageMap = new Map<string, { photos: number; documents: number }>();
-      (photosData || []).forEach(p => {
-        if (p.mini_league_id) {
-          const current = miniLeagueStorageMap.get(p.mini_league_id) || { photos: 0, documents: 0 };
-          current.photos += p.file_size || DEFAULT_PHOTO_SIZE;
-          miniLeagueStorageMap.set(p.mini_league_id, current);
-        }
-      });
-      // Add image files from vault_files to mini-league photos count
-      imageFiles.forEach(f => {
-        if (f.mini_league_id) {
-          const current = miniLeagueStorageMap.get(f.mini_league_id) || { photos: 0, documents: 0 };
-          current.photos += f.file_size || 0;
-          miniLeagueStorageMap.set(f.mini_league_id, current);
-        }
-      });
-      // Add non-image files to mini-league documents count
-      documentFiles.forEach(f => {
-        if (f.mini_league_id) {
-          const current = miniLeagueStorageMap.get(f.mini_league_id) || { photos: 0, documents: 0 };
-          current.documents += f.file_size || 0;
-          miniLeagueStorageMap.set(f.mini_league_id, current);
-        }
-      });
-      
-      const byTeam = Array.from(teamStorageMap.entries())
-        .map(([teamId, sizes]) => ({
-          teamId,
-          teamName: teamId ? teamsMap.get(teamId) || "Unknown Team" : "Club-level",
-          size: sizes.photos + sizes.documents,
-          photosSize: sizes.photos,
-          documentsSize: sizes.documents
-        }))
-        .filter(t => t.size > 0)
-        .sort((a, b) => b.size - a.size);
-      
-      const byMiniLeague = Array.from(miniLeagueStorageMap.entries())
-        .map(([miniLeagueId, sizes]) => ({
-          miniLeagueId,
-          miniLeagueName: miniLeaguesMap.get(miniLeagueId) || "Unknown Mini-League",
-          size: sizes.photos + sizes.documents,
-          photosSize: sizes.photos,
-          documentsSize: sizes.documents
-        }))
-        .filter(ml => ml.size > 0)
-        .sort((a, b) => b.size - a.size);
-      
-      return { photos: photosSize, documents: documentsSize, total: photosSize + documentsSize, byTeam, byMiniLeague };
-    },
+    queryFn: () => currentClub?.id
+      ? fetchVaultStorageBreakdown(currentClub.id)
+      : emptyVaultStorageBreakdown(),
     enabled: !!currentClub?.id,
   });
 
