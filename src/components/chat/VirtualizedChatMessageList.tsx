@@ -2222,14 +2222,30 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let fadeTimer: ReturnType<typeof setTimeout> | null = null;
     let unmountTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelSettleWait: (() => void) | null = null;
+    let hardTimer: number | null = null;
+    // Overlay lifecycle budget, anchored at the START of each jump (i.e. each
+    // notification/deep-link), never extended by rerenders or by repeated
+    // settle passes. Guarantees the overlay cannot outlive the budget.
+    const OVERLAY_HARD_DEADLINE_MS = 7000;
+    let lifecycleStartedAt = performance.now();
+    const remainingBudget = () =>
+      Math.max(0, OVERLAY_HARD_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
     const onStart = () => {
       if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
       if (unmountTimer) { clearTimeout(unmountTimer); unmountTimer = null; }
       if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
+      if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
+      lifecycleStartedAt = performance.now();
+      hardTimer = window.setTimeout(() => {
+        hardTimer = null;
+        if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
+        fadeOut();
+      }, OVERLAY_HARD_DEADLINE_MS);
       setRenderJumpOverlay(true);
       setIsJumpHydrating(true);
     };
     const fadeOut = () => {
+      if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
       setIsJumpHydrating(false);
       if (unmountTimer) clearTimeout(unmountTimer);
       unmountTimer = setTimeout(() => setRenderJumpOverlay(false), 300);
@@ -2241,12 +2257,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // previews, row heights, scroll metrics) actually stops moving. Without
       // this gate the overlay disappears on a fixed timer while rows are
       // still re-anchoring, which the user perceives as "messages moving
-      // around before settling".
+      // around before settling". Bounded by the remaining lifecycle budget so
+      // a late-hydrating thread can never hold the overlay open indefinitely.
       const scroller = scrollerElRef.current;
-      if (scroller) {
+      const budget = remainingBudget();
+      if (scroller && budget > 200) {
         cancelSettleWait = waitForChatVisualContentSettle(
           scroller,
-          { quietMs: 650, maxMs: 8000 },
+          { quietMs: 650, maxMs: Math.min(8000, budget) },
           () => {
             cancelSettleWait = null;
             // Tiny intentional cross-fade so the reveal reads as "settled".
@@ -2257,6 +2275,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         fadeTimer = setTimeout(fadeOut, 120);
       }
     };
+
     window.addEventListener("chat:jump-hydration-start", onStart);
     window.addEventListener("chat:jump-hydration-end", onEnd);
     const unsubscribe = subscribeChatJumpActive((value) => {
