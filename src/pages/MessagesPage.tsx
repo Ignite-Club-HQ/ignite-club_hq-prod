@@ -1893,9 +1893,9 @@ export default function MessagesPage() {
       return set.has(id);
     };
 
-    const channel = supabase
-      .channel(`messages-inbox-light-${user.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, (payload: any) => {
+    const handlers: Record<string, (payload: any) => void> = {
+      team_messages: (payload: any) => {
+
         const row = payload.new;
         if (!isAuthorized('team', row?.team_id)) return;
         const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
