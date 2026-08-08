@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V4c committed; V4d bulk/trash orchestration complete locally; review/commit pending
+**Status:** V1–V4d committed; V5a upload scope/link boundary complete locally; review/commit pending
 
 ## Objective
 
@@ -266,6 +266,21 @@ does not move Supabase ownership.
 - Keep quota reservation and orphan cleanup mandatory.
 - Preserve the existing Google Drive feature allowlist until a separately
   reviewed product decision replaces it.
+
+**V5a completed locally 8 August 2026:**
+
+- Extracted the duplicated club/team/mini-league upload scope and storage-path
+  construction into typed, deterministic helpers.
+- Extracted external-link metadata insertion while preserving uploader,
+  folder, zero-byte and exact scope fields.
+- Reused the characterized helpers in photo and file uploads without moving or
+  reordering quota reservation, storage upload, orphan compensation, metadata
+  insertion or reservation settlement.
+- Added six contracts for every supported scope/path, external-link ownership,
+  absent cross-scope fields and permission-error propagation.
+- Focused verification passes 180/180 tests across fifteen files.
+- Full upload orchestration and Google Drive workflows remain page-owned for
+  later V5 slices.
 
 ### V6 — Selection and export workflows
 

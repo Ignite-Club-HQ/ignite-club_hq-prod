@@ -58,6 +58,11 @@ import {
   permanentlyDeleteVaultTrash,
   softDeleteVaultSelection,
 } from "@/features/vault/vaultBulkMutationService";
+import {
+  buildVaultUploadPath,
+  createVaultExternalLink,
+  getVaultUploadScope,
+} from "@/features/vault/vaultUploadService";
 import type { VaultFolderView } from "@/features/vault/types";
 import {
   abbreviateVaultOrganisationName,
@@ -1220,21 +1225,11 @@ export default function VaultPage() {
   // This keeps vault photos separate from the media gallery
   const uploadPhotoMutation = useMutation({
     mutationFn: async (file: File) => {
-      const fileExt = file.name.split(".").pop();
-      const timestamp = Date.now();
-      const randomSuffix = Math.random().toString(36).substring(7);
-      
-      // Structure path with club/team context for easier backup identification
-      let storagePath: string;
-      if (currentView.type === "team" && currentView.teamId && currentView.clubId) {
-        storagePath = `clubs/${currentView.clubId}/teams/${currentView.teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
-      } else if (currentView.type === "club" && currentView.clubId) {
-        storagePath = `clubs/${currentView.clubId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
-      } else if (currentView.type === "mini-league" && currentView.clubId && currentView.miniLeagueId) {
-        storagePath = `clubs/${currentView.clubId}/mini-leagues/${currentView.miniLeagueId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
-      } else {
-        storagePath = `unassigned/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
-      }
+      const storagePath = buildVaultUploadPath({
+        view: currentView,
+        userId: user!.id,
+        fileName: file.name,
+      });
 
       // Reserve quota atomically before any bytes are written.
       const reservationId = await reserveVaultStorage(
@@ -1265,17 +1260,8 @@ export default function VaultPage() {
         folder_id: getCurrentFolderId(),
         file_size: file.size,
         file_type: file.type,
+        ...getVaultUploadScope(currentView),
       };
-
-      if (currentView.type === "club") {
-        insertData.club_id = currentView.clubId;
-      } else if (currentView.type === "team") {
-        insertData.club_id = currentView.clubId;
-        insertData.team_id = currentView.teamId;
-      } else if (currentView.type === "mini-league") {
-        insertData.club_id = currentView.clubId;
-        insertData.mini_league_id = currentView.miniLeagueId;
-      }
 
       const { error: insertError } = await supabase.from("vault_files").insert(insertData);
       if (insertError) {
@@ -1301,21 +1287,11 @@ export default function VaultPage() {
 
   const uploadFileMutation = useMutation({
     mutationFn: async ({ file, customFileName }: { file: File; customFileName?: string }) => {
-      const fileExt = file.name.split(".").pop();
-      const timestamp = Date.now();
-      const randomSuffix = Math.random().toString(36).substring(7);
-      
-      // Structure path with club/team context for easier backup identification
-      let storagePath: string;
-      if (currentView.type === "team" && currentView.teamId && currentView.clubId) {
-        storagePath = `clubs/${currentView.clubId}/teams/${currentView.teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
-      } else if (currentView.type === "mini-league" && currentView.clubId && currentView.miniLeagueId) {
-        storagePath = `clubs/${currentView.clubId}/mini-leagues/${currentView.miniLeagueId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
-      } else if (currentView.type === "club" && currentView.clubId) {
-        storagePath = `clubs/${currentView.clubId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
-      } else {
-        storagePath = `unassigned/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
-      }
+      const storagePath = buildVaultUploadPath({
+        view: currentView,
+        userId: user!.id,
+        fileName: file.name,
+      });
 
       // Reserve quota atomically before any bytes are written.
       const reservationId = await reserveVaultStorage(
@@ -1342,17 +1318,8 @@ export default function VaultPage() {
         name: customFileName || fileName || file.name,
         folder_id: getCurrentFolderId(),
         file_size: file.size,
+        ...getVaultUploadScope(currentView),
       };
-
-      if (currentView.type === "club") {
-        insertData.club_id = currentView.clubId;
-      } else if (currentView.type === "team") {
-        insertData.club_id = currentView.clubId;
-        insertData.team_id = currentView.teamId;
-      } else if (currentView.type === "mini-league") {
-        insertData.club_id = currentView.clubId;
-        insertData.mini_league_id = currentView.miniLeagueId;
-      }
 
       const { error: insertError } = await supabase.from("vault_files").insert(insertData);
       if (insertError) {
@@ -1381,29 +1348,13 @@ export default function VaultPage() {
   });
 
   const addLinkMutation = useMutation({
-    mutationFn: async ({ url, name }: { url: string; name: string }) => {
-      const insertData: any = {
-        file_url: url,
-        uploaded_by: user!.id,
-        name,
-        folder_id: getCurrentFolderId(),
-        is_external_link: true,
-        file_size: 0, // External links have no storage size
-      };
-
-      if (currentView.type === "club") {
-        insertData.club_id = currentView.clubId;
-      } else if (currentView.type === "team") {
-        insertData.club_id = currentView.clubId;
-        insertData.team_id = currentView.teamId;
-      } else if (currentView.type === "mini-league") {
-        insertData.club_id = currentView.clubId;
-        insertData.mini_league_id = currentView.miniLeagueId;
-      }
-
-      const { error: insertError } = await supabase.from("vault_files").insert(insertData);
-      if (insertError) throw insertError;
-    },
+    mutationFn: ({ url, name }: { url: string; name: string }) => createVaultExternalLink({
+      url,
+      name,
+      userId: user!.id,
+      folderId: getCurrentFolderId(),
+      view: currentView,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       setAddLinkDialogOpen(false);
