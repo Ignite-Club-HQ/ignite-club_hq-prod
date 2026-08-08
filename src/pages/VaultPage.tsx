@@ -47,21 +47,14 @@ import { downloadImage } from "@/lib/downloadImage";
 import { StoragePurchaseDialog } from "@/components/StoragePurchaseDialog";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
-import {
-  buildVaultStorageUrl,
-  compensateVaultUpload,
-  reserveVaultStorage,
-  settleVaultStorage,
-} from "@/lib/vaultUpload";
 import { permanentlyDeleteVaultItems } from "@/lib/vaultDelete";
 import {
   permanentlyDeleteVaultTrash,
   softDeleteVaultSelection,
 } from "@/features/vault/vaultBulkMutationService";
 import {
-  buildVaultUploadPath,
   createVaultExternalLink,
-  getVaultUploadScope,
+  uploadVaultItem,
 } from "@/features/vault/vaultUploadService";
 import type { VaultFolderView } from "@/features/vault/types";
 import {
@@ -1224,54 +1217,14 @@ export default function VaultPage() {
   // Vault photo uploads go to vault_files ONLY (not photos table)
   // This keeps vault photos separate from the media gallery
   const uploadPhotoMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const storagePath = buildVaultUploadPath({
-        view: currentView,
-        userId: user!.id,
-        fileName: file.name,
-      });
-
-      // Reserve quota atomically before any bytes are written.
-      const reservationId = await reserveVaultStorage(
-        "clubId" in currentView ? currentView.clubId ?? null : null,
-        file.size,
-      );
-
-
-      const { error: uploadError } = await supabase.storage
-        .from("photos")
-        .upload(storagePath, file, { cacheControl: "31536000" });
-
-      if (uploadError) {
-        await settleVaultStorage(reservationId, false);
-        throw uploadError;
-      }
-
-      const storageUrl = buildVaultStorageUrl(storagePath);
-
-      // Insert into vault_files instead of photos table
-      // This keeps vault photos private and separate from the media gallery
-      const insertData: any = {
-        file_url: storageUrl,
-        storage_bucket: "photos",
-        storage_path: storagePath,
-        uploaded_by: user!.id,
-        name: file.name,
-        folder_id: getCurrentFolderId(),
-        file_size: file.size,
-        file_type: file.type,
-        ...getVaultUploadScope(currentView),
-      };
-
-      const { error: insertError } = await supabase.from("vault_files").insert(insertData);
-      if (insertError) {
-        // Compensate: never leave an orphaned object billed against the club.
-        await compensateVaultUpload(storagePath);
-        await settleVaultStorage(reservationId, false);
-        throw insertError;
-      }
-      await settleVaultStorage(reservationId, true);
-    },
+    mutationFn: (file: File) => uploadVaultItem({
+      kind: "photo",
+      file,
+      name: file.name,
+      userId: user!.id,
+      folderId: getCurrentFolderId(),
+      view: currentView,
+    }),
 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
@@ -1286,52 +1239,14 @@ export default function VaultPage() {
   });
 
   const uploadFileMutation = useMutation({
-    mutationFn: async ({ file, customFileName }: { file: File; customFileName?: string }) => {
-      const storagePath = buildVaultUploadPath({
-        view: currentView,
-        userId: user!.id,
-        fileName: file.name,
-      });
-
-      // Reserve quota atomically before any bytes are written.
-      const reservationId = await reserveVaultStorage(
-        "clubId" in currentView ? currentView.clubId ?? null : null,
-        file.size,
-      );
-
-      const { error: uploadError } = await supabase.storage
-        .from("photos")
-        .upload(storagePath, file, { cacheControl: "31536000" });
-
-      if (uploadError) {
-        await settleVaultStorage(reservationId, false);
-        throw uploadError;
-      }
-
-      const storageUrl = buildVaultStorageUrl(storagePath);
-
-      const insertData: any = {
-        file_url: storageUrl,
-        storage_bucket: "photos",
-        storage_path: storagePath,
-        uploaded_by: user!.id,
-        name: customFileName || fileName || file.name,
-        folder_id: getCurrentFolderId(),
-        file_size: file.size,
-        ...getVaultUploadScope(currentView),
-      };
-
-      const { error: insertError } = await supabase.from("vault_files").insert(insertData);
-      if (insertError) {
-        // Compensate: never leave an orphaned object billed against the club.
-        await compensateVaultUpload(storagePath);
-        await settleVaultStorage(reservationId, false);
-        throw insertError;
-      }
-      await settleVaultStorage(reservationId, true);
-
-      // Note: Storage tracking is now per team, handled by the storage breakdown query
-    },
+    mutationFn: ({ file, customFileName }: { file: File; customFileName?: string }) => uploadVaultItem({
+      kind: "file",
+      file,
+      name: customFileName || fileName || file.name,
+      userId: user!.id,
+      folderId: getCurrentFolderId(),
+      view: currentView,
+    }),
 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });

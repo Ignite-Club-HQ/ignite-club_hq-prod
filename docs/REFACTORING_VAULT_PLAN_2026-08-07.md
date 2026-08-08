@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V4d committed; V5a upload scope/link boundary complete locally; review/commit pending
+**Status:** V1–V5a committed; V5b upload transaction complete locally; review/commit pending
 
 ## Objective
 
@@ -281,6 +281,22 @@ does not move Supabase ownership.
 - Focused verification passes 180/180 tests across fifteen files.
 - Full upload orchestration and Google Drive workflows remain page-owned for
   later V5 slices.
+
+**V5b completed locally 8 August 2026:**
+
+- Extracted the shared photo/file upload transaction into the typed upload
+  service while keeping page-owned names, dialogs, invalidation and toasts.
+- Preserved and directly tested the critical order: reserve quota, upload
+  bytes, write metadata, then commit the reservation.
+- Preserved failure compensation: storage failure releases the reservation
+  without metadata writes; metadata failure removes the orphan before releasing
+  quota; reservation failure prevents all storage activity.
+- Preserved photo-only MIME metadata, custom file names, canonical bucket/path
+  metadata and every scope field.
+- Added five transaction contracts (eleven upload-service tests total) and
+  relocated three source-level security assertions to the extracted boundary.
+- Focused verification passes 185/185 tests across fifteen files.
+- Google Drive title/import/link workflows remain page-owned for V5c.
 
 ### V6 — Selection and export workflows
 

@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  buildVaultStorageUrl,
+  compensateVaultUpload,
+  reserveVaultStorage,
+  settleVaultStorage,
+} from "@/lib/vaultUpload";
 import type { VaultFolderView } from "./types";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
@@ -63,4 +69,68 @@ export async function createVaultExternalLink(
   };
   const { error } = await client.from("vault_files").insert(insert);
   if (error) throw error;
+}
+
+export interface VaultUploadDependencies {
+  reserveStorage: typeof reserveVaultStorage;
+  settleStorage: typeof settleVaultStorage;
+  compensateUpload: typeof compensateVaultUpload;
+  buildStorageUrl: typeof buildVaultStorageUrl;
+}
+
+const defaultUploadDependencies: VaultUploadDependencies = {
+  reserveStorage: reserveVaultStorage,
+  settleStorage: settleVaultStorage,
+  compensateUpload: compensateVaultUpload,
+  buildStorageUrl: buildVaultStorageUrl,
+};
+
+export async function uploadVaultItem(
+  options: {
+    kind: "photo" | "file";
+    file: File;
+    name: string;
+    userId: string;
+    folderId: string | null;
+    view: VaultFolderView;
+  },
+  client: IgniteSupabaseClient = supabase,
+  dependencies: VaultUploadDependencies = defaultUploadDependencies,
+): Promise<void> {
+  const storagePath = buildVaultUploadPath({
+    view: options.view,
+    userId: options.userId,
+    fileName: options.file.name,
+  });
+  const clubId = "clubId" in options.view ? options.view.clubId ?? null : null;
+  const reservationId = await dependencies.reserveStorage(clubId, options.file.size);
+
+  const { error: uploadError } = await client.storage
+    .from("photos")
+    .upload(storagePath, options.file, { cacheControl: "31536000" });
+  if (uploadError) {
+    await dependencies.settleStorage(reservationId, false);
+    throw uploadError;
+  }
+
+  const insert: VaultFileInsert = {
+    file_url: dependencies.buildStorageUrl(storagePath),
+    storage_bucket: "photos",
+    storage_path: storagePath,
+    uploaded_by: options.userId,
+    name: options.name,
+    folder_id: options.folderId,
+    file_size: options.file.size,
+    ...getVaultUploadScope(options.view),
+  };
+  if (options.kind === "photo") insert.file_type = options.file.type;
+
+  const { error: insertError } = await client.from("vault_files").insert(insert);
+  if (insertError) {
+    await dependencies.compensateUpload(storagePath);
+    await dependencies.settleStorage(reservationId, false);
+    throw insertError;
+  }
+
+  await dependencies.settleStorage(reservationId, true);
 }
