@@ -794,6 +794,10 @@ function applyEqualTimeOverride(
         minShiftSec,
         noSubBeforeSec: 0,
         noSubAfterSec: 30,
+        // Standard deliberately prefers the compact equal-time cycle. Frequent
+        // uses the windowed allocator so the two product modes do not collapse
+        // to an identical number of match interruptions.
+        preferCompactCycle: rotationSpeed < 2,
       });
       const candidate = eqResult.plan as unknown as SubstitutionEvent[];
       if (candidate.length === 0) continue;
@@ -841,6 +845,95 @@ let standardCalmnessReentryGuard = false;
 /** Calmer interval floors (sec) tried in order when Standard is too busy. */
 const STANDARD_CALMDOWN_FLOORS_SEC = [300, 360, 420, 480, 540, 600];
 
+const substitutionAbsoluteTime = (
+  substitution: Pick<SubstitutionEvent, "half" | "time">,
+  halfDurationSeconds: number,
+) => substitution.half === 1
+  ? substitution.time
+  : halfDurationSeconds + substitution.time;
+
+/** Product cadence is measured in interruption moments, not player movements. */
+function countSubstitutionWindows(
+  plan: SubstitutionEvent[],
+  halfDurationSeconds: number,
+): number {
+  return new Set(plan.map((substitution) =>
+    substitutionAbsoluteTime(substitution, halfDurationSeconds))).size;
+}
+
+/**
+ * Find the fairest playable way to combine one adjacent pair of substitution
+ * windows. This lets Standard remain genuinely quieter without deleting a
+ * player's turn or hiding extra churn inside the plan.
+ */
+function compactOneSubstitutionWindow(
+  source: SubstitutionEvent[],
+  players: Player[],
+  halfDurationSeconds: number,
+  rotateGkAtHalftime: boolean,
+  maxSpreadSeconds: number,
+): SubstitutionEvent[] | null {
+  const sourceWindows = Array.from(new Set(source.map((substitution) =>
+    substitutionAbsoluteTime(substitution, halfDurationSeconds)))).sort((a, b) => a - b);
+  if (sourceWindows.length < 2) return null;
+
+  let best: { plan: SubstitutionEvent[]; spread: number } | null = null;
+  const sameWindowYoyoCount = (plan: SubstitutionEvent[]) => {
+    const windows = new Map<number, { ins: Set<string>; outs: Set<string> }>();
+    for (const substitution of plan) {
+      const absolute = substitutionAbsoluteTime(substitution, halfDurationSeconds);
+      const window = windows.get(absolute) ?? { ins: new Set<string>(), outs: new Set<string>() };
+      window.ins.add(substitution.playerIn.id);
+      window.outs.add(substitution.playerOut.id);
+      windows.set(absolute, window);
+    }
+    let count = 0;
+    windows.forEach((window) => window.ins.forEach((id) => {
+      if (window.outs.has(id)) count += 1;
+    }));
+    return count;
+  };
+  const sourceYoyos = sameWindowYoyoCount(source);
+  for (let index = 0; index < sourceWindows.length - 1; index += 1) {
+    const left = sourceWindows[index];
+    const right = sourceWindows[index + 1];
+    // Never merge across the halftime boundary. Keep the halftime goalkeeper
+    // handover as its own explicit, predictable operation.
+    if ((left < halfDurationSeconds) !== (right < halfDurationSeconds)) continue;
+    if (left === halfDurationSeconds || right === halfDurationSeconds) continue;
+
+    const midpoint = Math.round(((left + right) / 2) / 30) * 30;
+    for (const target of Array.from(new Set([left, midpoint, right]))) {
+      const candidate = source.map((substitution) => {
+        const absolute = substitutionAbsoluteTime(substitution, halfDurationSeconds);
+        if (absolute !== left && absolute !== right) return substitution;
+        return {
+          ...substitution,
+          half: (target < halfDurationSeconds ? 1 : 2) as 1 | 2,
+          time: target < halfDurationSeconds ? target : target - halfDurationSeconds,
+        };
+      }).sort((a, b) =>
+        substitutionAbsoluteTime(a, halfDurationSeconds) -
+        substitutionAbsoluteTime(b, halfDurationSeconds));
+
+      if (!isPlanPlayableFromPlayers(players, candidate, halfDurationSeconds)) continue;
+      // Combining windows must not create an on/off instruction for the same
+      // player at one whistle. Preserve any unavoidable existing halftime GK
+      // handover, but never introduce additional yo-yos.
+      if (sameWindowYoyoCount(candidate) > Math.max(1, sourceYoyos)) continue;
+      const spread = planSpreadSeconds(
+        players,
+        candidate,
+        halfDurationSeconds,
+        rotateGkAtHalftime,
+      );
+      if (spread > maxSpreadSeconds) continue;
+      if (!best || spread < best.spread) best = { plan: candidate, spread };
+    }
+  }
+  return best?.plan ?? null;
+}
+
 export function createSubPlan(
   playerData: Player[],
   teamSize: number,
@@ -879,9 +972,44 @@ export function createSubPlan(
   standardCalmnessReentryGuard = true;
   try {
     const frequentReference = run(2, advancedOverrides);
-    if (frequentReference.length === 0 || plan.length < frequentReference.length) {
+    if (frequentReference.length === 0) {
       return plan;
     }
+
+    const frequentWindows = countSubstitutionWindows(frequentReference, halfDurationSeconds);
+    const capSeconds = Math.max(0, maxSpreadMinutes) * 60;
+    const qualifying: SubstitutionEvent[][] = [];
+    const consider = (candidate: SubstitutionEvent[] | null) => {
+      if (!candidate) return;
+      if (countSubstitutionWindows(candidate, halfDurationSeconds) >= frequentWindows) return;
+      if (candidate.length > frequentReference.length) return;
+      if (planSpreadSeconds(
+        playerData,
+        candidate,
+        halfDurationSeconds,
+        rotateGkAtHalftime,
+      ) > capSeconds) return;
+      qualifying.push(candidate);
+    };
+
+    consider(plan);
+    consider(compactOneSubstitutionWindow(
+      plan,
+      playerData,
+      halfDurationSeconds,
+      rotateGkAtHalftime,
+      capSeconds,
+    ));
+    // Frequent is the tightest fair allocation. Coalescing one of its windows
+    // is a safe Standard candidate: same player movements, one less match
+    // interruption, and accepted only if the selected spread remains intact.
+    consider(compactOneSubstitutionWindow(
+      frequentReference,
+      playerData,
+      halfDurationSeconds,
+      rotateGkAtHalftime,
+      capSeconds,
+    ));
 
     let best = plan;
     for (const floorSec of STANDARD_CALMDOWN_FLOORS_SEC) {
@@ -896,7 +1024,31 @@ export function createSubPlan(
       });
       if (calmer.length === 0) continue;
       if (calmer.length < best.length) best = calmer;
+      consider(calmer);
+      consider(compactOneSubstitutionWindow(
+        calmer,
+        playerData,
+        halfDurationSeconds,
+        rotateGkAtHalftime,
+        capSeconds,
+      ));
+      // Preserve the legacy fallback boundary when no cap-preserving compact
+      // candidate exists. Continuing to ever-higher floors can reduce raw
+      // event count at the cost of a dramatically worse playing-time spread.
       if (best.length < frequentReference.length) break;
+    }
+
+    if (qualifying.length > 0) {
+      return qualifying.sort((left, right) => {
+        const spreadDelta = planSpreadSeconds(
+          playerData, left, halfDurationSeconds, rotateGkAtHalftime,
+        ) - planSpreadSeconds(
+          playerData, right, halfDurationSeconds, rotateGkAtHalftime,
+        );
+        if (spreadDelta !== 0) return spreadDelta;
+        return countSubstitutionWindows(left, halfDurationSeconds) -
+          countSubstitutionWindows(right, halfDurationSeconds);
+      })[0];
     }
     return best;
   } catch {
