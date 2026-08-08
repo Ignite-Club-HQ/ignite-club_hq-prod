@@ -56,6 +56,8 @@ import {
 import { permanentlyDeleteVaultItems } from "@/lib/vaultDelete";
 import { fetchVaultFolderContents, collectVaultExportContents } from "@/features/vault/vaultExportRepository";
 import { isVaultImageItem } from "@/features/vault/vaultItemClassification";
+import { summarizeVaultDeletion, buildVaultDeleteMessage } from "@/features/vault/vaultDeleteReporting";
+import { runZipExport, summarizeZipExport, type ZipExportItem } from "@/features/vault/vaultZipExport";
 
 
 
@@ -2341,23 +2343,30 @@ export default function VaultPage() {
         fileIds: fileItems.map(f => f.id),
       });
 
-      if (result.failed.length > 0) {
-        toast.error(`${result.failed.length} file(s) could not be deleted`);
+      // Truthful reporting: only server-acknowledged deletions count, and
+      // freed bytes are summed over successful items only.
+      const summary = summarizeVaultDeletion(
+        itemsToDelete.map(i => ({ id: i.id, type: i.type, size: i.size })),
+        result,
+      );
+      const { outcome, message } = buildVaultDeleteMessage(summary, formatStorageSize);
+
+      if (summary.deletedCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+        queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+        queryClient.invalidateQueries({ queryKey: ["photos"] });
       }
 
-      
-      // Calculate total freed space
-      const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
-      
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
-      
-      toast.success(`Deleted ${itemsToDelete.length} file(s), freed ${formatStorageSize(freedSpace)}`);
+      // Failed items stay selected so the user can retry; successes are cleared.
+      const deletedIds = new Set(summary.deletedIds);
+      setSelectedLargeFiles(prev => new Set([...prev].filter(id => !deletedIds.has(id))));
+
+      if (outcome === "failure") toast.error(message);
+      else toast.success(message);
       
       // Refresh the list
       fetchLargeFiles();
+
     } catch (error: any) {
       toast.error(error.message || "Failed to delete files");
     } finally {
@@ -2810,48 +2819,53 @@ export default function VaultPage() {
       
       try {
         const zip = new JSZip();
-        let downloadCount = 0;
-        
-        for (const photo of photosToExport) {
-          if (signal.aborted) throw new Error("Export cancelled");
-          try {
-            const response = await fetch(photo.file_url);
-            const blob = await response.blob();
-            const filename = photo.title || `photo-${photo.id}.jpg`;
-            zip.file(filename, blob);
-          } catch (err) {
-            console.error(`Failed to fetch photo: ${photo.id}`, err);
-          }
-          downloadCount++;
-          setExportProgress({ current: downloadCount, total: totalItems });
+        const items: ZipExportItem[] = [
+          ...photosToExport.map((photo: any) => ({
+            id: photo.id,
+            kind: "photo" as const,
+            url: photo.file_url,
+            filename: photo.title || `photo-${photo.id}.jpg`,
+          })),
+          ...filesToExport.map((file: any) => ({
+            id: file.id,
+            kind: "file" as const,
+            url: file.file_url,
+            filename: file.name,
+          })),
+        ];
+
+        const result = await runZipExport(items, {
+          signal,
+          isAborted: () => signal.aborted,
+          fetchBlob: async (url, sig) => {
+            const response = await fetch(url, { signal: sig });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.blob();
+          },
+          addToZip: (filename, blob) => zip.file(filename, blob),
+          onProgress: (processed) => setExportProgress({ current: processed, total: totalItems }),
+        });
+
+        const { outcome, message, shouldDownload } = summarizeZipExport(result);
+
+        if (shouldDownload) {
+          const zipBlob = await zip.generateAsync({ type: "blob" });
+          const blobUrl = window.URL.createObjectURL(zipBlob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = `${folderExportData.folderName}.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
         }
-        
-        for (const file of filesToExport) {
-          if (signal.aborted) throw new Error("Export cancelled");
-          try {
-            const response = await fetch(file.file_url);
-            const blob = await response.blob();
-            zip.file(file.name, blob);
-          } catch (err) {
-            console.error(`Failed to fetch file: ${file.id}`, err);
-          }
-          downloadCount++;
-          setExportProgress({ current: downloadCount, total: totalItems });
-        }
-        
-        const zipBlob = await zip.generateAsync({ type: "blob" });
-        const blobUrl = window.URL.createObjectURL(zipBlob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = `${folderExportData.folderName}.zip`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-        
-        toast.success(`Exported ${totalItems} items as ZIP`);
+
+        if (outcome === "cancelled") toast.info(message);
+        else if (outcome === "failure") toast.error(message);
+        else if (outcome === "partial") toast.warning(message);
+        else toast.success(message);
       } catch (error: any) {
-        if (error.message === "Export cancelled") {
+        if (signal.aborted || error?.message === "Export cancelled") {
           toast.info("Export cancelled");
         } else {
           toast.error("Export failed");
@@ -2861,6 +2875,7 @@ export default function VaultPage() {
         setExportProgress({ current: 0, total: 0 });
         exportAbortController.current = null;
       }
+
     } else {
       // Single file - just download
       const item = photosToExport[0] || filesToExport[0];
