@@ -2341,23 +2341,30 @@ export default function VaultPage() {
         fileIds: fileItems.map(f => f.id),
       });
 
-      if (result.failed.length > 0) {
-        toast.error(`${result.failed.length} file(s) could not be deleted`);
+      // Truthful reporting: only server-acknowledged deletions count, and
+      // freed bytes are summed over successful items only.
+      const summary = summarizeVaultDeletion(
+        itemsToDelete.map(i => ({ id: i.id, type: i.type, size: i.size })),
+        result,
+      );
+      const { outcome, message } = buildVaultDeleteMessage(summary, formatStorageSize);
+
+      if (summary.deletedCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+        queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+        queryClient.invalidateQueries({ queryKey: ["photos"] });
       }
 
-      
-      // Calculate total freed space
-      const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
-      
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
-      
-      toast.success(`Deleted ${itemsToDelete.length} file(s), freed ${formatStorageSize(freedSpace)}`);
+      // Failed items stay selected so the user can retry; successes are cleared.
+      const deletedIds = new Set(summary.deletedIds);
+      setSelectedLargeFiles(prev => new Set([...prev].filter(id => !deletedIds.has(id))));
+
+      if (outcome === "failure") toast.error(message);
+      else toast.success(message);
       
       // Refresh the list
       fetchLargeFiles();
+
     } catch (error: any) {
       toast.error(error.message || "Failed to delete files");
     } finally {
