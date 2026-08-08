@@ -804,13 +804,10 @@ export default function VaultPage() {
     enabled: currentView.type !== "root" && !showTrash,
   });
 
-  // Separate vault items into photos and files based on file_type
+  // Separate vault items into photos and files using the shared classifier
   const photos = useMemo(() => {
     if (!vaultItems) return [];
-    return vaultItems.filter(item => 
-      item.file_type?.startsWith('image/') || 
-      /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
-    ).map(item => ({
+    return vaultItems.filter(isVaultImageItem).map(item => ({
       ...item,
       // Map vault_files fields to photo-like structure for compatibility
       image_url: item.file_url,
@@ -821,11 +818,9 @@ export default function VaultPage() {
 
   const files = useMemo(() => {
     if (!vaultItems) return [];
-    return vaultItems.filter(item => 
-      !item.file_type?.startsWith('image/') && 
-      !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
-    );
+    return vaultItems.filter(item => !isVaultImageItem(item));
   }, [vaultItems]);
+
 
   // Recursive search - always search inside subfolders when a query is active.
   // Performance strategy:
