@@ -68,6 +68,8 @@ export interface EqualTimePlanInput {
   noSubBeforeSec?: number;
   /** No subs in the trailing N seconds of each half. */
   noSubAfterSec?: number;
+  /** Prefer the minimum-interruption cyclic solution when it is available. */
+  preferCompactCycle?: boolean;
 }
 
 export interface EqualTimePlanResult {
@@ -110,6 +112,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
     minShiftSec = 120,
     noSubBeforeSec = 0,
     noSubAfterSec = 30,
+    preferCompactCycle = true,
   } = input;
 
   const totalSec = halfDurationSec * 2;
@@ -307,6 +310,7 @@ export function buildEqualTimePlan(input: EqualTimePlanInput): EqualTimePlanResu
   const shortestRepeatGapSec = approximatePeriodSec * Math.min(outfieldSlots, benchCount);
   const universallyCompatible =
     !gkRotates &&
+    preferCompactCycle &&
     totalAlready === 0 &&
     initialOutfieldOnPitch.length === outfieldSlots &&
     rotationPool.length > outfieldSlots &&
