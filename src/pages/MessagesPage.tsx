@@ -1753,21 +1753,25 @@ export default function MessagesPage() {
     // them. Once scopes resolve, the flush effect replays them through the
     // same authorized handlers.
     const MAX_PENDING = 50;
-    const dispatch = (table: string, payload: any) => {
+    const run = (table: string, payload: any, kind: 'insert' | 'edit') => {
+      if (kind === 'edit') editHandlers[table]?.(payload);
+      else handlers[table]?.(payload);
+    };
+    const dispatch = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
       if (authStatusRef.current !== 'ready') {
         const buf = pendingRealtimeRef.current;
-        buf.push({ table, payload });
+        buf.push({ table, payload, kind } as any);
         if (buf.length > MAX_PENDING) buf.splice(0, buf.length - MAX_PENDING);
         return;
       }
-      handlers[table]?.(payload);
+      run(table, payload, kind);
     };
 
     realtimeFlushRef.current = () => {
       const buffered = pendingRealtimeRef.current;
       if (buffered.length === 0) return;
       pendingRealtimeRef.current = [];
-      for (const item of buffered) handlers[item.table]?.(item.payload);
+      for (const item of buffered) run(item.table, item.payload, ((item as any).kind ?? 'insert'));
     };
 
     const channel = supabase
@@ -1777,6 +1781,11 @@ export default function MessagesPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'team_messages' }, (p: any) => dispatch('team_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'club_messages' }, (p: any) => dispatch('club_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p, 'edit'))
       .subscribe();
 
 
