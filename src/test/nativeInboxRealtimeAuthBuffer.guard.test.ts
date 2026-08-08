@@ -10,7 +10,7 @@ describe("native inbox realtime authorization-hydration buffer", () => {
   it("buffers native events while authorized scopes are not ready", () => {
     expect(src).toContain("pendingNativeRealtimeRef");
     expect(nativeBlock).toContain("if (authStatusRef.current !== 'ready') {");
-    expect(nativeBlock).toContain("buf.push({ table, payload })");
+    expect(nativeBlock).toContain("buf.push({ table, payload, kind }");
   });
 
   it("bounds the buffer to 50 events, dropping the oldest first", () => {
@@ -30,7 +30,7 @@ describe("native inbox realtime authorization-hydration buffer", () => {
   it("re-runs the fail-closed authorization check on replay", () => {
     // Replay goes through the same handlers map, which starts every branch
     // with isAuthorized(...)/status checks.
-    expect(nativeBlock).toContain("for (const item of buffered) applyOnce(item.table, item.payload)");
+    expect(nativeBlock).toContain("for (const item of buffered) applyOnce(item.table, item.payload,");
     expect(nativeBlock).toContain("handlers[table]?.(payload)");
     for (const kind of ["'team'", "'club'", "'group'", "'dm'"]) {
       expect(nativeBlock).toContain(`isAuthorized(${kind}`);
