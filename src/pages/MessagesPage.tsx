@@ -2054,6 +2054,68 @@ export default function MessagesPage() {
       },
     };
 
+    // Native edit handling: patch the preview text in place when the edited
+    // row IS the currently previewed latest message (matched on created_at).
+    // Previously UPDATE events were never subscribed, so an edited message
+    // kept showing its original text in the inbox.
+    const patchEditedPreview = (key: any[], targetId: string, row: any) => {
+      queryClient.setQueryData(key, (old: any) => {
+        const prev = old?.latestMessages?.[targetId];
+        if (!prev || prev.created_at !== row.created_at) return old;
+        return {
+          ...old,
+          latestMessages: {
+            ...old.latestMessages,
+            [targetId]: { ...prev, text: row.text ?? '', image_url: row.image_url ?? null },
+          },
+        };
+      });
+    };
+
+    const editHandlers: Record<string, (payload: any) => void> = {
+      team_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('team', row?.team_id)) return;
+        patchEditedPreview(["my-teams-with-messages", user.id], row.team_id, row);
+      },
+      club_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('club', row?.club_id)) return;
+        patchEditedPreview(["member-clubs-with-messages", user.id], row.club_id, row);
+      },
+      group_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('group', row?.group_id)) return;
+        patchEditedPreview(["my-chat-groups-with-messages", user.id], row.group_id, row);
+      },
+      direct_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('dm', row?.conversation_id)) return;
+        queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          const idx = old.findIndex((c: any) => c.id === row.conversation_id);
+          if (idx === -1) return old;
+          const conv = old[idx];
+          if (conv?.last_message?.created_at !== row.created_at) return old;
+          const next = old.slice();
+          next[idx] = {
+            ...conv,
+            last_message: { ...conv.last_message, text: row.text ?? '', image_url: row.image_url ?? null },
+          };
+          return next;
+        });
+      },
+      broadcast_messages: (payload: any) => {
+        if (authStatusRef.current !== 'ready') return;
+        const row = payload.new;
+        queryClient.setQueryData(["latest-broadcast"], (old: any) => {
+          if (!old || old.created_at !== row.created_at) return old;
+          return { ...old, text: row.text ?? '', image_url: row.image_url ?? null };
+        });
+      },
+    };
+
+
     // Bounded buffer-then-replay. While the membership snapshot is loading we
     // hold events (max 50, oldest dropped) instead of discarding them; the
     // replay re-runs the same fail-closed `isAuthorized` check.
