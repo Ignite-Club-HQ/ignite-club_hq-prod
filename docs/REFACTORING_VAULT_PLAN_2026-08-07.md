@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V5c committed; V5d Drive OAuth return boundary complete locally; review/commit pending
+**Status:** V1–V5d committed; V6a export read/recursion boundary complete locally; review/commit pending
 
 ## Objective
 
@@ -335,6 +335,23 @@ does not move Supabase ownership.
   cancellation and large-file management.
 - Add focused coverage for recursion, excluded folders, aborts and partial
   download failure before moving side-effectful code.
+
+**V6a completed locally 8 August 2026:**
+
+- Extracted current-folder export reads and depth-first recursive collection
+  into a typed repository.
+- Preserved exact team versus club-level filters, deleted-folder exclusion,
+  folder/parent targeting, item paths, traversal order and a shared truthful
+  folder breakdown.
+- Added five contracts for team scope, club-root isolation, path mapping,
+  recursive traversal and the existing root behavior.
+- Focused verification passes 200/200 tests across seventeen files.
+- Two pre-existing behaviors were characterized rather than silently changed:
+  recursive export still reads legacy `photos`, and root export has no club or
+  team filter and therefore relies on RLS. Both require separate product/
+  defect review before alteration.
+- ZIP creation, cancellation, partial download handling, selection/exclusion
+  rules and large-file management remain page-owned for later V6 slices.
 
 ### V7 — Presentation decomposition
 
