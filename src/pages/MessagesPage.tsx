@@ -1717,6 +1717,37 @@ export default function MessagesPage() {
       },
     };
 
+    // Edits (UPDATE) never fired here before, so an edited message kept its
+    // ORIGINAL text in every inbox preview until the next cold refetch.
+    // Reconcile by refetching the affected list (edits are rare, so this can't
+    // contribute to invalidation storms) — no unread bump, edits aren't new mail.
+    const editHandlers: Record<string, (payload: any) => void> = {
+      team_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('team', row?.team_id)) return;
+        schedule('team', () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
+      },
+      club_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('club', row?.club_id)) return;
+        schedule('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
+      },
+      group_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('group', row?.group_id)) return;
+        schedule('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
+      },
+      direct_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('dm', row?.conversation_id)) return;
+        schedule('dm', () => queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] }));
+      },
+      broadcast_messages: () => {
+        if (authStatusRef.current !== 'ready') return;
+        queryClient.invalidateQueries({ queryKey: ["latest-broadcast"] });
+      },
+    };
+
     // Buffer-then-replay: while the membership snapshot is still loading we
     // hold payloads (bounded to 50, oldest dropped) instead of discarding
     // them. Once scopes resolve, the flush effect replays them through the
