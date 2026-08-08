@@ -56,6 +56,10 @@ import {
   createVaultExternalLink,
   uploadVaultItem,
 } from "@/features/vault/vaultUploadService";
+import {
+  isVaultDriveEnabled,
+  resolveVaultDriveTitles,
+} from "@/features/vault/vaultDriveService";
 import type { VaultFolderView } from "@/features/vault/types";
 import {
   abbreviateVaultOrganisationName,
@@ -132,13 +136,6 @@ import {
   SheetHeader as UISheetHeader,
   SheetTitle as UISheetTitle,
 } from "@/components/ui/sheet";
-
-// Clubs allowed to use Google Drive import / sync features.
-const DRIVE_IMPORT_ALLOWED_CLUB_IDS = new Set<string>([
-  "966bdaec-ebf1-46da-b2b3-cc53bf05c422", // Bridgewater Soccer Club
-  "493ee2e3-c834-487d-93be-d1c8a0dbc4a8", // Basket Range Cricket Club
-  "36231b76-5313-478e-b8d5-23ac4f5e8b10", // Riverside FC
-]);
 
 export default function VaultPage() {
   const { user } = useAuth();
@@ -221,11 +218,7 @@ export default function VaultPage() {
     setResolvingDriveTitles(true);
     const toastId = toast.loading("Fetching real Google Drive titles…");
     try {
-      const { data, error } = await supabase.functions.invoke("resolve-drive-titles", {
-        body: { clubId },
-      });
-      if (error) throw error;
-      const summary = (data as any)?.summary;
+      const summary = await resolveVaultDriveTitles(clubId);
       if (!summary || summary.scanned === 0) {
         toast.success("No Google files needed renaming.", { id: toastId });
       } else {
@@ -2937,7 +2930,7 @@ export default function VaultPage() {
                           <Link2 className="h-4 w-4 mr-2" />
                           Add Link
                         </DropdownMenuItem>
-                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && isVaultDriveEnabled(currentView.clubId) && (
                           <DropdownMenuItem onClick={() => setGoogleDriveImportOpen(true)}>
                             <CloudDownload className="h-4 w-4 mr-2" />
                             Import from Drive
@@ -2991,7 +2984,7 @@ export default function VaultPage() {
                             )}
                           </DropdownMenuItem>
                         )}
-                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && DRIVE_IMPORT_ALLOWED_CLUB_IDS.has(currentView.clubId) && (
+                        {isClubAdmin && Capacitor.getPlatform() !== 'ios' && 'clubId' in currentView && isVaultDriveEnabled(currentView.clubId) && (
                           <DropdownMenuItem onClick={() => setLinkDriveFolderOpen(true)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Sync with Drive folder

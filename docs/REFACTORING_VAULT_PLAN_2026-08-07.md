@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V5a committed; V5b upload transaction complete locally; review/commit pending
+**Status:** V1–V5b committed; V5c Drive rollout/title boundary complete locally; review/commit pending
 
 ## Objective
 
@@ -297,6 +297,20 @@ does not move Supabase ownership.
   relocated three source-level security assertions to the extracted boundary.
 - Focused verification passes 185/185 tests across fifteen files.
 - Google Drive title/import/link workflows remain page-owned for V5c.
+
+**V5c completed locally 8 August 2026:**
+
+- Extracted the established three-club Google Drive rollout allowlist into an
+  explicit fail-closed feature boundary.
+- Extracted Drive title resolution into a typed service that sends only the
+  selected club ID to the existing Edge Function.
+- Kept platform exclusion, admin checks, loading state, summary/toast wording,
+  error presentation and query invalidation in `VaultPage`.
+- Added five contracts for the exact allowlist, absent/unknown clubs, request
+  payload, absent summaries and Edge Function failures.
+- Focused verification passes 190/190 tests across sixteen files.
+- OAuth return handling and the self-contained import/link dialogs remain for
+  later V5 slices; their behavior was not changed here.
 
 ### V6 — Selection and export workflows
 
