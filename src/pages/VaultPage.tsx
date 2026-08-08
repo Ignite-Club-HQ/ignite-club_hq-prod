@@ -54,6 +54,12 @@ import {
   settleVaultStorage,
 } from "@/lib/vaultUpload";
 import { permanentlyDeleteVaultItems } from "@/lib/vaultDelete";
+import { fetchVaultFolderContents, collectVaultExportContents } from "@/features/vault/vaultExportRepository";
+import { isVaultImageItem } from "@/features/vault/vaultItemClassification";
+import { summarizeVaultDeletion, buildVaultDeleteMessage } from "@/features/vault/vaultDeleteReporting";
+import { runZipExport, summarizeZipExport, type ZipExportItem } from "@/features/vault/vaultZipExport";
+
+
 
 
 import {
@@ -802,13 +808,10 @@ export default function VaultPage() {
     enabled: currentView.type !== "root" && !showTrash,
   });
 
-  // Separate vault items into photos and files based on file_type
+  // Separate vault items into photos and files using the shared classifier
   const photos = useMemo(() => {
     if (!vaultItems) return [];
-    return vaultItems.filter(item => 
-      item.file_type?.startsWith('image/') || 
-      /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
-    ).map(item => ({
+    return vaultItems.filter(isVaultImageItem).map(item => ({
       ...item,
       // Map vault_files fields to photo-like structure for compatibility
       image_url: item.file_url,
@@ -819,11 +822,9 @@ export default function VaultPage() {
 
   const files = useMemo(() => {
     if (!vaultItems) return [];
-    return vaultItems.filter(item => 
-      !item.file_type?.startsWith('image/') && 
-      !/\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i.test(item.name || item.file_url || '')
-    );
+    return vaultItems.filter(item => !isVaultImageItem(item));
   }, [vaultItems]);
+
 
   // Recursive search - always search inside subfolders when a query is active.
   // Performance strategy:
@@ -2136,8 +2137,20 @@ export default function VaultPage() {
         fileIds: [...allPhotoIds, ...allFileIds],
       });
 
-      const succeededCount = (result.photosDeleted ?? 0) + (result.filesDeleted ?? 0);
-      const failedCount = result.failed.length;
+      // Item-level acknowledgements only; aggregate counts never imply success.
+      const requestedKeys = new Set<string>([
+        ...photoTableIds.map((id) => `photo:${id}`),
+        ...[...allPhotoIds, ...allFileIds].map((id: string) => `file:${id}`),
+      ]);
+      const failedKeys = new Set(result.failed.map((f) => `${f.kind}:${f.id}`));
+      const succeededKeys = new Set(
+        result.succeeded
+          .map((s) => `${s.kind}:${s.id}`)
+          .filter((k) => requestedKeys.has(k) && !failedKeys.has(k)),
+      );
+      const succeededCount = succeededKeys.size;
+      const failedCount = requestedKeys.size - succeededCount;
+
 
       // Always refresh so remaining (failed) items stay visible and counts are accurate
       queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
@@ -2342,23 +2355,30 @@ export default function VaultPage() {
         fileIds: fileItems.map(f => f.id),
       });
 
-      if (result.failed.length > 0) {
-        toast.error(`${result.failed.length} file(s) could not be deleted`);
+      // Truthful reporting: only server-acknowledged deletions count, and
+      // freed bytes are summed over successful items only.
+      const summary = summarizeVaultDeletion(
+        itemsToDelete.map(i => ({ id: i.id, type: i.type, size: i.size })),
+        result,
+      );
+      const { outcome, message } = buildVaultDeleteMessage(summary, formatStorageSize);
+
+      if (summary.deletedCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+        queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+        queryClient.invalidateQueries({ queryKey: ["photos"] });
       }
 
-      
-      // Calculate total freed space
-      const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
-      
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
-      
-      toast.success(`Deleted ${itemsToDelete.length} file(s), freed ${formatStorageSize(freedSpace)}`);
+      // Failed items stay selected so the user can retry; successes are cleared.
+      const deletedIds = new Set(summary.deletedIds);
+      setSelectedLargeFiles(prev => new Set([...prev].filter(id => !deletedIds.has(id))));
+
+      if (outcome === "failure") toast.error(message);
+      else toast.success(message);
       
       // Refresh the list
       fetchLargeFiles();
+
     } catch (error: any) {
       toast.error(error.message || "Failed to delete files");
     } finally {
@@ -2669,95 +2689,23 @@ export default function VaultPage() {
     }
   };
 
-  // Recursive function to fetch all folder contents
+  // Recursive export sources come from `vault_files` only (see
+  // src/features/vault/vaultExportRepository.ts). Never query public.photos here.
   const fetchFolderContents = async (
     folderId: string | null,
     clubId: string | null,
     teamId: string | null,
     path: string = ""
-  ): Promise<{ photos: any[]; files: any[]; subfolders: { folder: any; path: string }[] }> => {
-    // Fetch photos in this folder
-    let photosQuery = supabase.from("photos").select("*");
-    if (teamId) {
-      photosQuery = photosQuery.eq("team_id", teamId);
-    } else if (clubId) {
-      photosQuery = photosQuery.eq("club_id", clubId).is("team_id", null);
-    }
-    if (folderId) {
-      photosQuery = photosQuery.eq("folder_id", folderId);
-    } else {
-      photosQuery = photosQuery.is("folder_id", null);
-    }
-    const { data: folderPhotos } = await photosQuery;
+  ) => fetchVaultFolderContents({ folderId, clubId, teamId }, path);
 
-    // Fetch files in this folder
-    let filesQuery = supabase.from("vault_files").select("*");
-    if (teamId) {
-      filesQuery = filesQuery.eq("team_id", teamId);
-    } else if (clubId) {
-      filesQuery = filesQuery.eq("club_id", clubId).is("team_id", null);
-    }
-    if (folderId) {
-      filesQuery = filesQuery.eq("folder_id", folderId);
-    } else {
-      filesQuery = filesQuery.is("folder_id", null);
-    }
-    const { data: folderFiles } = await filesQuery;
-
-    // Fetch subfolders
-    let subfoldersQuery = supabase.from("vault_folders").select("*").is("deleted_at", null);
-    if (teamId) {
-      subfoldersQuery = subfoldersQuery.eq("team_id", teamId);
-    } else if (clubId) {
-      subfoldersQuery = subfoldersQuery.eq("club_id", clubId).is("team_id", null);
-    }
-    if (folderId) {
-      subfoldersQuery = subfoldersQuery.eq("parent_id", folderId);
-    } else {
-      subfoldersQuery = subfoldersQuery.is("parent_id", null);
-    }
-    const { data: childFolders } = await subfoldersQuery;
-
-    return {
-      photos: (folderPhotos || []).map(p => ({ ...p, path })),
-      files: (folderFiles || []).map(f => ({ ...f, path })),
-      subfolders: (childFolders || []).map(folder => ({ 
-        folder, 
-        path: path ? `${path}/${folder.name}` : folder.name 
-      })),
-    };
-  };
-
-  // Recursively collect all files from a folder and its subfolders with breakdown
   const collectAllFolderContents = async (
     folderId: string | null,
     clubId: string | null,
     teamId: string | null,
     path: string = "",
     folderBreakdown: { path: string; photoCount: number; fileCount: number }[] = []
-  ): Promise<{ photos: any[]; files: any[]; folderBreakdown: { path: string; photoCount: number; fileCount: number }[] }> => {
-    const contents = await fetchFolderContents(folderId, clubId, teamId, path);
-    
-    // Add current folder to breakdown
-    const currentFolderName = path || "(current folder)";
-    folderBreakdown.push({
-      path: currentFolderName,
-      photoCount: contents.photos.length,
-      fileCount: contents.files.length,
-    });
-    
-    let allPhotos = [...contents.photos];
-    let allFiles = [...contents.files];
+  ) => collectVaultExportContents({ folderId, clubId, teamId }, path, folderBreakdown);
 
-    // Recursively fetch subfolder contents
-    for (const { folder, path: subPath } of contents.subfolders) {
-      const subContents = await collectAllFolderContents(folder.id, clubId, teamId, subPath, folderBreakdown);
-      allPhotos = [...allPhotos, ...subContents.photos];
-      allFiles = [...allFiles, ...subContents.files];
-    }
-
-    return { photos: allPhotos, files: allFiles, folderBreakdown };
-  };
 
   // Open preview dialog and fetch all subfolder contents
   const openExportPreview = async () => {
@@ -2883,48 +2831,53 @@ export default function VaultPage() {
       
       try {
         const zip = new JSZip();
-        let downloadCount = 0;
-        
-        for (const photo of photosToExport) {
-          if (signal.aborted) throw new Error("Export cancelled");
-          try {
-            const response = await fetch(photo.file_url);
-            const blob = await response.blob();
-            const filename = photo.title || `photo-${photo.id}.jpg`;
-            zip.file(filename, blob);
-          } catch (err) {
-            console.error(`Failed to fetch photo: ${photo.id}`, err);
-          }
-          downloadCount++;
-          setExportProgress({ current: downloadCount, total: totalItems });
+        const items: ZipExportItem[] = [
+          ...photosToExport.map((photo: any) => ({
+            id: photo.id,
+            kind: "photo" as const,
+            url: photo.file_url,
+            filename: photo.title || `photo-${photo.id}.jpg`,
+          })),
+          ...filesToExport.map((file: any) => ({
+            id: file.id,
+            kind: "file" as const,
+            url: file.file_url,
+            filename: file.name,
+          })),
+        ];
+
+        const result = await runZipExport(items, {
+          signal,
+          isAborted: () => signal.aborted,
+          fetchBlob: async (url, sig) => {
+            const response = await fetch(url, { signal: sig });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.blob();
+          },
+          addToZip: (filename, blob) => zip.file(filename, blob),
+          onProgress: (processed) => setExportProgress({ current: processed, total: totalItems }),
+        });
+
+        const { outcome, message, shouldDownload } = summarizeZipExport(result);
+
+        if (shouldDownload) {
+          const zipBlob = await zip.generateAsync({ type: "blob" });
+          const blobUrl = window.URL.createObjectURL(zipBlob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = `${folderExportData.folderName}.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
         }
-        
-        for (const file of filesToExport) {
-          if (signal.aborted) throw new Error("Export cancelled");
-          try {
-            const response = await fetch(file.file_url);
-            const blob = await response.blob();
-            zip.file(file.name, blob);
-          } catch (err) {
-            console.error(`Failed to fetch file: ${file.id}`, err);
-          }
-          downloadCount++;
-          setExportProgress({ current: downloadCount, total: totalItems });
-        }
-        
-        const zipBlob = await zip.generateAsync({ type: "blob" });
-        const blobUrl = window.URL.createObjectURL(zipBlob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = `${folderExportData.folderName}.zip`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-        
-        toast.success(`Exported ${totalItems} items as ZIP`);
+
+        if (outcome === "cancelled") toast.info(message);
+        else if (outcome === "failure") toast.error(message);
+        else if (outcome === "partial") toast.warning(message);
+        else toast.success(message);
       } catch (error: any) {
-        if (error.message === "Export cancelled") {
+        if (signal.aborted || error?.message === "Export cancelled") {
           toast.info("Export cancelled");
         } else {
           toast.error("Export failed");
@@ -2934,6 +2887,7 @@ export default function VaultPage() {
         setExportProgress({ current: 0, total: 0 });
         exportAbortController.current = null;
       }
+
     } else {
       // Single file - just download
       const item = photosToExport[0] || filesToExport[0];

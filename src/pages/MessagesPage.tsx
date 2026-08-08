@@ -1717,26 +1717,61 @@ export default function MessagesPage() {
       },
     };
 
+    // Edits (UPDATE) never fired here before, so an edited message kept its
+    // ORIGINAL text in every inbox preview until the next cold refetch.
+    // Reconcile by refetching the affected list (edits are rare, so this can't
+    // contribute to invalidation storms) — no unread bump, edits aren't new mail.
+    const editHandlers: Record<string, (payload: any) => void> = {
+      team_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('team', row?.team_id)) return;
+        schedule('team', () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
+      },
+      club_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('club', row?.club_id)) return;
+        schedule('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
+      },
+      group_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('group', row?.group_id)) return;
+        schedule('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
+      },
+      direct_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('dm', row?.conversation_id)) return;
+        schedule('dm', () => queryClient.invalidateQueries({ queryKey: ["dm-conversations", user.id] }));
+      },
+      broadcast_messages: () => {
+        if (authStatusRef.current !== 'ready') return;
+        queryClient.invalidateQueries({ queryKey: ["latest-broadcast"] });
+      },
+    };
+
     // Buffer-then-replay: while the membership snapshot is still loading we
     // hold payloads (bounded to 50, oldest dropped) instead of discarding
     // them. Once scopes resolve, the flush effect replays them through the
     // same authorized handlers.
     const MAX_PENDING = 50;
-    const dispatch = (table: string, payload: any) => {
+    const run = (table: string, payload: any, kind: 'insert' | 'edit') => {
+      if (kind === 'edit') editHandlers[table]?.(payload);
+      else handlers[table]?.(payload);
+    };
+    const dispatch = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
       if (authStatusRef.current !== 'ready') {
         const buf = pendingRealtimeRef.current;
-        buf.push({ table, payload });
+        buf.push({ table, payload, kind } as any);
         if (buf.length > MAX_PENDING) buf.splice(0, buf.length - MAX_PENDING);
         return;
       }
-      handlers[table]?.(payload);
+      run(table, payload, kind);
     };
 
     realtimeFlushRef.current = () => {
       const buffered = pendingRealtimeRef.current;
       if (buffered.length === 0) return;
       pendingRealtimeRef.current = [];
-      for (const item of buffered) handlers[item.table]?.(item.payload);
+      for (const item of buffered) run(item.table, item.payload, ((item as any).kind ?? 'insert'));
     };
 
     const channel = supabase
@@ -1746,6 +1781,11 @@ export default function MessagesPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'team_messages' }, (p: any) => dispatch('team_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'club_messages' }, (p: any) => dispatch('club_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p, 'edit'))
       .subscribe();
 
 
@@ -2014,6 +2054,68 @@ export default function MessagesPage() {
       },
     };
 
+    // Native edit handling: patch the preview text in place when the edited
+    // row IS the currently previewed latest message (matched on created_at).
+    // Previously UPDATE events were never subscribed, so an edited message
+    // kept showing its original text in the inbox.
+    const patchEditedPreview = (key: any[], targetId: string, row: any) => {
+      queryClient.setQueryData(key, (old: any) => {
+        const prev = old?.latestMessages?.[targetId];
+        if (!prev || prev.created_at !== row.created_at) return old;
+        return {
+          ...old,
+          latestMessages: {
+            ...old.latestMessages,
+            [targetId]: { ...prev, text: row.text ?? '', image_url: row.image_url ?? null },
+          },
+        };
+      });
+    };
+
+    const editHandlers: Record<string, (payload: any) => void> = {
+      team_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('team', row?.team_id)) return;
+        patchEditedPreview(["my-teams-with-messages", user.id], row.team_id, row);
+      },
+      club_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('club', row?.club_id)) return;
+        patchEditedPreview(["member-clubs-with-messages", user.id], row.club_id, row);
+      },
+      group_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('group', row?.group_id)) return;
+        patchEditedPreview(["my-chat-groups-with-messages", user.id], row.group_id, row);
+      },
+      direct_messages: (payload: any) => {
+        const row = payload.new;
+        if (!isAuthorized('dm', row?.conversation_id)) return;
+        queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined) => {
+          if (!Array.isArray(old)) return old;
+          const idx = old.findIndex((c: any) => c.id === row.conversation_id);
+          if (idx === -1) return old;
+          const conv = old[idx];
+          if (conv?.last_message?.created_at !== row.created_at) return old;
+          const next = old.slice();
+          next[idx] = {
+            ...conv,
+            last_message: { ...conv.last_message, text: row.text ?? '', image_url: row.image_url ?? null },
+          };
+          return next;
+        });
+      },
+      broadcast_messages: (payload: any) => {
+        if (authStatusRef.current !== 'ready') return;
+        const row = payload.new;
+        queryClient.setQueryData(["latest-broadcast"], (old: any) => {
+          if (!old || old.created_at !== row.created_at) return old;
+          return { ...old, text: row.text ?? '', image_url: row.image_url ?? null };
+        });
+      },
+    };
+
+
     // Bounded buffer-then-replay. While the membership snapshot is loading we
     // hold events (max 50, oldest dropped) instead of discarding them; the
     // replay re-runs the same fail-closed `isAuthorized` check.
@@ -2025,7 +2127,11 @@ export default function MessagesPage() {
       const id = payload?.new?.id;
       return id ? `${table}:${id}` : null;
     };
-    const applyOnce = (table: string, payload: any) => {
+    const applyOnce = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
+      if (kind === 'edit') {
+        editHandlers[table]?.(payload);
+        return;
+      }
       const key = eventKey(table, payload);
       if (key) {
         if (appliedEventKeys.has(key)) return;
@@ -2037,21 +2143,21 @@ export default function MessagesPage() {
       }
       handlers[table]?.(payload);
     };
-    const dispatch = (table: string, payload: any) => {
+    const dispatch = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
       if (authStatusRef.current !== 'ready') {
         const buf = pendingNativeRealtimeRef.current;
-        buf.push({ table, payload });
+        buf.push({ table, payload, kind } as any);
         if (buf.length > MAX_PENDING_NATIVE) buf.splice(0, buf.length - MAX_PENDING_NATIVE);
         return;
       }
-      applyOnce(table, payload);
+      applyOnce(table, payload, kind);
     };
 
     nativeRealtimeFlushRef.current = () => {
       const buffered = pendingNativeRealtimeRef.current;
       if (buffered.length === 0) return;
       pendingNativeRealtimeRef.current = [];
-      for (const item of buffered) applyOnce(item.table, item.payload);
+      for (const item of buffered) applyOnce(item.table, item.payload, ((item as any).kind ?? 'insert'));
     };
     nativeRealtimeDiscardRef.current = () => {
       pendingNativeRealtimeRef.current = [];
@@ -2064,6 +2170,11 @@ export default function MessagesPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'team_messages' }, (p: any) => dispatch('team_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'club_messages' }, (p: any) => dispatch('club_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p, 'edit'))
       .subscribe();
 
     const unregister = registerChannel({
