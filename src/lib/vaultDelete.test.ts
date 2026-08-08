@@ -28,19 +28,20 @@ describe("permanentlyDeleteVaultItems", () => {
 
   it("sends every requested ID exactly once and accumulates results across batches", async () => {
     const photoIds = Array.from({ length: VAULT_DELETE_CHUNK + 20 }, (_, i) => `p${i}`);
-    invoke.mockImplementation((_name: string, opts: any) =>
-      Promise.resolve(
+    invoke.mockImplementation((...args: any[]) => {
+      const ids: string[] = args[1]?.body?.photoIds ?? [];
+      return Promise.resolve(
         ok({
-          photosDeleted: opts.body.photoIds.length,
+          photosDeleted: ids.length,
           filesDeleted: 0,
-          succeeded: opts.body.photoIds.map((id: string) => ({ id, kind: "photo" })),
+          succeeded: ids.map((id) => ({ id, kind: "photo" })),
           failed: [],
         }),
-      ),
-    );
+      );
+    });
     const r = await permanentlyDeleteVaultItems({ photoIds });
     expect(invoke).toHaveBeenCalledTimes(2);
-    const sent = invoke.mock.calls.flatMap((c: any[]) => c[1].body.photoIds);
+    const sent = invoke.mock.calls.flatMap((c: any[]) => c[1]?.body?.photoIds ?? []);
     expect(sent).toEqual(photoIds);
     expect(new Set(sent).size).toBe(photoIds.length);
     expect(r.succeeded).toHaveLength(photoIds.length);
