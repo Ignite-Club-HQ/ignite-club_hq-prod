@@ -26,7 +26,11 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
       mocks.queries.push(options);
       const key = options.queryKey?.[0];
       if (key === "team") return { data: { id: "team-1", name: "Synthetic Team", club_id: "club-1", team_type: "senior", is_pro: false, deleted_at: mocks.deletedAt, clubs: { id: "club-1", name: "Synthetic Club", sport: "soccer", class_mode_enabled: false } }, isLoading: false, isFetching: false, fetchStatus: "idle" };
-      if (key === "user-team-roles") return { data: mocks.teamRoles, isLoading: false, isFetching: false };
+      if (key === "user-team-roles") return {
+        data: mocks.teamRoles.map((role) => ({ role, via_captain: false })),
+        isLoading: false,
+        isFetching: false,
+      };
       if (key === "is-club-admin") return { data: mocks.isClubAdmin, isLoading: false, isFetching: false };
       if (key === "is-app-admin") return { data: mocks.isAppAdmin, isLoading: false, isFetching: false };
       if (key === "team-roles" || key === "team-children" || key === "pending-team-invites") return { data: [], isLoading: false, isFetching: false, refetch: vi.fn() };

@@ -39,7 +39,7 @@ describe("useChatJumpHydration", () => {
     const cancel = vi.fn();
     let settled: (() => void) | undefined;
     settleMock.mockImplementation((_root, options, done) => {
-      expect(options).toEqual({ quietMs: 650, maxMs: 7000 });
+      expect(options).toEqual({ quietMs: 650, maxMs: 8000 });
       settled = done;
       return cancel;
     });
@@ -50,7 +50,7 @@ describe("useChatJumpHydration", () => {
     expect(result.current.isJumpHydrating).toBe(true);
 
     act(() => setChatJumpActive(false));
-    expect(settleMock).toHaveBeenCalledWith(scroller, { quietMs: 650, maxMs: 7000 }, expect.any(Function));
+    expect(settleMock).toHaveBeenCalledWith(scroller, { quietMs: 650, maxMs: 8000 }, expect.any(Function));
     expect(result.current.isJumpHydrating).toBe(true);
 
     act(() => {
@@ -77,7 +77,7 @@ describe("useChatJumpHydration", () => {
     act(() => {
       setChatJumpActive(true);
       setChatJumpActive(false);
-      vi.advanceTimersByTime(6_999);
+      vi.advanceTimersByTime(31_999);
     });
 
     expect(settleMock).toHaveBeenCalledOnce();
@@ -98,7 +98,7 @@ describe("useChatJumpHydration", () => {
     act(() => {
       setChatJumpActive(true);
       setChatJumpActive(false);
-      vi.advanceTimersByTime(7_000);
+      vi.advanceTimersByTime(32_000);
     });
 
     expect(cancel).toHaveBeenCalledOnce();

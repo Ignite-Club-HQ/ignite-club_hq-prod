@@ -19,7 +19,9 @@ export function useChatJumpHydration(
     let unmountTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelSettleWait: (() => void) | null = null;
     let hardTimer: number | null = null;
-    const OVERLAY_HARD_DEADLINE_MS = 7000;
+    // Longer than the jump poller's lifetime: this is a safety backstop, not
+    // an early reveal timer. Normal release remains settle-driven.
+    const OVERLAY_HARD_DEADLINE_MS = 32000;
     let lifecycleStartedAt = performance.now();
     const remainingBudget = () =>
       Math.max(0, OVERLAY_HARD_DEADLINE_MS - (performance.now() - lifecycleStartedAt));

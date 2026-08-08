@@ -86,6 +86,8 @@ import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import ChildDetailSheet from "@/components/ChildDetailSheet";
 import PromoteToTeamAdminDialog from "@/components/PromoteToTeamAdminDialog";
+import TeamCaptainCard from "@/components/TeamCaptainCard";
+
 import { MoveToTeamSheet } from "@/components/MoveToTeamSheet";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
@@ -544,19 +546,26 @@ export default function TeamDetailPage() {
 
   const isPitchBoardRosterLoading = isMembersLoading || isMembersFetching || isChildrenLoading || isChildrenFetching;
 
-  const { data: userRoles = [], isLoading: isUserRoleLoading } = useQuery({
+  const { data: userRoleRows = [], isLoading: isUserRoleLoading } = useQuery({
     queryKey: ["user-team-roles", id, user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("role, via_captain")
         .eq("user_id", user!.id)
         .eq("team_id", id!);
-      return data?.map(r => r.role) ?? [];
+      return (data ?? []) as Array<{ role: string; via_captain: boolean | null }>;
     },
     enabled: !!id && !!user,
   });
-  
+
+  const userRoles = userRoleRows.map(r => r.role);
+  // Captains receive a `team_admin` role row marked `via_captain`. They get the
+  // same day-to-day management rights, but must not reach team settings or the
+  // destructive team actions (mirrors the RLS policy on `teams`).
+  const hasRealTeamAdminRole = userRoleRows.some(r => r.role === "team_admin" && !r.via_captain);
+  const isCaptainAdmin = userRoleRows.some(r => r.role === "team_admin" && !!r.via_captain);
+
   // Get primary role for display - prioritize admin roles
   const { data: isAppAdmin, isLoading: isAppAdminLoading } = useQuery({
     queryKey: ["is-app-admin", user?.id],
@@ -575,6 +584,15 @@ export default function TeamDetailPage() {
   const baseAccess = resolveTeamDetailAccess(userRoles, !!isAppAdmin, !!isClubAdmin);
   const { userRole, isCoachOrAdmin, canManageTeam, isMember, canAccessPitchBoard } = baseAccess;
   const isAdmin = isCoachOrAdmin;
+  // Settings / archive / delete stay with real admins only — captains are excluded.
+  const canEditTeamSettings =
+    hasRealTeamAdminRole ||
+    userRoles.includes("coach") ||
+    !!isAppAdmin ||
+    !!isClubAdmin;
+  // Only real admins may appoint or remove captains.
+  const canManageCaptains = hasRealTeamAdminRole || !!isAppAdmin || !!isClubAdmin;
+
 
   // Sticky pitch-board access gate. `isSoccerClub` / `hasProFootball` /
   // `isAppAdmin` all come from async queries that can transiently return
@@ -947,7 +965,7 @@ export default function TeamDetailPage() {
             Invite
           </Button>
         )}
-        {isAdmin && isClassMode && (
+        {canEditTeamSettings && isClassMode && (
           <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={`Edit ${isClassMode ? 'class' : 'team'}`} onClick={() => navigate(`/teams/${id}/edit`)}>
             <Pencil className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -960,7 +978,7 @@ export default function TeamDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canManageTeam && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
+              {canEditTeamSettings && <DropdownMenuItem onClick={() => navigate(`/teams/${id}/edit`)}>
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit {isClassMode ? "Class" : "Team"}
               </DropdownMenuItem>}
@@ -1058,8 +1076,8 @@ export default function TeamDetailPage() {
                   </AlertDialog>
                 </>
               )}
-              {canManageTeam && <DropdownMenuSeparator />}
-              {canManageTeam && <ArchiveTeamDialog
+              {canEditTeamSettings && <DropdownMenuSeparator />}
+              {canEditTeamSettings && <ArchiveTeamDialog
                 teamId={id!}
                 teamName={team?.name || ""}
                 clubId={team?.club_id || ""}
@@ -1077,7 +1095,7 @@ export default function TeamDetailPage() {
                 }
               />
               }
-              {canManageTeam && <DropdownMenuItem
+              {canEditTeamSettings && <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
               >
@@ -2230,6 +2248,17 @@ export default function TeamDetailPage() {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* Captain (senior / mixed teams only) — same management rights as a team admin */}
+                  {["senior", "mixed"].includes(String((team as any).team_type || "mixed").toLowerCase()) && (
+                    <TeamCaptainCard
+                      teamId={id!}
+                      teamName={team.name}
+                      members={members}
+                      canManage={canManageCaptains}
+                    />
+                  )}
+
 
                   {/* PlayHQ Link */}
                   <PlayHQTeamLinkCard teamId={id!} clubId={team.club_id} />

@@ -613,6 +613,7 @@ export default function VaultPage() {
   // Separate vault items into photos and files based on file_type
   const { photos, files } = useMemo(() => partitionVaultItems(vaultItems), [vaultItems]);
 
+
   // Recursive search - always search inside subfolders when a query is active.
   // Performance strategy:
   //  - Debounce the query so we don't re-fetch on every keystroke.

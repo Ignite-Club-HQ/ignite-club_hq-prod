@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import type { VaultFolderView } from "./types";
 import { filterVisibleVaultFolders, getVaultScope } from "./vaultScope";
+import { isVaultImageItem } from "./vaultItemClassification";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 export type VaultFolderRow = Database["public"]["Tables"]["vault_folders"]["Row"];
@@ -43,13 +44,8 @@ export type VaultPhotoItem = VaultFileRow & {
   title: VaultFileRow["name"];
 };
 
-const IMAGE_FILE_EXTENSION = /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif|tiff|tif)$/i;
-
 export function isVaultImage(item: Pick<VaultFileRow, "file_type" | "name" | "file_url">): boolean {
-  return Boolean(
-    item.file_type?.startsWith("image/") ||
-    IMAGE_FILE_EXTENSION.test(item.name || item.file_url || ""),
-  );
+  return isVaultImageItem(item);
 }
 
 export function partitionVaultItems(items: readonly VaultFileRow[] | null | undefined): {

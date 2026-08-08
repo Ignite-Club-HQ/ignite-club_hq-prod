@@ -752,22 +752,33 @@ function applyEqualTimeOverride(
     // that meets the cap; otherwise keep whichever produced the least spread.
     const cadenceFloor =
       rotationSpeed >= 2 ? eff.frequentIntervalFloor : eff.standardIntervalFloor;
+    const rawCadences = [
+      eff.standardTargetInterval,
+      cadenceFloor,
+      Math.max(60, eff.minShiftSeconds),
+      240,
+      180,
+      120,
+      90,
+      60,
+    ]
+      .map(v => Math.max(60, Math.round(v)))
+      .filter(v => v <= halfDurationSeconds);
+    // Keep the sweep on the correct side of the selected mode's own cadence
+    // floor. Without this, Standard and Frequent sweep the same superset and
+    // both stop on whichever cadence first meets the spread cap — producing
+    // identical plans regardless of the chosen rotation mode.
+    const modeCadences = rawCadences.filter(v =>
+      rotationSpeed >= 2 ? v <= eff.frequentIntervalFloor : v >= eff.standardIntervalFloor,
+    );
     const cadences = Array.from(
       new Set(
-        [
-          eff.standardTargetInterval,
-          cadenceFloor,
-          Math.max(60, eff.minShiftSeconds),
-          240,
-          180,
-          120,
-          90,
-          60,
-        ]
-          .map(v => Math.max(60, Math.round(v)))
-          .filter(v => v <= halfDurationSeconds),
+        (modeCadences.length > 0
+          ? modeCadences
+          : [Math.max(60, Math.min(halfDurationSeconds, Math.round(cadenceFloor)))]),
       ),
     ).sort((a, b) => b - a);
+
 
     let best: { plan: SubstitutionEvent[]; spread: number } | null = null;
     for (const minShiftSec of cadences) {
@@ -814,7 +825,89 @@ function applyEqualTimeOverride(
 }
 
 
+// ===========================================================================
+// STANDARD-MODE CALMNESS GUARANTEE
+// ---------------------------------------------------------------------------
+// Product rule: "Standard" must ALWAYS be the quieter plan. Because fairness
+// post-passes can push Standard onto a busier cadence than Frequent on some
+// squad shapes, the public `createSubPlan` wraps the planner: it builds the
+// Frequent reference plan for the same inputs and, if Standard came out with
+// the same or more substitutions, re-plans Standard on progressively calmer
+// interval floors until it is strictly quieter. Recursion is guarded so the
+// inner calls never re-enter this wrapper.
+// ===========================================================================
+let standardCalmnessReentryGuard = false;
+
+/** Calmer interval floors (sec) tried in order when Standard is too busy. */
+const STANDARD_CALMDOWN_FLOORS_SEC = [300, 360, 420, 480, 540, 600];
+
 export function createSubPlan(
+  playerData: Player[],
+  teamSize: number,
+  halfDurationSeconds: number,
+  rotationSpeedInput: number = 1,
+  disablePositionSwaps: boolean = false,
+  disableBatchSubs: boolean = false,
+  rotateGkAtHalftime: boolean = true,
+  startElapsedSeconds: number = 0,
+  startHalf: 1 | 2 = 1,
+  preferredSecondHalfGkId?: string,
+  maxSpreadMinutes: number = 5,
+  advancedOverrides: AutoSubAdvancedOverrides = {}
+): SubstitutionEvent[] {
+  const run = (speed: number, overrides: AutoSubAdvancedOverrides) =>
+    createSubPlanInternal(
+      playerData,
+      teamSize,
+      halfDurationSeconds,
+      speed,
+      disablePositionSwaps,
+      disableBatchSubs,
+      rotateGkAtHalftime,
+      startElapsedSeconds,
+      startHalf,
+      preferredSecondHalfGkId,
+      maxSpreadMinutes,
+      overrides,
+    );
+
+  const plan = run(rotationSpeedInput, advancedOverrides);
+  const speed = normalizeRotationSpeed(rotationSpeedInput);
+  // Only Standard (speed 1) carries the "always fewer subs" promise.
+  if (speed !== 1 || standardCalmnessReentryGuard || plan.length === 0) return plan;
+
+  standardCalmnessReentryGuard = true;
+  try {
+    const frequentReference = run(2, advancedOverrides);
+    if (frequentReference.length === 0 || plan.length < frequentReference.length) {
+      return plan;
+    }
+
+    let best = plan;
+    for (const floorSec of STANDARD_CALMDOWN_FLOORS_SEC) {
+      if (floorSec > halfDurationSeconds) break;
+      const calmer = run(1, {
+        ...advancedOverrides,
+        standardIntervalFloorSec: floorSec,
+        standardTargetIntervalSec: Math.max(
+          floorSec,
+          advancedOverrides.standardTargetIntervalSec ?? floorSec + 120,
+        ),
+      });
+      if (calmer.length === 0) continue;
+      if (calmer.length < best.length) best = calmer;
+      if (best.length < frequentReference.length) break;
+    }
+    return best;
+  } catch {
+    return plan;
+  } finally {
+    standardCalmnessReentryGuard = false;
+  }
+}
+
+function createSubPlanInternal(
+
   playerData: Player[],
   teamSize: number,
   halfDurationSeconds: number,
