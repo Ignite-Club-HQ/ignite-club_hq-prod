@@ -56,6 +56,8 @@ import {
 import { permanentlyDeleteVaultItems } from "@/lib/vaultDelete";
 import { fetchVaultFolderContents, collectVaultExportContents } from "@/features/vault/vaultExportRepository";
 import { isVaultImageItem } from "@/features/vault/vaultItemClassification";
+import { summarizeVaultDeletion, buildVaultDeleteMessage } from "@/features/vault/vaultDeleteReporting";
+import { runZipExport, summarizeZipExport, type ZipExportItem } from "@/features/vault/vaultZipExport";
 
 
 
