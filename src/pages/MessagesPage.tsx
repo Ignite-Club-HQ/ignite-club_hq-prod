@@ -2127,7 +2127,11 @@ export default function MessagesPage() {
       const id = payload?.new?.id;
       return id ? `${table}:${id}` : null;
     };
-    const applyOnce = (table: string, payload: any) => {
+    const applyOnce = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
+      if (kind === 'edit') {
+        editHandlers[table]?.(payload);
+        return;
+      }
       const key = eventKey(table, payload);
       if (key) {
         if (appliedEventKeys.has(key)) return;
@@ -2139,21 +2143,21 @@ export default function MessagesPage() {
       }
       handlers[table]?.(payload);
     };
-    const dispatch = (table: string, payload: any) => {
+    const dispatch = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
       if (authStatusRef.current !== 'ready') {
         const buf = pendingNativeRealtimeRef.current;
-        buf.push({ table, payload });
+        buf.push({ table, payload, kind } as any);
         if (buf.length > MAX_PENDING_NATIVE) buf.splice(0, buf.length - MAX_PENDING_NATIVE);
         return;
       }
-      applyOnce(table, payload);
+      applyOnce(table, payload, kind);
     };
 
     nativeRealtimeFlushRef.current = () => {
       const buffered = pendingNativeRealtimeRef.current;
       if (buffered.length === 0) return;
       pendingNativeRealtimeRef.current = [];
-      for (const item of buffered) applyOnce(item.table, item.payload);
+      for (const item of buffered) applyOnce(item.table, item.payload, ((item as any).kind ?? 'insert'));
     };
     nativeRealtimeDiscardRef.current = () => {
       pendingNativeRealtimeRef.current = [];
@@ -2166,6 +2170,11 @@ export default function MessagesPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'team_messages' }, (p: any) => dispatch('team_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'club_messages' }, (p: any) => dispatch('club_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'group_messages' }, (p: any) => dispatch('group_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'direct_messages' }, (p: any) => dispatch('direct_messages', p, 'edit'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'broadcast_messages' }, (p: any) => dispatch('broadcast_messages', p, 'edit'))
       .subscribe();
 
     const unregister = registerChannel({
