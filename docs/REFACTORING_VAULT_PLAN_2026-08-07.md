@@ -397,10 +397,17 @@ does not move Supabase ownership.
 - Added six contracts for mapping/fallback labels, limiting, all three sort
   modes, non-mutating rendering, exact photo/file IDs and selected-byte totals.
 - Focused Vault verification passes 220/220 tests across twenty files.
-- Review exposed two pre-existing truthful-reporting defects that must be fixed
-  separately rather than hidden in refactoring: folder ZIP success counts
-  attempted downloads, and large-file deletion reports all selected rows/bytes
-  as deleted even when the server returns failures.
+- Review exposed two pre-existing truthful-reporting defects: folder ZIP
+  success counted attempted downloads, and large-file deletion reported all
+  selected rows/bytes as deleted when the server returned failures. Both were
+  subsequently fixed on `main`, merged back into the tranche and protected by
+  focused complete/partial/failure/cancellation contracts.
+- One defensive hardening gap remains: the client deletion wrapper discards the
+  Edge Function's explicit `succeeded[]` identifiers. Normal responses remain
+  mappable from requested IDs minus `failed[]`, but an internally inconsistent
+  response containing an unknown failed ID cannot be mapped fail-closed with
+  item-level certainty. This is not part of the two observed user defects and
+  should be addressed as a separate contract-hardening slice.
 
 ### V7 — Presentation decomposition
 
