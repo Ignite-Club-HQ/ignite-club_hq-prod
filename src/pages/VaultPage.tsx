@@ -54,6 +54,8 @@ import {
   settleVaultStorage,
 } from "@/lib/vaultUpload";
 import { permanentlyDeleteVaultItems } from "@/lib/vaultDelete";
+import { fetchVaultFolderContents, collectVaultExportContents } from "@/features/vault/vaultExportRepository";
+
 
 
 import {
