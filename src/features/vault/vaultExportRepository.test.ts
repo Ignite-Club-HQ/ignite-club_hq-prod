@@ -54,7 +54,7 @@ const CLUB = "club-1";
 
 const baseRows: Row[] = [
   { id: "img1", name: "team-photo.jpg", file_url: "u/img1.jpg", file_type: "image/jpeg", folder_id: null, club_id: CLUB, team_id: null, deleted_at: null },
-  { id: "img2", name: "no-mime", file_url: "u/img2.png", file_type: null, folder_id: null, club_id: CLUB, team_id: null, deleted_at: null },
+  { id: "img2", name: "no-mime.PNG", file_url: "u/img2.png", file_type: null, folder_id: null, club_id: CLUB, team_id: null, deleted_at: null },
   { id: "doc1", name: "rules.pdf", file_url: "u/doc.pdf", file_type: "application/pdf", folder_id: null, club_id: CLUB, team_id: null, deleted_at: null },
   { id: "gone", name: "deleted.jpg", file_url: "u/gone.jpg", file_type: "image/jpeg", folder_id: null, club_id: CLUB, team_id: null, deleted_at: "2026-01-01" },
   { id: "nested", name: "nested.jpg", file_url: "u/nested.jpg", file_type: "image/jpeg", folder_id: "f1", club_id: CLUB, team_id: null, deleted_at: null },
