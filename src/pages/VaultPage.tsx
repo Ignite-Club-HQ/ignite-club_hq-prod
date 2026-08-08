@@ -67,6 +67,24 @@ import {
   collectVaultExportContents,
   fetchVaultExportFolderContents,
 } from "@/features/vault/vaultExportRepository";
+import {
+  excludeVaultExportFolders,
+  resolveSelectedVaultExportItems,
+  selectAllVaultExportItems,
+  summarizeVaultExport,
+  toggleVaultExportSelection,
+} from "@/features/vault/vaultExportSelection";
+import {
+  buildVaultZip,
+  VAULT_EXPORT_CANCELLED_MESSAGE,
+} from "@/features/vault/vaultExportService";
+import {
+  buildVaultLargeFileItems,
+  prepareVaultLargeFileDeletion,
+  sortVaultLargeFileItems,
+  type VaultLargeFileItem,
+  type VaultLargeFileSort,
+} from "@/features/vault/vaultLargeFileManagement";
 import type { VaultFolderView } from "@/features/vault/types";
 import {
   abbreviateVaultOrganisationName,
@@ -203,11 +221,11 @@ export default function VaultPage() {
   const [largeFilesDialogOpen, setLargeFilesDialogOpen] = useState(false);
   const [largeFilesData, setLargeFilesData] = useState<{
     loading: boolean;
-    items: Array<{ id: string; type: 'photo' | 'file'; name: string; size: number; url: string; teamName?: string; createdAt: string }>;
+    items: VaultLargeFileItem[];
   }>({ loading: false, items: [] });
   const [selectedLargeFiles, setSelectedLargeFiles] = useState<Set<string>>(new Set());
   const [deletingLargeFiles, setDeletingLargeFiles] = useState(false);
-  const [largeFilesSortBy, setLargeFilesSortBy] = useState<'size' | 'date' | 'type'>('size');
+  const [largeFilesSortBy, setLargeFilesSortBy] = useState<VaultLargeFileSort>('size');
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [isDeletingSelected, setIsDeletingSelected] = useState(false);
   const [storagePurchaseDialogOpen, setStoragePurchaseDialogOpen] = useState(false);
@@ -260,27 +278,11 @@ export default function VaultPage() {
   } | null>(null);
 
   const togglePhotoSelection = (photoId: string) => {
-    setSelectedPhotos(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(photoId)) {
-        newSet.delete(photoId);
-      } else {
-        newSet.add(photoId);
-      }
-      return newSet;
-    });
+    setSelectedPhotos(prev => toggleVaultExportSelection(prev, photoId));
   };
 
   const toggleFileSelection = (fileId: string) => {
-    setSelectedFiles(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(fileId)) {
-        newSet.delete(fileId);
-      } else {
-        newSet.add(fileId);
-      }
-      return newSet;
-    });
+    setSelectedFiles(prev => toggleVaultExportSelection(prev, fileId));
   };
 
   const exitSelectionMode = () => {
@@ -290,14 +292,17 @@ export default function VaultPage() {
   };
 
   const selectAll = () => {
-    setSelectedPhotos(new Set((photos || []).map(p => p.id)));
-    setSelectedFiles(new Set((files || []).map(f => f.id)));
+    setSelectedPhotos(selectAllVaultExportItems(photos || []));
+    setSelectedFiles(selectAllVaultExportItems(files || []));
   };
 
   const getSelectedItems = () => {
-    const selectedPhotoItems = (photos || []).filter(p => selectedPhotos.has(p.id));
-    const selectedFileItems = (files || []).filter(f => selectedFiles.has(f.id));
-    return { photos: selectedPhotoItems, files: selectedFileItems };
+    return resolveSelectedVaultExportItems(
+      photos || [],
+      files || [],
+      selectedPhotos,
+      selectedFiles,
+    );
   };
 
   const selectedCount = selectedPhotos.size + selectedFiles.size;
@@ -1468,10 +1473,6 @@ export default function VaultPage() {
         .eq("club_id", currentClub.id)
         .is("deleted_at", null);
       
-      const teamsMap = new Map<string | null, string>();
-      (teamsData || []).forEach(t => teamsMap.set(t.id, t.name));
-      teamsMap.set(null, "Club-level");
-      
       // Get photos with size
       const { data: photosData } = await supabase
         .from("photos")
@@ -1490,36 +1491,12 @@ export default function VaultPage() {
         .order("file_size", { ascending: false })
         .limit(50);
       
-      const items: Array<{ id: string; type: 'photo' | 'file'; name: string; size: number; url: string; teamName?: string; createdAt: string }> = [];
-      
-      (photosData || []).forEach(p => {
-        items.push({
-          id: p.id,
-          type: 'photo',
-          name: p.title || 'Photo',
-          size: p.file_size || 0,
-          url: p.file_url,
-          teamName: teamsMap.get(p.team_id),
-          createdAt: p.created_at
-        });
-      });
-      
-      (filesData || []).forEach(f => {
-        items.push({
-          id: f.id,
-          type: 'file',
-          name: f.name || 'File',
-          size: f.file_size || 0,
-          url: f.file_url,
-          teamName: teamsMap.get(f.team_id),
-          createdAt: f.created_at
-        });
-      });
-      
-      // Sort by size descending
-      items.sort((a, b) => b.size - a.size);
-      
-      setLargeFilesData({ loading: false, items: items.slice(0, 50) });
+      const items = buildVaultLargeFileItems(
+        teamsData || [],
+        photosData || [],
+        filesData || [],
+      );
+      setLargeFilesData({ loading: false, items });
     } catch (error) {
       console.error("Failed to fetch large files:", error);
       setLargeFilesData({ loading: false, items: [] });
@@ -1545,14 +1522,15 @@ export default function VaultPage() {
     setDeletingLargeFiles(true);
     
     try {
-      const itemsToDelete = largeFilesData.items.filter(item => selectedLargeFiles.has(item.id));
-      const photoItems = itemsToDelete.filter(i => i.type === 'photo');
-      const fileItems = itemsToDelete.filter(i => i.type === 'file');
+      const deletion = prepareVaultLargeFileDeletion(
+        largeFilesData.items,
+        selectedLargeFiles,
+      );
       
       // Use the permanent delete edge function to handle storage cleanup + audit
       const result = await permanentlyDeleteVaultItems({
-        photoIds: photoItems.map(p => p.id),
-        fileIds: fileItems.map(f => f.id),
+        photoIds: deletion.photoIds,
+        fileIds: deletion.fileIds,
       });
 
       if (result.failed.length > 0) {
@@ -1561,14 +1539,12 @@ export default function VaultPage() {
 
       
       // Calculate total freed space
-      const freedSpace = itemsToDelete.reduce((sum, item) => sum + item.size, 0);
-      
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["vault-files"] });
       queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
       queryClient.invalidateQueries({ queryKey: ["photos"] });
       
-      toast.success(`Deleted ${itemsToDelete.length} file(s), freed ${formatStorageSize(freedSpace)}`);
+      toast.success(`Deleted ${deletion.items.length} file(s), freed ${formatStorageSize(deletion.selectedBytes)}`);
       
       // Refresh the list
       fetchLargeFiles();
@@ -1931,32 +1907,26 @@ export default function VaultPage() {
 
   const toggleFolderExportPhotoSelection = (photoId: string) => {
     if (!folderExportData) return;
-    const newSelected = new Set(folderExportData.selectedPhotos);
-    if (newSelected.has(photoId)) {
-      newSelected.delete(photoId);
-    } else {
-      newSelected.add(photoId);
-    }
-    setFolderExportData({ ...folderExportData, selectedPhotos: newSelected });
+    setFolderExportData({
+      ...folderExportData,
+      selectedPhotos: toggleVaultExportSelection(folderExportData.selectedPhotos, photoId),
+    });
   };
 
   const toggleFolderExportFileSelection = (fileId: string) => {
     if (!folderExportData) return;
-    const newSelected = new Set(folderExportData.selectedFiles);
-    if (newSelected.has(fileId)) {
-      newSelected.delete(fileId);
-    } else {
-      newSelected.add(fileId);
-    }
-    setFolderExportData({ ...folderExportData, selectedFiles: newSelected });
+    setFolderExportData({
+      ...folderExportData,
+      selectedFiles: toggleVaultExportSelection(folderExportData.selectedFiles, fileId),
+    });
   };
 
   const selectAllFolderExportItems = () => {
     if (!folderExportData) return;
     setFolderExportData({
       ...folderExportData,
-      selectedPhotos: new Set(folderExportData.photos.map((p: any) => p.id)),
-      selectedFiles: new Set(folderExportData.files.map((f: any) => f.id)),
+      selectedPhotos: selectAllVaultExportItems(folderExportData.photos),
+      selectedFiles: selectAllVaultExportItems(folderExportData.files),
     });
   };
 
@@ -2074,22 +2044,21 @@ export default function VaultPage() {
   };
 
   const getFilteredExportData = () => {
-    const filteredPhotos = exportPreviewData.photos.filter(photo => {
-      const folderPath = photo.path || "(current folder)";
-      return !excludedFolders.has(folderPath);
-    });
-    const filteredFiles = exportPreviewData.files.filter(file => {
-      const folderPath = file.path || "(current folder)";
-      return !excludedFolders.has(folderPath);
-    });
-    return { photos: filteredPhotos, files: filteredFiles };
+    return excludeVaultExportFolders(
+      exportPreviewData.photos,
+      exportPreviewData.files,
+      excludedFolders,
+    );
   };
 
   const getExportSummary = () => {
-    if (selectionMode) {
-      return { photoCount: selectedPhotos.size, fileCount: selectedFiles.size, isSelection: true };
-    }
-    return { photoCount: photos?.length || 0, fileCount: files?.length || 0, isSelection: false };
+    return summarizeVaultExport(
+      selectionMode,
+      photos || [],
+      files || [],
+      selectedPhotos,
+      selectedFiles,
+    );
   };
 
   const handleExportConfirm = () => {
@@ -2129,54 +2098,26 @@ export default function VaultPage() {
     setIsExporting(true);
 
     try {
-      const zip = new JSZip();
-      let fileCount = 0;
+      const result = await buildVaultZip({
+        photos: photosToExport,
+        files: filesToExport,
+        signal,
+        onProgress: current => setExportProgress({ current, total: totalFiles }),
+        onItemFailure: ({ id, type, error }) =>
+          console.error(`Failed to fetch ${type}: ${id}`, error),
+      });
 
-      // Add photos to ZIP with path
-      for (const photo of photosToExport) {
-        if (signal.aborted) throw new Error("Export cancelled");
-        try {
-          const response = await fetch(photo.file_url, { signal });
-          const blob = await response.blob();
-          const filename = photo.title || `photo-${photo.id}.jpg`;
-          const fullPath = photo.path ? `${photo.path}/${filename}` : filename;
-          zip.file(fullPath, blob);
-          fileCount++;
-          setExportProgress({ current: fileCount, total: totalFiles });
-        } catch (error: any) {
-          if (error.name === 'AbortError' || signal.aborted) throw new Error("Export cancelled");
-          console.error(`Failed to fetch photo: ${photo.id}`, error);
-        }
-      }
-
-      // Add files to ZIP with path
-      for (const file of filesToExport) {
-        if (signal.aborted) throw new Error("Export cancelled");
-        try {
-          const response = await fetch(file.file_url, { signal });
-          const blob = await response.blob();
-          const fullPath = file.path ? `${file.path}/${file.name}` : file.name;
-          zip.file(fullPath, blob);
-          fileCount++;
-          setExportProgress({ current: fileCount, total: totalFiles });
-        } catch (error: any) {
-          if (error.name === 'AbortError' || signal.aborted) throw new Error("Export cancelled");
-          console.error(`Failed to fetch file: ${file.id}`, error);
-        }
-      }
-
-      if (fileCount === 0) {
+      if (!result.blob) {
         toast.error("No files could be added to ZIP");
         return;
       }
 
       // Generate ZIP and download
-      const zipBlob = await zip.generateAsync({ type: "blob" });
       const folderName = currentView.type === "root" 
         ? "vault" 
         : currentView.folderName || (currentView.type === "team" ? currentView.teamName : currentView.clubName) || "export";
       
-      const blobUrl = window.URL.createObjectURL(zipBlob);
+      const blobUrl = window.URL.createObjectURL(result.blob);
       const link = document.createElement('a');
       link.href = blobUrl;
       link.download = `${folderName}.zip`;
@@ -2185,9 +2126,9 @@ export default function VaultPage() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
 
-      toast.success(`Exported ${fileCount} files as ZIP`);
+      toast.success(`Exported ${result.successfulCount} files as ZIP`);
     } catch (error: any) {
-      if (error.message === "Export cancelled") {
+      if (error.message === VAULT_EXPORT_CANCELLED_MESSAGE) {
         toast.info("Export cancelled");
       } else {
         console.error("ZIP export failed:", error);
@@ -2235,56 +2176,28 @@ export default function VaultPage() {
     setIsExporting(true);
 
     try {
-      const zip = new JSZip();
-      let fileCount = 0;
+      const result = await buildVaultZip({
+        photos: photosToExport,
+        files: filesToExport,
+        signal,
+        onProgress: current => setExportProgress({ current, total: totalFiles }),
+        onItemFailure: ({ id, type, error }) =>
+          console.error(`Failed to fetch ${type}: ${id}`, error),
+      });
 
-      // Add photos to ZIP with path
-      for (const photo of photosToExport) {
-        if (signal.aborted) throw new Error("Export cancelled");
-        try {
-          const response = await fetch(photo.file_url, { signal });
-          const blob = await response.blob();
-          const filename = photo.title || `photo-${photo.id}.jpg`;
-          const fullPath = photo.path ? `${photo.path}/${filename}` : filename;
-          zip.file(fullPath, blob);
-          fileCount++;
-          setExportProgress({ current: fileCount, total: totalFiles });
-        } catch (error: any) {
-          if (error.name === 'AbortError' || signal.aborted) throw new Error("Export cancelled");
-          console.error(`Failed to fetch photo: ${photo.id}`, error);
-        }
-      }
-
-      // Add files to ZIP with path
-      for (const file of filesToExport) {
-        if (signal.aborted) throw new Error("Export cancelled");
-        try {
-          const response = await fetch(file.file_url, { signal });
-          const blob = await response.blob();
-          const fullPath = file.path ? `${file.path}/${file.name}` : file.name;
-          zip.file(fullPath, blob);
-          fileCount++;
-          setExportProgress({ current: fileCount, total: totalFiles });
-        } catch (error: any) {
-          if (error.name === 'AbortError' || signal.aborted) throw new Error("Export cancelled");
-          console.error(`Failed to fetch file: ${file.id}`, error);
-        }
-      }
-
-      if (fileCount === 0) {
+      if (!result.blob) {
         toast.error("No files could be added to ZIP");
         return;
       }
 
       // Generate ZIP and download
-      const zipBlob = await zip.generateAsync({ type: "blob" });
       const folderName = selectionMode 
         ? "selected-files"
         : currentView.type === "root" 
           ? "vault" 
           : currentView.folderName || (currentView.type === "team" ? currentView.teamName : currentView.clubName) || "export";
       
-      const blobUrl = window.URL.createObjectURL(zipBlob);
+      const blobUrl = window.URL.createObjectURL(result.blob);
       const link = document.createElement('a');
       link.href = blobUrl;
       link.download = `${folderName}.zip`;
@@ -2293,10 +2206,10 @@ export default function VaultPage() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
 
-      toast.success(`Exported ${fileCount} files as ZIP`);
+      toast.success(`Exported ${result.successfulCount} files as ZIP`);
       if (selectionMode) exitSelectionMode();
     } catch (error: any) {
-      if (error.message === "Export cancelled") {
+      if (error.message === VAULT_EXPORT_CANCELLED_MESSAGE) {
         toast.info("Export cancelled");
       } else {
         console.error("ZIP export failed:", error);
@@ -3560,7 +3473,7 @@ export default function VaultPage() {
                 <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Sort:</span>
-                    <Select value={largeFilesSortBy} onValueChange={(v) => setLargeFilesSortBy(v as 'size' | 'date' | 'type')}>
+                    <Select value={largeFilesSortBy} onValueChange={(v) => setLargeFilesSortBy(v as VaultLargeFileSort)}>
                       <SelectTrigger className="w-[110px] h-8">
                         <SelectValue />
                       </SelectTrigger>
@@ -3598,13 +3511,7 @@ export default function VaultPage() {
                   )}
                 </div>
                 <div className="overflow-y-auto flex-1 space-y-2 pr-1">
-                  {[...largeFilesData.items]
-                    .sort((a, b) => {
-                      if (largeFilesSortBy === 'size') return b.size - a.size;
-                      if (largeFilesSortBy === 'date') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                      if (largeFilesSortBy === 'type') return a.type.localeCompare(b.type);
-                      return 0;
-                    })
+                  {sortVaultLargeFileItems(largeFilesData.items, largeFilesSortBy)
                     .map((item) => (
                     <div 
                       key={item.id}

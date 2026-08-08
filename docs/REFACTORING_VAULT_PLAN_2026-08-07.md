@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V5d committed; V6a export read/recursion boundary complete locally; review/commit pending
+**Status:** V1–V6a committed; V6b–V6d selection, ZIP and large-file boundaries complete locally; review/commit pending
 
 ## Objective
 
@@ -352,6 +352,55 @@ does not move Supabase ownership.
   defect review before alteration.
 - ZIP creation, cancellation, partial download handling, selection/exclusion
   rules and large-file management remain page-owned for later V6 slices.
+
+**V6b completed locally 8 August 2026:**
+
+- Extracted immutable item toggling, select-all, selected-item resolution,
+  recursive-preview exclusions and confirmation-count rules into a pure typed
+  boundary.
+- Reused the same rules for page-level and folder-dialog selection without
+  moving ZIP creation, downloads, cancellation, state ownership or user-facing
+  behavior.
+- Added seven contracts for independent photo/file selection, display-order
+  preservation, duplicate IDs, current-folder path normalization, folder
+  exclusion and selection-versus-current-view summaries.
+- Focused Vault verification passes 208/208 tests across eighteen files; the
+  new boundary passes targeted lint and the production build succeeds.
+- ZIP orchestration, cancellation/partial-download handling and large-file
+  management remain page-owned for later V6 slices.
+
+**V6c completed locally 8 August 2026:**
+
+- Extracted the duplicated recursive-preview and current-view ZIP assembly into
+  a typed service while retaining page-owned dialogs, toasts, filenames and
+  browser download activation.
+- Preserved sequential photo-before-file downloading, nested paths, fallback
+  photo filenames, successful-item progress and continuation after individual
+  download failures.
+- Made cancellation a stable service contract before, during and after item
+  download/ZIP generation, and retained the established no-empty-ZIP behavior
+  when every item fails.
+- Added six contracts for ordering/paths, fallback names, partial failure,
+  all-item failure and cancellation. Focused Vault verification passes 214/214
+  tests across nineteen files; new boundaries pass lint and production build.
+- The folder-dialog ZIP path intentionally remains separate because it reports
+  attempted items rather than successful items. Large-file management and that
+  legacy reporting decision remain for later review.
+
+**V6d completed locally 8 August 2026:**
+
+- Extracted large-file photo/file mapping, club/team labels, top-50 limiting,
+  immutable size/date/type sorting and exact deletion preparation into a typed
+  pure boundary.
+- Preserved existing Supabase reads, permanent-delete Edge Function ownership,
+  query invalidation, dialogs and user-facing outcomes in `VaultPage`.
+- Added six contracts for mapping/fallback labels, limiting, all three sort
+  modes, non-mutating rendering, exact photo/file IDs and selected-byte totals.
+- Focused Vault verification passes 220/220 tests across twenty files.
+- Review exposed two pre-existing truthful-reporting defects that must be fixed
+  separately rather than hidden in refactoring: folder ZIP success counts
+  attempted downloads, and large-file deletion reports all selected rows/bytes
+  as deleted even when the server returns failures.
 
 ### V7 — Presentation decomposition
 
