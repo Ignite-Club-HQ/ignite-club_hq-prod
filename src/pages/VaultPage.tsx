@@ -2669,95 +2669,23 @@ export default function VaultPage() {
     }
   };
 
-  // Recursive function to fetch all folder contents
+  // Recursive export sources come from `vault_files` only (see
+  // src/features/vault/vaultExportRepository.ts). Never query public.photos here.
   const fetchFolderContents = async (
     folderId: string | null,
     clubId: string | null,
     teamId: string | null,
     path: string = ""
-  ): Promise<{ photos: any[]; files: any[]; subfolders: { folder: any; path: string }[] }> => {
-    // Fetch photos in this folder
-    let photosQuery = supabase.from("photos").select("*");
-    if (teamId) {
-      photosQuery = photosQuery.eq("team_id", teamId);
-    } else if (clubId) {
-      photosQuery = photosQuery.eq("club_id", clubId).is("team_id", null);
-    }
-    if (folderId) {
-      photosQuery = photosQuery.eq("folder_id", folderId);
-    } else {
-      photosQuery = photosQuery.is("folder_id", null);
-    }
-    const { data: folderPhotos } = await photosQuery;
+  ) => fetchVaultFolderContents({ folderId, clubId, teamId }, path);
 
-    // Fetch files in this folder
-    let filesQuery = supabase.from("vault_files").select("*");
-    if (teamId) {
-      filesQuery = filesQuery.eq("team_id", teamId);
-    } else if (clubId) {
-      filesQuery = filesQuery.eq("club_id", clubId).is("team_id", null);
-    }
-    if (folderId) {
-      filesQuery = filesQuery.eq("folder_id", folderId);
-    } else {
-      filesQuery = filesQuery.is("folder_id", null);
-    }
-    const { data: folderFiles } = await filesQuery;
-
-    // Fetch subfolders
-    let subfoldersQuery = supabase.from("vault_folders").select("*").is("deleted_at", null);
-    if (teamId) {
-      subfoldersQuery = subfoldersQuery.eq("team_id", teamId);
-    } else if (clubId) {
-      subfoldersQuery = subfoldersQuery.eq("club_id", clubId).is("team_id", null);
-    }
-    if (folderId) {
-      subfoldersQuery = subfoldersQuery.eq("parent_id", folderId);
-    } else {
-      subfoldersQuery = subfoldersQuery.is("parent_id", null);
-    }
-    const { data: childFolders } = await subfoldersQuery;
-
-    return {
-      photos: (folderPhotos || []).map(p => ({ ...p, path })),
-      files: (folderFiles || []).map(f => ({ ...f, path })),
-      subfolders: (childFolders || []).map(folder => ({ 
-        folder, 
-        path: path ? `${path}/${folder.name}` : folder.name 
-      })),
-    };
-  };
-
-  // Recursively collect all files from a folder and its subfolders with breakdown
   const collectAllFolderContents = async (
     folderId: string | null,
     clubId: string | null,
     teamId: string | null,
     path: string = "",
     folderBreakdown: { path: string; photoCount: number; fileCount: number }[] = []
-  ): Promise<{ photos: any[]; files: any[]; folderBreakdown: { path: string; photoCount: number; fileCount: number }[] }> => {
-    const contents = await fetchFolderContents(folderId, clubId, teamId, path);
-    
-    // Add current folder to breakdown
-    const currentFolderName = path || "(current folder)";
-    folderBreakdown.push({
-      path: currentFolderName,
-      photoCount: contents.photos.length,
-      fileCount: contents.files.length,
-    });
-    
-    let allPhotos = [...contents.photos];
-    let allFiles = [...contents.files];
+  ) => collectVaultExportContents({ folderId, clubId, teamId }, path, folderBreakdown);
 
-    // Recursively fetch subfolder contents
-    for (const { folder, path: subPath } of contents.subfolders) {
-      const subContents = await collectAllFolderContents(folder.id, clubId, teamId, subPath, folderBreakdown);
-      allPhotos = [...allPhotos, ...subContents.photos];
-      allFiles = [...allFiles, ...subContents.files];
-    }
-
-    return { photos: allPhotos, files: allFiles, folderBreakdown };
-  };
 
   // Open preview dialog and fetch all subfolder contents
   const openExportPreview = async () => {
