@@ -57,8 +57,11 @@ import {
   uploadVaultItem,
 } from "@/features/vault/vaultUploadService";
 import {
+  exchangeVaultDriveOAuthCode,
+  getVaultDriveRedirectUri,
   isVaultDriveEnabled,
   resolveVaultDriveTitles,
+  storeVaultDriveOAuthTokens,
 } from "@/features/vault/vaultDriveService";
 import type { VaultFolderView } from "@/features/vault/types";
 import {
@@ -355,35 +358,14 @@ export default function VaultPage() {
       const exchangeCode = async () => {
         try {
           const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.();
-          const redirectUri = isNative ? 'https://igniteclubhq.app/vault' : `${window.location.origin}/vault`;
+          const redirectUri = getVaultDriveRedirectUri(isNative, window.location.origin);
           console.log("[GoogleDrive OAuth] Exchanging code with redirectUri:", redirectUri);
-          
-          const { data, error: exchangeError } = await supabase.functions.invoke('google-drive-import?action=exchange-code', {
-            body: { code: savedCode, redirectUri },
-          });
-          
-          if (exchangeError || data?.error) {
-            console.error("[GoogleDrive OAuth] Token exchange failed:", data?.error || exchangeError);
-            toast.error("Failed to connect to Google Drive");
-            return;
-          }
-          
+          const tokens = await exchangeVaultDriveOAuthCode({ code: savedCode, redirectUri });
           console.log("[GoogleDrive OAuth] Token exchange successful");
-
-          // Determine flow: "link a folder" pending takes precedence over "import"
-          const linkPending = sessionStorage.getItem('driveLinkPending');
-          if (linkPending) {
-            sessionStorage.removeItem('driveLinkPending');
-            sessionStorage.setItem('driveLinkAccessToken', data.accessToken);
-            if (data.refreshToken) sessionStorage.setItem('driveLinkRefreshToken', data.refreshToken);
-            if (data.googleEmail) sessionStorage.setItem('driveLinkGoogleEmail', data.googleEmail);
+          const route = storeVaultDriveOAuthTokens(tokens, sessionStorage);
+          if (route === "link") {
             setLinkDriveFolderOpen(true);
           } else {
-            sessionStorage.setItem('googleDriveAccessToken', data.accessToken);
-            // Also stash refresh token + google email so the import dialog can
-            // optionally create a sync link for any folder the user imports.
-            if (data.refreshToken) sessionStorage.setItem('googleDriveRefreshToken', data.refreshToken);
-            if (data.googleEmail) sessionStorage.setItem('googleDriveGoogleEmail', data.googleEmail);
             setGoogleDriveImportOpen(true);
           }
         } catch (err) {

@@ -32,3 +32,52 @@ export async function resolveVaultDriveTitles(
   if (error) throw error;
   return (data as { summary?: VaultDriveTitleSummary } | null)?.summary;
 }
+
+export function getVaultDriveRedirectUri(isNative: boolean, webOrigin: string): string {
+  return isNative ? "https://igniteclubhq.app/vault" : `${webOrigin}/vault`;
+}
+
+export interface VaultDriveOAuthTokens {
+  accessToken: string;
+  refreshToken?: string;
+  googleEmail?: string;
+}
+
+export async function exchangeVaultDriveOAuthCode(
+  options: { code: string; redirectUri: string },
+  client: IgniteSupabaseClient = supabase,
+): Promise<VaultDriveOAuthTokens> {
+  const { data, error } = await client.functions.invoke(
+    "google-drive-import?action=exchange-code",
+    { body: options },
+  );
+  const payload = data as (VaultDriveOAuthTokens & { error?: string }) | null;
+  if (error || payload?.error || !payload?.accessToken) {
+    throw new Error(payload?.error || error?.message || "Failed to exchange Google Drive code");
+  }
+  return payload;
+}
+
+export interface VaultDriveSessionStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+export function storeVaultDriveOAuthTokens(
+  tokens: VaultDriveOAuthTokens,
+  storage: VaultDriveSessionStorage,
+): "link" | "import" {
+  if (storage.getItem("driveLinkPending")) {
+    storage.removeItem("driveLinkPending");
+    storage.setItem("driveLinkAccessToken", tokens.accessToken);
+    if (tokens.refreshToken) storage.setItem("driveLinkRefreshToken", tokens.refreshToken);
+    if (tokens.googleEmail) storage.setItem("driveLinkGoogleEmail", tokens.googleEmail);
+    return "link";
+  }
+
+  storage.setItem("googleDriveAccessToken", tokens.accessToken);
+  if (tokens.refreshToken) storage.setItem("googleDriveRefreshToken", tokens.refreshToken);
+  if (tokens.googleEmail) storage.setItem("googleDriveGoogleEmail", tokens.googleEmail);
+  return "import";
+}

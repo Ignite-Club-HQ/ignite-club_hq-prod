@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V5b committed; V5c Drive rollout/title boundary complete locally; review/commit pending
+**Status:** V1–V5c committed; V5d Drive OAuth return boundary complete locally; review/commit pending
 
 ## Objective
 
@@ -311,6 +311,23 @@ does not move Supabase ownership.
 - Focused verification passes 190/190 tests across sixteen files.
 - OAuth return handling and the self-contained import/link dialogs remain for
   later V5 slices; their behavior was not changed here.
+
+**V5d completed locally 8 August 2026:**
+
+- Extracted native/web redirect URI selection, OAuth code exchange and token
+  routing into the typed Drive service.
+- Preserved exact session-storage keys and the established rule that a pending
+  folder-link takes precedence over an import, while React dialog state,
+  logging, user-facing errors and pending-flow cleanup remain page-owned.
+- Hardened a malformed successful response with no access token to fail closed
+  rather than opening a dialog with an unusable token.
+- Added five OAuth contracts (ten Drive-service tests total) for redirect URIs,
+  exact exchange payloads, all failure forms, link precedence and distinct
+  import token keys.
+- Focused Vault verification passes 195/195 tests across sixteen files; the
+  related routing/cache safety set also passes 91/91 tests.
+- The import and folder-link dialogs are already self-contained components and
+  are not candidates for deeper extraction unless defects or tests justify it.
 
 ### V6 — Selection and export workflows
 
