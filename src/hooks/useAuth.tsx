@@ -41,7 +41,7 @@ interface AuthContextType {
   profileResolved: boolean; // True only after profile has been fetched from server at least once
   unreadCount: number;
   unreadMessagesCount: number;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
