@@ -432,6 +432,7 @@ const App = () => {
                   <Route path="/start" element={<StartPage />} />
                   <Route path="/teams/new" element={<StartTeamPage />} />
                   <Route path="/clubs/:id" element={<ClubDetailPage />} />
+                  <Route path="/club-link/:linkId" element={<ClubLinkEmbedPage />} />
                   <Route path="/clubs/:clubId/setup" element={<ClubSetupWizardPage />} />
                   <Route path="/clubs/:id/edit" element={<EditClubPage />} />
                   <Route path="/clubs/:clubId/teams/new" element={<CreateTeamPage />} />
