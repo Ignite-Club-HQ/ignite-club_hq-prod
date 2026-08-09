@@ -2141,52 +2141,19 @@ export default function MessagesPage() {
     };
 
 
-    // Bounded buffer-then-replay. While the membership snapshot is loading we
-    // hold events (max 50, oldest dropped) instead of discarding them; the
-    // replay re-runs the same fail-closed `isAuthorized` check.
-    const MAX_PENDING_NATIVE = 50;
-    // Idempotency: a replayed event must not double-apply a preview/unread
-    // update that polling (or a duplicate delivery) already handled.
-    const appliedEventKeys = new Set<string>();
-    const eventKey = (table: string, payload: any) => {
-      const id = payload?.new?.id;
-      return id ? `${table}:${id}` : null;
+    // Buffering + exactly-once application is owned by the shared inbox
+    // coordinator: events arriving before the membership snapshot resolves are
+    // held (bounded) and replayed once scopes are `ready`. Fail-closed is
+    // preserved — the replay runs the same `isAuthorized` check below.
+    const applyEvent = (event: InboxRealtimeEvent) => {
+      if (event.kind === 'edit') editHandlers[event.table]?.(event.payload);
+      else handlers[event.table]?.(event.payload);
     };
-    const applyOnce = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
-      if (kind === 'edit') {
-        editHandlers[table]?.(payload);
-        return;
-      }
-      const key = eventKey(table, payload);
-      if (key) {
-        if (appliedEventKeys.has(key)) return;
-        appliedEventKeys.add(key);
-        if (appliedEventKeys.size > 200) {
-          const oldest = appliedEventKeys.values().next().value as string | undefined;
-          if (oldest) appliedEventKeys.delete(oldest);
-        }
-      }
-      handlers[table]?.(payload);
-    };
+    nativeInboxCoordinator.setApplier(applyEvent);
     const dispatch = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
-      if (authStatusRef.current !== 'ready') {
-        const buf = pendingNativeRealtimeRef.current;
-        buf.push({ table, payload, kind } as any);
-        if (buf.length > MAX_PENDING_NATIVE) buf.splice(0, buf.length - MAX_PENDING_NATIVE);
-        return;
-      }
-      applyOnce(table, payload, kind);
+      nativeInboxCoordinator.dispatch({ table, payload, kind });
     };
 
-    nativeRealtimeFlushRef.current = () => {
-      const buffered = pendingNativeRealtimeRef.current;
-      if (buffered.length === 0) return;
-      pendingNativeRealtimeRef.current = [];
-      for (const item of buffered) applyOnce(item.table, item.payload, ((item as any).kind ?? 'insert'));
-    };
-    nativeRealtimeDiscardRef.current = () => {
-      pendingNativeRealtimeRef.current = [];
-    };
 
     const channel = supabase
       .channel(`messages-inbox-light-${user.id}`)
