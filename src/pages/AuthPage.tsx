@@ -83,19 +83,35 @@ export default function AuthPage() {
   const isNativePlatform = Capacitor.isNativePlatform();
   const { isOnline } = useOnlineStatus();
   
+  // The URL is the source of truth for the invite hand-off (mode / next /
+  // invite). sessionStorage is only a fallback — some Android/iOS webviews
+  // throw on writes, which used to silently drop the whole join intent.
+  const authIntent = readAuthIntent(window.location.search);
+
   // Check if we should default to signup view (new user from invite, or returning from terms/privacy)
-  const defaultView = safeSessionGet("authDefaultTab") || "signin";
+  const defaultView = authIntent.mode ?? safeSessionGet("authDefaultTab") ?? "signin";
   const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView as "signin" | "signup");
 
   // Persist auth mode so navigating to terms/privacy and back preserves the tab
   useEffect(() => {
     safeSessionSet("authDefaultTab", authMode);
   }, [authMode]);
-  
+
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
   // URL param is a fallback for webviews where sessionStorage writes are blocked.
   const redirectParam = readRedirectParam(window.location.search);
   const redirectAfterAuth = safeSessionGet("redirectAfterAuth") ?? redirectParam;
+
+  useEffect(() => {
+    console.log("[SignupFlow] Arrived at /auth", {
+      mode: authIntent.mode,
+      next: authIntent.next,
+      invite: authIntent.invite ? "present" : null,
+      storedRedirect: safeSessionGet("redirectAfterAuth"),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   
   // Initialize invite flow context - check if it's stale (no redirect pending)
   const [inviteFlowContext, setInviteFlowContext] = useState(() => {
