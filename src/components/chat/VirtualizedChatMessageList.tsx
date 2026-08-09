@@ -1266,6 +1266,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [bottomPadding],
   );
 
+  // Latest-render mirrors for the mount-once jump overlay effect (deps: []).
+  const alignMessageIdInViewRef = useRef(alignMessageIdInView);
+  alignMessageIdInViewRef.current = alignMessageIdInView;
+  const bottomPaddingRef = useRef(bottomPadding);
+  bottomPaddingRef.current = bottomPadding;
+  const jumpOverlayTargetRef = useRef<string | null>(initialTargetMessageId ?? null);
+  jumpOverlayTargetRef.current = initialTargetMessageId ?? null;
+
+
+
 
   useEffect(() => {
     if (messages.length === 0) {
