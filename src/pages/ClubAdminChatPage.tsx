@@ -338,7 +338,7 @@ export default function ClubAdminChatPage() {
       try {
         const { data: rawMessages, error } = await supabase
           .from("club_admin_messages")
-          .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at")
+          .select("id, text, image_url, created_at, edited_at, author_id, conversation_id, reply_to_id, deleted_at")
           .eq("conversation_id", conversationId)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
@@ -900,7 +900,7 @@ export default function ClubAdminChatPage() {
         scope: { conversation_id: conversationId! },
         query: q,
         signal,
-        selectColumns: "id, text, image_url, created_at, author_id, conversation_id, reply_to_id",
+        selectColumns: "id, text, image_url, created_at, edited_at, author_id, conversation_id, reply_to_id",
       })) as ClubAdminMessage[],
   });
 
@@ -1329,6 +1329,7 @@ export default function ClubAdminChatPage() {
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
+                      isEdited={!!(msg as any).edited_at}
                       onReply={() => {
                         setReplyTo(msg);
                         setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);

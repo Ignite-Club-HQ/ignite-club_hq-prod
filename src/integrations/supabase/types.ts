@@ -425,6 +425,7 @@ export type Database = {
           author_id: string
           created_at: string
           deleted_at: string | null
+          edited_at: string | null
           id: string
           image_url: string | null
           reply_to_id: string | null
@@ -434,6 +435,7 @@ export type Database = {
           author_id: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -443,6 +445,7 @@ export type Database = {
           author_id?: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -1558,6 +1561,7 @@ export type Database = {
           conversation_id: string
           created_at: string
           deleted_at: string | null
+          edited_at: string | null
           id: string
           image_url: string | null
           reply_to_id: string | null
@@ -1568,6 +1572,7 @@ export type Database = {
           conversation_id: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -1578,6 +1583,7 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
@@ -1786,6 +1792,7 @@ export type Database = {
           club_id: string
           created_at: string
           deleted_at: string | null
+          edited_at: string | null
           forwarded_at: string | null
           forwarded_from_user_id: string | null
           forwarded_source_label: string | null
@@ -1799,6 +1806,7 @@ export type Database = {
           club_id: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           forwarded_at?: string | null
           forwarded_from_user_id?: string | null
           forwarded_source_label?: string | null
@@ -1812,6 +1820,7 @@ export type Database = {
           club_id?: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           forwarded_at?: string | null
           forwarded_from_user_id?: string | null
           forwarded_source_label?: string | null
@@ -3042,6 +3051,7 @@ export type Database = {
           conversation_id: string
           created_at: string
           deleted_at: string | null
+          edited_at: string | null
           forwarded_at: string | null
           forwarded_from_user_id: string | null
           forwarded_source_label: string | null
@@ -3056,6 +3066,7 @@ export type Database = {
           conversation_id: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           forwarded_at?: string | null
           forwarded_from_user_id?: string | null
           forwarded_source_label?: string | null
@@ -3070,6 +3081,7 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           forwarded_at?: string | null
           forwarded_from_user_id?: string | null
           forwarded_source_label?: string | null
@@ -4930,6 +4942,7 @@ export type Database = {
           author_id: string
           created_at: string
           deleted_at: string | null
+          edited_at: string | null
           forwarded_at: string | null
           forwarded_from_user_id: string | null
           forwarded_source_label: string | null
@@ -4944,6 +4957,7 @@ export type Database = {
           author_id: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           forwarded_at?: string | null
           forwarded_from_user_id?: string | null
           forwarded_source_label?: string | null
@@ -4958,6 +4972,7 @@ export type Database = {
           author_id?: string
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           forwarded_at?: string | null
           forwarded_from_user_id?: string | null
           forwarded_source_label?: string | null
@@ -9060,6 +9075,7 @@ export type Database = {
           club_announcement_name: string | null
           created_at: string
           deleted_at: string | null
+          edited_at: string | null
           forwarded_at: string | null
           forwarded_from_user_id: string | null
           forwarded_source_label: string | null
@@ -9077,6 +9093,7 @@ export type Database = {
           club_announcement_name?: string | null
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           forwarded_at?: string | null
           forwarded_from_user_id?: string | null
           forwarded_source_label?: string | null
@@ -9094,6 +9111,7 @@ export type Database = {
           club_announcement_name?: string | null
           created_at?: string
           deleted_at?: string | null
+          edited_at?: string | null
           forwarded_at?: string | null
           forwarded_from_user_id?: string | null
           forwarded_source_label?: string | null

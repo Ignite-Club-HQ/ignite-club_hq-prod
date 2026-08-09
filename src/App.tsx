@@ -21,6 +21,8 @@ import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
 import { PushNotificationManager } from "@/components/PushNotificationManager";
 import { PWAPendingInviteHandler } from "@/components/PWAPendingInviteHandler";
+import AppNavigatorBridge from "@/components/AppNavigatorBridge";
+
 import { NativeAppUpdatePrompt } from "@/components/NativeAppUpdatePrompt";
 import { LegalReacceptanceGate } from "@/components/LegalReacceptanceGate";
 
@@ -382,8 +384,10 @@ const App = () => {
           <IcsPreviewFallbackDialog />
           <NotifDebugOverlay />
           <BrowserRouter>
+            <AppNavigatorBridge />
             <ScrollToTop />
             <PWAPendingInviteHandler />
+
             <Suspense fallback={null}><GlobalSubMonitorGate /></Suspense>
             <PitchBoardResumeRedirect />
             <MessagesBootstrapPrefetcher />
