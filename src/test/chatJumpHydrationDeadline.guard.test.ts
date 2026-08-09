@@ -3,44 +3,48 @@ import { readFileSync } from "fs";
 
 const list = readFileSync("src/components/chat/VirtualizedChatMessageList.tsx", "utf8");
 const jump = readFileSync("src/lib/jumpToMessage.ts", "utf8");
+const lifecycle = readFileSync("src/lib/chatJumpLifecycle.ts", "utf8");
 
-describe("chat jump hydration reveal deadline", () => {
-  it("anchors the deep-link reveal deadline once per hydration lifecycle", () => {
-    expect(list).toContain("const lifecycleStartedAt = performance.now()");
-    expect(list).toContain("const HARD_REVEAL_DEADLINE_MS = 32000");
-    expect(list).toContain("hardTimer = window.setTimeout(finish, HARD_REVEAL_DEADLINE_MS)");
+describe("chat jump hydration reveal lifecycle", () => {
+  it("measures the reveal budget once, from the original jump start", () => {
+    expect(jump).toContain("beginChatJumpLifecycle(messageId)");
+    expect(lifecycle).toContain("sameTargetStillRunning");
+    expect(list).toContain("chatJumpLifecycleRemaining(");
   });
 
-  it("bounds retry settle waits by the remaining budget instead of re-arming a fresh one", () => {
-    expect(list).toContain("Math.min(6500, remainingBudget())");
-    expect(list).toContain("isChatJumpActive() && remainingBudget() > 120");
+  it("uses one target-gated reveal wait instead of two chained settle waits", () => {
+    expect(list).toContain("waitForChatJumpTargetReveal(");
+    // The old design chained a 2.2s jump tail onto a fresh 6.5s settle wait
+    // that was re-armed every 80ms while the jump was active.
+    expect(list).not.toContain("Math.min(6500, remainingBudget())");
+    expect(list).not.toContain("isChatJumpActive() && remainingBudget() > 120");
+    expect(list).not.toContain("maxMs: Math.min(8000, budget)");
   });
 
-  it("tracks and clears every retry/hard timer on unmount or target change", () => {
-    expect(list).toContain("if (retryTimer !== null) window.clearTimeout(retryTimer)");
-    expect(list).toContain("if (hardTimer !== null) window.clearTimeout(hardTimer)");
-    expect(list).toContain("initialBottomPinned, initialTargetMessageId]");
+  it("keeps duplicate start/end notifications idempotent", () => {
+    expect(list).toContain("if (hydrating) return;");
+    expect(list).toContain("if (cancelSettleWait) return;");
+    expect(jump).toContain("if (hydrationEnded) return;");
+    expect(lifecycle).toContain("if (current.ended) return");
   });
 
-  it("gives the jump overlay its own non-restartable lifecycle budget", () => {
+  it("retains a never-blank-forever backstop plus a short reveal fail-safe", () => {
     expect(list).toContain("const OVERLAY_HARD_DEADLINE_MS = 32000");
-    expect(list).toContain("lifecycleStartedAt = performance.now()");
-    expect(list).toContain("maxMs: Math.min(8000, budget)");
+    expect(list).toContain("const OVERLAY_REVEAL_FAILSAFE_MS = 4000");
+    expect(list).toContain("const JUMP_REVEAL_FAILSAFE_MS = 4000");
     expect(list).toContain("if (isChatJumpActive()) onStart();");
-  });
-
-  it("never reveals early: overlay release is a backstop beyond the poller lifetime", () => {
     expect(jump).toContain("const OVERLAY_RELEASE_MS = maxAttempts * intervalMs + 3000");
-    expect(jump).toContain("overlayReleaseTimer");
     expect(jump).toContain('new CustomEvent("chat:jump-hydration-end")');
-    // Backstop must also drop the jump-active flag so the list's settle-driven
-    // reveal path can complete rather than looping on isChatJumpActive().
-    expect(jump).toMatch(/overlayReleaseTimer = null;\s*if \(hydrationEnded\) return;\s*hydrationEnded = true;\s*setChatJumpActive\(false\);/);
   });
 
+  it("performs one final exact-DOM alignment when the fail-safe fires", () => {
+    expect(list).toContain("finalAlign:");
+    expect(list).toContain('alignMessageIdInView(initialTargetMessageId, "end")');
+  });
 
   it("keeps the skeleton masking and exact-target selection intact", () => {
     expect(list).toContain("{!initialRevealReady ? <JumpHydrationSkeleton /> : null}");
     expect(list).toContain("initialTargetMessageId && initialTargetIndex >= 0");
+    expect(list).toContain("initialBottomPinned, initialTargetMessageId]");
   });
 });

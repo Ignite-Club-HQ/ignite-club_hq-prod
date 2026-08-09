@@ -41,6 +41,9 @@ import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabl
 import { isChatJumpActive, setChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
+import { waitForChatJumpTargetReveal } from "@/lib/chatJumpReveal";
+import { chatJumpLifecycleRemaining, getChatJumpLifecycle } from "@/lib/chatJumpLifecycle";
+
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 
@@ -1223,6 +1226,57 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [],
   );
 
+  /**
+   * Exact-DOM alignment for a mounted row. Single implementation shared by the
+   * imperative `scrollToMessageId` handle and the jump reveal fail-safe, so
+   * "one final exact-DOM alignment" is guaranteed to be the same correction
+   * the jump itself applies.
+   */
+  const alignMessageIdInView = useCallback(
+    (messageId: string, align: "start" | "center" | "end" = "center") => {
+      const el = scrollerElRef.current;
+      if (!el) return false;
+      const escapedId = escapeCssAttributeValue(messageId);
+      const row = el.querySelector<HTMLElement>(`[data-row-id="${escapedId}"]`);
+      if (!row) return false;
+      const rowRect = row.getBoundingClientRect();
+      const scrollerRect = el.getBoundingClientRect();
+      const reservedBottom = align === "end" ? getChatBottomPaddingOffset(bottomPadding) : 0;
+      const targetTop =
+        align === "end"
+          ? el.scrollTop + rowRect.bottom - scrollerRect.bottom + reservedBottom
+          : align === "start"
+          ? el.scrollTop + rowRect.top - scrollerRect.top
+          : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
+      const previousScrollTop = el.scrollTop;
+      el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+      markChatScrollWrite();
+      console.log("[jumpToMessage] exact DOM correction", {
+        messageId,
+        align,
+        previousScrollTop,
+        targetTop: Math.max(0, targetTop),
+        rowTop: rowRect.top,
+        rowBottom: rowRect.bottom,
+        scrollerTop: scrollerRect.top,
+        scrollerBottom: scrollerRect.bottom,
+      });
+      return true;
+    },
+    [bottomPadding],
+  );
+
+  // Latest-render mirrors for the mount-once jump overlay effect (deps: []).
+  const alignMessageIdInViewRef = useRef(alignMessageIdInView);
+  alignMessageIdInViewRef.current = alignMessageIdInView;
+  const bottomPaddingRef = useRef(bottomPadding);
+  bottomPaddingRef.current = bottomPadding;
+  const jumpOverlayTargetRef = useRef<string | null>(initialTargetMessageId ?? null);
+  jumpOverlayTargetRef.current = initialTargetMessageId ?? null;
+
+
+
+
   useEffect(() => {
     if (messages.length === 0) {
       anchorRef.current = { baseFirstId: null, baseFirstIndex: START_INDEX };
@@ -1323,38 +1377,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       let cancelled = false;
       let cleanup: (() => void) | null = null;
       let revealFrame: number | null = null;
-      let retryTimer: number | null = null;
-      let hardTimer: number | null = null;
-      // Lifecycle-anchored SAFETY backstop (not a UX deadline). Measured ONCE
-      // from the start of this target hydration lifecycle (this effect run),
-      // never restarted by rerenders, message-window growth or repeated
-      // `isChatJumpActive()` retries — that non-restarting property is what
-      // prevents the "forever blank thread" hang seen on Android.
-      // It is deliberately longer than the jump poller's own lifetime (~30s)
-      // so it can never reveal an UNSETTLED thread: the normal reveal path is
-      // always settle-driven.
-      const lifecycleStartedAt = performance.now();
-      const HARD_REVEAL_DEADLINE_MS = 32000;
-      const remainingBudget = () =>
-        Math.max(0, HARD_REVEAL_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
-
+      // ONE lifecycle budget, measured from the ORIGINAL jump start (not from
+      // this effect run, which can re-fire on message-window growth). The
+      // reveal itself is gated on the exact target being mounted, aligned,
+      // unclipped and stationary — see `waitForChatJumpTargetReveal`. This is
+      // deliberately the shortest defensible fail-safe: previously we chained a
+      // 2.2 s jump tail onto a fresh 6.5 s settle wait (re-armed every 80 ms),
+      // which left a correctly aligned thread masked for many seconds.
+      const JUMP_REVEAL_FAILSAFE_MS = 4000;
       const finish = () => {
         if (cancelled) return;
         cancelled = true;
         cleanup?.();
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-        if (hardTimer !== null) window.clearTimeout(hardTimer);
         revealFrame = requestAnimationFrame(() => setInitialRevealReady(true));
-      };
-      const reveal = () => {
-        if (cancelled) return;
-        // The jump is still repositioning: give it another slice, but only
-        // within the lifecycle budget.
-        if (isChatJumpActive() && remainingBudget() > 120) {
-          retryTimer = window.setTimeout(wait, 80);
-          return;
-        }
-        finish();
       };
       const wait = () => {
         if (cancelled) return;
@@ -1363,23 +1398,29 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           revealFrame = requestAnimationFrame(wait);
           return;
         }
-        cleanup?.();
-        cleanup = waitForChatVisualContentSettle(
+        cleanup = waitForChatJumpTargetReveal(
           scroller,
-          { quietMs: 650, maxMs: Math.max(200, Math.min(6500, remainingBudget())) },
-          reveal,
+          {
+            targetMessageId: initialTargetMessageId,
+            usableBottomInsetPx: getChatBottomPaddingOffset(bottomPadding),
+            quietMs: 240,
+            budgetMs: Math.max(
+              600,
+              chatJumpLifecycleRemaining(JUMP_REVEAL_FAILSAFE_MS),
+            ),
+            finalAlign: () => { alignMessageIdInView(initialTargetMessageId, "end"); },
+          },
+          finish,
         );
       };
-      hardTimer = window.setTimeout(finish, HARD_REVEAL_DEADLINE_MS);
       wait();
       return () => {
         cancelled = true;
         cleanup?.();
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-        if (hardTimer !== null) window.clearTimeout(hardTimer);
         if (revealFrame !== null) cancelAnimationFrame(revealFrame);
       };
     }
+
 
     if (!initialBottomPinned) {
       bottomPinReadyRef.current = true;
@@ -2038,36 +2079,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           behavior: "auto",
         }, "imperative-scroll-to-index");
       },
-      scrollToMessageId: (messageId, align = "center") => {
-        const el = scrollerElRef.current;
-        if (!el) return false;
-        const escapedId = escapeCssAttributeValue(messageId);
-        const row = el.querySelector<HTMLElement>(`[data-row-id="${escapedId}"]`);
-        if (!row) return false;
-        const rowRect = row.getBoundingClientRect();
-        const scrollerRect = el.getBoundingClientRect();
-        const reservedBottom = align === "end" ? getChatBottomPaddingOffset(bottomPadding) : 0;
-        const targetTop =
-          align === "end"
-            ? el.scrollTop + rowRect.bottom - scrollerRect.bottom + reservedBottom
-            : align === "start"
-            ? el.scrollTop + rowRect.top - scrollerRect.top
-            : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
-        const previousScrollTop = el.scrollTop;
-        el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
-        markChatScrollWrite();
-        console.log("[jumpToMessage] exact DOM correction", {
-          messageId,
-          align,
-          previousScrollTop,
-          targetTop: Math.max(0, targetTop),
-          rowTop: rowRect.top,
-          rowBottom: rowRect.bottom,
-          scrollerTop: scrollerRect.top,
-          scrollerBottom: scrollerRect.bottom,
-        });
-        return true;
-      },
+      scrollToMessageId: (messageId, align = "center") => alignMessageIdInView(messageId, align),
+
       isAtBottom: () => atBottomRef.current,
       isNearBottom: (thresholdPx: number) => {
         const el = scrollerElRef.current;
@@ -2076,7 +2089,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return distance <= Math.max(0, thresholdPx);
       },
     }),
-    [bottomPadding, safeScrollToIndex],
+    [bottomPadding, safeScrollToIndex, alignMessageIdInView],
   );
 
   // O(1) id → index map AND defensive de-duplication. Pagination races (two
@@ -2232,16 +2245,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // settle-driven `onEnd` path, so the reveal always shows a settled thread.
     // Longer than the jump poller's own lifetime (~30s) on purpose.
     const OVERLAY_HARD_DEADLINE_MS = 32000;
-    let lifecycleStartedAt = performance.now();
+    // Shortest defensible fail-safe for the reveal itself. The 32 s value above
+    // stays as the absolute never-blank-forever backstop.
+    const OVERLAY_REVEAL_FAILSAFE_MS = 4000;
+    let hydrating = false;
     const remainingBudget = () =>
-      Math.max(0, OVERLAY_HARD_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
+      Math.max(0, chatJumpLifecycleRemaining(OVERLAY_HARD_DEADLINE_MS));
 
     const onStart = () => {
+      // Idempotent: duplicate start signals (the CustomEvent AND the
+      // `setChatJumpActive(true)` subscription both fire for one jump, plus the
+      // seeded mount call) must not re-arm the budget or restart the wait.
+      if (hydrating) return;
+      hydrating = true;
       if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
       if (unmountTimer) { clearTimeout(unmountTimer); unmountTimer = null; }
       if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
       if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
-      lifecycleStartedAt = performance.now();
       hardTimer = window.setTimeout(() => {
         hardTimer = null;
         if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
@@ -2249,37 +2269,59 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       }, OVERLAY_HARD_DEADLINE_MS);
       setRenderJumpOverlay(true);
       setIsJumpHydrating(true);
+      // Start observing alignment progress DURING the jump instead of waiting
+      // for the tail release and then starting a second, independent settle
+      // wait. As soon as the exact target is mounted, aligned above the
+      // composer and stationary for a short quiet window we fade out — which is
+      // what removed the multi-second blank chat after a notification tap.
+      armRevealWait();
     };
     const fadeOut = () => {
       if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
+      hydrating = false;
       setIsJumpHydrating(false);
       if (unmountTimer) clearTimeout(unmountTimer);
       unmountTimer = setTimeout(() => setRenderJumpOverlay(false), 300);
     };
-    const onEnd = () => {
-      if (fadeTimer) clearTimeout(fadeTimer);
-      if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
-      // Keep the skeleton up until the visible chat content (images, link
-      // previews, row heights, scroll metrics) actually stops moving. Without
-      // this gate the overlay disappears on a fixed timer while rows are
-      // still re-anchoring, which the user perceives as "messages moving
-      // around before settling". Bounded by the remaining lifecycle budget so
-      // a late-hydrating thread can never hold the overlay open indefinitely.
+    function armRevealWait() {
       const scroller = scrollerElRef.current;
       const budget = remainingBudget();
-      if (scroller && budget > 200) {
-        cancelSettleWait = waitForChatVisualContentSettle(
-          scroller,
-          { quietMs: 650, maxMs: Math.min(8000, budget) },
-          () => {
-            cancelSettleWait = null;
-            // Tiny intentional cross-fade so the reveal reads as "settled".
-            fadeTimer = setTimeout(fadeOut, 80);
-          },
-        );
-      } else {
+      if (!scroller || budget <= 200) {
+        if (fadeTimer) clearTimeout(fadeTimer);
         fadeTimer = setTimeout(fadeOut, 120);
+        return;
       }
+      const targetId =
+        getChatJumpLifecycle().targetMessageId ?? jumpOverlayTargetRef.current;
+      cancelSettleWait = waitForChatJumpTargetReveal(
+        scroller,
+        {
+          targetMessageId: targetId,
+          usableBottomInsetPx: getChatBottomPaddingOffset(bottomPaddingRef.current),
+          quietMs: 240,
+          budgetMs: Math.max(
+            600,
+            Math.min(OVERLAY_REVEAL_FAILSAFE_MS, budget),
+          ),
+          finalAlign: () => {
+            if (targetId) alignMessageIdInViewRef.current?.(targetId, "end");
+          },
+        },
+        () => {
+          cancelSettleWait = null;
+          // Tiny intentional cross-fade so the reveal reads as "settled".
+          if (fadeTimer) clearTimeout(fadeTimer);
+          fadeTimer = setTimeout(fadeOut, 80);
+        },
+      );
+    }
+    const onEnd = () => {
+      // Idempotent by construction: the reveal wait is already running from
+      // `onStart`, so duplicate `chat:jump-hydration-end` /
+      // `setChatJumpActive(false)` notifications must NOT cancel or restart it.
+      if (!hydrating) return;
+      if (cancelSettleWait) return;
+      armRevealWait();
     };
 
     window.addEventListener("chat:jump-hydration-start", onStart);
@@ -2303,6 +2345,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (cancelSettleWait) cancelSettleWait();
     };
   }, []);
+
 
 
   return (
