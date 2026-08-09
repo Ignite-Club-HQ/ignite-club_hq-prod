@@ -1296,8 +1296,8 @@ export default function ClubDetailPage() {
         <ClubSetupProgressCard clubId={id} isShellClub={(club as any)?.kind === "shell"} />
       )}
 
-      {/* Club Info & Links manager — admins curate the tiles shown on Home */}
-      {isAdmin && id && <ClubLinksManager clubId={id} />}
+
+
 
 
 
