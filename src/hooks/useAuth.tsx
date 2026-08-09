@@ -1047,7 +1047,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     // Check for pending redirect (e.g., from invite link)
-    const pendingRedirect = sessionStorage.getItem("redirectAfterAuth");
+    let pendingRedirect: string | null = null;
+    try {
+      pendingRedirect = sessionStorage.getItem("redirectAfterAuth");
+    } catch {
+      pendingRedirect = null;
+    }
     
     // For native apps, use the published app URL for OAuth redirects
     // The WebView can't handle capacitor:// or ionic:// schemes for OAuth

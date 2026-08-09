@@ -1463,15 +1463,28 @@ test(`${nativeCase.label} in-app message notification reveals and pins the exact
   await expect(page).toHaveURL(new RegExp(`/messages/${teamId}\\?.*message=${targetId}`));
   await expect(page.locator(`#message-${targetId}`)).toHaveCount(0);
 
+  // Observe continuously before releasing the target history. The jump
+  // lifecycle begins as that data becomes available, and a fast native-like
+  // renderer may align and start fading between two Playwright assertions.
+  // Recording the transition proves the list was fully masked while aligning
+  // without requiring the mask to remain up after the row is stable.
+  await page.evaluate(() => {
+    (window as any).__sawOpaqueChatJumpHydration = false;
+    const sample = () => {
+      const overlays = document.querySelectorAll('[data-chat-jump-hydration="true"]');
+      if ([...overlays].some((overlay) => Number(getComputedStyle(overlay).opacity) > 0.99)) {
+        (window as any).__sawOpaqueChatJumpHydration = true;
+        return;
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+
   state.releaseMessageHistory();
   const target = page.locator(`#message-${targetId}`);
   await expect(target).toContainText("Exact synthetic notification target", { timeout: 8_000 });
-  // Finding the target is not itself permission to reveal it. At least one
-  // opaque hydration mask must still cover Virtuoso while its final exact-DOM
-  // alignment and row measurements settle.
-  await expect.poll(() => page.locator('[data-chat-jump-hydration="true"]').evaluateAll((overlays) =>
-    overlays.some((overlay) => Number(getComputedStyle(overlay).opacity) > 0.99),
-  )).toBe(true);
+  await expect.poll(() => page.evaluate(() => (window as any).__sawOpaqueChatJumpHydration)).toBe(true);
   // The jump overlay intentionally masks Virtuoso's final target alignment.
   // Measure stability only once the row is actually visible to the user.
   await expect.poll(

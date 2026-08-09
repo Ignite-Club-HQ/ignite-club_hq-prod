@@ -26,6 +26,8 @@ import { BasicChatMessageList } from "./BasicChatMessageList";
 import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabled";
 import { isChatJumpActive, setChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
+import { waitForChatJumpTargetReveal } from "@/lib/chatJumpReveal";
+import { chatJumpLifecycleRemaining } from "@/lib/chatJumpLifecycle";
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 import { createChatRowSignature } from "./chatRowSignature";
 import {
@@ -393,6 +395,53 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     [],
   );
 
+  /**
+   * Exact-DOM alignment for a mounted row. Single implementation shared by the
+   * imperative `scrollToMessageId` handle and the jump reveal fail-safe, so
+   * "one final exact-DOM alignment" is guaranteed to be the same correction
+   * the jump itself applies.
+   */
+  const alignMessageIdInView = useCallback(
+    (messageId: string, align: "start" | "center" | "end" = "center") => {
+      const el = scrollerElRef.current;
+      if (!el) return false;
+      const escapedId = escapeChatCssAttributeValue(messageId);
+      const row = el.querySelector<HTMLElement>(`[data-row-id="${escapedId}"]`);
+      if (!row) return false;
+      const rowRect = row.getBoundingClientRect();
+      const scrollerRect = el.getBoundingClientRect();
+      const reservedBottom = align === "end" ? getChatBottomPaddingOffset(bottomPadding) : 0;
+      const targetTop =
+        align === "end"
+          ? el.scrollTop + rowRect.bottom - scrollerRect.bottom + reservedBottom
+          : align === "start"
+          ? el.scrollTop + rowRect.top - scrollerRect.top
+          : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
+      const previousScrollTop = el.scrollTop;
+      el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+      markChatScrollWrite();
+      console.log("[jumpToMessage] exact DOM correction", {
+        messageId,
+        align,
+        previousScrollTop,
+        targetTop: Math.max(0, targetTop),
+        rowTop: rowRect.top,
+        rowBottom: rowRect.bottom,
+        scrollerTop: scrollerRect.top,
+        scrollerBottom: scrollerRect.bottom,
+      });
+      return true;
+    },
+    [bottomPadding],
+  );
+
+  // Latest-render mirrors for the mount-once jump overlay effect (deps: []).
+  const alignMessageIdInViewRef = useRef(alignMessageIdInView);
+  alignMessageIdInViewRef.current = alignMessageIdInView;
+
+
+
+
   useEffect(() => {
     if (messages.length === 0) {
       anchorRef.current = { baseFirstId: null, baseFirstIndex: START_INDEX };
@@ -493,38 +542,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       let cancelled = false;
       let cleanup: (() => void) | null = null;
       let revealFrame: number | null = null;
-      let retryTimer: number | null = null;
-      let hardTimer: number | null = null;
-      // Lifecycle-anchored SAFETY backstop (not a UX deadline). Measured ONCE
-      // from the start of this target hydration lifecycle (this effect run),
-      // never restarted by rerenders, message-window growth or repeated
-      // `isChatJumpActive()` retries — that non-restarting property is what
-      // prevents the "forever blank thread" hang seen on Android.
-      // It is deliberately longer than the jump poller's own lifetime (~30s)
-      // so it can never reveal an UNSETTLED thread: the normal reveal path is
-      // always settle-driven.
-      const lifecycleStartedAt = performance.now();
-      const HARD_REVEAL_DEADLINE_MS = 32000;
-      const remainingBudget = () =>
-        Math.max(0, HARD_REVEAL_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
-
+      // ONE lifecycle budget, measured from the ORIGINAL jump start (not from
+      // this effect run, which can re-fire on message-window growth). The
+      // reveal itself is gated on the exact target being mounted, aligned,
+      // unclipped and stationary — see `waitForChatJumpTargetReveal`. This is
+      // deliberately the shortest defensible fail-safe: previously we chained a
+      // 2.2 s jump tail onto a fresh 6.5 s settle wait (re-armed every 80 ms),
+      // which left a correctly aligned thread masked for many seconds.
+      const JUMP_REVEAL_FAILSAFE_MS = 4000;
       const finish = () => {
         if (cancelled) return;
         cancelled = true;
         cleanup?.();
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-        if (hardTimer !== null) window.clearTimeout(hardTimer);
         revealFrame = requestAnimationFrame(() => setInitialRevealReady(true));
-      };
-      const reveal = () => {
-        if (cancelled) return;
-        // The jump is still repositioning: give it another slice, but only
-        // within the lifecycle budget.
-        if (isChatJumpActive() && remainingBudget() > 120) {
-          retryTimer = window.setTimeout(wait, 80);
-          return;
-        }
-        finish();
       };
       const wait = () => {
         if (cancelled) return;
@@ -533,23 +563,29 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           revealFrame = requestAnimationFrame(wait);
           return;
         }
-        cleanup?.();
-        cleanup = waitForChatVisualContentSettle(
+        cleanup = waitForChatJumpTargetReveal(
           scroller,
-          { quietMs: 650, maxMs: Math.max(200, Math.min(6500, remainingBudget())) },
-          reveal,
+          {
+            targetMessageId: initialTargetMessageId,
+            usableBottomInsetPx: getChatBottomPaddingOffset(bottomPadding),
+            quietMs: 240,
+            budgetMs: Math.max(
+              600,
+              chatJumpLifecycleRemaining(JUMP_REVEAL_FAILSAFE_MS),
+            ),
+            finalAlign: () => { alignMessageIdInView(initialTargetMessageId, "end"); },
+          },
+          finish,
         );
       };
-      hardTimer = window.setTimeout(finish, HARD_REVEAL_DEADLINE_MS);
       wait();
       return () => {
         cancelled = true;
         cleanup?.();
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-        if (hardTimer !== null) window.clearTimeout(hardTimer);
         if (revealFrame !== null) cancelAnimationFrame(revealFrame);
       };
     }
+
 
     if (!initialBottomPinned) {
       bottomPinReadyRef.current = true;
@@ -1208,36 +1244,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           behavior: "auto",
         }, "imperative-scroll-to-index");
       },
-      scrollToMessageId: (messageId, align = "center") => {
-        const el = scrollerElRef.current;
-        if (!el) return false;
-        const escapedId = escapeChatCssAttributeValue(messageId);
-        const row = el.querySelector<HTMLElement>(`[data-row-id="${escapedId}"]`);
-        if (!row) return false;
-        const rowRect = row.getBoundingClientRect();
-        const scrollerRect = el.getBoundingClientRect();
-        const reservedBottom = align === "end" ? getChatBottomPaddingOffset(bottomPadding) : 0;
-        const targetTop =
-          align === "end"
-            ? el.scrollTop + rowRect.bottom - scrollerRect.bottom + reservedBottom
-            : align === "start"
-            ? el.scrollTop + rowRect.top - scrollerRect.top
-            : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
-        const previousScrollTop = el.scrollTop;
-        el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
-        markChatScrollWrite();
-        console.log("[jumpToMessage] exact DOM correction", {
-          messageId,
-          align,
-          previousScrollTop,
-          targetTop: Math.max(0, targetTop),
-          rowTop: rowRect.top,
-          rowBottom: rowRect.bottom,
-          scrollerTop: scrollerRect.top,
-          scrollerBottom: scrollerRect.bottom,
-        });
-        return true;
-      },
+      scrollToMessageId: (messageId, align = "center") => alignMessageIdInView(messageId, align),
       isAtBottom: () => atBottomRef.current,
       isNearBottom: (thresholdPx: number) => {
         const el = scrollerElRef.current;
@@ -1246,7 +1253,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return distance <= Math.max(0, thresholdPx);
       },
     }),
-    [bottomPadding, safeScrollToIndex],
+    [bottomPadding, safeScrollToIndex, alignMessageIdInView],
   );
 
   // O(1) id → index map AND defensive de-duplication. Pagination races (two
@@ -1358,7 +1365,12 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // listener was attached and silently lost).
   // Keep the skeleton mounted through its fade so a deep-link landing reads
   // as load → settled rather than exposing row hydration and re-anchoring.
-  const { isJumpHydrating, renderJumpOverlay } = useChatJumpHydration(scrollerElRef);
+  const { isJumpHydrating, renderJumpOverlay } = useChatJumpHydration(scrollerElRef, {
+    targetMessageId: initialTargetMessageId,
+    usableBottomInsetPx: getChatBottomPaddingOffset(bottomPadding),
+    finalAlign: (targetId) => alignMessageIdInViewRef.current?.(targetId, "end"),
+  });
+
 
 
   return (
