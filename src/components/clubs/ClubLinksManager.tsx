@@ -48,17 +48,23 @@ const EMPTY_DRAFT: DraftState = {
 };
 
 function normalizeUrl(raw: string): string | null {
-  const trimmed = raw.trim();
+  // Strip all whitespace (mobile keyboards frequently insert stray spaces,
+  // which would otherwise be percent-encoded into the hostname as %20).
+  const trimmed = raw.replace(/\s+/g, "");
   if (!trimmed) return null;
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   try {
     const parsed = new URL(withScheme);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    // Hostname must look like a real domain: labels separated by dots, no encoded chars.
+    if (!/^[a-z0-9.-]+$/i.test(parsed.hostname)) return null;
+    if (!parsed.hostname.includes(".")) return null;
     return parsed.toString();
   } catch {
     return null;
   }
 }
+
 
 /**
  * Club-admin management for the home page "Club Info & Links" tiles.
