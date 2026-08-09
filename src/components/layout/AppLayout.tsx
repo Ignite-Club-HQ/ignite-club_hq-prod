@@ -234,6 +234,21 @@ export function AppLayout() {
     );
   }
 
+  // NATIVE LAUNCH-INTENT BOUNDARY: on a cold start the launch URL (e.g. an
+  // emailed /join/p/:token invite) is read asynchronously. Redirecting to
+  // generic /auth before that resolves is what made the first invite tap show
+  // the login screen. Hold the neutral startup screen until the launch intent
+  // settles (bounded inside the module, so an ordinary launch can't hang).
+  if (!user && launchIntentPending && !hasPendingOAuth && !hasOAuthTokensInUrl) {
+    return (
+      <div className="flex flex-col items-center justify-center bg-background gap-4" style={appViewportStyle} role="status" aria-live="polite">
+        <img src={loadingLogo} alt="Ignite" className="h-32 w-32 rounded-[2rem]" loading="eager" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+        <p className="text-sm text-muted-foreground">Starting up...</p>
+      </div>
+    );
+  }
+
   // Preserve current destination for post-auth return (all protected routes, not just deep links)
   if (!user && !hasPendingOAuth && !hasOAuthTokensInUrl) {
     if (typeof window !== 'undefined') {
