@@ -2079,36 +2079,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           behavior: "auto",
         }, "imperative-scroll-to-index");
       },
-      scrollToMessageId: (messageId, align = "center") => {
-        const el = scrollerElRef.current;
-        if (!el) return false;
-        const escapedId = escapeCssAttributeValue(messageId);
-        const row = el.querySelector<HTMLElement>(`[data-row-id="${escapedId}"]`);
-        if (!row) return false;
-        const rowRect = row.getBoundingClientRect();
-        const scrollerRect = el.getBoundingClientRect();
-        const reservedBottom = align === "end" ? getChatBottomPaddingOffset(bottomPadding) : 0;
-        const targetTop =
-          align === "end"
-            ? el.scrollTop + rowRect.bottom - scrollerRect.bottom + reservedBottom
-            : align === "start"
-            ? el.scrollTop + rowRect.top - scrollerRect.top
-            : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
-        const previousScrollTop = el.scrollTop;
-        el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
-        markChatScrollWrite();
-        console.log("[jumpToMessage] exact DOM correction", {
-          messageId,
-          align,
-          previousScrollTop,
-          targetTop: Math.max(0, targetTop),
-          rowTop: rowRect.top,
-          rowBottom: rowRect.bottom,
-          scrollerTop: scrollerRect.top,
-          scrollerBottom: scrollerRect.bottom,
-        });
-        return true;
-      },
+      scrollToMessageId: (messageId, align = "center") => alignMessageIdInView(messageId, align),
+
       isAtBottom: () => atBottomRef.current,
       isNearBottom: (thresholdPx: number) => {
         const el = scrollerElRef.current;
