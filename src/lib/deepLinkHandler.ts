@@ -203,5 +203,6 @@ async function handleDeepLinkUrl(rawUrl: string) {
     } catch (err) {
       console.error('[DeepLink] Error processing deep link:', err);
     }
-  });
+  }
 }
+
