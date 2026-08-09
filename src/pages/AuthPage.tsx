@@ -530,21 +530,28 @@ export default function AuthPage() {
       }
     }
 
+    // Synchronous in-flight lock: React state updates are async, so two taps
+    // in the same browser task could both pass a `loading` check and fire two
+    // signup requests on Android/iOS.
+    if (authInFlightRef.current) return;
+    authInFlightRef.current = true;
     setLoading(true);
-    const result = mode === "signin" 
-      ? await signIn(email, password)
-      : await signUp(email, password);
-    const { error } = result;
-    const needsEmailConfirmation =
-      mode === "signup" && (result as { needsEmailConfirmation?: boolean }).needsEmailConfirmation === true;
 
-    console.log("[SignupFlow] auth response", {
-      mode,
-      hasError: !!result.error,
-      errorMessage: result.error?.message,
-      needsEmailConfirmation,
-    });
-    setLoading(false);
+    try {
+      const result = mode === "signin"
+        ? await signIn(email, password)
+        : await signUp(email, password);
+      const { error } = result;
+      const needsEmailConfirmation =
+        mode === "signup" && (result as { needsEmailConfirmation?: boolean }).needsEmailConfirmation === true;
+
+      console.log("[SignupFlow] auth response", {
+        mode,
+        hasError: !!result.error,
+        errorMessage: result.error?.message,
+        needsEmailConfirmation,
+      });
+
 
 
 
