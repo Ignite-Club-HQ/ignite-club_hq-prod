@@ -1561,35 +1561,48 @@ export default function MessagesPage() {
 
   // Payloads that arrive before the membership snapshot resolves used to be
   // dropped outright, which meant the first seconds after opening /messages
-  // could silently lose the newest message until the next poll. We now buffer
-  // them (bounded) and replay once `status === 'ready'`, so authorization is
-  // still fail-closed — the replay runs the same `isAuthorized` check — but no
-  // longer costs the user a message.
-  const pendingRealtimeRef = useRef<Array<{ table: string; payload: any }>>([]);
-  const realtimeFlushRef = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    if (authScopes.status !== "ready") return;
-    realtimeFlushRef.current?.();
-  }, [authScopes.status]);
+  // could silently lose the newest message until the next poll. Both channels
+  // now hand every event to a coordinator that buffers (bounded) until
+  // `status === 'ready'` and then replays exactly once. Authorization stays
+  // fail-closed: the replay runs the same `isAuthorized` check.
+  //
+  // `attemptFlush()` is idempotent and called from BOTH sides of the race —
+  // here when authorization becomes ready, and inside the channel effects when
+  // the applier is installed — so whichever happens last performs the flush.
+  const webInboxCoordinatorRef = useRef(
+    createInboxRealtimeCoordinator({ isReady: () => authStatusRef.current === "ready" }),
+  );
+  const nativeInboxCoordinatorRef = useRef(
+    createInboxRealtimeCoordinator({ isReady: () => authStatusRef.current === "ready" }),
+  );
+  const webInboxCoordinator = webInboxCoordinatorRef.current;
+  const nativeInboxCoordinator = nativeInboxCoordinatorRef.current;
 
-  // Same bounded buffer-then-replay for the NATIVE lightweight inbox channel
-  // (below). Without it, a message arriving on Android before the membership
-  // snapshot resolves was permanently discarded, leaving the inbox preview /
-  // unread badge stale until the 120s poll. Fail-closed is preserved: replay
-  // re-runs the same `isAuthorized` check, and `failed` discards the buffer.
-  const pendingNativeRealtimeRef = useRef<Array<{ table: string; payload: any }>>([]);
-  const nativeRealtimeFlushRef = useRef<(() => void) | null>(null);
-  const nativeRealtimeDiscardRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (authScopes.status === "ready") {
-      nativeRealtimeFlushRef.current?.();
+      webInboxCoordinator.attemptFlush();
+      nativeInboxCoordinator.attemptFlush();
       return;
     }
     if (authScopes.status === "failed") {
-      pendingNativeRealtimeRef.current = [];
-      nativeRealtimeDiscardRef.current?.();
+      // Authorization could not be established — discard buffered events
+      // rather than risk applying them later against unknown scopes.
+      webInboxCoordinator.clear();
+      nativeInboxCoordinator.clear();
+      previewWatermarks.clear();
     }
-  }, [authScopes.status]);
+  }, [authScopes.status, webInboxCoordinator, nativeInboxCoordinator, previewWatermarks]);
+
+  // Sign-out / user switch: no buffered event or preview watermark from the
+  // previous user may survive into the next session.
+  useEffect(() => {
+    return () => {
+      webInboxCoordinator.clear();
+      nativeInboxCoordinator.clear();
+      previewWatermarks.clear();
+    };
+  }, [user?.id, webInboxCoordinator, nativeInboxCoordinator, previewWatermarks]);
+
 
 
 
