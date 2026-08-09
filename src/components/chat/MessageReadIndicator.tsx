@@ -5,6 +5,8 @@ interface MessageReadIndicatorProps {
   readCount: number;
   isOwn: boolean;
   readerName?: string | null;
+  /** True when the message text has been edited since it was sent. */
+  isEdited?: boolean;
 }
 
 /**
@@ -17,11 +19,16 @@ export const MessageReadIndicator = memo(function MessageReadIndicator({
   readCount,
   isOwn,
   readerName,
+  isEdited = false,
 }: MessageReadIndicatorProps) {
   if (!isOwn) return null;
 
   if (readCount <= 0) {
-    return <span className="text-[11px] leading-none text-muted-foreground/70 tracking-tight">Sent</span>;
+    return (
+      <span className="text-[11px] leading-none text-muted-foreground/70 tracking-tight">
+        {isEdited ? "Edited" : "Sent"}
+      </span>
+    );
   }
 
   const label = readerName
@@ -32,6 +39,7 @@ export const MessageReadIndicator = memo(function MessageReadIndicator({
     <span className="inline-flex items-center gap-0.5 text-[11px] leading-none text-muted-foreground/80 tracking-tight">
       <Eye className="h-3 w-3 opacity-80" strokeWidth={2.25} />
       {label}
+      {isEdited ? <span className="opacity-70"> · Edited</span> : null}
     </span>
 
   );
