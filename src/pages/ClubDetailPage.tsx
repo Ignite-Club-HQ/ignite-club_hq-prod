@@ -1295,6 +1295,11 @@ export default function ClubDetailPage() {
         <ClubSetupProgressCard clubId={id} isShellClub={(club as any)?.kind === "shell"} />
       )}
 
+      {/* Club Info & Links manager — admins curate the tiles shown on Home */}
+      {isAdmin && id && <ClubLinksManager clubId={id} />}
+
+
+
       {/* Subscription Banner - Show for admins when club has an active trial */}
       {isAdmin && clubSubscription?.is_trial && (clubSubscription?.is_pro || clubSubscription?.is_pro_football) && (
         <Card className={`border-amber-500/30 ${(clubSubscription as any)?.cancelled_at ? 'bg-gradient-to-r from-muted/50 to-muted/30' : 'bg-gradient-to-r from-amber-500/5 to-amber-500/10'}`}>
