@@ -933,6 +933,10 @@ export default function JoinTeamPage() {
     // Wait for invite data to load before attempting auto-join
     if (isLoading) return;
 
+    // Club-level invites (committee_member etc.) must not run the role insert
+    // until the club id has resolved, or the role lands with no club scope.
+    if (shouldAutoJoin && invite && !invite.team_id && !inviteClubId) return;
+
     if (
       shouldAutoJoin && 
       user && 
@@ -944,6 +948,12 @@ export default function JoinTeamPage() {
       !autoJoinAttempted.current &&
       !nameValidationError
     ) {
+      console.log("[SignupFlow] Auto-join start", {
+        role: invite.role,
+        teamId: invite.team_id,
+        clubId: inviteClubId,
+      });
+
       // Calculate roles to add - use invite role if user doesn't have it
       const inviteRole = invite.role as AppRole;
       const hasInviteRole = existingRoles?.includes(inviteRole);
