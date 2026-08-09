@@ -17,6 +17,14 @@ import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 
 import { z } from "zod";
+import {
+  safeSessionGet,
+  safeSessionSet,
+  safeSessionRemove,
+  readRedirectParam,
+  readAuthIntent,
+} from "@/lib/authRedirectStorage";
+
 
 const passwordRequirements = [
   { test: (p: string) => p.length >= 8, label: "At least 8 characters" },
@@ -75,23 +83,41 @@ export default function AuthPage() {
   const isNativePlatform = Capacitor.isNativePlatform();
   const { isOnline } = useOnlineStatus();
   
+  // The URL is the source of truth for the invite hand-off (mode / next /
+  // invite). sessionStorage is only a fallback — some Android/iOS webviews
+  // throw on writes, which used to silently drop the whole join intent.
+  const authIntent = readAuthIntent(window.location.search);
+
   // Check if we should default to signup view (new user from invite, or returning from terms/privacy)
-  const defaultView = sessionStorage.getItem("authDefaultTab") || "signin";
+  const defaultView = authIntent.mode ?? safeSessionGet("authDefaultTab") ?? "signin";
   const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView as "signin" | "signup");
 
   // Persist auth mode so navigating to terms/privacy and back preserves the tab
   useEffect(() => {
-    sessionStorage.setItem("authDefaultTab", authMode);
+    safeSessionSet("authDefaultTab", authMode);
   }, [authMode]);
-  
+
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
-  const redirectAfterAuth = sessionStorage.getItem("redirectAfterAuth");
+  // URL param is a fallback for webviews where sessionStorage writes are blocked.
+  const redirectParam = readRedirectParam(window.location.search);
+  const redirectAfterAuth = safeSessionGet("redirectAfterAuth") ?? redirectParam;
+
+  useEffect(() => {
+    console.log("[SignupFlow] Arrived at /auth", {
+      mode: authIntent.mode,
+      next: authIntent.next,
+      invite: authIntent.invite ? "present" : null,
+      storedRedirect: safeSessionGet("redirectAfterAuth"),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   
   // Initialize invite flow context - check if it's stale (no redirect pending)
   const [inviteFlowContext, setInviteFlowContext] = useState(() => {
     const context = getInviteFlowContext();
     // If there's a context but no redirect, it's stale - don't use it
-    if (context?.active && !sessionStorage.getItem("redirectAfterAuth")) {
+    if (context?.active && !safeSessionGet("redirectAfterAuth") && !readRedirectParam(window.location.search)) {
       return null;
     }
     return context;
@@ -127,10 +153,11 @@ export default function AuthPage() {
     return () => clearTimeout(timer);
   }, [password, authMode]);
 
-  // Clear stale invite flow context and session storage on mount
+  // Clear stale invite flow context on mount.
+  // NOTE: `authDefaultTab` is intentionally NOT removed here — deleting it on
+  // mount used to destroy the invite hand-off and dump users on the Sign In
+  // tab with no invite context. It is cleared only after auth + auto-join.
   useEffect(() => {
-    sessionStorage.removeItem("authDefaultTab");
-    
     // If there's an invite flow context but no pending redirect, it's stale - clear it
     const currentContext = getInviteFlowContext();
     if (currentContext?.active && !redirectAfterAuth) {
@@ -140,6 +167,7 @@ export default function AuthPage() {
       localStorage.removeItem("pwa_pending_invite");
     }
   }, [redirectAfterAuth]);
+
   
   const { toast } = useToast();
   const {
@@ -181,17 +209,17 @@ export default function AuthPage() {
       return;
     }
 
-    const stored = sessionStorage.getItem("redirectAfterAuth");
+    const stored = safeSessionGet("redirectAfterAuth") ?? redirectParam;
     const safe = sanitizeRedirectAfterAuth(stored);
     if (safe) {
-      sessionStorage.removeItem("redirectAfterAuth");
+      safeSessionRemove("redirectAfterAuth");
       console.log("[AuthPage] Authenticated, redirecting to:", safe);
       setPostAuthTarget(safe);
       return;
     }
     // Storage held nothing usable — clear any garbage/hostile value so a
     // later sign-in can't inherit it.
-    if (stored) sessionStorage.removeItem("redirectAfterAuth");
+    if (stored) safeSessionRemove("redirectAfterAuth");
 
     const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
     const isFreshSignup = createdAt > 0 && Date.now() - createdAt < 10 * 60 * 1000;
@@ -216,6 +244,7 @@ export default function AuthPage() {
     profileError,
     profile,
     postAuthTarget,
+    redirectParam,
   ]);
 
   const { 
@@ -502,11 +531,22 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    const { error } = mode === "signin" 
+    const result = mode === "signin" 
       ? await signIn(email, password)
       : await signUp(email, password);
-    
+    const { error } = result;
+    const needsEmailConfirmation =
+      mode === "signup" && (result as { needsEmailConfirmation?: boolean }).needsEmailConfirmation === true;
+
+    console.log("[SignupFlow] auth response", {
+      mode,
+      hasError: !!result.error,
+      errorMessage: result.error?.message,
+      needsEmailConfirmation,
+    });
     setLoading(false);
+
+
 
     if (error) {
       let message = error.message;
@@ -537,7 +577,16 @@ export default function AuthPage() {
         title,
         description: message,
       });
+    } else if (needsEmailConfirmation) {
+      // Signup succeeded but Supabase requires email verification, so no
+      // session exists yet and no redirect will happen. Tell the user instead
+      // of leaving the form looking like nothing happened.
+      toast({
+        title: "Confirm your email to finish",
+        description: `We've sent a confirmation link to ${email}. Open it on this device to continue joining.`,
+      });
     } else {
+
       // Success! On native platforms, offer to save credentials for biometric login
       // Do a fresh check for biometric availability to avoid stale state issues on iOS
       if (mode === "signin" && Capacitor.isNativePlatform()) {

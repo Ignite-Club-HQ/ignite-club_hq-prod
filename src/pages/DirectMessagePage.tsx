@@ -527,7 +527,7 @@ export default function DirectMessagePage() {
       markChatFetch();
       const { data: rawMessages, error } = await supabase
         .from("direct_messages")
-        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .select("id, text, image_url, created_at, edited_at, author_id, conversation_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("conversation_id", conversationId)
         .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
@@ -839,7 +839,7 @@ export default function DirectMessagePage() {
 
       const { data: olderRaw, error } = await supabase
         .from("direct_messages")
-        .select("id, text, image_url, created_at, author_id, conversation_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .select("id, text, image_url, created_at, edited_at, author_id, conversation_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("conversation_id", conversationId)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
@@ -1375,7 +1375,7 @@ export default function DirectMessagePage() {
         scope: buildChatScopeFilter(DIRECT_CHAT_SCOPE, conversationId),
         query: q,
         signal,
-        selectColumns: "id, text, image_url, created_at, author_id, conversation_id, reply_to_id",
+        selectColumns: "id, text, image_url, created_at, edited_at, author_id, conversation_id, reply_to_id",
       })) as DirectMessage[],
   });
 
@@ -1595,6 +1595,7 @@ export default function DirectMessagePage() {
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
+                      isEdited={!!(msg as any).edited_at}
                       onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100); }}
                       onEdit={handleEdit}
                       isPinned={pinnedMessageIds.has(msg.id)}

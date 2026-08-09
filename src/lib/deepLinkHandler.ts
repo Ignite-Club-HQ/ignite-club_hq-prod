@@ -1,6 +1,7 @@
 import { App, URLOpenListenerEvent } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
+import { navigateApp } from '@/lib/appNavigator';
 
 /**
  * Initialize deep link handling for native apps
@@ -46,10 +47,10 @@ export function initDeepLinkHandler() {
           // Navigate to the intended path or home
           const pathWithQuery = `${url.pathname || '/'}${url.search || ''}`;
           if (pathWithQuery !== '/' && pathWithQuery !== '') {
-            window.location.href = pathWithQuery;
+            navigateApp(pathWithQuery);
           } else {
             // Force a refresh to trigger auth state change
-            window.location.href = '/';
+            navigateApp('/');
           }
         }
       } else if (code) {
@@ -71,7 +72,7 @@ export function initDeepLinkHandler() {
         if (isGoogleDriveCallback) {
           console.log('[DeepLink] Google Drive OAuth code detected, saving for VaultPage');
           sessionStorage.setItem('googleDriveOAuthCode', code);
-          window.location.href = '/vault';
+          navigateApp('/vault');
           return;
         }
 
@@ -90,14 +91,14 @@ export function initDeepLinkHandler() {
           const fwd = new URLSearchParams(url.search);
           // Preserve the code param too in case we ever want auto-verify.
           if (!fwd.has('code')) fwd.set('code', code);
-          window.location.href = `/verify-reset-code?${fwd.toString()}`;
+          navigateApp(`/verify-reset-code?${fwd.toString()}`);
           return;
         }
 
         if (isPasswordRecovery) {
           console.log('[DeepLink] Password recovery code detected, routing to /reset-password');
           // Preserve the code so ResetPasswordPage can exchange it
-          window.location.href = `/reset-password?code=${encodeURIComponent(code)}`;
+          navigateApp(`/reset-password?code=${encodeURIComponent(code)}`);
           return;
         }
 
@@ -112,7 +113,7 @@ export function initDeepLinkHandler() {
           console.log('[DeepLink] Code exchanged successfully, user:', data.user?.id);
 
           // Navigate to home after successful auth
-          window.location.href = '/';
+          navigateApp('/');
         }
       } else {
         // Not an OAuth callback, handle as regular deep link navigation
@@ -133,13 +134,13 @@ export function initDeepLinkHandler() {
           console.log('[DeepLink] Payment success callback received');
           sessionStorage.setItem('paymentDeepLinkResult', 'success');
           // Navigate to home — Realtime listener handles actual status
-          window.location.href = '/';
+          navigateApp('/');
           return;
         }
         if (path === '/payment-cancel' || url.host === 'payment-cancel') {
           console.log('[DeepLink] Payment cancel callback received');
           sessionStorage.setItem('paymentDeepLinkResult', 'cancel');
-          window.location.href = '/';
+          navigateApp('/');
           return;
         }
 
@@ -148,7 +149,7 @@ export function initDeepLinkHandler() {
           const driveCode = searchParams.get('code');
           console.log('[DeepLink] Google Drive OAuth code detected, saving for VaultPage');
           sessionStorage.setItem('googleDriveOAuthCode', driveCode!);
-          window.location.href = '/vault';
+          navigateApp('/vault');
           return;
         }
 
@@ -157,14 +158,14 @@ export function initDeepLinkHandler() {
           const driveError = searchParams.get('error');
           console.log('[DeepLink] Google Drive OAuth error:', driveError);
           sessionStorage.setItem('googleDriveOAuthError', driveError!);
-          window.location.href = '/vault';
+          navigateApp('/vault');
           return;
         }
 
         if (path && path !== '/') {
           const destination = `${path}${fullSearch || ''}${fullHash || ''}`;
           console.log('[DeepLink] Navigating to path:', destination);
-          window.location.href = destination;
+          navigateApp(destination);
         }
       }
     } catch (err) {

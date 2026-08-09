@@ -9,6 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+  safeSessionGet,
+  safeSessionSet,
+  safeSessionRemove,
+  buildAuthPathWithRedirect,
+  buildAuthPathWithIntent,
+} from "@/lib/authRedirectStorage";
+
 import { supabase } from "@/integrations/supabase/client";
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
 import { selectCachedProfileById } from "@/lib/profileCache";
@@ -64,7 +72,7 @@ export default function JoinTeamPage() {
   const autoJoinAttempted = useRef(false);
   
   // Check if we should auto-join (returning from auth after install flow)
-  const shouldAutoJoin = sessionStorage.getItem("autoJoinAfterAuth") === "true";
+  const shouldAutoJoin = safeSessionGet("autoJoinAfterAuth") === "true";
 
   // Check if this is a pending invite token (name-restricted) or a regular team invite
   const isPendingInvite = location.pathname.startsWith("/join/p/");
@@ -701,10 +709,13 @@ export default function JoinTeamPage() {
     for (const role of rolesToAdd) {
       const { error: roleError } = await supabase.from("user_roles").insert({
         user_id: user.id,
-        team_id: invite.team_id,
-        club_id: invite.teams?.club_id,
+        team_id: invite.team_id ?? null,
+        // Club-level invites (e.g. committee_member) have no team — the club id
+        // must still be stamped so the role resolves to the right club.
+        club_id: invite.teams?.club_id ?? inviteClubId,
         role: role,
       });
+
       
       // Ignore duplicate key errors
       if (roleError) {
@@ -877,9 +888,13 @@ export default function JoinTeamPage() {
     },
     onSuccess: (rolesToAdd) => {
       if (rolesToAdd === null) {
+        console.log("[SignupFlow] Auto-join result: no roles to add");
         return;
       }
       const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
+      console.log("[SignupFlow] Auto-join result: joined", { roles: rolesToAdd });
+      // Invite hand-off is complete — safe to clear the auth tab hint now.
+      safeSessionRemove("authDefaultTab");
       toast({ title: `Successfully joined as ${roleNames}!` });
       
       // If parent role was added via a regular invite WITHOUT child metadata, show child step.
@@ -897,8 +912,14 @@ export default function JoinTeamPage() {
       }
     },
     onError: (error: Error) => {
-      toast({ title: error.message || "Failed to join team", variant: "destructive" });
+      console.error("[SignupFlow] Auto-join failed", error);
+      toast({
+        title: "Couldn't complete your join",
+        description: error.message || "Failed to join. Please try again or ask your admin to resend the invite.",
+        variant: "destructive",
+      });
     },
+
   });
 
   // Auto-join effect: when user returns from auth and shouldAutoJoin is true
@@ -909,11 +930,11 @@ export default function JoinTeamPage() {
     // First check if user needs to complete their profile
     if (user && userProfile !== undefined && !userProfile?.display_name) {
       // User hasn't completed profile - redirect to complete profile
-      sessionStorage.setItem("redirectAfterAuth", location.pathname);
-      sessionStorage.setItem("autoJoinAfterAuth", "true"); // Ensure flag is set
+      safeSessionSet("redirectAfterAuth", location.pathname);
+      safeSessionSet("autoJoinAfterAuth", "true"); // Ensure flag is set
       // Store the invited_label for profile prefill if available (pending invite)
       if (pendingInviteData?.invited_label) {
-        sessionStorage.setItem("inviteLabel", pendingInviteData.invited_label);
+        safeSessionSet("inviteLabel", pendingInviteData.invited_label);
       }
       navigate("/complete-profile", { replace: true });
       return;
@@ -921,6 +942,10 @@ export default function JoinTeamPage() {
 
     // Wait for invite data to load before attempting auto-join
     if (isLoading) return;
+
+    // Club-level invites (committee_member etc.) must not run the role insert
+    // until the club id has resolved, or the role lands with no club scope.
+    if (shouldAutoJoin && invite && !invite.team_id && !inviteClubId) return;
 
     if (
       shouldAutoJoin && 
@@ -933,6 +958,12 @@ export default function JoinTeamPage() {
       !autoJoinAttempted.current &&
       !nameValidationError
     ) {
+      console.log("[SignupFlow] Auto-join start", {
+        role: invite.role,
+        teamId: invite.team_id,
+        clubId: inviteClubId,
+      });
+
       // Calculate roles to add - use invite role if user doesn't have it
       const inviteRole = invite.role as AppRole;
       const hasInviteRole = existingRoles?.includes(inviteRole);
@@ -940,7 +971,7 @@ export default function JoinTeamPage() {
       if (hasInviteRole) {
         // User already has this role - just navigate to the relevant destination
         autoJoinAttempted.current = true;
-        sessionStorage.removeItem("autoJoinAfterAuth");
+        safeSessionRemove("autoJoinAfterAuth");
         toast({ title: `You're already a member of ${inviteEntityName}!` });
         setJoined(true);
         return;
@@ -953,13 +984,13 @@ export default function JoinTeamPage() {
       }
       
       autoJoinAttempted.current = true;
-      sessionStorage.removeItem("autoJoinAfterAuth");
+      safeSessionRemove("autoJoinAfterAuth");
       // Small delay to ensure UI is ready
       setTimeout(() => {
         joinMutation.mutate();
       }, 500);
     }
-  }, [shouldAutoJoin, user, invite, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast, userProfile, location.pathname, navigate, profileLoading, isLoading, pendingInviteData]);
+  }, [shouldAutoJoin, user, invite, inviteClubId, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast, userProfile, location.pathname, navigate, profileLoading, isLoading, pendingInviteData]);
 
   // Handle photo consent given
   const handlePhotoConsentGiven = async () => {
@@ -1002,21 +1033,44 @@ export default function JoinTeamPage() {
 
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
-    // If not logged in, redirect to auth with auto-join flag
+    // If not logged in, redirect to auth with auto-join flag.
+    // The URL carries the whole intent (mode + next + invite token) because
+    // sessionStorage writes throw in some webviews; storage is a fallback only.
     if (!user) {
-      sessionStorage.setItem("redirectAfterAuth", location.pathname);
-      sessionStorage.setItem("autoJoinAfterAuth", "true");
-      sessionStorage.setItem("authDefaultTab", "signup");
-      navigate("/auth");
+      const nextPath = location.pathname + location.search;
+      console.log("[SignupFlow] Join click (unauthenticated)", {
+        next: nextPath,
+        role: invite?.role,
+        isPendingInvite,
+      });
+      safeSessionSet("redirectAfterAuth", nextPath);
+      safeSessionSet("autoJoinAfterAuth", "true");
+      safeSessionSet("authDefaultTab", "signup");
+      // Set the invite-flow context on this (native/app) path too — previously
+      // only the PWA handler set it, so InviteFlowProgress never rendered on
+      // /auth and the flow looked broken.
+      setInviteFlowContext({
+        ...(getInviteFlowContext() ?? {}),
+        active: true,
+        clubName: invite?.teams?.clubs?.name || undefined,
+        teamName: invite?.teams?.name || undefined,
+        role: invite?.role || undefined,
+        inviteToken: token,
+        currentStep: "auth",
+      });
+      navigate(
+        buildAuthPathWithIntent({ next: nextPath, mode: "signup", invite: token }),
+      );
       return;
     }
 
+
     // Check if user needs to complete their profile first
     if (!userProfile?.display_name) {
-      sessionStorage.setItem("redirectAfterAuth", location.pathname);
-      sessionStorage.setItem("autoJoinAfterAuth", "true");
+      safeSessionSet("redirectAfterAuth", location.pathname);
+      safeSessionSet("autoJoinAfterAuth", "true");
       if (pendingInviteData?.invited_label) {
-        sessionStorage.setItem("inviteLabel", pendingInviteData.invited_label);
+        safeSessionSet("inviteLabel", pendingInviteData.invited_label);
       }
       navigate("/complete-profile");
       return;

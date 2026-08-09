@@ -76,6 +76,7 @@ interface GroupMessage {
   text: string;
   image_url: string | null;
   created_at: string;
+  edited_at?: string | null;
   author_id: string;
   group_id: string;
   reply_to_id: string | null;
@@ -465,6 +466,7 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
               )}
               <span className="text-[11px] text-muted-foreground/75 tabular-nums tracking-tight">
                 {format(new Date(msg.created_at), "HH:mm")}
+                {msg.edited_at ? <span className="opacity-70"> · Edited</span> : null}
               </span>
             </div>
           )}
@@ -619,8 +621,9 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
           {isOwnMessage && !groupedWithNext ? (
             <p className="text-[9.5px] leading-none text-muted-foreground/45 mt-0.5 flex items-baseline gap-1 justify-end whitespace-nowrap overflow-hidden tabular-nums tracking-tight pr-0.5">
               <span>{format(new Date(msg.created_at), "HH:mm")}</span>
+              {msg.edited_at && frontierReaders.length > 0 ? <span className="opacity-70">· Edited</span> : null}
               {frontierReaders.length === 0 ? (
-                <MessageReadIndicator readCount={readCounts[msg.id] || 0} isOwn={true} />
+                <MessageReadIndicator readCount={readCounts[msg.id] || 0} isOwn={true} isEdited={!!msg.edited_at} />
               ) : null}
             </p>
           ) : null}

@@ -412,7 +412,7 @@ export default function TeamChatPage() {
           scope: { team_id: teamId },
           createdAt: target.created_at,
           selectColumns:
-            "id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
+            "id, text, image_url, created_at, edited_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
           hasAnnouncements: true,
         });
         if (ctx.length) {
@@ -654,7 +654,7 @@ export default function TeamChatPage() {
       // Fetch messages - filter out soft-deleted messages using deleted_at
       const { data: rawMessages, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, deleted_at, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .select("id, text, image_url, created_at, edited_at, author_id, team_id, reply_to_id, deleted_at, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -1173,7 +1173,7 @@ export default function TeamChatPage() {
 
       const { data: olderData, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .select("id, text, image_url, created_at, edited_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("team_id", teamId!)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
@@ -1291,7 +1291,7 @@ export default function TeamChatPage() {
     const hydrateTargetWindow = async () => {
       const { data: target, error } = await supabase
         .from("team_messages")
-        .select("id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .select("id, text, image_url, created_at, edited_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("id", targetMessageId)
         .eq("team_id", teamId)
         .is("deleted_at", null)
@@ -1304,7 +1304,7 @@ export default function TeamChatPage() {
         scope: { team_id: teamId },
         createdAt: target.created_at,
         selectColumns:
-          "id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
+          "id, text, image_url, created_at, edited_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
         hasAnnouncements: true,
         before: 12,
         after: 24,
@@ -1790,7 +1790,7 @@ export default function TeamChatPage() {
         query: q,
         signal,
         selectColumns:
-          "id, text, image_url, created_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
+          "id, text, image_url, created_at, edited_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
         hasAnnouncements: true,
       })) as Message[],
   });
@@ -2110,6 +2110,7 @@ export default function TeamChatPage() {
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
+                      isEdited={!!(msg as any).edited_at}
                       onReply={handleReply}
                       onEdit={handleEdit}
                       onAuthorClick={
