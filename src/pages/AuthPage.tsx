@@ -22,7 +22,9 @@ import {
   safeSessionSet,
   safeSessionRemove,
   readRedirectParam,
+  readAuthIntent,
 } from "@/lib/authRedirectStorage";
+
 
 const passwordRequirements = [
   { test: (p: string) => p.length >= 8, label: "At least 8 characters" },
