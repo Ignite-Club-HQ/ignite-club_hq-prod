@@ -435,7 +435,16 @@ export default function MessagesPage() {
     placeholderData: (prev) => prev,
   });
 
+  // Preview watermarks: the most recent Realtime-accepted inbox preview per
+  // scope. Inbox query responses are merged against these so a response that
+  // STARTED before a Realtime event can never regress to older/empty preview
+  // data (the "preview appears then disappears" defect). Cleared on user
+  // change / sign-out below.
+  const previewWatermarksRef = useRef(createInboxPreviewWatermarks());
+  const previewWatermarks = previewWatermarksRef.current;
+
   // Fetch member clubs with their latest messages in a single query
+
   const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched, isFetching: memberClubsFetching, isError: memberClubsError } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
