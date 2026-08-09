@@ -29,6 +29,15 @@ import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
+/**
+ * Referentially stable empty fallback. A fresh `[]` default made the
+ * selected-role effect re-run every render (Maximum update depth exceeded),
+ * which blocked React from unmounting this page when navigating to /auth.
+ */
+const EMPTY_ROLES: AppRole[] = [];
+
+
+
 const roleLabels: Record<AppRole, string> = {
   basic_user: "Basic User",
   club_admin: "Club Admin",
@@ -206,7 +215,7 @@ export default function JoinTeamPage() {
   const inviteEntityLabel = inviteMiniLeagueId ? "League" : invite?.team_id ? "Team" : "Club";
 
   // Fetch user's existing roles for the invite destination
-  const { data: existingRoles = [] } = useQuery({
+  const { data: existingRoles = EMPTY_ROLES } = useQuery({
     queryKey: ["user-invite-roles", invite?.team_id, inviteClubId, user?.id],
     queryFn: async () => {
       let query = supabase
@@ -333,9 +342,11 @@ export default function JoinTeamPage() {
   // All invite types now use a fixed role — no role selection UI needed
   // Initialize selected roles with invite role if user doesn't have it yet
   useEffect(() => {
-    if (invite?.role && existingRoles && !existingRoles.includes(invite.role as AppRole)) {
-      setSelectedRoles([invite.role as AppRole]);
-    }
+    const inviteRole = invite?.role as AppRole | undefined;
+    if (!inviteRole || existingRoles.includes(inviteRole)) return;
+    setSelectedRoles((prev) =>
+      prev.length === 1 && prev[0] === inviteRole ? prev : [inviteRole],
+    );
   }, [invite?.role, existingRoles]);
 
   const toggleRole = (role: AppRole) => {
