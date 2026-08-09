@@ -2083,15 +2083,24 @@ export default function MessagesPage() {
     // row IS the currently previewed latest message (matched on created_at).
     // Previously UPDATE events were never subscribed, so an edited message
     // kept showing its original text in the inbox.
-    const patchEditedPreview = (key: any[], targetId: string, row: any) => {
+    const patchEditedPreview = (
+      key: any[],
+      scope: 'team' | 'club' | 'group',
+      targetId: string,
+      row: any,
+    ) => {
       queryClient.setQueryData(key, (old: any) => {
         const prev = old?.latestMessages?.[targetId];
         if (!prev || prev.created_at !== row.created_at) return old;
+        const next = { ...prev, text: row.text ?? '', image_url: row.image_url ?? null };
+        // Keep the watermark in step so a later stale response can't restore
+        // the pre-edit text.
+        previewWatermarks.note(`${scope}:${targetId}`, next);
         return {
           ...old,
           latestMessages: {
             ...old.latestMessages,
-            [targetId]: { ...prev, text: row.text ?? '', image_url: row.image_url ?? null },
+            [targetId]: next,
           },
         };
       });
