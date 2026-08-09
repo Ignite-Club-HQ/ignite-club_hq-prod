@@ -50,7 +50,9 @@ export function isLaunchIntentPending(): boolean {
 
 export function subscribeLaunchIntent(fn: (s: LaunchIntentState) => void) {
   listeners.add(fn);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 function setState(next: LaunchIntentState) {
