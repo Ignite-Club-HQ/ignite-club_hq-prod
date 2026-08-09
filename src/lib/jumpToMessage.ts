@@ -1,5 +1,7 @@
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { setChatJumpActive } from "@/lib/chatJumpActive";
+import { beginChatJumpLifecycle, endChatJumpLifecycle } from "@/lib/chatJumpLifecycle";
+
 import { getJumpSettleConfig } from "@/lib/jumpSettleConfig";
 
 
