@@ -93,14 +93,10 @@ function clearTimers() {
 
 function setState(next: LaunchIntentState) {
   if (state === next) return;
-  // Once fully settled, never go back to a blocking state.
-  if (!isLaunchIntentPending() && next !== "resolved-none") {
-    if (state === "resolved-url-committed") return;
-  }
-  if (state === "resolved-none" && next !== "resolved-url-awaiting-navigation") {
-    // An ordinary launch stays released; only a genuine URL may re-arm it.
-    if (next !== "resolved-url-committed") return;
-  }
+  // `resolved-none` and `resolved-url-committed` are terminal: startup is over,
+  // so nothing may re-close the gate (warm deep links must not show a spinner).
+  if (state === "resolved-none" || state === "resolved-url-committed") return;
+
   state = next;
   if (!isLaunchIntentPending()) clearTimers();
   listeners.forEach((fn) => {
