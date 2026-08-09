@@ -29,6 +29,15 @@ import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
+/**
+ * Referentially stable empty fallback. A fresh `[]` default made the
+ * selected-role effect re-run every render (Maximum update depth exceeded),
+ * which blocked React from unmounting this page when navigating to /auth.
+ */
+const EMPTY_ROLES: AppRole[] = [];
+
+
+
 const roleLabels: Record<AppRole, string> = {
   basic_user: "Basic User",
   club_admin: "Club Admin",
