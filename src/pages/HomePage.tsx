@@ -2126,6 +2126,12 @@ export default function HomePage() {
           <Suspense fallback={<HomeMyTeamsSkeleton />}>
             <MyTeamsPremiumCarousel onReadyChange={handleMyTeamsReadyChange} />
           </Suspense>
+
+          {/* Club Info & Links - collapsible tile grid directly below the teams carousel */}
+          <Suspense fallback={null}>
+            <ClubLinksSection />
+          </Suspense>
+
         </div>
       </div>
 
