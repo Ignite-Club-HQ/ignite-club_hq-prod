@@ -326,7 +326,7 @@ export default function ClubChatPage() {
           scope: { club_id: clubId },
           createdAt: target.created_at,
           selectColumns:
-            "id, text, image_url, created_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label",
+            "id, text, image_url, created_at, edited_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label",
         });
         if (ctx.length) {
           setLocalMessages((prev) => {
@@ -468,7 +468,7 @@ export default function ClubChatPage() {
       // Fetch messages WITHOUT profile join to avoid timeout from large avatar_url
       const { data: rawMessages, error } = await supabase
         .from("club_messages")
-        .select("id, text, image_url, created_at, author_id, club_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .select("id, text, image_url, created_at, edited_at, author_id, club_id, reply_to_id, deleted_at, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("club_id", clubId!)
         .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
@@ -881,7 +881,7 @@ export default function ClubChatPage() {
       
       const { data: olderData, error } = await supabase
         .from("club_messages")
-        .select("id, text, image_url, created_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .select("id, text, image_url, created_at, edited_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("club_id", clubId!)
         .is("deleted_at", null)
         .lt("created_at", oldestMessage.created_at)
@@ -988,7 +988,7 @@ export default function ClubChatPage() {
     const hydrateTargetWindow = async () => {
       const { data: target, error } = await supabase
         .from("club_messages")
-        .select("id, text, image_url, created_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+        .select("id, text, image_url, created_at, edited_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label")
         .eq("id", targetMessageId)
         .eq("club_id", clubId)
         .is("deleted_at", null)
@@ -1001,7 +1001,7 @@ export default function ClubChatPage() {
         scope: { club_id: clubId },
         createdAt: target.created_at,
         selectColumns:
-          "id, text, image_url, created_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label",
+          "id, text, image_url, created_at, edited_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label",
         before: 12,
         after: 24,
       });
@@ -1516,7 +1516,7 @@ export default function ClubChatPage() {
         scope: { club_id: clubId! },
         query: q,
         signal,
-        selectColumns: "id, text, image_url, created_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label",
+        selectColumns: "id, text, image_url, created_at, edited_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label",
       })) as Message[],
   });
 
