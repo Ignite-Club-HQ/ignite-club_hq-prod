@@ -90,7 +90,7 @@ import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { ClubMessagePrivacySettings } from "@/components/ClubMessagePrivacySettings";
 import { ClubAICatchUpSettings } from "@/components/ClubAICatchUpSettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
-import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity, Link as LinkIcon } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
