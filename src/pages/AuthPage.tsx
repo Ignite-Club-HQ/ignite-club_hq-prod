@@ -541,7 +541,16 @@ export default function AuthPage() {
         title,
         description: message,
       });
+    } else if (needsEmailConfirmation) {
+      // Signup succeeded but Supabase requires email verification, so no
+      // session exists yet and no redirect will happen. Tell the user instead
+      // of leaving the form looking like nothing happened.
+      toast({
+        title: "Confirm your email to finish",
+        description: `We've sent a confirmation link to ${email}. Open it on this device to continue joining.`,
+      });
     } else {
+
       // Success! On native platforms, offer to save credentials for biometric login
       // Do a fresh check for biometric availability to avoid stale state issues on iOS
       if (mode === "signin" && Capacitor.isNativePlatform()) {
