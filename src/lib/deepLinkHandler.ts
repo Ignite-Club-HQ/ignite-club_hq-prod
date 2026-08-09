@@ -14,10 +14,42 @@ export function initDeepLinkHandler() {
 
   console.log('[DeepLink] Initializing deep link handler for native platform');
 
+  // Cold start: when a link launches the app, `appUrlOpen` has already fired
+  // (or fires before React mounts), so the launch URL must be read explicitly.
+  // Without this the app boots at "/" and unauthenticated invite recipients
+  // land on /auth with no invite context — which is why the first tap on an
+  // invite link "did nothing" and only the second tap (app already running)
+  // worked.
+  App.getLaunchUrl()
+    .then((result) => {
+      if (result?.url) {
+        console.log('[DeepLink] Launch URL detected:', result.url);
+        handleDeepLinkUrl(result.url);
+      }
+    })
+    .catch((err) => console.warn('[DeepLink] getLaunchUrl failed:', err));
+
   App.addListener('appUrlOpen', async (event: URLOpenListenerEvent) => {
     console.log('[DeepLink] App opened with URL:', event.url);
+    handleDeepLinkUrl(event.url);
+  });
+}
 
+let lastHandledUrl: string | null = null;
+
+async function handleDeepLinkUrl(rawUrl: string) {
+  // The launch URL and the appUrlOpen event can both deliver the same URL on
+  // cold start; process it once.
+  if (rawUrl === lastHandledUrl) {
+    console.log('[DeepLink] Duplicate URL ignored:', rawUrl);
+    return;
+  }
+  lastHandledUrl = rawUrl;
+
+  {
+    const event = { url: rawUrl };
     try {
+
       const url = new URL(event.url);
       
       // Check for OAuth callback tokens in hash or search params
