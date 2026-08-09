@@ -2089,7 +2089,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return distance <= Math.max(0, thresholdPx);
       },
     }),
-    [bottomPadding, safeScrollToIndex],
+    [bottomPadding, safeScrollToIndex, alignMessageIdInView],
   );
 
   // O(1) id → index map AND defensive de-duplication. Pagination races (two
