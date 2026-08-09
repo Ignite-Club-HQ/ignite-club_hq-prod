@@ -37,6 +37,11 @@ import { queueChatInvalidation } from "@/lib/chatInvalidationQueue";
 import { useMessagesPageBootstrap, isMessagesBootstrapEnabled } from "@/hooks/useMessagesPageBootstrap";
 import { useAuthorizedScopes } from "@/hooks/useAuthorizedScopes";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
+import {
+  createInboxRealtimeCoordinator,
+  createInboxPreviewWatermarks,
+  type InboxRealtimeEvent,
+} from "@/features/messaging/inbox/inboxRealtimeReconciliation";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
