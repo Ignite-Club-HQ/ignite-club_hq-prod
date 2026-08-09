@@ -4,7 +4,7 @@ import { Share } from "@capacitor/share";
 import { getShareUrl } from "@/lib/shareUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ChevronDown, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, FileImage, File, HardDrive, ShoppingCart, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical, RefreshCw, Search } from "lucide-react";
+import { FolderOpen, FileText, Image, Lock, Crown, ChevronRight, ArrowLeft, Upload, Trash2, Download, ImageIcon, FolderPlus, Plus, Home, Pencil, FolderDown, Loader2, FileArchive, X, CheckSquare, Square, Share2, HardDrive, RotateCcw, ExternalLink, Sheet, FileSpreadsheet, Link2, CloudDownload, MoreVertical, RefreshCw, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,18 +17,13 @@ import { AddLinkDialog } from "@/components/vault/AddLinkDialog";
 import { MoveFileDialog } from "@/components/vault/MoveFileDialog";
 import { GoogleDriveImportDialog } from "@/components/vault/GoogleDriveImportDialog";
 import { LinkDriveFolderDialog } from "@/components/vault/LinkDriveFolderDialog";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import JSZip from "jszip";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,7 +31,12 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { getFolderColorClass } from "@/components/TeamFoldersManager";
 import { VaultFolderCard } from "@/components/vault/VaultFolderCard";
-import { VaultStorageBarRow } from "@/components/vault/VaultStorageBarRow";
+import { VaultExportDialogs } from "@/components/vault/VaultExportDialogs";
+import { VaultLargeFilesDialog } from "@/components/vault/VaultLargeFilesDialog";
+import { VaultFolderExportDialog } from "@/components/vault/VaultFolderExportDialog";
+import { VaultStoragePanel } from "@/components/vault/VaultStoragePanel";
+import { VaultMutationConfirmationDialogs } from "@/components/vault/VaultMutationConfirmationDialogs";
+import { VaultRenameDialogs } from "@/components/vault/VaultRenameDialogs";
 import { resolveEmptyTrashOutcome } from "@/lib/vaultTrashOutcome";
 import { fuzzyFilter } from "@/lib/fuzzySearch";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -81,7 +81,6 @@ import {
 import {
   buildVaultLargeFileItems,
   prepareVaultLargeFileDeletion,
-  sortVaultLargeFileItems,
   type VaultLargeFileItem,
   type VaultLargeFileSort,
 } from "@/features/vault/vaultLargeFileManagement";
@@ -2383,227 +2382,74 @@ export default function VaultPage() {
         
           {/* Compact Storage Bar - always visible */}
           {currentClub && (
-            <Collapsible className="w-full">
-              <div className="bg-card border rounded-lg p-3">
-                {(() => {
-                  const storagePercentage = PRO_STORAGE_LIMIT > 0 
-                    ? Math.min(100, Math.max(0, (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100))
-                    : 0;
-                  return (
-                    <VaultStorageBarRow
-                      storagePercentage={storagePercentage}
-                      usageLabel={`${formatStorageSize(totalClubStorageUsed)} / ${5 + (purchasedStorageGb || 0)} GB`}
-                      isStorageLimitReached={isStorageLimitReached}
-                      actions={
-                        <>
-
-
-                      {/* More Dropdown - shown here when user can't upload (so it's not alone in toolbar) */}
-                      {!canUpload && !selectionMode && !isExporting && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Storage actions">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-popover">
-                            {(photos?.length > 0 || files?.length > 0) && !showTrash && (
-                              <DropdownMenuItem onClick={() => setSelectionMode(true)}>
-                                <CheckSquare className="h-4 w-4 mr-2" />
-                                Select
-                              </DropdownMenuItem>
-                            )}
-                            {(photos?.length > 0 || files?.length > 0 || subfolders?.length > 0) && (
-                              <>
-                                <DropdownMenuItem onClick={() => initiateExport('zip')}>
-                                  <FileArchive className="h-4 w-4 mr-2" />
-                                  Export as ZIP
-                                </DropdownMenuItem>
-                                {(subfolders && subfolders.length > 0) && (
-                                  <DropdownMenuItem onClick={() => initiateExport('zipAll')}>
-                                    <FolderDown className="h-4 w-4 mr-2" />
-                                    ZIP All (with subfolders)
-                                  </DropdownMenuItem>
-                                )}
-                              </>
-                            )}
-                            {(isClubAdmin || isAppAdmin) && (
-                              <DropdownMenuItem onClick={() => setShowTrash(!showTrash)}>
-                                {showTrash ? (
-                                  <>
-                                    <FolderOpen className="h-4 w-4 mr-2" />
-                                    View Files
-                                  </>
-                                ) : (
-                                  <>
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    View Trash
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                        </>
-                      }
-                    />
-
-                  );
-                })()}
-
-                
-                <CollapsibleContent className="mt-3 pt-3 border-t">
-                  {/* Expanded storage details */}
-                  <div className="space-y-3">
-                    {/* Team-specific storage - only shown in team view */}
-                    {currentView.type === "team" && currentTeamStorageUsed > 0 && (
-                      <div className="pb-3 border-b">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                          <span className="font-medium text-foreground">This Team</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-base font-semibold text-foreground">
-                            {formatStorageSize(currentTeamStorageUsed)}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            ({Math.round((currentTeamStorageUsed / totalClubStorageUsed) * 100)}% of club storage)
-                          </span>
-                        </div>
-                      </div>
+            <VaultStoragePanel
+              storagePercentage={PRO_STORAGE_LIMIT > 0
+                ? Math.min(100, Math.max(0, (totalClubStorageUsed / PRO_STORAGE_LIMIT) * 100))
+                : 0}
+              usageLabel={`${formatStorageSize(totalClubStorageUsed)} / ${5 + (purchasedStorageGb || 0)} GB`}
+              isStorageLimitReached={isStorageLimitReached}
+              headerActions={!canUpload && !selectionMode && !isExporting ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Storage actions">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="bg-popover">
+                    {(photos?.length > 0 || files?.length > 0) && !showTrash && (
+                      <DropdownMenuItem onClick={() => setSelectionMode(true)}>
+                        <CheckSquare className="h-4 w-4 mr-2" />
+                        Select
+                      </DropdownMenuItem>
                     )}
-                    
-                    {/* Storage breakdown pie chart - photos vs documents */}
-                    {storageBreakdown && (storageBreakdown.photos > 0 || storageBreakdown.documents > 0) && (
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={[
-                                  { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
-                                  { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
-                                ].filter(d => d.value > 0)}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={16}
-                                outerRadius={28}
-                                paddingAngle={2}
-                                dataKey="value"
-                              >
-                                {[
-                                  { name: 'Photos', value: storageBreakdown.photos, color: 'hsl(var(--primary))' },
-                                  { name: 'Documents', value: storageBreakdown.documents, color: 'hsl(var(--muted-foreground))' },
-                                ].filter(d => d.value > 0).map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Pie>
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2 text-xs">
-                            <div className="w-2 h-2 rounded-sm bg-primary shrink-0" />
-                            <FileImage className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-muted-foreground">Photos</span>
-                            <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.photos)}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <div className="w-2 h-2 rounded-sm bg-muted-foreground shrink-0" />
-                            <File className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-muted-foreground">Documents</span>
-                            <span className="ml-auto font-medium">{formatStorageSize(storageBreakdown.documents)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Storage breakdown by team */}
-                    {currentView.type === "club" && storageBreakdown?.byTeam && storageBreakdown.byTeam.length > 0 && (
-                      <Collapsible className="pt-3 border-t">
-                        <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group">
-                          <span>Storage by Team</span>
-                          <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-2 space-y-2">
-                          {storageBreakdown.byTeam.slice(0, 5).map((team) => {
-                            const teamPercentageOfTotal = totalClubStorageUsed > 0 
-                              ? Math.min(100, (team.size / totalClubStorageUsed) * 100)
-                              : 0;
-                            return (
-                              <div key={team.teamId || "club"} className="space-y-1">
-                                <div className="flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <FolderOpen className="h-3 w-3 text-muted-foreground shrink-0" />
-                                    <span className="truncate">{team.teamName}</span>
-                                  </div>
-                                  <span className="text-muted-foreground shrink-0">
-                                    {formatStorageSize(team.size)} ({Math.round(teamPercentageOfTotal)}%)
-                                  </span>
-                                </div>
-                                <Progress 
-                                  value={teamPercentageOfTotal} 
-                                  className="h-1.5 w-full bg-white dark:bg-muted [&>div]:bg-primary"
-                                />
-                              </div>
-                            );
-                          })}
-                          {storageBreakdown.byTeam.length > 5 && (
-                            <span className="text-xs text-muted-foreground">+{storageBreakdown.byTeam.length - 5} more teams</span>
-                          )}
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-                    
-                    {/* Compact action icons row */}
-                    {(isClubAdmin || (totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8) && (
-                      <div className="pt-3 border-t flex items-center gap-2">
-                        {/* Large Files - only when storage >= 80% */}
-                        {(totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8 && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline" 
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => {
-                                    setLargeFilesDialogOpen(true);
-                                    fetchLargeFiles();
-                                  }}
-                                >
-                                  <HardDrive className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Manage Large Files</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                    {(photos?.length > 0 || files?.length > 0 || subfolders?.length > 0) && (
+                      <>
+                        <DropdownMenuItem onClick={() => initiateExport("zip")}>
+                          <FileArchive className="h-4 w-4 mr-2" />
+                          Export as ZIP
+                        </DropdownMenuItem>
+                        {subfolders && subfolders.length > 0 && (
+                          <DropdownMenuItem onClick={() => initiateExport("zipAll")}>
+                            <FolderDown className="h-4 w-4 mr-2" />
+                            ZIP All (with subfolders)
+                          </DropdownMenuItem>
                         )}
-                        
-                        {/* Buy/Manage Storage */}
-                        {isClubAdmin && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button 
-                                  variant="outline" 
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => setStoragePurchaseDialogOpen(true)}
-                                >
-                                  <ShoppingCart className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{purchasedStorageGb > 0 ? "Manage Storage" : "Buy Storage"}</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
+                      </>
                     )}
-                  </div>
-                </CollapsibleContent>
-              </div>
-            </Collapsible>
+                    {(isClubAdmin || isAppAdmin) && (
+                      <DropdownMenuItem onClick={() => setShowTrash(!showTrash)}>
+                        {showTrash ? (
+                          <>
+                            <FolderOpen className="h-4 w-4 mr-2" />
+                            View Files
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            View Trash
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : undefined}
+              viewType={currentView.type === "team"
+                ? "team"
+                : currentView.type === "club" ? "club" : "other"}
+              currentTeamStorageUsed={currentTeamStorageUsed}
+              totalClubStorageUsed={totalClubStorageUsed}
+              breakdown={storageBreakdown}
+              showLargeFilesAction={(totalClubStorageUsed / PRO_STORAGE_LIMIT) >= 0.8}
+              showStoragePurchaseAction={Boolean(isClubAdmin)}
+              storagePurchaseLabel={purchasedStorageGb > 0 ? "Manage Storage" : "Buy Storage"}
+              onManageLargeFiles={() => {
+                setLargeFilesDialogOpen(true);
+                fetchLargeFiles();
+              }}
+              onManageStorage={() => setStoragePurchaseDialogOpen(true)}
+              formatSize={formatStorageSize}
+            />
           )}
           
           <div className="flex items-center gap-2 flex-wrap sm:ml-auto">
@@ -3348,599 +3194,147 @@ export default function VaultPage() {
         canDelete={photos?.[lightboxIndex] ? canDeletePhoto(photos[lightboxIndex]) : false}
       />
 
-      {/* Delete Photo Confirmation */}
-      <AlertDialog open={!!deletePhotoId} onOpenChange={() => setDeletePhotoId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{showTrash ? "Permanently Delete Photo" : "Delete Photo"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {showTrash 
-                ? "Are you sure you want to permanently delete this photo? This cannot be undone."
-                : "This photo will be moved to trash."
-              }
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deletePhotoId && (showTrash ? permanentDeletePhotoMutation.mutate(deletePhotoId) : deletePhotoMutation.mutate(deletePhotoId))}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {showTrash ? "Delete Permanently" : "Move to Trash"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <VaultMutationConfirmationDialogs
+        photoDelete={{
+          open: Boolean(deletePhotoId),
+          permanent: showTrash,
+          onOpenChange: () => setDeletePhotoId(null),
+          onConfirm: () => {
+            if (!deletePhotoId) return;
+            if (showTrash) permanentDeletePhotoMutation.mutate(deletePhotoId);
+            else deletePhotoMutation.mutate(deletePhotoId);
+          },
+        }}
+        fileDelete={{
+          open: Boolean(deleteFileId),
+          permanent: showTrash,
+          onOpenChange: () => setDeleteFileId(null),
+          onConfirm: () => {
+            if (!deleteFileId) return;
+            if (showTrash) permanentDeleteFileMutation.mutate(deleteFileId);
+            else deleteFileMutation.mutate(deleteFileId);
+          },
+        }}
+        restoreOpen={Boolean(restoreItemId)}
+        restoreItemType={restoreItemType}
+        onRestoreOpenChange={() => setRestoreItemId(null)}
+        onRestore={() => {
+          if (!restoreItemId) return;
+          if (restoreItemType === "photo") restorePhotoMutation.mutate(restoreItemId);
+          else restoreFileMutation.mutate(restoreItemId);
+          setRestoreItemId(null);
+        }}
+        bulkDeleteOpen={bulkDeleteDialogOpen}
+        selectedCount={selectedCount}
+        deletingSelected={isDeletingSelected}
+        onBulkDeleteOpenChange={setBulkDeleteDialogOpen}
+        onBulkDelete={deleteSelectedItems}
+        folderDeleteOpen={Boolean(deleteFolderId)}
+        onFolderDeleteOpenChange={() => setDeleteFolderId(null)}
+        onFolderDelete={() => deleteFolderId && deleteFolderMutation.mutate(deleteFolderId)}
+      />
 
-      {/* Delete File Confirmation */}
-      <AlertDialog open={!!deleteFileId} onOpenChange={() => setDeleteFileId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{showTrash ? "Permanently Delete File" : "Delete File"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {showTrash 
-                ? "Are you sure you want to permanently delete this file? This cannot be undone."
-                : "This file will be moved to trash."
-              }
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteFileId && (showTrash ? permanentDeleteFileMutation.mutate(deleteFileId) : deleteFileMutation.mutate(deleteFileId))}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {showTrash ? "Delete Permanently" : "Move to Trash"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <VaultLargeFilesDialog
+        open={largeFilesDialogOpen}
+        onOpenChange={(open) => {
+          setLargeFilesDialogOpen(open);
+          if (!open) setSelectedLargeFiles(new Set());
+        }}
+        loading={largeFilesData.loading}
+        items={largeFilesData.items}
+        sortBy={largeFilesSortBy}
+        onSortChange={setLargeFilesSortBy}
+        selectedIds={selectedLargeFiles}
+        onToggleSelection={toggleLargeFileSelection}
+        onDeleteSelected={deleteSelectedLargeFiles}
+        deleting={deletingLargeFiles}
+        formatSize={formatStorageSize}
+      />
 
-      {/* Restore Confirmation */}
-      <AlertDialog open={!!restoreItemId} onOpenChange={() => setRestoreItemId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Restore {restoreItemType === "photo" ? "Photo" : "File"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              This {restoreItemType === "photo" ? "photo" : "file"} will be restored to its original location.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (restoreItemId) {
-                  if (restoreItemType === "photo") {
-                    restorePhotoMutation.mutate(restoreItemId);
-                  } else {
-                    restoreFileMutation.mutate(restoreItemId);
-                  }
-                  setRestoreItemId(null);
-                }
-              }}
-            >
-              Restore
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <VaultRenameDialogs
+        folder={{
+          open: Boolean(renameFolderId),
+          value: renameFolderName,
+          onOpenChange: (open) => {
+            if (!open) {
+              setRenameFolderId(null);
+              setRenameFolderName("");
+            }
+          },
+          onValueChange: setRenameFolderName,
+          onRename: () => renameFolderId && renameFolderMutation.mutate({
+            folderId: renameFolderId,
+            newName: renameFolderName,
+          }),
+        }}
+        file={{
+          open: Boolean(renameFileId),
+          value: renameFileName,
+          onOpenChange: (open) => {
+            if (!open) {
+              setRenameFileId(null);
+              setRenameFileName("");
+            }
+          },
+          onValueChange: setRenameFileName,
+          onRename: () => renameFileId && renameFileMutation.mutate({
+            fileId: renameFileId,
+            newName: renameFileName,
+          }),
+        }}
+        photo={{
+          open: Boolean(renamePhotoId),
+          value: renamePhotoName,
+          onOpenChange: (open) => {
+            if (!open) {
+              setRenamePhotoId(null);
+              setRenamePhotoName("");
+            }
+          },
+          onValueChange: setRenamePhotoName,
+          onRename: () => renamePhotoId && renamePhotoMutation.mutate({
+            photoId: renamePhotoId,
+            newName: renamePhotoName,
+          }),
+        }}
+      />
 
-      {/* Bulk Delete Confirmation */}
-      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Selected Items</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedCount} selected item{selectedCount !== 1 ? 's' : ''}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingSelected}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={deleteSelectedItems}
-              disabled={isDeletingSelected}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeletingSelected ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                `Delete ${selectedCount} Item${selectedCount !== 1 ? 's' : ''}`
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={!!deleteFolderId} onOpenChange={() => setDeleteFolderId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Folder</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this folder? Files inside will be moved to the parent folder.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteFolderId && deleteFolderMutation.mutate(deleteFolderId)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <VaultExportDialogs
+        previewOpen={exportPreviewOpen}
+        onPreviewOpenChange={setExportPreviewOpen}
+        previewLoading={exportPreviewData.loading}
+        previewPhotoCount={getFilteredExportData().photos.length}
+        previewFileCount={getFilteredExportData().files.length}
+        folderBreakdown={exportPreviewData.folderBreakdown}
+        excludedFolders={excludedFolders}
+        onToggleFolderExclusion={toggleFolderExclusion}
+        onConfirmPreview={confirmExportWithSubfolders}
+        confirmOpen={exportConfirmOpen}
+        onConfirmOpenChange={setExportConfirmOpen}
+        summary={getExportSummary()}
+        pendingType={pendingExportAction?.type ?? null}
+        onCancelConfirmation={() => setPendingExportAction(null)}
+        onConfirmExport={handleExportConfirm}
+      />
 
-      {/* Large Files Manager Dialog */}
-      <Dialog open={largeFilesDialogOpen} onOpenChange={(open) => {
-        setLargeFilesDialogOpen(open);
-        if (!open) {
-          setSelectedLargeFiles(new Set());
-        }
-      }}>
-        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <HardDrive className="h-5 w-5" />
-              Manage Large Files
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-hidden flex flex-col">
-            {largeFilesData.loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : largeFilesData.items.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <HardDrive className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p>No files with size data found</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Sort:</span>
-                    <Select value={largeFilesSortBy} onValueChange={(v) => setLargeFilesSortBy(v as VaultLargeFileSort)}>
-                      <SelectTrigger className="w-[110px] h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="size">Size</SelectItem>
-                        <SelectItem value="date">Date</SelectItem>
-                        <SelectItem value="type">Type</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {selectedLargeFiles.size > 0 
-                      ? `${selectedLargeFiles.size} selected (${formatStorageSize(
-                          largeFilesData.items
-                            .filter(i => selectedLargeFiles.has(i.id))
-                            .reduce((sum, i) => sum + i.size, 0)
-                        )})`
-                      : `${largeFilesData.items.length} files`
-                    }
-                  </span>
-                  {selectedLargeFiles.size > 0 && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={deleteSelectedLargeFiles}
-                      disabled={deletingLargeFiles}
-                    >
-                      {deletingLargeFiles ? (
-                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4 mr-1" />
-                      )}
-                      Delete
-                    </Button>
-                  )}
-                </div>
-                <div className="overflow-y-auto flex-1 space-y-2 pr-1">
-                  {sortVaultLargeFileItems(largeFilesData.items, largeFilesSortBy)
-                    .map((item) => (
-                    <div 
-                      key={item.id}
-                      className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-colors ${
-                        selectedLargeFiles.has(item.id) 
-                          ? "border-primary bg-primary/5" 
-                          : "border-border hover:bg-muted/50"
-                      }`}
-                      onClick={() => toggleLargeFileSelection(item.id)}
-                    >
-                      <Checkbox 
-                        checked={selectedLargeFiles.has(item.id)}
-                        onCheckedChange={() => toggleLargeFileSelection(item.id)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <div className={`p-1.5 rounded ${item.type === 'photo' ? 'bg-primary/10' : 'bg-muted'}`}>
-                        {item.type === 'photo' ? (
-                          <FileImage className="h-4 w-4 text-primary" />
-                        ) : (
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {item.teamName ? `${item.teamName} • ` : ''}{format(new Date(item.createdAt), 'MMM d, yyyy')}
-                        </p>
-                      </div>
-                      <span className="text-sm font-semibold text-foreground shrink-0">
-                        {formatStorageSize(item.size)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename Folder Dialog */}
-      <Dialog open={!!renameFolderId} onOpenChange={(open) => {
-        if (!open) {
-          setRenameFolderId(null);
-          setRenameFolderName("");
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename Folder</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Folder Name</Label>
-              <Input
-                value={renameFolderName}
-                onChange={(e) => setRenameFolderName(e.target.value)}
-                placeholder="Enter new folder name"
-              />
-            </div>
-            <Button 
-              onClick={() => renameFolderId && renameFolderMutation.mutate({ folderId: renameFolderId, newName: renameFolderName })}
-              disabled={!renameFolderName.trim()}
-              className="w-full"
-            >
-              Rename Folder
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename File Dialog */}
-      <Dialog open={!!renameFileId} onOpenChange={(open) => {
-        if (!open) {
-          setRenameFileId(null);
-          setRenameFileName("");
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename File</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>File Name</Label>
-              <Input
-                value={renameFileName}
-                onChange={(e) => setRenameFileName(e.target.value)}
-                placeholder="Enter new file name"
-              />
-            </div>
-            <Button 
-              onClick={() => renameFileId && renameFileMutation.mutate({ fileId: renameFileId, newName: renameFileName })}
-              disabled={!renameFileName.trim()}
-              className="w-full"
-            >
-              Rename File
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename Photo Dialog */}
-      <Dialog open={!!renamePhotoId} onOpenChange={(open) => {
-        if (!open) {
-          setRenamePhotoId(null);
-          setRenamePhotoName("");
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rename Photo</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Photo Title</Label>
-              <Input
-                value={renamePhotoName}
-                onChange={(e) => setRenamePhotoName(e.target.value)}
-                placeholder="Enter new photo title"
-              />
-            </div>
-            <Button 
-              onClick={() => renamePhotoId && renamePhotoMutation.mutate({ photoId: renamePhotoId, newName: renamePhotoName })}
-              disabled={!renamePhotoName.trim()}
-              className="w-full"
-            >
-              Rename Photo
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Export Preview Dialog */}
-      <Dialog open={exportPreviewOpen} onOpenChange={setExportPreviewOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Export All Folders</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {exportPreviewData.loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-muted-foreground">Scanning folders...</span>
-              </div>
-            ) : (
-              <>
-                {(() => {
-                  const filtered = getFilteredExportData();
-                  return (
-                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Photos to export:</span>
-                        <span className="font-medium">{filtered.photos.length}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Files to export:</span>
-                        <span className="font-medium">{filtered.files.length}</span>
-                      </div>
-                      <div className="flex justify-between text-sm border-t pt-2 mt-2">
-                        <span className="font-medium">Total:</span>
-                        <span className="font-medium">{filtered.photos.length + filtered.files.length} items</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {exportPreviewData.folderBreakdown.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-muted-foreground">Select folders to include</h4>
-                    <div className="max-h-48 overflow-y-auto space-y-1">
-                      {exportPreviewData.folderBreakdown.map((folder, index) => {
-                        const isExcluded = excludedFolders.has(folder.path);
-                        return (
-                          <div 
-                            key={index} 
-                            className={`flex items-center justify-between text-sm py-1.5 px-2 rounded cursor-pointer transition-colors ${
-                              isExcluded ? 'bg-muted/20 opacity-60' : 'bg-muted/30 hover:bg-muted/50'
-                            }`}
-                            onClick={() => toggleFolderExclusion(folder.path)}
-                          >
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <Checkbox 
-                                checked={!isExcluded}
-                                onCheckedChange={() => toggleFolderExclusion(folder.path)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              <span className={`truncate ${isExcluded ? 'line-through' : ''}`}>{folder.path}</span>
-                            </div>
-                            <span className="text-muted-foreground shrink-0 ml-2">
-                              {folder.photoCount + folder.fileCount} items
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-2">
-                  <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => setExportPreviewOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    className="flex-1"
-                    onClick={confirmExportWithSubfolders}
-                    disabled={(() => {
-                      const filtered = getFilteredExportData();
-                      return filtered.photos.length + filtered.files.length === 0;
-                    })()}
-                  >
-                    <FileArchive className="h-4 w-4 mr-1" />
-                    Export ZIP
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Export Confirmation Dialog */}
-      <AlertDialog open={exportConfirmOpen} onOpenChange={setExportConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Export</AlertDialogTitle>
-            <AlertDialogDescription>
-              {(() => {
-                const summary = getExportSummary();
-                const exportType = pendingExportAction?.type;
-                
-                if (summary.isSelection) {
-                  return `You are about to export ${summary.photoCount + summary.fileCount} selected item${summary.photoCount + summary.fileCount !== 1 ? 's' : ''}.`;
-                }
-                
-                if (exportType === 'zipAll') {
-                  return `This will export all files in the current folder and its subfolders as a ZIP file.`;
-                }
-                
-                return `You are about to export ${summary.photoCount} photo${summary.photoCount !== 1 ? 's' : ''} and ${summary.fileCount} file${summary.fileCount !== 1 ? 's' : ''} from the current folder.`;
-              })()}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
-            {(() => {
-              const summary = getExportSummary();
-              return (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Photos:</span>
-                    <span className="font-medium">{summary.photoCount}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Files:</span>
-                    <span className="font-medium">{summary.fileCount}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-1 mt-1">
-                    <span className="font-medium">Total:</span>
-                    <span className="font-medium">{summary.photoCount + summary.fileCount} items</span>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingExportAction(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleExportConfirm}>
-              <FileArchive className="h-4 w-4 mr-1" />
-              Export
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Folder Export Selection Dialog */}
-      <Dialog open={folderExportDialogOpen} onOpenChange={(open) => {
-        setFolderExportDialogOpen(open);
-        if (!open) setFolderExportData(null);
-      }}>
-        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Download className="h-5 w-5" />
-              Export: {folderExportData?.folderName}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-hidden flex flex-col">
-            {folderExportData?.loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-muted-foreground">Loading folder contents...</span>
-              </div>
-            ) : folderExportData ? (
-              <>
-                {/* Selection controls */}
-                <div className="flex items-center justify-between mb-3 gap-2">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={selectAllFolderExportItems}
-                    >
-                      <CheckSquare className="h-4 w-4 mr-1" />
-                      Select All
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={deselectAllFolderExportItems}
-                    >
-                      <Square className="h-4 w-4 mr-1" />
-                      Deselect All
-                    </Button>
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {folderExportData.selectedPhotos.size + folderExportData.selectedFiles.size} selected
-                  </span>
-                </div>
-
-                {/* Items list */}
-                <div className="flex-1 overflow-y-auto space-y-3">
-                  {folderExportData.photos.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium text-muted-foreground">Photos ({folderExportData.photos.length})</h3>
-                      {folderExportData.photos.map((photo: any) => (
-                        <div
-                          key={photo.id}
-                          className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-accent/50 ${
-                            folderExportData.selectedPhotos.has(photo.id) ? 'bg-accent/50' : ''
-                          }`}
-                          onClick={() => toggleFolderExportPhotoSelection(photo.id)}
-                        >
-                          <Checkbox
-                            checked={folderExportData.selectedPhotos.has(photo.id)}
-                            onCheckedChange={() => toggleFolderExportPhotoSelection(photo.id)}
-                          />
-                          <img
-                            src={photo.file_url}
-                            alt={photo.title || "Photo"}
-                            className="h-10 w-10 object-cover rounded"
-                          />
-                          <span className="text-sm truncate flex-1">{photo.title || "Untitled photo"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {folderExportData.files.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium text-muted-foreground">Files ({folderExportData.files.length})</h3>
-                      {folderExportData.files.map((file: any) => (
-                        <div
-                          key={file.id}
-                          className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-accent/50 ${
-                            folderExportData.selectedFiles.has(file.id) ? 'bg-accent/50' : ''
-                          }`}
-                          onClick={() => toggleFolderExportFileSelection(file.id)}
-                        >
-                          <Checkbox
-                            checked={folderExportData.selectedFiles.has(file.id)}
-                            onCheckedChange={() => toggleFolderExportFileSelection(file.id)}
-                          />
-                          <div className="p-2 rounded-lg bg-primary/10">
-                            <FileText className="h-4 w-4 text-primary" />
-                          </div>
-                          <span className="text-sm truncate flex-1">{file.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {folderExportData.photos.length === 0 && folderExportData.files.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <FolderOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                      <p>This folder is empty</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Export button */}
-                <div className="pt-4 border-t mt-4">
-                  <Button
-                    className="w-full"
-                    onClick={exportSelectedFolderItems}
-                    disabled={folderExportData.selectedPhotos.size + folderExportData.selectedFiles.size === 0}
-                  >
-                    <FileArchive className="h-4 w-4 mr-1" />
-                    Export {folderExportData.selectedPhotos.size + folderExportData.selectedFiles.size} Items as ZIP
-                  </Button>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <VaultFolderExportDialog
+        open={folderExportDialogOpen}
+        onOpenChange={(open) => {
+          setFolderExportDialogOpen(open);
+          if (!open) setFolderExportData(null);
+        }}
+        folderName={folderExportData?.folderName}
+        loading={folderExportData?.loading ?? false}
+        photos={folderExportData?.photos ?? []}
+        files={folderExportData?.files ?? []}
+        selectedPhotoIds={folderExportData?.selectedPhotos ?? new Set()}
+        selectedFileIds={folderExportData?.selectedFiles ?? new Set()}
+        onTogglePhoto={toggleFolderExportPhotoSelection}
+        onToggleFile={toggleFolderExportFileSelection}
+        onSelectAll={selectAllFolderExportItems}
+        onDeselectAll={deselectAllFolderExportItems}
+        onExport={exportSelectedFolderItems}
+      />
 
       {/* Storage Purchase Dialog */}
       {currentClub && (

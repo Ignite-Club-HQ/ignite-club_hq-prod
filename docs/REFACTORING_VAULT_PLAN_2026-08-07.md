@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V6a committed; V6b–V6d selection, ZIP and large-file boundaries complete locally; review/commit pending
+**Status:** V1–V6d committed; V7a–V7f presentation slices complete locally; review/commit pending
 
 ## Objective
 
@@ -402,12 +402,11 @@ does not move Supabase ownership.
   selected rows/bytes as deleted when the server returned failures. Both were
   subsequently fixed on `main`, merged back into the tranche and protected by
   focused complete/partial/failure/cancellation contracts.
-- One defensive hardening gap remains: the client deletion wrapper discards the
-  Edge Function's explicit `succeeded[]` identifiers. Normal responses remain
-  mappable from requested IDs minus `failed[]`, but an internally inconsistent
-  response containing an unknown failed ID cannot be mapped fail-closed with
-  item-level certainty. This is not part of the two observed user defects and
-  should be addressed as a separate contract-hardening slice.
+- The follow-up contract hardening now retains and validates the Edge
+  Function's explicit `succeeded[]` identifiers across batches. Only validated
+  item-level acknowledgements count toward deleted rows, selection clearing or
+  freed bytes; unknown, duplicated, mismatched and contradictory results fail
+  closed under direct tests.
 
 ### V7 — Presentation decomposition
 
@@ -416,6 +415,78 @@ does not move Supabase ownership.
 - Components receive explicit data and callbacks and must not independently
   acquire broader database access.
 - Preserve mobile layout, focus management and keyboard behaviour.
+
+**V7a completed locally 9 August 2026:**
+
+- Extracted recursive-export preview and export-confirmation rendering into a
+  typed, database-free component while leaving state, permissions, scanning,
+  ZIP orchestration and callbacks in `VaultPage`.
+- Preserved loading, filtered counts, folder inclusion toggles, zero-item
+  disabling, selection/current-folder/recursive wording and cancel/confirm
+  behavior.
+- Added five interaction and accessibility contracts, including an explicit
+  accessible description for the recursive preview dialog.
+- Focused Vault verification passes 253/253 tests across twenty-two files.
+
+**V7b completed locally 9 August 2026:**
+
+- Extracted the large-file manager dialog into a typed, database-free
+  presentation component while retaining reads, deletion, selection state,
+  query invalidation and permission ownership in `VaultPage`.
+- Preserved loading/empty states, immutable size/date/type ordering, selected
+  byte totals, row and checkbox interaction, retry selection and delete loading.
+- Added six interaction and accessibility contracts, including close delegation
+  so the page remains responsible for clearing selection.
+- Focused Vault verification passes 259/259 tests across twenty-three files;
+  extracted components pass lint and the production build succeeds.
+
+**V7c completed locally 9 August 2026:**
+
+- Extracted folder export selection into a typed, database-free presentation
+  component while retaining folder reads, selected-item state and truthful ZIP
+  execution in `VaultPage`.
+- Preserved loading/empty states, photo/file sections, select/deselect-all,
+  selected counts, item toggles, zero-selection disabling and close cleanup.
+- Prevented checkbox clicks from bubbling to the row and toggling an item twice,
+  matching the intended single selection action.
+- Added six interaction and accessibility contracts. Focused Vault verification
+  passes 265/265 tests across twenty-four files; extracted components pass lint
+  and the production build succeeds.
+
+**V7d completed locally 9 August 2026:**
+
+- Extracted the compact storage summary, team usage, photo/document chart,
+  club team breakdown and storage-management controls into a typed,
+  database-free presentation component.
+- Retained storage queries, entitlement and permission decisions, the 80%
+  management threshold, export/trash actions and all callbacks in `VaultPage`.
+- Preserved the existing compact/expanded layout and delegated large-file and
+  storage-purchase actions through explicit callbacks.
+- Added six rendering, interaction and ownership-boundary contracts. Focused
+  Vault verification passes 271/271 tests across twenty-five files.
+
+**V7e completed locally 9 August 2026:**
+
+- Extracted photo/file deletion, restore, bulk deletion and folder deletion
+  confirmation rendering into a typed, database-free component.
+- Retained soft-versus-permanent mutation selection, item identifiers, mutation
+  execution and dialog state ownership in `VaultPage`.
+- Preserved destructive wording, restore routing, singular/plural counts,
+  in-flight control locking and the folder move-to-parent warning.
+- Added six focused interaction contracts. Focused Vault verification passes
+  277/277 tests across twenty-six files.
+
+**V7f completed locally 9 August 2026:**
+
+- Extracted folder, file and photo rename dialogs into a typed, database-free
+  component while retaining item identifiers, input state and mutation
+  execution in `VaultPage`.
+- Preserved item-specific labels/placeholders, trim-based validation, close
+  cleanup and callback behavior.
+- Added a visually hidden accessible description to resolve the pre-existing
+  dialog warning without changing visible behavior.
+- Added five focused rendering, validation and delegation contracts. Focused
+  Vault verification passes 282/282 tests across twenty-seven files.
 
 ### V8 — Closeout
 
