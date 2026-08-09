@@ -14,7 +14,9 @@ import {
   safeSessionSet,
   safeSessionRemove,
   buildAuthPathWithRedirect,
+  buildAuthPathWithIntent,
 } from "@/lib/authRedirectStorage";
+
 import { supabase } from "@/integrations/supabase/client";
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
 import { selectCachedProfileById } from "@/lib/profileCache";
