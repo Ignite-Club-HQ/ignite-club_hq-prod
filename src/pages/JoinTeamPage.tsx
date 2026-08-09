@@ -990,7 +990,7 @@ export default function JoinTeamPage() {
         joinMutation.mutate();
       }, 500);
     }
-  }, [shouldAutoJoin, user, invite, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast, userProfile, location.pathname, navigate, profileLoading, isLoading, pendingInviteData]);
+  }, [shouldAutoJoin, user, invite, inviteClubId, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast, userProfile, location.pathname, navigate, profileLoading, isLoading, pendingInviteData]);
 
   // Handle photo consent given
   const handlePhotoConsentGiven = async () => {
