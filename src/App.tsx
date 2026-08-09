@@ -55,6 +55,7 @@ const EditEventPage = lazy(() => import("./pages/EditEventPage"));
 const ImportFixturesPage = lazy(() => import("./pages/ImportFixturesPage"));
 const ClubsPage = lazy(() => import("./pages/ClubsPage"));
 const ClubDetailPage = lazy(() => import("./pages/ClubDetailPage"));
+const ClubLinkEmbedPage = lazy(() => import("./pages/ClubLinkEmbedPage"));
 const CreateClubPage = lazy(() => import("./pages/CreateClubPage"));
 const ClubSetupWizardPage = lazy(() => import("./pages/ClubSetupWizardPage"));
 const StartPage = lazy(() => import("./pages/StartPage"));
