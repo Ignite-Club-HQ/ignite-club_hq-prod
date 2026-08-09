@@ -80,6 +80,9 @@ export default function AuthPage() {
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
   const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
   const signInScrollRef = useRef<HTMLDivElement | null>(null);
+  // Synchronous submission lock — guards against double taps in one task.
+  const authInFlightRef = useRef(false);
+
   const isNativePlatform = Capacitor.isNativePlatform();
   const { isOnline } = useOnlineStatus();
   
@@ -530,21 +533,28 @@ export default function AuthPage() {
       }
     }
 
+    // Synchronous in-flight lock: React state updates are async, so two taps
+    // in the same browser task could both pass a `loading` check and fire two
+    // signup requests on Android/iOS.
+    if (authInFlightRef.current) return;
+    authInFlightRef.current = true;
     setLoading(true);
-    const result = mode === "signin" 
-      ? await signIn(email, password)
-      : await signUp(email, password);
-    const { error } = result;
-    const needsEmailConfirmation =
-      mode === "signup" && (result as { needsEmailConfirmation?: boolean }).needsEmailConfirmation === true;
 
-    console.log("[SignupFlow] auth response", {
-      mode,
-      hasError: !!result.error,
-      errorMessage: result.error?.message,
-      needsEmailConfirmation,
-    });
-    setLoading(false);
+    try {
+      const result = mode === "signin"
+        ? await signIn(email, password)
+        : await signUp(email, password);
+      const { error } = result;
+      const needsEmailConfirmation =
+        mode === "signup" && (result as { needsEmailConfirmation?: boolean }).needsEmailConfirmation === true;
+
+      console.log("[SignupFlow] auth response", {
+        mode,
+        hasError: !!result.error,
+        errorMessage: result.error?.message,
+        needsEmailConfirmation,
+      });
+
 
 
 
@@ -605,7 +615,21 @@ export default function AuthPage() {
         }
       }
     }
+    } catch (err) {
+      // The auth dependency rejected instead of returning `{ error }` (e.g.
+      // TypeError: Load failed on mobile). Surface a friendly toast and allow
+      // a retry rather than leaving the form stuck in a loading state.
+      console.error("[SignupFlow] auth call threw", err);
+      toast({
+        title: "Connection issue",
+        description: "We couldn't reach the server. Check your connection and try again.",
+      });
+    } finally {
+      authInFlightRef.current = false;
+      setLoading(false);
+    }
   };
+
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
