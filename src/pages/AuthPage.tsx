@@ -17,6 +17,12 @@ import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 
 import { z } from "zod";
+import {
+  safeSessionGet,
+  safeSessionSet,
+  safeSessionRemove,
+  readRedirectParam,
+} from "@/lib/authRedirectStorage";
 
 const passwordRequirements = [
   { test: (p: string) => p.length >= 8, label: "At least 8 characters" },
@@ -76,22 +82,24 @@ export default function AuthPage() {
   const { isOnline } = useOnlineStatus();
   
   // Check if we should default to signup view (new user from invite, or returning from terms/privacy)
-  const defaultView = sessionStorage.getItem("authDefaultTab") || "signin";
+  const defaultView = safeSessionGet("authDefaultTab") || "signin";
   const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView as "signin" | "signup");
 
   // Persist auth mode so navigating to terms/privacy and back preserves the tab
   useEffect(() => {
-    sessionStorage.setItem("authDefaultTab", authMode);
+    safeSessionSet("authDefaultTab", authMode);
   }, [authMode]);
   
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
-  const redirectAfterAuth = sessionStorage.getItem("redirectAfterAuth");
+  // URL param is a fallback for webviews where sessionStorage writes are blocked.
+  const redirectParam = readRedirectParam(window.location.search);
+  const redirectAfterAuth = safeSessionGet("redirectAfterAuth") ?? redirectParam;
   
   // Initialize invite flow context - check if it's stale (no redirect pending)
   const [inviteFlowContext, setInviteFlowContext] = useState(() => {
     const context = getInviteFlowContext();
     // If there's a context but no redirect, it's stale - don't use it
-    if (context?.active && !sessionStorage.getItem("redirectAfterAuth")) {
+    if (context?.active && !safeSessionGet("redirectAfterAuth") && !readRedirectParam(window.location.search)) {
       return null;
     }
     return context;
@@ -129,7 +137,7 @@ export default function AuthPage() {
 
   // Clear stale invite flow context and session storage on mount
   useEffect(() => {
-    sessionStorage.removeItem("authDefaultTab");
+    safeSessionRemove("authDefaultTab");
     
     // If there's an invite flow context but no pending redirect, it's stale - clear it
     const currentContext = getInviteFlowContext();
@@ -181,17 +189,17 @@ export default function AuthPage() {
       return;
     }
 
-    const stored = sessionStorage.getItem("redirectAfterAuth");
+    const stored = safeSessionGet("redirectAfterAuth") ?? redirectParam;
     const safe = sanitizeRedirectAfterAuth(stored);
     if (safe) {
-      sessionStorage.removeItem("redirectAfterAuth");
+      safeSessionRemove("redirectAfterAuth");
       console.log("[AuthPage] Authenticated, redirecting to:", safe);
       setPostAuthTarget(safe);
       return;
     }
     // Storage held nothing usable — clear any garbage/hostile value so a
     // later sign-in can't inherit it.
-    if (stored) sessionStorage.removeItem("redirectAfterAuth");
+    if (stored) safeSessionRemove("redirectAfterAuth");
 
     const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
     const isFreshSignup = createdAt > 0 && Date.now() - createdAt < 10 * 60 * 1000;
@@ -216,6 +224,7 @@ export default function AuthPage() {
     profileError,
     profile,
     postAuthTarget,
+    redirectParam,
   ]);
 
   const { 
