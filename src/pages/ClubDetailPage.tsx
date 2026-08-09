@@ -2447,6 +2447,25 @@ export default function ClubDetailPage() {
         </AccordionItem>
       )}
 
+      {/* Club Info & Links — admins curate the tiles shown on Home */}
+      {isAdmin && id && (
+        <AccordionItem value="club-links" data-section-anchor="club-links" className="border rounded-lg px-4 scroll-mt-20">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <LinkIcon className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Club Info & Links</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2">
+              <ClubLinksManager clubId={id} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
+
+
       {/* Club Branding - configurable by all admins; colours only apply on Pro */}
       {isAdmin && (() => {
         const hasProAccess = !!(isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override);
