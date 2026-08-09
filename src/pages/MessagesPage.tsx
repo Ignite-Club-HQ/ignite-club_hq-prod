@@ -538,7 +538,10 @@ export default function MessagesPage() {
   
   // Extract clubs and latest messages from combined query
   const memberClubs = memberClubsWithMessages?.clubs ?? [];
-  const latestClubMessages = memberClubsWithMessages?.latestMessages ?? {};
+  const latestClubMessages = previewWatermarks.reconcile(
+    "club",
+    memberClubsWithMessages?.latestMessages,
+  );
 
   // Get latest broadcast message
   const { data: latestBroadcast, isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError } = useQuery({
