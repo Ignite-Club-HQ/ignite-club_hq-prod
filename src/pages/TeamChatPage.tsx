@@ -2153,6 +2153,7 @@ export default function TeamChatPage() {
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
+                      isEdited={!!(msg as any).edited_at}
                       onReply={handleReply}
                       onEdit={handleEdit}
                       onAuthorClick={

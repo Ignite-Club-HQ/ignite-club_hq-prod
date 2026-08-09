@@ -1192,6 +1192,7 @@ export default function BroadcastChatPage() {
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
+                      isEdited={!!(msg as any).edited_at}
                       onReply={isAppAdmin ? handleReply : undefined}
                       onEdit={handleEdit}
                       searchQuery={searchQuery}

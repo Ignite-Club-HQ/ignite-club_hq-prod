@@ -1604,6 +1604,7 @@ export default function DirectMessagePage() {
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
+                      isEdited={!!(msg as any).edited_at}
                       onReply={isIgniteSupportConversation ? undefined : () => { setReplyTo(msg); setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100); }}
                       onEdit={handleEdit}
                       isPinned={pinnedMessageIds.has(msg.id)}

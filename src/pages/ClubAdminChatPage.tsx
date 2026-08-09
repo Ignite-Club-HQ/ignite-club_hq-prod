@@ -1329,6 +1329,7 @@ export default function ClubAdminChatPage() {
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
+                      isEdited={!!(msg as any).edited_at}
                       onReply={() => {
                         setReplyTo(msg);
                         setTimeout(() => virtualHandleRef.current?.scrollToBottom("auto"), 100);

@@ -1171,7 +1171,7 @@ function ChatMessageInner({
               </span>
             )}
             {timestamp}
-            {isEdited && (!isOwn || isClubAnnouncement || isPending) && (
+            {isEdited && (!isOwn || isClubAnnouncement || isPending || (isOwn && isLastOwnMessage && readFrontierReaders.length > 0)) && (
               <span className="opacity-70">· Edited</span>
             )}
             {!isPending && isOwn && !isClubAnnouncement && (
