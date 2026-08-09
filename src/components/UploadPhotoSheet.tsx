@@ -659,6 +659,19 @@ export function UploadPhotoSheet({
   const handleUpload = async () => {
     if (selectedPhotos.length === 0 || !selectedClubId) return;
 
+    // Club-wide publishing (no team / mini-league) is restricted server-side to
+    // club admins, committee members, team admins and coaches. Guard here so
+    // non-privileged members get a clear message instead of a raw RLS error
+    // after their photos have already been uploaded to storage.
+    if (!selectedTeamId && !selectedMiniLeagueId && !canPostClubWide) {
+      toast.error(
+        "Choose a team or mini league for these photos — only club admins, committee members, team admins and coaches can post to the whole club.",
+      );
+      return;
+    }
+
+
+
     // Free-tier cap check (Pro returns isPro=true and bypasses).
     try {
       const { data: usageRow } = await supabase.rpc("get_club_free_usage", {
