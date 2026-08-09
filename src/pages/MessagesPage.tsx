@@ -1967,6 +1967,16 @@ export default function MessagesPage() {
         const author = isAnnouncement
           ? row.club_announcement_name
           : resolveAuthor(row.author_id, { kind: 'team', targetId: row.team_id });
+        const teamPreview = {
+          text: row.text ?? '',
+          author: author || '',
+          created_at: row.created_at,
+          image_url: row.image_url ?? null,
+          is_announcement: isAnnouncement,
+        };
+        // Watermark first: a query that started before this event must not
+        // regress the preview when it resolves afterwards.
+        previewWatermarks.note(`team:${row.team_id}`, teamPreview);
         queryClient.setQueryData(["my-teams-with-messages", user.id], (old: any) => {
           if (!old) return old;
           const prev = old.latestMessages?.[row.team_id];
@@ -1975,11 +1985,8 @@ export default function MessagesPage() {
             latestMessages: {
               ...(old.latestMessages || {}),
               [row.team_id]: {
-                text: row.text ?? '',
+                ...teamPreview,
                 author: author || (prev?.author ?? ""),
-                created_at: row.created_at,
-                image_url: row.image_url ?? null,
-                is_announcement: isAnnouncement,
               },
             },
           };
@@ -1991,6 +1998,13 @@ export default function MessagesPage() {
         const row = payload.new;
         if (!isAuthorized('club', row?.club_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'club', targetId: row.club_id });
+        const clubPreview = {
+          text: row.text ?? '',
+          author: author || '',
+          created_at: row.created_at,
+          image_url: row.image_url ?? null,
+        };
+        previewWatermarks.note(`club:${row.club_id}`, clubPreview);
         queryClient.setQueryData(["member-clubs-with-messages", user.id], (old: any) => {
           if (!old) return old;
           const prev = old.latestMessages?.[row.club_id];
@@ -1999,10 +2013,8 @@ export default function MessagesPage() {
             latestMessages: {
               ...(old.latestMessages || {}),
               [row.club_id]: {
-                text: row.text ?? '',
+                ...clubPreview,
                 author: author || (prev?.author ?? ""),
-                created_at: row.created_at,
-                image_url: row.image_url ?? null,
               },
             },
           };
@@ -2014,6 +2026,13 @@ export default function MessagesPage() {
         const row = payload.new;
         if (!isAuthorized('group', row?.group_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'group', targetId: row.group_id });
+        const groupPreview = {
+          text: row.text ?? '',
+          author: author || '',
+          created_at: row.created_at,
+          image_url: row.image_url ?? null,
+        };
+        previewWatermarks.note(`group:${row.group_id}`, groupPreview);
         queryClient.setQueryData(["my-chat-groups-with-messages", user.id], (old: any) => {
           if (!old) return old;
           const prev = old.latestMessages?.[row.group_id];
@@ -2022,10 +2041,8 @@ export default function MessagesPage() {
             latestMessages: {
               ...(old.latestMessages || {}),
               [row.group_id]: {
-                text: row.text ?? '',
+                ...groupPreview,
                 author: author || (prev?.author ?? ""),
-                created_at: row.created_at,
-                image_url: row.image_url ?? null,
               },
             },
           };
