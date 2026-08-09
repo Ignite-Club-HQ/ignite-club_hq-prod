@@ -41,7 +41,7 @@ interface AuthContextType {
   profileResolved: boolean; // True only after profile has been fetched from server at least once
   unreadCount: number;
   unreadMessagesCount: number;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -1008,17 +1008,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     // Check for pending redirect (e.g., from invite link)
-    const pendingRedirect = sessionStorage.getItem("redirectAfterAuth");
+    let pendingRedirect: string | null = null;
+    try {
+      pendingRedirect = sessionStorage.getItem("redirectAfterAuth");
+    } catch {
+      pendingRedirect = null;
+    }
     const redirectUrl = pendingRedirect 
       ? `${window.location.origin}${pendingRedirect}`
       : `${window.location.origin}/`;
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: redirectUrl },
-    });
-    return { error: error as Error | null };
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: redirectUrl },
+      });
+      // When email confirmation is required, signUp resolves with no session.
+      // Surface that explicitly so callers can tell the user what happens next
+      // instead of silently doing nothing.
+      const needsEmailConfirmation = !error && !data?.session;
+      return { error: error as Error | null, needsEmailConfirmation };
+    } catch (err) {
+      console.error('[Auth] signUp error:', err);
+      return { error: err as Error, needsEmailConfirmation: false };
+    }
   };
+
 
   const signIn = async (email: string, password: string) => {
     try {
