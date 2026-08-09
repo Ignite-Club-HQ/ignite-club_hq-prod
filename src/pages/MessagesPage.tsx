@@ -706,7 +706,10 @@ export default function MessagesPage() {
     () => filterDeletedTeams(teamsWithMessages?.teams as any) as typeof teamsWithMessages.teams,
     [teamsWithMessages?.teams],
   );
-  const latestTeamMessages = teamsWithMessages?.latestMessages ?? {};
+  const latestTeamMessages = previewWatermarks.reconcile(
+    "team",
+    teamsWithMessages?.latestMessages,
+  );
 
   // Get admin teams where user can create groups
   const { data: adminTeamIds } = useQuery({
