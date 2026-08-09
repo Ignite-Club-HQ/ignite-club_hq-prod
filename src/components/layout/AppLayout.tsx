@@ -31,6 +31,7 @@ export function AppLayout() {
     sweepStaleDeletedTeams(user?.id);
   }, [user?.id]);
   const { isThemeReady } = useClubTheme();
+  const launchIntentPending = useLaunchIntentPending();
   const location = useLocation();
   const [retrying, setRetrying] = useState(false);
   // Cold-start auth flash guard: while the stored session is still being
