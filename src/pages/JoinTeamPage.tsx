@@ -888,9 +888,13 @@ export default function JoinTeamPage() {
     },
     onSuccess: (rolesToAdd) => {
       if (rolesToAdd === null) {
+        console.log("[SignupFlow] Auto-join result: no roles to add");
         return;
       }
       const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
+      console.log("[SignupFlow] Auto-join result: joined", { roles: rolesToAdd });
+      // Invite hand-off is complete — safe to clear the auth tab hint now.
+      safeSessionRemove("authDefaultTab");
       toast({ title: `Successfully joined as ${roleNames}!` });
       
       // If parent role was added via a regular invite WITHOUT child metadata, show child step.
@@ -908,8 +912,14 @@ export default function JoinTeamPage() {
       }
     },
     onError: (error: Error) => {
-      toast({ title: error.message || "Failed to join team", variant: "destructive" });
+      console.error("[SignupFlow] Auto-join failed", error);
+      toast({
+        title: "Couldn't complete your join",
+        description: error.message || "Failed to join. Please try again or ask your admin to resend the invite.",
+        variant: "destructive",
+      });
     },
+
   });
 
   // Auto-join effect: when user returns from auth and shouldAutoJoin is true
