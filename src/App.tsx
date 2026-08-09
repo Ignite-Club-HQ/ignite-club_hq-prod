@@ -382,8 +382,10 @@ const App = () => {
           <IcsPreviewFallbackDialog />
           <NotifDebugOverlay />
           <BrowserRouter>
+            <AppNavigatorBridge />
             <ScrollToTop />
             <PWAPendingInviteHandler />
+
             <Suspense fallback={null}><GlobalSubMonitorGate /></Suspense>
             <PitchBoardResumeRedirect />
             <MessagesBootstrapPrefetcher />
