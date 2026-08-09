@@ -157,10 +157,10 @@ export interface InboxPreviewWatermarks {
    * call during render. Older or missing authoritative entries keep the
    * watermarked preview; newer ones win.
    */
-  reconcile(
+  reconcile<T extends InboxPreviewLike>(
     scopePrefix: string,
-    authoritative: Record<string, InboxPreviewLike> | undefined | null,
-  ): Record<string, InboxPreviewLike>;
+    authoritative: Record<string, T> | undefined | null,
+  ): Record<string, T>;
   clear(): void;
   size(): number;
 }
@@ -188,10 +188,13 @@ export function createInboxPreviewWatermarks(): InboxPreviewWatermarks {
         if (oldest) marks.delete(oldest);
       }
     },
-    reconcile(scopePrefix, authoritative) {
-      const base = authoritative ?? {};
-      if (marks.size === 0) return base as Record<string, InboxPreviewLike>;
-      let merged: Record<string, InboxPreviewLike> | null = null;
+    reconcile<T extends InboxPreviewLike>(
+      scopePrefix: string,
+      authoritative: Record<string, T> | undefined | null,
+    ): Record<string, T> {
+      const base = (authoritative ?? {}) as Record<string, T>;
+      if (marks.size === 0) return base;
+      let merged: Record<string, T> | null = null;
       for (const [key, preview] of marks) {
         if (!key.startsWith(`${scopePrefix}:`)) continue;
         const targetId = key.slice(scopePrefix.length + 1);
@@ -199,11 +202,11 @@ export function createInboxPreviewWatermarks(): InboxPreviewWatermarks {
         if (current && timeOf(current) >= timeOf(preview)) continue;
         merged = merged ?? { ...base };
         // Keep any author name the authoritative response already resolved.
-        merged[targetId] = current?.author && !preview.author
+        merged[targetId] = (current?.author && !preview.author
           ? { ...preview, author: current.author }
-          : preview;
+          : preview) as T;
       }
-      return merged ?? (base as Record<string, InboxPreviewLike>);
+      return merged ?? base;
     },
     clear() {
       marks.clear();
