@@ -1813,8 +1813,8 @@ export default function MessagesPage() {
 
     return () => {
       unregister();
-      realtimeFlushRef.current = null;
-      pendingRealtimeRef.current = [];
+      webInboxCoordinator.setApplier(null);
+      webInboxCoordinator.clear();
       Object.keys(rafState).forEach((k) => { if (rafState[k]) cancelAnimationFrame(rafState[k]); });
     };
   }, [user?.id, queryClient]);
