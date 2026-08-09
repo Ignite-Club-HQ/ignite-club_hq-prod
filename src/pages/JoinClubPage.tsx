@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
+import { safeSessionSet, buildAuthPathWithIntent } from "@/lib/authRedirectStorage";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -199,8 +200,9 @@ export default function JoinClubPage() {
     // First check if user needs to complete their profile
     if (user && userProfile !== undefined && !userProfile?.display_name) {
       // User hasn't completed profile - redirect to complete profile
-      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
-      sessionStorage.setItem("autoJoinAfterAuth", "true"); // Ensure flag is set
+      safeSessionSet("redirectAfterAuth", `/join-club/${token}`);
+      safeSessionSet("autoJoinAfterAuth", "true"); // Ensure flag is set
+
       navigate("/complete-profile", { replace: true });
       return;
     }
@@ -218,7 +220,7 @@ export default function JoinClubPage() {
       !autoJoinAttempted.current
     ) {
       autoJoinAttempted.current = true;
-      sessionStorage.removeItem("autoJoinAfterAuth");
+      try { sessionStorage.removeItem("autoJoinAfterAuth"); } catch { /* storage blocked */ }
       // Small delay to ensure UI is ready
       setTimeout(() => {
         joinMutation.mutate();
@@ -230,16 +232,22 @@ export default function JoinClubPage() {
   const handleJoinClick = async () => {
     // If not logged in, redirect to auth with auto-join flag
     if (!user) {
-      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
-      sessionStorage.setItem("autoJoinAfterAuth", "true");
-      navigate("/auth");
+      // Storage writes MUST be guarded: a throwing sessionStorage (restricted
+      // webviews / blocked storage) used to abort this handler before
+      // `navigate`, so the button appeared to do nothing.
+      const nextPath = `/join-club/${token}`;
+      safeSessionSet("redirectAfterAuth", nextPath);
+      safeSessionSet("autoJoinAfterAuth", "true");
+      safeSessionSet("authDefaultTab", "signup");
+      console.log("[SignupFlow] JoinClub → /auth", { nextPath });
+      navigate(buildAuthPathWithIntent({ next: nextPath, mode: "signup", invite: token }));
       return;
     }
 
     // Check if user needs to complete their profile first
     if (!userProfile?.display_name) {
-      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
-      sessionStorage.setItem("autoJoinAfterAuth", "true");
+      safeSessionSet("redirectAfterAuth", `/join-club/${token}`);
+      safeSessionSet("autoJoinAfterAuth", "true");
       navigate("/complete-profile");
       return;
     }

@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { safeSessionSet, buildAuthPathWithIntent } from "@/lib/authRedirectStorage";
 
 type CompInfo = {
   id: string;
@@ -160,8 +161,12 @@ export default function CompetitionJoinPage() {
   }, [teams, teamSearch]);
 
   const requireSignIn = () => {
-    sessionStorage.setItem("redirectAfterAuth", `/competitions/join?token=${token}`);
-    navigate("/auth");
+    // Guarded storage: an unguarded write throws in restricted webviews and
+    // used to abort before `navigate`, making the button look dead.
+    const nextPath = `/competitions/join?token=${token}`;
+    safeSessionSet("redirectAfterAuth", nextPath);
+    console.log("[SignupFlow] CompetitionJoin → /auth", { nextPath });
+    navigate(buildAuthPathWithIntent({ next: nextPath, mode: "signup" }));
   };
 
   const handleJoin = async () => {
@@ -203,8 +208,8 @@ export default function CompetitionJoinPage() {
 
   const goStartTeam = () => {
     const back = `/competitions/join?token=${token}`;
-    sessionStorage.setItem("redirectAfterAuth", back);
-    sessionStorage.setItem("pendingCompetitionJoinToken", token);
+    safeSessionSet("redirectAfterAuth", back);
+    safeSessionSet("pendingCompetitionJoinToken", token ?? "");
     navigate("/teams/new");
   };
 
