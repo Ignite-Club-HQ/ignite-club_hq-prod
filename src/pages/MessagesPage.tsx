@@ -1027,7 +1027,12 @@ export default function MessagesPage() {
   
   // Extract groups and latest messages from combined query
   const chatGroups = chatGroupsWithMessages?.groups ?? [];
-  const latestGroupMessages = chatGroupsWithMessages?.latestMessages ?? {};
+  // Monotonic reconciliation: an older/empty authoritative response that
+  // started before a Realtime event must not erase the newer preview.
+  const latestGroupMessages = previewWatermarks.reconcile(
+    "group",
+    chatGroupsWithMessages?.latestMessages,
+  );
 
   // For competition-scoped chat groups, fetch which clubs have entered teams.
   // Used to hide competition chats when the user filters to a club that is
