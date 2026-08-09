@@ -2179,9 +2179,10 @@ export default function MessagesPage() {
     return () => {
       unregister();
       if (flushTimer) clearTimeout(flushTimer);
-      nativeRealtimeFlushRef.current = null;
-      nativeRealtimeDiscardRef.current = null;
-      pendingNativeRealtimeRef.current = [];
+      // Channel teardown: the applier closes over this effect's handlers, so
+      // it must not outlive them. Buffered events are dropped with it.
+      nativeInboxCoordinator.setApplier(null);
+      nativeInboxCoordinator.clear();
     };
 
   }, [user?.id, queryClient]);
