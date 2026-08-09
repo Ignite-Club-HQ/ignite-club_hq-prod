@@ -537,8 +537,15 @@ export default function AuthPage() {
     const { error } = result;
     const needsEmailConfirmation =
       mode === "signup" && (result as { needsEmailConfirmation?: boolean }).needsEmailConfirmation === true;
-    
+
+    console.log("[SignupFlow] auth response", {
+      mode,
+      hasError: !!result.error,
+      errorMessage: result.error?.message,
+      needsEmailConfirmation,
+    });
     setLoading(false);
+
 
 
     if (error) {
