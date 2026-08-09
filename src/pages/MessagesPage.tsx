@@ -2110,17 +2110,17 @@ export default function MessagesPage() {
       team_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('team', row?.team_id)) return;
-        patchEditedPreview(["my-teams-with-messages", user.id], row.team_id, row);
+        patchEditedPreview(["my-teams-with-messages", user.id], 'team', row.team_id, row);
       },
       club_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('club', row?.club_id)) return;
-        patchEditedPreview(["member-clubs-with-messages", user.id], row.club_id, row);
+        patchEditedPreview(["member-clubs-with-messages", user.id], 'club', row.club_id, row);
       },
       group_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('group', row?.group_id)) return;
-        patchEditedPreview(["my-chat-groups-with-messages", user.id], row.group_id, row);
+        patchEditedPreview(["my-chat-groups-with-messages", user.id], 'group', row.group_id, row);
       },
       direct_messages: (payload: any) => {
         const row = payload.new;
