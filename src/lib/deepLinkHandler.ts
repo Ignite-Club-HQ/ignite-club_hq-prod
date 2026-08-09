@@ -2,6 +2,10 @@ import { App, URLOpenListenerEvent } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { navigateApp } from '@/lib/appNavigator';
+import {
+  beginLaunchIntentResolution,
+  markLaunchUrlReceived,
+} from '@/lib/nativeLaunchIntent';
 
 /**
  * Initialize deep link handling for native apps
@@ -14,10 +18,49 @@ export function initDeepLinkHandler() {
 
   console.log('[DeepLink] Initializing deep link handler for native platform');
 
+  // Cold start: when a link launches the app, `appUrlOpen` has already fired
+  // (or fires before React mounts), so the launch URL must be read explicitly.
+  // The read is async while React/Router mount synchronously, so it runs behind
+  // an explicit readiness boundary (see `nativeLaunchIntent`) that stops the
+  // protected "/" route from redirecting to generic /auth first. Transient
+  // rejections are retried a bounded number of times.
+  beginLaunchIntentResolution(
+    () => App.getLaunchUrl(),
+    (url) => handleDeepLinkUrl(url),
+  );
+
   App.addListener('appUrlOpen', async (event: URLOpenListenerEvent) => {
     console.log('[DeepLink] App opened with URL:', event.url);
+    // A URL from the OS settles the startup boundary immediately, even if the
+    // launch-URL read is still pending or retrying.
+    markLaunchUrlReceived();
+    handleDeepLinkUrl(event.url);
+  });
+}
 
+// Short-lived dedupe: one OS tap can arrive via both `getLaunchUrl` and
+// `appUrlOpen`, which must produce a single navigation. A permanent record
+// would swallow a genuine later tap on the same invite link, so entries expire.
+const DEDUPE_WINDOW_MS = 4000;
+let lastHandled: { url: string; at: number } | null = null;
+
+async function handleDeepLinkUrl(rawUrl: string) {
+  const now = Date.now();
+  if (
+    lastHandled &&
+    lastHandled.url === rawUrl &&
+    now - lastHandled.at < DEDUPE_WINDOW_MS
+  ) {
+    console.log('[DeepLink] Duplicate URL ignored (within dedupe window):', rawUrl);
+    return;
+  }
+  lastHandled = { url: rawUrl, at: now };
+
+
+  {
+    const event = { url: rawUrl };
     try {
+
       const url = new URL(event.url);
       
       // Check for OAuth callback tokens in hash or search params
@@ -171,5 +214,6 @@ export function initDeepLinkHandler() {
     } catch (err) {
       console.error('[DeepLink] Error processing deep link:', err);
     }
-  });
+  }
 }
+

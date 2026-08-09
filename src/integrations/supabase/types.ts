@@ -10658,6 +10658,10 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
       }
+      can_publish_club_wide_photo: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_view_album: { Args: { _album_id: string }; Returns: boolean }
       can_view_child_via_team: {
         Args: { _child_id: string; _user_id: string }

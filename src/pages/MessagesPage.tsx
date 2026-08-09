@@ -37,6 +37,11 @@ import { queueChatInvalidation } from "@/lib/chatInvalidationQueue";
 import { useMessagesPageBootstrap, isMessagesBootstrapEnabled } from "@/hooks/useMessagesPageBootstrap";
 import { useAuthorizedScopes } from "@/hooks/useAuthorizedScopes";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
+import {
+  createInboxRealtimeCoordinator,
+  createInboxPreviewWatermarks,
+  type InboxRealtimeEvent,
+} from "@/features/messaging/inbox/inboxRealtimeReconciliation";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
@@ -430,7 +435,16 @@ export default function MessagesPage() {
     placeholderData: (prev) => prev,
   });
 
+  // Preview watermarks: the most recent Realtime-accepted inbox preview per
+  // scope. Inbox query responses are merged against these so a response that
+  // STARTED before a Realtime event can never regress to older/empty preview
+  // data (the "preview appears then disappears" defect). Cleared on user
+  // change / sign-out below.
+  const previewWatermarksRef = useRef(createInboxPreviewWatermarks());
+  const previewWatermarks = previewWatermarksRef.current;
+
   // Fetch member clubs with their latest messages in a single query
+
   const { data: memberClubsWithMessages, isLoading: memberClubsLoading, isFetched: memberClubsFetched, isFetching: memberClubsFetching, isError: memberClubsError } = useQuery({
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
@@ -533,7 +547,10 @@ export default function MessagesPage() {
   
   // Extract clubs and latest messages from combined query
   const memberClubs = memberClubsWithMessages?.clubs ?? [];
-  const latestClubMessages = memberClubsWithMessages?.latestMessages ?? {};
+  const latestClubMessages = previewWatermarks.reconcile(
+    "club",
+    memberClubsWithMessages?.latestMessages,
+  );
 
   // Get latest broadcast message
   const { data: latestBroadcast, isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError } = useQuery({
@@ -701,7 +718,10 @@ export default function MessagesPage() {
     () => filterDeletedTeams(teamsWithMessages?.teams as any) as typeof teamsWithMessages.teams,
     [teamsWithMessages?.teams],
   );
-  const latestTeamMessages = teamsWithMessages?.latestMessages ?? {};
+  const latestTeamMessages = previewWatermarks.reconcile(
+    "team",
+    teamsWithMessages?.latestMessages,
+  );
 
   // Get admin teams where user can create groups
   const { data: adminTeamIds } = useQuery({
@@ -1022,7 +1042,12 @@ export default function MessagesPage() {
   
   // Extract groups and latest messages from combined query
   const chatGroups = chatGroupsWithMessages?.groups ?? [];
-  const latestGroupMessages = chatGroupsWithMessages?.latestMessages ?? {};
+  // Monotonic reconciliation: an older/empty authoritative response that
+  // started before a Realtime event must not erase the newer preview.
+  const latestGroupMessages = previewWatermarks.reconcile(
+    "group",
+    chatGroupsWithMessages?.latestMessages,
+  );
 
   // For competition-scoped chat groups, fetch which clubs have entered teams.
   // Used to hide competition chats when the user filters to a club that is
@@ -1536,35 +1561,48 @@ export default function MessagesPage() {
 
   // Payloads that arrive before the membership snapshot resolves used to be
   // dropped outright, which meant the first seconds after opening /messages
-  // could silently lose the newest message until the next poll. We now buffer
-  // them (bounded) and replay once `status === 'ready'`, so authorization is
-  // still fail-closed — the replay runs the same `isAuthorized` check — but no
-  // longer costs the user a message.
-  const pendingRealtimeRef = useRef<Array<{ table: string; payload: any }>>([]);
-  const realtimeFlushRef = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    if (authScopes.status !== "ready") return;
-    realtimeFlushRef.current?.();
-  }, [authScopes.status]);
+  // could silently lose the newest message until the next poll. Both channels
+  // now hand every event to a coordinator that buffers (bounded) until
+  // `status === 'ready'` and then replays exactly once. Authorization stays
+  // fail-closed: the replay runs the same `isAuthorized` check.
+  //
+  // `attemptFlush()` is idempotent and called from BOTH sides of the race —
+  // here when authorization becomes ready, and inside the channel effects when
+  // the applier is installed — so whichever happens last performs the flush.
+  const webInboxCoordinatorRef = useRef(
+    createInboxRealtimeCoordinator({ isReady: () => authStatusRef.current === "ready" }),
+  );
+  const nativeInboxCoordinatorRef = useRef(
+    createInboxRealtimeCoordinator({ isReady: () => authStatusRef.current === "ready" }),
+  );
+  const webInboxCoordinator = webInboxCoordinatorRef.current;
+  const nativeInboxCoordinator = nativeInboxCoordinatorRef.current;
 
-  // Same bounded buffer-then-replay for the NATIVE lightweight inbox channel
-  // (below). Without it, a message arriving on Android before the membership
-  // snapshot resolves was permanently discarded, leaving the inbox preview /
-  // unread badge stale until the 120s poll. Fail-closed is preserved: replay
-  // re-runs the same `isAuthorized` check, and `failed` discards the buffer.
-  const pendingNativeRealtimeRef = useRef<Array<{ table: string; payload: any }>>([]);
-  const nativeRealtimeFlushRef = useRef<(() => void) | null>(null);
-  const nativeRealtimeDiscardRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (authScopes.status === "ready") {
-      nativeRealtimeFlushRef.current?.();
+      webInboxCoordinator.attemptFlush();
+      nativeInboxCoordinator.attemptFlush();
       return;
     }
     if (authScopes.status === "failed") {
-      pendingNativeRealtimeRef.current = [];
-      nativeRealtimeDiscardRef.current?.();
+      // Authorization could not be established — discard buffered events
+      // rather than risk applying them later against unknown scopes.
+      webInboxCoordinator.clear();
+      nativeInboxCoordinator.clear();
+      previewWatermarks.clear();
     }
-  }, [authScopes.status]);
+  }, [authScopes.status, webInboxCoordinator, nativeInboxCoordinator, previewWatermarks]);
+
+  // Sign-out / user switch: no buffered event or preview watermark from the
+  // previous user may survive into the next session.
+  useEffect(() => {
+    return () => {
+      webInboxCoordinator.clear();
+      nativeInboxCoordinator.clear();
+      previewWatermarks.clear();
+    };
+  }, [user?.id, webInboxCoordinator, nativeInboxCoordinator, previewWatermarks]);
+
 
 
 
@@ -1613,22 +1651,34 @@ export default function MessagesPage() {
       const cached = getProfileFromCache(authorId);
       return cached?.display_name || "";
     };
-    const patchLatest = (key: any[], targetId: string, row: any, extra: Record<string, any> = {}) => {
+    const patchLatest = (
+      key: any[],
+      scope: 'team' | 'club' | 'group',
+      targetId: string,
+      row: any,
+      extra: Record<string, any> = {},
+    ) => {
+      const cached = queryClient.getQueryData<any>(key);
+      const prev = cached?.latestMessages?.[targetId];
+      const preview = {
+        text: row.text ?? '',
+        author: extra.author || previewAuthor(row.author_id) || (prev?.author ?? ""),
+        created_at: row.created_at,
+        image_url: row.image_url ?? null,
+        ...extra,
+      };
+
+      // This handler is reached only after the final fail-closed scope check.
+      // Record the exact object written to React Query so a stale response from
+      // the invalidation below cannot erase the accepted Realtime preview.
+      previewWatermarks.note(`${scope}:${targetId}`, preview);
       queryClient.setQueryData(key, (old: any) => {
         const base = old ?? { latestMessages: {} };
-        const prev = base.latestMessages?.[targetId];
-        const author = previewAuthor(row.author_id) || (prev?.author ?? "");
         return {
           ...base,
           latestMessages: {
             ...(base.latestMessages || {}),
-            [targetId]: {
-              text: row.text ?? '',
-              author,
-              created_at: row.created_at,
-              image_url: row.image_url ?? null,
-              ...extra,
-            },
+            [targetId]: preview,
           },
         };
       });
@@ -1653,7 +1703,7 @@ export default function MessagesPage() {
         const row = payload.new;
         if (!isAuthorized('team', row?.team_id)) return;
         const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
-        patchLatest(["my-teams-with-messages", user.id], row.team_id, row, {
+        patchLatest(["my-teams-with-messages", user.id], 'team', row.team_id, row, {
           author: isAnnouncement ? row.club_announcement_name : previewAuthor(row.author_id),
           is_announcement: isAnnouncement,
         });
@@ -1663,14 +1713,14 @@ export default function MessagesPage() {
       club_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('club', row?.club_id)) return;
-        patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
+        patchLatest(["member-clubs-with-messages", user.id], 'club', row.club_id, row);
         schedule('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
         bumpUnread();
       },
       group_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('group', row?.group_id)) return;
-        patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
+        patchLatest(["my-chat-groups-with-messages", user.id], 'group', row.group_id, row);
         schedule('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
         bumpUnread();
       },
@@ -1748,31 +1798,19 @@ export default function MessagesPage() {
       },
     };
 
-    // Buffer-then-replay: while the membership snapshot is still loading we
-    // hold payloads (bounded to 50, oldest dropped) instead of discarding
-    // them. Once scopes resolve, the flush effect replays them through the
-    // same authorized handlers.
-    const MAX_PENDING = 50;
-    const run = (table: string, payload: any, kind: 'insert' | 'edit') => {
-      if (kind === 'edit') editHandlers[table]?.(payload);
-      else handlers[table]?.(payload);
+    // Buffer-then-replay via the shared inbox coordinator: while the
+    // membership snapshot is still loading we hold payloads (bounded) instead
+    // of discarding them, and replay them through these same authorized
+    // handlers once scopes resolve.
+    const applyEvent = (event: InboxRealtimeEvent) => {
+      if (event.kind === 'edit') editHandlers[event.table]?.(event.payload);
+      else handlers[event.table]?.(event.payload);
     };
+    webInboxCoordinator.setApplier(applyEvent);
     const dispatch = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
-      if (authStatusRef.current !== 'ready') {
-        const buf = pendingRealtimeRef.current;
-        buf.push({ table, payload, kind } as any);
-        if (buf.length > MAX_PENDING) buf.splice(0, buf.length - MAX_PENDING);
-        return;
-      }
-      run(table, payload, kind);
+      webInboxCoordinator.dispatch({ table, payload, kind });
     };
 
-    realtimeFlushRef.current = () => {
-      const buffered = pendingRealtimeRef.current;
-      if (buffered.length === 0) return;
-      pendingRealtimeRef.current = [];
-      for (const item of buffered) run(item.table, item.payload, ((item as any).kind ?? 'insert'));
-    };
 
     const channel = supabase
       .channel(`messages-inbox-${user.id}`)
@@ -1800,8 +1838,8 @@ export default function MessagesPage() {
 
     return () => {
       unregister();
-      realtimeFlushRef.current = null;
-      pendingRealtimeRef.current = [];
+      webInboxCoordinator.setApplier(null);
+      webInboxCoordinator.clear();
       Object.keys(rafState).forEach((k) => { if (rafState[k]) cancelAnimationFrame(rafState[k]); });
     };
   }, [user?.id, queryClient]);
@@ -1942,6 +1980,16 @@ export default function MessagesPage() {
         const author = isAnnouncement
           ? row.club_announcement_name
           : resolveAuthor(row.author_id, { kind: 'team', targetId: row.team_id });
+        const teamPreview = {
+          text: row.text ?? '',
+          author: author || '',
+          created_at: row.created_at,
+          image_url: row.image_url ?? null,
+          is_announcement: isAnnouncement,
+        };
+        // Watermark first: a query that started before this event must not
+        // regress the preview when it resolves afterwards.
+        previewWatermarks.note(`team:${row.team_id}`, teamPreview);
         queryClient.setQueryData(["my-teams-with-messages", user.id], (old: any) => {
           if (!old) return old;
           const prev = old.latestMessages?.[row.team_id];
@@ -1950,11 +1998,8 @@ export default function MessagesPage() {
             latestMessages: {
               ...(old.latestMessages || {}),
               [row.team_id]: {
-                text: row.text ?? '',
+                ...teamPreview,
                 author: author || (prev?.author ?? ""),
-                created_at: row.created_at,
-                image_url: row.image_url ?? null,
-                is_announcement: isAnnouncement,
               },
             },
           };
@@ -1966,6 +2011,13 @@ export default function MessagesPage() {
         const row = payload.new;
         if (!isAuthorized('club', row?.club_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'club', targetId: row.club_id });
+        const clubPreview = {
+          text: row.text ?? '',
+          author: author || '',
+          created_at: row.created_at,
+          image_url: row.image_url ?? null,
+        };
+        previewWatermarks.note(`club:${row.club_id}`, clubPreview);
         queryClient.setQueryData(["member-clubs-with-messages", user.id], (old: any) => {
           if (!old) return old;
           const prev = old.latestMessages?.[row.club_id];
@@ -1974,10 +2026,8 @@ export default function MessagesPage() {
             latestMessages: {
               ...(old.latestMessages || {}),
               [row.club_id]: {
-                text: row.text ?? '',
+                ...clubPreview,
                 author: author || (prev?.author ?? ""),
-                created_at: row.created_at,
-                image_url: row.image_url ?? null,
               },
             },
           };
@@ -1989,6 +2039,13 @@ export default function MessagesPage() {
         const row = payload.new;
         if (!isAuthorized('group', row?.group_id)) return;
         const author = resolveAuthor(row.author_id, { kind: 'group', targetId: row.group_id });
+        const groupPreview = {
+          text: row.text ?? '',
+          author: author || '',
+          created_at: row.created_at,
+          image_url: row.image_url ?? null,
+        };
+        previewWatermarks.note(`group:${row.group_id}`, groupPreview);
         queryClient.setQueryData(["my-chat-groups-with-messages", user.id], (old: any) => {
           if (!old) return old;
           const prev = old.latestMessages?.[row.group_id];
@@ -1997,10 +2054,8 @@ export default function MessagesPage() {
             latestMessages: {
               ...(old.latestMessages || {}),
               [row.group_id]: {
-                text: row.text ?? '',
+                ...groupPreview,
                 author: author || (prev?.author ?? ""),
-                created_at: row.created_at,
-                image_url: row.image_url ?? null,
               },
             },
           };
@@ -2058,15 +2113,24 @@ export default function MessagesPage() {
     // row IS the currently previewed latest message (matched on created_at).
     // Previously UPDATE events were never subscribed, so an edited message
     // kept showing its original text in the inbox.
-    const patchEditedPreview = (key: any[], targetId: string, row: any) => {
+    const patchEditedPreview = (
+      key: any[],
+      scope: 'team' | 'club' | 'group',
+      targetId: string,
+      row: any,
+    ) => {
       queryClient.setQueryData(key, (old: any) => {
         const prev = old?.latestMessages?.[targetId];
         if (!prev || prev.created_at !== row.created_at) return old;
+        const next = { ...prev, text: row.text ?? '', image_url: row.image_url ?? null };
+        // Keep the watermark in step so a later stale response can't restore
+        // the pre-edit text.
+        previewWatermarks.note(`${scope}:${targetId}`, next);
         return {
           ...old,
           latestMessages: {
             ...old.latestMessages,
-            [targetId]: { ...prev, text: row.text ?? '', image_url: row.image_url ?? null },
+            [targetId]: next,
           },
         };
       });
@@ -2076,17 +2140,17 @@ export default function MessagesPage() {
       team_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('team', row?.team_id)) return;
-        patchEditedPreview(["my-teams-with-messages", user.id], row.team_id, row);
+        patchEditedPreview(["my-teams-with-messages", user.id], 'team', row.team_id, row);
       },
       club_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('club', row?.club_id)) return;
-        patchEditedPreview(["member-clubs-with-messages", user.id], row.club_id, row);
+        patchEditedPreview(["member-clubs-with-messages", user.id], 'club', row.club_id, row);
       },
       group_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('group', row?.group_id)) return;
-        patchEditedPreview(["my-chat-groups-with-messages", user.id], row.group_id, row);
+        patchEditedPreview(["my-chat-groups-with-messages", user.id], 'group', row.group_id, row);
       },
       direct_messages: (payload: any) => {
         const row = payload.new;
@@ -2116,52 +2180,19 @@ export default function MessagesPage() {
     };
 
 
-    // Bounded buffer-then-replay. While the membership snapshot is loading we
-    // hold events (max 50, oldest dropped) instead of discarding them; the
-    // replay re-runs the same fail-closed `isAuthorized` check.
-    const MAX_PENDING_NATIVE = 50;
-    // Idempotency: a replayed event must not double-apply a preview/unread
-    // update that polling (or a duplicate delivery) already handled.
-    const appliedEventKeys = new Set<string>();
-    const eventKey = (table: string, payload: any) => {
-      const id = payload?.new?.id;
-      return id ? `${table}:${id}` : null;
+    // Buffering + exactly-once application is owned by the shared inbox
+    // coordinator: events arriving before the membership snapshot resolves are
+    // held (bounded) and replayed once scopes are `ready`. Fail-closed is
+    // preserved — the replay runs the same `isAuthorized` check below.
+    const applyEvent = (event: InboxRealtimeEvent) => {
+      if (event.kind === 'edit') editHandlers[event.table]?.(event.payload);
+      else handlers[event.table]?.(event.payload);
     };
-    const applyOnce = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
-      if (kind === 'edit') {
-        editHandlers[table]?.(payload);
-        return;
-      }
-      const key = eventKey(table, payload);
-      if (key) {
-        if (appliedEventKeys.has(key)) return;
-        appliedEventKeys.add(key);
-        if (appliedEventKeys.size > 200) {
-          const oldest = appliedEventKeys.values().next().value as string | undefined;
-          if (oldest) appliedEventKeys.delete(oldest);
-        }
-      }
-      handlers[table]?.(payload);
-    };
+    nativeInboxCoordinator.setApplier(applyEvent);
     const dispatch = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
-      if (authStatusRef.current !== 'ready') {
-        const buf = pendingNativeRealtimeRef.current;
-        buf.push({ table, payload, kind } as any);
-        if (buf.length > MAX_PENDING_NATIVE) buf.splice(0, buf.length - MAX_PENDING_NATIVE);
-        return;
-      }
-      applyOnce(table, payload, kind);
+      nativeInboxCoordinator.dispatch({ table, payload, kind });
     };
 
-    nativeRealtimeFlushRef.current = () => {
-      const buffered = pendingNativeRealtimeRef.current;
-      if (buffered.length === 0) return;
-      pendingNativeRealtimeRef.current = [];
-      for (const item of buffered) applyOnce(item.table, item.payload, ((item as any).kind ?? 'insert'));
-    };
-    nativeRealtimeDiscardRef.current = () => {
-      pendingNativeRealtimeRef.current = [];
-    };
 
     const channel = supabase
       .channel(`messages-inbox-light-${user.id}`)
@@ -2187,9 +2218,10 @@ export default function MessagesPage() {
     return () => {
       unregister();
       if (flushTimer) clearTimeout(flushTimer);
-      nativeRealtimeFlushRef.current = null;
-      nativeRealtimeDiscardRef.current = null;
-      pendingNativeRealtimeRef.current = [];
+      // Channel teardown: the applier closes over this effect's handlers, so
+      // it must not outlive them. Buffered events are dropped with it.
+      nativeInboxCoordinator.setApplier(null);
+      nativeInboxCoordinator.clear();
     };
 
   }, [user?.id, queryClient]);
