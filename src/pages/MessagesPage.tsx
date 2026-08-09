@@ -1773,31 +1773,19 @@ export default function MessagesPage() {
       },
     };
 
-    // Buffer-then-replay: while the membership snapshot is still loading we
-    // hold payloads (bounded to 50, oldest dropped) instead of discarding
-    // them. Once scopes resolve, the flush effect replays them through the
-    // same authorized handlers.
-    const MAX_PENDING = 50;
-    const run = (table: string, payload: any, kind: 'insert' | 'edit') => {
-      if (kind === 'edit') editHandlers[table]?.(payload);
-      else handlers[table]?.(payload);
+    // Buffer-then-replay via the shared inbox coordinator: while the
+    // membership snapshot is still loading we hold payloads (bounded) instead
+    // of discarding them, and replay them through these same authorized
+    // handlers once scopes resolve.
+    const applyEvent = (event: InboxRealtimeEvent) => {
+      if (event.kind === 'edit') editHandlers[event.table]?.(event.payload);
+      else handlers[event.table]?.(event.payload);
     };
+    webInboxCoordinator.setApplier(applyEvent);
     const dispatch = (table: string, payload: any, kind: 'insert' | 'edit' = 'insert') => {
-      if (authStatusRef.current !== 'ready') {
-        const buf = pendingRealtimeRef.current;
-        buf.push({ table, payload, kind } as any);
-        if (buf.length > MAX_PENDING) buf.splice(0, buf.length - MAX_PENDING);
-        return;
-      }
-      run(table, payload, kind);
+      webInboxCoordinator.dispatch({ table, payload, kind });
     };
 
-    realtimeFlushRef.current = () => {
-      const buffered = pendingRealtimeRef.current;
-      if (buffered.length === 0) return;
-      pendingRealtimeRef.current = [];
-      for (const item of buffered) run(item.table, item.payload, ((item as any).kind ?? 'insert'));
-    };
 
     const channel = supabase
       .channel(`messages-inbox-${user.id}`)
