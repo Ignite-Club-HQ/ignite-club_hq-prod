@@ -78,6 +78,10 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
   // happens as deferred row sub-content (link previews, replies, reactions)
   // hydrates AFTER the initial scrollToIndex lands. The list listens for
   // these CustomEvents and fades the overlay out once "end" fires.
+  // Arm the ONE authoritative reveal lifecycle before any notification fires,
+  // so every listener (list reveal gate + overlay) measures its budget from the
+  // ORIGINAL jump start rather than from whichever signal reached it last.
+  beginChatJumpLifecycle(messageId);
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("chat:jump-hydration-start"));
   }
@@ -95,6 +99,7 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     if (hydrationEnded) return;
     hydrationEnded = true;
     setChatJumpActive(false);
+    endChatJumpLifecycle();
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("chat:jump-hydration-end"));
     }
@@ -105,10 +110,12 @@ export function jumpToMessageInVirtualizedChat<TMessage extends { id: string }>(
     if (hydrationEnded) return;
     hydrationEnded = true;
     setChatJumpActive(false);
+    endChatJumpLifecycle();
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("chat:jump-hydration-end"));
     }
   };
+
 
 
 
