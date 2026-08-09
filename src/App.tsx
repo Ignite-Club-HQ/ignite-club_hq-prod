@@ -55,6 +55,7 @@ const EditEventPage = lazy(() => import("./pages/EditEventPage"));
 const ImportFixturesPage = lazy(() => import("./pages/ImportFixturesPage"));
 const ClubsPage = lazy(() => import("./pages/ClubsPage"));
 const ClubDetailPage = lazy(() => import("./pages/ClubDetailPage"));
+const ClubLinkEmbedPage = lazy(() => import("./pages/ClubLinkEmbedPage"));
 const CreateClubPage = lazy(() => import("./pages/CreateClubPage"));
 const ClubSetupWizardPage = lazy(() => import("./pages/ClubSetupWizardPage"));
 const StartPage = lazy(() => import("./pages/StartPage"));
@@ -432,6 +433,7 @@ const App = () => {
                   <Route path="/start" element={<StartPage />} />
                   <Route path="/teams/new" element={<StartTeamPage />} />
                   <Route path="/clubs/:id" element={<ClubDetailPage />} />
+                  <Route path="/club-link/:linkId" element={<ClubLinkEmbedPage />} />
                   <Route path="/clubs/:clubId/setup" element={<ClubSetupWizardPage />} />
                   <Route path="/clubs/:id/edit" element={<EditClubPage />} />
                   <Route path="/clubs/:clubId/teams/new" element={<CreateTeamPage />} />
