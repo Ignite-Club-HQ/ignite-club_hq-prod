@@ -18,6 +18,7 @@ import igniteIcon from "@/assets/ignite-icon.png";
 import { Capacitor } from "@capacitor/core";
 import { mark as coldMark } from "@/lib/coldStartMarks";
 import { sweepStaleDeletedTeams } from "@/lib/staleDeletedTeamSweep";
+import { useLaunchIntentPending } from "@/hooks/useLaunchIntentPending";
 
 const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
