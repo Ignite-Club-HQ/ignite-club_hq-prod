@@ -2235,16 +2235,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // settle-driven `onEnd` path, so the reveal always shows a settled thread.
     // Longer than the jump poller's own lifetime (~30s) on purpose.
     const OVERLAY_HARD_DEADLINE_MS = 32000;
-    let lifecycleStartedAt = performance.now();
+    // Shortest defensible fail-safe for the reveal itself. The 32 s value above
+    // stays as the absolute never-blank-forever backstop.
+    const OVERLAY_REVEAL_FAILSAFE_MS = 4000;
+    let hydrating = false;
     const remainingBudget = () =>
-      Math.max(0, OVERLAY_HARD_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
+      Math.max(0, chatJumpLifecycleRemaining(OVERLAY_HARD_DEADLINE_MS));
 
     const onStart = () => {
+      // Idempotent: duplicate start signals (the CustomEvent AND the
+      // `setChatJumpActive(true)` subscription both fire for one jump, plus the
+      // seeded mount call) must not re-arm the budget or restart the wait.
+      if (hydrating) return;
+      hydrating = true;
       if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
       if (unmountTimer) { clearTimeout(unmountTimer); unmountTimer = null; }
       if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
       if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
-      lifecycleStartedAt = performance.now();
       hardTimer = window.setTimeout(() => {
         hardTimer = null;
         if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
@@ -2252,37 +2259,59 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       }, OVERLAY_HARD_DEADLINE_MS);
       setRenderJumpOverlay(true);
       setIsJumpHydrating(true);
+      // Start observing alignment progress DURING the jump instead of waiting
+      // for the tail release and then starting a second, independent settle
+      // wait. As soon as the exact target is mounted, aligned above the
+      // composer and stationary for a short quiet window we fade out — which is
+      // what removed the multi-second blank chat after a notification tap.
+      armRevealWait();
     };
     const fadeOut = () => {
       if (hardTimer !== null) { window.clearTimeout(hardTimer); hardTimer = null; }
+      hydrating = false;
       setIsJumpHydrating(false);
       if (unmountTimer) clearTimeout(unmountTimer);
       unmountTimer = setTimeout(() => setRenderJumpOverlay(false), 300);
     };
-    const onEnd = () => {
-      if (fadeTimer) clearTimeout(fadeTimer);
-      if (cancelSettleWait) { cancelSettleWait(); cancelSettleWait = null; }
-      // Keep the skeleton up until the visible chat content (images, link
-      // previews, row heights, scroll metrics) actually stops moving. Without
-      // this gate the overlay disappears on a fixed timer while rows are
-      // still re-anchoring, which the user perceives as "messages moving
-      // around before settling". Bounded by the remaining lifecycle budget so
-      // a late-hydrating thread can never hold the overlay open indefinitely.
+    function armRevealWait() {
       const scroller = scrollerElRef.current;
       const budget = remainingBudget();
-      if (scroller && budget > 200) {
-        cancelSettleWait = waitForChatVisualContentSettle(
-          scroller,
-          { quietMs: 650, maxMs: Math.min(8000, budget) },
-          () => {
-            cancelSettleWait = null;
-            // Tiny intentional cross-fade so the reveal reads as "settled".
-            fadeTimer = setTimeout(fadeOut, 80);
-          },
-        );
-      } else {
+      if (!scroller || budget <= 200) {
+        if (fadeTimer) clearTimeout(fadeTimer);
         fadeTimer = setTimeout(fadeOut, 120);
+        return;
       }
+      const targetId =
+        getChatJumpLifecycle().targetMessageId ?? jumpOverlayTargetRef.current;
+      cancelSettleWait = waitForChatJumpTargetReveal(
+        scroller,
+        {
+          targetMessageId: targetId,
+          usableBottomInsetPx: getChatBottomPaddingOffset(bottomPaddingRef.current),
+          quietMs: 240,
+          budgetMs: Math.max(
+            600,
+            Math.min(OVERLAY_REVEAL_FAILSAFE_MS, budget),
+          ),
+          finalAlign: () => {
+            if (targetId) alignMessageIdInViewRef.current?.(targetId, "end");
+          },
+        },
+        () => {
+          cancelSettleWait = null;
+          // Tiny intentional cross-fade so the reveal reads as "settled".
+          if (fadeTimer) clearTimeout(fadeTimer);
+          fadeTimer = setTimeout(fadeOut, 80);
+        },
+      );
+    }
+    const onEnd = () => {
+      // Idempotent by construction: the reveal wait is already running from
+      // `onStart`, so duplicate `chat:jump-hydration-end` /
+      // `setChatJumpActive(false)` notifications must NOT cancel or restart it.
+      if (!hydrating) return;
+      if (cancelSettleWait) return;
+      armRevealWait();
     };
 
     window.addEventListener("chat:jump-hydration-start", onStart);
@@ -2306,6 +2335,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (cancelSettleWait) cancelSettleWait();
     };
   }, []);
+
 
 
   return (
