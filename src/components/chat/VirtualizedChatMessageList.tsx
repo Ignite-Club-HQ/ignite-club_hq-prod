@@ -1364,38 +1364,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       let cancelled = false;
       let cleanup: (() => void) | null = null;
       let revealFrame: number | null = null;
-      let retryTimer: number | null = null;
-      let hardTimer: number | null = null;
-      // Lifecycle-anchored SAFETY backstop (not a UX deadline). Measured ONCE
-      // from the start of this target hydration lifecycle (this effect run),
-      // never restarted by rerenders, message-window growth or repeated
-      // `isChatJumpActive()` retries — that non-restarting property is what
-      // prevents the "forever blank thread" hang seen on Android.
-      // It is deliberately longer than the jump poller's own lifetime (~30s)
-      // so it can never reveal an UNSETTLED thread: the normal reveal path is
-      // always settle-driven.
-      const lifecycleStartedAt = performance.now();
-      const HARD_REVEAL_DEADLINE_MS = 32000;
-      const remainingBudget = () =>
-        Math.max(0, HARD_REVEAL_DEADLINE_MS - (performance.now() - lifecycleStartedAt));
-
+      // ONE lifecycle budget, measured from the ORIGINAL jump start (not from
+      // this effect run, which can re-fire on message-window growth). The
+      // reveal itself is gated on the exact target being mounted, aligned,
+      // unclipped and stationary — see `waitForChatJumpTargetReveal`. This is
+      // deliberately the shortest defensible fail-safe: previously we chained a
+      // 2.2 s jump tail onto a fresh 6.5 s settle wait (re-armed every 80 ms),
+      // which left a correctly aligned thread masked for many seconds.
+      const JUMP_REVEAL_FAILSAFE_MS = 4000;
       const finish = () => {
         if (cancelled) return;
         cancelled = true;
         cleanup?.();
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-        if (hardTimer !== null) window.clearTimeout(hardTimer);
         revealFrame = requestAnimationFrame(() => setInitialRevealReady(true));
-      };
-      const reveal = () => {
-        if (cancelled) return;
-        // The jump is still repositioning: give it another slice, but only
-        // within the lifecycle budget.
-        if (isChatJumpActive() && remainingBudget() > 120) {
-          retryTimer = window.setTimeout(wait, 80);
-          return;
-        }
-        finish();
       };
       const wait = () => {
         if (cancelled) return;
@@ -1404,23 +1385,29 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           revealFrame = requestAnimationFrame(wait);
           return;
         }
-        cleanup?.();
-        cleanup = waitForChatVisualContentSettle(
+        cleanup = waitForChatJumpTargetReveal(
           scroller,
-          { quietMs: 650, maxMs: Math.max(200, Math.min(6500, remainingBudget())) },
-          reveal,
+          {
+            targetMessageId: initialTargetMessageId,
+            usableBottomInsetPx: getChatBottomPaddingOffset(bottomPadding),
+            quietMs: 240,
+            budgetMs: Math.max(
+              600,
+              chatJumpLifecycleRemaining(JUMP_REVEAL_FAILSAFE_MS),
+            ),
+            finalAlign: () => { alignMessageIdInView(initialTargetMessageId, "end"); },
+          },
+          finish,
         );
       };
-      hardTimer = window.setTimeout(finish, HARD_REVEAL_DEADLINE_MS);
       wait();
       return () => {
         cancelled = true;
         cleanup?.();
-        if (retryTimer !== null) window.clearTimeout(retryTimer);
-        if (hardTimer !== null) window.clearTimeout(hardTimer);
         if (revealFrame !== null) cancelAnimationFrame(revealFrame);
       };
     }
+
 
     if (!initialBottomPinned) {
       bottomPinReadyRef.current = true;
