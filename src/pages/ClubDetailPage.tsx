@@ -90,7 +90,7 @@ import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { ClubMessagePrivacySettings } from "@/components/ClubMessagePrivacySettings";
 import { ClubAICatchUpSettings } from "@/components/ClubAICatchUpSettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
-import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity, Link as LinkIcon } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
@@ -1296,8 +1296,8 @@ export default function ClubDetailPage() {
         <ClubSetupProgressCard clubId={id} isShellClub={(club as any)?.kind === "shell"} />
       )}
 
-      {/* Club Info & Links manager — admins curate the tiles shown on Home */}
-      {isAdmin && id && <ClubLinksManager clubId={id} />}
+
+
 
 
 
@@ -2446,6 +2446,25 @@ export default function ClubDetailPage() {
           </AccordionContent>
         </AccordionItem>
       )}
+
+      {/* Club Info & Links — admins curate the tiles shown on Home */}
+      {isAdmin && id && (
+        <AccordionItem value="club-links" data-section-anchor="club-links" className="border rounded-lg px-4 scroll-mt-20">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <LinkIcon className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Club Info & Links</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2">
+              <ClubLinksManager clubId={id} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
+
 
       {/* Club Branding - configurable by all admins; colours only apply on Pro */}
       {isAdmin && (() => {
