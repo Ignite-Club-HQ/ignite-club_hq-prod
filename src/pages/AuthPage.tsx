@@ -80,6 +80,9 @@ export default function AuthPage() {
   const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
   const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
   const signInScrollRef = useRef<HTMLDivElement | null>(null);
+  // Synchronous submission lock — guards against double taps in one task.
+  const authInFlightRef = useRef(false);
+
   const isNativePlatform = Capacitor.isNativePlatform();
   const { isOnline } = useOnlineStatus();
   
