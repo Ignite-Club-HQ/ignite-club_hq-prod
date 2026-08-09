@@ -82,6 +82,8 @@ export interface ChatMessageProps {
    *  follows the sender's tail even after replies arrive. */
   isLastOwnMessage?: boolean;
   isPending?: boolean;
+  /** True when the message text was edited after sending. */
+  isEdited?: boolean;
   isSystemMessage?: boolean;
   isClubAnnouncement?: boolean;
   contextId?: string;
@@ -135,6 +137,7 @@ function ChatMessageInner({
   isLastMessage = false,
   isLastOwnMessage = false,
   isPending = false,
+  isEdited = false,
   isSystemMessage = false,
   isClubAnnouncement = false,
   contextId,
@@ -1168,6 +1171,9 @@ function ChatMessageInner({
               </span>
             )}
             {timestamp}
+            {isEdited && (!isOwn || isClubAnnouncement || isPending || (isOwn && isLastOwnMessage && readFrontierReaders.length > 0)) && (
+              <span className="opacity-70">· Edited</span>
+            )}
             {!isPending && isOwn && !isClubAnnouncement && (
               // Unified inline metadata for own messages — keeps the metadata
               // strip a single line across every chat type (DM, Team, Club,
@@ -1176,15 +1182,15 @@ function ChatMessageInner({
               // for the chat tail, replacing the "Sent" label entirely.
               isLastOwnMessage
                 ? (readFrontierReaders.length === 0
-                    ? <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />
+                    ? <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} isEdited={isEdited} />
                     : null)
                 : (readCount > 0
                     ? (messageType === "dm"
-                        ? <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+                        ? <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} isEdited={isEdited} />
                         : <span className="cursor-pointer underline" onClick={() => setShowReadReceipts(true)}>
-                            <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} />
+                            <MessageReadIndicator readCount={readCount} isOwn={isOwn} readerName={readerName} isEdited={isEdited} />
                           </span>)
-                    : <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} />)
+                    : <MessageReadIndicator readCount={0} isOwn={isOwn} readerName={readerName} isEdited={isEdited} />)
             )}
           </p>
         )}

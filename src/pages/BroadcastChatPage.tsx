@@ -266,7 +266,7 @@ export default function BroadcastChatPage() {
 
       const { data: rawMessages, error } = await supabase
         .from("broadcast_messages")
-        .select("id, text, image_url, created_at, author_id, reply_to_id, deleted_at")
+        .select("id, text, image_url, created_at, edited_at, author_id, reply_to_id, deleted_at")
         .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1);
@@ -1012,7 +1012,7 @@ export default function BroadcastChatPage() {
         scope: {},
         query: q,
         signal,
-        selectColumns: "id, text, image_url, created_at, author_id, reply_to_id",
+        selectColumns: "id, text, image_url, created_at, edited_at, author_id, reply_to_id",
       })) as Message[],
   });
 
@@ -1192,6 +1192,7 @@ export default function BroadcastChatPage() {
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
+                      isEdited={!!(msg as any).edited_at}
                       onReply={isAppAdmin ? handleReply : undefined}
                       onEdit={handleEdit}
                       searchQuery={searchQuery}
