@@ -2,6 +2,10 @@ import { App, URLOpenListenerEvent } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { navigateApp } from '@/lib/appNavigator';
+import {
+  beginLaunchIntentResolution,
+  markLaunchUrlReceived,
+} from '@/lib/nativeLaunchIntent';
 
 /**
  * Initialize deep link handling for native apps
@@ -16,35 +20,42 @@ export function initDeepLinkHandler() {
 
   // Cold start: when a link launches the app, `appUrlOpen` has already fired
   // (or fires before React mounts), so the launch URL must be read explicitly.
-  // Without this the app boots at "/" and unauthenticated invite recipients
-  // land on /auth with no invite context — which is why the first tap on an
-  // invite link "did nothing" and only the second tap (app already running)
-  // worked.
-  App.getLaunchUrl()
-    .then((result) => {
-      if (result?.url) {
-        console.log('[DeepLink] Launch URL detected:', result.url);
-        handleDeepLinkUrl(result.url);
-      }
-    })
-    .catch((err) => console.warn('[DeepLink] getLaunchUrl failed:', err));
+  // The read is async while React/Router mount synchronously, so it runs behind
+  // an explicit readiness boundary (see `nativeLaunchIntent`) that stops the
+  // protected "/" route from redirecting to generic /auth first. Transient
+  // rejections are retried a bounded number of times.
+  beginLaunchIntentResolution(
+    () => App.getLaunchUrl(),
+    (url) => handleDeepLinkUrl(url),
+  );
 
   App.addListener('appUrlOpen', async (event: URLOpenListenerEvent) => {
     console.log('[DeepLink] App opened with URL:', event.url);
+    // A URL from the OS settles the startup boundary immediately, even if the
+    // launch-URL read is still pending or retrying.
+    markLaunchUrlReceived();
     handleDeepLinkUrl(event.url);
   });
 }
 
-let lastHandledUrl: string | null = null;
+// Short-lived dedupe: one OS tap can arrive via both `getLaunchUrl` and
+// `appUrlOpen`, which must produce a single navigation. A permanent record
+// would swallow a genuine later tap on the same invite link, so entries expire.
+const DEDUPE_WINDOW_MS = 4000;
+let lastHandled: { url: string; at: number } | null = null;
 
 async function handleDeepLinkUrl(rawUrl: string) {
-  // The launch URL and the appUrlOpen event can both deliver the same URL on
-  // cold start; process it once.
-  if (rawUrl === lastHandledUrl) {
-    console.log('[DeepLink] Duplicate URL ignored:', rawUrl);
+  const now = Date.now();
+  if (
+    lastHandled &&
+    lastHandled.url === rawUrl &&
+    now - lastHandled.at < DEDUPE_WINDOW_MS
+  ) {
+    console.log('[DeepLink] Duplicate URL ignored (within dedupe window):', rawUrl);
     return;
   }
-  lastHandledUrl = rawUrl;
+  lastHandled = { url: rawUrl, at: now };
+
 
   {
     const event = { url: rawUrl };
