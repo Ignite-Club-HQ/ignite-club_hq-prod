@@ -502,11 +502,15 @@ export default function AuthPage() {
     }
 
     setLoading(true);
-    const { error } = mode === "signin" 
+    const result = mode === "signin" 
       ? await signIn(email, password)
       : await signUp(email, password);
+    const { error } = result;
+    const needsEmailConfirmation =
+      mode === "signup" && (result as { needsEmailConfirmation?: boolean }).needsEmailConfirmation === true;
     
     setLoading(false);
+
 
     if (error) {
       let message = error.message;
