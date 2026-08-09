@@ -96,6 +96,7 @@ const myTeamsCarouselImport = () =>
 // Fire the request immediately (don't await — let it stream alongside other resources).
 myTeamsCarouselImport();
 const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
+const ClubLinksSection = lazy(() => import("@/components/home/ClubLinksSection"));
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
