@@ -206,7 +206,7 @@ export default function JoinTeamPage() {
   const inviteEntityLabel = inviteMiniLeagueId ? "League" : invite?.team_id ? "Team" : "Club";
 
   // Fetch user's existing roles for the invite destination
-  const { data: existingRoles = [] } = useQuery({
+  const { data: existingRoles = EMPTY_ROLES } = useQuery({
     queryKey: ["user-invite-roles", invite?.team_id, inviteClubId, user?.id],
     queryFn: async () => {
       let query = supabase
@@ -333,9 +333,11 @@ export default function JoinTeamPage() {
   // All invite types now use a fixed role — no role selection UI needed
   // Initialize selected roles with invite role if user doesn't have it yet
   useEffect(() => {
-    if (invite?.role && existingRoles && !existingRoles.includes(invite.role as AppRole)) {
-      setSelectedRoles([invite.role as AppRole]);
-    }
+    const inviteRole = invite?.role as AppRole | undefined;
+    if (!inviteRole || existingRoles.includes(inviteRole)) return;
+    setSelectedRoles((prev) =>
+      prev.length === 1 && prev[0] === inviteRole ? prev : [inviteRole],
+    );
   }, [invite?.role, existingRoles]);
 
   const toggleRole = (role: AppRole) => {
