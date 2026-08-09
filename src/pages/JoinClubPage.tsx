@@ -200,8 +200,9 @@ export default function JoinClubPage() {
     // First check if user needs to complete their profile
     if (user && userProfile !== undefined && !userProfile?.display_name) {
       // User hasn't completed profile - redirect to complete profile
-      sessionStorage.setItem("redirectAfterAuth", `/join-club/${token}`);
-      sessionStorage.setItem("autoJoinAfterAuth", "true"); // Ensure flag is set
+      safeSessionSet("redirectAfterAuth", `/join-club/${token}`);
+      safeSessionSet("autoJoinAfterAuth", "true"); // Ensure flag is set
+
       navigate("/complete-profile", { replace: true });
       return;
     }
