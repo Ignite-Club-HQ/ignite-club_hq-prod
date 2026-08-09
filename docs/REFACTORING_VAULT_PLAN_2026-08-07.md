@@ -3,7 +3,7 @@
 **Established:** 7 August 2026  
 **Development branch:** `codespaces-review`  
 **Starting checkpoint:** `c83bab566`  
-**Status:** V1–V6d committed; V7a–V7f presentation slices complete locally; review/commit pending
+**Status:** V1–V7f committed; V7g leaf presentation extraction complete locally; review/commit pending
 
 ## Objective
 
@@ -488,6 +488,16 @@ does not move Supabase ownership.
 - Added five focused rendering, validation and delegation contracts. Focused
   Vault verification passes 282/282 tests across twenty-seven files.
 
+**V7g completed locally 9 August 2026:**
+
+- Moved the signed-photo tile renderer into a dedicated typed presentation
+  component while leaving permission decisions, selection state, lightbox
+  routing and action callbacks with the page/content owner.
+- Preserved private signed-URL loading, hidden preload behavior, stable empty
+  and failure states, selection-mode isolation and download/rename/delete menus.
+- Added six focused loading, fallback, selection, routing and action contracts.
+  Focused Vault verification passes 288/288 tests across twenty-eight files.
+
 ### V8 — Closeout
 
 - Run all focused Vault suites after each slice.
@@ -496,6 +506,26 @@ does not move Supabase ownership.
   download/export and return-from-chat navigation.
 - Record final line-count reduction, remaining specialist risks and vendor
   handover score.
+
+**V8 automated closeout completed locally 9 August 2026:**
+
+- The expanded focused Vault baseline passes 334/334 tests across thirty-one
+  files, covering access and scope isolation, repositories, uploads, Drive,
+  exports, truthful mutation reporting, storage accounting, chat/Vault sync,
+  presentation dialogs and page characterization.
+- The V7g photo presentation boundary and its tests pass targeted lint, and the
+  production Vite build succeeds.
+- `VaultPage.tsx` is 4,019 lines, down from the 5,734-line starting point: a
+  reduction of 1,715 lines (29.9%) while retaining page-level workflow and
+  permission ownership.
+- Whole-page lint still reports legacy debt (70 explicit-`any` errors and 11
+  hook-dependency warnings). This predates V7g and is deliberately not folded
+  into presentation refactoring; it should be handled as separately tested,
+  behaviour-preserving maintenance work.
+- Automated closeout does not replace the planned manual Android/iOS checks for
+  upload, folder navigation, trash, download/export and return-from-chat
+  navigation. The complete one-click baseline and those device checks remain
+  required before merging the Vault tranche to `main`.
 
 ## Commit and rollback strategy
 
