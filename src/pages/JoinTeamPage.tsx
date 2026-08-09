@@ -709,10 +709,13 @@ export default function JoinTeamPage() {
     for (const role of rolesToAdd) {
       const { error: roleError } = await supabase.from("user_roles").insert({
         user_id: user.id,
-        team_id: invite.team_id,
-        club_id: invite.teams?.club_id,
+        team_id: invite.team_id ?? null,
+        // Club-level invites (e.g. committee_member) have no team — the club id
+        // must still be stamped so the role resolves to the right club.
+        club_id: invite.teams?.club_id ?? inviteClubId,
         role: role,
       });
+
       
       // Ignore duplicate key errors
       if (roleError) {
