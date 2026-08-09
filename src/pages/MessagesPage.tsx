@@ -995,22 +995,34 @@ export default function MessagesPage() {
       const cached = getProfileFromCache(authorId);
       return cached?.display_name || "";
     };
-    const patchLatest = (key: any[], targetId: string, row: any, extra: Record<string, any> = {}) => {
+    const patchLatest = (
+      key: any[],
+      scope: 'team' | 'club' | 'group',
+      targetId: string,
+      row: any,
+      extra: Record<string, any> = {},
+    ) => {
+      const cached = queryClient.getQueryData<any>(key);
+      const prev = cached?.latestMessages?.[targetId];
+      const preview = {
+        text: row.text ?? '',
+        author: extra.author || previewAuthor(row.author_id) || (prev?.author ?? ""),
+        created_at: row.created_at,
+        image_url: row.image_url ?? null,
+        ...extra,
+      };
+
+      // This handler is reached only after the final fail-closed scope check.
+      // Record the exact object written to React Query so a stale response from
+      // the invalidation below cannot erase the accepted Realtime preview.
+      previewWatermarks.note(`${scope}:${targetId}`, preview);
       queryClient.setQueryData(key, (old: any) => {
         const base = old ?? { latestMessages: {} };
-        const prev = base.latestMessages?.[targetId];
-        const author = previewAuthor(row.author_id) || (prev?.author ?? "");
         return {
           ...base,
           latestMessages: {
             ...(base.latestMessages || {}),
-            [targetId]: {
-              text: row.text ?? '',
-              author,
-              created_at: row.created_at,
-              image_url: row.image_url ?? null,
-              ...extra,
-            },
+            [targetId]: preview,
           },
         };
       });
@@ -1035,7 +1047,7 @@ export default function MessagesPage() {
         const row = payload.new;
         if (!isAuthorized('team', row?.team_id)) return;
         const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
-        patchLatest(["my-teams-with-messages", user.id], row.team_id, row, {
+        patchLatest(["my-teams-with-messages", user.id], 'team', row.team_id, row, {
           author: isAnnouncement ? row.club_announcement_name : previewAuthor(row.author_id),
           is_announcement: isAnnouncement,
         });
@@ -1045,14 +1057,14 @@ export default function MessagesPage() {
       club_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('club', row?.club_id)) return;
-        patchLatest(["member-clubs-with-messages", user.id], row.club_id, row);
+        patchLatest(["member-clubs-with-messages", user.id], 'club', row.club_id, row);
         schedule('club', () => queryClient.invalidateQueries({ queryKey: ["member-clubs-with-messages", user.id] }));
         bumpUnread();
       },
       group_messages: (payload: any) => {
         const row = payload.new;
         if (!isAuthorized('group', row?.group_id)) return;
-        patchLatest(["my-chat-groups-with-messages", user.id], row.group_id, row);
+        patchLatest(["my-chat-groups-with-messages", user.id], 'group', row.group_id, row);
         schedule('group', () => queryClient.invalidateQueries({ queryKey: ["my-chat-groups-with-messages", user.id] }));
         bumpUnread();
       },
