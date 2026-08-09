@@ -13,7 +13,13 @@
  * on native reloads the bundle back to "/" and lands unauthenticated users on
  * /auth, losing the invite), we queue the destination and flush it the moment
  * the router registers.
+ *
+ * Every request is also reported to the native launch-intent boundary so a
+ * cold-start launch destination is *retained* until the Router commits it —
+ * requesting navigation is not proof it mounted.
  */
+import { noteLaunchNavigationRequested } from "@/lib/nativeLaunchIntent";
+
 type Navigator = (path: string, opts?: { replace?: boolean }) => void;
 
 let appNavigator: Navigator | null = null;
@@ -33,6 +39,20 @@ export function setAppNavigator(nav: Navigator | null) {
 }
 
 export function navigateApp(path: string, opts?: { replace?: boolean }) {
+  // Retain this destination if it is the cold-start launch navigation; the
+  // startup gate stays closed until the Router commits it.
+  noteLaunchNavigationRequested(path, () => {
+    if (appNavigator) {
+      try {
+        appNavigator(path, opts);
+        return;
+      } catch (err) {
+        console.error("[Navigator] Re-flush failed", err);
+      }
+    }
+    pending = { path, opts };
+  });
+
   if (appNavigator) {
     try {
       appNavigator(path, opts);
