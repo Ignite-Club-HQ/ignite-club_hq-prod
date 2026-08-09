@@ -59,14 +59,19 @@ describe("complete baseline local lifecycle safety", () => {
     const complete = `
       create table public.team_member_exclusions (team_id uuid);
       create function public.remove_team_member(_team_id uuid) returns void;
+      create function public.can_publish_club_wide_photo(_user_id uuid, _club_id uuid) returns boolean;
       create policy competitions_select on public.competitions for select
         using (created_by = (select auth.uid()));
+      create policy "Scoped role-checked photo uploads" on public.photos for insert
+        with check (uploader_id = (select auth.uid()));
     `;
     expect(validateCurrentLocalParity(complete)).toEqual([]);
     expect(validateCurrentLocalParity("select 1")).toEqual([
       "direct competition creator visibility",
       "scoped team-member removal RPC",
       "guardian-derived membership exclusions",
+      "role-scoped club-wide photo publishing",
+      "single scoped photo upload policy",
     ]);
   });
 

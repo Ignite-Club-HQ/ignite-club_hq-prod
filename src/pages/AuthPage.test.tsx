@@ -20,6 +20,14 @@ const mocks = vi.hoisted(() => ({
   storeNative: vi.fn(),
   passkeyLoading: false,
   clearInvite: vi.fn(),
+  inviteContext: null as null | {
+    active: boolean;
+    clubName: string;
+    role: string;
+    inviteToken: string;
+    currentStep: "auth";
+  },
+  keyboardHandlers: {} as Record<string, (payload?: { keyboardHeight?: number }) => void>,
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -54,11 +62,17 @@ vi.mock("@/hooks/usePasskey", () => ({
   }),
 }));
 vi.mock("@capacitor/core", () => ({ Capacitor: { isNativePlatform: () => mocks.isNative } }));
-vi.mock("@capacitor/keyboard", () => ({ Keyboard: { hide: vi.fn().mockResolvedValue(undefined), addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }) } }));
+vi.mock("@capacitor/keyboard", () => ({ Keyboard: {
+  hide: vi.fn().mockResolvedValue(undefined),
+  addListener: vi.fn((event: string, handler: (payload?: { keyboardHeight?: number }) => void) => {
+    mocks.keyboardHandlers[event] = handler;
+    return Promise.resolve({ remove: vi.fn() });
+  }),
+} }));
 vi.mock("@/components/ForgotPasswordDialog", () => ({ ForgotPasswordDialog: () => null }));
 vi.mock("@/components/InviteFlowProgress", () => ({
   InviteFlowProgress: () => <div>Invite progress</div>,
-  getInviteFlowContext: () => null,
+  getInviteFlowContext: () => mocks.inviteContext,
   clearInviteFlowContext: mocks.clearInvite,
 }));
 vi.mock("@/lib/nativeBiometrics", () => ({ checkNativeBiometricAvailability: vi.fn() }));
@@ -97,6 +111,8 @@ describe("AuthPage critical journeys", () => {
     mocks.isOnline = true;
     mocks.isNative = false;
     mocks.passkeyLoading = false;
+    mocks.inviteContext = null;
+    mocks.keyboardHandlers = {};
     mocks.signIn.mockResolvedValue({ error: null });
     mocks.signUp.mockResolvedValue({ error: null });
     mocks.signInWithGoogle.mockResolvedValue({ error: null });
@@ -128,7 +144,7 @@ describe("AuthPage critical journeys", () => {
   });
 
   it("does not submit duplicate password authentication on rapid clicks", async () => {
-    let resolve!: (value: any) => void;
+    let resolve!: (value: { error: Error | null }) => void;
     mocks.signIn.mockReturnValue(new Promise((res) => { resolve = res; }));
     render(<AuthPage />);
     fillSignIn();
@@ -199,6 +215,83 @@ describe("AuthPage critical journeys", () => {
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
     await waitFor(() => expect(mocks.signUp).toHaveBeenCalledWith("alex@example.test", "StrongPass1"));
+  });
+
+  it.each(["Android", "iOS"])("submits an invited committee signup with one mobile tap on %s", async () => {
+    mocks.isNative = true;
+    mocks.inviteContext = {
+      active: true,
+      clubName: "Synthetic Riverside FC",
+      role: "committee_member",
+      inviteToken: "committee-token",
+      currentStep: "auth",
+    };
+    sessionStorage.setItem("authDefaultTab", "signup");
+    sessionStorage.setItem("redirectAfterAuth", "/join/p/committee-token");
+    render(<AuthPage />);
+
+    expect(screen.getByText("Invite progress")).toBeInTheDocument();
+    fillSignup();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
+
+    await waitFor(() => expect(mocks.signUp).toHaveBeenCalledOnce());
+    expect(mocks.signUp).toHaveBeenCalledWith("alex@example.test", "StrongPass1");
+    expect(sessionStorage.getItem("redirectAfterAuth")).toBe("/join/p/committee-token");
+  });
+
+  it("keeps native committee signup actionable while the software keyboard is visible", async () => {
+    mocks.isNative = true;
+    sessionStorage.setItem("authDefaultTab", "signup");
+    sessionStorage.setItem("redirectAfterAuth", "/join/p/committee-token");
+    render(<AuthPage />);
+    await waitFor(() => expect(mocks.keyboardHandlers.keyboardDidShow).toBeTypeOf("function"));
+
+    await act(async () => {
+      mocks.keyboardHandlers.keyboardDidShow({ keyboardHeight: 320 });
+    });
+    const submit = screen.getByRole("button", { name: "Create Account" });
+    expect(submit).toBeVisible();
+    expect(submit).toBeEnabled();
+
+    fillSignup();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(submit);
+    await waitFor(() => expect(mocks.signUp).toHaveBeenCalledOnce());
+  });
+
+  it("prevents duplicate invited-account creation during a slow mobile request", async () => {
+    let resolve!: (value: { error: Error | null }) => void;
+    mocks.isNative = true;
+    mocks.signUp.mockReturnValue(new Promise((res) => { resolve = res; }));
+    sessionStorage.setItem("authDefaultTab", "signup");
+    sessionStorage.setItem("redirectAfterAuth", "/join/p/committee-token");
+    render(<AuthPage />);
+    fillSignup();
+    fireEvent.click(screen.getByRole("checkbox"));
+    const submit = screen.getByRole("button", { name: "Create Account" });
+    fireEvent.click(submit);
+    fireEvent.click(submit);
+    expect(mocks.signUp).toHaveBeenCalledOnce();
+    expect(submit).toBeDisabled();
+    await act(async () => resolve({ error: null }));
+  });
+
+  it("recovers an invited mobile signup when authentication rejects instead of returning an error", async () => {
+    mocks.isNative = true;
+    mocks.signUp.mockRejectedValue(new TypeError("Load failed"));
+    sessionStorage.setItem("authDefaultTab", "signup");
+    sessionStorage.setItem("redirectAfterAuth", "/join/p/committee-token");
+    render(<AuthPage />);
+    fillSignup();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
+
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Connection issue",
+      description: "We couldn't reach the server. Check your connection and try again.",
+    }));
+    expect(screen.getByRole("button", { name: "Create Account" })).toBeEnabled();
   });
 
   it("holds authenticated redirect until profile resolution completes", () => {

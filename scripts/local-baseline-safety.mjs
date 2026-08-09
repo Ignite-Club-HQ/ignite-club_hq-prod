@@ -49,7 +49,7 @@ export function assertOnlyAllowedLocalNames(names, allowedNames) {
 }
 
 export const LOCAL_PARITY_REVIEWED_THROUGH =
-  "20260727021741_ba915595-8e50-4209-94a1-96fc1919649a.sql";
+  "20260809090816_4268fd0f-0146-478c-afbe-ecee7f2ade26.sql";
 
 const MIRRORED_CONTRACT_PATTERN = new RegExp([
   "can_view_competition",
@@ -74,6 +74,8 @@ export function validateCurrentLocalParity(localSql) {
     { label: "direct competition creator visibility", pattern: /created_by\s*=\s*\(select\s+auth\.uid\(\)\)/i },
     { label: "scoped team-member removal RPC", pattern: /function\s+public\.remove_team_member\s*\(/i },
     { label: "guardian-derived membership exclusions", pattern: /table\s+public\.team_member_exclusions/i },
+    { label: "role-scoped club-wide photo publishing", pattern: /function\s+public\.can_publish_club_wide_photo\s*\(/i },
+    { label: "single scoped photo upload policy", pattern: /policy\s+"Scoped role-checked photo uploads"/i },
   ];
   return required.filter(({ pattern }) => !pattern.test(localSql)).map(({ label }) => label);
 }
