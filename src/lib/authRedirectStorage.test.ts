@@ -9,6 +9,7 @@ import {
 describe("authRedirectStorage", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("carries the invite path in the auth URL", () => {
@@ -26,11 +27,16 @@ describe("authRedirectStorage", () => {
   });
 
   it("never throws when storage is blocked", () => {
-    vi.spyOn(window.sessionStorage, "setItem").mockImplementation(() => {
-      throw new Error("SecurityError");
-    });
-    vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => {
-      throw new Error("SecurityError");
+    vi.stubGlobal("sessionStorage", {
+      getItem: () => {
+        throw new Error("SecurityError");
+      },
+      setItem: () => {
+        throw new Error("SecurityError");
+      },
+      removeItem: () => {
+        throw new Error("SecurityError");
+      },
     });
     expect(safeSessionSet("redirectAfterAuth", "/join/p/abc123")).toBe(false);
     expect(safeSessionGet("redirectAfterAuth")).toBeNull();
