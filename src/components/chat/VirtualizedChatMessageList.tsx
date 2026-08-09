@@ -41,6 +41,9 @@ import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabl
 import { isChatJumpActive, setChatJumpActive, subscribeChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
+import { waitForChatJumpTargetReveal } from "@/lib/chatJumpReveal";
+import { chatJumpLifecycleRemaining, getChatJumpLifecycle } from "@/lib/chatJumpLifecycle";
+
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 
