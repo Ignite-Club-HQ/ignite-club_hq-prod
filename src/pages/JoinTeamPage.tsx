@@ -14,7 +14,9 @@ import {
   safeSessionSet,
   safeSessionRemove,
   buildAuthPathWithRedirect,
+  buildAuthPathWithIntent,
 } from "@/lib/authRedirectStorage";
+
 import { supabase } from "@/integrations/supabase/client";
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
 import { selectCachedProfileById } from "@/lib/profileCache";
@@ -707,10 +709,13 @@ export default function JoinTeamPage() {
     for (const role of rolesToAdd) {
       const { error: roleError } = await supabase.from("user_roles").insert({
         user_id: user.id,
-        team_id: invite.team_id,
-        club_id: invite.teams?.club_id,
+        team_id: invite.team_id ?? null,
+        // Club-level invites (e.g. committee_member) have no team — the club id
+        // must still be stamped so the role resolves to the right club.
+        club_id: invite.teams?.club_id ?? inviteClubId,
         role: role,
       });
+
       
       // Ignore duplicate key errors
       if (roleError) {
@@ -883,9 +888,13 @@ export default function JoinTeamPage() {
     },
     onSuccess: (rolesToAdd) => {
       if (rolesToAdd === null) {
+        console.log("[SignupFlow] Auto-join result: no roles to add");
         return;
       }
       const roleNames = rolesToAdd.map(r => roleLabels[r]).join(", ");
+      console.log("[SignupFlow] Auto-join result: joined", { roles: rolesToAdd });
+      // Invite hand-off is complete — safe to clear the auth tab hint now.
+      safeSessionRemove("authDefaultTab");
       toast({ title: `Successfully joined as ${roleNames}!` });
       
       // If parent role was added via a regular invite WITHOUT child metadata, show child step.
@@ -903,8 +912,14 @@ export default function JoinTeamPage() {
       }
     },
     onError: (error: Error) => {
-      toast({ title: error.message || "Failed to join team", variant: "destructive" });
+      console.error("[SignupFlow] Auto-join failed", error);
+      toast({
+        title: "Couldn't complete your join",
+        description: error.message || "Failed to join. Please try again or ask your admin to resend the invite.",
+        variant: "destructive",
+      });
     },
+
   });
 
   // Auto-join effect: when user returns from auth and shouldAutoJoin is true
@@ -928,6 +943,10 @@ export default function JoinTeamPage() {
     // Wait for invite data to load before attempting auto-join
     if (isLoading) return;
 
+    // Club-level invites (committee_member etc.) must not run the role insert
+    // until the club id has resolved, or the role lands with no club scope.
+    if (shouldAutoJoin && invite && !invite.team_id && !inviteClubId) return;
+
     if (
       shouldAutoJoin && 
       user && 
@@ -939,6 +958,12 @@ export default function JoinTeamPage() {
       !autoJoinAttempted.current &&
       !nameValidationError
     ) {
+      console.log("[SignupFlow] Auto-join start", {
+        role: invite.role,
+        teamId: invite.team_id,
+        clubId: inviteClubId,
+      });
+
       // Calculate roles to add - use invite role if user doesn't have it
       const inviteRole = invite.role as AppRole;
       const hasInviteRole = existingRoles?.includes(inviteRole);
@@ -965,7 +990,7 @@ export default function JoinTeamPage() {
         joinMutation.mutate();
       }, 500);
     }
-  }, [shouldAutoJoin, user, invite, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast, userProfile, location.pathname, navigate, profileLoading, isLoading, pendingInviteData]);
+  }, [shouldAutoJoin, user, invite, inviteClubId, existingRoles, selectedRoles, joined, joinMutation, nameValidationError, toast, userProfile, location.pathname, navigate, profileLoading, isLoading, pendingInviteData]);
 
   // Handle photo consent given
   const handlePhotoConsentGiven = async () => {
@@ -1009,15 +1034,36 @@ export default function JoinTeamPage() {
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
     // If not logged in, redirect to auth with auto-join flag.
-    // Storage writes are best-effort: in webviews where sessionStorage throws,
-    // the navigation must still happen (the redirect also rides in the URL).
+    // The URL carries the whole intent (mode + next + invite token) because
+    // sessionStorage writes throw in some webviews; storage is a fallback only.
     if (!user) {
-      safeSessionSet("redirectAfterAuth", location.pathname);
+      const nextPath = location.pathname + location.search;
+      console.log("[SignupFlow] Join click (unauthenticated)", {
+        next: nextPath,
+        role: invite?.role,
+        isPendingInvite,
+      });
+      safeSessionSet("redirectAfterAuth", nextPath);
       safeSessionSet("autoJoinAfterAuth", "true");
       safeSessionSet("authDefaultTab", "signup");
-      navigate(buildAuthPathWithRedirect(location.pathname));
+      // Set the invite-flow context on this (native/app) path too — previously
+      // only the PWA handler set it, so InviteFlowProgress never rendered on
+      // /auth and the flow looked broken.
+      setInviteFlowContext({
+        ...(getInviteFlowContext() ?? {}),
+        active: true,
+        clubName: invite?.teams?.clubs?.name || undefined,
+        teamName: invite?.teams?.name || undefined,
+        role: invite?.role || undefined,
+        inviteToken: token,
+        currentStep: "auth",
+      });
+      navigate(
+        buildAuthPathWithIntent({ next: nextPath, mode: "signup", invite: token }),
+      );
       return;
     }
+
 
     // Check if user needs to complete their profile first
     if (!userProfile?.display_name) {
