@@ -125,11 +125,12 @@ function armCeiling() {
  * `appUrlOpen`). Keeps the gate closed: we now await the Router commitment.
  */
 export function markLaunchUrlReceived() {
-  if (state === "resolved-url-committed") return;
+  if (state === "resolved-url-committed" || state === "resolved-none") return;
   capturingLaunchNavigation = true;
   armCeiling();
   setState("resolved-url-awaiting-navigation");
 }
+
 
 /** Called when the launch-URL read completes with no URL. */
 export function markLaunchIntentNone() {
