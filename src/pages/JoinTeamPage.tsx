@@ -1009,15 +1009,36 @@ export default function JoinTeamPage() {
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
     // If not logged in, redirect to auth with auto-join flag.
-    // Storage writes are best-effort: in webviews where sessionStorage throws,
-    // the navigation must still happen (the redirect also rides in the URL).
+    // The URL carries the whole intent (mode + next + invite token) because
+    // sessionStorage writes throw in some webviews; storage is a fallback only.
     if (!user) {
-      safeSessionSet("redirectAfterAuth", location.pathname);
+      const nextPath = location.pathname + location.search;
+      console.log("[SignupFlow] Join click (unauthenticated)", {
+        next: nextPath,
+        role: invite?.role,
+        isPendingInvite,
+      });
+      safeSessionSet("redirectAfterAuth", nextPath);
       safeSessionSet("autoJoinAfterAuth", "true");
       safeSessionSet("authDefaultTab", "signup");
-      navigate(buildAuthPathWithRedirect(location.pathname));
+      // Set the invite-flow context on this (native/app) path too — previously
+      // only the PWA handler set it, so InviteFlowProgress never rendered on
+      // /auth and the flow looked broken.
+      setInviteFlowContext({
+        ...(getInviteFlowContext() ?? {}),
+        active: true,
+        clubName: invite?.teams?.clubs?.name || undefined,
+        teamName: invite?.teams?.name || undefined,
+        role: invite?.role || undefined,
+        inviteToken: token,
+        currentStep: "auth",
+      });
+      navigate(
+        buildAuthPathWithIntent({ next: nextPath, mode: "signup", invite: token }),
+      );
       return;
     }
+
 
     // Check if user needs to complete their profile first
     if (!userProfile?.display_name) {
