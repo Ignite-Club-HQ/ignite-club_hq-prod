@@ -92,6 +92,19 @@ export function TeamChatPreview({ teamId }: TeamChatPreviewProps) {
           });
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "team_messages", filter: `team_id=eq.${teamId}` },
+        (payload: any) => {
+          const row = payload.new;
+          if (!row) return;
+          // Edits: only patch when the edited row IS the previewed message.
+          queryClient.setQueryData(["team-chat-preview", teamId], (old: any) => {
+            if (!old || old.id !== row.id) return old;
+            return { ...old, text: row.text ?? "" };
+          });
+        }
+      )
       .subscribe();
 
     return () => {

@@ -155,10 +155,16 @@ describe("large-file deletion reporting", () => {
     { id: "p2", type: "photo" as const, size: 200 },
     { id: "f1", type: "file" as const, size: 400 },
   ];
+  const ok = (id: string, kind: "photo" | "file") => ({ id, kind });
   const fmt = (b: number) => `${b}B`;
 
-  it("all selected items succeed", () => {
-    const s = summarizeVaultDeletion(selected, { photosDeleted: 2, filesDeleted: 1, failed: [] });
+  it("all selected items explicitly succeed", () => {
+    const s = summarizeVaultDeletion(selected, {
+      photosDeleted: 2,
+      filesDeleted: 1,
+      succeeded: [ok("p1", "photo"), ok("p2", "photo"), ok("f1", "file")],
+      failed: [],
+    });
     expect(s).toMatchObject({ deletedCount: 3, failedCount: 0, freedBytes: 700 });
     expect(buildVaultDeleteMessage(s, fmt)).toEqual({
       outcome: "success",
@@ -166,10 +172,11 @@ describe("large-file deletion reporting", () => {
     });
   });
 
-  it("partial failure across photo and file items counts and frees successes only", () => {
+  it("partial success with explicit successful and failed IDs", () => {
     const s = summarizeVaultDeletion(selected, {
       photosDeleted: 1,
       filesDeleted: 0,
+      succeeded: [ok("p1", "photo")],
       failed: [
         { id: "p2", kind: "photo", code: "storage_delete_failed" },
         { id: "f1", kind: "file", code: "metadata_delete_failed" },
@@ -184,10 +191,11 @@ describe("large-file deletion reporting", () => {
     });
   });
 
-  it("all selected items fail", () => {
+  it("all items fail", () => {
     const s = summarizeVaultDeletion(selected, {
       photosDeleted: 0,
       filesDeleted: 0,
+      succeeded: [],
       failed: selected.map((i) => ({ id: i.id, kind: i.type, code: "unexpected_error" })),
     });
     expect(s).toMatchObject({ deletedCount: 0, freedBytes: 0, failedCount: 3 });
@@ -197,47 +205,146 @@ describe("large-file deletion reporting", () => {
     });
   });
 
-  it("empty selection performs no mutation and reports nothing deleted", () => {
-    const s = summarizeVaultDeletion([], { photosDeleted: 0, filesDeleted: 0, failed: [] });
-    expect(s).toMatchObject({ deletedCount: 0, failedCount: 0, freedBytes: 0, deletedIds: [] });
+  it("missing succeeded[] entries are never inferred from aggregate counts", () => {
+    const s = summarizeVaultDeletion(selected, {
+      photosDeleted: 2,
+      filesDeleted: 1,
+      succeeded: [],
+      failed: [],
+    });
+    expect(s.deletedCount).toBe(0);
+    expect(s.failedCount).toBe(3);
+    expect(buildVaultDeleteMessage(s, fmt).outcome).toBe("failure");
   });
 
-  it("unknown response identifiers fail safely and are never counted as deleted", () => {
+  it("duplicate succeeded entries cannot inflate counts", () => {
     const s = summarizeVaultDeletion(selected, {
-      photosDeleted: 3,
+      photosDeleted: 1,
       filesDeleted: 0,
+      succeeded: [ok("p1", "photo"), ok("p1", "photo"), ok("p1", "photo")],
+      failed: [],
+    });
+    expect(s.deletedIds).toEqual(["p1"]);
+    expect(s.deletedCount).toBe(1);
+    expect(s.freedBytes).toBe(100);
+  });
+
+  it("unknown successful ID never counts as deleted", () => {
+    const s = summarizeVaultDeletion(selected, {
+      photosDeleted: 2,
+      filesDeleted: 0,
+      succeeded: [ok("p1", "photo"), ok("ghost", "photo")],
+      failed: [],
+    });
+    expect(s.deletedIds).toEqual(["p1"]);
+    expect(s.deletedCount).toBe(1);
+  });
+
+  it("unknown failed ID does not cause a selected item to count as deleted", () => {
+    const s = summarizeVaultDeletion(selected, {
+      photosDeleted: 1,
+      filesDeleted: 0,
+      succeeded: [ok("p1", "photo")],
       failed: [{ id: "ghost-id", kind: "photo", code: "unexpected_error" }],
     });
-    expect(s.deletedIds).toEqual(["p1", "p2", "f1"]);
+    expect(s.deletedIds).toEqual(["p1"]);
     expect(s.failedIds).toContain("ghost-id");
-    expect(s.deletedCount).toBe(3);
+    expect(s.deletedCount).toBe(1);
   });
 
-  it("never credits more deletions than the server acknowledged", () => {
-    const s = summarizeVaultDeletion(selected, { photosDeleted: 1, filesDeleted: 0, failed: [] });
+  it("an ID in both succeeded and failed is treated as failed", () => {
+    const s = summarizeVaultDeletion(selected, {
+      photosDeleted: 1,
+      filesDeleted: 0,
+      succeeded: [ok("p1", "photo")],
+      failed: [{ id: "p1", kind: "photo", code: "storage_delete_failed" }],
+    });
+    expect(s.deletedCount).toBe(0);
+    expect(s.failedIds).toContain("p1");
+  });
+
+  it("a kind mismatch does not count as success", () => {
+    const s = summarizeVaultDeletion(selected, {
+      photosDeleted: 0,
+      filesDeleted: 1,
+      succeeded: [ok("p1", "file")],
+      failed: [],
+    });
+    expect(s.deletedCount).toBe(0);
+  });
+
+  it("aggregate counts larger than validated successes do not inflate", () => {
+    const s = summarizeVaultDeletion(selected, {
+      photosDeleted: 9,
+      filesDeleted: 9,
+      succeeded: [ok("p1", "photo")],
+      failed: [],
+    });
+    expect(s.deletedCount).toBe(1);
+    expect(s.freedBytes).toBe(100);
+  });
+
+  it("aggregate counts smaller than validated successes cap the credit", () => {
+    const s = summarizeVaultDeletion(selected, {
+      photosDeleted: 1,
+      filesDeleted: 0,
+      succeeded: [ok("p1", "photo"), ok("p2", "photo")],
+      failed: [],
+    });
     expect(s.deletedCount).toBe(1);
     expect(s.freedBytes).toBe(100);
     expect(buildVaultDeleteMessage(s, fmt).outcome).toBe("partial");
   });
 
-  it("successful IDs are the only ones cleared from selection", () => {
+  it("a photo and a file sharing the same string ID stay distinct", () => {
+    const shared = [
+      { id: "same", type: "photo" as const, size: 10 },
+      { id: "same", type: "file" as const, size: 20 },
+    ];
+    const s = summarizeVaultDeletion(shared, {
+      photosDeleted: 1,
+      filesDeleted: 0,
+      succeeded: [ok("same", "photo")],
+      failed: [{ id: "same", kind: "file", code: "storage_delete_failed" }],
+    });
+    expect(s.deletedCount).toBe(1);
+    expect(s.freedBytes).toBe(10);
+  });
+
+  it("empty selection performs no mutation and reports nothing deleted", () => {
+    const s = summarizeVaultDeletion([], {
+      photosDeleted: 0,
+      filesDeleted: 0,
+      succeeded: [],
+      failed: [],
+    });
+    expect(s).toMatchObject({ deletedCount: 0, failedCount: 0, freedBytes: 0, deletedIds: [] });
+  });
+
+  it("only validated successes are removed from selection; failed stay selected", () => {
     const s = summarizeVaultDeletion(selected, {
       photosDeleted: 1,
       filesDeleted: 1,
+      succeeded: [ok("p1", "photo"), ok("f1", "file")],
       failed: [{ id: "p2", kind: "photo", code: "storage_delete_failed" }],
     });
     const selection = new Set(["p1", "p2", "f1"]);
     const deleted = new Set(s.deletedIds);
-    const remaining = [...selection].filter((id) => !deleted.has(id));
-    expect(remaining).toEqual(["p2"]);
+    expect([...selection].filter((id) => !deleted.has(id))).toEqual(["p2"]);
   });
 
   it("shows exactly one outcome per operation (no contradictory toasts)", () => {
     const outcomes = [
-      summarizeVaultDeletion(selected, { photosDeleted: 2, filesDeleted: 1, failed: [] }),
+      summarizeVaultDeletion(selected, {
+        photosDeleted: 2,
+        filesDeleted: 1,
+        succeeded: [ok("p1", "photo"), ok("p2", "photo"), ok("f1", "file")],
+        failed: [],
+      }),
       summarizeVaultDeletion(selected, {
         photosDeleted: 1,
         filesDeleted: 0,
+        succeeded: [ok("p1", "photo")],
         failed: [{ id: "p2", kind: "photo", code: "x" }, { id: "f1", kind: "file", code: "x" }],
       }),
     ].map((s) => buildVaultDeleteMessage(s, fmt));
@@ -245,3 +352,4 @@ describe("large-file deletion reporting", () => {
     expect(new Set(outcomes.map((o) => o.message)).size).toBe(2);
   });
 });
+
