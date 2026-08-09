@@ -612,7 +612,21 @@ export default function AuthPage() {
         }
       }
     }
+    } catch (err) {
+      // The auth dependency rejected instead of returning `{ error }` (e.g.
+      // TypeError: Load failed on mobile). Surface a friendly toast and allow
+      // a retry rather than leaving the form stuck in a loading state.
+      console.error("[SignupFlow] auth call threw", err);
+      toast({
+        title: "Connection issue",
+        description: "We couldn't reach the server. Check your connection and try again.",
+      });
+    } finally {
+      authInFlightRef.current = false;
+      setLoading(false);
+    }
   };
+
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
