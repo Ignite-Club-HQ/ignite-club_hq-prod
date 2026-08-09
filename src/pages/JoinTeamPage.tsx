@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import {
   safeSessionGet,
   safeSessionSet,
+  safeSessionRemove,
   buildAuthPathWithRedirect,
 } from "@/lib/authRedirectStorage";
 import { supabase } from "@/integrations/supabase/client";
@@ -914,11 +915,11 @@ export default function JoinTeamPage() {
     // First check if user needs to complete their profile
     if (user && userProfile !== undefined && !userProfile?.display_name) {
       // User hasn't completed profile - redirect to complete profile
-      sessionStorage.setItem("redirectAfterAuth", location.pathname);
-      sessionStorage.setItem("autoJoinAfterAuth", "true"); // Ensure flag is set
+      safeSessionSet("redirectAfterAuth", location.pathname);
+      safeSessionSet("autoJoinAfterAuth", "true"); // Ensure flag is set
       // Store the invited_label for profile prefill if available (pending invite)
       if (pendingInviteData?.invited_label) {
-        sessionStorage.setItem("inviteLabel", pendingInviteData.invited_label);
+        safeSessionSet("inviteLabel", pendingInviteData.invited_label);
       }
       navigate("/complete-profile", { replace: true });
       return;
@@ -945,7 +946,7 @@ export default function JoinTeamPage() {
       if (hasInviteRole) {
         // User already has this role - just navigate to the relevant destination
         autoJoinAttempted.current = true;
-        sessionStorage.removeItem("autoJoinAfterAuth");
+        safeSessionRemove("autoJoinAfterAuth");
         toast({ title: `You're already a member of ${inviteEntityName}!` });
         setJoined(true);
         return;
@@ -958,7 +959,7 @@ export default function JoinTeamPage() {
       }
       
       autoJoinAttempted.current = true;
-      sessionStorage.removeItem("autoJoinAfterAuth");
+      safeSessionRemove("autoJoinAfterAuth");
       // Small delay to ensure UI is ready
       setTimeout(() => {
         joinMutation.mutate();
