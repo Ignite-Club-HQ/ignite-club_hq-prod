@@ -75,13 +75,16 @@ export default function CompleteProfilePage() {
 
   // New users completing their profile always see light mode.
   // We also update localStorage so next-themes ThemeProvider doesn't re-override the DOM.
-  useEffect(() => {
+  // Layout effect (not passive effect) so the switch happens before the first
+  // paint of this page — otherwise a dark-themed user sees a one-frame flash.
+  useLayoutEffect(() => {
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add('light');
     root.style.colorScheme = 'light';
     localStorage.setItem('app-theme', 'light');
   }, []);
+
 
   // Check if push notifications and biometrics are supported
   useEffect(() => {
