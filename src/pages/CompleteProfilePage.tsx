@@ -1197,9 +1197,14 @@ export default function CompleteProfilePage() {
                   // Normal flow - just save profile
                   handleSubmit();
                 }}
-                disabled={saving || !displayName.trim() || !policiesAccepted}
+                disabled={saving || invitesLoading || !displayName.trim() || !policiesAccepted}
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (installAndContinue && canPrompt ? "Install & Continue" : "Continue to Ignite Club HQ")}
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : invitesLoading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Checking invitations…
+                  </span>
+                ) : (installAndContinue && canPrompt ? "Install & Continue" : "Continue to Ignite Club HQ")}
               </Button>
             )}
           </CardContent>
