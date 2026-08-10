@@ -31,7 +31,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { computeMemberIdentity, type MemberRole, type MemberIdentity } from "@/lib/memberIdentity";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { isDuplicateChildError } from "@/lib/childDedup";
 
 interface BulkChild {
