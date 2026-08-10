@@ -560,6 +560,8 @@ export default function AuthPage() {
     if (authInFlightRef.current) return;
     authInFlightRef.current = true;
     setLoading(true);
+    prefetchCompleteProfile();
+
 
     try {
       const result = mode === "signin"
