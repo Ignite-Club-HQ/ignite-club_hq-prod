@@ -357,9 +357,23 @@ export default function JoinTeamPage() {
     );
   };
 
+  /**
+   * Applies the invited club as the active club filter after a successful join.
+   * Delegates to `seedClubFilterFromInvite` so state, localStorage and
+   * `profiles.active_club_theme_id` stay in sync. Never overrides a real
+   * club preference the user previously chose; applied at most once.
+   */
+  const applyInviteClubFilter = () => {
+    if (clubFilterSeededRef.current) return false;
+    if (!user?.id || !inviteClubId) return false;
+    clubFilterSeededRef.current = true;
+    return seedClubFilterFromInvite(user.id, inviteClubId, setActiveClubTheme);
+  };
+
   // Execute the actual join mutation
   const executeJoin = async (rolesToAdd: AppRole[]) => {
     if (!invite || !user) throw new Error("Missing data");
+
 
     // For pending invites, validate name match
     if (isPendingInvite && pendingInviteData?.invited_label) {
