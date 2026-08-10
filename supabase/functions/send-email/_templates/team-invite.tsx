@@ -78,6 +78,7 @@ export const TeamInviteEmail = ({
   isMiniLeague = false,
   sport,
   teamType,
+  emailStyle = 'detailed',
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
@@ -85,7 +86,9 @@ export const TeamInviteEmail = ({
   const emoji = sportEmoji(sport);
   const parentAudience = !isAdminRole && resolveIsParentAudience({ roleName, childrenNames, teamType });
   const playerAudience = !isAdminRole && !parentAudience;
+  const isSimple = emailStyle === 'simple';
   const previewText = isAdminRole
+
     ? `You've been invited to join the ${clubName} app as ${roleName}`
     : parentAudience
       ? (hasChildren
