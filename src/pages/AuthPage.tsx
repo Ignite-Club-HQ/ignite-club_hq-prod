@@ -948,38 +948,54 @@ export default function AuthPage() {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                    {password && (
-                      <div className={`${isSignupKeyboardOpen ? 'space-y-0.5 mt-1' : 'space-y-1 mt-2'}`}>
-                        {passwordRequirements.map((req, idx) => {
-                          const met = req.test(password);
-                          return (
-                            <div key={idx} className="flex items-center gap-2 text-xs">
-                              {met
-                                ? <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                                : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
-                              }
-                              <span className={met ? 'text-primary' : 'text-muted-foreground'}>
-                                {req.label}
-                              </span>
-                            </div>
-                          );
-                        })}
-                        {/* HIBP compromised password check */}
-                        <div className="flex items-center gap-2 text-xs">
-                          {hibpStatus === 'checking' && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin flex-shrink-0" />}
-                          {hibpStatus === 'safe' && <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
-                          {hibpStatus === 'compromised' && <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />}
-                          {hibpStatus === 'idle' && <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />}
-                          <span className={
-                            hibpStatus === 'safe' ? 'text-primary' :
-                            hibpStatus === 'compromised' ? 'text-destructive' :
-                            'text-muted-foreground'
-                          }>
-                            {hibpStatus === 'compromised' ? 'Password found in data breaches — choose another' : 'Not a known compromised password'}
-                          </span>
+                    {password && (() => {
+                      const unmet = passwordRequirements.filter((req) => !req.test(password));
+                      const collapseChecklist = unmet.length === 0 && hibpStatus !== 'compromised';
+                      if (collapseChecklist) {
+                        return (
+                          <div className={`flex items-center gap-2 text-xs ${isSignupKeyboardOpen ? 'mt-1' : 'mt-2'}`}>
+                            {hibpStatus === 'checking'
+                              ? <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin flex-shrink-0" />
+                              : <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                            <span className="text-primary">
+                              {hibpStatus === 'checking' ? 'Checking password…' : 'Password meets all requirements'}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className={`${isSignupKeyboardOpen ? 'space-y-0.5 mt-1' : 'space-y-1 mt-2'}`}>
+                          {passwordRequirements.map((req, idx) => {
+                            const met = req.test(password);
+                            return (
+                              <div key={idx} className="flex items-center gap-2 text-xs">
+                                {met
+                                  ? <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                                  : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
+                                }
+                                <span className={met ? 'text-primary' : 'text-muted-foreground'}>
+                                  {req.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {/* HIBP compromised password check */}
+                          <div className="flex items-center gap-2 text-xs">
+                            {hibpStatus === 'checking' && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin flex-shrink-0" />}
+                            {hibpStatus === 'safe' && <CheckCircle2 className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                            {hibpStatus === 'compromised' && <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />}
+                            {hibpStatus === 'idle' && <Circle className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />}
+                            <span className={
+                              hibpStatus === 'safe' ? 'text-primary' :
+                              hibpStatus === 'compromised' ? 'text-destructive' :
+                              'text-muted-foreground'
+                            }>
+                              {hibpStatus === 'compromised' ? 'Password found in data breaches — choose another' : 'Not a known compromised password'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                   <div className={signupFieldClassName}>
                     <Label htmlFor="signup-confirm-password">Confirm Password</Label>
@@ -992,6 +1008,14 @@ export default function AuthPage() {
                         className="pl-10 pr-10"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
+                        onFocus={(e) => {
+                          const el = e.currentTarget;
+                          // Keyboard opening reflows the viewport; nudge the field
+                          // into view so the user can see what they're typing.
+                          const bring = () => el.scrollIntoView({ block: "center", behavior: "smooth" });
+                          requestAnimationFrame(bring);
+                          setTimeout(bring, 350);
+                        }}
                       />
                       <button
                         type="button"
