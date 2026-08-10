@@ -293,6 +293,17 @@ export default function CompleteProfilePage() {
       return;
     }
 
+    // Defensive: never submit while pending invitations are still resolving —
+    // an empty invitation list would silently skip the invited-club derivation.
+    if (invitesLoading) {
+      console.log("[CompleteProfile] Submission blocked - invitations still loading");
+      toast({
+        title: "Just a moment",
+        description: "We're still checking your invitations.",
+      });
+      return;
+    }
+
     setSaving(true);
 
     try {
