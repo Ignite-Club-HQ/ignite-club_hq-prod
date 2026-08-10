@@ -125,19 +125,16 @@ export default function AuthPage() {
   }, []);
 
   
-  // Initialize invite flow context - check if it's stale (no redirect pending)
-  const [inviteFlowContext, setInviteFlowContext] = useState(() => {
-    const context = getInviteFlowContext();
-    // If there's a context but no redirect, it's stale - don't use it
-    if (context?.active && !safeSessionGet("redirectAfterAuth") && !readRedirectParam(window.location.search)) {
-      return null;
-    }
-    return context;
-  });
-  
-  // Show invite flow progress if there's an active context AND a pending redirect
-  // User is not logged in on AuthPage, so we can't check profile completion yet
-  const isInInviteFlow = inviteFlowContext?.active === true && !!redirectAfterAuth;
+  // Invite flow context is trusted as-is. It is NOT invalidated just because
+  // `redirectAfterAuth` is missing — in restricted webviews that storage write
+  // fails, and discarding the context there was what dropped invite users onto
+  // a plain Sign In screen. It is cleared only on explicit cancel or once the
+  // profile is completed.
+  const [inviteFlowContext, setInviteFlowContext] = useState(() => getInviteFlowContext());
+
+  // Show invite flow progress whenever an invite flow is active.
+  const isInInviteFlow = inviteFlowContext?.active === true;
+
   
   // HIBP compromised password check (k-anonymity — only first 5 chars of SHA1 sent)
   useEffect(() => {
