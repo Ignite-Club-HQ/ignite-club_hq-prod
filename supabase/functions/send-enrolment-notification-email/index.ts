@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
             </a>
           </div>
           <p style="text-align:center;font-size:11px;color:#a1a1aa;margin-top:16px">
-            Ignite Club HQ • You received this because you're enrolled at ${clubName}
+            Ignite • You received this because you're enrolled at ${clubName}
           </p>
         </div>
       </body>
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'Ignite Club HQ <notifications@igniteclubhq.app>',
+        from: 'Ignite <notifications@igniteclubhq.app>',
         to: [recipientEmail],
         subject,
         html,

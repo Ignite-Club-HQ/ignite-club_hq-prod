@@ -24,6 +24,8 @@ interface ChildAddedEmailProps {
   childrenNames?: string[];
   customMessage?: string;
   sport?: string | null;
+  /** Club-selected layout: full copy ("detailed") or short note ("simple"). */
+  emailStyle?: 'detailed' | 'simple';
 }
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
@@ -48,6 +50,7 @@ export const ChildAddedEmail = ({
   childrenNames = [],
   customMessage,
   sport,
+  emailStyle = 'detailed',
 }: ChildAddedEmailProps) => {
   const hasMultipleChildren = childrenNames.length > 1;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your children';
@@ -105,7 +108,9 @@ export const ChildAddedEmail = ({
                 </Text>
 
                 <Text style={bodyText}>
-                  Tap the button below to open Ignite and see their team, teammates, and any updates for the season.
+                  {emailStyle === 'simple'
+                    ? `Tap below to open ${teamName} in Ignite.`
+                    : 'Tap the button below to open Ignite and see their team, teammates, and any updates for the season.'}
                 </Text>
               </>
             )}

@@ -184,7 +184,7 @@ serve(async (req) => {
             currency: 'aud',
             product_data: {
               name: 'Platform Fee',
-              description: 'Ignite Club HQ processing fee (5%)',
+              description: 'Ignite processing fee (5%)',
             },
             unit_amount: platformFeeCents,
           },

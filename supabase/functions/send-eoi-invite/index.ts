@@ -92,7 +92,7 @@ serve(async (req) => {
           recipientName: sub.parent_name,
           magicLink,
           actionType: "signup",
-          appName: "Ignite Club HQ",
+          appName: "Ignite",
           expiresInMinutes: 60,
           logoUrl: club?.logo_url ?? undefined,
         },
