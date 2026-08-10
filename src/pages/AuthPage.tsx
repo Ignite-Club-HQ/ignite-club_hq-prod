@@ -206,6 +206,16 @@ export default function AuthPage() {
   // destination before the first <Navigate> had committed.
   const [postAuthTarget, setPostAuthTarget] = useState<string | null>(null);
 
+  // Warm the profile-completion chunk while the user is still filling the form
+  // so the hand-off after signup paints without an intermediate loader.
+  useEffect(() => {
+    if (authMode !== "signup") return;
+    const id = window.setTimeout(prefetchCompleteProfile, 300);
+    return () => window.clearTimeout(id);
+  }, [authMode]);
+
+
+
   // Resolve the post-auth destination exactly once, after auth + profile
   // state has settled. Consuming `redirectAfterAuth` here (rather than during
   // render) guarantees the pending destination is removed on the same commit
