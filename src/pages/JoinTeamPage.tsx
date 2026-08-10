@@ -22,6 +22,8 @@ import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/chil
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
@@ -189,6 +191,10 @@ export default function JoinTeamPage() {
   const pendingInviteMeta = (pendingInviteData?.metadata as { mini_league_id?: string } | null) ?? null;
   const inviteMiniLeagueId = isPendingInvite ? pendingInviteMeta?.mini_league_id ?? null : null;
   const inviteClubId = invite?.teams?.club_id || pendingInviteData?.club_id || null;
+  const { setActiveClubTheme } = useClubTheme();
+  const clubFilterSeededRef = useRef(false);
+
+
 
   const { data: inviteMiniLeague } = useQuery({
     queryKey: ["invite-mini-league", inviteMiniLeagueId],
@@ -357,9 +363,23 @@ export default function JoinTeamPage() {
     );
   };
 
+  /**
+   * Applies the invited club as the active club filter after a successful join.
+   * Delegates to `seedClubFilterFromInvite` so state, localStorage and
+   * `profiles.active_club_theme_id` stay in sync. Never overrides a real
+   * club preference the user previously chose; applied at most once.
+   */
+  const applyInviteClubFilter = () => {
+    if (clubFilterSeededRef.current) return false;
+    if (!user?.id || !inviteClubId) return false;
+    clubFilterSeededRef.current = true;
+    return seedClubFilterFromInvite(user.id, inviteClubId, setActiveClubTheme);
+  };
+
   // Execute the actual join mutation
   const executeJoin = async (rolesToAdd: AppRole[]) => {
     if (!invite || !user) throw new Error("Missing data");
+
 
     // For pending invites, validate name match
     if (isPendingInvite && pendingInviteData?.invited_label) {
@@ -861,8 +881,12 @@ export default function JoinTeamPage() {
       }
     }
 
+    // Seed the active club filter from the invited club (idempotent, once only).
+    applyInviteClubFilter();
+
     return rolesToAdd;
   };
+
 
   const joinMutation = useMutation({
     mutationFn: async () => {
