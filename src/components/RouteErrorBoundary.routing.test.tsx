@@ -17,6 +17,10 @@ describe("route lazy-loading and recovery boundaries", () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      value: true,
+    });
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -40,6 +44,21 @@ describe("route lazy-loading and recovery boundaries", () => {
   it("prevents repeated stale-chunk reloads inside the safety window", () => {
     sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
     expect(tryRecoverFromChunkError()).toBe(false);
+  });
+
+  it("never hard-reloads for a chunk failure while the browser is offline", () => {
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      value: false,
+    });
+
+    expect(tryRecoverFromChunkError()).toBe(false);
+    expect(sessionStorage.getItem(CHUNK_RELOAD_KEY)).toBeNull();
+  });
+
+  it("retains one-shot stale-deployment recovery while the browser is online", () => {
+    expect(tryRecoverFromChunkError()).toBe(true);
+    expect(Number(sessionStorage.getItem(CHUNK_RELOAD_KEY))).toBeGreaterThan(0);
   });
 
   it("surfaces a persistent chunk failure after the one-reload allowance is exhausted", () => {

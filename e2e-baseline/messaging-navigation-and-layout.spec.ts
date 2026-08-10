@@ -1143,8 +1143,10 @@ test("a team draft survives leaving the chat and remounting the route", async ({
   await expect(page.getByRole("textbox", { name: "Type a message..." })).toHaveValue("Synthetic remount-safe draft", { timeout: 15_000 });
 });
 
-test("offline navigation shows saved Home, Schedule, Media and chat data then recovers without freezing", async ({ page, context }) => {
+test("offline navigation shows saved Home, Schedule, Media and chat data then recovers without freezing", async ({ page }) => {
   test.setTimeout(60_000);
+  await page.unrouteAll({ behavior: "wait" });
+  const state = await install(page);
   // This journey verifies cache persistence and responsive offline navigation,
   // not deep-link positioning. Use a row guaranteed to be in Virtuoso's
   // initial rendered window so virtualization cannot masquerade as cache loss.
@@ -1161,6 +1163,10 @@ test("offline navigation shows saved Home, Schedule, Media and chat data then re
   await page.goto("/media");
   await expect(page.getByRole("heading", { name: "Media" })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("img", { name: offlinePhotoTitle }).first()).toBeVisible();
+  // Media persistence is deliberately deferred so gallery hydration does not
+  // jank the native main thread. Remain mounted until that production write
+  // has had the same opportunity as in the cold-offline persistence journey.
+  await page.waitForTimeout(1_500);
 
   await page.goto(`/messages/${teamId}`);
   await expect(page.locator(`#message-${cachedChatMessage.id}`)).toContainText(
@@ -1172,12 +1178,20 @@ test("offline navigation shows saved Home, Schedule, Media and chat data then re
   await page.waitForTimeout(2_000);
   await page.getByRole("link", { name: "Messages" }).click();
   await expect(page.getByText("Synthetic Messaging Team", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+  // Inbox persistence is also deliberately deferred (1.5s debounce plus an
+  // idle callback with a 3s timeout) to protect native WebView responsiveness.
+  await page.waitForTimeout(5_000);
 
-  await context.setOffline(true);
+  // Model loss of remote services while keeping the local frontend available.
+  // Native Android/iOS assets are packaged in the WebView; taking Playwright's
+  // entire browser context offline also blocks Vite-served lazy chunks and is
+  // therefore not representative of the production native app.
+  state.setApiAvailable(false);
+  await page.evaluate(() => (window as any).__setSyntheticOnline(false));
   await expect(page.getByText("Offline", { exact: true })).toBeVisible();
 
-  // All navigation is SPA-local. Each assertion must complete while Chromium
-  // is genuinely offline, proving the interface is not waiting on the API.
+  // All navigation is SPA-local. Each assertion must complete while remote
+  // services are unavailable, proving the interface does not wait on the API.
   await page.getByRole("link", { name: "Home" }).click({ timeout: 1_500 });
   await expect(page).toHaveURL(/\/$/, { timeout: 1_500 });
   await expect(page.getByRole("button", { name: new RegExp(offlineEventTitle) }).first()).toBeVisible({ timeout: 3_000 });
@@ -1199,7 +1213,8 @@ test("offline navigation shows saved Home, Schedule, Media and chat data then re
     { timeout: 3_000 },
   );
 
-  await context.setOffline(false);
+  state.setApiAvailable(true);
+  await page.evaluate(() => (window as any).__setSyntheticOnline(true));
   await expect(page.getByText("Offline", { exact: true })).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByRole("textbox", { name: "Type a message..." })).toBeEditable();
   await page.getByRole("link", { name: "Schedule" }).click({ timeout: 1_500 });
