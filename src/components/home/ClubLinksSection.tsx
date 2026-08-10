@@ -70,9 +70,9 @@ export default function ClubLinksSection() {
 
   const [open, setOpen] = useState(() => {
     try {
-      return localStorage.getItem(OPEN_STATE_KEY) === "open";
+      return localStorage.getItem(OPEN_STATE_KEY) !== "closed";
     } catch {
-      return false;
+      return true;
     }
   });
 
