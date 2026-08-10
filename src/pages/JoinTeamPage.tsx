@@ -189,6 +189,10 @@ export default function JoinTeamPage() {
   const pendingInviteMeta = (pendingInviteData?.metadata as { mini_league_id?: string } | null) ?? null;
   const inviteMiniLeagueId = isPendingInvite ? pendingInviteMeta?.mini_league_id ?? null : null;
   const inviteClubId = invite?.teams?.club_id || pendingInviteData?.club_id || null;
+  const { setActiveClubTheme } = useClubTheme();
+  const clubFilterSeededRef = useRef(false);
+
+
 
   const { data: inviteMiniLeague } = useQuery({
     queryKey: ["invite-mini-league", inviteMiniLeagueId],
