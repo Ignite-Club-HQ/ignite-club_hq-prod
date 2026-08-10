@@ -40,19 +40,25 @@ export function PWAPendingInviteHandler() {
       
       // Set auto-join flag so after auth they join automatically
       sessionStorage.setItem("autoJoinAfterAuth", "true");
-      // Signal to auth page that this is a new user flow
-      sessionStorage.setItem("authDefaultTab", "signup");
-      
+
       // Update invite flow context to continue from auth step (post-install)
       // Preserve existing context data but update the step
       setInviteFlowContext({
         ...existingContext,
         active: true,
-        inviteToken: pendingInvite.split("/").pop() || undefined,
+        inviteToken: pendingInvite.split("?")[0].split("/").pop() || undefined,
         currentStep: "auth", // Resume at auth step since install is complete
       });
-      
-      navigate(pendingInvite, { replace: true });
+
+      // The signup intent travels in the URL — sessionStorage is unreliable in
+      // restricted webviews and raced with AuthPage's mount cleanup.
+      const [base, query = ""] = pendingInvite.split("?");
+      const params = new URLSearchParams(query);
+      if (!params.has("mode")) params.set("mode", "signup");
+      const destination = `${base}?${params.toString()}`;
+
+      navigate(destination, { replace: true });
+
     }
   }, [navigate, location.pathname]);
 
