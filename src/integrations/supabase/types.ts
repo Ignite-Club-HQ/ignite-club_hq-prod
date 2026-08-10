@@ -1750,6 +1750,66 @@ export type Database = {
           },
         ]
       }
+      club_links: {
+        Row: {
+          club_id: string
+          created_at: string
+          created_by: string | null
+          icon: string
+          id: string
+          is_active: boolean
+          open_mode: string
+          sort_order: number
+          subtitle: string | null
+          title: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          club_id: string
+          created_at?: string
+          created_by?: string | null
+          icon?: string
+          id?: string
+          is_active?: boolean
+          open_mode?: string
+          sort_order?: number
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          club_id?: string
+          created_at?: string
+          created_by?: string | null
+          icon?: string
+          id?: string
+          is_active?: boolean
+          open_mode?: string
+          sort_order?: number
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_links_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_links_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_member_exclusions: {
         Row: {
           club_id: string

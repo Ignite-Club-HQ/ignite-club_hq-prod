@@ -1056,7 +1056,6 @@ export default function JoinTeamPage() {
       });
       safeSessionSet("redirectAfterAuth", nextPath);
       safeSessionSet("autoJoinAfterAuth", "true");
-      safeSessionSet("authDefaultTab", "signup");
       // Set the invite-flow context on this (native/app) path too — previously
       // only the PWA handler set it, so InviteFlowProgress never rendered on
       // /auth and the flow looked broken.

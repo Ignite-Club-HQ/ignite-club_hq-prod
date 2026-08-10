@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
+import ClubLinksManager from "@/components/clubs/ClubLinksManager";
 import { clearClubSetupLocalState } from "@/lib/clubSetupLocalState";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles, RefreshCw } from "lucide-react";
@@ -89,7 +90,7 @@ import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { ClubMessagePrivacySettings } from "@/components/ClubMessagePrivacySettings";
 import { ClubAICatchUpSettings } from "@/components/ClubAICatchUpSettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
-import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity, Link as LinkIcon } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
@@ -1295,6 +1296,11 @@ export default function ClubDetailPage() {
         <ClubSetupProgressCard clubId={id} isShellClub={(club as any)?.kind === "shell"} />
       )}
 
+
+
+
+
+
       {/* Subscription Banner - Show for admins when club has an active trial */}
       {isAdmin && clubSubscription?.is_trial && (clubSubscription?.is_pro || clubSubscription?.is_pro_football) && (
         <Card className={`border-amber-500/30 ${(clubSubscription as any)?.cancelled_at ? 'bg-gradient-to-r from-muted/50 to-muted/30' : 'bg-gradient-to-r from-amber-500/5 to-amber-500/10'}`}>
@@ -2440,6 +2446,25 @@ export default function ClubDetailPage() {
           </AccordionContent>
         </AccordionItem>
       )}
+
+      {/* Club Info & Links — admins curate the tiles shown on Home */}
+      {isAdmin && id && (
+        <AccordionItem value="club-links" data-section-anchor="club-links" className="border rounded-lg px-4 scroll-mt-20">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <LinkIcon className="h-5 w-5 text-primary" />
+              <span className="text-lg font-semibold">Club Info & Links</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2">
+              <ClubLinksManager clubId={id} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
+
 
       {/* Club Branding - configurable by all admins; colours only apply on Pro */}
       {isAdmin && (() => {
