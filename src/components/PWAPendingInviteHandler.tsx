@@ -39,7 +39,11 @@ export function PWAPendingInviteHandler() {
       }
       
       // Set auto-join flag so after auth they join automatically
-      sessionStorage.setItem("autoJoinAfterAuth", "true");
+      try {
+        sessionStorage.setItem("autoJoinAfterAuth", "true");
+      } catch {
+        /* storage blocked — the URL carries the intent */
+      }
 
       // Update invite flow context to continue from auth step (post-install)
       // Preserve existing context data but update the step
