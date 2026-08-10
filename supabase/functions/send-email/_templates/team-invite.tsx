@@ -35,6 +35,8 @@ interface TeamInviteEmailProps {
   isMiniLeague?: boolean;
   sport?: string | null;
   teamType?: TeamType;
+  /** Club-selected layout: full feature list ("detailed") or short note ("simple"). */
+  emailStyle?: 'detailed' | 'simple';
 }
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
