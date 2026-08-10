@@ -61,7 +61,8 @@ async function resolveSportAndTeamType(
 }
 
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const resendApiKey = Deno.env.get("RESEND_API_KEY");
+const resend = new Resend(resendApiKey);
 
 // Security headers to prevent common attacks
 const securityHeaders = {
@@ -723,6 +724,14 @@ serve(async (req: Request): Promise<Response> => {
   if (__outboundBlocked) return __outboundBlocked;
 
   try {
+    if (!resendApiKey) {
+      console.error("[send-email] RESEND_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({ success: false, error: "Email service is not configured", verified: false }),
+        { status: 503, headers: { "Content-Type": "application/json", ...corsHeaders } },
+      );
+    }
+
     // Check request size to prevent memory exhaustion
     const contentLength = req.headers.get("content-length");
     if (contentLength && parseInt(contentLength) > MAX_REQUEST_SIZE) {
@@ -897,7 +906,12 @@ serve(async (req: Request): Promise<Response> => {
 
     // Verify the response has an ID (successful send)
     if (!emailResponse.data?.id) {
-      console.error("Email send failed - no ID returned:", emailResponse.error);
+      console.error("[send-email] Resend rejected email:", {
+        name: emailResponse.error?.name,
+        message: emailResponse.error?.message,
+        sender,
+        recipientDomains: toArray.map((email) => email.split("@")[1]),
+      });
       return new Response(
         JSON.stringify({ 
           success: false, 
