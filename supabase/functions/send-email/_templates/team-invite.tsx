@@ -148,6 +148,27 @@ export const TeamInviteEmail = ({
                   ));
                 })}
               </>
+            ) : isSimple ? (
+              /* Short, focused copy — no feature list (club setting: simple) */
+              <>
+                <Text style={headingText}>
+                  {isAdminRole
+                    ? `You've been added to ${clubName} as ${roleName} 🎉`
+                    : parentAudience
+                      ? (hasChildren
+                          ? `${childLabel} has been added to ${teamName} ${emoji}`
+                          : `Your child has been added to ${teamName} ${emoji}`)
+                      : `You've been added to ${teamName} ${emoji}`}
+                </Text>
+
+                <Text style={bodyText}>
+                  {isAdminRole
+                    ? `${clubName} uses Ignite for teams, events and communication.`
+                    : parentAudience
+                      ? `${teamName} at ${clubName} is set up in Ignite — team details, events and updates are all in there.`
+                      : `${teamName} at ${clubName} is set up in Ignite — team details, events and updates are all in there.`}
+                </Text>
+              </>
             ) : isAdminRole ? (
               /* Role-specific admin invite copy */
               <>
