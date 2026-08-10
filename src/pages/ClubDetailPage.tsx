@@ -2270,6 +2270,7 @@ export default function ClubDetailPage() {
               )}
               <ClubMessagePrivacySettings clubId={id!} />
               <ClubAICatchUpSettings clubId={id!} />
+              <ClubInviteEmailSettings clubId={id!} />
             </div>
           </AccordionContent>
         </AccordionItem>
