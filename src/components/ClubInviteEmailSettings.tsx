@@ -10,7 +10,7 @@ interface Props {
   clubId: string;
 }
 
-type InviteEmailStyle = "detailed" | "simple";
+type InviteEmailStyle = "detailed" | "simple" | "discover";
 
 const OPTIONS: { value: InviteEmailStyle; title: string; description: string; sample: string }[] = [
   {
@@ -28,7 +28,15 @@ const OPTIONS: { value: InviteEmailStyle; title: string; description: string; sa
       "Short and to the point — who has been added to which team, and a button to open it. No feature list.",
     sample: "\"Joe has been added to Under 12 Boys\" + \"Under 12 Boys is set up in Ignite.\"",
   },
+  {
+    value: "discover",
+    title: "See which team",
+    description:
+      "Curiosity-led subject line inviting parents to open the app and see their child's team. Same detailed body.",
+    sample: "\"Basket Range: See which team Joe is in ⚽\"",
+  },
 ];
+
 
 export function ClubInviteEmailSettings({ clubId }: Props) {
   const queryClient = useQueryClient();
@@ -71,10 +79,10 @@ export function ClubInviteEmailSettings({ clubId }: Props) {
     );
   }
 
+  const raw = (club as { invite_email_style?: string } | null)?.invite_email_style;
   const current: InviteEmailStyle =
-    (club as { invite_email_style?: string } | null)?.invite_email_style === "simple"
-      ? "simple"
-      : "detailed";
+    raw === "simple" ? "simple" : raw === "discover" ? "discover" : "detailed";
+
 
   return (
     <Card>
