@@ -44,6 +44,23 @@ export function initDeepLinkHandler() {
 const DEDUPE_WINDOW_MS = 4000;
 let lastHandled: { url: string; at: number } | null = null;
 
+/**
+ * Invite/auth deep links must land on the Sign Up tab. The mode intent travels
+ * in the URL (never sessionStorage, which throws in restricted webviews and
+ * raced with AuthPage's mount). Existing query params and hash are preserved.
+ */
+const SIGNUP_INTENT_PATHS = [/^\/join(\/|$)/, /^\/join-club(\/|$)/, /^\/i(\/|$)/, /^\/auth(\/|$)/, /^\/claim-team(\/|$)/];
+
+export function withSignupIntent(path: string, destination: string): string {
+  if (!SIGNUP_INTENT_PATHS.some((re) => re.test(path))) return destination;
+  const [beforeHash, hash] = destination.split('#');
+  const [pathname, search] = beforeHash.split('?');
+  const params = new URLSearchParams(search || '');
+  if (!params.has('mode')) params.set('mode', 'signup');
+  const qs = params.toString();
+  return `${pathname}${qs ? `?${qs}` : ''}${hash ? `#${hash}` : ''}`;
+}
+
 async function handleDeepLinkUrl(rawUrl: string) {
   const now = Date.now();
   if (
@@ -206,7 +223,10 @@ async function handleDeepLinkUrl(rawUrl: string) {
         }
 
         if (path && path !== '/') {
-          const destination = `${path}${fullSearch || ''}${fullHash || ''}`;
+          const destination = withSignupIntent(
+            path,
+            `${path}${fullSearch || ''}${fullHash || ''}`,
+          );
           console.log('[DeepLink] Navigating to path:', destination);
           navigateApp(destination);
         }
