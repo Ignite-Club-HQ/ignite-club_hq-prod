@@ -1120,6 +1120,10 @@ export default function CompleteProfilePage() {
               <Button
                 className="w-full" 
                 onClick={async () => {
+                  if (invitesLoading) {
+                    console.log("[CompleteProfile] Continue blocked - invitations still loading");
+                    return;
+                  }
                   // If user wants to install, save profile first then trigger install
                   if (installAndContinue && canPrompt) {
                     setSaving(true);
