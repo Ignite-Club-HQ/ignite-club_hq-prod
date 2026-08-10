@@ -861,8 +861,12 @@ export default function JoinTeamPage() {
       }
     }
 
+    // Seed the active club filter from the invited club (idempotent, once only).
+    applyInviteClubFilter();
+
     return rolesToAdd;
   };
+
 
   const joinMutation = useMutation({
     mutationFn: async () => {
