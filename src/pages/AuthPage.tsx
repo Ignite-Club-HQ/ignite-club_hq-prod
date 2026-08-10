@@ -19,7 +19,6 @@ import { Keyboard } from "@capacitor/keyboard";
 import { z } from "zod";
 import {
   safeSessionGet,
-  safeSessionSet,
   safeSessionRemove,
   readRedirectParam,
   readAuthIntent,
@@ -130,7 +129,7 @@ export default function AuthPage() {
   // fails, and discarding the context there was what dropped invite users onto
   // a plain Sign In screen. It is cleared only on explicit cancel or once the
   // profile is completed.
-  const [inviteFlowContext, setInviteFlowContext] = useState(() => getInviteFlowContext());
+  const [inviteFlowContext] = useState(() => getInviteFlowContext());
 
   // Show invite flow progress whenever an invite flow is active.
   const isInInviteFlow = inviteFlowContext?.active === true;
