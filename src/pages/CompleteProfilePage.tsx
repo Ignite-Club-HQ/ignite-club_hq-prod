@@ -293,6 +293,17 @@ export default function CompleteProfilePage() {
       return;
     }
 
+    // Defensive: never submit while pending invitations are still resolving —
+    // an empty invitation list would silently skip the invited-club derivation.
+    if (invitesLoading) {
+      console.log("[CompleteProfile] Submission blocked - invitations still loading");
+      toast({
+        title: "Just a moment",
+        description: "We're still checking your invitations.",
+      });
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -1109,6 +1120,10 @@ export default function CompleteProfilePage() {
               <Button
                 className="w-full" 
                 onClick={async () => {
+                  if (invitesLoading) {
+                    console.log("[CompleteProfile] Continue blocked - invitations still loading");
+                    return;
+                  }
                   // If user wants to install, save profile first then trigger install
                   if (installAndContinue && canPrompt) {
                     setSaving(true);
@@ -1182,9 +1197,14 @@ export default function CompleteProfilePage() {
                   // Normal flow - just save profile
                   handleSubmit();
                 }}
-                disabled={saving || !displayName.trim() || !policiesAccepted}
+                disabled={saving || invitesLoading || !displayName.trim() || !policiesAccepted}
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (installAndContinue && canPrompt ? "Install & Continue" : "Continue to Ignite Club HQ")}
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : invitesLoading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Checking invitations…
+                  </span>
+                ) : (installAndContinue && canPrompt ? "Install & Continue" : "Continue to Ignite Club HQ")}
               </Button>
             )}
           </CardContent>
