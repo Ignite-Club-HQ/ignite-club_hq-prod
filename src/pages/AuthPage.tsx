@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Navigate, Link } from "react-router-dom";
+import { Navigate, Link, useSearchParams } from "react-router-dom";
 import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint, CheckCircle2, Circle, XCircle, WifiOff } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ import { Keyboard } from "@capacitor/keyboard";
 import { z } from "zod";
 import {
   safeSessionGet,
-  safeSessionSet,
   safeSessionRemove,
   readRedirectParam,
   readAuthIntent,
@@ -87,18 +86,27 @@ export default function AuthPage() {
   const { isOnline } = useOnlineStatus();
   
   // The URL is the source of truth for the invite hand-off (mode / next /
-  // invite). sessionStorage is only a fallback — some Android/iOS webviews
-  // throw on writes, which used to silently drop the whole join intent.
+  // invite). sessionStorage is NOT consulted for auth-mode intent any more —
+  // it raced with the mount-time cleanup and dumped invite users on Sign In.
+  const [searchParams] = useSearchParams();
   const authIntent = readAuthIntent(window.location.search);
 
-  // Check if we should default to signup view (new user from invite, or returning from terms/privacy)
-  const defaultView = authIntent.mode ?? safeSessionGet("authDefaultTab") ?? "signin";
-  const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView as "signin" | "signup");
+  // `?mode=signup` / `?mode=signin` decides the visible tab; default Sign In.
+  const modeParam = searchParams.get("mode");
+  const defaultView: "signin" | "signup" =
+    modeParam === "signup" || modeParam === "signin"
+      ? modeParam
+      : authIntent.mode ?? "signin";
+  const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView);
 
-  // Persist auth mode so navigating to terms/privacy and back preserves the tab
+  // Keep the tab in sync if the URL mode changes while mounted (e.g. a second
+  // deep link arriving via soft SPA navigation).
   useEffect(() => {
-    safeSessionSet("authDefaultTab", authMode);
-  }, [authMode]);
+    if (modeParam === "signup" || modeParam === "signin") {
+      setAuthMode(modeParam);
+    }
+  }, [modeParam]);
+
 
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
   // URL param is a fallback for webviews where sessionStorage writes are blocked.
@@ -116,19 +124,16 @@ export default function AuthPage() {
   }, []);
 
   
-  // Initialize invite flow context - check if it's stale (no redirect pending)
-  const [inviteFlowContext, setInviteFlowContext] = useState(() => {
-    const context = getInviteFlowContext();
-    // If there's a context but no redirect, it's stale - don't use it
-    if (context?.active && !safeSessionGet("redirectAfterAuth") && !readRedirectParam(window.location.search)) {
-      return null;
-    }
-    return context;
-  });
-  
-  // Show invite flow progress if there's an active context AND a pending redirect
-  // User is not logged in on AuthPage, so we can't check profile completion yet
-  const isInInviteFlow = inviteFlowContext?.active === true && !!redirectAfterAuth;
+  // Invite flow context is trusted as-is. It is NOT invalidated just because
+  // `redirectAfterAuth` is missing — in restricted webviews that storage write
+  // fails, and discarding the context there was what dropped invite users onto
+  // a plain Sign In screen. It is cleared only on explicit cancel or once the
+  // profile is completed.
+  const [inviteFlowContext] = useState(() => getInviteFlowContext());
+
+  // Show invite flow progress whenever an invite flow is active.
+  const isInInviteFlow = inviteFlowContext?.active === true;
+
   
   // HIBP compromised password check (k-anonymity — only first 5 chars of SHA1 sent)
   useEffect(() => {
@@ -156,20 +161,11 @@ export default function AuthPage() {
     return () => clearTimeout(timer);
   }, [password, authMode]);
 
-  // Clear stale invite flow context on mount.
-  // NOTE: `authDefaultTab` is intentionally NOT removed here — deleting it on
-  // mount used to destroy the invite hand-off and dump users on the Sign In
-  // tab with no invite context. It is cleared only after auth + auto-join.
-  useEffect(() => {
-    // If there's an invite flow context but no pending redirect, it's stale - clear it
-    const currentContext = getInviteFlowContext();
-    if (currentContext?.active && !redirectAfterAuth) {
-      clearInviteFlowContext();
-      setInviteFlowContext(null);
-      // Also clear any stale PWA pending invite
-      localStorage.removeItem("pwa_pending_invite");
-    }
-  }, [redirectAfterAuth]);
+  // Invite flow context is intentionally NOT cleared on mount. A missing
+  // `redirectAfterAuth` is not proof of staleness (blocked storage), and
+  // clearing it here used to destroy the invite hand-off. Clearing happens on
+  // explicit cancel of the flow or after the profile is completed.
+
 
   
   const { toast } = useToast();
