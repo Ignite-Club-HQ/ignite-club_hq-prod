@@ -302,13 +302,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url, contact_email")
+        .select("name, logo_url, contact_email, invite_email_style")
         .eq("id", clubId)
         .single();
       return data;
     },
     enabled: !!clubId,
   });
+  // Club-selected invite email style: only the "discover" option uses the
+  // "See which team X is in" subject line.
+  const discoverEmailStyle = (clubBranding as { invite_email_style?: string } | null | undefined)?.invite_email_style === 'discover';
   // Fetch existing children in the club for matching
   const { data: clubChildren = [] } = useQuery({
     queryKey: ["club-children", clubId],
@@ -960,7 +963,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               body: {
                 toUserId: selectedUser.id,
                 subject: childrenNames.length === 1
-                  ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                  ? (discoverEmailStyle
+                      ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                      : `${clubBranding?.name || 'Your club'}: ${childrenNames[0]} has been added to their team ⚽`)
                   : `${clubBranding?.name || 'Your club'}: Your children have been added to ${teamName} ⚽`,
                 template: "team-invite",
                 senderName: clubBranding?.name || undefined,
@@ -1020,7 +1025,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               body: {
                 toUserId: selectedSecondParent.id,
                 subject: childrenNames.length === 1
-                  ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                  ? (discoverEmailStyle
+                      ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                      : `${clubBranding?.name || 'Your club'}: ${childrenNames[0]} has been added to their team ⚽`)
                   : `${clubBranding?.name || 'Your club'}: Your children have been added to ${teamName} ⚽`,
                 template: "team-invite",
                 senderName: clubBranding?.name || undefined,
@@ -1050,7 +1057,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             body: {
               to: secondParentEmail.trim().toLowerCase(),
               subject: childrenNames.length === 1
-                ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                ? (discoverEmailStyle
+                    ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                    : `${clubBranding?.name || 'Your club'}: ${childrenNames[0]} has been added to their team ⚽`)
                 : `${clubBranding?.name || 'Your club'}: You've been added to the team ⚽`,
               template: "team-invite",
               senderName: clubBranding?.name || undefined,
@@ -1314,9 +1323,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             body: {
               to: email,
                subject: childrenNames.length === 1
-                 ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                 ? (discoverEmailStyle
+                     ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                     : `${clubBranding?.name || 'Your club'}: ${childrenNames[0]} has been added to their team ⚽`)
                  : childrenNames.length > 1
-                   ? `${clubBranding?.name || 'Your club'}: See which team your kids are in ⚽`
+                   ? (discoverEmailStyle
+                       ? `${clubBranding?.name || 'Your club'}: See which team your kids are in ⚽`
+                       : `${clubBranding?.name || 'Your club'}: Your children have been added to their team ⚽`)
                    : `${clubBranding?.name || 'Your club'}: You've been added to the team ⚽`,
               template: "team-invite",
               senderName: clubBranding?.name || undefined,
@@ -1404,9 +1417,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             body: {
               to: secondEmail,
               subject: childrenNames.length === 1
-                ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                ? (discoverEmailStyle
+                    ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                    : `${clubBranding?.name || 'Your club'}: ${childrenNames[0]} has been added to their team ⚽`)
                 : childrenNames.length > 1
-                  ? `${clubBranding?.name || 'Your club'}: See which team your kids are in ⚽`
+                  ? (discoverEmailStyle
+                      ? `${clubBranding?.name || 'Your club'}: See which team your kids are in ⚽`
+                      : `${clubBranding?.name || 'Your club'}: Your children have been added to their team ⚽`)
                   : `${clubBranding?.name || 'Your club'}: You've been added to the team ⚽`,
               template: "team-invite",
               senderName: clubBranding?.name || undefined,
@@ -1454,7 +1471,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             body: {
               toUserId: selectedSecondParent.id,
               subject: childrenNames.length === 1
-                ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                ? (discoverEmailStyle
+                    ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                    : `${clubBranding?.name || 'Your club'}: ${childrenNames[0]} has been added to their team ⚽`)
                 : `${clubBranding?.name || 'Your club'}: Your children have been added to ${teamName} ⚽`,
               template: "team-invite",
               senderName: clubBranding?.name || undefined,
@@ -1735,9 +1754,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               body: {
                 to: member.email.trim(),
                  subject: validChildren.length === 1
-                   ? `${clubBranding?.name || 'Your club'}: See which team ${validChildren[0].name.trim()} is in ⚽`
+                   ? (discoverEmailStyle
+                       ? `${clubBranding?.name || 'Your club'}: See which team ${validChildren[0].name.trim()} is in ⚽`
+                       : `${clubBranding?.name || 'Your club'}: ${validChildren[0].name.trim()} has been added to their team ⚽`)
                    : validChildren.length > 1
-                     ? `${clubBranding?.name || 'Your club'}: See which team your kids are in ⚽`
+                     ? (discoverEmailStyle
+                         ? `${clubBranding?.name || 'Your club'}: See which team your kids are in ⚽`
+                         : `${clubBranding?.name || 'Your club'}: Your children have been added to their team ⚽`)
                      : `${clubBranding?.name || 'Your club'}: You've been added to the team ⚽`,
                 template: "team-invite",
                 senderName: clubBranding?.name || undefined,
