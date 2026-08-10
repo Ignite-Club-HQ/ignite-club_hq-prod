@@ -162,20 +162,11 @@ export default function AuthPage() {
     return () => clearTimeout(timer);
   }, [password, authMode]);
 
-  // Clear stale invite flow context on mount.
-  // NOTE: `authDefaultTab` is intentionally NOT removed here — deleting it on
-  // mount used to destroy the invite hand-off and dump users on the Sign In
-  // tab with no invite context. It is cleared only after auth + auto-join.
-  useEffect(() => {
-    // If there's an invite flow context but no pending redirect, it's stale - clear it
-    const currentContext = getInviteFlowContext();
-    if (currentContext?.active && !redirectAfterAuth) {
-      clearInviteFlowContext();
-      setInviteFlowContext(null);
-      // Also clear any stale PWA pending invite
-      localStorage.removeItem("pwa_pending_invite");
-    }
-  }, [redirectAfterAuth]);
+  // Invite flow context is intentionally NOT cleared on mount. A missing
+  // `redirectAfterAuth` is not proof of staleness (blocked storage), and
+  // clearing it here used to destroy the invite hand-off. Clearing happens on
+  // explicit cancel of the flow or after the profile is completed.
+
 
   
   const { toast } = useToast();
