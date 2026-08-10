@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Navigate, Link } from "react-router-dom";
+import { Navigate, Link, useSearchParams } from "react-router-dom";
 import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint, CheckCircle2, Circle, XCircle, WifiOff } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Button } from "@/components/ui/button";
@@ -87,18 +87,27 @@ export default function AuthPage() {
   const { isOnline } = useOnlineStatus();
   
   // The URL is the source of truth for the invite hand-off (mode / next /
-  // invite). sessionStorage is only a fallback — some Android/iOS webviews
-  // throw on writes, which used to silently drop the whole join intent.
+  // invite). sessionStorage is NOT consulted for auth-mode intent any more —
+  // it raced with the mount-time cleanup and dumped invite users on Sign In.
+  const [searchParams] = useSearchParams();
   const authIntent = readAuthIntent(window.location.search);
 
-  // Check if we should default to signup view (new user from invite, or returning from terms/privacy)
-  const defaultView = authIntent.mode ?? safeSessionGet("authDefaultTab") ?? "signin";
-  const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView as "signin" | "signup");
+  // `?mode=signup` / `?mode=signin` decides the visible tab; default Sign In.
+  const modeParam = searchParams.get("mode");
+  const defaultView: "signin" | "signup" =
+    modeParam === "signup" || modeParam === "signin"
+      ? modeParam
+      : authIntent.mode ?? "signin";
+  const [authMode, setAuthMode] = useState<"signin" | "signup">(defaultView);
 
-  // Persist auth mode so navigating to terms/privacy and back preserves the tab
+  // Keep the tab in sync if the URL mode changes while mounted (e.g. a second
+  // deep link arriving via soft SPA navigation).
   useEffect(() => {
-    safeSessionSet("authDefaultTab", authMode);
-  }, [authMode]);
+    if (modeParam === "signup" || modeParam === "signin") {
+      setAuthMode(modeParam);
+    }
+  }, [modeParam]);
+
 
   // Check if we're actively in an invite flow - only valid if there's a pending redirect
   // URL param is a fallback for webviews where sessionStorage writes are blocked.
