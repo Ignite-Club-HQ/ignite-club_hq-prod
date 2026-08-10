@@ -79,10 +79,10 @@ export function ClubInviteEmailSettings({ clubId }: Props) {
     );
   }
 
+  const raw = (club as { invite_email_style?: string } | null)?.invite_email_style;
   const current: InviteEmailStyle =
-    (club as { invite_email_style?: string } | null)?.invite_email_style === "simple"
-      ? "simple"
-      : "detailed";
+    raw === "simple" ? "simple" : raw === "discover" ? "discover" : "detailed";
+
 
   return (
     <Card>
