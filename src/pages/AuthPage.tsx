@@ -24,6 +24,21 @@ import {
   readAuthIntent,
 } from "@/lib/authRedirectStorage";
 
+/**
+ * Warm the `/complete-profile` route chunk. Without this, the post-signup
+ * transition renders the router's Suspense fallback (a second, differently
+ * centred spinner) for a few hundred ms — the visible "flash" between tapping
+ * Create Account and the profile screen appearing.
+ */
+let completeProfilePrefetched = false;
+const prefetchCompleteProfile = () => {
+  if (completeProfilePrefetched) return;
+  completeProfilePrefetched = true;
+  import("@/pages/CompleteProfilePage").catch(() => {
+    completeProfilePrefetched = false;
+  });
+};
+
 
 const passwordRequirements = [
   { test: (p: string) => p.length >= 8, label: "At least 8 characters" },
