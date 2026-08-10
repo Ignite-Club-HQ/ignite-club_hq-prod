@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
+
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
 
 /**
@@ -537,7 +539,15 @@ export function PendingInviteWelcomeDialog() {
         if (seeded) {
           console.log("[InviteAutoAccept] Applied club filter from invite:", firstInvitedClubId);
         }
+      } else if (user) {
+        // Defensive: invite may already be accepted, so the pending query was
+        // empty — seed from any recent invite for this user instead.
+        const fallback = await seedClubThemeFromAnyInvite(user, setActiveClubTheme);
+        if (fallback) {
+          console.log("[InviteAutoAccept] Applied club filter from accepted invite:", fallback);
+        }
       }
+
     };
 
     autoAcceptInvites();

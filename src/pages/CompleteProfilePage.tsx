@@ -22,6 +22,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
+
 import { resolveCanonicalChildId, createChildForParentOrReuse } from "@/lib/childDedup";
 
 
@@ -863,7 +865,15 @@ export default function CompleteProfilePage() {
         if (seeded) {
           console.log("[CompleteProfile] Applied club filter from invite:", firstInvitedClubId);
         }
+      } else {
+        // Defensive: the invite may already have been marked accepted (DB
+        // trigger or an earlier partial run), so the pending list was empty.
+        const fallback = await seedClubThemeFromAnyInvite(user, setActiveClubTheme);
+        if (fallback) {
+          console.log("[CompleteProfile] Applied club filter from accepted invite:", fallback);
+        }
       }
+
 
       // Invalidate club theme queries so they refetch with new user roles
       await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
