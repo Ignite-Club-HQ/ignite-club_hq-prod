@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Flame, User, Camera, Loader2, Bell, Download, Fingerprint, UserPlus, Building2 } from "lucide-react";
