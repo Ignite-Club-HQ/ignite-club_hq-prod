@@ -60,6 +60,31 @@ async function resolveSportAndTeamType(
   }
 }
 
+/**
+ * Which invite email layout the club has chosen:
+ *  - "detailed" (default): full "once you join you'll be able to…" feature list
+ *  - "simple": short, focused "X has been added to Y" note
+ */
+async function resolveInviteEmailStyle(
+  supabaseAdmin: any,
+  clubName?: string,
+): Promise<'detailed' | 'simple'> {
+  if (!supabaseAdmin || !clubName) return 'detailed';
+  try {
+    const { data: club } = await supabaseAdmin
+      .from('clubs')
+      .select('invite_email_style')
+      .eq('name', clubName)
+      .maybeSingle();
+    return club?.invite_email_style === 'simple' ? 'simple' : 'detailed';
+  } catch (e) {
+    console.warn('[send-email] invite email style lookup failed:', (e as Error)?.message);
+    return 'detailed';
+  }
+}
+
+
+
 
 const resendApiKey = Deno.env.get("RESEND_API_KEY");
 const resend = new Resend(resendApiKey);
