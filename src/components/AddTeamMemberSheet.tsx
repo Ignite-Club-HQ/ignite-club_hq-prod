@@ -1338,7 +1338,18 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           // Update pending invite with email status
           const emailSent = !funcError && emailResult?.verified && emailResult?.success;
           const emailId = emailResult?.emailId || null;
-          const emailError = funcError?.message || (!emailSent ? (emailResult?.error || "Email not verified") : null);
+          let functionErrorDetails: string | null = null;
+          if (funcError) {
+            try {
+              const errorContext = (funcError as any)?.context;
+              functionErrorDetails = errorContext && typeof errorContext.json === "function"
+                ? (await errorContext.json())?.error || null
+                : null;
+            } catch {
+              functionErrorDetails = null;
+            }
+          }
+          const emailError = functionErrorDetails || funcError?.message || (!emailSent ? (emailResult?.error || "Email not verified") : null);
           
           await supabase
             .from("pending_invites")
@@ -1358,10 +1369,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               description: `Email notification sent to ${email}`,
             });
           } else {
-            void toastInviteSuccess({
-              title: "Member added",
-              description: "Could not send email, but invite has been created",
-              variant: "default",
+            toast({
+              title: "Invite created — email failed",
+              description: emailError || "The email provider did not accept the message. Share the invite link manually.",
+              variant: "destructive",
             });
           }
         } catch (error) {
