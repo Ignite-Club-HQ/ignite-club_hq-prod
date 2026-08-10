@@ -190,7 +190,7 @@ serve(async (req: Request) => {
       const options = {
         challenge,
         rp: {
-          name: "Ignite Club HQ",
+          name: "Ignite",
           id: rpId,
         },
         user: {

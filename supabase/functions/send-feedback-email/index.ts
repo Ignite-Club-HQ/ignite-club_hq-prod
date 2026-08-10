@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
     `;
 
     const { error: emailError } = await resend.emails.send({
-      from: "Ignite Club HQ <support@igniteclubhq.app>",
+      from: "Ignite <support@igniteclubhq.app>",
       to: ["feedback@igniteclubhq.app"],
       subject: `📝 Feedback: [${typeLabels[type] || type}] ${title}`,
       html: emailHtml,

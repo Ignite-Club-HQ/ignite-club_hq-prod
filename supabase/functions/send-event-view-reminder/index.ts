@@ -428,7 +428,7 @@ serve(async (req) => {
           );
 
           await resend.emails.send({
-            from: "Ignite Club HQ <support@igniteclubhq.app>",
+            from: "Ignite <support@igniteclubhq.app>",
             to: [email],
             subject: userMsgs.emailSubject,
             html,

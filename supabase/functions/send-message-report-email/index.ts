@@ -168,7 +168,7 @@ serve(async (req) => {
                 <p style="color: #6b7280; font-size: 14px; margin: 20px 0 0; text-align: center;">Please review this report in the admin dashboard.</p>
               </div>
               <div style="background-color: #f9fafb; padding: 16px; text-align: center; border-top: 1px solid #e5e7eb;">
-                <p style="color: #9ca3af; font-size: 12px; margin: 0;">Ignite Club HQ • Message Report System</p>
+                <p style="color: #9ca3af; font-size: 12px; margin: 0;">Ignite • Message Report System</p>
               </div>
             </div>
           </body>
@@ -176,7 +176,7 @@ serve(async (req) => {
         `;
 
         const { error: emailError } = await resend.emails.send({
-          from: "Ignite Club HQ <support@igniteclubhq.app>",
+          from: "Ignite <support@igniteclubhq.app>",
           to: ["privacy@igniteclubhq.app"],
           subject: `⚠️ Message Report: ${reason} - ${contextName}`,
           html: emailHtml,

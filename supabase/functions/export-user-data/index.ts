@@ -243,12 +243,12 @@ serve(async (req) => {
     const exportDate = new Date().toISOString().split('T')[0];
 
     // Add README
-    const readme = `Ignite Club HQ Data Export
+    const readme = `Ignite Data Export
 ========================
 Export Date: ${new Date().toISOString()}
 User Email: ${user.email}
 
-This ZIP contains your personal data from Ignite Club HQ:
+This ZIP contains your personal data from Ignite:
 
 - profile.csv - Your profile information
 - roles.csv - Your club and team memberships

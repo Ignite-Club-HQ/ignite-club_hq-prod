@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
     `;
 
     const { error: emailError } = await resend.emails.send({
-      from: "Ignite Club HQ <support@igniteclubhq.app>",
+      from: "Ignite <support@igniteclubhq.app>",
       to: ["privacy@igniteclubhq.app"],
       subject: `🚫 User Blocked: ${blockerName || 'Unknown'} blocked ${blockedName || 'Unknown'}`,
       html: emailHtml,
