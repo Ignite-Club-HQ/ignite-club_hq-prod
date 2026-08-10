@@ -35,6 +35,8 @@ interface TeamInviteEmailProps {
   isMiniLeague?: boolean;
   sport?: string | null;
   teamType?: TeamType;
+  /** Club-selected layout: full feature list ("detailed") or short note ("simple"). */
+  emailStyle?: 'detailed' | 'simple';
 }
 
 const PRODUCTION_DOMAIN = "https://igniteclubhq.app";
@@ -76,6 +78,7 @@ export const TeamInviteEmail = ({
   isMiniLeague = false,
   sport,
   teamType,
+  emailStyle = 'detailed',
 }: TeamInviteEmailProps) => {
   const hasChildren = childrenNames.length > 0;
   const childLabel = childrenNames.length === 1 ? childrenNames[0] : 'your kids';
@@ -83,7 +86,9 @@ export const TeamInviteEmail = ({
   const emoji = sportEmoji(sport);
   const parentAudience = !isAdminRole && resolveIsParentAudience({ roleName, childrenNames, teamType });
   const playerAudience = !isAdminRole && !parentAudience;
+  const isSimple = emailStyle === 'simple';
   const previewText = isAdminRole
+
     ? `You've been invited to join the ${clubName} app as ${roleName}`
     : parentAudience
       ? (hasChildren
@@ -142,6 +147,27 @@ export const TeamInviteEmail = ({
                     </Text>
                   ));
                 })}
+              </>
+            ) : isSimple ? (
+              /* Short, focused copy — no feature list (club setting: simple) */
+              <>
+                <Text style={headingText}>
+                  {isAdminRole
+                    ? `You've been added to ${clubName} as ${roleName} 🎉`
+                    : parentAudience
+                      ? (hasChildren
+                          ? `${childLabel} has been added to ${teamName} ${emoji}`
+                          : `Your child has been added to ${teamName} ${emoji}`)
+                      : `You've been added to ${teamName} ${emoji}`}
+                </Text>
+
+                <Text style={bodyText}>
+                  {isAdminRole
+                    ? `${clubName} uses Ignite for teams, events and communication.`
+                    : parentAudience
+                      ? `${teamName} at ${clubName} is set up in Ignite — team details, events and updates are all in there.`
+                      : `${teamName} at ${clubName} is set up in Ignite — team details, events and updates are all in there.`}
+                </Text>
               </>
             ) : isAdminRole ? (
               /* Role-specific admin invite copy */

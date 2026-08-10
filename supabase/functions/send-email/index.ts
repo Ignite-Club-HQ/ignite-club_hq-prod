@@ -60,6 +60,31 @@ async function resolveSportAndTeamType(
   }
 }
 
+/**
+ * Which invite email layout the club has chosen:
+ *  - "detailed" (default): full "once you join you'll be able to…" feature list
+ *  - "simple": short, focused "X has been added to Y" note
+ */
+async function resolveInviteEmailStyle(
+  supabaseAdmin: any,
+  clubName?: string,
+): Promise<'detailed' | 'simple'> {
+  if (!supabaseAdmin || !clubName) return 'detailed';
+  try {
+    const { data: club } = await supabaseAdmin
+      .from('clubs')
+      .select('invite_email_style')
+      .eq('name', clubName)
+      .maybeSingle();
+    return club?.invite_email_style === 'simple' ? 'simple' : 'detailed';
+  } catch (e) {
+    console.warn('[send-email] invite email style lookup failed:', (e as Error)?.message);
+    return 'detailed';
+  }
+}
+
+
+
 
 const resendApiKey = Deno.env.get("RESEND_API_KEY");
 const resend = new Resend(resendApiKey);
@@ -426,6 +451,11 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         data.teamName,
       );
 
+      // Club-selected invite email layout.
+      const emailStyle = data.emailStyle === 'simple' || data.emailStyle === 'detailed'
+        ? data.emailStyle
+        : await resolveInviteEmailStyle(supabaseAdmin, data.clubName);
+
       // Existing user + children → ChildAddedEmail (no download prompts).
       if (isExistingUser && data.childrenNames?.length > 0) {
         return await renderAsync(
@@ -439,6 +469,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
             childrenNames: data.childrenNames || [],
             customMessage: data.customMessage,
             sport: data.sport ?? sport,
+            emailStyle,
           })
         );
       }
@@ -459,6 +490,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           isMiniLeague: data.isMiniLeague,
           sport: data.sport ?? sport,
           teamType: data.teamType ?? teamType,
+          emailStyle,
         })
       );
     }
@@ -695,7 +727,10 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         })
       );
     
-    case "child-added":
+    case "child-added": {
+      const childEmailStyle = data.emailStyle === 'simple' || data.emailStyle === 'detailed'
+        ? data.emailStyle
+        : await resolveInviteEmailStyle(supabaseAdmin, data.clubName);
       return await renderAsync(
         React.createElement(ChildAddedEmail, {
           recipientName: data.recipientName,
@@ -706,8 +741,10 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || (data.childName ? [data.childName] : []),
           customMessage: data.customMessage,
+          emailStyle: childEmailStyle,
         })
       );
+    }
     
     default:
       throw new Error(`Unknown template: ${template}`);

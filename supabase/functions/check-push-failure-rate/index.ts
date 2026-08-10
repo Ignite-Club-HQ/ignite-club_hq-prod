@@ -221,7 +221,7 @@ serve(async (req: Request): Promise<Response> => {
           </div>
         </div>
         <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 16px;">
-          This is an automated alert from Ignite Club HQ. You will not receive another alert for ${settings.cooldown_hours} hours.
+          This is an automated alert from Ignite. You will not receive another alert for ${settings.cooldown_hours} hours.
         </p>
       </div>
     `;

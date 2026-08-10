@@ -391,7 +391,7 @@ serve(async (req) => {
             unit_amount: platformFeeCents,
             product_data: {
               name: 'Ignite Platform Fee',
-              description: 'Ignite Club HQ processing fee (5%)',
+              description: 'Ignite processing fee (5%)',
             },
             recurring: {
               interval: interval,

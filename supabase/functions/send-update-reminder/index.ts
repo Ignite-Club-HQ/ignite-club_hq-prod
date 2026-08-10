@@ -183,8 +183,8 @@ serve(async (req) => {
           const storeName = platform === 'ios' ? 'App Store' : 'Google Play Store';
           const title = testMode ? '🧪 Test: Update Available' : '📲 Ignite App Update';
           const message = testMode
-            ? `This is a test notification. Please open the ${storeName}, search for "Ignite Club HQ", and update to the latest version.`
-            : `A new version of the Ignite app is available! Please open the ${storeName}, search for "Ignite Club HQ", and update to get the latest features.`;
+            ? `This is a test notification. Please open the ${storeName}, search for "Ignite", and update to the latest version.`
+            : `A new version of the Ignite app is available! Please open the ${storeName}, search for "Ignite", and update to get the latest features.`;
 
           const notificationData = {
             store_url: storeUrl,
