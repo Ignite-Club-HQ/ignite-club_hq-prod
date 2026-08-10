@@ -727,7 +727,10 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         })
       );
     
-    case "child-added":
+    case "child-added": {
+      const childEmailStyle = data.emailStyle === 'simple' || data.emailStyle === 'detailed'
+        ? data.emailStyle
+        : await resolveInviteEmailStyle(supabaseAdmin, data.clubName);
       return await renderAsync(
         React.createElement(ChildAddedEmail, {
           recipientName: data.recipientName,
@@ -738,8 +741,10 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || (data.childName ? [data.childName] : []),
           customMessage: data.customMessage,
+          emailStyle: childEmailStyle,
         })
       );
+    }
     
     default:
       throw new Error(`Unknown template: ${template}`);
