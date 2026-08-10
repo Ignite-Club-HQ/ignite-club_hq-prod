@@ -31,7 +31,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { computeMemberIdentity, type MemberRole, type MemberIdentity } from "@/lib/memberIdentity";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { isDuplicateChildError } from "@/lib/childDedup";
 
 interface BulkChild {
@@ -215,7 +215,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const debouncedSecondParentSearch = useDebounce(secondParentSearch, 300);
 
   const debouncedNameInput = useDebounce(nameInput, 300);
-  const nativeKbHeight = useNativeKeyboardHeight();
+  // Fixed-position sheet: use the REMAINING keyboard overlay (after any OEM
+  // WebView resize) — the total IME height over-reports on Android and leaves
+  // a blank gap between the sheet and the keyboard.
+  const nativeKbHeight = useNativeKeyboardBottomInset();
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
