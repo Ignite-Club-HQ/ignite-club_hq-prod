@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("react-router-dom", () => ({
   Navigate: ({ to }: { to: string }) => <div data-testid="navigate">{to}</div>,
   Link: ({ to, children, ...props }: any) => <a href={to} {...props}>{children}</a>,
+  useSearchParams: () => [new URLSearchParams(window.location.search)],
 }));
 vi.mock("@/hooks/useOnlineStatus", () => ({ useOnlineStatus: () => ({ isOnline: mocks.isOnline }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: mocks.toast }) }));
@@ -97,6 +98,7 @@ function fillSignup(password = "StrongPass1", confirm = password) {
 describe("AuthPage critical journeys", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, "", "/auth");
     Object.defineProperty(HTMLElement.prototype, "scrollTo", { configurable: true, value: vi.fn() });
     Object.defineProperty(window, "scrollTo", { configurable: true, value: vi.fn() });
     sessionStorage.clear();
@@ -226,7 +228,7 @@ describe("AuthPage critical journeys", () => {
       inviteToken: "committee-token",
       currentStep: "auth",
     };
-    sessionStorage.setItem("authDefaultTab", "signup");
+    window.history.replaceState({}, "", "/auth?mode=signup");
     sessionStorage.setItem("redirectAfterAuth", "/join/p/committee-token");
     render(<AuthPage />);
 
@@ -242,7 +244,7 @@ describe("AuthPage critical journeys", () => {
 
   it("keeps native committee signup actionable while the software keyboard is visible", async () => {
     mocks.isNative = true;
-    sessionStorage.setItem("authDefaultTab", "signup");
+    window.history.replaceState({}, "", "/auth?mode=signup");
     sessionStorage.setItem("redirectAfterAuth", "/join/p/committee-token");
     render(<AuthPage />);
     await waitFor(() => expect(mocks.keyboardHandlers.keyboardDidShow).toBeTypeOf("function"));
@@ -264,7 +266,7 @@ describe("AuthPage critical journeys", () => {
     let resolve!: (value: { error: Error | null }) => void;
     mocks.isNative = true;
     mocks.signUp.mockReturnValue(new Promise((res) => { resolve = res; }));
-    sessionStorage.setItem("authDefaultTab", "signup");
+    window.history.replaceState({}, "", "/auth?mode=signup");
     sessionStorage.setItem("redirectAfterAuth", "/join/p/committee-token");
     render(<AuthPage />);
     fillSignup();
@@ -280,7 +282,7 @@ describe("AuthPage critical journeys", () => {
   it("recovers an invited mobile signup when authentication rejects instead of returning an error", async () => {
     mocks.isNative = true;
     mocks.signUp.mockRejectedValue(new TypeError("Load failed"));
-    sessionStorage.setItem("authDefaultTab", "signup");
+    window.history.replaceState({}, "", "/auth?mode=signup");
     sessionStorage.setItem("redirectAfterAuth", "/join/p/committee-token");
     render(<AuthPage />);
     fillSignup();

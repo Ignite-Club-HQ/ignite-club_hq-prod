@@ -214,7 +214,7 @@ const firstSignupRequest = (page: Page) => page.evaluate(
 );
 
 async function openAndFillInviteSignup(page: Page) {
-  await page.goto("/auth");
+  await page.goto("/auth?mode=signup");
   await expect(page.getByRole("heading", { name: "Create Account" })).toBeVisible();
   await expect(page.getByText("Create Account", { exact: true }).first()).toBeVisible();
   await fillValidSignup(page);
@@ -385,7 +385,7 @@ test("Android committee signup reports a returned server failure and permits ret
 test("iOS invalid committee signup gives visible validation without sending a request", async ({ page }) => {
   await installCommitteeInviteState(page, "iOS");
   await installIsolatedAuthRoutes(page, "success");
-  await page.goto("/auth");
+  await page.goto("/auth?mode=signup");
   await page.getByLabel("Email").fill("not-an-email");
   await page.getByLabel("Password", { exact: true }).fill("StrongPass1");
   await page.getByLabel("Confirm Password").fill("StrongPass1");

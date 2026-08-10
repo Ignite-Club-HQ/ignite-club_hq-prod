@@ -122,7 +122,17 @@ describe("competition join-token workflow", () => {
     expect(sessionStorage.getItem("redirectAfterAuth")).toBe(
       "/competitions/join?token=join-token",
     );
-    expect(mocks.navigate).toHaveBeenCalledWith("/auth");
+    const destination = mocks.navigate.mock.calls[0]?.[0];
+    expect(destination).toBeTypeOf("string");
+    const authUrl = new URL(destination, "https://ignite.test");
+    expect(authUrl.pathname).toBe("/auth");
+    expect(authUrl.searchParams.get("mode")).toBe("signup");
+    expect(authUrl.searchParams.get("next")).toBe(
+      "/competitions/join?token=join-token",
+    );
+    expect(authUrl.searchParams.get("redirect")).toBe(
+      "/competitions/join?token=join-token",
+    );
     expect(mocks.rpc).not.toHaveBeenCalledWith("join_competition_with_token", expect.anything());
   });
 

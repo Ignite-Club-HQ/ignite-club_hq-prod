@@ -36,6 +36,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 const inviteUrl = "https://igniteclubhq.app/join/p/cold-email-token";
 const invitePath = "/join/p/cold-email-token";
+const signupInvitePath = `${invitePath}?mode=signup`;
 
 async function loadHandler(platform: "android" | "ios", launchUrl: string | null) {
   vi.resetModules();
@@ -75,12 +76,12 @@ describe.each(["android", "ios"] as const)("%s emailed invite native entry", (pl
     deepLinks.initDeepLinkHandler();
     await settleLaunchUrl();
 
-    expect(navigator.getPendingNavigation()).toEqual({ path: invitePath, opts: undefined });
+    expect(navigator.getPendingNavigation()).toEqual({ path: signupInvitePath, opts: undefined });
     expect(navigator.getPendingNavigation()?.path).not.toBe("/auth");
 
     navigator.setAppNavigator(navigate);
     expect(navigate).toHaveBeenCalledOnce();
-    expect(navigate).toHaveBeenCalledWith(invitePath, undefined);
+    expect(navigate).toHaveBeenCalledWith(signupInvitePath, undefined);
   });
 
   it("opens the invite immediately from a warm email tap and never detours through Auth", async () => {
@@ -94,7 +95,7 @@ describe.each(["android", "ios"] as const)("%s emailed invite native entry", (pl
     await mocks.urlOpenHandler!({ url: inviteUrl });
 
     expect(navigate).toHaveBeenCalledOnce();
-    expect(navigate).toHaveBeenCalledWith(invitePath, undefined);
+    expect(navigate).toHaveBeenCalledWith(signupInvitePath, undefined);
     expect(navigate).not.toHaveBeenCalledWith("/auth", expect.anything());
   });
 
@@ -107,7 +108,7 @@ describe.each(["android", "ios"] as const)("%s emailed invite native entry", (pl
 
     await mocks.urlOpenHandler!({ url: inviteUrl });
     expect(navigate).toHaveBeenCalledTimes(1);
-    expect(navigate).toHaveBeenLastCalledWith(invitePath, undefined);
+    expect(navigate).toHaveBeenLastCalledWith(signupInvitePath, undefined);
   });
 
   it("allows a genuine later tap on the same email invite after the user has navigated away", async () => {
@@ -120,7 +121,7 @@ describe.each(["android", "ios"] as const)("%s emailed invite native entry", (pl
     await settleLaunchUrl();
 
     await mocks.urlOpenHandler!({ url: inviteUrl });
-    expect(navigate).toHaveBeenLastCalledWith(invitePath, undefined);
+    expect(navigate).toHaveBeenLastCalledWith(signupInvitePath, undefined);
 
     // Represent the user leaving the invite route before tapping the same
     // email link again. The second OS open is a new user action, not the
@@ -131,6 +132,6 @@ describe.each(["android", "ios"] as const)("%s emailed invite native entry", (pl
     await mocks.urlOpenHandler!({ url: inviteUrl });
 
     expect(navigate).toHaveBeenCalledOnce();
-    expect(navigate).toHaveBeenCalledWith(invitePath, undefined);
+    expect(navigate).toHaveBeenCalledWith(signupInvitePath, undefined);
   });
 });
