@@ -238,7 +238,6 @@ export default function JoinClubPage() {
       const nextPath = `/join-club/${token}`;
       safeSessionSet("redirectAfterAuth", nextPath);
       safeSessionSet("autoJoinAfterAuth", "true");
-      safeSessionSet("authDefaultTab", "signup");
       console.log("[SignupFlow] JoinClub → /auth", { nextPath });
       navigate(buildAuthPathWithIntent({ next: nextPath, mode: "signup", invite: token }));
       return;
