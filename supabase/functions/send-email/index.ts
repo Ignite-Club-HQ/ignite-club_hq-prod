@@ -451,6 +451,11 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         data.teamName,
       );
 
+      // Club-selected invite email layout.
+      const emailStyle = data.emailStyle === 'simple' || data.emailStyle === 'detailed'
+        ? data.emailStyle
+        : await resolveInviteEmailStyle(supabaseAdmin, data.clubName);
+
       // Existing user + children → ChildAddedEmail (no download prompts).
       if (isExistingUser && data.childrenNames?.length > 0) {
         return await renderAsync(
@@ -464,6 +469,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
             childrenNames: data.childrenNames || [],
             customMessage: data.customMessage,
             sport: data.sport ?? sport,
+            emailStyle,
           })
         );
       }
@@ -484,6 +490,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           isMiniLeague: data.isMiniLeague,
           sport: data.sport ?? sport,
           teamType: data.teamType ?? teamType,
+          emailStyle,
         })
       );
     }
