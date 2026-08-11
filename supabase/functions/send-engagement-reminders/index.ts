@@ -10,10 +10,73 @@ const corsHeaders = {
 /**
  * Send engagement reminder push notifications to Pro club users
  * who have 5+ combined unread messages and unseen photos.
- * 
+ *
  * Runs on a schedule. Enforces a 2-day cooldown per user.
  * Only targets users in clubs with active Pro subscriptions.
+ *
+ * Count correctness invariants (2026-08-11):
+ *  - EVERY bulk read over a multi-user set is paginated. PostgREST caps rows at
+ *    1,000 per request; an unpaginated read silently truncates and makes later
+ *    users look like they have read nothing (inflated unread counts).
+ *  - Unread messages are derived from the SAME source the in-app inbox badge
+ *    uses (unread `notifications` rows of message types), so the push number
+ *    matches what the user sees. `get_unread_message_counts` itself cannot be
+ *    called here — it hard-requires `auth.uid() = _user_id` and rejects the
+ *    service role — so we read its underlying notification rows directly.
+ *  - "New photos" uses `photo_views` (actual views), never `photo_reactions`.
+ *  - A sanity ceiling skips implausible counts instead of sending them.
  */
+
+const PAGE_SIZE = 1000;
+const UNREAD_SANITY_CEILING = 100;
+
+/**
+ * The ONLY notification types that `get_unread_message_counts` actually
+ * aggregates into the in-app inbox badge (broadcast + teams + clubs + groups +
+ * dms). `message_reply` and `message_mention` are deliberately absent: the RPC
+ * reads them but never sums them, so counting them here would report a number
+ * the user can never see in the app.
+ */
+const BADGE_COUNTED_NOTIFICATION_TYPES = [
+  "team_message",
+  "club_message",
+  "group_message",
+  "broadcast",
+  "direct_message",
+];
+
+/** Fetch every row for a query, paginating past the PostgREST 1,000-row cap. */
+async function fetchAllPages<T>(
+  label: string,
+  build: (offset: number, limit: number) => any,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let offset = 0;
+  // Hard stop so a runaway query can never spin forever.
+  for (let page = 0; page < 200; page++) {
+    const { data, error } = await build(offset, PAGE_SIZE).range(offset, offset + PAGE_SIZE - 1);
+    if (error) {
+      console.error(`[EngagementReminder] pagination error (${label}) at offset ${offset}:`, error);
+      throw error;
+    }
+    const batch = (data || []) as T[];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) return rows;
+    offset += PAGE_SIZE;
+  }
+  // Returning partial rows here would reintroduce the exact silent-truncation
+  // bug this helper exists to prevent, so fail the whole run instead.
+  throw new Error(
+    `[EngagementReminder] pagination cap reached for ${label} after ${rows.length} rows — aborting run rather than sending counts from a truncated read`
+  );
+}
+
+/** Chunk a list of ids so `.in()` filters stay a sane size. */
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -39,18 +102,18 @@ serve(async (req) => {
 
     console.log("[EngagementReminder] Starting engagement reminder check...");
 
-    // 1. Get all Pro club IDs
-    const { data: proClubs, error: proErr } = await supabase
-      .from("club_subscriptions")
-      .select("club_id, disable_points_system")
-      .or("is_pro.eq.true,is_pro_football.eq.true,admin_pro_override.eq.true,admin_pro_football_override.eq.true");
+    // 1. Get all Pro club IDs (paginated — a club count over 1,000 would
+    //    otherwise silently truncate and drop whole clubs from the run)
+    const proClubs = await fetchAllPages<{ club_id: string; disable_points_system: boolean | null }>(
+      "club_subscriptions",
+      () => supabase
+        .from("club_subscriptions")
+        .select("club_id, disable_points_system")
+        .or("is_pro.eq.true,is_pro_football.eq.true,admin_pro_override.eq.true,admin_pro_football_override.eq.true")
+        .order("id"),
+    );
 
-    if (proErr) {
-      console.error("[EngagementReminder] Error fetching pro clubs:", proErr);
-      throw proErr;
-    }
-
-    if (!proClubs || proClubs.length === 0) {
+    if (proClubs.length === 0) {
       console.log("[EngagementReminder] No Pro clubs found");
       return new Response(JSON.stringify({ success: true, sent: 0 }), {
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -60,13 +123,19 @@ serve(async (req) => {
     const proClubIds = proClubs.map(c => c.club_id);
     console.log(`[EngagementReminder] Found ${proClubIds.length} Pro club(s)`);
 
-    // 2. Get all teams in Pro clubs
-    const { data: proTeams } = await supabase
-      .from("teams")
-      .select("id, club_id")
-      .in("club_id", proClubIds);
 
-    if (!proTeams || proTeams.length === 0) {
+    // 2. Get all teams in Pro clubs (paginated + chunked, like every other
+    //    `.in()` filter here, so the request URL can never blow out)
+    const proTeams: Array<{ id: string; club_id: string }> = [];
+    for (const clubIdChunk of chunk(proClubIds, 200)) {
+      const rows = await fetchAllPages<{ id: string; club_id: string }>(
+        "teams",
+        () => supabase.from("teams").select("id, club_id").in("club_id", clubIdChunk).order("id"),
+      );
+      proTeams.push(...rows);
+    }
+
+    if (proTeams.length === 0) {
       console.log("[EngagementReminder] No teams in Pro clubs");
       return new Response(JSON.stringify({ success: true, sent: 0 }), {
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -79,14 +148,22 @@ serve(async (req) => {
       teamToClub[t.id] = t.club_id;
     }
 
-    // 3. Get users in Pro teams (via user_roles)
-    const { data: teamMembers } = await supabase
-      .from("user_roles")
-      .select("user_id, team_id")
-      .in("team_id", proTeamIds)
-      .not("user_id", "is", null);
+    // 3. Get users in Pro teams (via user_roles, paginated)
+    const teamMembers: Array<{ user_id: string | null; team_id: string | null }> = [];
+    for (const teamIdChunk of chunk(proTeamIds, 200)) {
+      const rows = await fetchAllPages<{ user_id: string | null; team_id: string | null }>(
+        "user_roles",
+        () => supabase
+          .from("user_roles")
+          .select("user_id, team_id")
+          .in("team_id", teamIdChunk)
+          .not("user_id", "is", null)
+          .order("id"),
+      );
+      teamMembers.push(...rows);
+    }
 
-    if (!teamMembers || teamMembers.length === 0) {
+    if (teamMembers.length === 0) {
       console.log("[EngagementReminder] No members in Pro teams");
       return new Response(JSON.stringify({ success: true, sent: 0 }), {
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -96,35 +173,49 @@ serve(async (req) => {
     // Build user -> teams map
     const userTeams: Record<string, string[]> = {};
     for (const m of teamMembers) {
-      if (!m.user_id) continue;
+      if (!m.user_id || !m.team_id) continue;
       if (!userTeams[m.user_id]) userTeams[m.user_id] = [];
-      if (!userTeams[m.user_id].includes(m.team_id!)) {
-        userTeams[m.user_id].push(m.team_id!);
+      if (!userTeams[m.user_id].includes(m.team_id)) {
+        userTeams[m.user_id].push(m.team_id);
       }
     }
 
     const uniqueUserIds = Object.keys(userTeams);
     console.log(`[EngagementReminder] ${uniqueUserIds.length} unique users in Pro teams`);
 
-    // 4. Filter out users who received a reminder in last 2 days
-    const { data: recentReminders } = await supabase
-      .from("engagement_reminder_log")
-      .select("user_id")
-      .gte("sent_at", twoDaysAgo);
+    // 4. Filter out users who received a reminder in last 2 days (paginated)
+    const recentReminders = await fetchAllPages<{ user_id: string }>(
+      "engagement_reminder_log",
+      () => supabase
+        .from("engagement_reminder_log")
+        .select("user_id")
+        .gte("sent_at", twoDaysAgo)
+        .order("id"),
+    );
 
-    const recentlyReminded = new Set((recentReminders || []).map(r => r.user_id));
+    const recentlyReminded = new Set(recentReminders.map(r => r.user_id));
     let eligibleUsers = uniqueUserIds.filter(uid => !recentlyReminded.has(uid));
     console.log(`[EngagementReminder] ${eligibleUsers.length} eligible (after cooldown filter)`);
 
-    // 4b. Filter out users who have disabled rewards/points notifications
+    // 4b. Filter out users who have disabled rewards/points notifications (paginated)
     if (eligibleUsers.length > 0) {
-      const { data: disabledPrefs } = await supabase
-        .from("notification_preferences")
-        .select("user_id")
-        .in("user_id", eligibleUsers)
-        .eq("rewards_enabled", false);
+      const disabledPrefs: Array<{ user_id: string }> = [];
+      for (const userChunk of chunk(eligibleUsers, 200)) {
+        const rows = await fetchAllPages<{ id: string; user_id: string }>(
+          "notification_preferences",
+          () => supabase
+            .from("notification_preferences")
+            .select("id, user_id")
+            .in("user_id", userChunk)
+            .eq("rewards_enabled", false)
+            // Order by the unique id, never user_id — a non-unique sort key can
+            // duplicate or drop rows across page boundaries.
+            .order("id"),
+        );
+        disabledPrefs.push(...rows);
+      }
 
-      if (disabledPrefs && disabledPrefs.length > 0) {
+      if (disabledPrefs.length > 0) {
         const disabledSet = new Set(disabledPrefs.map(p => p.user_id));
         eligibleUsers = eligibleUsers.filter(uid => !disabledSet.has(uid));
         console.log(`[EngagementReminder] ${disabledPrefs.length} users opted out of points notifications, ${eligibleUsers.length} remaining`);
@@ -137,49 +228,143 @@ serve(async (req) => {
       });
     }
 
-    // 5. Get recent team messages (last 7 days) for Pro teams
-    const { data: recentMessages } = await supabase
-      .from("team_messages")
-      .select("id, team_id, author_id")
-      .in("team_id", proTeamIds)
-      .gte("created_at", sevenDaysAgo)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(5000);
+    // 5. Unread messages: mirror `get_unread_message_counts` EXACTLY, because a
+    //    flat count of unread message-type notification rows over-counts:
+    //      - orphan rows whose `related_id` no longer resolves to a message
+    //        (hard-deleted messages) are dropped by the badge's INNER JOINs;
+    //      - `message_reply` / `message_mention` rows are read by the RPC but
+    //        never aggregated into any bucket, so the badge never shows them;
+    //      - `direct_message` rows are excluded when the latest message in that
+    //        conversation was authored by the user themself.
+    //    Those three divergences were the source of implausible counts.
+    type NotifRow = { user_id: string; type: string; related_id: string | null };
+    const notifRows: NotifRow[] = [];
+    for (const userChunk of chunk(eligibleUsers, 200)) {
+      const rows = await fetchAllPages<NotifRow>(
+        "notifications",
+        () => supabase
+          .from("notifications")
+          .select("user_id, type, related_id")
+          .in("user_id", userChunk)
+          .eq("is_read", false)
+          .in("type", BADGE_COUNTED_NOTIFICATION_TYPES)
+          .order("id"),
+      );
+      notifRows.push(...rows);
+    }
 
-    // 6. Get message reads for eligible users
-    const { data: messageReads } = await supabase
-      .from("message_reads")
-      .select("user_id, team_message_id")
-      .in("user_id", eligibleUsers)
-      .not("team_message_id", "is", null);
+    const relatedIdsFor = (type: string) =>
+      Array.from(new Set(
+        notifRows.filter(r => r.type === type && r.related_id).map(r => r.related_id as string)
+      ));
 
-    const readMessageSet = new Set(
-      (messageReads || []).map(r => `${r.user_id}:${r.team_message_id}`)
+    /** Ids that still resolve to a live message row with a non-null scope column. */
+    const resolveExisting = async (table: string, scopeCol: string, ids: string[]) => {
+      const found = new Set<string>();
+      for (const idChunk of chunk(ids, 150)) {
+        const rows = await fetchAllPages<{ id: string }>(
+          table,
+          () => supabase
+            .from(table)
+            .select(`id, ${scopeCol}`)
+            .in("id", idChunk)
+            .not(scopeCol, "is", null)
+            .order("id"),
+        );
+        for (const r of rows) found.add(r.id);
+      }
+      return found;
+    };
+
+    const existingByType: Record<string, Set<string>> = {
+      team_message: await resolveExisting("team_messages", "team_id", relatedIdsFor("team_message")),
+      club_message: await resolveExisting("club_messages", "club_id", relatedIdsFor("club_message")),
+      group_message: await resolveExisting("group_messages", "group_id", relatedIdsFor("group_message")),
+    };
+
+    // DM conversations: latest author must not be the recipient themself. An
+    // unresolvable conversation counts as excluded, matching the RPC's
+    // `NULL <> _user_id` behaviour (fail closed, never inflate).
+    const latestDmAuthor = new Map<string, string | null>();
+    for (const convChunk of chunk(relatedIdsFor("direct_message"), 20)) {
+      await Promise.all(convChunk.map(async (conversationId) => {
+        const { data, error } = await supabase
+          .from("direct_messages")
+          .select("author_id")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (error) {
+          console.error(`[EngagementReminder] latest DM author lookup failed for ${conversationId}:`, error);
+          latestDmAuthor.set(conversationId, null);
+          return;
+        }
+        latestDmAuthor.set(conversationId, data?.[0]?.author_id ?? null);
+      }));
+    }
+
+    const unreadMessagesByUser: Record<string, number> = {};
+    let badgeEquivalentRows = 0;
+    for (const r of notifRows) {
+      let counts: boolean;
+      if (r.type === "broadcast") {
+        counts = true;
+      } else if (!r.related_id) {
+        counts = false;
+      } else if (r.type === "direct_message") {
+        const author = latestDmAuthor.get(r.related_id) ?? null;
+        counts = author !== null && author !== r.user_id;
+      } else {
+        counts = existingByType[r.type]?.has(r.related_id) ?? false;
+      }
+      if (!counts) continue;
+      badgeEquivalentRows++;
+      unreadMessagesByUser[r.user_id] = (unreadMessagesByUser[r.user_id] || 0) + 1;
+    }
+    console.log(
+      `[EngagementReminder] unread notification rows fetched=${notifRows.length} badgeEquivalent=${badgeEquivalentRows} discarded=${notifRows.length - badgeEquivalentRows}`
     );
 
-    // 7. Get recent photos (last 7 days) in Pro teams
-    const { data: recentPhotos } = await supabase
-      .from("photos")
-      .select("id, team_id, uploader_id")
-      .in("team_id", proTeamIds)
-      .gte("created_at", sevenDaysAgo)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(2000);
+    // 6. Get recent photos (last 7 days) in Pro teams (paginated)
+    const recentPhotos: Array<{ id: string; team_id: string | null; uploader_id: string | null }> = [];
+    for (const teamIdChunk of chunk(proTeamIds, 200)) {
+      const rows = await fetchAllPages<{ id: string; team_id: string | null; uploader_id: string | null }>(
+        "photos",
+        () => supabase
+          .from("photos")
+          .select("id, team_id, uploader_id")
+          .in("team_id", teamIdChunk)
+          .gte("created_at", sevenDaysAgo)
+          .is("deleted_at", null)
+          .order("id"),
+      );
+      recentPhotos.push(...rows);
+    }
 
-    // 8. Get photo reactions for eligible users (as a proxy for "seen")
-    const { data: photoReactions } = await supabase
-      .from("photo_reactions")
-      .select("user_id, photo_id")
-      .in("user_id", eligibleUsers);
+    // 7. Get photo VIEWS (never reactions) for the recent photo set — paginated.
+    //    Filtered only by photo_id so the request URL stays well inside limits;
+    //    rows for non-eligible users are dropped client-side.
+    const eligibleUserSet = new Set(eligibleUsers);
+    const viewedPhotoSet = new Set<string>();
+    const recentPhotoIds = recentPhotos.map(p => p.id);
+    for (const photoIdChunk of chunk(recentPhotoIds, 150)) {
+      const rows = await fetchAllPages<{ id: string; user_id: string; photo_id: string }>(
+        "photo_views",
+        () => supabase
+          .from("photo_views")
+          .select("id, user_id, photo_id")
+          .in("photo_id", photoIdChunk)
+          .order("id"),
+      );
+      for (const r of rows) {
+        if (eligibleUserSet.has(r.user_id)) viewedPhotoSet.add(`${r.user_id}:${r.photo_id}`);
+      }
+    }
 
-    const reactedPhotoSet = new Set(
-      (photoReactions || []).map(r => `${r.user_id}:${r.photo_id}`)
-    );
 
-    // 9. Calculate unread counts per eligible user and send notifications
+    // 8. Calculate counts per eligible user and build notifications
     let totalSent = 0;
+    let skippedBySanityGuard = 0;
     const notifications: Array<{ user_id: string; type: string; message: string }> = [];
     const logEntries: Array<{ user_id: string; unread_messages_count: number; unread_photos_count: number }> = [];
 
@@ -188,34 +373,48 @@ serve(async (req) => {
     for (const c of proClubs) {
       clubPointsNames[c.club_id] = 'reward points'; // default
     }
-    const { data: clubData } = await supabase
-      .from("clubs")
-      .select("id, points_display_name")
-      .in("id", proClubIds);
-    for (const c of (clubData || [])) {
-      if (c.points_display_name) clubPointsNames[c.id] = c.points_display_name;
+    for (const clubIdChunk of chunk(proClubIds, 200)) {
+      const rows = await fetchAllPages<{ id: string; points_display_name: string | null }>(
+        "clubs",
+        () => supabase
+          .from("clubs")
+          .select("id, points_display_name")
+          .in("id", clubIdChunk)
+          .order("id"),
+      );
+      for (const c of rows) {
+        if (c.points_display_name) clubPointsNames[c.id] = c.points_display_name;
+      }
     }
+
 
     for (const userId of eligibleUsers) {
       const userTeamIds = userTeams[userId];
-      
-      // Count unread team messages (exclude own messages)
-      const unreadMessages = (recentMessages || []).filter(m => 
-        userTeamIds.includes(m.team_id) &&
-        m.author_id !== userId &&
-        !readMessageSet.has(`${userId}:${m.id}`)
-      ).length;
 
-      // Count unseen photos (exclude own uploads, not reacted to)
-      const unseenPhotos = (recentPhotos || []).filter(p =>
-        userTeamIds.includes(p.team_id!) &&
+      const unreadMessages = unreadMessagesByUser[userId] || 0;
+
+      // Count unseen photos (exclude own uploads, exclude photos already viewed).
+      // If no view rows exist for a photo we treat it as unseen only because a
+      // missing view row means it was never opened; total unseen is still capped
+      // by the sanity guard below.
+      const unseenPhotos = recentPhotos.filter(p =>
+        p.team_id && userTeamIds.includes(p.team_id) &&
         p.uploader_id !== userId &&
-        !reactedPhotoSet.has(`${userId}:${p.id}`)
+        !viewedPhotoSet.has(`${userId}:${p.id}`)
       ).length;
 
       const totalUnread = unreadMessages + unseenPhotos;
 
       if (totalUnread < 5) continue;
+
+      // Sanity guard: never send an implausible number.
+      if (unreadMessages > UNREAD_SANITY_CEILING || unseenPhotos > UNREAD_SANITY_CEILING) {
+        skippedBySanityGuard++;
+        console.warn(
+          `[EngagementReminder] SANITY GUARD skip user=${userId} unreadMessages=${unreadMessages} unseenPhotos=${unseenPhotos} ceiling=${UNREAD_SANITY_CEILING}`
+        );
+        continue;
+      }
 
       // Build message
       const parts: string[] = [];
@@ -266,10 +465,19 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[EngagementReminder] COMPLETE: Sent ${totalSent} engagement reminders`);
+    console.log(
+      `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - notifications.length - skippedBySanityGuard}`
+    );
 
     return new Response(
-      JSON.stringify({ success: true, sent: totalSent, eligible: eligibleUsers.length }),
+      JSON.stringify({
+        success: true,
+        sent: totalSent,
+        eligible: eligibleUsers.length,
+        evaluated: eligibleUsers.length,
+        notified: totalSent,
+        skipped_sanity_guard: skippedBySanityGuard,
+      }),
       { headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {

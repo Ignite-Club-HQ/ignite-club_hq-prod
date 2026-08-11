@@ -46,6 +46,9 @@ jobs:
   promote:
     name: Migrate + deploy backend
     runs-on: ubuntu-latest
+    # Bounded so a hung dump/link can never burn a full 6h runner slot and
+    # surface only as an opaque "The operation was canceled."
+    timeout-minutes: 45
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
@@ -263,6 +266,10 @@ jobs:
       - name: Backup PROD schema + roles (pre-migration)
         if: github.event_name == 'push'
         id: backup
+        # Schema + roles is a fast dump (seconds-to-minutes). Row data is NOT
+        # dumped here — nightly-backup.yml owns that. If this ever exceeds the
+        # cap, the dump is hung, not slow, and should fail loudly.
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           STAMP=$(date -u +%Y%m%dT%H%M%SZ)
