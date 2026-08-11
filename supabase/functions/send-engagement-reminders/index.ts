@@ -201,14 +201,16 @@ serve(async (req) => {
     if (eligibleUsers.length > 0) {
       const disabledPrefs: Array<{ user_id: string }> = [];
       for (const userChunk of chunk(eligibleUsers, 200)) {
-        const rows = await fetchAllPages<{ user_id: string }>(
+        const rows = await fetchAllPages<{ id: string; user_id: string }>(
           "notification_preferences",
           () => supabase
             .from("notification_preferences")
-            .select("user_id")
+            .select("id, user_id")
             .in("user_id", userChunk)
             .eq("rewards_enabled", false)
-            .order("user_id"),
+            // Order by the unique id, never user_id — a non-unique sort key can
+            // duplicate or drop rows across page boundaries.
+            .order("id"),
         );
         disabledPrefs.push(...rows);
       }
