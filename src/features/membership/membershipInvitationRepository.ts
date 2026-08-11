@@ -18,7 +18,7 @@ export type InvitationMemberProfile = Pick<
 
 export type InvitationClubBranding = Pick<
   Database["public"]["Tables"]["clubs"]["Row"],
-  "name" | "logo_url" | "contact_email"
+  "name" | "logo_url" | "contact_email" | "invite_email_style"
 >;
 
 export type InvitationProfileLoader = (
@@ -109,7 +109,7 @@ export async function fetchInvitationClubBranding(
 ): Promise<InvitationClubBranding | null> {
   const { data } = await client
     .from("clubs")
-    .select("name, logo_url, contact_email")
+    .select("name, logo_url, contact_email, invite_email_style")
     .eq("id", clubId)
     .single();
   return data;

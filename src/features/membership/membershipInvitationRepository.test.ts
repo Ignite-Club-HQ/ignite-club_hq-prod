@@ -87,12 +87,12 @@ describe("membership invitation read repository", () => {
   });
 
   it("reads only invitation branding for the exact club", async () => {
-    const branding = { name: "Synthetic Club", logo_url: null, contact_email: "club@example.test" };
+    const branding = { name: "Synthetic Club", logo_url: null, contact_email: "club@example.test", invite_email_style: "discover" };
     const { client, calls } = scriptedClient({ clubs: { data: branding, error: null } });
 
     await expect(fetchInvitationClubBranding("club-a", client)).resolves.toEqual(branding);
     expect(calls).toEqual([
-      { table: "clubs", method: "select", args: ["name, logo_url, contact_email"] },
+      { table: "clubs", method: "select", args: ["name, logo_url, contact_email, invite_email_style"] },
       { table: "clubs", method: "eq", args: ["id", "club-a"] },
     ]);
   });

@@ -134,3 +134,25 @@ export function purgeEventsFromScheduleCache(deletedIds: string[]): void {
   }
 }
 
+
+/**
+ * Drop every persisted events-list snapshot for one user (all filter/team/club
+ * scope keys). Used after a create/edit/cancel/delete so the Schedule page
+ * cannot fall back to a list that predates the mutation.
+ */
+export function clearCachedEventsLists(userId?: string | null): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    const prefix = `${EVENTS_LIST_PREFIX}${userScope(userId)}_`;
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) toRemove.push(k);
+    }
+    for (const k of toRemove) {
+      try { localStorage.removeItem(k); } catch {}
+    }
+  } catch {
+    // never let cache maintenance break a successful mutation
+  }
+}

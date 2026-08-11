@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Flame, User, Camera, Loader2, Bell, Download, Fingerprint, UserPlus, Building2 } from "lucide-react";
@@ -22,6 +22,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
+
 import { resolveCanonicalChildId, createChildForParentOrReuse } from "@/lib/childDedup";
 
 
@@ -73,13 +75,16 @@ export default function CompleteProfilePage() {
 
   // New users completing their profile always see light mode.
   // We also update localStorage so next-themes ThemeProvider doesn't re-override the DOM.
-  useEffect(() => {
+  // Layout effect (not passive effect) so the switch happens before the first
+  // paint of this page — otherwise a dark-themed user sees a one-frame flash.
+  useLayoutEffect(() => {
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add('light');
     root.style.colorScheme = 'light';
     localStorage.setItem('app-theme', 'light');
   }, []);
+
 
   // Check if push notifications and biometrics are supported
   useEffect(() => {
@@ -863,7 +868,15 @@ export default function CompleteProfilePage() {
         if (seeded) {
           console.log("[CompleteProfile] Applied club filter from invite:", firstInvitedClubId);
         }
+      } else {
+        // Defensive: the invite may already have been marked accepted (DB
+        // trigger or an earlier partial run), so the pending list was empty.
+        const fallback = await seedClubThemeFromAnyInvite(user, setActiveClubTheme);
+        if (fallback) {
+          console.log("[CompleteProfile] Applied club filter from accepted invite:", fallback);
+        }
       }
+
 
       // Invalidate club theme queries so they refetch with new user roles
       await queryClient.invalidateQueries({ queryKey: ["club-themes"] });

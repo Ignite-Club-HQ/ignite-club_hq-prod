@@ -200,7 +200,7 @@ serve(async (req) => {
               <!-- Footer -->
               <div style="background-color: #f9fafb; padding: 16px; text-align: center; border-top: 1px solid #e5e7eb;">
                 <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                  Ignite Club HQ • Photo Report System
+                  Ignite • Photo Report System
                 </p>
               </div>
             </div>
@@ -209,7 +209,7 @@ serve(async (req) => {
         `;
 
         const { error: emailError } = await resend.emails.send({
-          from: "Ignite Club HQ <support@igniteclubhq.app>",
+          from: "Ignite <support@igniteclubhq.app>",
           to: ["privacy@igniteclubhq.app"],
           subject: `⚠️ Photo Report: ${reason} - ${clubName}`,
           html: emailHtml,

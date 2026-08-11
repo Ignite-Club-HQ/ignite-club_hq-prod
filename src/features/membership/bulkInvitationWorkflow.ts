@@ -48,6 +48,7 @@ export async function processBulkInvitationBatch<T extends BulkInvitationWorkflo
     clubName: string | null | undefined;
     clubLogoUrl: string | null | undefined;
     clubContactEmail: string | null | undefined;
+    inviteEmailStyle?: string | null;
   },
   operations: WorkflowOperations = {
     processExisting: processBulkExistingRecipient,
@@ -81,6 +82,7 @@ export async function processBulkInvitationBatch<T extends BulkInvitationWorkflo
         clubName: context.clubName,
         clubLogoUrl: context.clubLogoUrl,
         clubContactEmail: context.clubContactEmail,
+        inviteEmailStyle: context.inviteEmailStyle,
       });
       if (outcome.memberResult) results.push(outcome.memberResult);
       else failures.push({ memberName: member.name, error: outcome.roleResult.error });
@@ -104,6 +106,7 @@ export async function processBulkInvitationBatch<T extends BulkInvitationWorkflo
       clubName: context.clubName,
       clubLogoUrl: context.clubLogoUrl,
       clubContactEmail: context.clubContactEmail,
+      inviteEmailStyle: context.inviteEmailStyle,
     });
     if (outcome.memberResult) results.push(outcome.memberResult);
     else failures.push({ memberName: member.name, error: outcome.inviteError });

@@ -359,6 +359,7 @@ describe("bulk pending second-guardian workflow", () => {
     clubName: "Synthetic Club",
     clubLogoUrl: "https://example.test/logo.png",
     clubContactEmail: "club@example.test",
+    inviteEmailStyle: "discover",
   };
 
   function pendingGuardianClient(inviteError: unknown = null, invokeResult: unknown = { data: {}, error: null }) {
@@ -1318,6 +1319,7 @@ describe("pending team-invite email request and invocation", () => {
     clubName: "Synthetic Club",
     clubLogoUrl: "https://example.test/logo.png",
     clubContactEmail: "club@example.test",
+    inviteEmailStyle: "discover",
   };
 
   it("builds the exact single-child branded request", () => {
@@ -1350,6 +1352,18 @@ describe("pending team-invite email request and invocation", () => {
     });
     expect(request.body.subject).toBe("Synthetic Club: See which team your kids are in ⚽");
     expect(request.body.templateData.childrenNames).toEqual(["Child A", "Child B"]);
+  });
+
+  it("uses the standard added-to-team wording unless the club selects discover", () => {
+    expect(buildPendingTeamInviteEmailRequest({
+      ...base,
+      inviteEmailStyle: "standard",
+    }).body.subject).toBe("Synthetic Club: Child A has been added to their team ⚽");
+    expect(buildPendingTeamInviteEmailRequest({
+      ...base,
+      inviteEmailStyle: null,
+      childrenNames: ["Child A", "Child B"],
+    }).body.subject).toBe("Synthetic Club: Your children have been added to their team ⚽");
   });
 
   it("uses no-child branding and optional-field fallbacks exactly", () => {
@@ -1411,6 +1425,7 @@ describe("existing parent team email request and invocation", () => {
     clubName: "Synthetic Club",
     clubLogoUrl: "https://example.test/logo.png",
     clubContactEmail: "club@example.test",
+    inviteEmailStyle: "discover",
   };
 
   it("builds the exact single-child user-targeted request and team deep link", () => {
@@ -1457,6 +1472,13 @@ describe("existing parent team email request and invocation", () => {
         }),
       }),
     });
+  });
+
+  it("uses the standard existing-parent wording unless the club selects discover", () => {
+    expect(buildExistingParentTeamEmailRequest({
+      ...base,
+      inviteEmailStyle: "standard",
+    }).body.subject).toBe("Synthetic Club: Child A has been added to their team ⚽");
   });
 
   it("invokes the email function once and returns its result unchanged", async () => {
@@ -1570,6 +1592,7 @@ describe("bulk pending-invite email delivery", () => {
     clubName: "Synthetic Club",
     clubLogoUrl: "https://example.test/logo.png",
     clubContactEmail: "club@example.test",
+    inviteEmailStyle: "discover",
   };
 
   it("records only verified success and preserves the exact bulk request", async () => {

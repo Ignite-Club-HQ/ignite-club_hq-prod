@@ -24,6 +24,21 @@ import {
   readAuthIntent,
 } from "@/lib/authRedirectStorage";
 
+/**
+ * Warm the `/complete-profile` route chunk. Without this, the post-signup
+ * transition renders the router's Suspense fallback (a second, differently
+ * centred spinner) for a few hundred ms — the visible "flash" between tapping
+ * Create Account and the profile screen appearing.
+ */
+let completeProfilePrefetched = false;
+const prefetchCompleteProfile = () => {
+  if (completeProfilePrefetched) return;
+  completeProfilePrefetched = true;
+  import("@/pages/CompleteProfilePage").catch(() => {
+    completeProfilePrefetched = false;
+  });
+};
+
 
 const passwordRequirements = [
   { test: (p: string) => p.length >= 8, label: "At least 8 characters" },
@@ -190,6 +205,16 @@ export default function AuthPage() {
   // would see empty storage and fall through to `/`, overwriting the intended
   // destination before the first <Navigate> had committed.
   const [postAuthTarget, setPostAuthTarget] = useState<string | null>(null);
+
+  // Warm the profile-completion chunk while the user is still filling the form
+  // so the hand-off after signup paints without an intermediate loader.
+  useEffect(() => {
+    if (authMode !== "signup") return;
+    const id = window.setTimeout(prefetchCompleteProfile, 300);
+    return () => window.clearTimeout(id);
+  }, [authMode]);
+
+
 
   // Resolve the post-auth destination exactly once, after auth + profile
   // state has settled. Consuming `redirectAfterAuth` here (rather than during
@@ -535,6 +560,8 @@ export default function AuthPage() {
     if (authInFlightRef.current) return;
     authInFlightRef.current = true;
     setLoading(true);
+    prefetchCompleteProfile();
+
 
     try {
       const result = mode === "signin"

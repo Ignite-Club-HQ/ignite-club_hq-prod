@@ -10,7 +10,7 @@
  * without a Deno runtime or any network access.
  */
 
-/** Origins that are always approved for Ignite Club HQ redirects. */
+/** Origins that are always approved for Ignite redirects. */
 export const DEFAULT_APPROVED_ORIGINS: readonly string[] = [
   "https://igniteclubhq.app",
   "https://www.igniteclubhq.app",

@@ -176,6 +176,7 @@ export interface PendingTeamInviteEmailInput {
   clubName: string | null | undefined;
   clubLogoUrl: string | null | undefined;
   clubContactEmail: string | null | undefined;
+  inviteEmailStyle?: string | null;
 }
 
 export interface PendingTeamInviteEmailRequest {
@@ -210,6 +211,7 @@ export interface ExistingParentTeamEmailInput {
   clubName: string | null | undefined;
   clubLogoUrl: string | null | undefined;
   clubContactEmail: string | null | undefined;
+  inviteEmailStyle?: string | null;
 }
 
 export interface BulkPendingTeamInviteInput {
@@ -661,10 +663,15 @@ export function buildPendingTeamInviteEmailRequest(
   input: PendingTeamInviteEmailInput,
 ): PendingTeamInviteEmailRequest {
   const clubSubjectName = input.clubName || "Your club";
+  const discoverStyle = input.inviteEmailStyle === "discover";
   const subject = input.childrenNames.length === 1
-    ? `${clubSubjectName}: See which team ${input.childrenNames[0]} is in ⚽`
+    ? discoverStyle
+      ? `${clubSubjectName}: See which team ${input.childrenNames[0]} is in ⚽`
+      : `${clubSubjectName}: ${input.childrenNames[0]} has been added to their team ⚽`
     : input.childrenNames.length > 1
-      ? `${clubSubjectName}: See which team your kids are in ⚽`
+      ? discoverStyle
+        ? `${clubSubjectName}: See which team your kids are in ⚽`
+        : `${clubSubjectName}: Your children have been added to their team ⚽`
       : `${clubSubjectName}: You've been added to the team ⚽`;
 
   return {
@@ -707,7 +714,9 @@ export function buildExistingParentTeamEmailRequest(
   input: ExistingParentTeamEmailInput,
 ) {
   const subject = input.childrenNames.length === 1
-    ? `${input.clubName || "Your club"}: See which team ${input.childrenNames[0]} is in ⚽`
+    ? input.inviteEmailStyle === "discover"
+      ? `${input.clubName || "Your club"}: See which team ${input.childrenNames[0]} is in ⚽`
+      : `${input.clubName || "Your club"}: ${input.childrenNames[0]} has been added to their team ⚽`
     : `${input.clubName || "Your club"}: Your children have been added to ${input.teamName} ⚽`;
 
   return {
@@ -936,6 +945,7 @@ export async function inviteBulkPendingSecondGuardian(
     clubName: string | null | undefined;
     clubLogoUrl: string | null | undefined;
     clubContactEmail: string | null | undefined;
+    inviteEmailStyle?: string | null;
   },
   client: IgniteSupabaseClient = supabase,
   createToken: () => string = () => crypto.randomUUID(),
@@ -1048,6 +1058,7 @@ export async function processBulkPendingRecipient(
     clubName: string | null | undefined;
     clubLogoUrl: string | null | undefined;
     clubContactEmail: string | null | undefined;
+    inviteEmailStyle?: string | null;
   },
   operations: BulkPendingRecipientOperations = {
     createInvite: createBulkPendingTeamInvite,
@@ -1081,6 +1092,7 @@ export async function processBulkPendingRecipient(
     clubName: input.clubName,
     clubLogoUrl: input.clubLogoUrl,
     clubContactEmail: input.clubContactEmail,
+    inviteEmailStyle: input.inviteEmailStyle,
   });
 
   return {
@@ -1118,6 +1130,7 @@ export async function processBulkExistingRecipient(
     clubName: string | null | undefined;
     clubLogoUrl: string | null | undefined;
     clubContactEmail: string | null | undefined;
+    inviteEmailStyle?: string | null;
   },
   operations: BulkExistingRecipientOperations = {
     assignRole: assignBulkExistingTeamRole,
@@ -1179,6 +1192,7 @@ export async function processBulkExistingRecipient(
         clubName: input.clubName,
         clubLogoUrl: input.clubLogoUrl,
         clubContactEmail: input.clubContactEmail,
+        inviteEmailStyle: input.inviteEmailStyle,
       });
     }
   }

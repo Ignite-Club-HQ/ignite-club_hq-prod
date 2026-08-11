@@ -2255,6 +2255,7 @@ export type Database = {
           events_sponsor_strip_enabled: boolean
           force_disable_message_previews: boolean
           id: string
+          invite_email_style: string
           is_pro: boolean
           kind: string
           last_message_at: string | null
@@ -2342,6 +2343,7 @@ export type Database = {
           events_sponsor_strip_enabled?: boolean
           force_disable_message_previews?: boolean
           id?: string
+          invite_email_style?: string
           is_pro?: boolean
           kind?: string
           last_message_at?: string | null
@@ -2429,6 +2431,7 @@ export type Database = {
           events_sponsor_strip_enabled?: boolean
           force_disable_message_previews?: boolean
           id?: string
+          invite_email_style?: string
           is_pro?: boolean
           kind?: string
           last_message_at?: string | null

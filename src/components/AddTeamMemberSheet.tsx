@@ -35,7 +35,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import type { MemberIdentity } from "@/lib/memberIdentity";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import {
   findExistingMemberByName,
   findMatchingInvitationChildren,
@@ -218,7 +218,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const debouncedSecondParentSearch = useDebounce(secondParentSearch, 300);
 
   const debouncedNameInput = useDebounce(nameInput, 300);
-  const nativeKbHeight = useNativeKeyboardHeight();
+  const nativeKbHeight = useNativeKeyboardBottomInset();
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
@@ -568,6 +568,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               clubName: clubBranding?.name,
               clubLogoUrl: clubBranding?.logo_url,
               clubContactEmail: clubBranding?.contact_email,
+              inviteEmailStyle: clubBranding?.invite_email_style,
             });
           } catch (err) {
             console.error("[AddMember] Failed to send team-invite email to primary parent:", err);
@@ -618,6 +619,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               clubName: clubBranding?.name,
               clubLogoUrl: clubBranding?.logo_url,
               clubContactEmail: clubBranding?.contact_email,
+              inviteEmailStyle: clubBranding?.invite_email_style,
             });
           } catch (err) {
             console.error("[AddMember] Failed to send team-invite email to second parent:", err);
@@ -633,7 +635,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             body: {
               to: secondParentEmail.trim().toLowerCase(),
               subject: childrenNames.length === 1
-                ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                ? clubBranding?.invite_email_style === "discover"
+                  ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
+                  : `${clubBranding?.name || 'Your club'}: ${childrenNames[0]} has been added to their team ⚽`
                 : `${clubBranding?.name || 'Your club'}: You've been added to the team ⚽`,
               template: "team-invite",
               senderName: clubBranding?.name || undefined,
@@ -886,6 +890,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             clubName: clubBranding?.name,
             clubLogoUrl: clubBranding?.logo_url,
             clubContactEmail: clubBranding?.contact_email,
+            inviteEmailStyle: clubBranding?.invite_email_style,
           });
           
           // Update pending invite with email status
@@ -946,6 +951,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             clubName: clubBranding?.name,
             clubLogoUrl: clubBranding?.logo_url,
             clubContactEmail: clubBranding?.contact_email,
+            inviteEmailStyle: clubBranding?.invite_email_style,
           });
 
           const { emailSent } = await recordPendingInviteEmailDelivery({
@@ -981,6 +987,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             clubName: clubBranding?.name,
             clubLogoUrl: clubBranding?.logo_url,
             clubContactEmail: clubBranding?.contact_email,
+            inviteEmailStyle: clubBranding?.invite_email_style,
           });
         } catch (err) {
           console.error("[AddMember] Failed to send team-invite email to second parent (new flow):", err);
@@ -1012,6 +1019,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           clubName: clubBranding?.name,
           clubLogoUrl: clubBranding?.logo_url,
           clubContactEmail: clubBranding?.contact_email,
+          inviteEmailStyle: clubBranding?.invite_email_style,
       });
       for (const failure of failures) {
         console.error("Failed to add bulk member", failure.memberName, failure.error);

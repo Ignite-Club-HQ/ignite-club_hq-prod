@@ -42,6 +42,7 @@ import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
 import { EventRoleAudienceSelect, type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
+import { refreshEventCaches } from "@/lib/eventCacheRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { AddressAutocomplete, SavedLocation } from "@/components/AddressAutocomplete";
@@ -868,6 +869,10 @@ export default function CreateEventPage() {
         await queryClient.invalidateQueries({
           queryKey: ["user-memberships-and-events", user!.id],
         });
+        // Also refresh every other event-derived surface (Schedule list, team
+        // next-event) and drop the persisted localStorage snapshots so a cold
+        // open cannot repaint a list that predates this event.
+        refreshEventCaches(queryClient, user!.id);
       } catch (invalidationError) {
         console.warn("Next Up invalidation failed after event creation:", invalidationError);
       }
