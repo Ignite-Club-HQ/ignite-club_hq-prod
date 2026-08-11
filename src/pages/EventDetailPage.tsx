@@ -364,7 +364,13 @@ export default function EventDetailPage() {
 
 
 
-  const { data: rsvps } = useQuery({
+  const {
+    data: rsvps,
+    error: rsvpsError,
+    isLoading: rsvpsLoading,
+    isFetching: rsvpsFetching,
+    refetch: refetchRsvps,
+  } = useQuery({
     queryKey: ["event-rsvps", id],
     queryFn: async () => {
       // Fetch rsvps first
