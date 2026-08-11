@@ -2888,7 +2888,7 @@ export default function EventDetailPage() {
               <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 onClick={() => remindMutation.mutate()}
-                disabled={remindMutation.isPending}
+                disabled={remindMutation.isPending || attendanceActionsDisabled}
                 className="w-full sm:w-auto"
               >
                 {remindMutation.isPending ? (
@@ -2917,7 +2917,7 @@ export default function EventDetailPage() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => resendInvitesMutation.mutate()}
-                disabled={resendInvitesMutation.isPending}
+                disabled={resendInvitesMutation.isPending || attendanceActionsDisabled}
               >
                 {resendInvitesMutation.isPending ? (
                   <>
@@ -3389,7 +3389,7 @@ export default function EventDetailPage() {
                             size="sm"
                             className="flex flex-col h-auto py-2"
                             onClick={() => childRsvpMutation.mutate({ childId: child.id, status: value, childName: child.name })}
-                            disabled={childRsvpMutation.isPending}
+                            disabled={childRsvpMutation.isPending || attendanceActionsDisabled}
                           >
                             <span>{icon}</span>
                             <span className="text-xs">{label}</span>
@@ -3434,7 +3434,7 @@ export default function EventDetailPage() {
                   variant={myRsvp?.status === value ? "default" : "outline"}
                   className="flex flex-col h-auto py-3"
                   onClick={() => myRsvp?.status !== value && rsvpMutation.mutate(value)}
-                  disabled={rsvpMutation.isPending || myRsvp?.status === value}
+                  disabled={rsvpMutation.isPending || attendanceActionsDisabled || myRsvp?.status === value}
                 >
                   <span className="text-lg">{icon}</span>
                   <span className="text-xs mt-1">{label}</span>
@@ -3560,7 +3560,7 @@ export default function EventDetailPage() {
                           size="sm"
                           className="flex flex-col h-auto py-2"
                           onClick={() => parentLeaguePlayerRsvpMutation.mutate({ playerId: player.id, status: value })}
-                          disabled={parentLeaguePlayerRsvpMutation.isPending}
+                          disabled={parentLeaguePlayerRsvpMutation.isPending || attendanceActionsDisabled}
                         >
                           <span>{icon}</span>
                           <span className="text-xs">{label}</span>
