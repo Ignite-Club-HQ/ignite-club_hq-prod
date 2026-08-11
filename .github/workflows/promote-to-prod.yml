@@ -46,6 +46,9 @@ jobs:
   promote:
     name: Migrate + deploy backend
     runs-on: ubuntu-latest
+    # Bounded so a hung dump/link can never burn a full 6h runner slot and
+    # surface only as an opaque "The operation was canceled."
+    timeout-minutes: 45
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_REF: ${{ secrets.SUPABASE_PROD_PROJECT_REF }}
