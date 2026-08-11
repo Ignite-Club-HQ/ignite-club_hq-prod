@@ -11643,6 +11643,12 @@ export type Database = {
           team_ids: string[]
         }[]
       }
+      get_targeted_event_notification_recipients: {
+        Args: { p_event_id: string }
+        Returns: {
+          user_id: string
+        }[]
+      }
       get_team_children_for_pitch_board: {
         Args: { p_team_id: string }
         Returns: {
