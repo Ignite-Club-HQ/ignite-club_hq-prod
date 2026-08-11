@@ -3596,6 +3596,19 @@ export default function EventDetailPage() {
 
       {/* Unified Attendance section — replaces standalone Responses + Event Views */}
       {(() => {
+        // Attendance read failed and we have nothing cached: show the alert +
+        // retry instead of an empty roster (which would read as "no responses").
+        if (attendanceUnavailable) return attendanceAlert;
+        // Initial load: attendance-specific loading state, never a zero count.
+        if (!rsvps && attendanceInitialLoading) {
+          return (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading attendance…
+            </div>
+          );
+        }
+
         // Get player user IDs for filtering
         const playerUserIds = new Set(playerMembers?.map((m: any) => m.id) || []);
 
