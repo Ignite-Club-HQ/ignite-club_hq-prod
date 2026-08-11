@@ -144,7 +144,7 @@ serve(async (req) => {
           .select("user_id, team_id")
           .in("team_id", teamIdChunk)
           .not("user_id", "is", null)
-          .order("user_id"),
+          .order("id"),
       );
       teamMembers.push(...rows);
     }
@@ -176,7 +176,7 @@ serve(async (req) => {
         .from("engagement_reminder_log")
         .select("user_id")
         .gte("sent_at", twoDaysAgo)
-        .order("user_id"),
+        .order("id"),
     );
 
     const recentlyReminded = new Set(recentReminders.map(r => r.user_id));
@@ -224,7 +224,7 @@ serve(async (req) => {
           .in("user_id", userChunk)
           .eq("is_read", false)
           .in("type", MESSAGE_NOTIFICATION_TYPES)
-          .order("user_id"),
+          .order("id"),
       );
       for (const r of rows) {
         unreadMessagesByUser[r.user_id] = (unreadMessagesByUser[r.user_id] || 0) + 1;
@@ -247,26 +247,26 @@ serve(async (req) => {
       recentPhotos.push(...rows);
     }
 
-    // 7. Get photo VIEWS for eligible users (never reactions) — paginated.
-    //    Restricted to the recent photo set so the read stays bounded.
+    // 7. Get photo VIEWS (never reactions) for the recent photo set — paginated.
+    //    Filtered only by photo_id so the request URL stays well inside limits;
+    //    rows for non-eligible users are dropped client-side.
+    const eligibleUserSet = new Set(eligibleUsers);
     const viewedPhotoSet = new Set<string>();
     const recentPhotoIds = recentPhotos.map(p => p.id);
-    if (recentPhotoIds.length > 0) {
-      for (const photoIdChunk of chunk(recentPhotoIds, 400)) {
-        for (const userChunk of chunk(eligibleUsers, 400)) {
-          const rows = await fetchAllPages<{ user_id: string; photo_id: string }>(
-            "photo_views",
-            () => supabase
-              .from("photo_views")
-              .select("user_id, photo_id")
-              .in("user_id", userChunk)
-              .in("photo_id", photoIdChunk)
-              .order("photo_id"),
-          );
-          for (const r of rows) viewedPhotoSet.add(`${r.user_id}:${r.photo_id}`);
-        }
+    for (const photoIdChunk of chunk(recentPhotoIds, 150)) {
+      const rows = await fetchAllPages<{ id: string; user_id: string; photo_id: string }>(
+        "photo_views",
+        () => supabase
+          .from("photo_views")
+          .select("id, user_id, photo_id")
+          .in("photo_id", photoIdChunk)
+          .order("id"),
+      );
+      for (const r of rows) {
+        if (eligibleUserSet.has(r.user_id)) viewedPhotoSet.add(`${r.user_id}:${r.photo_id}`);
       }
     }
+
 
     // 8. Calculate counts per eligible user and build notifications
     let totalSent = 0;
