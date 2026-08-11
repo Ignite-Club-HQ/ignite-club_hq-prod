@@ -414,6 +414,33 @@ export default function EventDetailPage() {
     enabled: !!id,
   });
 
+  // Attendance read health. A failed RSVP read must never be presented as a
+  // valid empty roster: we surface an alert + retry and disable every
+  // attendance-dependent action until a successful read lands. Cached data is
+  // kept visible (and stable) during a background refetch.
+  const attendanceUnavailable = !!rsvpsError && !rsvps;
+  const attendanceInitialLoading = (rsvpsLoading || (rsvpsFetching && !rsvps)) && !rsvpsError;
+  const attendanceActionsDisabled = attendanceUnavailable || attendanceInitialLoading;
+
+  const attendanceAlert = (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+    >
+      <span>Attendance couldn’t be loaded. Check your connection and try again.</span>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7"
+        onClick={() => { void refetchRsvps(); }}
+      >
+        Try again
+      </Button>
+    </div>
+  );
+
+
+
   // Fetch event guests for attending count and RSVP list
   const { data: eventGuests } = useQuery({
     queryKey: ["event-guests", id],
