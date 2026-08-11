@@ -1,6 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { isAuthorizedCronCaller } from "../_shared/cron-auth.ts";
+import {
+  CooldownLogWriteError,
+  dispatchReminders,
+  type ReminderEntry,
+} from "./dispatch.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -365,8 +371,10 @@ serve(async (req) => {
     // 8. Calculate counts per eligible user and build notifications
     let totalSent = 0;
     let skippedBySanityGuard = 0;
-    const notifications: Array<{ user_id: string; type: string; message: string }> = [];
-    const logEntries: Array<{ user_id: string; unread_messages_count: number; unread_photos_count: number }> = [];
+    // Notification and cooldown-log rows stay paired so a failed notification
+    // batch can never leave a cooldown behind for its recipients.
+    const reminders: ReminderEntry[] = [];
+
 
     // Get club points display names
     const clubPointsNames: Record<string, string> = {};
@@ -430,43 +438,33 @@ serve(async (req) => {
       const rewardsText = pointsDisabled ? '' : ` Engage to earn ${pointsName}! 🏆`;
       const message = `📬 You have ${engagementText}.${rewardsText}`;
 
-      notifications.push({
-        user_id: userId,
-        type: "engagement_reminder",
-        message,
-      });
-
-      logEntries.push({
-        user_id: userId,
-        unread_messages_count: unreadMessages,
-        unread_photos_count: unseenPhotos,
+      reminders.push({
+        notification: {
+          user_id: userId,
+          type: "engagement_reminder",
+          message,
+        },
+        log: {
+          user_id: userId,
+          unread_messages_count: unreadMessages,
+          unread_photos_count: unseenPhotos,
+        },
       });
     }
 
-    // Batch insert notifications
-    if (notifications.length > 0) {
-      // Insert in batches of 500
-      for (let i = 0; i < notifications.length; i += 500) {
-        const batch = notifications.slice(i, i + 500);
-        const { error: notifErr } = await supabase
-          .from("notifications")
-          .insert(batch);
-        if (notifErr) {
-          console.error("[EngagementReminder] Error inserting notifications:", notifErr);
-        } else {
-          totalSent += batch.length;
-        }
-      }
-
-      // Log cooldowns
-      for (let i = 0; i < logEntries.length; i += 500) {
-        const batch = logEntries.slice(i, i + 500);
-        await supabase.from("engagement_reminder_log").insert(batch);
-      }
+    // Insert reminders, then cooldown logs for successful batches only.
+    // A cooldown-log failure throws and is handled below as a sanitized 500.
+    const dispatch = await dispatchReminders(supabase, reminders);
+    totalSent = dispatch.totalSent;
+    if (dispatch.failedNotificationBatches > 0) {
+      console.error(
+        `[EngagementReminder] failedNotificationBatches=${dispatch.failedNotificationBatches} (no cooldowns written for those recipients)`,
+      );
     }
+
 
     console.log(
-      `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - notifications.length - skippedBySanityGuard}`
+      `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - reminders.length - skippedBySanityGuard}`
     );
 
     return new Response(
@@ -481,10 +479,19 @@ serve(async (req) => {
       { headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
+    if (error instanceof CooldownLogWriteError) {
+      // Cooldown persistence failed: never report success, never leak details.
+      console.error("[EngagementReminder] FATAL: cooldown log persistence failed");
+      return new Response(
+        JSON.stringify({ success: false, error: "engagement_cooldown_log_write_failed" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
     console.error("[EngagementReminder] FATAL:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
+
   }
 });
