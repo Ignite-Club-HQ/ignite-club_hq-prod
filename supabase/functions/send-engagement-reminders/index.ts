@@ -432,40 +432,30 @@ serve(async (req) => {
       const rewardsText = pointsDisabled ? '' : ` Engage to earn ${pointsName}! 🏆`;
       const message = `📬 You have ${engagementText}.${rewardsText}`;
 
-      notifications.push({
-        user_id: userId,
-        type: "engagement_reminder",
-        message,
-      });
-
-      logEntries.push({
-        user_id: userId,
-        unread_messages_count: unreadMessages,
-        unread_photos_count: unseenPhotos,
+      reminders.push({
+        notification: {
+          user_id: userId,
+          type: "engagement_reminder",
+          message,
+        },
+        log: {
+          user_id: userId,
+          unread_messages_count: unreadMessages,
+          unread_photos_count: unseenPhotos,
+        },
       });
     }
 
-    // Batch insert notifications
-    if (notifications.length > 0) {
-      // Insert in batches of 500
-      for (let i = 0; i < notifications.length; i += 500) {
-        const batch = notifications.slice(i, i + 500);
-        const { error: notifErr } = await supabase
-          .from("notifications")
-          .insert(batch);
-        if (notifErr) {
-          console.error("[EngagementReminder] Error inserting notifications:", notifErr);
-        } else {
-          totalSent += batch.length;
-        }
-      }
-
-      // Log cooldowns
-      for (let i = 0; i < logEntries.length; i += 500) {
-        const batch = logEntries.slice(i, i + 500);
-        await supabase.from("engagement_reminder_log").insert(batch);
-      }
+    // Insert reminders, then cooldown logs for successful batches only.
+    // A cooldown-log failure throws and is handled below as a sanitized 500.
+    const dispatch = await dispatchReminders(supabase, reminders);
+    totalSent = dispatch.totalSent;
+    if (dispatch.failedNotificationBatches > 0) {
+      console.error(
+        `[EngagementReminder] failedNotificationBatches=${dispatch.failedNotificationBatches} (no cooldowns written for those recipients)`,
+      );
     }
+
 
     console.log(
       `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - notifications.length - skippedBySanityGuard}`
