@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   results: {} as Record<string, Array<{ data: any; error: any }>>,
   isAdmin: true,
+  isAppAdmin: false,
   eventError: null as any,
   eventData: null as any,
   rsvps: [] as any[],
@@ -35,6 +36,10 @@ const mocks = vi.hoisted(() => ({
   isNative: false,
   safeOpenUrl: vi.fn(),
   queries: [] as any[],
+  queryErrors: {} as Record<string, any>,
+  queryLoading: {} as Record<string, boolean>,
+  queryFetching: {} as Record<string, boolean>,
+  queryRefetches: {} as Record<string, ReturnType<typeof vi.fn>>,
 }));
 
 const mutationNames = [
@@ -59,7 +64,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
       const values: Record<string, any> = {
         event: mocks.eventData,
         "event-rsvps": mocks.rsvps, "event-guests": [], "event-duties": mocks.duties,
-        "is-app-admin": false, "event-admin-check": mocks.isAdmin,
+        "is-app-admin": mocks.isAppAdmin, "event-admin-check": mocks.isAdmin,
         "team-pro-football-status": true, "team-pro-status": true,
         "event-subs-manager-direct": false, "is-team-member": true,
         "active-game-summary": null, "team-members-for-pitch": [],
@@ -71,9 +76,14 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
         "match-captain": null, "player-of-match": null, "match-goalkeepers": [],
         "event-recent-reminders": new Map(),
       };
+      const refetch = mocks.queryRefetches[key] ?? vi.fn();
+      mocks.queryRefetches[key] = refetch;
       return {
-        data: values[key], error: key === "event" ? mocks.eventError : null,
-        isLoading: false, isFetching: false, isFetched: true, isSuccess: true, refetch: vi.fn(),
+        data: values[key], error: mocks.queryErrors[key] ?? (key === "event" ? mocks.eventError : null),
+        isLoading: mocks.queryLoading[key] ?? false,
+        isFetching: mocks.queryFetching[key] ?? false,
+        isFetched: !(mocks.queryLoading[key] ?? false),
+        isSuccess: !mocks.queryErrors[key], refetch,
       };
     },
     useMutation: (options: any) => {
@@ -199,6 +209,7 @@ describe("EventDetailPage business-operation characterization", () => {
     mocks.operations = [];
     mocks.results = {};
     mocks.isAdmin = true;
+    mocks.isAppAdmin = false;
     mocks.eventError = null;
     mocks.eventData = { ...baseEvent };
     mocks.rsvps = [];
@@ -215,6 +226,10 @@ describe("EventDetailPage business-operation characterization", () => {
     mocks.isNative = false;
     mocks.safeOpenUrl.mockResolvedValue(undefined);
     mocks.queries = [];
+    mocks.queryErrors = {};
+    mocks.queryLoading = {};
+    mocks.queryFetching = {};
+    mocks.queryRefetches = {};
     mocks.awardPoints.mockResolvedValue(undefined);
   });
 
@@ -231,6 +246,58 @@ describe("EventDetailPage business-operation characterization", () => {
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["event-rsvps", "event-1"] });
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["event-groups", "event-1"] });
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["team-members-for-pitch", "team-1", "event-1"] });
+  });
+
+  it("distinguishes a missing or inaccessible event from a transient fetch failure", async () => {
+    mocks.eventData = null;
+    const unavailable = await renderPage();
+    expect(screen.getByRole("heading", { name: "Event Not Available" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    unavailable.unmount();
+
+    mocks.mutations = [];
+    mocks.queries = [];
+    mocks.eventError = { message: "network request failed" };
+    await renderPage();
+    expect(screen.getByRole("heading", { name: "Couldn't load this event" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["event", "event-1"] });
+  });
+
+  it("keeps the loading skeleton while the core event request is pending", async () => {
+    mocks.eventData = null;
+    mocks.queryLoading.event = true;
+    const view = await renderPage();
+    expect(screen.queryByRole("heading", { name: "Event Not Available" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Couldn't load this event" })).not.toBeInTheDocument();
+    expect(view.container.querySelectorAll("[data-testid='skeleton'], .animate-pulse").length).toBeGreaterThan(0);
+  });
+
+  it("does not silently present an empty attendance state when the RSVP read fails", async () => {
+    mocks.rsvps = undefined as any;
+    mocks.queryErrors["event-rsvps"] = { message: "RSVP read denied", code: "42501" };
+    await renderPage();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent(/attendance.*loaded/i);
+    expect(screen.getAllByRole("button", { name: "Try again" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(mocks.queryRefetches["event-rsvps"]).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps cached attendance visible when a background RSVP refresh fails", async () => {
+    mocks.rsvps = [{
+      id: "rsvp-cached",
+      event_id: "event-1",
+      user_id: "user-1",
+      child_id: null,
+      status: "going",
+      notes: null,
+    }];
+    mocks.queryErrors["event-rsvps"] = { message: "background refresh failed" };
+    mocks.queryFetching["event-rsvps"] = true;
+    await renderPage();
+    expect(screen.queryByText(/Attendance couldn.t be loaded/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Going", { exact: true })).toBeInTheDocument();
   });
 
   it("updates an existing personal RSVP by its id without creating a duplicate", async () => {
@@ -678,6 +745,164 @@ describe("EventDetailPage business-operation characterization", () => {
     expect(latestQuery("event-payments").enabled).toBe(false);
     expect(screen.queryByText("Delete Event")).not.toBeInTheDocument();
     expect(screen.queryByText("Resend Invites")).not.toBeInTheDocument();
+  });
+
+  it("resolves club administrators and committee members as event managers before team-specific checks", async () => {
+    for (const role of ["club_admin", "committee_member"]) {
+      mocks.mutations = [];
+      mocks.queries = [];
+      mocks.results = {
+        "user_roles:select": [{ data: [{ role }], error: null }],
+      };
+      const view = await renderPage();
+      await expect(latestQuery("event-admin-check").queryFn()).resolves.toBe(true);
+      view.unmount();
+    }
+  });
+
+  it("resolves a team coach as manager only through the matching team role branch", async () => {
+    mocks.results["user_roles:select"] = [
+      { data: [], error: null },
+      { data: [{ role: "coach" }], error: null },
+    ];
+    await renderPage();
+    await expect(latestQuery("event-admin-check").queryFn()).resolves.toBe(true);
+  });
+
+  it("resolves mini-league coaches as managers without granting ordinary club members manager access", async () => {
+    mocks.eventData = { ...baseEvent, team_id: null, teams: null, mini_league_id: "league-7" };
+    mocks.results["user_roles:select"] = [
+      { data: [], error: null },
+      { data: [{ role: "coach" }], error: null },
+    ];
+    const managerView = await renderPage();
+    await expect(latestQuery("event-admin-check").queryFn()).resolves.toBe(true);
+    managerView.unmount();
+
+    mocks.mutations = [];
+    mocks.queries = [];
+    mocks.results["user_roles:select"] = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+    await renderPage();
+    await expect(latestQuery("event-admin-check").queryFn()).resolves.toBe(false);
+  });
+
+  it("allows the app-admin override to enable sensitive reads without exposing their controls to ordinary attendees", async () => {
+    mocks.eventData = {
+      ...baseEvent,
+      team_id: null,
+      teams: null,
+      target_team_ids: ["team-2", "team-3"],
+      rsvp_grouping: "team",
+    };
+    mocks.isAdmin = false;
+    mocks.isAppAdmin = true;
+    await renderPage();
+
+    expect(latestQuery("targeted-event-roster").enabled).toBe(true);
+    expect(latestQuery("event-payments").enabled).toBe(true);
+  });
+
+  it("offers a targeted RSVP only for the guardian's children assigned to one of the invited teams", async () => {
+    mocks.eventData = {
+      ...baseEvent,
+      team_id: null,
+      teams: null,
+      target_team_ids: ["team-2", "team-3"],
+      rsvp_grouping: "team",
+    };
+    await renderPage();
+    mocks.results["children:select"] = [{
+      data: [
+        { id: "child-direct", name: "Direct Child" },
+        { id: "child-both", name: "Shared Child" },
+      ],
+      error: null,
+    }];
+    mocks.results["child_guardians:select"] = [{
+      data: [
+        { child_id: "child-both", children: { id: "child-both", name: "Shared Child" } },
+        { child_id: "child-guardian", children: { id: "child-guardian", name: "Guardian Child" } },
+        { child_id: "child-outside", children: { id: "child-outside", name: "Outside Child" } },
+      ],
+      error: null,
+    }];
+    mocks.results["child_team_assignments:select"] = [{
+      data: [
+        { child_id: "child-direct" },
+        { child_id: "child-both" },
+        { child_id: "child-guardian" },
+      ],
+      error: null,
+    }];
+
+    await expect(latestQuery("children-on-team").queryFn()).resolves.toEqual([
+      { id: "child-direct", name: "Direct Child" },
+      { id: "child-both", name: "Shared Child" },
+      { id: "child-guardian", name: "Guardian Child" },
+    ]);
+  });
+
+  it("does not offer child RSVP controls for an adults-only event", async () => {
+    mocks.eventData = { ...baseEvent, adults_only: true };
+    await renderPage();
+    await expect(latestQuery("children-on-team").queryFn()).resolves.toEqual([]);
+  });
+
+  it("deduplicates a child assigned to more than one targeted team in the attendance roster", async () => {
+    mocks.eventData = {
+      ...baseEvent,
+      team_id: null,
+      teams: null,
+      target_team_ids: ["team-2", "team-3"],
+      rsvp_grouping: "team",
+    };
+    await renderPage();
+    mocks.results["child_team_assignments:select"] = [{
+      data: [
+        { child_id: "child-shared", children: { id: "child-shared", name: "Shared Player", parent_id: "parent-1" } },
+        { child_id: "child-shared", children: { id: "child-shared", name: "Shared Player", parent_id: "parent-1" } },
+        { child_id: "child-other", children: { id: "child-other", name: "Other Player", parent_id: "parent-2" } },
+      ],
+      error: null,
+    }];
+
+    await expect(latestQuery("all-children-on-team").queryFn()).resolves.toEqual([
+      { id: "child-shared", name: "Shared Player", parent_id: "parent-1" },
+      { id: "child-other", name: "Other Player", parent_id: "parent-2" },
+    ]);
+  });
+
+  it("enables match-only reads for team games but not training, social, club-wide or mini-league events", async () => {
+    const cases = [
+      { event: { ...baseEvent }, expected: true },
+      { event: { ...baseEvent, type: "training" }, expected: false },
+      { event: { ...baseEvent, type: "social" }, expected: false },
+      { event: { ...baseEvent, team_id: null, teams: null }, expected: false },
+      { event: { ...baseEvent, team_id: null, teams: null, mini_league_id: "league-7" }, expected: false },
+    ];
+
+    for (const { event, expected } of cases) {
+      mocks.mutations = [];
+      mocks.queries = [];
+      mocks.eventData = event;
+      const view = await renderPage();
+      const captainMarker = mocks.queries.find((query) =>
+        query.queryKey?.[0] === "match-captain" && query.queryKey?.[2] === "marker"
+      );
+      const playerMarker = mocks.queries.find((query) =>
+        query.queryKey?.[0] === "player-of-match" && query.queryKey?.[2] === "marker"
+      );
+      expect(captainMarker.enabled).toBe(expected);
+      expect(playerMarker.enabled).toBe(expected);
+      const goalkeeperMarker = mocks.queries.find((query) =>
+        query.queryKey?.[0] === "match-goalkeepers" && query.enabled !== undefined
+      );
+      expect(goalkeeperMarker.enabled).toBe(expected);
+      view.unmount();
+    }
   });
 
   it("scopes mini-league attendance and duty reads to the current league and event", async () => {

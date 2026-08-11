@@ -12,8 +12,16 @@ const user = {
 async function installClubWideGameHarness(page: Page) {
   let grouping: "level" | "team" = "level";
   let targetTeamIds: string[] | null = null;
+  let currentEvent: Record<string, any> = {
+    id: eventId, club_id: clubId, team_id: null, created_by: userId,
+    title: "Synthetic Club Game", type: "game", event_date: "2099-08-01T10:00:00Z",
+    start_time: "2099-08-01T10:00:00Z", end_time: "2099-08-01T11:00:00Z",
+    address: "Synthetic Oval", rsvp_grouping: grouping,
+    target_team_ids: targetTeamIds, is_cancelled: false,
+  };
   const state = { exposeExistingDuty: false };
   const writes: Array<{ method: string; body: any }> = [];
+  const rpcWrites: Array<{ event: any; duties: any[]; childDates: string[] | null }> = [];
   const teams = [
     { id: "team-u8-blue", club_id: clubId, name: "U8 Blue", age_group: "U8" },
     { id: "team-u8-red", club_id: clubId, name: "U8 Red", age_group: "U8" },
@@ -49,7 +57,7 @@ async function installClubWideGameHarness(page: Page) {
     if (url.pathname === "/rest/v1/user_roles") {
       const select = url.searchParams.get("select") || "";
       if (select === "club_id") return json([{ club_id: clubId }]);
-      if (select === "team_id") return json([]);
+      if (select === "team_id") return json(teams.map(({ id }) => ({ team_id: id })));
       return json([{
         id: "role-1", role: "club_admin", club_id: clubId, user_id: userId,
         team_id: "team-u8-blue",
@@ -74,19 +82,23 @@ async function installClubWideGameHarness(page: Page) {
     }]);
     if (url.pathname === "/rest/v1/teams") {
       const idFilter = url.searchParams.get("id");
-      return json(
-        idFilter?.startsWith("in.")
-          ? teams.filter(({ id }) => targetTeamIds?.includes(id))
-          : teams,
-      );
+      const rows = idFilter?.startsWith("in.")
+        ? teams.filter(({ id }) => targetTeamIds?.includes(id))
+        : idFilter?.startsWith("eq.")
+          ? teams.filter(({ id }) => id === idFilter.slice(3))
+          : teams;
+      const singular = request.headers()["accept"]?.includes("application/vnd.pgrst.object");
+      return json(singular ? (rows[0] ?? null) : rows);
     }
     if (url.pathname === "/rest/v1/club_subscriptions") return json([]);
     if (url.pathname === "/rest/v1/rpc/create_event_with_duties") {
       const body = request.postDataJSON();
       const eventBody = body.p_event;
       writes.push({ method: "POST", body: eventBody });
+      rpcWrites.push({ event: eventBody, duties: body.p_duties, childDates: body.p_child_dates });
       grouping = eventBody.rsvp_grouping;
       targetTeamIds = eventBody.target_team_ids;
+      currentEvent = { ...currentEvent, ...eventBody, id: eventId, is_cancelled: false };
       return json(eventId);
     }
     if (url.pathname === "/rest/v1/rpc/sync_event_duties") return json([]);
@@ -102,16 +114,15 @@ async function installClubWideGameHarness(page: Page) {
       writes.push({ method: "PATCH", body });
       grouping = body.rsvp_grouping;
       targetTeamIds = body.target_team_ids;
+      currentEvent = { ...currentEvent, ...body };
       return json({ id: eventId, ...body });
     }
     if (url.pathname === "/rest/v1/events") {
       const event = {
-      id: eventId, club_id: clubId, team_id: null, created_by: userId,
-      title: "Synthetic Club Game", type: "game", event_date: "2099-08-01T10:00:00Z",
-      address: "Synthetic Oval", rsvp_grouping: grouping,
-      target_team_ids: targetTeamIds, is_cancelled: false,
+      ...currentEvent, rsvp_grouping: grouping, target_team_ids: targetTeamIds,
       clubs: { name: "Synthetic Riverside FC" }, teams: null, mini_leagues: null,
       };
+      if (event.team_id) event.teams = teams.find(team => team.id === event.team_id) ?? null;
       const singular = request.headers()["accept"]?.includes("application/vnd.pgrst.object");
       return json(singular ? event : [event]);
     }
@@ -180,10 +191,45 @@ async function installClubWideGameHarness(page: Page) {
 
   return {
     writes,
+    rpcWrites,
     state,
     getGrouping: () => grouping,
   };
 }
+
+test("team game journey creates the correct scoped payload and renders its team detail", async ({ page }) => {
+  const { rpcWrites } = await installClubWideGameHarness(page);
+
+  await page.goto("/events/new");
+  await page.getByRole("button", { name: /Game/ }).click();
+  await page.getByLabel("Event Title").fill("U8 Blue home game");
+  await page.getByLabel("Date & Time").fill("2099-08-15T09:30");
+  await page.getByPlaceholder("Search for address...").fill("Blue Team Oval");
+  const teamSelect = page.getByText("Team", { exact: true }).locator("..").getByRole("combobox");
+  await teamSelect.click();
+  await page.getByRole("option", { name: "U8 Blue", exact: true }).click();
+
+  const dutyInput = page.getByPlaceholder("e.g., BBQ duty, Scorer, First Aid");
+  await dutyInput.fill("Ground marshal");
+  await dutyInput.press("Enter");
+  await page.getByRole("button", { name: "Create Event" }).click();
+
+  await expect(page).toHaveURL(`/events/${eventId}`);
+  await expect.poll(() => rpcWrites[0]).toMatchObject({
+    event: {
+      club_id: clubId,
+      team_id: "team-u8-blue",
+      type: "game",
+      title: "U8 Blue home game",
+      rsvp_grouping: null,
+      target_team_ids: null,
+    },
+    duties: [{ name: "Ground marshal", assigned_to: null }],
+    childDates: null,
+  });
+  await expect(page.getByText("U8 Blue home game", { exact: true })).toBeVisible();
+  await expect(page.getByText("U8 Blue", { exact: true }).first()).toBeVisible();
+});
 
 test("club admin creates a club-wide game by grade, edits it to team grouping, and sees grouped attendance", async ({ page }) => {
   test.setTimeout(45_000);
