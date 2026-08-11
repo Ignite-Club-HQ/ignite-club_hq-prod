@@ -365,8 +365,10 @@ serve(async (req) => {
     // 8. Calculate counts per eligible user and build notifications
     let totalSent = 0;
     let skippedBySanityGuard = 0;
-    const notifications: Array<{ user_id: string; type: string; message: string }> = [];
-    const logEntries: Array<{ user_id: string; unread_messages_count: number; unread_photos_count: number }> = [];
+    // Notification and cooldown-log rows stay paired so a failed notification
+    // batch can never leave a cooldown behind for its recipients.
+    const reminders: ReminderEntry[] = [];
+
 
     // Get club points display names
     const clubPointsNames: Record<string, string> = {};
