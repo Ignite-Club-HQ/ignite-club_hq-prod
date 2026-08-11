@@ -2390,10 +2390,12 @@ export default function EventDetailPage() {
   const remindMutation = useMutation({
     mutationFn: async () => {
       // Get all RSVPs for this event
-      const { data: existingRsvps } = await supabase
+      const { data: existingRsvps, error: rsvpError } = await supabase
         .from("rsvps")
         .select("user_id")
         .eq("event_id", id!);
+      if (rsvpError) throw rsvpError;
+
       
       const rsvpUserIds = existingRsvps?.map(r => r.user_id) || [];
       
