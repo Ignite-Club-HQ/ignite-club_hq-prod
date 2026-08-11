@@ -44,3 +44,19 @@ export function setCachedNextUp<T>(userId: string | undefined, data: T): void {
     // quota or unavailable — ignore
   }
 }
+
+/**
+ * Drop the persisted Next Up snapshot for a user. Called after an event is
+ * created / edited / cancelled / deleted so a cold open (which hydrates from
+ * this snapshot via `initialData`) can never repaint a stale carousel that is
+ * missing the just-created event.
+ */
+export function clearCachedNextUp(userId: string | undefined): void {
+  if (!userId) return;
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.removeItem(key(userId));
+  } catch {
+    // unavailable — ignore
+  }
+}

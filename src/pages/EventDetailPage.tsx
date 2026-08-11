@@ -65,6 +65,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { refreshEventCaches } from "@/lib/eventCacheRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
@@ -2317,6 +2318,7 @@ export default function EventDetailPage() {
       console.log("[CancelEvent] Success - event cancelled");
       setCancelDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["event", id] });
+      refreshEventCaches(queryClient, user?.id);
       toast({ title: "Event cancelled", description: "A message has been posted to the chat" });
     },
     onError: (error) => {
