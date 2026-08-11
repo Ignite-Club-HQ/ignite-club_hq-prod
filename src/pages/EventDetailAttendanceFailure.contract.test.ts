@@ -23,11 +23,21 @@ describe("Event Detail attendance failure handling", () => {
     expect(source).toContain("if (attendanceUnavailable) return attendanceAlert;");
   });
 
+  it("renders the attendance failure alert exactly once", () => {
+    const renders = source.match(/return attendanceAlert;|\{attendanceUnavailable && attendanceAlert\}/g) || [];
+    expect(renders).toHaveLength(1);
+    const tryAgain = source.match(/Try again/g) || [];
+    expect(tryAgain).toHaveLength(1);
+    const alertRoles = source.match(/role="alert"/g) || [];
+    expect(alertRoles).toHaveLength(1);
+  });
+
   it("shows an accessible alert with a Try again retry of the exact query", () => {
     expect(source).toMatch(/role="alert"[\s\S]{0,400}Attendance couldn’t be loaded\. Check your connection and try again\./);
     expect(source).toMatch(/Try again/);
     expect(source).toContain("void refetchRsvps()");
   });
+
 
   it("shows an attendance-specific loading state instead of zero attendance", () => {
     expect(source).toContain("Loading attendance…");
