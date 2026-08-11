@@ -458,7 +458,7 @@ serve(async (req) => {
 
 
     console.log(
-      `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - notifications.length - skippedBySanityGuard}`
+      `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - reminders.length - skippedBySanityGuard}`
     );
 
     return new Response(
@@ -473,10 +473,19 @@ serve(async (req) => {
       { headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
+    if (error instanceof CooldownLogWriteError) {
+      // Cooldown persistence failed: never report success, never leak details.
+      console.error("[EngagementReminder] FATAL: cooldown log persistence failed");
+      return new Response(
+        JSON.stringify({ success: false, error: "engagement_cooldown_log_write_failed" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
     console.error("[EngagementReminder] FATAL:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
+
   }
 });
