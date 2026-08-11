@@ -364,7 +364,13 @@ export default function EventDetailPage() {
 
 
 
-  const { data: rsvps } = useQuery({
+  const {
+    data: rsvps,
+    error: rsvpsError,
+    isLoading: rsvpsLoading,
+    isFetching: rsvpsFetching,
+    refetch: refetchRsvps,
+  } = useQuery({
     queryKey: ["event-rsvps", id],
     queryFn: async () => {
       // Fetch rsvps first
@@ -407,6 +413,33 @@ export default function EventDetailPage() {
     },
     enabled: !!id,
   });
+
+  // Attendance read health. A failed RSVP read must never be presented as a
+  // valid empty roster: we surface an alert + retry and disable every
+  // attendance-dependent action until a successful read lands. Cached data is
+  // kept visible (and stable) during a background refetch.
+  const attendanceUnavailable = !!rsvpsError && !rsvps;
+  const attendanceInitialLoading = (rsvpsLoading || (rsvpsFetching && !rsvps)) && !rsvpsError;
+  const attendanceActionsDisabled = attendanceUnavailable || attendanceInitialLoading;
+
+  const attendanceAlert = (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+    >
+      <span>Attendance couldn’t be loaded. Check your connection and try again.</span>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7"
+        onClick={() => { void refetchRsvps(); }}
+      >
+        Try again
+      </Button>
+    </div>
+  );
+
+
 
   // Fetch event guests for attending count and RSVP list
   const { data: eventGuests } = useQuery({
@@ -2855,7 +2888,7 @@ export default function EventDetailPage() {
               <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
               <AlertDialogAction 
                 onClick={() => remindMutation.mutate()}
-                disabled={remindMutation.isPending}
+                disabled={remindMutation.isPending || attendanceActionsDisabled}
                 className="w-full sm:w-auto"
               >
                 {remindMutation.isPending ? (
@@ -2884,7 +2917,7 @@ export default function EventDetailPage() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => resendInvitesMutation.mutate()}
-                disabled={resendInvitesMutation.isPending}
+                disabled={resendInvitesMutation.isPending || attendanceActionsDisabled}
               >
                 {resendInvitesMutation.isPending ? (
                   <>
@@ -3108,7 +3141,9 @@ export default function EventDetailPage() {
               const count = playerGoing + guestCount;
               return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
 
-            })() : <span>Loading...</span>}
+            })() : attendanceUnavailable ? (
+              <span className="text-destructive">Attendance unavailable</span>
+            ) : <span>Loading...</span>}
           </div>
 
           {/* Price for social events */}
@@ -3354,7 +3389,7 @@ export default function EventDetailPage() {
                             size="sm"
                             className="flex flex-col h-auto py-2"
                             onClick={() => childRsvpMutation.mutate({ childId: child.id, status: value, childName: child.name })}
-                            disabled={childRsvpMutation.isPending}
+                            disabled={childRsvpMutation.isPending || attendanceActionsDisabled}
                           >
                             <span>{icon}</span>
                             <span className="text-xs">{label}</span>
@@ -3392,14 +3427,16 @@ export default function EventDetailPage() {
                 </span>
               )}
             </div>
+            {attendanceUnavailable && attendanceAlert}
             <div className="grid grid-cols-3 gap-2">
+
               {rsvpOptions.map(({ value, label, icon }) => (
                 <Button
                   key={value}
                   variant={myRsvp?.status === value ? "default" : "outline"}
                   className="flex flex-col h-auto py-3"
                   onClick={() => myRsvp?.status !== value && rsvpMutation.mutate(value)}
-                  disabled={rsvpMutation.isPending || myRsvp?.status === value}
+                  disabled={rsvpMutation.isPending || attendanceActionsDisabled || myRsvp?.status === value}
                 >
                   <span className="text-lg">{icon}</span>
                   <span className="text-xs mt-1">{label}</span>
@@ -3525,7 +3562,7 @@ export default function EventDetailPage() {
                           size="sm"
                           className="flex flex-col h-auto py-2"
                           onClick={() => parentLeaguePlayerRsvpMutation.mutate({ playerId: player.id, status: value })}
-                          disabled={parentLeaguePlayerRsvpMutation.isPending}
+                          disabled={parentLeaguePlayerRsvpMutation.isPending || attendanceActionsDisabled}
                         >
                           <span>{icon}</span>
                           <span className="text-xs">{label}</span>
@@ -3561,6 +3598,19 @@ export default function EventDetailPage() {
 
       {/* Unified Attendance section — replaces standalone Responses + Event Views */}
       {(() => {
+        // Attendance read failed and we have nothing cached: show the alert +
+        // retry instead of an empty roster (which would read as "no responses").
+        if (attendanceUnavailable) return attendanceAlert;
+        // Initial load: attendance-specific loading state, never a zero count.
+        if (!rsvps && attendanceInitialLoading) {
+          return (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading attendance…
+            </div>
+          );
+        }
+
         // Get player user IDs for filtering
         const playerUserIds = new Set(playerMembers?.map((m: any) => m.id) || []);
 
