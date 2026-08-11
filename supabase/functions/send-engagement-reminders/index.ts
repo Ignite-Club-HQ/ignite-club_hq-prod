@@ -94,18 +94,18 @@ serve(async (req) => {
 
     console.log("[EngagementReminder] Starting engagement reminder check...");
 
-    // 1. Get all Pro club IDs
-    const { data: proClubs, error: proErr } = await supabase
-      .from("club_subscriptions")
-      .select("club_id, disable_points_system")
-      .or("is_pro.eq.true,is_pro_football.eq.true,admin_pro_override.eq.true,admin_pro_football_override.eq.true");
+    // 1. Get all Pro club IDs (paginated — a club count over 1,000 would
+    //    otherwise silently truncate and drop whole clubs from the run)
+    const proClubs = await fetchAllPages<{ club_id: string; disable_points_system: boolean | null }>(
+      "club_subscriptions",
+      () => supabase
+        .from("club_subscriptions")
+        .select("club_id, disable_points_system")
+        .or("is_pro.eq.true,is_pro_football.eq.true,admin_pro_override.eq.true,admin_pro_football_override.eq.true")
+        .order("id"),
+    );
 
-    if (proErr) {
-      console.error("[EngagementReminder] Error fetching pro clubs:", proErr);
-      throw proErr;
-    }
-
-    if (!proClubs || proClubs.length === 0) {
+    if (proClubs.length === 0) {
       console.log("[EngagementReminder] No Pro clubs found");
       return new Response(JSON.stringify({ success: true, sent: 0 }), {
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -114,6 +114,7 @@ serve(async (req) => {
 
     const proClubIds = proClubs.map(c => c.club_id);
     console.log(`[EngagementReminder] Found ${proClubIds.length} Pro club(s)`);
+
 
     // 2. Get all teams in Pro clubs (paginated)
     const proTeams = await fetchAllPages<{ id: string; club_id: string }>(
@@ -279,13 +280,20 @@ serve(async (req) => {
     for (const c of proClubs) {
       clubPointsNames[c.club_id] = 'reward points'; // default
     }
-    const { data: clubData } = await supabase
-      .from("clubs")
-      .select("id, points_display_name")
-      .in("id", proClubIds);
-    for (const c of (clubData || [])) {
-      if (c.points_display_name) clubPointsNames[c.id] = c.points_display_name;
+    for (const clubIdChunk of chunk(proClubIds, 200)) {
+      const rows = await fetchAllPages<{ id: string; points_display_name: string | null }>(
+        "clubs",
+        () => supabase
+          .from("clubs")
+          .select("id, points_display_name")
+          .in("id", clubIdChunk)
+          .order("id"),
+      );
+      for (const c of rows) {
+        if (c.points_display_name) clubPointsNames[c.id] = c.points_display_name;
+      }
     }
+
 
     for (const userId of eligibleUsers) {
       const userTeamIds = userTeams[userId];
