@@ -266,6 +266,10 @@ jobs:
       - name: Backup PROD schema + roles (pre-migration)
         if: github.event_name == 'push'
         id: backup
+        # Schema + roles is a fast dump (seconds-to-minutes). Row data is NOT
+        # dumped here — nightly-backup.yml owns that. If this ever exceeds the
+        # cap, the dump is hung, not slow, and should fail loudly.
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           STAMP=$(date -u +%Y%m%dT%H%M%SZ)
