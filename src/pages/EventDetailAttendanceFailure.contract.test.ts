@@ -29,9 +29,10 @@ describe("Event Detail attendance failure handling", () => {
     // exactly one attendance retry, scoped to the RSVP query only
     const retries = source.match(/void refetchRsvps\(\)/g) || [];
     expect(retries).toHaveLength(1);
-    const alertRoles = source.match(/role="alert"/g) || [];
-    expect(alertRoles).toHaveLength(1);
+    const fatalAlerts = source.match(/Attendance couldn’t be loaded\. Check your connection and try again\./g) || [];
+    expect(fatalAlerts).toHaveLength(1);
   });
+
 
 
   it("shows an accessible alert with a Try again retry of the exact query", () => {
