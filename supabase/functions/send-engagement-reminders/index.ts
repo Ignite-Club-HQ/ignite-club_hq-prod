@@ -124,11 +124,16 @@ serve(async (req) => {
     console.log(`[EngagementReminder] Found ${proClubIds.length} Pro club(s)`);
 
 
-    // 2. Get all teams in Pro clubs (paginated)
-    const proTeams = await fetchAllPages<{ id: string; club_id: string }>(
-      "teams",
-      (offset) => supabase.from("teams").select("id, club_id").in("club_id", proClubIds).order("id"),
-    );
+    // 2. Get all teams in Pro clubs (paginated + chunked, like every other
+    //    `.in()` filter here, so the request URL can never blow out)
+    const proTeams: Array<{ id: string; club_id: string }> = [];
+    for (const clubIdChunk of chunk(proClubIds, 200)) {
+      const rows = await fetchAllPages<{ id: string; club_id: string }>(
+        "teams",
+        () => supabase.from("teams").select("id, club_id").in("club_id", clubIdChunk).order("id"),
+      );
+      proTeams.push(...rows);
+    }
 
     if (proTeams.length === 0) {
       console.log("[EngagementReminder] No teams in Pro clubs");
