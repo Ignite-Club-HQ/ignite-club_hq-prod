@@ -280,13 +280,20 @@ serve(async (req) => {
     for (const c of proClubs) {
       clubPointsNames[c.club_id] = 'reward points'; // default
     }
-    const { data: clubData } = await supabase
-      .from("clubs")
-      .select("id, points_display_name")
-      .in("id", proClubIds);
-    for (const c of (clubData || [])) {
-      if (c.points_display_name) clubPointsNames[c.id] = c.points_display_name;
+    for (const clubIdChunk of chunk(proClubIds, 200)) {
+      const rows = await fetchAllPages<{ id: string; points_display_name: string | null }>(
+        "clubs",
+        () => supabase
+          .from("clubs")
+          .select("id, points_display_name")
+          .in("id", clubIdChunk)
+          .order("id"),
+      );
+      for (const c of rows) {
+        if (c.points_display_name) clubPointsNames[c.id] = c.points_display_name;
+      }
     }
+
 
     for (const userId of eligibleUsers) {
       const userTeamIds = userTeams[userId];
