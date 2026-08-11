@@ -2559,58 +2559,24 @@ export default function EventDetailPage() {
     mutationFn: async () => {
       if (!event || !id) throw new Error("No event");
 
-      // Get all current team/club members
-      let allMemberIds: string[] = [];
-      if (event.mini_league_id) {
-        const { data: league } = await supabase
-          .from("mini_leagues")
-          .select("club_id")
-          .eq("id", event.mini_league_id)
-          .single();
-        if (league) {
-          const [playersRes, adminsRes] = await Promise.all([
-            supabase
-              .from("mini_league_players")
-              .select("parent_user_id")
-              .eq("mini_league_id", event.mini_league_id)
-              .not("parent_user_id", "is", null),
-            supabase
-              .from("user_roles")
-              .select("user_id")
-              .eq("club_id", league.club_id)
-              .in("role", ["club_admin", "league_admin", "coach"]),
-          ]);
-          const parentIds = (playersRes.data?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-          const adminIds = adminsRes.data?.map(r => r.user_id) || [];
-          allMemberIds = [...new Set([...parentIds, ...adminIds])];
-        }
-      } else {
-        let memberQuery = supabase.from("user_roles").select("user_id, role");
-        if (event.team_id) {
-          memberQuery = memberQuery.eq("team_id", event.team_id);
-        } else if (event.club_id) {
-          memberQuery = memberQuery.eq("club_id", event.club_id);
-        }
-        const { data: members } = await memberQuery;
-        const restricted = Array.isArray((event as any)?.restricted_to_roles)
-          ? ((event as any).restricted_to_roles as string[])
-          : [];
-        const rows = restricted.length > 0
-          ? (members || []).filter((m: any) => restricted.includes(m.role) || m.role === "club_admin" || m.role === "app_admin")
-          : (members || []);
-        allMemberIds = [...new Set(rows.map((m: any) => m.user_id) || [])];
-      }
+      // Shared recipient policy (same audience as bulk reminders)
+      const resolved = await resolveEventRecipients(
+        supabase,
+        eventRecipientContext(event, id),
+      );
 
       // Exclude the creator
-      allMemberIds = allMemberIds.filter(uid => uid !== event.created_by);
+      const allMemberIds = resolved.filter(uid => uid !== event.created_by);
 
       // Find members who already have a notification for this event
-      const { data: existingNotifications } = await supabase
+      const { data: existingNotifications, error: existingError } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_invite")
         .eq("related_id", id)
         .in("user_id", allMemberIds.length > 0 ? allMemberIds : ['no-match']);
+      if (existingError) throw existingError;
+
 
       const alreadyNotified = new Set(existingNotifications?.map(n => n.user_id) || []);
       const newMembers = allMemberIds.filter(uid => !alreadyNotified.has(uid));
