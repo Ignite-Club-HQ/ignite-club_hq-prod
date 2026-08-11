@@ -144,7 +144,7 @@ serve(async (req) => {
           .select("user_id, team_id")
           .in("team_id", teamIdChunk)
           .not("user_id", "is", null)
-          .order("user_id"),
+          .order("id"),
       );
       teamMembers.push(...rows);
     }
@@ -176,7 +176,7 @@ serve(async (req) => {
         .from("engagement_reminder_log")
         .select("user_id")
         .gte("sent_at", twoDaysAgo)
-        .order("user_id"),
+        .order("id"),
     );
 
     const recentlyReminded = new Set(recentReminders.map(r => r.user_id));
@@ -224,7 +224,7 @@ serve(async (req) => {
           .in("user_id", userChunk)
           .eq("is_read", false)
           .in("type", MESSAGE_NOTIFICATION_TYPES)
-          .order("user_id"),
+          .order("id"),
       );
       for (const r of rows) {
         unreadMessagesByUser[r.user_id] = (unreadMessagesByUser[r.user_id] || 0) + 1;
