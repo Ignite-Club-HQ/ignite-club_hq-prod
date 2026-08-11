@@ -3141,7 +3141,9 @@ export default function EventDetailPage() {
               const count = playerGoing + guestCount;
               return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
 
-            })() : <span>Loading...</span>}
+            })() : attendanceUnavailable ? (
+              <span className="text-destructive">Attendance unavailable</span>
+            ) : <span>Loading...</span>}
           </div>
 
           {/* Price for social events */}
