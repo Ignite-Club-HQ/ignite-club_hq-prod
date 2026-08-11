@@ -504,7 +504,16 @@ export default function HomePage() {
       // team whose club is not already in scope) now gets its own bounded
       // query, all issued in the same Promise.all so there is no new
       // waterfall.
-      const EVENTS_PER_SCOPE_LIMIT = 25;
+      // Per-scope caps: clubs carry club-wide events for every team, teams are
+      // narrower. Neither can starve the other because the cap is per query.
+      const CLUB_EVENTS_LIMIT = 30;
+      const TEAM_EVENTS_LIMIT = 20;
+      // Overall bound on the merged carousel payload (applied AFTER merge+sort
+      // so the earliest events across every scope always survive).
+      const MERGED_EVENTS_CAP = 100;
+      // Concurrency cap — a user in many clubs/teams must not fire 30 requests
+      // at once (mobile connection limits + Postgres pool pressure).
+      const EVENTS_QUERY_BATCH_SIZE = 8;
       // Pass the select string through a plain-string helper so supabase-js
       // does not re-parse it at the type level for every query in the loop
       // (that is a known tsc blow-up). Row shape is pinned via .returns<T>().
@@ -526,32 +535,45 @@ export default function HomePage() {
 
       type HomeEventRow = Event & { mini_league_id: string | null };
 
-      const scopedEventsQuery = (column: "club_id" | "team_id", value: string) =>
+      const scopedEventsQuery = (column: "club_id" | "team_id", value: string, rowLimit: number) =>
         supabase
           .from("events")
           .select(sel(EVENT_SELECT))
           .eq(column, value)
           .gte("event_date", eventsLowerBound)
           .order("event_date", { ascending: true })
-          .limit(EVENTS_PER_SCOPE_LIMIT)
+          .limit(rowLimit)
           .returns<HomeEventRow[]>();
 
-      const clubEventQueries = clubIdsFromRolesArr.map((clubId) =>
-        scopedEventsQuery("club_id", clubId)
-      );
-      // Team events are normally covered by their club's query, but a team can
-      // sit in a club the user has no direct role in — fetch those separately
-      // so they are not lost. De-duplication by event id happens on merge.
-      const teamEventQueries = teamIds.map((teamId) =>
-        scopedEventsQuery("team_id", teamId)
-      );
+      // Builders are lazy (the request only fires when awaited), so we keep
+      // thunks and run them in bounded batches below.
+      const eventQueryThunks: Array<() => PromiseLike<{ data: HomeEventRow[] | null; error: any }>> = [
+        ...clubIdsFromRolesArr.map(
+          (clubId) => () => scopedEventsQuery("club_id", clubId, CLUB_EVENTS_LIMIT),
+        ),
+        // Team events are normally covered by their club's query, but a team can
+        // sit in a club the user has no direct role in — fetch those separately
+        // so they are not lost. De-duplication by event id happens on merge.
+        ...teamIds.map(
+          (teamId) => () => scopedEventsQuery("team_id", teamId, TEAM_EVENTS_LIMIT),
+        ),
+      ];
+
+      const runEventQueries = async () => {
+        const out: { data: HomeEventRow[] | null; error: any }[] = [];
+        for (let i = 0; i < eventQueryThunks.length; i += EVENTS_QUERY_BATCH_SIZE) {
+          const batch = eventQueryThunks.slice(i, i + EVENTS_QUERY_BATCH_SIZE);
+          out.push(...(await Promise.all(batch.map((run) => run()))));
+        }
+        return out;
+      };
 
       const [
         teamsResult,
         playerLeaguesResult,
         adminLeaguesResult,
         activeClubsResult,
-        ...eventResults
+        eventResults,
       ] = await Promise.all([
         teamIds.length > 0
           ? supabase.from("teams").select("id, club_id").in("id", teamIds).is("deleted_at", null)
@@ -568,8 +590,7 @@ export default function HomePage() {
         clubIdsFromRolesArr.length > 0
           ? supabase.from("clubs").select("id").in("id", clubIdsFromRolesArr).is("deleted_at", null)
           : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
-        ...clubEventQueries,
-        ...teamEventQueries,
+        runEventQueries(),
       ]);
 
       // Same protection as every other leg: if ANY per-scope events query
@@ -577,14 +598,16 @@ export default function HomePage() {
       // preserves the previous Next Up data instead of caching a partial or
       // empty list.
       const mergedEventsById = new Map<string, HomeEventRow>();
-      for (const res of eventResults as { data: HomeEventRow[] | null; error: any }[]) {
+      for (const res of eventResults) {
         if (res.error) throw res.error;
         if (!res.data) throw new Error("events fetch returned null data");
         for (const row of res.data) mergedEventsById.set(row.id, row);
       }
-      const mergedEvents = Array.from(mergedEventsById.values()).sort(
-        (a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
-      );
+      // Merge → sort → cap. Capping only after the global sort guarantees the
+      // soonest events from every scope survive the bound.
+      const mergedEvents = Array.from(mergedEventsById.values())
+        .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+        .slice(0, MERGED_EVENTS_CAP);
       const eventsResult = { data: mergedEvents, error: null as any };
 
 
