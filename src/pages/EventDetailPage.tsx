@@ -3427,7 +3427,7 @@ export default function EventDetailPage() {
                 </span>
               )}
             </div>
-            {attendanceUnavailable && attendanceAlert}
+            
             <div className="grid grid-cols-3 gap-2">
 
               {rsvpOptions.map(({ value, label, icon }) => (
