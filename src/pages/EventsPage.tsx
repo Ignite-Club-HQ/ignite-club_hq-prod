@@ -564,7 +564,9 @@ export default function EventsPage() {
     staleTime: 5 * 60 * 1000, // 5min — avoid re-running the full events query on every tab focus
     // Render from cache first; background-refetch only if stale. Big snappiness
     // win on navigation — previously every mount paid a full round-trip.
-    refetchOnMount: true,
+    // "always" (not `true`): `true` is a no-op while the 5-min staleTime is
+    // unmet, which is why a newly created event stayed missing from the list.
+    refetchOnMount: "always",
     refetchOnWindowFocus: true,
     refetchOnReconnect: "always",
     placeholderData: (prev) => prev,

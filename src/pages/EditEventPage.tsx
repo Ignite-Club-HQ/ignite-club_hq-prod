@@ -38,6 +38,7 @@ import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
 import { EventRoleAudienceSelect, type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
+import { refreshEventCaches } from "@/lib/eventCacheRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { AddressAutocomplete, SavedLocation } from "@/components/AddressAutocomplete";
@@ -753,9 +754,8 @@ export default function EditEventPage() {
       queryClient.invalidateQueries({ queryKey: ["pitch-linked-event", id] });
       queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch"] });
       queryClient.invalidateQueries({ queryKey: ["pitch-board-going-rsvps", id] });
-      queryClient.invalidateQueries({ queryKey: ["events"] });
       queryClient.invalidateQueries({ queryKey: ["event", id] });
-      queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+      refreshEventCaches(queryClient, user?.id);
 
       navigate(`/events/${id}`);
 
@@ -1204,8 +1204,7 @@ export default function EditEventPage() {
                   canEdit={!!canEdit}
                   onUpdated={() => {
                     queryClient.invalidateQueries({ queryKey: ["event-edit", id] });
-                    queryClient.invalidateQueries({ queryKey: ["events"] });
-                    queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
+                    refreshEventCaches(queryClient, user?.id);
                   }}
                 />
               )}
