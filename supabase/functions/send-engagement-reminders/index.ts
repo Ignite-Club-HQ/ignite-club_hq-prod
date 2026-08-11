@@ -213,24 +213,102 @@ serve(async (req) => {
       });
     }
 
-    // 5. Unread messages: same source as the in-app inbox badge — unread
-    //    notification rows of message types. Paginated per user chunk.
-    const unreadMessagesByUser: Record<string, number> = {};
+    // 5. Unread messages: mirror `get_unread_message_counts` EXACTLY, because a
+    //    flat count of unread message-type notification rows over-counts:
+    //      - orphan rows whose `related_id` no longer resolves to a message
+    //        (hard-deleted messages) are dropped by the badge's INNER JOINs;
+    //      - `message_reply` / `message_mention` rows are read by the RPC but
+    //        never aggregated into any bucket, so the badge never shows them;
+    //      - `direct_message` rows are excluded when the latest message in that
+    //        conversation was authored by the user themself.
+    //    Those three divergences were the source of implausible counts.
+    type NotifRow = { user_id: string; type: string; related_id: string | null };
+    const notifRows: NotifRow[] = [];
     for (const userChunk of chunk(eligibleUsers, 200)) {
-      const rows = await fetchAllPages<{ user_id: string }>(
+      const rows = await fetchAllPages<NotifRow>(
         "notifications",
         () => supabase
           .from("notifications")
-          .select("user_id")
+          .select("user_id, type, related_id")
           .in("user_id", userChunk)
           .eq("is_read", false)
-          .in("type", MESSAGE_NOTIFICATION_TYPES)
+          .in("type", BADGE_COUNTED_NOTIFICATION_TYPES)
           .order("id"),
       );
-      for (const r of rows) {
-        unreadMessagesByUser[r.user_id] = (unreadMessagesByUser[r.user_id] || 0) + 1;
-      }
+      notifRows.push(...rows);
     }
+
+    const relatedIdsFor = (type: string) =>
+      Array.from(new Set(
+        notifRows.filter(r => r.type === type && r.related_id).map(r => r.related_id as string)
+      ));
+
+    /** Ids that still resolve to a live message row with a non-null scope column. */
+    const resolveExisting = async (table: string, scopeCol: string, ids: string[]) => {
+      const found = new Set<string>();
+      for (const idChunk of chunk(ids, 150)) {
+        const rows = await fetchAllPages<{ id: string }>(
+          table,
+          () => supabase
+            .from(table)
+            .select(`id, ${scopeCol}`)
+            .in("id", idChunk)
+            .not(scopeCol, "is", null)
+            .order("id"),
+        );
+        for (const r of rows) found.add(r.id);
+      }
+      return found;
+    };
+
+    const existingByType: Record<string, Set<string>> = {
+      team_message: await resolveExisting("team_messages", "team_id", relatedIdsFor("team_message")),
+      club_message: await resolveExisting("club_messages", "club_id", relatedIdsFor("club_message")),
+      group_message: await resolveExisting("group_messages", "group_id", relatedIdsFor("group_message")),
+    };
+
+    // DM conversations: latest author must not be the recipient themself. An
+    // unresolvable conversation counts as excluded, matching the RPC's
+    // `NULL <> _user_id` behaviour (fail closed, never inflate).
+    const latestDmAuthor = new Map<string, string | null>();
+    for (const convChunk of chunk(relatedIdsFor("direct_message"), 20)) {
+      await Promise.all(convChunk.map(async (conversationId) => {
+        const { data, error } = await supabase
+          .from("direct_messages")
+          .select("author_id")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (error) {
+          console.error(`[EngagementReminder] latest DM author lookup failed for ${conversationId}:`, error);
+          latestDmAuthor.set(conversationId, null);
+          return;
+        }
+        latestDmAuthor.set(conversationId, data?.[0]?.author_id ?? null);
+      }));
+    }
+
+    const unreadMessagesByUser: Record<string, number> = {};
+    let badgeEquivalentRows = 0;
+    for (const r of notifRows) {
+      let counts: boolean;
+      if (r.type === "broadcast") {
+        counts = true;
+      } else if (!r.related_id) {
+        counts = false;
+      } else if (r.type === "direct_message") {
+        const author = latestDmAuthor.get(r.related_id) ?? null;
+        counts = author !== null && author !== r.user_id;
+      } else {
+        counts = existingByType[r.type]?.has(r.related_id) ?? false;
+      }
+      if (!counts) continue;
+      badgeEquivalentRows++;
+      unreadMessagesByUser[r.user_id] = (unreadMessagesByUser[r.user_id] || 0) + 1;
+    }
+    console.log(
+      `[EngagementReminder] unread notification rows fetched=${notifRows.length} badgeEquivalent=${badgeEquivalentRows} discarded=${notifRows.length - badgeEquivalentRows}`
+    );
 
     // 6. Get recent photos (last 7 days) in Pro teams (paginated)
     const recentPhotos: Array<{ id: string; team_id: string | null; uploader_id: string | null }> = [];
