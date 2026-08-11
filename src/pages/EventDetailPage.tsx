@@ -2396,55 +2396,14 @@ export default function EventDetailPage() {
       
       const rsvpUserIds = existingRsvps?.map(r => r.user_id) || [];
       
-      // Get all members who should RSVP - handle mini-league events differently
-      let allMemberIds: string[] = [];
-      
-      if (event?.mini_league_id) {
-        // Get mini league to find the club_id
-        const { data: league } = await supabase
-          .from("mini_leagues")
-          .select("club_id")
-          .eq("id", event.mini_league_id)
-          .single();
-        
-        if (league) {
-          // Get all parent user IDs from mini league players
-          const { data: playersData } = await supabase
-            .from("mini_league_players")
-            .select("parent_user_id")
-            .eq("mini_league_id", event.mini_league_id)
-            .not("parent_user_id", "is", null);
-          
-          const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-          
-          // Get club admins, league admins, and coaches
-          const { data: adminRoles } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("club_id", league.club_id)
-            .in("role", ["club_admin", "league_admin", "coach"]);
-          
-          const adminIds = adminRoles?.map(r => r.user_id) || [];
-          
-          allMemberIds = [...new Set([...parentIds, ...adminIds])];
-        }
-      } else {
-        let memberQuery = supabase.from("user_roles").select("user_id, role");
-        if (event?.team_id) {
-          memberQuery = memberQuery.eq("team_id", event.team_id);
-        } else if (event?.club_id) {
-          memberQuery = memberQuery.eq("club_id", event.club_id);
-        }
-        
-        const { data: allMembers } = await memberQuery;
-        const restricted = Array.isArray((event as any)?.restricted_to_roles)
-          ? ((event as any).restricted_to_roles as string[])
-          : [];
-        const rows = restricted.length > 0
-          ? (allMembers || []).filter((m: any) => restricted.includes(m.role) || m.role === "club_admin" || m.role === "app_admin")
-          : (allMembers || []);
-        allMemberIds = [...new Set(rows.map((m: any) => m.user_id) || [])];
-      }
+      // Resolve the eligible audience through the shared recipient policy so
+      // targeted club-wide events never nag uninvited teams or unrelated
+      // club officials.
+      const allMemberIds = await resolveEventRecipients(
+        supabase,
+        eventRecipientContext(event, id!),
+      );
+
       
       // Find members who haven't RSVPed
       const nonRsvpMembers = allMemberIds.filter(memberId => !rsvpUserIds.includes(memberId));
