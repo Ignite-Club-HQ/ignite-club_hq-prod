@@ -452,20 +452,28 @@ serve(async (req) => {
       });
     }
 
-    // Insert reminders, then cooldown logs for successful batches only.
-    // A cooldown-log failure throws and is handled below as a sanitized 500.
+    // Notifications and their cooldown logs are persisted atomically per batch,
+    // so a failure leaves neither behind and the batch retries next run.
     const dispatch = await dispatchReminders(supabase, reminders);
     totalSent = dispatch.totalSent;
-    if (dispatch.failedNotificationBatches > 0) {
-      console.error(
-        `[EngagementReminder] failedNotificationBatches=${dispatch.failedNotificationBatches} (no cooldowns written for those recipients)`,
-      );
-    }
-
 
     console.log(
-      `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - reminders.length - skippedBySanityGuard}`
+      `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} failedBatches=${dispatch.failedBatches} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - reminders.length - skippedBySanityGuard}`
     );
+
+    if (dispatch.failedBatches > 0) {
+      // Never report complete success when persistence partially failed.
+      // Sanitized body only — no database detail, credentials or user data.
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "engagement_reminder_persist_failed",
+          sent: totalSent,
+          failed_batches: dispatch.failedBatches,
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     return new Response(
       JSON.stringify({
@@ -479,11 +487,10 @@ serve(async (req) => {
       { headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
-    if (error instanceof CooldownLogWriteError) {
-      // Cooldown persistence failed: never report success, never leak details.
-      console.error("[EngagementReminder] FATAL: cooldown log persistence failed");
+    if (error instanceof ReminderPersistenceError) {
+      console.error("[EngagementReminder] FATAL: reminder persistence failed");
       return new Response(
-        JSON.stringify({ success: false, error: "engagement_cooldown_log_write_failed" }),
+        JSON.stringify({ success: false, error: "engagement_reminder_persist_failed" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -492,6 +499,7 @@ serve(async (req) => {
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
+
 
   }
 });
