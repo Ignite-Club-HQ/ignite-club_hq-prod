@@ -64,8 +64,11 @@ async function fetchAllPages<T>(
     if (batch.length < PAGE_SIZE) return rows;
     offset += PAGE_SIZE;
   }
-  console.warn(`[EngagementReminder] pagination cap reached for ${label} (${rows.length} rows)`);
-  return rows;
+  // Returning partial rows here would reintroduce the exact silent-truncation
+  // bug this helper exists to prevent, so fail the whole run instead.
+  throw new Error(
+    `[EngagementReminder] pagination cap reached for ${label} after ${rows.length} rows — aborting run rather than sending counts from a truncated read`
+  );
 }
 
 /** Chunk a list of ids so `.in()` filters stay a sane size. */
