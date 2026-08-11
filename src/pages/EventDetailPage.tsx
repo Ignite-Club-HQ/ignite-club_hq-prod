@@ -111,6 +111,7 @@ const closePitchBoardWithFlag = (setShow: (v: boolean) => void) => () => {
   clearPitchBoardOpenFlag();
 };
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
+import { resolveEventRecipients, eventRecipientContext } from "@/features/events/eventRecipientPolicy";
 
 type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";
@@ -2414,13 +2415,14 @@ export default function EventDetailPage() {
       
       // Check for reminders sent in the last 24 hours to avoid spamming members
       const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
-      const { data: existingNotifications } = await supabase
+      const { data: existingNotifications, error: cooldownError } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_reminder")
         .eq("related_id", id!)
         .in("user_id", nonRsvpMembers)
         .gte("created_at", since);
+      if (cooldownError) throw cooldownError;
 
       const existingNotificationUserIds = existingNotifications?.map(n => n.user_id) || [];
       const membersToNotify = nonRsvpMembers.filter(memberId => !existingNotificationUserIds.includes(memberId));
