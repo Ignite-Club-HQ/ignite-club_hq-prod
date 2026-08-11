@@ -1,37 +1,39 @@
 /**
- * Reminder dispatch: notification insert + cooldown log persistence.
+ * Reminder dispatch: notification rows and their matching cooldown-log rows are
+ * persisted ATOMICALLY through `insert_engagement_reminders_atomic`.
  *
- * Two reliability invariants this module exists to enforce:
- *  1. A cooldown log row is written ONLY for a reminder whose notification
- *     batch was successfully inserted. A failed batch must leave its
- *     recipients cooldown-free so the next run can retry them.
- *  2. Cooldown-log write failures are never ignored. They abort the run with a
- *     sanitized error so the caller cannot report `success: true` while
- *     cooldown persistence is broken (which would re-notify every user).
+ * Reliability invariants:
+ *  1. Per batch, notifications and cooldown logs commit together or not at all.
+ *     A crash or error between the two writes can no longer leave notifications
+ *     without cooldowns (which would re-notify every recipient next run), nor
+ *     cooldowns without notifications (which would silently suppress them).
+ *  2. Failures are never ignored. `totalSent` counts only committed rows, and
+ *     any failed batch is surfaced so the caller returns a sanitized 500 rather
+ *     than reporting complete success.
  */
 
 export const BATCH_SIZE = 500;
 
-/** One reminder, notification row and its matching cooldown log row paired. */
+/** One reminder: notification row and its matching cooldown log row, paired. */
 export interface ReminderEntry {
   notification: { user_id: string; type: string; message: string };
   log: { user_id: string; unread_messages_count: number; unread_photos_count: number };
 }
 
-/** Thrown when cooldown-log persistence fails. Message is sanitized. */
-export class CooldownLogWriteError extends Error {
-  readonly code = "engagement_cooldown_log_write_failed";
+/** Thrown when reminder persistence fails. Message is sanitized. */
+export class ReminderPersistenceError extends Error {
+  readonly code = "engagement_reminder_persist_failed";
   constructor() {
-    super("engagement_cooldown_log_write_failed");
-    this.name = "CooldownLogWriteError";
+    super("engagement_reminder_persist_failed");
+    this.name = "ReminderPersistenceError";
   }
 }
 
 export interface DispatchResult {
-  /** Notifications actually inserted. */
+  /** Notifications actually committed (each with its cooldown row). */
   totalSent: number;
-  /** Notification batches that failed to insert (no cooldowns written). */
-  failedNotificationBatches: number;
+  /** Batches that failed atomically — no notifications and no cooldowns. */
+  failedBatches: number;
 }
 
 function chunkEntries(entries: ReminderEntry[], size = BATCH_SIZE): ReminderEntry[][] {
@@ -41,50 +43,52 @@ function chunkEntries(entries: ReminderEntry[], size = BATCH_SIZE): ReminderEntr
 }
 
 /**
- * Insert reminders in batches, then persist cooldown logs for the successful
- * batches only. Each batch is attempted exactly once per invocation.
+ * Persist reminders in batches of {@link BATCH_SIZE}. Each batch is attempted
+ * exactly once per invocation, so no duplicate notifications or cooldowns are
+ * produced. Successful batches are kept even when a later batch fails.
  */
 export async function dispatchReminders(
   supabase: any,
   entries: ReminderEntry[],
 ): Promise<DispatchResult> {
-  if (entries.length === 0) return { totalSent: 0, failedNotificationBatches: 0 };
+  if (entries.length === 0) return { totalSent: 0, failedBatches: 0 };
 
   const batches = chunkEntries(entries);
-  const confirmedLogs: ReminderEntry["log"][] = [];
   let totalSent = 0;
-  let failedNotificationBatches = 0;
+  let failedBatches = 0;
 
   for (let b = 0; b < batches.length; b++) {
     const batch = batches[b];
-    const { error } = await supabase
-      .from("notifications")
-      .insert(batch.map((e) => e.notification));
+    const rows = batch.map((e) => ({
+      user_id: e.notification.user_id,
+      message: e.notification.message,
+      unread_messages_count: e.log.unread_messages_count,
+      unread_photos_count: e.log.unread_photos_count,
+    }));
+
+    const { data, error } = await supabase.rpc("insert_engagement_reminders_atomic", {
+      p_rows: rows,
+    });
+
     if (error) {
-      // Sanitised, aggregate-only log: batch position and size, never message
-      // bodies or user identifiers.
-      failedNotificationBatches++;
+      // Aggregate-only diagnostic: batch position, size and PG code. Never
+      // message bodies, user identifiers, URLs or credentials.
+      failedBatches++;
       console.error(
-        `[EngagementReminder] notification batch insert failed batchIndex=${b} batchSize=${batch.length} code=${(error as any)?.code ?? ""}`,
+        `[EngagementReminder] atomic reminder batch FAILED batchIndex=${b} batchSize=${batch.length} code=${(error as any)?.code ?? ""}`,
       );
-      continue; // no cooldown rows for this batch — retry next run
+      continue; // nothing committed for this batch — retried next run
     }
-    totalSent += batch.length;
-    // Only batches confirmed inserted contribute cooldown rows, and each
-    // recipient appears exactly once so no duplicate cooldowns are produced.
-    for (const e of batch) confirmedLogs.push(e.log);
+
+    const committed = typeof data === "number" ? data : batch.length;
+    if (committed !== batch.length) {
+      // Defensive: the RPC reports its own inserted row count.
+      console.error(
+        `[EngagementReminder] atomic batch row-count mismatch batchIndex=${b} expected=${batch.length} committed=${committed}`,
+      );
+    }
+    totalSent += committed;
   }
 
-  for (let i = 0; i < confirmedLogs.length; i += BATCH_SIZE) {
-    const logBatch = confirmedLogs.slice(i, i + BATCH_SIZE);
-    const { error } = await supabase.from("engagement_reminder_log").insert(logBatch);
-    if (error) {
-      console.error(
-        `[EngagementReminder] cooldown log insert FAILED offset=${i} batchSize=${logBatch.length} confirmedNotifications=${totalSent} code=${(error as any)?.code ?? ""}`,
-      );
-      throw new CooldownLogWriteError();
-    }
-  }
-
-  return { totalSent, failedNotificationBatches };
+  return { totalSent, failedBatches };
 }
