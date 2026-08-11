@@ -504,7 +504,16 @@ export default function HomePage() {
       // team whose club is not already in scope) now gets its own bounded
       // query, all issued in the same Promise.all so there is no new
       // waterfall.
-      const EVENTS_PER_SCOPE_LIMIT = 25;
+      // Per-scope caps: clubs carry club-wide events for every team, teams are
+      // narrower. Neither can starve the other because the cap is per query.
+      const CLUB_EVENTS_LIMIT = 30;
+      const TEAM_EVENTS_LIMIT = 20;
+      // Overall bound on the merged carousel payload (applied AFTER merge+sort
+      // so the earliest events across every scope always survive).
+      const MERGED_EVENTS_CAP = 100;
+      // Concurrency cap — a user in many clubs/teams must not fire 30 requests
+      // at once (mobile connection limits + Postgres pool pressure).
+      const EVENTS_QUERY_BATCH_SIZE = 8;
       // Pass the select string through a plain-string helper so supabase-js
       // does not re-parse it at the type level for every query in the loop
       // (that is a known tsc blow-up). Row shape is pinned via .returns<T>().
