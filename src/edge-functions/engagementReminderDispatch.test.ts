@@ -3,12 +3,13 @@
  *
  * Defects covered:
  *  1. cooldown logs written for notification batches that failed to insert
- *  2. cooldown-log insert errors ignored, letting the run report success
+ *  2. cooldown-log write failures ignored, letting the run report success
+ *  3. non-atomic notification/cooldown writes (a crash between the two writes
+ *     re-notified every recipient on the next run)
  */
 import { describe, it, expect } from "vitest";
 import {
   BATCH_SIZE,
-  CooldownLogWriteError,
   dispatchReminders,
   type ReminderEntry,
 } from "../../supabase/functions/send-engagement-reminders/dispatch.ts";
@@ -18,95 +19,99 @@ const entry = (n: number): ReminderEntry => ({
   log: { user_id: `u${n}`, unread_messages_count: n, unread_photos_count: 0 },
 });
 
-type Behaviour = (table: string, rows: any[], call: number) => { error: any } | undefined;
+type Behaviour = (call: number, rows: any[]) => { error: any } | undefined;
 
 function fakeClient(behaviour: Behaviour = () => undefined) {
-  const inserted: Record<string, any[][]> = { notifications: [], engagement_reminder_log: [] };
-  const calls: Record<string, number> = { notifications: 0, engagement_reminder_log: 0 };
+  const rpcCalls: Array<{ fn: string; rows: any[] }> = [];
+  const committed: any[][] = [];
   return {
-    inserted,
-    from(table: string) {
-      return {
-        async insert(rows: any[]) {
-          const call = calls[table]++;
-          const res = behaviour(table, rows, call);
-          if (res?.error) return res;
-          inserted[table].push(rows);
-          return { error: null };
-        },
-      };
+    rpcCalls,
+    committed,
+    async rpc(fn: string, args: any) {
+      const rows = args?.p_rows ?? [];
+      const call = rpcCalls.length;
+      rpcCalls.push({ fn, rows });
+      const res = behaviour(call, rows);
+      if (res?.error) return { data: null, error: res.error };
+      committed.push(rows);
+      return { data: rows.length, error: null };
     },
   };
 }
 
-const flat = (batches: any[][]) => batches.flat();
+const flat = (b: any[][]) => b.flat();
 
 describe("engagement reminder dispatch", () => {
-  it("writes cooldown rows for a successful notification batch", async () => {
+  it("persists notifications and cooldowns atomically in one RPC call", async () => {
     const c = fakeClient();
     const res = await dispatchReminders(c, [entry(1), entry(2)]);
-    expect(res).toEqual({ totalSent: 2, failedNotificationBatches: 0 });
-    expect(flat(c.inserted.engagement_reminder_log).map((r) => r.user_id)).toEqual(["u1", "u2"]);
+    expect(res).toEqual({ totalSent: 2, failedBatches: 0 });
+    expect(c.rpcCalls).toHaveLength(1);
+    expect(c.rpcCalls[0].fn).toBe("insert_engagement_reminders_atomic");
+    // Every row carries both the notification message and its cooldown counts,
+    // so the two can never be written separately.
+    expect(c.rpcCalls[0].rows).toEqual([
+      { user_id: "u1", message: "m1", unread_messages_count: 1, unread_photos_count: 0 },
+      { user_id: "u2", message: "m2", unread_messages_count: 2, unread_photos_count: 0 },
+    ]);
   });
 
-  it("writes no cooldown rows when the notification batch fails", async () => {
-    const c = fakeClient((table) =>
-      table === "notifications" ? { error: { code: "23505" } } : undefined,
-    );
+  it("commits nothing for a failed batch, so no cooldowns are left behind", async () => {
+    const c = fakeClient(() => ({ error: { code: "23505" } }));
     const res = await dispatchReminders(c, [entry(1), entry(2)]);
-    expect(res.totalSent).toBe(0);
-    expect(res.failedNotificationBatches).toBe(1);
-    expect(c.inserted.engagement_reminder_log).toEqual([]);
+    expect(res).toEqual({ totalSent: 0, failedBatches: 1 });
+    expect(c.committed).toEqual([]);
   });
 
-  it("logs cooldowns only for successful batches on mixed results", async () => {
-    // 2 batches: first fails, second succeeds.
+  it("keeps successful batches and reports failures on mixed results", async () => {
     const entries = Array.from({ length: BATCH_SIZE + 3 }, (_, i) => entry(i));
-    const c = fakeClient((table, _rows, call) =>
-      table === "notifications" && call === 0 ? { error: { code: "XX000" } } : undefined,
-    );
+    const c = fakeClient((call) => (call === 0 ? { error: { code: "XX000" } } : undefined));
     const res = await dispatchReminders(c, entries);
-    expect(res.totalSent).toBe(3);
-    expect(res.failedNotificationBatches).toBe(1);
-    const logged = flat(c.inserted.engagement_reminder_log).map((r) => r.user_id);
-    expect(logged).toEqual([`u${BATCH_SIZE}`, `u${BATCH_SIZE + 1}`, `u${BATCH_SIZE + 2}`]);
+    expect(res).toEqual({ totalSent: 3, failedBatches: 1 });
+    expect(flat(c.committed).map((r) => r.user_id)).toEqual([
+      `u${BATCH_SIZE}`,
+      `u${BATCH_SIZE + 1}`,
+      `u${BATCH_SIZE + 2}`,
+    ]);
   });
 
-  it("keeps notification-to-log association across batches larger than 500", async () => {
+  it("keeps notification-to-cooldown association across batches larger than 500", async () => {
     const entries = Array.from({ length: BATCH_SIZE * 2 + 7 }, (_, i) => entry(i));
     const c = fakeClient();
     const res = await dispatchReminders(c, entries);
     expect(res.totalSent).toBe(entries.length);
-    const notifs = flat(c.inserted.notifications);
-    const logs = flat(c.inserted.engagement_reminder_log);
-    expect(logs.length).toBe(notifs.length);
-    for (let i = 0; i < logs.length; i++) {
-      expect(logs[i].user_id).toBe(notifs[i].user_id);
-      expect(logs[i].unread_messages_count).toBe(i);
+    expect(c.rpcCalls).toHaveLength(3);
+    const rows = flat(c.committed);
+    expect(rows.length).toBe(entries.length);
+    for (let i = 0; i < rows.length; i++) {
+      expect(rows[i].user_id).toBe(`u${i}`);
+      expect(rows[i].message).toBe(`m${i}`);
+      expect(rows[i].unread_messages_count).toBe(i);
     }
-    // No duplicates.
-    expect(new Set(logs.map((r) => r.user_id)).size).toBe(logs.length);
+    // No duplicate cooldown entries.
+    expect(new Set(rows.map((r) => r.user_id)).size).toBe(rows.length);
   });
 
-  it("throws a sanitized error when cooldown-log insertion fails", async () => {
-    const c = fakeClient((table) =>
-      table === "engagement_reminder_log"
-        ? { error: { code: "42501", message: "permission denied for relation ..." } }
-        : undefined,
-    );
-    await expect(dispatchReminders(c, [entry(1)])).rejects.toBeInstanceOf(CooldownLogWriteError);
-    try {
-      await dispatchReminders(c, [entry(1)]);
-    } catch (e: any) {
-      expect(e.message).toBe("engagement_cooldown_log_write_failed");
-      expect(e.message).not.toMatch(/permission denied/);
-    }
+  it("does not retry or duplicate a batch during the same invocation", async () => {
+    const c = fakeClient((call) => (call === 0 ? { error: { code: "40001" } } : undefined));
+    await dispatchReminders(c, [entry(1)]);
+    expect(c.rpcCalls).toHaveLength(1);
+  });
+
+  it("reports a failed batch without leaking database detail", async () => {
+    const c = fakeClient(() => ({
+      error: { code: "42501", message: "permission denied for relation engagement_reminder_log" },
+    }));
+    const res = await dispatchReminders(c, [entry(1)]);
+    // Caller turns failedBatches > 0 into a sanitized 500; the error text itself
+    // is never returned from dispatch.
+    expect(res.failedBatches).toBe(1);
+    expect(JSON.stringify(res)).not.toMatch(/permission denied/);
   });
 
   it("is a no-op for an empty reminder list", async () => {
     const c = fakeClient();
-    expect(await dispatchReminders(c, [])).toEqual({ totalSent: 0, failedNotificationBatches: 0 });
-    expect(c.inserted.notifications).toEqual([]);
-    expect(c.inserted.engagement_reminder_log).toEqual([]);
+    expect(await dispatchReminders(c, [])).toEqual({ totalSent: 0, failedBatches: 0 });
+    expect(c.rpcCalls).toEqual([]);
   });
 });

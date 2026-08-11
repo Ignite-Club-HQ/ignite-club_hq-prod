@@ -11803,6 +11803,10 @@ export type Database = {
         Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
       }
+      insert_engagement_reminders_atomic: {
+        Args: { p_rows: Json }
+        Returns: number
+      }
       internal_functions_base_url: { Args: never; Returns: string }
       internal_service_role_key: { Args: never; Returns: string }
       invite_shell_team_to_competition: {
