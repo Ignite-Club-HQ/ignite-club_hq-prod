@@ -30,13 +30,18 @@ const corsHeaders = {
 const PAGE_SIZE = 1000;
 const UNREAD_SANITY_CEILING = 100;
 
-const MESSAGE_NOTIFICATION_TYPES = [
+/**
+ * The ONLY notification types that `get_unread_message_counts` actually
+ * aggregates into the in-app inbox badge (broadcast + teams + clubs + groups +
+ * dms). `message_reply` and `message_mention` are deliberately absent: the RPC
+ * reads them but never sums them, so counting them here would report a number
+ * the user can never see in the app.
+ */
+const BADGE_COUNTED_NOTIFICATION_TYPES = [
   "team_message",
   "club_message",
   "group_message",
   "broadcast",
-  "message_reply",
-  "message_mention",
   "direct_message",
 ];
 
