@@ -252,8 +252,8 @@ serve(async (req) => {
     const viewedPhotoSet = new Set<string>();
     const recentPhotoIds = recentPhotos.map(p => p.id);
     if (recentPhotoIds.length > 0) {
-      for (const photoIdChunk of chunk(recentPhotoIds, 200)) {
-        for (const userChunk of chunk(eligibleUsers, 200)) {
+      for (const photoIdChunk of chunk(recentPhotoIds, 400)) {
+        for (const userChunk of chunk(eligibleUsers, 400)) {
           const rows = await fetchAllPages<{ user_id: string; photo_id: string }>(
             "photo_views",
             () => supabase
