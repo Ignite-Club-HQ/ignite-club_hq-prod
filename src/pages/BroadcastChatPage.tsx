@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
@@ -135,7 +135,7 @@ export default function BroadcastChatPage() {
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget = { chat_type: "broadcast" };
   const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
-  const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
+  const [replyingTo, setReplyingTo] = useChatDraftReply<{ id: string; text: string; authorName: string | null }>("broadcast");
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
