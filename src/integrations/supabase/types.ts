@@ -11154,6 +11154,10 @@ export type Database = {
         Returns: number
       }
       encrypt_sensitive_data: { Args: { data: string }; Returns: string }
+      enforce_competition_owner_is_league_admin: {
+        Args: { _competition_id: string }
+        Returns: string
+      }
       engagement_activity_trend: {
         Args: { _days?: number }
         Returns: {
@@ -11867,6 +11871,10 @@ export type Database = {
         Returns: boolean
       }
       is_competition_admin: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_competition_league_admin: {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
