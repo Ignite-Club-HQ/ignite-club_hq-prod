@@ -2462,16 +2462,24 @@ export default function EventDetailPage() {
   // in that case we derive recipients entirely from the linked child (children.parent_id + child_guardians).
   const individualRemindMutation = useMutation({
     mutationFn: async ({ userId, displayName, childId }: { userId?: string; displayName: string; childId?: string }) => {
-      let recipientIds: string[] = userId ? [userId] : [];
+      let recipientIds: string[] = normalizeRecipientIds([userId]);
 
       if (childId) {
-        const [{ data: guardians }, { data: childRow }] = await Promise.all([
+        // Both reads are authoritative — a failure in either must fail closed.
+        const [guardiansRes, childRes] = await Promise.all([
           supabase.from("child_guardians").select("guardian_id").eq("child_id", childId),
           supabase.from("children").select("parent_id").eq("id", childId).maybeSingle(),
         ]);
-        const guardianIds = (guardians?.map((g) => g.guardian_id).filter(Boolean) as string[]) || [];
-        if (childRow?.parent_id) guardianIds.push(childRow.parent_id);
-        recipientIds = Array.from(new Set([...recipientIds, ...guardianIds]));
+
+        const resolved = resolveReminderRecipients({
+          userId,
+          guardians: guardiansRes.data,
+          guardiansError: guardiansRes.error,
+          child: childRes.data,
+          childError: childRes.error,
+        });
+        if (resolved.status === "error") throw new Error(resolved.message);
+        recipientIds = resolved.recipientIds;
       }
 
       if (recipientIds.length === 0) {
@@ -2480,7 +2488,7 @@ export default function EventDetailPage() {
 
       // 24h cooldown — skip recipients who were reminded in the last 24 hours
       const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
-      const { data: existing } = await supabase
+      const { data: existing, error: cooldownError } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_reminder")
@@ -2488,8 +2496,13 @@ export default function EventDetailPage() {
         .in("user_id", recipientIds)
         .gte("created_at", since);
 
-      const alreadyReminded = new Set((existing || []).map((r: any) => r.user_id));
-      const toRemind = recipientIds.filter((uid) => !alreadyReminded.has(uid));
+      const afterCooldown = applyReminderCooldown({
+        recipientIds,
+        recentlyRemindedRows: existing,
+        cooldownError,
+      });
+      if (afterCooldown.status === "error") throw new Error(afterCooldown.message);
+      const toRemind = afterCooldown.recipientIds;
 
       if (toRemind.length === 0) {
         throw new Error(`${displayName}${recipientIds.length > 1 ? "'s parents have" : " has"} been reminded in the last 24 hours`);
@@ -2504,6 +2517,7 @@ export default function EventDetailPage() {
         }))
       );
       if (error) throw error;
+
       return { displayName, count: toRemind.length, isChild: !!childId, recipientKey: userId || childId || displayName };
     },
     onSuccess: ({ displayName, count, isChild, recipientKey }) => {
