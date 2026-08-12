@@ -12443,6 +12443,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      sync_competition_coord_chat_members: {
+        Args: { _competition_id: string }
+        Returns: undefined
+      }
       sync_event_duties: {
         Args: { p_delete_ids?: string[]; p_duties?: Json; p_event_id: string }
         Returns: Json
