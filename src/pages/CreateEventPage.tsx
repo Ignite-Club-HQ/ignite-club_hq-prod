@@ -767,12 +767,24 @@ export default function CreateEventPage() {
     }
     // Check for conflicts before saving
     if (!skipConflictCheck && type === "training") {
-      const hasConflicts = await checkForConflicts();
-      if (hasConflicts) {
+      const conflictResult = await checkForConflicts();
+      if (conflictResult.status === "error") {
+        // Fail closed: never treat a failed read as "no conflict".
+        setConflictDialogOpen(false);
+        setConflictingEvents([]);
+        toast({
+          title: CONFLICT_CHECK_ERROR_TITLE,
+          description: CONFLICT_CHECK_ERROR_DESCRIPTION,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (conflictResult.status === "conflict") {
         setConflictDialogOpen(true);
         return;
       }
     }
+
 
     setSaving(true);
 
