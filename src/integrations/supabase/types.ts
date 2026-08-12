@@ -11154,6 +11154,10 @@ export type Database = {
         Returns: number
       }
       encrypt_sensitive_data: { Args: { data: string }; Returns: string }
+      enforce_competition_owner_is_league_admin: {
+        Args: { _competition_id: string }
+        Returns: string
+      }
       engagement_activity_trend: {
         Args: { _days?: number }
         Returns: {
@@ -11870,6 +11874,10 @@ export type Database = {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
+      is_competition_league_admin: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_competition_official: {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
@@ -12441,6 +12449,10 @@ export type Database = {
           p_player2_id: string
           p_player2_team: string
         }
+        Returns: undefined
+      }
+      sync_competition_coord_chat_members: {
+        Args: { _competition_id: string }
         Returns: undefined
       }
       sync_event_duties: {

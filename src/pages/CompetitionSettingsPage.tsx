@@ -486,7 +486,8 @@ function CoordinatorsPanel({ competitionId }: { competitionId: string }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Coordinators</CardTitle>
         <CardDescription>
-          People who can manage this competition and are auto-added to the coordinator chat group.
+          People who can manage this competition. Coordinators and the team admins of teams entered
+          into this competition are automatically in the coordinator chat group.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
