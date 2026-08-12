@@ -635,62 +635,49 @@ export default function EditEventPage() {
             : null,
       } as any;
 
-      // If converting single event to recurring series
+      // If converting single event to recurring series.
+      // Parent update + every child insert run inside one transactional RPC so
+      // a failed child insertion can never leave the parent marked recurring.
       if (enableRecurring && !isRecurring) {
         const endDate = new Date(recurrenceEndDate);
         const dates = generateRecurringDates(parsedDateTime, endDate);
-        
-        // Update the current event to be the parent recurring event
-        const { error: parentError } = await supabase
-          .from("events")
-          .update({
-            ...updateData,
-            event_date: parsedDateTime.toISOString(),
-            start_time: newStartIso,
-            end_time: newEndIso,
-            is_recurring: true,
-            recurrence_end_date: recurrenceEndDate,
-          })
-          .eq("id", id!);
 
-        if (parentError) throw parentError;
+        const childEvents = dates.slice(1).map((date) => {
+          const childDateTime = new Date(date);
+          childDateTime.setHours(parsedDateTime.getHours(), parsedDateTime.getMinutes());
+          const childEnd = newEndIso
+            ? new Date(childDateTime.getTime() + (new Date(newEndIso).getTime() - parsedDateTime.getTime())).toISOString()
+            : null;
+          return {
+            event_date: childDateTime.toISOString(),
+            start_time: childDateTime.toISOString(),
+            end_time: childEnd,
+          };
+        });
 
-        // Create child events for subsequent dates
-        if (dates.length > 1) {
-          const childEvents = dates.slice(1).map((date) => {
-            const childDateTime = new Date(date);
-            childDateTime.setHours(parsedDateTime.getHours(), parsedDateTime.getMinutes());
-            const childEnd = newEndIso
-              ? new Date(childDateTime.getTime() + (new Date(newEndIso).getTime() - parsedDateTime.getTime())).toISOString()
-              : null;
-            return {
-              ...updateData,
-              event_date: childDateTime.toISOString(),
-              start_time: childDateTime.toISOString(),
-              end_time: childEnd,
-              parent_event_id: id,
-              club_id: event!.club_id,
-              team_id: event!.team_id,
-              mini_league_id: event!.mini_league_id ?? null,
-              is_recurring: true,
-              recurrence_end_date: recurrenceEndDate,
-              created_by: user!.id,
-            };
-          });
+        const { data: convertResult, error: convertError } = await supabase.rpc(
+          "convert_event_to_recurring_series",
+          {
+            p_event_id: id!,
+            p_parent_updates: updateData as any,
+            p_child_events: childEvents as any,
+            p_parent_event_date: parsedDateTime.toISOString(),
+            p_parent_start_time: newStartIso,
+            p_parent_end_time: newEndIso,
+            p_recurrence_end_date: recurrenceEndDate,
+          },
+        );
+        if (convertError) throw convertError;
 
-
-          const { error: childError } = await supabase
-            .from("events")
-            .insert(childEvents);
-
-          if (childError) throw childError;
-        }
+        const occurrences =
+          (convertResult as { occurrence_count?: number } | null)?.occurrence_count ?? dates.length;
 
         toast({
           title: "Recurring series created",
-          description: `Created ${dates.length} event${dates.length > 1 ? 's' : ''} in the series.`,
+          description: `Created ${occurrences} event${occurrences > 1 ? 's' : ''} in the series.`,
         });
       } else if (updateSeries) {
+
         // Route the entire-series update through a transactional RPC so the
         // selected event, its parent, and all siblings either all succeed or
         // all roll back. The RPC verifies caller permission server-side and
