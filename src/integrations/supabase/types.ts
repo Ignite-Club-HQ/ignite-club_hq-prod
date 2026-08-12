@@ -11034,6 +11034,18 @@ export type Database = {
         Args: { _token: string }
         Returns: boolean
       }
+      convert_event_to_recurring_series: {
+        Args: {
+          p_child_events: Json
+          p_event_id: string
+          p_parent_end_time: string
+          p_parent_event_date: string
+          p_parent_start_time: string
+          p_parent_updates: Json
+          p_recurrence_end_date: string
+        }
+        Returns: Json
+      }
       create_association_club_event_atomic: {
         Args: {
           _address: string
@@ -11142,6 +11154,10 @@ export type Database = {
         Returns: number
       }
       encrypt_sensitive_data: { Args: { data: string }; Returns: string }
+      enforce_competition_owner_is_league_admin: {
+        Args: { _competition_id: string }
+        Returns: string
+      }
       engagement_activity_trend: {
         Args: { _days?: number }
         Returns: {
@@ -11643,6 +11659,12 @@ export type Database = {
           team_ids: string[]
         }[]
       }
+      get_targeted_event_notification_recipients: {
+        Args: { p_event_id: string }
+        Returns: {
+          user_id: string
+        }[]
+      }
       get_team_children_for_pitch_board: {
         Args: { p_team_id: string }
         Returns: {
@@ -11797,6 +11819,10 @@ export type Database = {
         Args: { _amount: number; _club_id: string; _user_id: string }
         Returns: number
       }
+      insert_engagement_reminders_atomic: {
+        Args: { p_rows: Json }
+        Returns: number
+      }
       internal_functions_base_url: { Args: never; Returns: string }
       internal_service_role_key: { Args: never; Returns: string }
       invite_shell_team_to_competition: {
@@ -11845,6 +11871,10 @@ export type Database = {
         Returns: boolean
       }
       is_competition_admin: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_competition_league_admin: {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
@@ -12419,6 +12449,10 @@ export type Database = {
           p_player2_id: string
           p_player2_team: string
         }
+        Returns: undefined
+      }
+      sync_competition_coord_chat_members: {
+        Args: { _competition_id: string }
         Returns: undefined
       }
       sync_event_duties: {

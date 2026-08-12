@@ -111,6 +111,8 @@ const closePitchBoardWithFlag = (setShow: (v: boolean) => void) => () => {
   clearPitchBoardOpenFlag();
 };
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
+import { resolveEventRecipients, eventRecipientContext } from "@/features/events/eventRecipientPolicy";
+import { resolveReminderRecipients, applyReminderCooldown, normalizeRecipientIds } from "@/features/events/reminderRecipients";
 
 type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";
@@ -2389,62 +2391,23 @@ export default function EventDetailPage() {
   const remindMutation = useMutation({
     mutationFn: async () => {
       // Get all RSVPs for this event
-      const { data: existingRsvps } = await supabase
+      const { data: existingRsvps, error: rsvpError } = await supabase
         .from("rsvps")
         .select("user_id")
         .eq("event_id", id!);
+      if (rsvpError) throw rsvpError;
+
       
       const rsvpUserIds = existingRsvps?.map(r => r.user_id) || [];
       
-      // Get all members who should RSVP - handle mini-league events differently
-      let allMemberIds: string[] = [];
-      
-      if (event?.mini_league_id) {
-        // Get mini league to find the club_id
-        const { data: league } = await supabase
-          .from("mini_leagues")
-          .select("club_id")
-          .eq("id", event.mini_league_id)
-          .single();
-        
-        if (league) {
-          // Get all parent user IDs from mini league players
-          const { data: playersData } = await supabase
-            .from("mini_league_players")
-            .select("parent_user_id")
-            .eq("mini_league_id", event.mini_league_id)
-            .not("parent_user_id", "is", null);
-          
-          const parentIds = (playersData?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-          
-          // Get club admins, league admins, and coaches
-          const { data: adminRoles } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .eq("club_id", league.club_id)
-            .in("role", ["club_admin", "league_admin", "coach"]);
-          
-          const adminIds = adminRoles?.map(r => r.user_id) || [];
-          
-          allMemberIds = [...new Set([...parentIds, ...adminIds])];
-        }
-      } else {
-        let memberQuery = supabase.from("user_roles").select("user_id, role");
-        if (event?.team_id) {
-          memberQuery = memberQuery.eq("team_id", event.team_id);
-        } else if (event?.club_id) {
-          memberQuery = memberQuery.eq("club_id", event.club_id);
-        }
-        
-        const { data: allMembers } = await memberQuery;
-        const restricted = Array.isArray((event as any)?.restricted_to_roles)
-          ? ((event as any).restricted_to_roles as string[])
-          : [];
-        const rows = restricted.length > 0
-          ? (allMembers || []).filter((m: any) => restricted.includes(m.role) || m.role === "club_admin" || m.role === "app_admin")
-          : (allMembers || []);
-        allMemberIds = [...new Set(rows.map((m: any) => m.user_id) || [])];
-      }
+      // Resolve the eligible audience through the shared recipient policy so
+      // targeted club-wide events never nag uninvited teams or unrelated
+      // club officials.
+      const allMemberIds = await resolveEventRecipients(
+        supabase,
+        eventRecipientContext(event, id!),
+      );
+
       
       // Find members who haven't RSVPed
       const nonRsvpMembers = allMemberIds.filter(memberId => !rsvpUserIds.includes(memberId));
@@ -2455,13 +2418,14 @@ export default function EventDetailPage() {
       
       // Check for reminders sent in the last 24 hours to avoid spamming members
       const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
-      const { data: existingNotifications } = await supabase
+      const { data: existingNotifications, error: cooldownError } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_reminder")
         .eq("related_id", id!)
         .in("user_id", nonRsvpMembers)
         .gte("created_at", since);
+      if (cooldownError) throw cooldownError;
 
       const existingNotificationUserIds = existingNotifications?.map(n => n.user_id) || [];
       const membersToNotify = nonRsvpMembers.filter(memberId => !existingNotificationUserIds.includes(memberId));
@@ -2499,16 +2463,24 @@ export default function EventDetailPage() {
   // in that case we derive recipients entirely from the linked child (children.parent_id + child_guardians).
   const individualRemindMutation = useMutation({
     mutationFn: async ({ userId, displayName, childId }: { userId?: string; displayName: string; childId?: string }) => {
-      let recipientIds: string[] = userId ? [userId] : [];
+      let recipientIds: string[] = normalizeRecipientIds([userId]);
 
       if (childId) {
-        const [{ data: guardians }, { data: childRow }] = await Promise.all([
+        // Both reads are authoritative — a failure in either must fail closed.
+        const [guardiansRes, childRes] = await Promise.all([
           supabase.from("child_guardians").select("guardian_id").eq("child_id", childId),
           supabase.from("children").select("parent_id").eq("id", childId).maybeSingle(),
         ]);
-        const guardianIds = (guardians?.map((g) => g.guardian_id).filter(Boolean) as string[]) || [];
-        if (childRow?.parent_id) guardianIds.push(childRow.parent_id);
-        recipientIds = Array.from(new Set([...recipientIds, ...guardianIds]));
+
+        const resolved = resolveReminderRecipients({
+          userId,
+          guardians: guardiansRes.data,
+          guardiansError: guardiansRes.error,
+          child: childRes.data,
+          childError: childRes.error,
+        });
+        if (resolved.status === "error") throw new Error(resolved.message);
+        recipientIds = resolved.recipientIds;
       }
 
       if (recipientIds.length === 0) {
@@ -2517,7 +2489,7 @@ export default function EventDetailPage() {
 
       // 24h cooldown — skip recipients who were reminded in the last 24 hours
       const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
-      const { data: existing } = await supabase
+      const { data: existing, error: cooldownError } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_reminder")
@@ -2525,8 +2497,13 @@ export default function EventDetailPage() {
         .in("user_id", recipientIds)
         .gte("created_at", since);
 
-      const alreadyReminded = new Set((existing || []).map((r: any) => r.user_id));
-      const toRemind = recipientIds.filter((uid) => !alreadyReminded.has(uid));
+      const afterCooldown = applyReminderCooldown({
+        recipientIds,
+        recentlyRemindedRows: existing,
+        cooldownError,
+      });
+      if (afterCooldown.status === "error") throw new Error(afterCooldown.message);
+      const toRemind = afterCooldown.recipientIds;
 
       if (toRemind.length === 0) {
         throw new Error(`${displayName}${recipientIds.length > 1 ? "'s parents have" : " has"} been reminded in the last 24 hours`);
@@ -2541,6 +2518,7 @@ export default function EventDetailPage() {
         }))
       );
       if (error) throw error;
+
       return { displayName, count: toRemind.length, isChild: !!childId, recipientKey: userId || childId || displayName };
     },
     onSuccess: ({ displayName, count, isChild, recipientKey }) => {
@@ -2600,58 +2578,24 @@ export default function EventDetailPage() {
     mutationFn: async () => {
       if (!event || !id) throw new Error("No event");
 
-      // Get all current team/club members
-      let allMemberIds: string[] = [];
-      if (event.mini_league_id) {
-        const { data: league } = await supabase
-          .from("mini_leagues")
-          .select("club_id")
-          .eq("id", event.mini_league_id)
-          .single();
-        if (league) {
-          const [playersRes, adminsRes] = await Promise.all([
-            supabase
-              .from("mini_league_players")
-              .select("parent_user_id")
-              .eq("mini_league_id", event.mini_league_id)
-              .not("parent_user_id", "is", null),
-            supabase
-              .from("user_roles")
-              .select("user_id")
-              .eq("club_id", league.club_id)
-              .in("role", ["club_admin", "league_admin", "coach"]),
-          ]);
-          const parentIds = (playersRes.data?.map(p => p.parent_user_id).filter(Boolean) as string[]) || [];
-          const adminIds = adminsRes.data?.map(r => r.user_id) || [];
-          allMemberIds = [...new Set([...parentIds, ...adminIds])];
-        }
-      } else {
-        let memberQuery = supabase.from("user_roles").select("user_id, role");
-        if (event.team_id) {
-          memberQuery = memberQuery.eq("team_id", event.team_id);
-        } else if (event.club_id) {
-          memberQuery = memberQuery.eq("club_id", event.club_id);
-        }
-        const { data: members } = await memberQuery;
-        const restricted = Array.isArray((event as any)?.restricted_to_roles)
-          ? ((event as any).restricted_to_roles as string[])
-          : [];
-        const rows = restricted.length > 0
-          ? (members || []).filter((m: any) => restricted.includes(m.role) || m.role === "club_admin" || m.role === "app_admin")
-          : (members || []);
-        allMemberIds = [...new Set(rows.map((m: any) => m.user_id) || [])];
-      }
+      // Shared recipient policy (same audience as bulk reminders)
+      const resolved = await resolveEventRecipients(
+        supabase,
+        eventRecipientContext(event, id),
+      );
 
       // Exclude the creator
-      allMemberIds = allMemberIds.filter(uid => uid !== event.created_by);
+      const allMemberIds = resolved.filter(uid => uid !== event.created_by);
 
       // Find members who already have a notification for this event
-      const { data: existingNotifications } = await supabase
+      const { data: existingNotifications, error: existingError } = await supabase
         .from("notifications")
         .select("user_id")
         .eq("type", "event_invite")
         .eq("related_id", id)
         .in("user_id", allMemberIds.length > 0 ? allMemberIds : ['no-match']);
+      if (existingError) throw existingError;
+
 
       const alreadyNotified = new Set(existingNotifications?.map(n => n.user_id) || []);
       const newMembers = allMemberIds.filter(uid => !alreadyNotified.has(uid));

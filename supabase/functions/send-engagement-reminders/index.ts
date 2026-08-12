@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { isAuthorizedCronCaller } from "../_shared/cron-auth.ts";
+import {
+  ReminderPersistenceError,
+  dispatchReminders,
+  type ReminderEntry,
+} from "./dispatch.ts";
+
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,13 +37,18 @@ const corsHeaders = {
 const PAGE_SIZE = 1000;
 const UNREAD_SANITY_CEILING = 100;
 
-const MESSAGE_NOTIFICATION_TYPES = [
+/**
+ * The ONLY notification types that `get_unread_message_counts` actually
+ * aggregates into the in-app inbox badge (broadcast + teams + clubs + groups +
+ * dms). `message_reply` and `message_mention` are deliberately absent: the RPC
+ * reads them but never sums them, so counting them here would report a number
+ * the user can never see in the app.
+ */
+const BADGE_COUNTED_NOTIFICATION_TYPES = [
   "team_message",
   "club_message",
   "group_message",
   "broadcast",
-  "message_reply",
-  "message_mention",
   "direct_message",
 ];
 
@@ -59,8 +71,11 @@ async function fetchAllPages<T>(
     if (batch.length < PAGE_SIZE) return rows;
     offset += PAGE_SIZE;
   }
-  console.warn(`[EngagementReminder] pagination cap reached for ${label} (${rows.length} rows)`);
-  return rows;
+  // Returning partial rows here would reintroduce the exact silent-truncation
+  // bug this helper exists to prevent, so fail the whole run instead.
+  throw new Error(
+    `[EngagementReminder] pagination cap reached for ${label} after ${rows.length} rows — aborting run rather than sending counts from a truncated read`
+  );
 }
 
 /** Chunk a list of ids so `.in()` filters stay a sane size. */
@@ -94,18 +109,18 @@ serve(async (req) => {
 
     console.log("[EngagementReminder] Starting engagement reminder check...");
 
-    // 1. Get all Pro club IDs
-    const { data: proClubs, error: proErr } = await supabase
-      .from("club_subscriptions")
-      .select("club_id, disable_points_system")
-      .or("is_pro.eq.true,is_pro_football.eq.true,admin_pro_override.eq.true,admin_pro_football_override.eq.true");
+    // 1. Get all Pro club IDs (paginated — a club count over 1,000 would
+    //    otherwise silently truncate and drop whole clubs from the run)
+    const proClubs = await fetchAllPages<{ club_id: string; disable_points_system: boolean | null }>(
+      "club_subscriptions",
+      () => supabase
+        .from("club_subscriptions")
+        .select("club_id, disable_points_system")
+        .or("is_pro.eq.true,is_pro_football.eq.true,admin_pro_override.eq.true,admin_pro_football_override.eq.true")
+        .order("id"),
+    );
 
-    if (proErr) {
-      console.error("[EngagementReminder] Error fetching pro clubs:", proErr);
-      throw proErr;
-    }
-
-    if (!proClubs || proClubs.length === 0) {
+    if (proClubs.length === 0) {
       console.log("[EngagementReminder] No Pro clubs found");
       return new Response(JSON.stringify({ success: true, sent: 0 }), {
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -115,11 +130,17 @@ serve(async (req) => {
     const proClubIds = proClubs.map(c => c.club_id);
     console.log(`[EngagementReminder] Found ${proClubIds.length} Pro club(s)`);
 
-    // 2. Get all teams in Pro clubs (paginated)
-    const proTeams = await fetchAllPages<{ id: string; club_id: string }>(
-      "teams",
-      (offset) => supabase.from("teams").select("id, club_id").in("club_id", proClubIds).order("id"),
-    );
+
+    // 2. Get all teams in Pro clubs (paginated + chunked, like every other
+    //    `.in()` filter here, so the request URL can never blow out)
+    const proTeams: Array<{ id: string; club_id: string }> = [];
+    for (const clubIdChunk of chunk(proClubIds, 200)) {
+      const rows = await fetchAllPages<{ id: string; club_id: string }>(
+        "teams",
+        () => supabase.from("teams").select("id, club_id").in("club_id", clubIdChunk).order("id"),
+      );
+      proTeams.push(...rows);
+    }
 
     if (proTeams.length === 0) {
       console.log("[EngagementReminder] No teams in Pro clubs");
@@ -144,7 +165,7 @@ serve(async (req) => {
           .select("user_id, team_id")
           .in("team_id", teamIdChunk)
           .not("user_id", "is", null)
-          .order("user_id"),
+          .order("id"),
       );
       teamMembers.push(...rows);
     }
@@ -176,7 +197,7 @@ serve(async (req) => {
         .from("engagement_reminder_log")
         .select("user_id")
         .gte("sent_at", twoDaysAgo)
-        .order("user_id"),
+        .order("id"),
     );
 
     const recentlyReminded = new Set(recentReminders.map(r => r.user_id));
@@ -187,14 +208,16 @@ serve(async (req) => {
     if (eligibleUsers.length > 0) {
       const disabledPrefs: Array<{ user_id: string }> = [];
       for (const userChunk of chunk(eligibleUsers, 200)) {
-        const rows = await fetchAllPages<{ user_id: string }>(
+        const rows = await fetchAllPages<{ id: string; user_id: string }>(
           "notification_preferences",
           () => supabase
             .from("notification_preferences")
-            .select("user_id")
+            .select("id, user_id")
             .in("user_id", userChunk)
             .eq("rewards_enabled", false)
-            .order("user_id"),
+            // Order by the unique id, never user_id — a non-unique sort key can
+            // duplicate or drop rows across page boundaries.
+            .order("id"),
         );
         disabledPrefs.push(...rows);
       }
@@ -212,24 +235,102 @@ serve(async (req) => {
       });
     }
 
-    // 5. Unread messages: same source as the in-app inbox badge — unread
-    //    notification rows of message types. Paginated per user chunk.
-    const unreadMessagesByUser: Record<string, number> = {};
+    // 5. Unread messages: mirror `get_unread_message_counts` EXACTLY, because a
+    //    flat count of unread message-type notification rows over-counts:
+    //      - orphan rows whose `related_id` no longer resolves to a message
+    //        (hard-deleted messages) are dropped by the badge's INNER JOINs;
+    //      - `message_reply` / `message_mention` rows are read by the RPC but
+    //        never aggregated into any bucket, so the badge never shows them;
+    //      - `direct_message` rows are excluded when the latest message in that
+    //        conversation was authored by the user themself.
+    //    Those three divergences were the source of implausible counts.
+    type NotifRow = { user_id: string; type: string; related_id: string | null };
+    const notifRows: NotifRow[] = [];
     for (const userChunk of chunk(eligibleUsers, 200)) {
-      const rows = await fetchAllPages<{ user_id: string }>(
+      const rows = await fetchAllPages<NotifRow>(
         "notifications",
         () => supabase
           .from("notifications")
-          .select("user_id")
+          .select("user_id, type, related_id")
           .in("user_id", userChunk)
           .eq("is_read", false)
-          .in("type", MESSAGE_NOTIFICATION_TYPES)
-          .order("user_id"),
+          .in("type", BADGE_COUNTED_NOTIFICATION_TYPES)
+          .order("id"),
       );
-      for (const r of rows) {
-        unreadMessagesByUser[r.user_id] = (unreadMessagesByUser[r.user_id] || 0) + 1;
-      }
+      notifRows.push(...rows);
     }
+
+    const relatedIdsFor = (type: string) =>
+      Array.from(new Set(
+        notifRows.filter(r => r.type === type && r.related_id).map(r => r.related_id as string)
+      ));
+
+    /** Ids that still resolve to a live message row with a non-null scope column. */
+    const resolveExisting = async (table: string, scopeCol: string, ids: string[]) => {
+      const found = new Set<string>();
+      for (const idChunk of chunk(ids, 150)) {
+        const rows = await fetchAllPages<{ id: string }>(
+          table,
+          () => supabase
+            .from(table)
+            .select(`id, ${scopeCol}`)
+            .in("id", idChunk)
+            .not(scopeCol, "is", null)
+            .order("id"),
+        );
+        for (const r of rows) found.add(r.id);
+      }
+      return found;
+    };
+
+    const existingByType: Record<string, Set<string>> = {
+      team_message: await resolveExisting("team_messages", "team_id", relatedIdsFor("team_message")),
+      club_message: await resolveExisting("club_messages", "club_id", relatedIdsFor("club_message")),
+      group_message: await resolveExisting("group_messages", "group_id", relatedIdsFor("group_message")),
+    };
+
+    // DM conversations: latest author must not be the recipient themself. An
+    // unresolvable conversation counts as excluded, matching the RPC's
+    // `NULL <> _user_id` behaviour (fail closed, never inflate).
+    const latestDmAuthor = new Map<string, string | null>();
+    for (const convChunk of chunk(relatedIdsFor("direct_message"), 20)) {
+      await Promise.all(convChunk.map(async (conversationId) => {
+        const { data, error } = await supabase
+          .from("direct_messages")
+          .select("author_id")
+          .eq("conversation_id", conversationId)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (error) {
+          console.error(`[EngagementReminder] latest DM author lookup failed for ${conversationId}:`, error);
+          latestDmAuthor.set(conversationId, null);
+          return;
+        }
+        latestDmAuthor.set(conversationId, data?.[0]?.author_id ?? null);
+      }));
+    }
+
+    const unreadMessagesByUser: Record<string, number> = {};
+    let badgeEquivalentRows = 0;
+    for (const r of notifRows) {
+      let counts: boolean;
+      if (r.type === "broadcast") {
+        counts = true;
+      } else if (!r.related_id) {
+        counts = false;
+      } else if (r.type === "direct_message") {
+        const author = latestDmAuthor.get(r.related_id) ?? null;
+        counts = author !== null && author !== r.user_id;
+      } else {
+        counts = existingByType[r.type]?.has(r.related_id) ?? false;
+      }
+      if (!counts) continue;
+      badgeEquivalentRows++;
+      unreadMessagesByUser[r.user_id] = (unreadMessagesByUser[r.user_id] || 0) + 1;
+    }
+    console.log(
+      `[EngagementReminder] unread notification rows fetched=${notifRows.length} badgeEquivalent=${badgeEquivalentRows} discarded=${notifRows.length - badgeEquivalentRows}`
+    );
 
     // 6. Get recent photos (last 7 days) in Pro teams (paginated)
     const recentPhotos: Array<{ id: string; team_id: string | null; uploader_id: string | null }> = [];
@@ -247,45 +348,54 @@ serve(async (req) => {
       recentPhotos.push(...rows);
     }
 
-    // 7. Get photo VIEWS for eligible users (never reactions) — paginated.
-    //    Restricted to the recent photo set so the read stays bounded.
+    // 7. Get photo VIEWS (never reactions) for the recent photo set — paginated.
+    //    Filtered only by photo_id so the request URL stays well inside limits;
+    //    rows for non-eligible users are dropped client-side.
+    const eligibleUserSet = new Set(eligibleUsers);
     const viewedPhotoSet = new Set<string>();
     const recentPhotoIds = recentPhotos.map(p => p.id);
-    if (recentPhotoIds.length > 0) {
-      for (const photoIdChunk of chunk(recentPhotoIds, 400)) {
-        for (const userChunk of chunk(eligibleUsers, 400)) {
-          const rows = await fetchAllPages<{ user_id: string; photo_id: string }>(
-            "photo_views",
-            () => supabase
-              .from("photo_views")
-              .select("user_id, photo_id")
-              .in("user_id", userChunk)
-              .in("photo_id", photoIdChunk)
-              .order("photo_id"),
-          );
-          for (const r of rows) viewedPhotoSet.add(`${r.user_id}:${r.photo_id}`);
-        }
+    for (const photoIdChunk of chunk(recentPhotoIds, 150)) {
+      const rows = await fetchAllPages<{ id: string; user_id: string; photo_id: string }>(
+        "photo_views",
+        () => supabase
+          .from("photo_views")
+          .select("id, user_id, photo_id")
+          .in("photo_id", photoIdChunk)
+          .order("id"),
+      );
+      for (const r of rows) {
+        if (eligibleUserSet.has(r.user_id)) viewedPhotoSet.add(`${r.user_id}:${r.photo_id}`);
       }
     }
+
 
     // 8. Calculate counts per eligible user and build notifications
     let totalSent = 0;
     let skippedBySanityGuard = 0;
-    const notifications: Array<{ user_id: string; type: string; message: string }> = [];
-    const logEntries: Array<{ user_id: string; unread_messages_count: number; unread_photos_count: number }> = [];
+    // Notification and cooldown-log rows stay paired so a failed notification
+    // batch can never leave a cooldown behind for its recipients.
+    const reminders: ReminderEntry[] = [];
+
 
     // Get club points display names
     const clubPointsNames: Record<string, string> = {};
     for (const c of proClubs) {
       clubPointsNames[c.club_id] = 'reward points'; // default
     }
-    const { data: clubData } = await supabase
-      .from("clubs")
-      .select("id, points_display_name")
-      .in("id", proClubIds);
-    for (const c of (clubData || [])) {
-      if (c.points_display_name) clubPointsNames[c.id] = c.points_display_name;
+    for (const clubIdChunk of chunk(proClubIds, 200)) {
+      const rows = await fetchAllPages<{ id: string; points_display_name: string | null }>(
+        "clubs",
+        () => supabase
+          .from("clubs")
+          .select("id, points_display_name")
+          .in("id", clubIdChunk)
+          .order("id"),
+      );
+      for (const c of rows) {
+        if (c.points_display_name) clubPointsNames[c.id] = c.points_display_name;
+      }
     }
+
 
     for (const userId of eligibleUsers) {
       const userTeamIds = userTeams[userId];
@@ -329,44 +439,42 @@ serve(async (req) => {
       const rewardsText = pointsDisabled ? '' : ` Engage to earn ${pointsName}! 🏆`;
       const message = `📬 You have ${engagementText}.${rewardsText}`;
 
-      notifications.push({
-        user_id: userId,
-        type: "engagement_reminder",
-        message,
-      });
-
-      logEntries.push({
-        user_id: userId,
-        unread_messages_count: unreadMessages,
-        unread_photos_count: unseenPhotos,
+      reminders.push({
+        notification: {
+          user_id: userId,
+          type: "engagement_reminder",
+          message,
+        },
+        log: {
+          user_id: userId,
+          unread_messages_count: unreadMessages,
+          unread_photos_count: unseenPhotos,
+        },
       });
     }
 
-    // Batch insert notifications
-    if (notifications.length > 0) {
-      // Insert in batches of 500
-      for (let i = 0; i < notifications.length; i += 500) {
-        const batch = notifications.slice(i, i + 500);
-        const { error: notifErr } = await supabase
-          .from("notifications")
-          .insert(batch);
-        if (notifErr) {
-          console.error("[EngagementReminder] Error inserting notifications:", notifErr);
-        } else {
-          totalSent += batch.length;
-        }
-      }
-
-      // Log cooldowns
-      for (let i = 0; i < logEntries.length; i += 500) {
-        const batch = logEntries.slice(i, i + 500);
-        await supabase.from("engagement_reminder_log").insert(batch);
-      }
-    }
+    // Notifications and their cooldown logs are persisted atomically per batch,
+    // so a failure leaves neither behind and the batch retries next run.
+    const dispatch = await dispatchReminders(supabase, reminders);
+    totalSent = dispatch.totalSent;
 
     console.log(
-      `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - notifications.length - skippedBySanityGuard}`
+      `[EngagementReminder] COMPLETE: evaluated=${eligibleUsers.length} notified=${totalSent} failedBatches=${dispatch.failedBatches} skippedBySanityGuard=${skippedBySanityGuard} belowThreshold=${eligibleUsers.length - reminders.length - skippedBySanityGuard}`
     );
+
+    if (dispatch.failedBatches > 0) {
+      // Never report complete success when persistence partially failed.
+      // Sanitized body only — no database detail, credentials or user data.
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "engagement_reminder_persist_failed",
+          sent: totalSent,
+          failed_batches: dispatch.failedBatches,
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     return new Response(
       JSON.stringify({
@@ -380,10 +488,19 @@ serve(async (req) => {
       { headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
+    if (error instanceof ReminderPersistenceError) {
+      console.error("[EngagementReminder] FATAL: reminder persistence failed");
+      return new Response(
+        JSON.stringify({ success: false, error: "engagement_reminder_persist_failed" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
     console.error("[EngagementReminder] FATAL:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
+
+
   }
 });
