@@ -610,20 +610,18 @@ export default function CreateEventPage() {
     return dates;
   };
 
-  // Check for conflicting events at the same day, time, and location
-  const checkForConflicts = useCallback(async (): Promise<boolean> => {
+  // Check for conflicting events at the same day, time, and location.
+  // Returns an explicit result — a failed read is NEVER treated as "no conflict".
+  const checkForConflicts = useCallback(async (): Promise<ConflictCheckResult> => {
     if (type !== "training" || !clubId || !eventDateTime || !address.trim()) {
-      return false; // Only check training events with a location set
+      return { status: "clear" }; // Only check training events with a location set
     }
 
     const parsedDateTime = new Date(eventDateTime);
     const eventDateStr = parsedDateTime.toISOString().split("T")[0];
-    const eventHour = parsedDateTime.getHours();
-    const eventMinute = parsedDateTime.getMinutes();
-    const normalizedAddress = address.trim().toLowerCase();
 
     // Query all events for the same club on the same date (includes recurring child events)
-    const { data: existingEvents } = await supabase
+    const directDateQuery = await supabase
       .from("events")
       .select("id, title, event_date, address, team_id, teams(name)")
       .eq("club_id", clubId)
@@ -631,16 +629,11 @@ export default function CreateEventPage() {
       .gte("event_date", `${eventDateStr}T00:00:00`)
       .lte("event_date", `${eventDateStr}T23:59:59`);
 
-    // Check direct date matches (covers both standalone and recurring child events)
-    const conflicts = (existingEvents || []).filter(evt => {
-      if (!evt.address || evt.address.trim().toLowerCase() !== normalizedAddress) return false;
-      const evtDate = new Date(evt.event_date);
-      return evtDate.getHours() === eventHour && evtDate.getMinutes() === eventMinute;
-    });
+    if (directDateQuery.error) return { status: "error" };
 
     // Also check recurring parent events whose children might not yet exist on this date
     // (e.g. if the new event date is beyond existing generated children)
-    const { data: recurringParents } = await supabase
+    const recurringParentQuery = await supabase
       .from("events")
       .select("id, title, event_date, address, team_id, teams(name), recurrence_end_date")
       .eq("club_id", clubId)
@@ -650,30 +643,19 @@ export default function CreateEventPage() {
       .lte("event_date", parsedDateTime.toISOString())
       .or(`recurrence_end_date.gte.${eventDateStr},recurrence_end_date.is.null`);
 
-    const existingConflictIds = new Set(conflicts.map(c => c.id));
+    if (recurringParentQuery.error) return { status: "error" };
 
-    const recurringConflicts = (recurringParents || []).filter(evt => {
-      if (existingConflictIds.has(evt.id)) return false; // Already counted
-      if (!evt.address || evt.address.trim().toLowerCase() !== normalizedAddress) return false;
-      const evtDate = new Date(evt.event_date);
-      if (evtDate.getHours() !== eventHour || evtDate.getMinutes() !== eventMinute) return false;
-      // Check day-of-week match (covers weekly/biweekly patterns)
-      return evtDate.getDay() === parsedDateTime.getDay();
+    const result = evaluateTrainingConflicts({
+      targetDateTime: parsedDateTime,
+      address,
+      directDateQuery: directDateQuery as any,
+      recurringParentQuery: recurringParentQuery as any,
     });
 
-    const allConflicts = [...conflicts, ...recurringConflicts];
-
-    if (allConflicts.length > 0) {
-      setConflictingEvents(allConflicts.map(e => ({
-        title: e.title,
-        team_name: (e.teams as any)?.name,
-        start_time: new Date(e.event_date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      })));
-      return true;
-    }
-
-    return false;
+    if (result.status === "conflict") setConflictingEvents(result.conflicts);
+    return result;
   }, [type, clubId, eventDateTime, address]);
+
 
   const handleSubmit = async (skipConflictCheck = false) => {
     // Prevent double-submission
