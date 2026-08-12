@@ -11034,6 +11034,18 @@ export type Database = {
         Args: { _token: string }
         Returns: boolean
       }
+      convert_event_to_recurring_series: {
+        Args: {
+          p_child_events: Json
+          p_event_id: string
+          p_parent_end_time: string
+          p_parent_event_date: string
+          p_parent_start_time: string
+          p_parent_updates: Json
+          p_recurrence_end_date: string
+        }
+        Returns: Json
+      }
       create_association_club_event_atomic: {
         Args: {
           _address: string
