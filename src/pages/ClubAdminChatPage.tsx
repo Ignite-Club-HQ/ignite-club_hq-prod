@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
@@ -161,7 +161,7 @@ export default function ClubAdminChatPage() {
   const scheduleTarget: ScheduleTarget | null = conversationId
     ? { chat_type: "club_admin", conversation_id: conversationId }
     : null;
-  const [replyTo, setReplyTo] = useState<ClubAdminMessage | null>(null);
+  const [replyTo, setReplyTo] = useChatDraftReply<ClubAdminMessage>(conversationId);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
