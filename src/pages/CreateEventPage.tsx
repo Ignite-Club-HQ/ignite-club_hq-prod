@@ -54,6 +54,12 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { cn } from "@/lib/utils";
 import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
 import { validateEventTeamClubScope } from "@/lib/eventScopeValidation";
+import {
+  evaluateTrainingConflicts,
+  CONFLICT_CHECK_ERROR_TITLE,
+  CONFLICT_CHECK_ERROR_DESCRIPTION,
+  type ConflictCheckResult,
+} from "@/features/events/trainingConflictPolicy";
 
 type EventType = "game" | "training" | "social" | "mini_league";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
