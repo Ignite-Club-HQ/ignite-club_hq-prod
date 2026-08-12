@@ -112,6 +112,7 @@ const closePitchBoardWithFlag = (setShow: (v: boolean) => void) => () => {
 };
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 import { resolveEventRecipients, eventRecipientContext } from "@/features/events/eventRecipientPolicy";
+import { resolveReminderRecipients, applyReminderCooldown, normalizeRecipientIds } from "@/features/events/reminderRecipients";
 
 type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";
