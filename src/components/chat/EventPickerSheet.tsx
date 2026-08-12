@@ -31,19 +31,54 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
   const { data: events, isLoading } = useQuery({
     queryKey: ["event-picker", teamId, clubId, user?.id],
     queryFn: async () => {
-      // Team chat: only events for THIS team
+      // Team chat: this team's own events, plus club-wide GAME events this
+      // team is invited to (untargeted, or targeted at this team). Other
+      // club-wide event types (social, training) and other teams' events
+      // are intentionally excluded.
       if (teamId) {
-        const { data } = await supabase
-          .from("events")
-          .select("id, title, event_date, start_time, location_name, location, type, opponent, mini_league_id, is_cancelled, team_id")
-          .eq("team_id", teamId)
-          .eq("is_cancelled", false)
-          .gte("event_date", today)
-          .order("event_date", { ascending: true })
-          .order("start_time", { ascending: true })
-          .limit(50);
-        return data || [];
+        const cols =
+          "id, title, event_date, start_time, location_name, location, type, opponent, mini_league_id, is_cancelled, team_id, target_team_ids";
+
+        const [ownRes, clubGamesRes] = await Promise.all([
+          supabase
+            .from("events")
+            .select(cols)
+            .eq("team_id", teamId)
+            .eq("is_cancelled", false)
+            .gte("event_date", today)
+            .order("event_date", { ascending: true })
+            .order("start_time", { ascending: true })
+            .limit(50),
+          clubId
+            ? supabase
+                .from("events")
+                .select(cols)
+                .eq("club_id", clubId)
+                .is("team_id", null)
+                .eq("type", "game")
+                .eq("is_cancelled", false)
+                .gte("event_date", today)
+                .order("event_date", { ascending: true })
+                .limit(50)
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+
+        const clubGames = ((clubGamesRes as any).data || []).filter((e: any) => {
+          const targets = (e.target_team_ids ?? null) as string[] | null;
+          return !targets || targets.length === 0 || targets.includes(teamId);
+        });
+
+        const seen = new Set<string>();
+        return [...(ownRes.data || []), ...clubGames]
+          .filter((e: any) => (seen.has(e.id) ? false : (seen.add(e.id), true)))
+          .sort((a: any, b: any) => {
+            const dateCmp = (a.event_date || "").localeCompare(b.event_date || "");
+            if (dateCmp !== 0) return dateCmp;
+            return (a.start_time || "").localeCompare(b.start_time || "");
+          })
+          .slice(0, 50);
       }
+
 
       // Club-wide / group chat: only events the user has access to
       // (events for teams they belong to via role OR as a parent of an assigned child,
