@@ -1234,31 +1234,19 @@ export default function EventDetailPage() {
     queryKey: [
       "all-children-on-team",
       event?.team_id,
+      event?.club_id,
+      (event as any)?.adults_only,
+      (event as any)?.rsvp_audience,
       targetTeamIdsForFetch ? [...targetTeamIdsForFetch].sort().join(",") : "",
     ],
-    queryFn: async () => {
-      if (!event?.team_id && !targetTeamIdsForFetch) return [];
-      let q = supabase
-        .from("child_team_assignments")
-        .select(`child_id, children (id, name, parent_id)`);
-      if (event?.team_id) q = q.eq("team_id", event.team_id);
-      else q = q.in("team_id", targetTeamIdsForFetch!);
-      const { data, error } = await q;
-      if (error) throw error;
-      // Dedupe by child.id in case a child is in multiple targeted teams
-      const seen = new Set<string>();
-      const out: any[] = [];
-      for (const row of data || []) {
-        const c: any = (row as any).children;
-        if (c && !seen.has(c.id)) {
-          seen.add(c.id);
-          out.push(c);
-        }
-      }
-      return out;
-    },
-    enabled: !!event?.team_id || !!targetTeamIdsForFetch,
+    queryFn: () =>
+      resolveEventChildRoster({
+        event: event as any,
+        teamDefaultAudience: (event as any)?.teams?.default_rsvp_audience ?? null,
+      }),
+    enabled: !!event && !!(event.team_id || event.club_id),
   });
+
 
   // Merge the RLS-visible children with the scoped RPC roster so event
   // managers see every targeted player (and never "Unknown").
