@@ -14,11 +14,12 @@ describe("football pitch-board production entry-point contract", () => {
 
   it("Event page covers controller, spectator and deep-link entry", () => {
     const text = source("src/pages/EventDetailPage.tsx");
+    const actions = source("src/components/event/PitchBoardActions.tsx");
     expect(text).toContain("wantOpenPitchBoard");
     expect(text).toContain("setShowPitchBoard(true)");
-    expect(text).toContain("Start Game");
-    expect(text).toContain("Prepare Lineup &amp; Auto-Subs");
-    expect(text).toContain("Open Pitch Board");
+    expect(actions).toContain('"Start Game"');
+    expect(actions).toContain('"Prepare Lineup & Auto-Subs"');
+    expect(actions).toContain('"Open Match"');
     expect(text).toContain("closePitchBoardWithFlag");
   });
 

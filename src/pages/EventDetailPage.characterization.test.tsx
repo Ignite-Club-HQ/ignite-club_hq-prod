@@ -517,6 +517,93 @@ describe("EventDetailPage business-operation characterization", () => {
     }]);
   });
 
+  it("does not bulk-remind club members outside a targeted event's invited teams", async () => {
+    mocks.eventData = {
+      ...baseEvent,
+      team_id: null,
+      teams: null,
+      target_team_ids: ["team-2", "team-3"],
+      rsvp_grouping: "team",
+    };
+    await renderPage();
+    mocks.rpc.mockResolvedValueOnce({
+      data: [{ user_id: "target-player" }],
+      error: null,
+    });
+    mocks.results["rsvps:select"] = [{ data: [], error: null }];
+    mocks.results["user_roles:select"] = [{
+      data: [
+        { user_id: "target-player", role: "player", team_id: "team-2" },
+        { user_id: "uninvited-player", role: "player", team_id: "team-9" },
+        { user_id: "club-official", role: "committee_member", team_id: null },
+      ],
+      error: null,
+    }];
+    mocks.results["notifications:select"] = [{ data: [], error: null }];
+
+    await mutation("remind").mutationFn();
+    expect(mocks.operations.find(op => op.table === "notifications")?.payload).toEqual([{
+      user_id: "target-player",
+      type: "event_reminder",
+      message: 'Reminder: Please RSVP for "Synthetic match"',
+      related_id: "event-1",
+    }]);
+  });
+
+  it("deduplicates a child's primary parent and guardians and skips only recipients in cooldown", async () => {
+    await renderPage();
+    mocks.results["child_guardians:select"] = [{
+      data: [
+        { guardian_id: "parent-1" },
+        { guardian_id: "guardian-2" },
+        { guardian_id: "guardian-2" },
+      ],
+      error: null,
+    }];
+    mocks.results["children:select"] = [{ data: { parent_id: "parent-1" }, error: null }];
+    mocks.results["notifications:select"] = [{ data: [{ user_id: "guardian-2" }], error: null }];
+
+    const result = await mutation("individualRemind").mutationFn({
+      userId: "parent-1",
+      childId: "child-1",
+      displayName: "Child One",
+    });
+    expect(result).toEqual({
+      displayName: "Child One",
+      count: 1,
+      isChild: true,
+      recipientKey: "parent-1",
+    });
+    expect(mocks.operations.find(op => op.table === "notifications")?.payload).toEqual([{
+      user_id: "parent-1",
+      type: "event_reminder",
+      message: 'Reminder: Please RSVP for "Synthetic match"',
+      related_id: "event-1",
+    }]);
+  });
+
+  it("does not claim success when a child has no linked parent or guardian", async () => {
+    await renderPage();
+    mocks.results["child_guardians:select"] = [{ data: [], error: null }];
+    mocks.results["children:select"] = [{ data: { parent_id: null }, error: null }];
+    await expect(mutation("individualRemind").mutationFn({
+      childId: "child-orphan",
+      displayName: "Unlinked Child",
+    })).rejects.toThrow("Unlinked Child has no linked parents to remind");
+    expect(mocks.operations.some(op => op.table === "notifications")).toBe(false);
+  });
+
+  it("propagates an individual reminder write failure without reporting success", async () => {
+    await renderPage();
+    mocks.results["notifications:select"] = [{ data: [], error: null }];
+    const denied = { message: "reminder insert denied", code: "42501" };
+    mocks.results["notifications:insert"] = [{ data: null, error: denied }];
+    await expect(mutation("individualRemind").mutationFn({
+      userId: "member-2",
+      displayName: "Member Two",
+    })).rejects.toEqual(denied);
+  });
+
   it("resends invites only to newly eligible members and pushes only after notification rows commit", async () => {
     mocks.eventData = { ...baseEvent, created_by: "creator-1" };
     await renderPage();
@@ -545,6 +632,44 @@ describe("EventDetailPage business-operation characterization", () => {
         url: "/events/event-1",
         notificationType: "event_invite",
       }),
+    });
+  });
+
+  it("does not resend invites to club members outside a targeted event's invited teams", async () => {
+    mocks.eventData = {
+      ...baseEvent,
+      team_id: null,
+      teams: null,
+      created_by: "user-1",
+      target_team_ids: ["team-2", "team-3"],
+      rsvp_grouping: "team",
+    };
+    await renderPage();
+    mocks.rpc.mockResolvedValueOnce({
+      data: [{ user_id: "target-player" }],
+      error: null,
+    });
+    mocks.results["user_roles:select"] = [{
+      data: [
+        { user_id: "target-player", role: "player", team_id: "team-2" },
+        { user_id: "uninvited-player", role: "player", team_id: "team-9" },
+        { user_id: "club-official", role: "committee_member", team_id: null },
+      ],
+      error: null,
+    }];
+    mocks.results["notifications:select"] = [{ data: [], error: null }];
+
+    await mutation("resendInvites").mutationFn();
+    expect(mocks.operations.find(op => op.table === "notifications")?.payload).toEqual([{
+      user_id: "target-player",
+      type: "event_invite",
+      message: "You've been invited to: Synthetic match",
+      related_id: "event-1",
+      skip_push: true,
+    }]);
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+    expect(mocks.invoke).toHaveBeenCalledWith("send-push-notification", {
+      body: expect.objectContaining({ userId: "target-player" }),
     });
   });
 

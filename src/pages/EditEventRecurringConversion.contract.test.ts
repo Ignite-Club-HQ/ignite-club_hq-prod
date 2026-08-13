@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const source = readFileSync(resolve(__dirname, "EditEventPage.tsx"), "utf8");
+const workflowSource = readFileSync(
+  resolve(__dirname, "../features/events/editEventWorkflow.ts"),
+  "utf8",
+);
 
 // The conversion block spans from the "converting single event to recurring"
 // comment to the start of the whole-series branch.
@@ -13,8 +17,9 @@ const conversionBlock = source.slice(
 
 describe("single event -> recurring series conversion is atomic", () => {
   it("routes the conversion through one transactional RPC", () => {
-    expect(conversionBlock).toContain('supabase.rpc(\n          "convert_event_to_recurring_series"');
-    expect(conversionBlock.match(/supabase\.rpc\(/g)).toHaveLength(1);
+    expect(conversionBlock).toContain("convertEventToRecurringSeries(supabase, {");
+    expect(workflowSource).toContain('client.rpc("convert_event_to_recurring_series"');
+    expect(workflowSource.match(/client\.rpc\("convert_event_to_recurring_series"/g)).toHaveLength(1);
   });
 
   it("performs no direct parent update or child insert on the events table", () => {
@@ -33,17 +38,16 @@ describe("single event -> recurring series conversion is atomic", () => {
   });
 
   it("preserves child date, start time and nullable end time payload shape", () => {
-    expect(conversionBlock).toContain("event_date: childDateTime.toISOString()");
-    expect(conversionBlock).toContain("start_time: childDateTime.toISOString()");
-    expect(conversionBlock).toContain("end_time: childEnd");
-    expect(conversionBlock).toContain("newEndIso\n            ?");
+    expect(workflowSource).toContain("event_date: childDateTime.toISOString()");
+    expect(workflowSource).toContain("start_time: childDateTime.toISOString()");
+    expect(workflowSource).toContain("end_time: durationMs === null");
   });
 
   it("reports the occurrence count returned by the server", () => {
-    expect(conversionBlock).toContain("occurrence_count");
+    expect(workflowSource).toContain("occurrence_count");
   });
 
   it("aborts on RPC failure instead of continuing", () => {
-    expect(conversionBlock).toContain("if (convertError) throw convertError;");
+    expect(workflowSource).toContain("if (error) throw error;");
   });
 });

@@ -211,7 +211,8 @@ describe("HomePage consolidated membership and event orchestration", () => {
     expect(eventScopes).toContainEqual(["team_id", "team-active"]);
     expect(eventScopes).toContainEqual(["team_id", "team-deleted"]);
     expect(mocks.queryCalls.filter((call) => call.table === "events" && call.method === "or")).toEqual([]);
-    expect(mocks.queryCalls).toContainEqual({ table: "events", method: "limit", args: [25] });
+    expect(mocks.queryCalls).toContainEqual({ table: "events", method: "limit", args: [30] });
+    expect(mocks.queryCalls).toContainEqual({ table: "events", method: "limit", args: [20] });
   });
 
   it("throws on role-fetch failure instead of replacing cached dashboard data with empty state", async () => {

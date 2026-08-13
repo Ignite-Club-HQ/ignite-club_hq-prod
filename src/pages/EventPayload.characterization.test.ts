@@ -26,48 +26,33 @@ const editPayload = between(editSource, "const updateData = {", "// If convertin
 
 describe("event create payload business rules", () => {
   it("normalizes mini-league events to a club game with no team and the selected league", () => {
-    expect(createPayload).toMatch(/type:\s*type === "mini_league" \? "game" : type/);
-    expect(createPayload).toMatch(/team_id:\s*type === "mini_league" \? null : \(teamId \|\| null\)/);
+    expect(createSource).toContain('type: type === "mini_league" ? "game" : type');
+    expect(createSource).toContain('teamId: type === "mini_league" ? "" : teamId');
     expect(createPayload).toMatch(/mini_league_id:\s*type === "mini_league" \? miniLeagueId : null/);
   });
 
-  it("keeps opponent and arrival details only for a non-bye game", () => {
-    expect(createPayload).toMatch(/opponent:\s*type === "game" && !isBye \? opponent\.trim\(\) \|\| null : null/);
-    expect(createPayload).toMatch(/arrival_minutes_before:\s*type === "game" && !isBye[^?]+\? parseInt\(arrivalMinutesBefore, 10\) : null/);
-    expect(createPayload).toMatch(/is_bye:\s*type === "game" \? isBye : false/);
+  it("delegates shared normalization through the directly tested payload policy", () => {
+    expect(createSource).toContain("const sharedEventData = buildSharedEventPayload({");
+    expect(createPayload).toContain("...sharedEventData");
   });
 
-  it("keeps price and guest limits only for social events", () => {
-    expect(createPayload).toMatch(/amount:\s*type === "social" \? parsedPrice : null/);
-    expect(createPayload).toMatch(/allow_guests:\s*type === "social" && allowGuests \? true : null/);
-    expect(createPayload).toMatch(/max_guests_per_member:\s*type === "social" && allowGuests \? maxGuestsPerMember : null/);
-  });
-
-  it("persists grouping only for club-wide games/socials and targets at least two teams", () => {
-    expect(createPayload).toMatch(/rsvp_grouping:[\s\S]*?!teamId && \(type === "game" \|\| type === "social"\)[\s\S]*?\? rsvpGrouping : null/);
-    expect(createPayload).toMatch(/target_team_ids:[\s\S]*?!teamId && \(type === "game" \|\| type === "social"\)[\s\S]*?targetTeamIds\.length >= 2[\s\S]*?\? targetTeamIds[\s\S]*?: null/);
-  });
-
-  it("writes duties only for games and sends event, recurrence and duties through one RPC", () => {
+  it("writes duties only for games and delegates the complete atomic transaction", () => {
     expect(createSource).toMatch(/const dutyPayload =\s*type === "game"\s*\? duties\.map/);
-    expect(createSource).toContain('supabase.rpc("create_event_with_duties"');
-    expect(createSource).toMatch(/p_event:\s*\{[\s\S]*?\.\.\.baseEventData,[\s\S]*?event_date:/);
-    expect(createSource).toContain("p_child_dates: childDates");
-    expect(createSource).toContain("p_duties: dutyPayload");
+    expect(createSource).toContain("createEventTransaction(supabase, {");
+    expect(createSource).toContain("event: baseEventData");
+    expect(createSource).toContain("eventDate: parsedDateTime.toISOString()");
+    expect(createSource).toContain("childDates");
+    expect(createSource).toContain("duties: dutyPayload");
   });
 });
 
 describe("event edit payload parity", () => {
-  it("preserves the create rules for bye, arrival, social payment and guests", () => {
-    expect(editPayload).toMatch(/opponent:\s*type === "game" && !isBye \? opponent\.trim\(\) \|\| null : null/);
-    expect(editPayload).toMatch(/arrival_minutes_before:\s*type === "game" && !isBye[^?]+\? parseInt\(arrivalMinutesBefore, 10\) : null/);
-    expect(editPayload).toMatch(/amount:\s*type === "social" \? parsedPrice : null/);
-    expect(editPayload).toMatch(/allow_guests:\s*type === "social" && allowGuests \? true : null/);
-  });
-
-  it("clears stale grouping and targets when an event becomes team-specific or changes type", () => {
-    expect(editPayload).toMatch(/rsvp_grouping:[\s\S]*?!selectedTeamId && \(type === "game" \|\| type === "social"\)[\s\S]*?: null/);
-    expect(editPayload).toMatch(/target_team_ids:[\s\S]*?!selectedTeamId && \(type === "game" \|\| type === "social"\)[\s\S]*?targetTeamIds\.length >= 2[\s\S]*?: null/);
+  it("uses the same directly tested normalization policy as create", () => {
+    expect(editPayload).toContain("...buildSharedEventPayload({");
+    for (const input of [
+      "title", "type", "address", "description", "price", "opponent", "isBye",
+      "arrivalMinutesBefore", "allowGuests", "restrictedRoles", "rsvpGrouping", "targetTeamIds",
+    ]) expect(editPayload).toContain(input);
   });
 
   it("resets a changed reminder so the new schedule can notify again", () => {
@@ -75,28 +60,33 @@ describe("event edit payload parity", () => {
   });
 
   it("keeps event date, start and end aligned for single and series updates", () => {
-    expect(editSource).toContain("p_selected_event_date: parsedDateTime.toISOString()");
-    expect(editSource).toContain("p_selected_start_time: newStartIso");
-    expect(editSource).toContain("p_selected_end_time: newEndIso");
-    expect(editSource).toMatch(/\.update\(\{[\s\S]*?\.\.\.updateData,[\s\S]*?event_date: parsedDateTime\.toISOString\(\),[\s\S]*?start_time: newStartIso,[\s\S]*?end_time: newEndIso/);
+    expect(editSource).toContain("updateEventTransaction(supabase, {");
+    expect(editSource).toContain("updates: updateData");
+    expect(editSource).toContain("selectedEventDate: parsedDateTime.toISOString()");
+    expect(editSource).toContain("selectedStartTime: newStartIso");
+    expect(editSource).toContain("selectedEndTime: newEndIso");
+    expect(editSource).toContain("updateSeries: true");
+    expect(editSource).toContain("updateSeries: false");
   });
 });
 
 describe("training conflict characterization", () => {
   const conflictCheck = between(createSource, "const checkForConflicts", "const handleSubmit");
 
-  it("checks only same-club, active events at the normalized venue and time window", () => {
+  it("queries same-club active events in the selected date window and delegates matching", () => {
     expect(conflictCheck).toContain('.eq("club_id", clubId)');
     expect(conflictCheck).toContain('.eq("is_cancelled", false)');
     expect(conflictCheck).toContain('.gte("event_date", `${eventDateStr}T00:00:00`)');
     expect(conflictCheck).toContain('.lte("event_date", `${eventDateStr}T23:59:59`)');
-    expect(conflictCheck).toMatch(/trim\(\)\.toLowerCase\(\)/);
+    expect(conflictCheck).toContain("evaluateTrainingConflicts({");
+    expect(conflictCheck).toContain("parsedDateTime");
+    expect(conflictCheck).toContain("address");
   });
 
-  it("also evaluates recurring parents by venue, time and weekday", () => {
+  it("queries eligible recurring parents and delegates weekday matching", () => {
     expect(conflictCheck).toContain('.eq("is_recurring", true)');
     expect(conflictCheck).toContain("recurrence_end_date.gte.");
-    expect(conflictCheck).toContain("evtDate.getDay() === parsedDateTime.getDay()");
+    expect(conflictCheck).toContain("recurringParentQuery");
   });
 
   it("runs conflict detection only for training unless the user explicitly confirms override", () => {

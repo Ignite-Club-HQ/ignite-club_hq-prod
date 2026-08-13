@@ -10,14 +10,34 @@ import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand, Lock } from "lucide-react";
+import { ArrowLeft, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Bell, DollarSign, Check, Share2, Flame, Eye, ChevronDown, Shield, Trophy, Hand, Lock } from "lucide-react";
 import { exportEventIcs } from "@/lib/icsExport";
 import { queueRsvp } from "@/lib/rsvpQueue";
+import {
+  adminSaveChildRsvp,
+  adminUpdateRsvpStatus,
+  adminUpsertRsvp,
+  saveGuardianChildRsvp,
+  saveParentMiniLeaguePlayerRsvp,
+  savePersonalRsvp,
+} from "@/features/events/eventRsvpWorkflow";
+import { completeEventRsvp } from "@/features/events/eventRsvpCompletion";
+import {
+  bucketAttendance,
+  bucketNonResponders,
+  rsvpAttendanceIdentity,
+} from "@/features/events/attendanceGroupingPolicy";
+import {
+  calculateAttendanceNonResponders,
+  prepareAttendanceRsvps,
+  shouldDisplayAttendanceRsvp,
+} from "@/features/events/attendanceAudiencePolicy";
+import {
+  cancelEventRows,
+  SeriesCancellationPartialError,
+} from "@/features/events/eventCancellationWorkflow";
 import { TrainingDefaultControl } from "@/components/event/TrainingDefaultControl";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
-import { RecurringEventActionDialog } from "@/components/RecurringEventActionDialog";
-import { CancelEventConfirmDialog } from "@/components/CancelEventConfirmDialog";
-import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDialog";
 import { AddDutySheet } from "@/components/AddDutySheet";
 import { AssignDutySheet } from "@/components/AssignDutySheet";
 import PlayerOfMatchSelector from "@/components/PlayerOfMatchSelector";
@@ -41,30 +61,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { refreshEventCaches } from "@/lib/eventCacheRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
@@ -72,7 +74,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { format, parseISO, isSameDay } from "date-fns";
-import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
+import { EventLocationDetails, EventLocationMap } from "@/components/event/EventLocationPresentation";
+import { EventDateCalendarRow } from "@/components/event/EventDateCalendarRow";
+import { exportEventToCalendar } from "@/features/events/eventCalendarExport";
+import { EventPassiveFacts } from "@/components/event/EventPassiveFacts";
+import { EventAttendanceSummary } from "@/components/event/EventAttendanceSummary";
+import { calculateAttendanceSummary } from "@/features/events/attendanceSummaryPolicy";
+import { resolvePitchBoardActions } from "@/features/events/pitchBoardActionPolicy";
+import { PitchBoardActions } from "@/components/event/PitchBoardActions";
 import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponsorStrip";
 import { EventGuestsManager } from "@/components/EventGuestsManager";
 import { EventGroupsManager } from "@/components/EventGroupsManager";
@@ -90,7 +99,12 @@ import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 import { formatMatchArrivalTime, getMatchArrivalMinutes, getMatchArrivalDate } from "@/lib/matchArrivalTime";
 import { formatRelativePast } from "@/lib/formatRelativeTime";
-import { MatchScoreCard } from "@/components/event/MatchScoreCard";
+import { EventMatchScoreSection } from "@/components/event/EventMatchScoreSection";
+import { resolveMatchScoreSection } from "@/features/events/matchScoreSectionPolicy";
+import { isEventUpcomingForActions, resolveEventAdminActions } from "@/features/events/eventAdminActionPolicy";
+import { EventAdminActions } from "@/components/event/EventAdminActions";
+import { EventReminderDialog, EventResendInvitesDialog } from "@/components/event/EventNotificationDialogs";
+import { EventCancellationDialog, EventDeletionDialog } from "@/components/event/EventLifecycleDialogs";
 import { EventNoteSection } from "@/components/event/EventNoteSection";
 
 
@@ -112,7 +126,28 @@ const closePitchBoardWithFlag = (setShow: (v: boolean) => void) => () => {
 };
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 import { resolveEventRecipients, eventRecipientContext } from "@/features/events/eventRecipientPolicy";
-import { resolveReminderRecipients, applyReminderCooldown, normalizeRecipientIds } from "@/features/events/reminderRecipients";
+import { sendBulkEventReminders, sendIndividualEventReminder } from "@/features/events/eventReminderWorkflow";
+import { persistResentEventInvites } from "@/features/events/eventInviteResendWorkflow";
+import { completeEventDuty, DutyNotificationPartialError } from "@/features/events/eventDutyCompletionWorkflow";
+import { setEventPaymentStatus } from "@/features/events/eventPaymentWorkflow";
+import { EventIdentityHeader } from "@/components/event/EventIdentityHeader";
+import { resolveEventCapabilities } from "@/features/events/eventCapabilities";
+import { EVENT_MANAGER_ROLES, hasEventManagerRole } from "@/features/events/eventManagerPolicy";
+import { fetchEventDetail } from "@/features/events/eventDetailRepository";
+import { fetchEventRsvps } from "@/features/events/eventRsvpRepository";
+import { fetchEventDuties, fetchEventGuests } from "@/features/events/eventSupportingReadsRepository";
+import {
+  fetchEventPayments,
+  fetchMatchCaptain,
+  fetchMatchGoalkeepers,
+  fetchPlayerOfMatch,
+} from "@/features/events/eventPaymentAwardRepository";
+import {
+  fetchTargetedAttendanceRoster,
+  mergeTargetedChildren,
+  selectScopedChildRoster,
+  selectTargetedReminderMembers,
+} from "@/features/events/targetedAttendanceRepository";
 
 type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";
@@ -312,15 +347,7 @@ export default function EventDetailPage() {
 
   const { data: event, isLoading, error: eventError, isFetching: isEventFetching } = useQuery({
     queryKey: ["event", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("events")
-        .select(`*, teams (name, default_match_arrival_minutes, default_rsvp_audience), clubs!club_id (name, is_pro, sport)`)
-        .eq("id", id!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchEventDetail(supabase, id!),
     enabled: !!id,
     retry: (failureCount, err: any) => {
       // Telemetry: log every retry so we can quantify how often the transient
@@ -374,45 +401,7 @@ export default function EventDetailPage() {
     refetch: refetchRsvps,
   } = useQuery({
     queryKey: ["event-rsvps", id],
-    queryFn: async () => {
-      // Fetch rsvps first
-      const { data: rsvpData, error: rsvpError } = await supabase
-        .from("rsvps")
-        .select(`*, mini_league_players (id, name, child_id)`)
-        .eq("event_id", id!);
-      if (rsvpError) throw rsvpError;
-      
-      // Now fetch related profiles and children separately to avoid FK detection issues
-      const userIds = rsvpData.filter(r => r.user_id).map(r => r.user_id);
-      const childIds = rsvpData.filter(r => r.child_id).map(r => r.child_id);
-      
-      let profilesMap: Record<string, { display_name: string | null; avatar_url: string | null }> = {};
-      let childrenMap: Record<string, { id: string; name: string }> = {};
-      
-      if (userIds.length > 0) {
-        const { data: profiles } = await selectCachedProfilesByIds(userIds);
-        if (profiles) {
-          profilesMap = Object.fromEntries(profiles.map(p => [p.id, { display_name: p.display_name, avatar_url: p.avatar_url }]));
-        }
-      }
-      
-      if (childIds.length > 0) {
-        const { data: children } = await supabase
-          .from("children")
-          .select("id, name")
-          .in("id", childIds);
-        if (children) {
-          childrenMap = Object.fromEntries(children.map(c => [c.id, { id: c.id, name: c.name }]));
-        }
-      }
-      
-      // Combine the data
-      return rsvpData.map(rsvp => ({
-        ...rsvp,
-        profiles: rsvp.user_id ? profilesMap[rsvp.user_id] || null : null,
-        children: rsvp.child_id ? childrenMap[rsvp.child_id] || null : null,
-      }));
-    },
+    queryFn: () => fetchEventRsvps(supabase, id!, selectCachedProfilesByIds),
     enabled: !!id,
   });
 
@@ -446,25 +435,7 @@ export default function EventDetailPage() {
   // Fetch event guests for attending count and RSVP list
   const { data: eventGuests } = useQuery({
     queryKey: ["event-guests", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("event_guests")
-        .select("*")
-        .eq("event_id", id!);
-      if (error) throw error;
-      
-      // Fetch adder profiles
-      const adderIds = [...new Set(data.map(g => g.added_by))];
-      let adderMap: Record<string, string> = {};
-      if (adderIds.length > 0) {
-        const { data: profiles } = await selectCachedProfilesByIds(adderIds);
-        if (profiles) {
-          adderMap = Object.fromEntries(profiles.map(p => [p.id, p.display_name || "A member"]));
-        }
-      }
-      
-      return data.map(g => ({ ...g, added_by_name: adderMap[g.added_by] || "A member" }));
-    },
+    queryFn: () => fetchEventGuests(supabase, id!, selectCachedProfilesByIds),
     enabled: !!id,
   });
 
@@ -516,14 +487,7 @@ export default function EventDetailPage() {
 
   const { data: duties, isLoading: isDutiesLoading } = useQuery({
     queryKey: ["event-duties", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("duties")
-        .select(`*, profiles:assigned_to (display_name, avatar_url)`)
-        .eq("event_id", id!);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchEventDuties(supabase, id!),
     enabled: !!id,
     staleTime: 0,
     refetchOnMount: "always",
@@ -557,10 +521,10 @@ export default function EventDetailPage() {
         .select("role")
         .eq("user_id", user!.id)
         .eq("club_id", event.club_id)
-        .in("role", ["club_admin", "committee_member"])
+        .in("role", [...EVENT_MANAGER_ROLES.club])
         .limit(1);
       
-      if (clubAdminData && clubAdminData.length > 0) return true;
+      if (hasEventManagerRole("club", clubAdminData)) return true;
       
       // For team-specific events, also check team_admin/coach roles
       if (event.team_id) {
@@ -569,9 +533,9 @@ export default function EventDetailPage() {
           .select("role")
           .eq("user_id", user!.id)
           .eq("team_id", event.team_id)
-          .in("role", ["team_admin", "coach"]);
+          .in("role", [...EVENT_MANAGER_ROLES.team]);
         
-        if (teamRoleData && teamRoleData.length > 0) return true;
+        if (hasEventManagerRole("team", teamRoleData)) return true;
       }
       
       // For mini-league events, also check league_admin/coach roles
@@ -581,9 +545,9 @@ export default function EventDetailPage() {
           .select("role")
           .eq("user_id", user!.id)
           .eq("club_id", event.club_id)
-          .in("role", ["league_admin", "coach", "committee_member"]);
+          .in("role", [...EVENT_MANAGER_ROLES.miniLeague]);
         
-        if (leagueAdminData && leagueAdminData.length > 0) return true;
+        if (hasEventManagerRole("miniLeague", leagueAdminData)) return true;
       }
       
       return false;
@@ -706,7 +670,12 @@ export default function EventDetailPage() {
     refetchOnWindowFocus: true,
   });
   const isSubsManagerForEvent = localSubsManagerForEvent || directSubsManagerForEvent;
-  const canManagePitchBoard = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
+  const { canManageEvent, canOperateMatch } = resolveEventCapabilities({
+    isEventManager: isAdmin,
+    isAppAdmin,
+    isSubsManagerForEvent,
+  });
+  const canManagePitchBoard = canOperateMatch;
   const isPitchBoardAccessLoading = isLoadingTeamPro || isDirectSubsManagerLoading || isDutiesLoading;
 
   // Check if user can access pitch board (coach/admin/Subs Manager) - requires Pro Football for soccer.
@@ -990,27 +959,13 @@ export default function EventDetailPage() {
   const parentLeaguePlayerRsvpMutation = useMutation({
     mutationFn: async ({ playerId, status }: { playerId: string; status: RsvpStatus }) => {
       const existing = rsvps?.find((r) => r.mini_league_player_id === playerId);
-      if (existing) {
-        const { error } = await supabase
-          .from("rsvps")
-          .update({ status, source: "user" })
-          .eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("rsvps").insert({
-          event_id: id!,
-          user_id: user!.id,
-          mini_league_player_id: playerId,
-          status,
-          source: "user",
-        });
-        if (error) throw error;
-      }
+      await saveParentMiniLeaguePlayerRsvp(supabase, {
+        eventId: id!, parentUserId: user!.id, playerId, status,
+        existingRsvpId: existing?.id ?? null,
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+      completeEventRsvp(queryClient, { eventId: id!, includeGroups: true });
     },
     onError: (err: any) => {
       toast({ title: "Failed to update RSVP", description: err.message, variant: "destructive" });
@@ -1229,24 +1184,12 @@ export default function EventDetailPage() {
   // SECURITY DEFINER RPC returns the minimum roster for THIS event only.
   const scopedRosterQuery = useQuery({
     queryKey: ["targeted-event-roster", id],
-    enabled: !!id && !!targetTeamIdsForFetch && !!(isAdmin || isAppAdmin),
+    enabled: !!id && !!targetTeamIdsForFetch && canManageEvent,
     staleTime: 60_000,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_targeted_event_attendance_roster", {
-        p_event_id: id!,
-      });
-      if (error) throw error;
-      return (data ?? []) as Array<{
-        kind: string;
-        person_id: string;
-        display_name: string | null;
-        parent_id: string | null;
-        team_ids: string[] | null;
-      }>;
-    },
+    queryFn: () => fetchTargetedAttendanceRoster(supabase, id!),
   });
   const scopedChildRoster = useMemo(
-    () => (scopedRosterQuery.data ?? []).filter((r) => r.kind === "child"),
+    () => selectScopedChildRoster(scopedRosterQuery.data),
     [scopedRosterQuery.data],
   );
   const scopedChildNames = useMemo(() => {
@@ -1311,17 +1254,7 @@ export default function EventDetailPage() {
   const allChildrenOnTeam = useMemo(() => {
     const base = allChildrenOnTeamRaw || [];
     if (!targetTeamIdsForFetch || scopedChildRoster.length === 0) return base;
-    const byId = new Map<string, any>();
-    for (const c of base) byId.set(c.id, c);
-    for (const r of scopedChildRoster) {
-      const existing = byId.get(r.person_id);
-      if (existing) {
-        if (!existing.name && r.display_name) existing.name = r.display_name;
-      } else {
-        byId.set(r.person_id, { id: r.person_id, name: r.display_name, parent_id: r.parent_id });
-      }
-    }
-    return [...byId.values()];
+    return mergeTargetedChildren(base, scopedChildRoster);
   }, [allChildrenOnTeamRaw, scopedChildRoster, targetTeamIdsForFetch]);
 
 
@@ -1350,19 +1283,12 @@ export default function EventDetailPage() {
   // club-wide events keep the previous behaviour.
   const reminderMembers = useMemo(() => {
     if (event?.team_id || !targetTeamIdsForFetch) return members;
-    const targetSet = new Set(targetTeamIdsForFetch);
-    const linkedAdultIds = new Set<string>();
-    (allChildrenOnTeam || []).forEach((c: any) => {
-      if (c.parent_id) linkedAdultIds.add(c.parent_id);
-    });
-    (childGuardiansOnTeam || []).forEach((cg: any) => {
-      if (cg.guardian_id) linkedAdultIds.add(cg.guardian_id);
-    });
-    return (members ?? []).filter((m: any) => {
-      const pairs: { role: string; team_id: string | null }[] = m.role_team_pairs ?? [];
-      if (pairs.some((p) => p.team_id && targetSet.has(p.team_id))) return true;
-      return linkedAdultIds.has(m.id);
-    });
+    return selectTargetedReminderMembers(
+      members,
+      targetTeamIdsForFetch,
+      allChildrenOnTeam,
+      childGuardiansOnTeam,
+    );
   }, [members, event?.team_id, targetTeamIdsForFetch, allChildrenOnTeam, childGuardiansOnTeam]);
 
   // Get existing RSVPs for children (any guardian's RSVP for the child counts)
@@ -1372,15 +1298,8 @@ export default function EventDetailPage() {
   // Fetch event payments (admin only)
   const { data: payments } = useQuery({
     queryKey: ["event-payments", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("event_payments")
-        .select("user_id")
-        .eq("event_id", id!);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!id && !!(isAdmin || isAppAdmin),
+    queryFn: () => fetchEventPayments(supabase, id!),
+    enabled: !!id && canManageEvent,
   });
 
   // Create set of paid user IDs for quick lookup
@@ -1391,40 +1310,17 @@ export default function EventDetailPage() {
   const { data: matchCaptainRow } = useQuery({
     queryKey: ["match-captain", id, "marker"],
     enabled: !!id && isGameEvent,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("match_captains")
-        .select("user_id, child_id")
-        .eq("event_id", id!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchMatchCaptain(supabase, id!),
   });
   const { data: potmRow } = useQuery({
     queryKey: ["player-of-match", id, "marker"],
     enabled: !!id && isGameEvent,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("player_of_match")
-        .select("user_id, child_id")
-        .eq("event_id", id!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchPlayerOfMatch(supabase, id!),
   });
   const { data: goalkeeperRows = [] } = useQuery({
     queryKey: ["match-goalkeepers", id],
     enabled: !!id && isGameEvent,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("match_goalkeepers" as any)
-        .select("user_id, child_id")
-        .eq("event_id", id!);
-      if (error) throw error;
-      return (data as any[]) || [];
-    },
+    queryFn: () => fetchMatchGoalkeepers(supabase, id!),
   });
   const captainUserId = matchCaptainRow?.user_id || null;
   const captainChildId = matchCaptainRow?.child_id || null;
@@ -1602,42 +1498,15 @@ export default function EventDetailPage() {
 
   const rsvpMutation = useMutation({
     mutationFn: async (status: RsvpStatus) => {
-      let rsvpId: string | null = null;
-
-      // Offline path: queue the RSVP, return early
-      if (!navigator.onLine) {
-        queueRsvp({
-          eventId: id!,
-          userId: user!.id,
-          status,
-          notes: rsvpNotes || null,
-          existingRsvpId: myRsvp?.id || null,
-        });
-        return;
-      }
-
-      if (myRsvp) {
-        const { error } = await supabase
-          .from("rsvps")
-          .update({
-            status,
-            notes: rsvpNotes || null,
-            source: "user",
-          })
-          .eq("id", myRsvp.id);
-        if (error) throw error;
-        rsvpId = myRsvp.id;
-      } else {
-        const { data: newRsvp, error } = await supabase.from("rsvps").insert({
-          event_id: id!,
-          user_id: user!.id,
-          status,
-          notes: rsvpNotes || null,
-          source: "user",
-        }).select("id").single();
-        if (error) throw error;
-        rsvpId = newRsvp?.id || null;
-      }
+      const { queued, rsvpId } = await savePersonalRsvp(supabase, {
+        eventId: id!,
+        userId: user!.id,
+        status,
+        notes: rsvpNotes || null,
+        existingRsvpId: myRsvp?.id || null,
+        online: navigator.onLine,
+      }, queueRsvp);
+      if (queued) return;
 
       // Fire-and-forget: don't block UI for points calculation
       if (status === "going" && rsvpId && event) {
@@ -1653,16 +1522,10 @@ export default function EventDetailPage() {
       // RSVP notifications are handled by the on_rsvp_notify_admins database trigger
     },
     onSuccess: (_data, status) => {
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
-      // Refresh points history & rank after fire-and-forget early-RSVP bonus award.
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["points-history"] });
-        queryClient.invalidateQueries({ queryKey: ["points-rank"] });
-        queryClient.invalidateQueries({ queryKey: ["points-rank-seasoned"] });
-      }, 1500);
+      completeEventRsvp(queryClient, {
+        eventId: id!, teamId: event?.team_id, includeGroups: true,
+        includePitch: true, includePoints: true,
+      });
       
 
       // Show post-RSVP notification nudge if user hasn't enabled push
@@ -1689,37 +1552,13 @@ export default function EventDetailPage() {
   const childRsvpMutation = useMutation({
     mutationFn: async ({ childId, status, childName }: { childId: string; status: RsvpStatus; childName?: string }) => {
       const existingRsvp = childRsvps.find((r) => r.child_id === childId);
-      let rsvpId: string | null = null;
-      
-      if (existingRsvp) {
-        const { error } = await supabase
-          .from("rsvps")
-          .update({ status, source: "user" })
-          .eq("id", existingRsvp.id);
-        if (error) throw error;
-        rsvpId = existingRsvp.id;
-      } else {
-        const { data: newRsvp, error } = await supabase.from("rsvps").insert({
-          event_id: id!,
-          user_id: user!.id,
-          child_id: childId,
-          status,
-          source: "user",
-        }).select("id").maybeSingle();
-        if (error) throw error;
-        // If trigger redirected insert→update on duplicate, look up the canonical row.
-        if (newRsvp?.id) {
-          rsvpId = newRsvp.id;
-        } else {
-          const { data: existing } = await supabase
-            .from("rsvps")
-            .select("id")
-            .eq("event_id", id!)
-            .eq("child_id", childId)
-            .maybeSingle();
-          rsvpId = existing?.id ?? null;
-        }
-      }
+      const { rsvpId } = await saveGuardianChildRsvp(supabase, {
+        eventId: id!,
+        guardianUserId: user!.id,
+        childId,
+        status,
+        existingRsvpId: existingRsvp?.id ?? null,
+      });
 
       // Fire-and-forget: award early RSVP points for child
       if (status === "going" && rsvpId && event) {
@@ -1736,16 +1575,10 @@ export default function EventDetailPage() {
       // RSVP notifications are handled by the on_rsvp_notify_admins database trigger
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
-      // Refresh points history & rank after fire-and-forget child early-RSVP bonus award.
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["points-history"] });
-        queryClient.invalidateQueries({ queryKey: ["points-rank"] });
-        queryClient.invalidateQueries({ queryKey: ["points-rank-seasoned"] });
-      }, 1500);
+      completeEventRsvp(queryClient, {
+        eventId: id!, teamId: event?.team_id, includeGroups: true,
+        includePitch: true, includePoints: true,
+      });
     },
   });
 
@@ -1764,31 +1597,18 @@ export default function EventDetailPage() {
       parentUserId: string | null;
       status: RsvpStatus;
     }) => {
-      if (childId) {
-        const { error } = await supabase.rpc('admin_upsert_rsvp', {
-          p_event_id: id!,
-          p_user_id: parentUserId || user!.id,
-          p_status: status,
-          p_acting_user_id: user!.id,
-          p_child_id: childId,
-        });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.rpc('admin_upsert_rsvp', {
-          p_event_id: id!,
-          p_user_id: user!.id,
-          p_status: status,
-          p_acting_user_id: user!.id,
-          p_mini_league_player_id: playerId,
-        });
-        if (error) throw error;
-      }
+      await adminUpsertRsvp(supabase, {
+        eventId: id!, actingUserId: user!.id,
+        subjectUserId: childId ? (parentUserId || user!.id) : user!.id,
+        status,
+        childId,
+        miniLeaguePlayerId: childId ? null : playerId,
+      });
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
+      completeEventRsvp(queryClient, {
+        eventId: id!, teamId: event?.team_id, includeGroups: true, includePitch: true,
+      });
     },
     onError: (error) => {
       toast({ 
@@ -1802,18 +1622,12 @@ export default function EventDetailPage() {
   // Admin mutation to update existing RSVP status by RSVP ID
   const adminUpdateRsvpMutation = useMutation({
     mutationFn: async ({ rsvpId, status, playerName }: { rsvpId: string; status: RsvpStatus; playerName: string }) => {
-      const { error } = await supabase.rpc('admin_update_rsvp_status', {
-        p_rsvp_id: rsvpId,
-        p_status: status,
-        p_acting_user_id: user!.id,
-      });
-      if (error) throw error;
+      await adminUpdateRsvpStatus(supabase, { rsvpId, status, actingUserId: user!.id });
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
-      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
+      completeEventRsvp(queryClient, {
+        eventId: id!, teamId: event?.team_id, includeGroups: true, includePitch: true,
+      });
       
     },
     onError: (error) => {
@@ -1828,18 +1642,14 @@ export default function EventDetailPage() {
   // Admin mutation to create RSVP for a member who hasn't responded (for team/club events)
   const rsvpForMemberMutation = useMutation({
     mutationFn: async ({ memberId, memberName, status }: { memberId: string; memberName: string; status: RsvpStatus }) => {
-      const { error } = await supabase.rpc('admin_upsert_rsvp', {
-        p_event_id: id!,
-        p_user_id: memberId,
-        p_status: status,
-        p_acting_user_id: user!.id,
+      await adminUpsertRsvp(supabase, {
+        eventId: id!, actingUserId: user!.id, subjectUserId: memberId, status,
       });
-      if (error) throw error;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
+      completeEventRsvp(queryClient, {
+        eventId: id!, teamId: event?.team_id, includePitch: true,
+      });
     },
     onError: (error) => {
       toast({ 
@@ -1853,33 +1663,14 @@ export default function EventDetailPage() {
   // Admin mutation to create RSVP for a child who hasn't responded (for team events)
   const rsvpForChildMutation = useMutation({
     mutationFn: async ({ childId, childName, parentUserId, status }: { childId: string; childName: string; parentUserId: string; status: RsvpStatus }) => {
-      // Check if RSVP already exists for this child
-      const { data: existingRsvp } = await supabase
-        .from("rsvps")
-        .select("id")
-        .eq("event_id", id!)
-        .eq("child_id", childId)
-        .maybeSingle();
-      
-      if (existingRsvp) {
-        // Update existing RSVP
-        const { error } = await supabase
-          .from("rsvps")
-          .update({ status })
-          .eq("id", existingRsvp.id);
-        if (error) throw error;
-      } else {
-        // Create new RSVP for child
-        const { error } = await supabase
-          .from("rsvps")
-          .insert({ event_id: id!, user_id: parentUserId, child_id: childId, status });
-        if (error) throw error;
-      }
+      await adminSaveChildRsvp(supabase, {
+        eventId: id!, parentUserId, childId, status,
+      });
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
-      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch", event?.team_id, event?.id] });
+      completeEventRsvp(queryClient, {
+        eventId: id!, teamId: event?.team_id, includePitch: true,
+      });
     },
     onError: (error) => {
       toast({ 
@@ -1893,27 +1684,11 @@ export default function EventDetailPage() {
   // Toggle payment status mutation
   const togglePaymentMutation = useMutation({
     mutationFn: async ({ userId, isPaid }: { userId: string; isPaid: boolean }) => {
-      if (isPaid) {
-        // Remove payment record
-        const { error } = await supabase
-          .from("event_payments")
-          .delete()
-          .eq("event_id", id!)
-          .eq("user_id", userId);
-        if (error) throw error;
-      } else {
-        // Add payment record
-        const { error } = await supabase
-          .from("event_payments")
-          .insert({
-            event_id: id!,
-            user_id: userId,
-            amount: event?.amount || 0,
-            payment_status: "paid",
-            paid_at: new Date().toISOString(),
-          });
-        if (error) throw error;
-      }
+      await setEventPaymentStatus(supabase, {
+        eventId: id!, userId, isPaid,
+        amount: event?.amount || 0,
+        paidAt: new Date().toISOString(),
+      });
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
@@ -1987,16 +1762,6 @@ export default function EventDetailPage() {
     },
   });
 
-  // Thrown when the duty row committed as completed but the admin/coach
-  // notification insert failed. Records explicitly that the duty is committed.
-  class DutyNotificationPartialError extends Error {
-    dutyCommitted = true as const;
-    constructor(public underlying: string) {
-      super(underlying);
-      this.name = "DutyNotificationPartialError";
-    }
-  }
-
   // Complete duty mutation
   const completeDutyMutation = useMutation({
     mutationFn: async (dutyId: string) => {
@@ -2016,56 +1781,17 @@ export default function EventDetailPage() {
         }
       }
 
-      const { data: updatedDuty, error } = await supabase
-        .from("duties")
-        .update({ status: "completed" as DutyStatus, completed_at: new Date().toISOString() })
-        .eq("id", dutyId)
-        .eq("status", "open")
-        .select("id")
-        .maybeSingle();
-      // Duty update failed outright — no notifications, complete failure.
-      if (error) throw error;
-      // No row updated: the duty is no longer open (idempotent/concurrent
-      // outcome). Do not notify; just refresh so current state is displayed.
-      if (!updatedDuty) return { outcome: "noop" as const };
-
-      // Notify team/club admins and coaches about duty completion
-      if (event && duty) {
-        const memberName = profile?.display_name || "A member";
-        
-        // Get admins/coaches for this team/event
-        const roleQuery = event.team_id 
-          ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach", "club_admin", "committee_member"])
-          : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).in("role", ["club_admin", "committee_member"]);
-        
-        const { data: admins, error: adminsError } = await roleQuery;
-
-        if (adminsError) {
-          throw new DutyNotificationPartialError(adminsError.message);
-        }
-
-        if (admins && admins.length > 0) {
-          const recipientIds = Array.from(
-            new Set(admins.map(a => a.user_id).filter((userId): userId is string => !!userId && userId !== user?.id))
-          );
-          const message = `${memberName} completed ${duty.name} for ${event.title}`;
-          const notifications = recipientIds.map(userId => ({
-              user_id: userId,
-              type: "duty_completed",
-              message,
-              related_id: id,
-            }));
-          
-          if (notifications.length > 0) {
-            const { error: notificationError } = await supabase.from("notifications").insert(notifications);
-            // 23505 = duplicate/idempotency conflict, intentionally tolerated.
-            if (notificationError && notificationError.code !== "23505") {
-              throw new DutyNotificationPartialError(notificationError.message);
-            }
-          }
-        }
-      }
-      return { outcome: "completed" as const };
+      return completeEventDuty(supabase, {
+        dutyId,
+        eventId: id!,
+        completedAt: new Date().toISOString(),
+        actorId: user?.id,
+        memberName: profile?.display_name || "A member",
+        dutyName: duty?.name,
+        eventTitle: event?.title,
+        teamId: event?.team_id,
+        clubId: event?.club_id,
+      });
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
@@ -2188,71 +1914,16 @@ export default function EventDetailPage() {
 
 
 
-  // Thrown when a recurring-series cancellation committed only one of its two
-  // writes. Records explicitly which mutation committed — never inferred from
-  // error text.
-  class SeriesCancellationPartialError extends Error {
-    constructor(
-      public childrenCommitted: boolean,
-      public parentCommitted: boolean,
-      public underlying: string,
-    ) {
-      super(underlying);
-      this.name = "SeriesCancellationPartialError";
-    }
-  }
-
   const cancelEventMutation = useMutation({
     mutationFn: async ({ cancelType, customMessage, sendPushNotification }: { cancelType: 'single' | 'series'; customMessage?: string; sendPushNotification?: boolean }) => {
       console.log("[CancelEvent] Starting cancel mutation", { cancelType, eventId: id, miniLeagueId: event?.mini_league_id });
 
-      const isSeries =
-        cancelType === 'series' && (!!event?.parent_event_id || !!event?.is_recurring);
-
-      if (isSeries) {
-        // Either arrangement: current event is a child (use its parent id) or
-        // the current event IS the recurring parent (use its own id).
-        const seriesRootId = event?.parent_event_id || id!;
-
-        const { error: childrenError } = await supabase
-          .from("events")
-          .update({ is_cancelled: true, chat_cancel_post_handled: true })
-          .eq("parent_event_id", seriesRootId);
-        const { error: parentError } = await supabase
-          .from("events")
-          .update({ is_cancelled: true, chat_cancel_post_handled: true })
-          .eq("id", seriesRootId);
-
-        const childrenCancellationSucceeded = !childrenError;
-        const parentCancellationSucceeded = !parentError;
-
-        if (childrenError) console.error("[CancelEvent] Error cancelling children:", childrenError);
-        if (parentError) console.error("[CancelEvent] Error cancelling parent:", parentError);
-
-        // A. Neither write succeeded — complete failure, no chat message.
-        if (!childrenCancellationSucceeded && !parentCancellationSucceeded) {
-          throw childrenError ?? parentError;
-        }
-
-        // C. Exactly one write succeeded — partial state, no chat message.
-        if (!childrenCancellationSucceeded || !parentCancellationSucceeded) {
-          throw new SeriesCancellationPartialError(
-            childrenCancellationSucceeded,
-            parentCancellationSucceeded,
-            (childrenError ?? parentError)!.message,
-          );
-        }
-        // B. Both succeeded — fall through to normal success behaviour.
-      } else {
-        // Just cancel this single event
-        console.log("[CancelEvent] Cancelling single event:", id);
-        const { data, error } = await supabase.from("events").update({ is_cancelled: true, chat_cancel_post_handled: true }).eq("id", id!);
-        console.log("[CancelEvent] Update result:", { data, error });
-        if (error) {
-          console.error("[CancelEvent] Error cancelling event:", error);
-          throw error;
-        }
-      }
+      await cancelEventRows(supabase, {
+        eventId: id!,
+        cancelType,
+        isRecurring: !!event?.is_recurring,
+        parentEventId: event?.parent_event_id,
+      });
 
 
       // Get member count for notifications - handle mini-league events differently
@@ -2390,62 +2061,13 @@ export default function EventDetailPage() {
 
   const remindMutation = useMutation({
     mutationFn: async () => {
-      // Get all RSVPs for this event
-      const { data: existingRsvps, error: rsvpError } = await supabase
-        .from("rsvps")
-        .select("user_id")
-        .eq("event_id", id!);
-      if (rsvpError) throw rsvpError;
-
-      
-      const rsvpUserIds = existingRsvps?.map(r => r.user_id) || [];
-      
-      // Resolve the eligible audience through the shared recipient policy so
-      // targeted club-wide events never nag uninvited teams or unrelated
-      // club officials.
-      const allMemberIds = await resolveEventRecipients(
-        supabase,
-        eventRecipientContext(event, id!),
-      );
-
-      
-      // Find members who haven't RSVPed
-      const nonRsvpMembers = allMemberIds.filter(memberId => !rsvpUserIds.includes(memberId));
-      
-      if (nonRsvpMembers.length === 0) {
-        throw new Error("Everyone has already RSVPed!");
-      }
-      
-      // Check for reminders sent in the last 24 hours to avoid spamming members
       const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
-      const { data: existingNotifications, error: cooldownError } = await supabase
-        .from("notifications")
-        .select("user_id")
-        .eq("type", "event_reminder")
-        .eq("related_id", id!)
-        .in("user_id", nonRsvpMembers)
-        .gte("created_at", since);
-      if (cooldownError) throw cooldownError;
-
-      const existingNotificationUserIds = existingNotifications?.map(n => n.user_id) || [];
-      const membersToNotify = nonRsvpMembers.filter(memberId => !existingNotificationUserIds.includes(memberId));
-
-      if (membersToNotify.length === 0) {
-        throw new Error("All non-responders were already reminded in the last 24 hours");
-      }
-      
-      // Create notifications - the DB trigger (on_notification_created) handles push dispatch
-      const notifications = membersToNotify.map(userId => ({
-        user_id: userId,
-        type: "event_reminder",
-        message: `Reminder: Please RSVP for "${event?.title}"`,
-        related_id: id,
-      }));
-      
-      const { error } = await supabase.from("notifications").insert(notifications);
-      if (error) throw error;
-      
-      return membersToNotify.length;
+      return sendBulkEventReminders(supabase, {
+        eventId: id!,
+        title: event?.title || "Event",
+        recipientContext: eventRecipientContext(event, id!),
+        cooldownSince: since,
+      });
     },
     onSuccess: (count) => {
       toast({ 
@@ -2463,63 +2085,15 @@ export default function EventDetailPage() {
   // in that case we derive recipients entirely from the linked child (children.parent_id + child_guardians).
   const individualRemindMutation = useMutation({
     mutationFn: async ({ userId, displayName, childId }: { userId?: string; displayName: string; childId?: string }) => {
-      let recipientIds: string[] = normalizeRecipientIds([userId]);
-
-      if (childId) {
-        // Both reads are authoritative — a failure in either must fail closed.
-        const [guardiansRes, childRes] = await Promise.all([
-          supabase.from("child_guardians").select("guardian_id").eq("child_id", childId),
-          supabase.from("children").select("parent_id").eq("id", childId).maybeSingle(),
-        ]);
-
-        const resolved = resolveReminderRecipients({
-          userId,
-          guardians: guardiansRes.data,
-          guardiansError: guardiansRes.error,
-          child: childRes.data,
-          childError: childRes.error,
-        });
-        if (resolved.status === "error") throw new Error(resolved.message);
-        recipientIds = resolved.recipientIds;
-      }
-
-      if (recipientIds.length === 0) {
-        throw new Error(`${displayName} has no linked parents to remind`);
-      }
-
-      // 24h cooldown — skip recipients who were reminded in the last 24 hours
       const since = new Date(Date.now() - REMINDER_COOLDOWN_MS).toISOString();
-      const { data: existing, error: cooldownError } = await supabase
-        .from("notifications")
-        .select("user_id")
-        .eq("type", "event_reminder")
-        .eq("related_id", id!)
-        .in("user_id", recipientIds)
-        .gte("created_at", since);
-
-      const afterCooldown = applyReminderCooldown({
-        recipientIds,
-        recentlyRemindedRows: existing,
-        cooldownError,
+      return sendIndividualEventReminder(supabase, {
+        eventId: id!,
+        title: event?.title || "Event",
+        displayName,
+        cooldownSince: since,
+        userId,
+        childId,
       });
-      if (afterCooldown.status === "error") throw new Error(afterCooldown.message);
-      const toRemind = afterCooldown.recipientIds;
-
-      if (toRemind.length === 0) {
-        throw new Error(`${displayName}${recipientIds.length > 1 ? "'s parents have" : " has"} been reminded in the last 24 hours`);
-      }
-
-      const { error } = await supabase.from("notifications").insert(
-        toRemind.map((uid) => ({
-          user_id: uid,
-          type: "event_reminder",
-          message: `Reminder: Please RSVP for "${event?.title}"`,
-          related_id: id,
-        }))
-      );
-      if (error) throw error;
-
-      return { displayName, count: toRemind.length, isChild: !!childId, recipientKey: userId || childId || displayName };
     },
     onSuccess: ({ displayName, count, isChild, recipientKey }) => {
       const now = new Date().toISOString();
@@ -2577,46 +2151,12 @@ export default function EventDetailPage() {
   const resendInvitesMutation = useMutation({
     mutationFn: async () => {
       if (!event || !id) throw new Error("No event");
-
-      // Shared recipient policy (same audience as bulk reminders)
-      const resolved = await resolveEventRecipients(
-        supabase,
-        eventRecipientContext(event, id),
-      );
-
-      // Exclude the creator
-      const allMemberIds = resolved.filter(uid => uid !== event.created_by);
-
-      // Find members who already have a notification for this event
-      const { data: existingNotifications, error: existingError } = await supabase
-        .from("notifications")
-        .select("user_id")
-        .eq("type", "event_invite")
-        .eq("related_id", id)
-        .in("user_id", allMemberIds.length > 0 ? allMemberIds : ['no-match']);
-      if (existingError) throw existingError;
-
-
-      const alreadyNotified = new Set(existingNotifications?.map(n => n.user_id) || []);
-      const newMembers = allMemberIds.filter(uid => !alreadyNotified.has(uid));
-
-      if (newMembers.length === 0) {
-        throw new Error("All members have already been notified about this event!");
-      }
-
-      // Insert notifications with skip_push
-      const notificationRows = newMembers.map(userId => ({
-        user_id: userId,
-        type: "event_invite",
-        message: `You've been invited to: ${event.title}`,
-        related_id: id,
-        skip_push: true,
-      }));
-
-      const { error: insertError } = await supabase
-        .from("notifications")
-        .insert(notificationRows);
-      if (insertError) throw insertError;
+      const newMembers = await persistResentEventInvites(supabase, {
+        eventId: id,
+        title: event.title,
+        creatorId: event.created_by,
+        recipientContext: eventRecipientContext(event, id),
+      });
 
       // Send push notifications
       for (const userId of newMembers) {
@@ -2688,6 +2228,31 @@ export default function EventDetailPage() {
     );
   }
 
+  const pitchBoardActions = resolvePitchBoardActions({
+    eventType: event.type,
+    hasTeam: !!event.team_id,
+    supportedSport: isSoccerClub || isNetballClub || isBasketballClub,
+    accessLoading: isPitchBoardAccessLoading,
+    canAccess: canAccessPitchBoard,
+    membersLoading: isTeamMembersForPitchLoading,
+    hasTeamMembers: !!teamMembers,
+    canViewReadOnly: canViewPitchBoardReadOnly,
+    eventTimeMs: parseISO(event.event_date).getTime(),
+    nowMs: Date.now(),
+  });
+  const adminActions = resolveEventAdminActions({
+    canManageEvent,
+    isCancelled: !!event.is_cancelled,
+    isUpcoming: isEventUpcomingForActions({
+      eventDate: event.event_date,
+      endTime: event.end_time,
+      startTime: event.start_time,
+      nowMs: Date.now(),
+    }),
+    canSendReminders,
+    proLoading: isLoadingHasTeamPro,
+  });
+
 
   return (
     <div className="py-6 space-y-6">
@@ -2744,458 +2309,123 @@ export default function EventDetailPage() {
           <Share2 className="h-5 w-5" />
         </Button>
 
-        {/* Admin actions dropdown */}
-        {(isAdmin || isAppAdmin) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-popover">
-              {!event.is_cancelled && (
-                <>
-                  <DropdownMenuItem onClick={() => navigate(`/events/${id}/edit`)}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit {eventTypeLabel}
-                  </DropdownMenuItem>
-                  {(() => {
-                     const eventDateStr = event.event_date?.split('T')[0] || event.event_date;
-                     const isUpcoming = new Date(eventDateStr + 'T' + (event.end_time || event.start_time || '23:59')) >= new Date();
-                    return (
-                      <>
-                        {isUpcoming && (canSendReminders ? (
-                          <DropdownMenuItem onClick={() => {
-                            setReminderDialogOpen(true);
-                          }}>
-                            <Bell className="h-4 w-4 mr-2 text-primary" />
-                            Send Reminders
-                          </DropdownMenuItem>
-                        ) : !isLoadingHasTeamPro && (
-                          <DropdownMenuItem disabled>
-                            <Bell className="h-4 w-4 mr-2" />
-                            Send Reminders
-                            <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">Pro</Badge>
-                          </DropdownMenuItem>
-                        ))}
-                        {isUpcoming && (
-                          <DropdownMenuItem onClick={() => setResendDialogOpen(true)}>
-                            <UserPlus className="h-4 w-4 mr-2 text-primary" />
-                            Resend Invites
-                          </DropdownMenuItem>
-                        )}
-                      </>
-                    );
-                  })()}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => setCancelDialogOpen(true)}
-                    className="text-warning focus:text-warning"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Cancel {eventTypeLabel}
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuItem 
-                onClick={() => setDeleteDialogOpen(true)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete {eventTypeLabel}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <EventAdminActions
+          model={adminActions}
+          eventTypeLabel={eventTypeLabel}
+          onEdit={() => navigate(`/events/${id}/edit`)}
+          onRemind={() => setReminderDialogOpen(true)}
+          onResend={() => setResendDialogOpen(true)}
+          onCancel={() => setCancelDialogOpen(true)}
+          onDelete={() => setDeleteDialogOpen(true)}
+        />
 
-        {/* Reminder Dialog */}
-        <AlertDialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Send RSVP Reminders?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will send a notification to all team members who haven't responded to this event yet.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto gap-1.5"
-                onClick={() => {
-                  setReminderDialogOpen(false);
-                  handleShareReminderLink();
-                }}
-              >
-                <Share2 className="h-4 w-4" />
-                Share via...
-              </Button>
-              <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => remindMutation.mutate()}
-                disabled={remindMutation.isPending || attendanceActionsDisabled}
-                className="w-full sm:w-auto"
-              >
-                {remindMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  "Send In-App"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <EventReminderDialog
+          open={reminderDialogOpen}
+          onOpenChange={setReminderDialogOpen}
+          onShare={() => { setReminderDialogOpen(false); handleShareReminderLink(); }}
+          onSend={() => remindMutation.mutate()}
+          isPending={remindMutation.isPending}
+          actionsDisabled={attendanceActionsDisabled}
+        />
+        <EventResendInvitesDialog
+          open={resendDialogOpen}
+          onOpenChange={setResendDialogOpen}
+          onSend={() => resendInvitesMutation.mutate()}
+          isPending={resendInvitesMutation.isPending}
+          actionsDisabled={attendanceActionsDisabled}
+        />
 
-        {/* Resend Invites Dialog */}
-        <AlertDialog open={resendDialogOpen} onOpenChange={setResendDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Resend Event Invites?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will send notifications to any new members who haven't been notified about this event yet.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => resendInvitesMutation.mutate()}
-                disabled={resendInvitesMutation.isPending || attendanceActionsDisabled}
-              >
-                {resendInvitesMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  "Send Invites"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Cancel Dialog - handles both single and recurring */}
-        {(event.is_recurring || event.parent_event_id) ? (
-          <RecurringCancelEventDialog
-            open={cancelDialogOpen}
-            onOpenChange={setCancelDialogOpen}
-            eventTitle={event.title}
-            teamId={event.team_id}
-            clubId={event.club_id}
-            miniLeagueId={event.mini_league_id}
-            eventType={event.type}
-            onSingleAction={(customMessage, sendPushNotification) => 
-              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-            }
-            onSeriesAction={(customMessage, sendPushNotification) => 
-              cancelEventMutation.mutate({ cancelType: 'series', customMessage, sendPushNotification })
-            }
-            isPending={cancelEventMutation.isPending}
-          />
-        ) : (
-          <CancelEventConfirmDialog
-            open={cancelDialogOpen}
-            onOpenChange={setCancelDialogOpen}
-            eventId={event.id}
-            eventTitle={event.title}
-            teamId={event.team_id}
-            clubId={event.club_id}
-            miniLeagueId={event.mini_league_id}
-            eventType={event.type}
-            onConfirm={(customMessage, sendPushNotification) => 
-              cancelEventMutation.mutate({ cancelType: 'single', customMessage, sendPushNotification })
-            }
-            isPending={cancelEventMutation.isPending}
-          />
-        )}
-
-        {/* Delete Dialog - handles both single and recurring */}
-        {(event.is_recurring || event.parent_event_id) ? (
-          <RecurringEventActionDialog
-            open={deleteDialogOpen}
-            onOpenChange={setDeleteDialogOpen}
-            title={`Delete ${eventTypeLabel}?`}
-            description={`This will permanently delete the ${eventTypeLabel.toLowerCase()}(s) and all RSVPs. This action cannot be undone.`}
-            actionLabel="Delete"
-            actionVariant="destructive"
-            onSingleAction={() => handleConfirmDelete('single')}
-            onSeriesAction={() => handleConfirmDelete('series')}
-            isPending={deletePending}
-            keepOpenOnAction
-
-          />
-        ) : (
-          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete {eventTypeLabel}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete this {eventTypeLabel.toLowerCase()} and all RSVPs. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={(e) => { e.preventDefault(); handleConfirmDelete('single'); }}
-                  disabled={deletePending}
-
-                  className="bg-destructive text-destructive-foreground"
-
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+        <EventCancellationDialog
+          recurring={!!(event.is_recurring || event.parent_event_id)}
+          open={cancelDialogOpen}
+          onOpenChange={setCancelDialogOpen}
+          event={event}
+          isPending={cancelEventMutation.isPending}
+          onCancel={(cancelType, customMessage, sendPushNotification) =>
+            cancelEventMutation.mutate({ cancelType, customMessage, sendPushNotification })
+          }
+        />
+        <EventDeletionDialog
+          recurring={!!(event.is_recurring || event.parent_event_id)}
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          eventTypeLabel={eventTypeLabel}
+          isPending={deletePending}
+          onDelete={handleConfirmDelete}
+        />
       </div>
 
       {/* Event Info */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold">{event.title}</h1>
-          {event.is_cancelled && (
-            <Badge variant="destructive">Cancelled</Badge>
-          )}
-        </div>
-        <p className="text-muted-foreground">{event.clubs?.name}</p>
-        {event.teams?.name && (
-          <Badge variant="outline">{event.teams.name}</Badge>
-        )}
-      </div>
+      <EventIdentityHeader
+        title={event.title}
+        clubName={event.clubs?.name}
+        teamName={event.teams?.name}
+        isCancelled={event.is_cancelled}
+      />
 
       {/* Details Card */}
       <Card>
         <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <Clock className="h-5 w-5 text-primary" />
-            <span className="flex-1">{format(parseISO(event.event_date), "EEEE, MMMM d 'at' h:mm a")}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 h-8 w-8 -mr-2"
-              aria-label="Add to calendar"
-              title="Add to calendar"
-              onClick={async () => {
-                try {
-                  await exportEventIcs({
-                    id: event.id,
-                    title: event.title,
-                    type: event.type,
-                    event_date: event.event_date,
-                    start_time: (event as any).start_time,
-                    end_time: (event as any).end_time,
-                    description: event.description,
-                    location_name: (event as any).location_name,
-                    address: event.address,
-                    suburb: (event as any).suburb,
-                    state: (event as any).state,
-                    postcode: (event as any).postcode,
-                    is_cancelled: event.is_cancelled,
-                    updated_at: (event as any).updated_at,
-                    url: getShareUrl("event", id!),
-                  });
-                  toast({ title: "Calendar file ready", description: "Open it to add this event to your calendar." });
-                } catch (err) {
-                  toast({ title: "Couldn't export event", description: (err as Error).message, variant: "destructive" });
-                }
-              }}
-            >
-              <CalendarPlus className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </div>
-          {event.address ? (
-            <div className="flex items-start gap-3">
-              <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <div>
-                <p>{event.address}</p>
-                <p className="text-muted-foreground">
-                  {[event.suburb, event.state, event.postcode].filter(Boolean).join(", ")}
-                </p>
-              </div>
-            </div>
-          ) : ((event as any).location_name || (event as any).location) ? (
-            <div className="flex items-start gap-3">
-              <MapPin className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <div>
-                {(event as any).location_name && <p>{(event as any).location_name}</p>}
-                {(event as any).location && (event as any).location !== (event as any).location_name && (
-                  <p className="text-muted-foreground">{(event as any).location}</p>
-                )}
-              </div>
-            </div>
-          ) : null}
-          {event.type === "game" && event.opponent && (
-            <div className="flex items-center gap-3">
-              <Users className="h-5 w-5 text-primary" />
-              <span>vs {event.opponent}</span>
-            </div>
-          )}
-          {event.type === "game" && (() => {
-            const mins = getMatchArrivalMinutes(event as any);
-            const arrivalTime = formatMatchArrivalTime(event as any);
-            if (mins == null || !arrivalTime) return null;
-            return (
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-warning" />
-                <span>
-                  Arrive by {arrivalTime}{" "}
-                  <span className="text-muted-foreground">({mins} min before kickoff)</span>
-                </span>
-              </div>
-            );
-          })()}
-          <div className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-primary" />
-            {rsvps ? (() => {
-              const goingRsvps = rsvps.filter(r => r.status === "going");
-              const guestCount = eventGuests?.length || 0;
-              if (event.type === "social") {
-                const adults = goingRsvps.filter(r => r.child_id == null).length + guestCount;
-                const children = goingRsvps.filter(r => r.child_id != null).length;
-                const total = adults + children;
-                return (
-                  <span>
-                    {total} attending
-                    {(adults > 0 || children > 0) && (
-                      <span className="text-muted-foreground">
-                        {" "}· {adults} adult{adults === 1 ? "" : "s"}, {children} {children === 1 ? "child" : "children"}
-                      </span>
-                    )}
-                  </span>
-                );
-              }
-              // Players-only count: mirror the same filter the Going list uses
-              // (child RSVP, mini-league player, or adult RSVP whose membership
-              // includes the "player" role) so the header and "Going (N)" tab
-              // always agree.
-              const playerUserIds = new Set((playerMembers || []).map((m: any) => m.id));
-              const _seenKeys = new Set<string>();
-              const playerGoing = goingRsvps.filter((r: any) => {
-                const isPlayer = r.child_id || r.mini_league_player_id || (r.user_id && playerUserIds.has(r.user_id));
-                if (!isPlayer) return false;
-                const linkedChildId = r.child_id || r.mini_league_players?.child_id || null;
-                const key = linkedChildId ? `c:${linkedChildId}` : r.mini_league_player_id ? `m:${r.mini_league_player_id}` : `u:${r.user_id}`;
-                if (_seenKeys.has(key)) return false;
-                _seenKeys.add(key);
-                return true;
-              }).length;
-              const count = playerGoing + guestCount;
-              return <span>{count} {count === 1 ? "player" : "players"} attending</span>;
-
-            })() : attendanceUnavailable ? (
-              <span className="text-destructive">Attendance unavailable</span>
-            ) : <span>Loading...</span>}
-          </div>
-
-          {/* Price for social events */}
-          {event.type === "social" && eventPrice && eventPrice > 0 && (
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-5 w-5 text-primary" />
-              <span>${Number(eventPrice).toFixed(2)} per person</span>
-            </div>
-          )}
-          {/* Pitch Board / Start Game button for game events.
-              Admins & coaches can open it for any upcoming game (not just on
-              game day) so they can pre-set the lineup and auto-sub plan
-              ahead of time. Past games (>3h after kickoff) stay hidden. */}
-          {(isPitchBoardAccessLoading || (canAccessPitchBoard && isTeamMembersForPitchLoading)) && event.type === "game" && !!event.team_id && (isSoccerClub || isNetballClub || isBasketballClub) && (
-            <Button variant="outline" className="w-full mt-2" disabled>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Checking match access…
-            </Button>
-          )}
-          {!isPitchBoardAccessLoading && canAccessPitchBoard && teamMembers && (() => {
-            const eventTime = parseISO(event.event_date);
-            const now = new Date();
-            const minutesUntilKickoff = (eventTime.getTime() - now.getTime()) / (1000 * 60);
-            const isWithin120Min = minutesUntilKickoff <= 120 && minutesUntilKickoff > 0;
-            const hasStarted = minutesUntilKickoff <= 0;
-            const isPastGame = hasStarted && minutesUntilKickoff < -180; // more than 3 hours ago
-
-            // Don't show any pitch board button for past games
-            if (isPastGame) return null;
-
-            // Live / imminent: prominent CTA
-            if (hasStarted || isWithin120Min) {
-              return (
-                <Button
-                  variant="default"
-                  size="lg"
-                  className="w-full mt-2 h-14 text-lg font-bold gap-3"
-                  onClick={() => setShowPitchBoard(true)}
-                >
-                  <Play className="h-5 w-5" />
-                  {hasStarted ? "Open Match" : "Start Game"}
-                </Button>
-              );
+          <EventDateCalendarRow eventDate={event.event_date} onExport={async () => {
+            try {
+              await exportEventToCalendar(exportEventIcs, event, getShareUrl("event", id!));
+              toast({ title: "Calendar file ready", description: "Open it to add this event to your calendar." });
+            } catch (err) {
+              toast({ title: "Couldn't export event", description: (err as Error).message, variant: "destructive" });
             }
+          }} />
+          <EventLocationDetails
+            address={event.address}
+            suburb={event.suburb}
+            state={event.state}
+            postcode={event.postcode}
+            locationName={(event as any).location_name}
+            legacyLocation={(event as any).location}
+          />
+          <EventPassiveFacts
+            eventType={event.type}
+            opponent={event.opponent}
+            arrivalTime={formatMatchArrivalTime(event as any)}
+            arrivalMinutes={getMatchArrivalMinutes(event as any)}
+            price={eventPrice ? Number(eventPrice) : null}
+          />
+          <EventAttendanceSummary summary={calculateAttendanceSummary({
+            eventType: event.type,
+            rsvps,
+            guestCount: eventGuests?.length || 0,
+            playerUserIds: (playerMembers || []).map((member: any) => member.id),
+            attendanceUnavailable,
+          })} />
 
-            // Future game: pre-prep lineup & auto-subs
-            return (
-              <Button
-                variant="outline"
-                className="w-full mt-2"
-                onClick={() => setShowPitchBoard(true)}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Prepare Lineup &amp; Auto-Subs
-              </Button>
-            );
-          })()}
-          {/* Read-only "Watch Live" button for parents when game is in progress */}
-          {canViewPitchBoardReadOnly && teamMembers && (
-            <Button
-              variant="default"
-              size="lg"
-              className="w-full mt-2 h-14 text-lg font-bold gap-3"
-              onClick={() => setShowPitchBoard(true)}
-            >
-              <Play className="h-5 w-5" />
-              Open Pitch Board
-            </Button>
-          )}
+          <PitchBoardActions {...pitchBoardActions} onOpen={() => setShowPitchBoard(true)} />
         </CardContent>
       </Card>
 
-      {/* Match Score — viewable by team members; editable by team admins/coaches/club admins, app admins, and the Subs Manager assigned to the event */}
-      {event.type === "game" && event.team_id && (isTeamMember || isAdmin || isAppAdmin) && (() => {
-        const canEditScore = !!(isAdmin || isAppAdmin || isSubsManagerForEvent);
-        // Fallback: derive opponent from title (e.g. "Round 4: Wolves v Stirling District")
-        const derivedOpponent = (() => {
-          if (event.opponent) return event.opponent;
-          const m = (event.title || "").split(/\s+(?:v|vs|versus)\.?\s+/i);
-          return m.length > 1 ? m[m.length - 1].trim() : null;
-        })();
-        return (
-          <MatchScoreCard
-            eventId={event.id}
-            teamId={event.team_id}
-            teamName={event.teams?.name || "Our Team"}
-            opponent={derivedOpponent}
-            sport={event.clubs?.sport}
-            canEdit={canEditScore}
-          />
-        );
-      })()}
+      <EventMatchScoreSection
+        model={resolveMatchScoreSection({
+          eventType: event.type,
+          teamId: event.team_id,
+          isTeamMember,
+          canManageEvent,
+          canOperateMatch,
+          opponent: event.opponent,
+          title: event.title,
+        })}
+        eventId={event.id}
+        teamId={event.team_id}
+        teamName={event.teams?.name}
+        sport={event.clubs?.sport}
+      />
 
       {/* Map */}
-      {(() => {
-        const mapAddress =
-          event.address ||
-          (event as any).location ||
-          (event as any).location_name ||
-          null;
-        if (!mapAddress) return null;
-        return (
-          <GoogleMapEmbed
-            address={mapAddress}
-            className="w-full h-48 rounded-lg border"
-          />
-        );
-      })()}
+      <EventLocationMap
+        address={event.address}
+        suburb={event.suburb}
+        state={event.state}
+        postcode={event.postcode}
+        locationName={(event as any).location_name}
+        legacyLocation={(event as any).location}
+      />
 
       {/* Mini League Matches — PRIMARY section for league events, placed at top */}
       {isMiniLeagueEvent && event.mini_league_id && (
@@ -3205,7 +2435,7 @@ export default function EventDetailPage() {
             <EventGroupsManager
               eventId={id!}
               miniLeagueId={event.mini_league_id}
-              isAdmin={isAdmin || isAppAdmin || false}
+              isAdmin={canManageEvent}
               playerOverrides={playerOverrides}
             />
           </section>
@@ -3230,7 +2460,7 @@ export default function EventDetailPage() {
         note={(event as any).coach_note}
         noteUpdatedAt={(event as any).coach_note_updated_at}
         noteAuthor={(event as any).coach_note_author}
-        canEdit={!!(isAdmin || isAppAdmin)}
+        canEdit={canManageEvent}
       />
 
 
@@ -3530,7 +2760,7 @@ export default function EventDetailPage() {
           eventId={event.id}
           clubId={event.club_id}
           maxGuestsPerMember={event.max_guests_per_member || 2}
-          isAdmin={isAdmin || isAppAdmin}
+          isAdmin={canManageEvent}
         />
       )}
 
@@ -3559,105 +2789,41 @@ export default function EventDetailPage() {
         const playerUserIds = new Set(playerMembers?.map((m: any) => m.id) || []);
 
 
-        const filterRsvp = (rsvp: any) => {
-          if (effectiveShowAll) return true;
-          if (isMiniLeagueEvent) {
-            // Kids-only by default: hide adult/parent self-RSVPs.
-            return !!rsvp.child_id || !!rsvp.mini_league_player_id;
-          }
-          if (rsvp.mini_league_player_id) return true;
-          if (rsvp.child_id) return true;
-          return playerUserIds.has(rsvp.user_id);
-        };
-
-        // Dedupe duplicate RSVP rows for the same player/adult (e.g. co-parent
-        // double-RSVPs or accidental duplicate inserts) so the list and the
-        // header count always agree.
-        const dedupeRsvps = (list: any[]) => {
-          const seen = new Set<string>();
-          return list.filter((r: any) => {
-            // Prefer child_id (direct or via linked mini-league player) so the
-            // same underlying child isn't shown twice when both an mlp RSVP
-            // and a child RSVP exist.
-            const linkedChildId = r.child_id || r.mini_league_players?.child_id || null;
-            const key = linkedChildId
-              ? `c:${linkedChildId}`
-              : r.mini_league_player_id
-                ? `m:${r.mini_league_player_id}`
-                : `u:${r.user_id}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          });
-        };
         // Targeted club-wide event: only attendees inside the event audience
         // may appear in any bucket. Also hydrate child names from the scoped
         // roster so authorised managers never see "Unknown".
         const scopedChildIds = new Set((allChildrenOnTeam || []).map((c: any) => c.id));
         const scopedAdultIds = new Set((attendanceMembers || []).map((m: any) => m.id));
         const isTargetedScope = !!targetTeamIdsForFetch;
-        const inTargetScope = (r: any) => {
-          if (!isTargetedScope) return true;
-          const childId = r.child_id || r.mini_league_players?.child_id || null;
-          if (childId) return scopedChildIds.has(childId);
-          return !r.user_id || scopedAdultIds.has(r.user_id);
-        };
-        const hydrateRsvp = (r: any) => {
-          const childId = r.child_id;
-          if (!childId || r.children?.name) return r;
-          const name = scopedChildNames.get(childId);
-          return name ? { ...r, children: { ...(r.children ?? {}), name } } : r;
-        };
-        const prepareRsvps = (list: any[]) => dedupeRsvps(list.filter(inTargetScope)).map(hydrateRsvp);
+        const prepareRsvps = (list: any[]) => prepareAttendanceRsvps(list, {
+          targeted: isTargetedScope,
+          scopedChildIds,
+          scopedAdultIds,
+          scopedChildNames,
+        });
+        const filterRsvp = (rsvp: any) => shouldDisplayAttendanceRsvp(rsvp, {
+          showAll: effectiveShowAll,
+          miniLeague: isMiniLeagueEvent,
+          playerUserIds,
+        });
         const goingRsvps = prepareRsvps(rsvps?.filter((r) => r.status === "going" && filterRsvp(r)) || []);
         const maybeRsvps = prepareRsvps(rsvps?.filter((r) => r.status === "maybe" && filterRsvp(r)) || []);
         const notGoingRsvps = prepareRsvps(rsvps?.filter((r) => r.status === "not_going" && filterRsvp(r)) || []);
 
 
-        const respondedUserIds = new Set(rsvps?.filter(r => !r.child_id).map(r => r.user_id) || []);
-        const respondedChildIds = new Set(rsvps?.filter(r => r.child_id).map(r => r.child_id) || []);
-        const respondedMiniLeaguePlayerIds = new Set(
-          rsvps?.filter(r => r.mini_league_player_id).map(r => r.mini_league_player_id) || []
-        );
-
-        let notResponded: any[] = [];
-        let notRespondedChildren: any[] = [];
-
-        if (isMiniLeagueEvent && miniLeaguePlayers) {
-          notRespondedChildren = miniLeaguePlayers.filter((player: any) => {
-            // A player only counts as "responded" if an RSVP exists for that specific
-            // player (mini_league_player_id) or for their linked child (child_id).
-            // The parent's own adult RSVP says nothing about whether the player is
-            // attending, so do NOT hide the player just because their parent_user_id
-            // has any RSVP on the event.
-            if (respondedMiniLeaguePlayerIds.has(player.id)) return false;
-            if (player.child_id && respondedChildIds.has(player.child_id)) return false;
-            return true;
-          });
-          // Adults bucket only when "Show all roles" is on.
-          if (effectiveShowAll) {
-            notResponded = (miniLeagueAdults || []).filter(
-              (adult: any) => !respondedUserIds.has(adult.id),
-            );
-          }
-        } else {
-          const membersToShow = effectiveShowAll ? attendanceMembers : attendancePlayerMembers;
-          const parentIdsWithRespondedChildren = new Set<string>();
-          (allChildrenOnTeam || []).forEach((child: any) => {
-            if (child.parent_id && respondedChildIds.has(child.id)) {
-              parentIdsWithRespondedChildren.add(child.parent_id);
-            }
-          });
-          (childGuardiansOnTeam || []).forEach((cg: any) => {
-            if (cg.guardian_id && respondedChildIds.has(cg.child_id)) {
-              parentIdsWithRespondedChildren.add(cg.guardian_id);
-            }
-          });
-          notResponded = membersToShow?.filter((m: any) =>
-            !respondedUserIds.has(m.id) && !parentIdsWithRespondedChildren.has(m.id)
-          ) || [];
-          notRespondedChildren = allChildrenOnTeam?.filter((child: any) => !respondedChildIds.has(child.id)) || [];
-        }
+        const nonResponders = calculateAttendanceNonResponders({
+          rsvps: rsvps ?? [],
+          miniLeague: isMiniLeagueEvent,
+          showAll: effectiveShowAll,
+          miniLeaguePlayers,
+          miniLeagueAdults,
+          visibleMembers: effectiveShowAll ? attendanceMembers : attendancePlayerMembers,
+          children: allChildrenOnTeam,
+          childGuardians: childGuardiansOnTeam,
+          reminderMembers,
+        });
+        const notResponded = nonResponders.adults;
+        const notRespondedChildren = nonResponders.children;
 
         const totalNotResponded = isMiniLeagueEvent
           ? notRespondedChildren.length + notResponded.length
@@ -3665,21 +2831,7 @@ export default function EventDetailPage() {
 
         // Always derive non-responder IDs from ALL members (not filtered by "Show all roles")
         // so admins can always send reminders, regardless of the visible roster filter.
-        const allNotRespondedForReminders = isMiniLeagueEvent
-          ? (miniLeagueAdults || []).filter((adult: any) => !respondedUserIds.has(adult.id))
-          : (reminderMembers?.filter((m: any) =>
-              !respondedUserIds.has(m.id) &&
-              !(new Set<string>([
-                ...((allChildrenOnTeam || [])
-                  .filter((c: any) => respondedChildIds.has(c.id))
-                  .map((c: any) => c.parent_id)
-                  .filter(Boolean)),
-                ...((childGuardiansOnTeam || [])
-                  .filter((cg: any) => respondedChildIds.has(cg.child_id))
-                  .map((cg: any) => cg.guardian_id)
-                  .filter(Boolean)),
-              ])).has(m.id)
-            ) || []);
+        const allNotRespondedForReminders = nonResponders.reminderAdults;
 
 
         const renderAttendee = (rsvp: any, status: RsvpStatus) => (
@@ -3687,7 +2839,7 @@ export default function EventDetailPage() {
             key={rsvp.id}
             rsvp={rsvp}
             hasPaid={status !== "not_going" ? paidUserIds.has(rsvp.user_id) : undefined}
-            isAdmin={isAdmin || isAppAdmin}
+            isAdmin={canManageEvent}
             showPrice={status !== "not_going" && !!showPaymentStatus}
             onTogglePayment={status !== "not_going" ? () => togglePaymentMutation.mutate({
               userId: rsvp.user_id,
@@ -3746,14 +2898,6 @@ export default function EventDetailPage() {
         // Group key for an RSVP row. Prefer child_id (including linked
         // mini-league players) so parents responding on behalf of a child
         // land in that child's team/level group, not the parent's.
-        const rsvpGroupKey = (rsvp: any) => {
-          const childId = rsvp.child_id || rsvp.mini_league_players?.child_id || null;
-          return groupMap.groupOf({
-            userId: childId ? null : rsvp.user_id,
-            childId,
-          });
-        };
-
         const renderBucket = (rsvpList: any[], status: RsvpStatus, includeGuests = false) => {
           if (!groupMap.isActive) {
             return (
@@ -3763,19 +2907,16 @@ export default function EventDetailPage() {
               </div>
             );
           }
-          const buckets = new Map<string, any[]>();
-          for (const r of rsvpList) {
-            const g = rsvpGroupKey(r);
-            if (!g) continue; // out of the event audience — never show
-            const arr = buckets.get(g.key) ?? [];
-            arr.push(r);
-            buckets.set(g.key, arr);
-          }
+          const buckets = bucketAttendance(
+            rsvpList,
+            groupMap.orderedGroups,
+            rsvpAttendanceIdentity,
+            groupMap.groupOf,
+          );
           return (
             <div className="space-y-3">
-              {groupMap.orderedGroups.map((g) => {
-                const items = buckets.get(g.key) ?? [];
-                if (items.length === 0) return null;
+              {buckets.map((g) => {
+                const items = g.items;
                 return (
                   <div key={g.key}>
                     <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -3809,7 +2950,7 @@ export default function EventDetailPage() {
               const recipientKey = remindParentId || remindChildId || child.id;
               // No one to remind if the child is pending (no parent has accepted the app yet).
               const canRemind = !isPendingChild && !!(remindParentId || remindChildId);
-              const remindBtn = (isAdmin || isAppAdmin) && canRemind ? (() => {
+              const remindBtn = canManageEvent && canRemind ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === remindParentId && individualRemindMutation.variables?.childId === remindChildId;
                 const lastRemindedAt = recentlyReminded.get(recipientKey) || (remindParentId ? recentReminderMap?.get(remindParentId) : null) || null;
                 const wasReminded = !!lastRemindedAt;
@@ -3842,7 +2983,7 @@ export default function EventDetailPage() {
               })() : null;
 
 
-              const editBtn = (isAdmin || isAppAdmin) ? (
+              const editBtn = canManageEvent ? (
                 <AdminRsvpChanger
                   currentStatus={null}
                   playerName={child.name || "Unknown"}
@@ -3885,7 +3026,7 @@ export default function EventDetailPage() {
         };
 
         const renderNotRespondedAdult = (member: any) => {
-              const remindBtn = (isAdmin || isAppAdmin) ? (() => {
+              const remindBtn = canManageEvent ? (() => {
                 const isLoadingThis = individualRemindMutation.isPending && individualRemindMutation.variables?.userId === member.id;
                 const lastRemindedAt = recentlyReminded.get(member.id) || recentReminderMap?.get(member.id) || null;
                 const wasReminded = !!lastRemindedAt;
@@ -3916,7 +3057,7 @@ export default function EventDetailPage() {
                   </Button>
                 );
               })() : null;
-              const editBtn = (isAdmin || isAppAdmin) ? (
+              const editBtn = canManageEvent ? (
                 <AdminRsvpChanger
                   currentStatus={null}
                   playerName={member.display_name || "Unknown"}
@@ -3949,35 +3090,23 @@ export default function EventDetailPage() {
               );
         };
 
-        const childGroupKey = (child: any) => {
-          const childId = isMiniLeagueEvent ? (child.child_id || child.id) : child.id;
-          return groupMap.groupOf({ childId, userId: null });
-        };
-        const adultGroupKey = (member: any) =>
-          groupMap.groupOf({ userId: member.id, childId: null });
-
         const notRespondedNode = groupMap.isActive ? (() => {
-          const childBuckets = new Map<string, any[]>();
-          for (const c of notRespondedChildren) {
-            const g = childGroupKey(c);
-            if (!g) continue;
-            const arr = childBuckets.get(g.key) ?? [];
-            arr.push(c);
-            childBuckets.set(g.key, arr);
-          }
-          const adultBuckets = new Map<string, any[]>();
-          for (const m of notResponded) {
-            const g = adultGroupKey(m);
-            if (!g) continue;
-            const arr = adultBuckets.get(g.key) ?? [];
-            arr.push(m);
-            adultBuckets.set(g.key, arr);
-          }
+          const buckets = bucketNonResponders(
+            notRespondedChildren,
+            notResponded,
+            groupMap.orderedGroups,
+            (child: any) => ({
+              childId: isMiniLeagueEvent ? (child.child_id || child.id) : child.id,
+              userId: null,
+            }),
+            (member: any) => ({ userId: member.id, childId: null }),
+            groupMap.groupOf,
+          );
           return (
             <div className="space-y-3">
-              {groupMap.orderedGroups.map((g) => {
-                const kids = childBuckets.get(g.key) ?? [];
-                const adults = adultBuckets.get(g.key) ?? [];
+              {buckets.map((g) => {
+                const kids = g.children;
+                const adults = g.adults;
                 const total = kids.length + adults.length;
                 if (total === 0) return null;
                 return (
@@ -4019,7 +3148,7 @@ export default function EventDetailPage() {
               </div>
             )}
             {/* Phase 2: Confirmed vs Auto split for coaches on trainings */}
-            {(isAdmin || isAppAdmin) && event.type === "training" && goingRsvps.length > 0 && (() => {
+            {canManageEvent && event.type === "training" && goingRsvps.length > 0 && (() => {
               const auto = goingRsvps.filter((r: any) => r.source === "default").length;
               const confirmed = goingRsvps.length - auto;
               return (
@@ -4063,7 +3192,7 @@ export default function EventDetailPage() {
 
             <AttendanceSection
               eventId={id!}
-              isAdmin={isAdmin || isAppAdmin}
+              isAdmin={canManageEvent}
               hasMembers={trackableMembers > 0 || (allChildrenOnTeam?.length || 0) > 0}
               counts={{
                 going: goingTotal,
@@ -4107,7 +3236,7 @@ export default function EventDetailPage() {
           <MatchCaptainSelector
             eventId={id!}
             teamId={event.team_id}
-            isAdmin={isAdmin || isAppAdmin || false}
+            isAdmin={canManageEvent}
             rsvps={rsvps || []}
           />
           {(() => {
@@ -4118,7 +3247,7 @@ export default function EventDetailPage() {
               <MatchGoalkeepersSelector
                 eventId={id!}
                 teamId={event.team_id}
-                isAdmin={isAdmin || isAppAdmin || false}
+                isAdmin={canManageEvent}
                 rsvps={rsvps || []}
               />
             );
@@ -4128,7 +3257,7 @@ export default function EventDetailPage() {
               eventId={id!}
               clubId={event.club_id}
               teamId={event.team_id}
-              isAdmin={isAdmin || isAppAdmin || false}
+              isAdmin={canManageEvent}
               rsvps={rsvps || []}
               childrenOnTeam={allChildrenOnTeam || childrenOnTeam}
             />
