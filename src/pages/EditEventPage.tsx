@@ -561,9 +561,9 @@ export default function EditEventPage() {
       setTeamDefaultArrival(DEFAULT_MATCH_ARRIVAL_MINUTES);
       return;
     }
-    const selectedTeam = userTeams?.find((team) => team.id === selectedTeamId);
+    const selectedTeam = selectableTeams.find((team) => team.id === selectedTeamId);
     setTeamDefaultArrival(selectedTeam?.default_match_arrival_minutes ?? DEFAULT_MATCH_ARRIVAL_MINUTES);
-  }, [selectedTeamId, userTeams]);
+  }, [selectedTeamId, selectableTeams]);
 
   // Load existing duties
   useEffect(() => {
@@ -601,7 +601,7 @@ export default function EditEventPage() {
     // validate_event_team_club_scope trigger. Fail closed if the team list
     // is unavailable or stale so we never submit an ambiguous combination.
     {
-      const check = validateEventTeamClubScope(selectedTeamId, userTeams, selectedClubId);
+      const check = validateEventTeamClubScope(selectedTeamId, selectableTeams, selectedClubId);
       if (check.ok === false) {
         const reason = check.reason;
         toast({
@@ -1011,7 +1011,7 @@ export default function EditEventPage() {
                       ...((type === "social" || type === "game")
                         ? [{ value: "__none__", label: "Club-wide event" }]
                         : []),
-                      ...(userTeams?.map((team) => ({ value: team.id, label: team.name })) || []),
+                      ...selectableTeams.map((team) => ({ value: team.id, label: team.name })),
                     ]}
                     placeholder={(type === "social" || type === "game") ? "Club-wide (optional)" : "Select team"}
                     label="Team"
