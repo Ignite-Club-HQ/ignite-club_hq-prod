@@ -45,7 +45,7 @@ beforeEach(() => {
     { child_id: "kidB", team_id: "t2", children: { id: "kidB", name: "B", parent_id: "me" } },
     { child_id: "kidX", team_id: "tOtherClub", children: { id: "kidX", name: "X", parent_id: "other" } },
   ];
-  tables.teams = [{ id: "t1" }, { id: "t2" }];
+  tables.teams = [{ id: "t1", club_id: "club1" }, { id: "t2", club_id: "club1" }, { id: "tOtherClub", club_id: "club2" }];
 });
 
 describe("resolveRsvpChildren", () => {
