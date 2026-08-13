@@ -18,6 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer } from "@/lib/rsvpAudience";
+import { resolveRsvpChildren } from "@/lib/resolveEventChildScope";
+
 
 
 type RsvpStatus = "going" | "maybe" | "not_going";
