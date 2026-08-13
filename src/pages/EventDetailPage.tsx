@@ -81,6 +81,8 @@ import { useEventGroupMap } from "@/hooks/useEventGroupMap";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, isParentFirstEvent } from "@/lib/rsvpAudience";
+import { resolveRsvpChildren, resolveEventChildRoster } from "@/lib/resolveEventChildScope";
+
 
 import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
 
@@ -1140,79 +1142,33 @@ export default function EventDetailPage() {
     enabled: !!event?.mini_league_id && !!id,
   });
 
-  // Fetch children for parent RSVP - team-assigned children for team events,
-  // children on a targeted team for targeted club-wide events, all own
-  // children for whole-club events.
+  // Fetch children for parent RSVP — scoped via the shared resolver:
+  // team event → that team; targeted club-wide → intersection with targets;
+  // unscoped club-wide → children in teams of this club only.
   const childrenTargetKey = useMemo(() => {
     if (event?.team_id) return "";
     const t = ((event as any)?.target_team_ids ?? null) as string[] | null;
     return Array.isArray(t) && t.length > 0 ? [...t].sort().join(",") : "";
   }, [event?.team_id, (event as any)?.target_team_ids]);
   const { data: childrenOnTeam } = useQuery({
-    queryKey: ["children-on-team", event?.team_id, event?.club_id, event?.type, (event as any)?.adults_only, childrenTargetKey, user?.id],
-    queryFn: async () => {
-      if ((event as any)?.adults_only) return [] as Array<{ id: string; name: string }>;
-      // Get children where user is parent OR guardian
-      const [ownChildren, guardianLinks] = await Promise.all([
-        // Direct children (parent_id)
-        event?.team_id
-          ? supabase
-              .from("children")
-              .select("id, name, child_team_assignments!inner (team_id)")
-              .eq("parent_id", user!.id)
-              .eq("child_team_assignments.team_id", event.team_id)
-          : supabase
-              .from("children")
-              .select("id, name")
-              .eq("parent_id", user!.id),
-        // Guardian-linked children
-        supabase
-          .from("child_guardians")
-          .select("child_id, children!inner (id, name)")
-          .eq("guardian_id", user!.id),
-      ]);
-
-      const directChildren = ownChildren.data || [];
-      const guardianChildren = (guardianLinks.data || []).map((g: any) => g.children).filter(Boolean);
-
-      // If team event, filter guardian children to those on the team
-      let filteredGuardianChildren = guardianChildren;
-      if (event?.team_id && guardianChildren.length > 0) {
-        const guardianChildIds = guardianChildren.map((c: any) => c.id);
-        const { data: assignments } = await supabase
-          .from("child_team_assignments")
-          .select("child_id")
-          .eq("team_id", event.team_id)
-          .in("child_id", guardianChildIds);
-        const assignedIds = new Set((assignments || []).map((a: any) => a.child_id));
-        filteredGuardianChildren = guardianChildren.filter((c: any) => assignedIds.has(c.id));
-      }
-
-      // Deduplicate by child id
-      const seen = new Set<string>();
-      let all = [...directChildren, ...filteredGuardianChildren].filter((c: any) => {
-        if (seen.has(c.id)) return false;
-        seen.add(c.id);
-        return true;
-      });
-
-      // Targeted club-wide event: only children assigned to a target team are
-      // part of the audience — otherwise a parent could RSVP an out-of-scope
-      // child, who then renders under "Other".
-      if (!event?.team_id && childrenTargetKey && all.length > 0) {
-        const { data: targetAssignments } = await supabase
-          .from("child_team_assignments")
-          .select("child_id")
-          .in("team_id", childrenTargetKey.split(","))
-          .in("child_id", all.map((c: any) => c.id));
-        const inScope = new Set((targetAssignments || []).map((a: any) => a.child_id));
-        all = all.filter((c: any) => inScope.has(c.id));
-      }
-
-      return all;
-    },
+    queryKey: [
+      "children-on-team",
+      event?.team_id,
+      event?.club_id,
+      (event as any)?.adults_only,
+      (event as any)?.rsvp_audience,
+      childrenTargetKey,
+      user?.id,
+    ],
+    queryFn: () =>
+      resolveRsvpChildren({
+        event: event as any,
+        userId: user?.id ?? null,
+        teamDefaultAudience: (event as any)?.teams?.default_rsvp_audience ?? null,
+      }),
     enabled: !!user && !!(event?.team_id || event?.club_id),
   });
+
 
 
   // Fetch ALL children assigned to this event's team (for not responded list).
@@ -1280,31 +1236,19 @@ export default function EventDetailPage() {
     queryKey: [
       "all-children-on-team",
       event?.team_id,
+      event?.club_id,
+      (event as any)?.adults_only,
+      (event as any)?.rsvp_audience,
       targetTeamIdsForFetch ? [...targetTeamIdsForFetch].sort().join(",") : "",
     ],
-    queryFn: async () => {
-      if (!event?.team_id && !targetTeamIdsForFetch) return [];
-      let q = supabase
-        .from("child_team_assignments")
-        .select(`child_id, children (id, name, parent_id)`);
-      if (event?.team_id) q = q.eq("team_id", event.team_id);
-      else q = q.in("team_id", targetTeamIdsForFetch!);
-      const { data, error } = await q;
-      if (error) throw error;
-      // Dedupe by child.id in case a child is in multiple targeted teams
-      const seen = new Set<string>();
-      const out: any[] = [];
-      for (const row of data || []) {
-        const c: any = (row as any).children;
-        if (c && !seen.has(c.id)) {
-          seen.add(c.id);
-          out.push(c);
-        }
-      }
-      return out;
-    },
-    enabled: !!event?.team_id || !!targetTeamIdsForFetch,
+    queryFn: () =>
+      resolveEventChildRoster({
+        event: event as any,
+        teamDefaultAudience: (event as any)?.teams?.default_rsvp_audience ?? null,
+      }),
+    enabled: !!event && !!(event.team_id || event.club_id),
   });
+
 
   // Merge the RLS-visible children with the scoped RPC roster so event
   // managers see every targeted player (and never "Unknown").
