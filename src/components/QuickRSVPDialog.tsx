@@ -18,6 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer } from "@/lib/rsvpAudience";
+import { resolveRsvpChildren } from "@/lib/resolveEventChildScope";
+
 
 
 type RsvpStatus = "going" | "maybe" | "not_going";
@@ -71,73 +73,55 @@ export function QuickRSVPDialog({
   const [selectedChildIds, setSelectedChildIds] = useState<Set<string>>(new Set());
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
 
-  // Resolve effective RSVP audience (event override → team default → players_only)
-  const { data: audienceInfo } = useQuery({
-    queryKey: ["quick-rsvp-audience", eventId, teamId],
+  // Resolve the event scope + effective RSVP audience (event override → team default)
+  const { data: eventScope } = useQuery({
+    queryKey: ["quick-rsvp-scope", eventId, teamId],
     queryFn: async () => {
       const [{ data: ev }, teamRes] = await Promise.all([
-        supabase.from("events").select("rsvp_audience").eq("id", eventId).maybeSingle(),
+        supabase
+          .from("events")
+          .select("team_id, club_id, target_team_ids, rsvp_audience, adults_only, restricted_to_roles")
+          .eq("id", eventId)
+          .maybeSingle(),
         teamId
           ? supabase.from("teams").select("default_rsvp_audience").eq("id", teamId).maybeSingle()
           : Promise.resolve({ data: null } as any),
       ]);
       return {
-        eventAudience: (ev as any)?.rsvp_audience ?? null,
+        event: (ev as any) ?? null,
         teamDefault: (teamRes as any)?.data?.default_rsvp_audience ?? null,
       };
     },
-    enabled: open,
+    enabled: open && !!eventId,
   });
-  const audience = resolveRsvpAudience(audienceInfo?.eventAudience, audienceInfo?.teamDefault);
+  const audience = resolveRsvpAudience(eventScope?.event?.rsvp_audience, eventScope?.teamDefault);
   const promptParent = shouldPromptParent(audience);
   const promptPlayer = shouldPromptPlayer(audience);
 
+  const scopeEvent = eventScope?.event ?? null;
+  const scopeTargetKey = Array.isArray(scopeEvent?.target_team_ids)
+    ? [...(scopeEvent!.target_team_ids as string[])].sort().join(",")
+    : "";
 
-  // Fetch children assigned to this team (including guardian-linked)
+  // Children in scope for this event (team / targeted teams / club-wide)
   const { data: childrenOnTeam, isLoading: loadingChildren } = useQuery({
-    queryKey: ["quick-rsvp-children", teamId, user?.id],
-    queryFn: async () => {
-      if (!teamId) return [];
-      
-      // Fetch direct children and guardian-linked children in parallel
-      const [ownChildren, guardianLinks] = await Promise.all([
-        supabase
-          .from("children")
-          .select("id, name, child_team_assignments!inner (team_id)")
-          .eq("parent_id", user!.id)
-          .eq("child_team_assignments.team_id", teamId),
-        supabase
-          .from("child_guardians")
-          .select("child_id, children!inner (id, name)")
-          .eq("guardian_id", user!.id),
-      ]);
-
-      const directChildren = ownChildren.data || [];
-      const guardianChildren = (guardianLinks.data || []).map((g: any) => g.children).filter(Boolean);
-
-      // Filter guardian children to those on this team
-      let filteredGuardianChildren: any[] = [];
-      if (guardianChildren.length > 0) {
-        const guardianChildIds = guardianChildren.map((c: any) => c.id);
-        const { data: assignments } = await supabase
-          .from("child_team_assignments")
-          .select("child_id")
-          .eq("team_id", teamId)
-          .in("child_id", guardianChildIds);
-        const assignedIds = new Set((assignments || []).map((a: any) => a.child_id));
-        filteredGuardianChildren = guardianChildren.filter((c: any) => assignedIds.has(c.id));
-      }
-
-      // Deduplicate
-      const seen = new Set<string>();
-      return [...directChildren, ...filteredGuardianChildren].filter((c: any) => {
-        if (seen.has(c.id)) return false;
-        seen.add(c.id);
-        return true;
-      });
-    },
-    enabled: open && !!user && !!teamId,
+    queryKey: [
+      "quick-rsvp-children",
+      eventId,
+      scopeEvent?.team_id ?? null,
+      scopeEvent?.club_id ?? null,
+      scopeTargetKey,
+      user?.id,
+    ],
+    queryFn: () =>
+      resolveRsvpChildren({
+        event: scopeEvent,
+        userId: user?.id ?? null,
+        teamDefaultAudience: eventScope?.teamDefault ?? null,
+      }),
+    enabled: open && !!user && !!eventId && !!scopeEvent,
   });
+
 
   // Fetch existing RSVPs for this event (self + all children by child_id)
   const { data: existingRsvps, isLoading: loadingRsvps } = useQuery({

@@ -613,19 +613,40 @@ export function ChatParticipantsList({
 
   const handleRemoveMember = async () => {
     if (!selectedMember || !effectiveTeamId) return;
-    const { error } = await supabase
-      .from("user_roles")
-      .delete()
-      .eq("user_id", selectedMember.userId)
-      .eq("team_id", effectiveTeamId);
+    // Authoritative team-member removal — same scoped RPC used by Team Detail.
+    // It atomically revokes the team role, this team's child assignments and
+    // team-chat group memberships. Never delete user_roles directly here.
+    const { error } = await supabase.rpc("remove_team_member", {
+      _team_id: effectiveTeamId,
+      _user_id: selectedMember.userId,
+    });
     if (error) {
+      // Removal did not commit: keep the member visible and the sheet open.
       toast.error("Failed to remove member");
-    } else {
-      toast.success("Member removed");
+      return;
+    }
+
+    const refreshMembership = () => {
       queryClient.invalidateQueries({ queryKey: ["team-roles", effectiveTeamId] });
       queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
-      setSelectedMember(null);
+      queryClient.invalidateQueries({ queryKey: ["authorized-scopes"] });
+    };
+
+    const { error: notifyError } = await supabase.from("notifications").insert({
+      user_id: selectedMember.userId,
+      type: "membership",
+      message: `You have been removed from ${chatName || "the team"}`,
+      related_id: effectiveTeamId,
+    });
+
+    refreshMembership();
+    if (notifyError) {
+      // Removal committed — do not report it as a failure or retry the role.
+      toast.warning("Member removed — notification failed");
+    } else {
+      toast.success("Member removed");
     }
+    setSelectedMember(null);
   };
 
   useEffect(() => {

@@ -2908,6 +2908,9 @@ export default function GroupChatPage() {
           }}
           teamId={group?.team_id || undefined}
           clubId={group?.club_id || undefined}
+          miniLeagueId={group?.mini_league_id ?? null}
+          competitionId={(group as any)?.competition_id ?? null}
+
         />
         <BoardPickerSheet
           open={boardPickerOpen}

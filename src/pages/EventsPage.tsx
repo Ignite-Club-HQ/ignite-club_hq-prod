@@ -459,6 +459,7 @@ export default function EventsPage() {
           club_id,
           team_id,
           mini_league_id,
+          target_team_ids,
           is_cancelled,
           is_bye,
           is_recurring,

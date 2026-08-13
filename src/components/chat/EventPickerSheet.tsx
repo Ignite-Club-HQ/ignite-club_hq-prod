@@ -21,23 +21,28 @@ interface EventPickerSheetProps {
   onSelectEvent: (eventId: string) => void;
   teamId?: string;
   clubId?: string;
+  /** Set when the chat itself belongs to a mini-league (allows its events). */
+  miniLeagueId?: string | null;
+  /** Set when the chat itself belongs to a competition (allows its events). */
+  competitionId?: string | null;
 }
 
-export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, clubId }: EventPickerSheetProps) {
+export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, clubId, miniLeagueId, competitionId }: EventPickerSheetProps) {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const today = format(new Date(), "yyyy-MM-dd");
 
   const { data: events, isLoading } = useQuery({
-    queryKey: ["event-picker", teamId, clubId, user?.id],
+    queryKey: ["event-picker", teamId, clubId, miniLeagueId, competitionId, user?.id],
     queryFn: async () => {
       // Team chat: this team's own events, plus club-wide GAME events this
       // team is invited to (untargeted, or targeted at this team). Other
       // club-wide event types (social, training) and other teams' events
-      // are intentionally excluded.
+      // are intentionally excluded. Mini-league and competition events are
+      // excluded unless this chat belongs to that mini-league/competition.
       if (teamId) {
         const cols =
-          "id, title, event_date, start_time, location_name, location, type, opponent, mini_league_id, is_cancelled, team_id, target_team_ids";
+          "id, title, event_date, start_time, location_name, location, type, opponent, mini_league_id, competition_match_id, is_cancelled, team_id, target_team_ids";
 
         const [ownRes, clubGamesRes] = await Promise.all([
           supabase
@@ -68,8 +73,16 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
           return !targets || targets.length === 0 || targets.includes(teamId);
         });
 
+        // Scope gate: hide mini-league / competition events in plain team chats.
+        const allowedScope = (e: any) => {
+          if (e.mini_league_id) return !!miniLeagueId && e.mini_league_id === miniLeagueId;
+          if (e.competition_match_id) return !!competitionId;
+          return true;
+        };
+
         const seen = new Set<string>();
         return [...(ownRes.data || []), ...clubGames]
+          .filter(allowedScope)
           .filter((e: any) => (seen.has(e.id) ? false : (seen.add(e.id), true)))
           .sort((a: any, b: any) => {
             const dateCmp = (a.event_date || "").localeCompare(b.event_date || "");
@@ -78,6 +91,7 @@ export function EventPickerSheet({ open, onOpenChange, onSelectEvent, teamId, cl
           })
           .slice(0, 50);
       }
+
 
 
       // Club-wide / group chat: only events the user has access to
