@@ -1,4 +1,5 @@
 import { refreshEventCaches } from "@/lib/eventCacheRefresh";
+import { eventKeys } from "./eventQueryKeys";
 
 type CompletionDependencies = {
   queryClient: any;
@@ -14,7 +15,7 @@ export async function completeEventCreate(
 ): Promise<void> {
   try {
     await dependencies.queryClient.invalidateQueries({
-      queryKey: ["user-memberships-and-events", dependencies.userId],
+      queryKey: eventKeys.home(dependencies.userId!),
     });
     refreshEventCaches(dependencies.queryClient, dependencies.userId);
   } catch (error) {
@@ -28,10 +29,10 @@ export function completeEventEdit(
   dependencies: CompletionDependencies,
   eventId: string,
 ): void {
-  dependencies.queryClient.invalidateQueries({ queryKey: ["pitch-linked-event", eventId] });
-  dependencies.queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch"] });
-  dependencies.queryClient.invalidateQueries({ queryKey: ["pitch-board-going-rsvps", eventId] });
-  dependencies.queryClient.invalidateQueries({ queryKey: ["event", eventId] });
+  dependencies.queryClient.invalidateQueries({ queryKey: eventKeys.pitchLinked(eventId) });
+  dependencies.queryClient.invalidateQueries({ queryKey: eventKeys.pitchTeamMembers() });
+  dependencies.queryClient.invalidateQueries({ queryKey: eventKeys.pitchGoingRsvps(eventId) });
+  dependencies.queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
   refreshEventCaches(dependencies.queryClient, dependencies.userId);
   dependencies.navigate(`/events/${eventId}`);
 }

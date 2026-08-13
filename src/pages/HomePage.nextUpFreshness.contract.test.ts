@@ -10,6 +10,9 @@ const createEventPage = read("src/pages/CreateEventPage.tsx");
 const createEventWorkflow = read("src/features/events/createEventWorkflow.ts");
 const eventMutationCompletion = read("src/features/events/eventMutationCompletion.ts");
 const homePage = read("src/pages/HomePage.tsx");
+const homeMembershipEventsRepository = read(
+  "src/features/home/homeMembershipEventsRepository.ts",
+);
 
 function successfulCreateWindow(): string {
   expect(createEventWorkflow).toContain('client.rpc("create_event_with_duties"');
@@ -25,8 +28,8 @@ describe("Home Next Up freshness after event creation", () => {
     const success = successfulCreateWindow();
     expect(success).toContain("await completeEventCreate({");
     expect(eventMutationCompletion).toContain("await dependencies.queryClient.invalidateQueries");
-    expect(eventMutationCompletion).toMatch(
-      /queryKey:\s*\[\s*["']user-memberships-and-events["']\s*,\s*dependencies\.userId\s*\]/,
+    expect(eventMutationCompletion).toContain(
+      "queryKey: eventKeys.home(dependencies.userId!)",
     );
     expect(eventMutationCompletion).not.toContain("invalidateQueries()");
 
@@ -37,15 +40,22 @@ describe("Home Next Up freshness after event creation", () => {
   });
 
   it("gives each club and team an independent candidate window before merging", () => {
-    expect(homePage).toContain('const scopedEventsQuery = (column: "club_id" | "team_id", value: string, rowLimit: number)');
-    expect(homePage).toContain('.eq(column, value)');
-    expect(homePage).toMatch(/clubIdsFromRolesArr\.map\([\s\S]{0,80}?\(clubId\)\s*=>[\s\S]*?scopedEventsQuery\("club_id", clubId/);
-    expect(homePage).toMatch(/teamIds\.map\([\s\S]{0,80}?\(teamId\)\s*=>[\s\S]*?scopedEventsQuery\("team_id", teamId/);
-    expect(homePage).toContain("const mergedEventsById = new Map");
-    expect(homePage).toContain("mergedEventsById.set(row.id, row)");
-    expect(homePage).toContain('scopedEventsQuery("club_id", clubId, CLUB_EVENTS_LIMIT)');
-    expect(homePage).toContain('scopedEventsQuery("team_id", teamId, TEAM_EVENTS_LIMIT)');
-    expect(homePage).not.toMatch(/\.or\(eventScopeOr\.join/);
+    expect(homeMembershipEventsRepository).toContain('const scopedEventsQuery = (column: "club_id" | "team_id", value: string, rowLimit: number)');
+    expect(homeMembershipEventsRepository).toContain('.eq(column, value)');
+    expect(homeMembershipEventsRepository).toMatch(/clubIdsFromRolesArr\.map\([\s\S]{0,80}?\(clubId\)\s*=>[\s\S]*?scopedEventsQuery\("club_id", clubId/);
+    expect(homeMembershipEventsRepository).toMatch(/teamIds\.map\([\s\S]{0,80}?\(teamId\)\s*=>[\s\S]*?scopedEventsQuery\("team_id", teamId/);
+    expect(homeMembershipEventsRepository).toContain("const mergedEventsById = new Map");
+    expect(homeMembershipEventsRepository).toContain("mergedEventsById.set(row.id, row)");
+    expect(homeMembershipEventsRepository).toContain('scopedEventsQuery("club_id", clubId, CLUB_EVENTS_LIMIT)');
+    expect(homeMembershipEventsRepository).toContain('scopedEventsQuery("team_id", teamId, TEAM_EVENTS_LIMIT)');
+    expect(homeMembershipEventsRepository).not.toMatch(/\.or\(eventScopeOr\.join/);
+  });
+
+  it("keeps Home as the query owner while the feature repository owns data access", () => {
+    expect(homePage).toContain("fetchHomeMembershipsAndEvents(user!.id");
+    expect(homePage).not.toContain('supabase.from("user_roles")');
+    expect(homeMembershipEventsRepository).toContain('.from("user_roles")');
+    expect(homeMembershipEventsRepository).toContain('.from("events")');
   });
 
   it("keeps the Home query refresh-on-mount/focus/reconnect safety net", () => {

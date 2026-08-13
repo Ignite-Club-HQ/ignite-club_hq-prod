@@ -20,6 +20,9 @@ type ChannelRecord = {
 
 const mocks = vi.hoisted(() => {
   const setQueriesData = vi.fn();
+  const setQueryData = vi.fn();
+  const getQueriesData = vi.fn();
+  const cancelQueries = vi.fn().mockResolvedValue(undefined);
   const invalidateQueries = vi.fn();
   return {
     currentUser: { id: "user-1" } as { id: string } | null,
@@ -28,8 +31,18 @@ const mocks = vi.hoisted(() => {
     channel: vi.fn(),
     removeChannel: vi.fn(),
     setQueriesData,
+    setQueryData,
+    getQueriesData,
+    cancelQueries,
     invalidateQueries,
-    queryClient: { setQueriesData, invalidateQueries },
+    queryClient: {
+      setQueriesData,
+      setQueryData,
+      getQueriesData,
+      cancelQueries,
+      invalidateQueries,
+    },
+    mutationOptions: [] as any[],
     refreshUnreadCount: vi.fn(),
     navigate: vi.fn(),
   };
@@ -129,11 +142,14 @@ vi.mock("@/components/SwipeableNotificationCard", () => ({
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => mocks.queryClient,
   useQuery: () => ({ data: [], isLoading: false }),
-  useMutation: () => ({
-    mutate: vi.fn(),
-    mutateAsync: vi.fn(),
-    isPending: false,
-  }),
+  useMutation: (options: any) => {
+    mocks.mutationOptions.push(options);
+    return {
+      mutate: vi.fn(),
+      mutateAsync: vi.fn(),
+      isPending: false,
+    };
+  },
 }));
 
 import NotificationsPage from "./NotificationsPage";
@@ -174,6 +190,8 @@ describe("NotificationsPage Realtime ownership", () => {
     mocks.currentUser = { id: "user-1" };
     mocks.channels.clear();
     mocks.removed.length = 0;
+    mocks.mutationOptions.length = 0;
+    mocks.getQueriesData.mockReturnValue([]);
 
     // Match Supabase Realtime semantics: requesting an existing topic returns
     // the existing channel object rather than allocating another channel.
@@ -280,6 +298,28 @@ describe("NotificationsPage Realtime ownership", () => {
     expect(second.bindings.every(({ config }) =>
       config.filter === "user_id=eq.user-2"
     )).toBe(true);
+  });
+
+  it.each([
+    ["mark one read", 0, "notification-1"],
+    ["mark visible read", 1, undefined],
+    ["delete one", 2, "notification-1"],
+    ["clear visible", 3, undefined],
+  ])("restores cached rows when %s fails", async (_label, mutationIndex, variable) => {
+    const original = [{ id: "notification-1", read: false }];
+    const exactKey = ["notifications", "user-1", "all"];
+    mocks.getQueriesData.mockReturnValue([[exactKey, original]]);
+    render(<NotificationsPage />);
+
+    const mutation = mocks.mutationOptions[mutationIndex];
+    expect(mutation).toBeDefined();
+    const context = await mutation.onMutate(variable);
+    expect(context.snapshots).toEqual([[exactKey, original]]);
+
+    mutation.onError(new Error("network unavailable"), variable, context);
+
+    expect(mocks.setQueryData).toHaveBeenCalledWith(exactKey, original);
+    expect(mocks.refreshUnreadCount).toHaveBeenCalled();
   });
 
   it("updates the notification cache and unread count for an INSERT", async () => {

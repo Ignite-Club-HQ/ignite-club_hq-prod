@@ -1,9 +1,12 @@
 name: Promote to Prod
 
-# When a merge lands on `prod`, apply any pending Supabase migrations and
-# deploy edge functions BEFORE Netlify / Codemagic rebuild the frontend
-# against the same commit. If migrations or function deploys fail, the
-# frontend never ships → no schema/UI mismatch possible.
+# Pull requests targeting `prod` receive file-only validation. They never load
+# production secrets, install the Supabase CLI, or connect to a database.
+#
+# When a merge lands on `prod`, apply any pending Supabase migrations and deploy
+# edge functions BEFORE Netlify / Codemagic rebuild the frontend against the
+# same commit. If migrations or function deploys fail, the frontend never ships
+# → no schema/UI mismatch possible.
 #
 # History context (2026-07-14): prod was one-time baselined by running
 # scripts/generate-baseline.sql in the prod SQL editor. Every local
@@ -43,8 +46,46 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-prod-pr:
+    name: Validate production change (no production access)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out proposed commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Guard against destructive migrations (files only)
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          node scripts/destructive-migration-guard.mjs \
+            --base="$BASE_SHA" \
+            --head="$GITHUB_SHA"
+
+      - name: Report proposed migrations and Edge Functions (files only)
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          echo "=== Proposed migration files ==="
+          git diff --name-status "$BASE_SHA" "$GITHUB_SHA" -- supabase/migrations/
+          echo "=== Proposed Edge Function paths ==="
+          git diff --name-status "$BASE_SHA" "$GITHUB_SHA" -- supabase/functions/
+
   promote:
     name: Migrate + deploy backend
+    # Defence in depth: neither a prod PR nor a manual dispatch from another
+    # branch can load production secrets or execute a production command.
+    if: github.event_name != 'pull_request' && github.ref_name == 'prod'
     runs-on: ubuntu-latest
     # Bounded so a hung dump/link can never burn a full 6h runner slot and
     # surface only as an opaque "The operation was canceled."

@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { invalidateRolesCache } from "@/lib/rolesCache";
+import { refreshTeamRoleChange } from "@/features/membership/teamMembershipCacheCompletion";
 
 interface PromoteToTeamAdminDialogProps {
   teamId: string;
@@ -79,7 +80,7 @@ export default function PromoteToTeamAdminDialog({
       invalidateRolesCache();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
+      refreshTeamRoleChange(queryClient, teamId);
       setOpen(false);
       setSelectedUserId(null);
       setSearchQuery("");

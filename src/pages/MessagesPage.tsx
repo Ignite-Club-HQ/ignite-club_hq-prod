@@ -43,6 +43,7 @@ import {
   type InboxRealtimeEvent,
 } from "@/features/messaging/inbox/inboxRealtimeReconciliation";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
+import { notificationKeys } from "@/features/notifications/queryKeys";
 import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
 import { cacheProfiles, getProfileFromCache, selectCachedProfilesByIds } from "@/lib/profileCache";
@@ -981,7 +982,7 @@ export default function MessagesPage() {
       rafState[key] = requestAnimationFrame(() => { rafState[key] = 0; fn(); });
     };
     const bumpUnread = () => schedule('unread', () => {
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts", user.id] });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.messageUnreadFor(user.id) });
     });
 
     // Web: patch the latestMessages cache IN PLACE so the preview text updates

@@ -8,6 +8,11 @@ import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
 
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
+import { membershipKeys } from "@/features/membership/membershipQueryKeys";
+import {
+  fetchPendingInvitesForUser,
+  refreshAcceptedInviteMembership,
+} from "@/features/membership/pendingInviteRepository";
 
 /**
  * Silently auto-accepts any pending invites for the logged-in user.
@@ -19,40 +24,8 @@ export function PendingInviteWelcomeDialog() {
   const { setActiveClubTheme } = useClubTheme();
 
   const { data: pendingInvites = [] } = useQuery({
-    queryKey: ["pending-invites-for-user", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("pending_invites")
-        .select(`
-          id,
-          role,
-          invite_token,
-          team_id,
-          club_id,
-          invited_label,
-          metadata,
-          teams:team_id (
-            name,
-            club_id,
-            clubs:club_id (
-              name
-            )
-          ),
-          clubs:club_id (
-            name
-          )
-        `)
-        .eq("invited_user_id", user.id)
-        .eq("status", "pending")
-        .limit(10);
-
-      if (error) {
-        console.error("[InviteAutoAccept] Error fetching invites:", error);
-        return [];
-      }
-      return data || [];
-    },
+    queryKey: membershipKeys.pendingInvitesForUser(user?.id ?? ""),
+    queryFn: () => user ? fetchPendingInvitesForUser(supabase, user.id) : [],
     enabled: !!user,
     staleTime: 30_000,
   });
@@ -528,8 +501,7 @@ export function PendingInviteWelcomeDialog() {
       }
 
       // Refresh roles/membership queries after processing
-      queryClient.invalidateQueries({ queryKey: ["user-roles"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-invites-for-user"] });
+      refreshAcceptedInviteMembership(queryClient);
 
       // Apply the inviting club's theme — only seeds when user has no
       // existing preference (or is still on the post-signup sentinel).

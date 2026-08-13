@@ -22,6 +22,15 @@ import {
   savePersonalRsvp,
 } from "@/features/events/eventRsvpWorkflow";
 import { completeEventRsvp } from "@/features/events/eventRsvpCompletion";
+import { eventKeys } from "@/features/events/eventQueryKeys";
+import { refreshEventDuties } from "@/features/events/eventDutyCacheCompletion";
+import { refreshEventPayments } from "@/features/events/eventPaymentCacheCompletion";
+import {
+  fetchCanManageEvent,
+  fetchEventProAccess,
+  fetchEventProFootballAccess,
+  fetchIsAppAdmin,
+} from "@/features/events/eventAccessRepository";
 import {
   bucketAttendance,
   bucketNonResponders,
@@ -134,7 +143,6 @@ import { completeEventDuty, DutyNotificationPartialError } from "@/features/even
 import { setEventPaymentStatus } from "@/features/events/eventPaymentWorkflow";
 import { EventIdentityHeader } from "@/components/event/EventIdentityHeader";
 import { resolveEventCapabilities } from "@/features/events/eventCapabilities";
-import { EVENT_MANAGER_ROLES, hasEventManagerRole } from "@/features/events/eventManagerPolicy";
 import { fetchEventDetail } from "@/features/events/eventDetailRepository";
 import { fetchEventRsvps } from "@/features/events/eventRsvpRepository";
 import { fetchEventDuties, fetchEventGuests } from "@/features/events/eventSupportingReadsRepository";
@@ -320,7 +328,7 @@ export default function EventDetailPage() {
   // so the "Reminded {time ago}" state persists across sessions/devices and we can block re-reminding.
   const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
   const { data: recentReminderMap } = useQuery({
-    queryKey: ["event-recent-reminders", id],
+    queryKey: eventKeys.recentReminders(id!),
     enabled: !!id,
     refetchOnWindowFocus: false,
     staleTime: 60_000,
@@ -348,7 +356,7 @@ export default function EventDetailPage() {
   useEventViewTracking(id, user?.id);
 
   const { data: event, isLoading, error: eventError, isFetching: isEventFetching } = useQuery({
-    queryKey: ["event", id],
+    queryKey: eventKeys.detail(id!),
     queryFn: () => fetchEventDetail(supabase, id!),
     enabled: !!id,
     retry: (failureCount, err: any) => {
@@ -386,7 +394,7 @@ export default function EventDetailPage() {
         eventId: id,
         abortedInFlight: aborted,
       });
-      queryClient.refetchQueries({ queryKey: ["event", id] });
+      queryClient.refetchQueries({ queryKey: eventKeys.detail(id) });
     };
     const timer = setInterval(kick, 6000);
     return () => clearInterval(timer);
@@ -402,7 +410,7 @@ export default function EventDetailPage() {
     isFetching: rsvpsFetching,
     refetch: refetchRsvps,
   } = useQuery({
-    queryKey: ["event-rsvps", id],
+    queryKey: eventKeys.rsvps(id!),
     queryFn: () => fetchEventRsvps(supabase, id!, selectCachedProfilesByIds),
     enabled: !!id,
   });
@@ -488,7 +496,7 @@ export default function EventDetailPage() {
   }, [myRsvp?.id]);
 
   const { data: duties, isLoading: isDutiesLoading } = useQuery({
-    queryKey: ["event-duties", id],
+    queryKey: eventKeys.duties(id!),
     queryFn: () => fetchEventDuties(supabase, id!),
     enabled: !!id,
     staleTime: 0,
@@ -499,125 +507,42 @@ export default function EventDetailPage() {
   // Check if user is app admin (global override)
   const { data: isAppAdmin } = useQuery({
     queryKey: ["is-app-admin", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      return !!data;
-    },
+    queryFn: () => fetchIsAppAdmin(supabase, user!.id),
     enabled: !!user,
   });
 
   // Check if user is admin for this event
   const { data: isAdmin } = useQuery({
     queryKey: ["event-admin-check", id, user?.id, event?.club_id, event?.team_id, event?.mini_league_id],
-    queryFn: async () => {
-      if (!event) return false;
-      
-      // First check for club_admin role (always applies to club events)
-      const { data: clubAdminData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user!.id)
-        .eq("club_id", event.club_id)
-        .in("role", [...EVENT_MANAGER_ROLES.club])
-        .limit(1);
-      
-      if (hasEventManagerRole("club", clubAdminData)) return true;
-      
-      // For team-specific events, also check team_admin/coach roles
-      if (event.team_id) {
-        const { data: teamRoleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user!.id)
-          .eq("team_id", event.team_id)
-          .in("role", [...EVENT_MANAGER_ROLES.team]);
-        
-        if (hasEventManagerRole("team", teamRoleData)) return true;
-      }
-      
-      // For mini-league events, also check league_admin/coach roles
-      if (event.mini_league_id) {
-        const { data: leagueAdminData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user!.id)
-          .eq("club_id", event.club_id)
-          .in("role", [...EVENT_MANAGER_ROLES.miniLeague]);
-        
-        if (hasEventManagerRole("miniLeague", leagueAdminData)) return true;
-      }
-      
-      return false;
-    },
+    queryFn: () => event
+      ? fetchCanManageEvent(supabase, user!.id, {
+          clubId: event.club_id,
+          teamId: event.team_id,
+          miniLeagueId: event.mini_league_id,
+        })
+      : false,
     enabled: !!user && !!event,
   });
 
   // Check if team has Pro Football subscription (for pitch board) or club has Pro Football
   const { data: hasProFootball, isLoading: isLoadingTeamPro } = useQuery({
     queryKey: ["team-pro-football-status", event?.team_id, event?.club_id],
-    queryFn: async () => {
-      if (!event?.team_id) return false;
-      
-      // Check team-level Pro Football
-      const { data: teamSub } = await supabase
-        .from("team_subscriptions")
-        .select("is_pro_football, admin_pro_football_override")
-        .eq("team_id", event.team_id)
-        .maybeSingle();
-      
-      if (teamSub?.is_pro_football || teamSub?.admin_pro_football_override) return true;
-      
-      // Check club-level Pro Football
-      if (event?.club_id) {
-        const { data: clubSub } = await supabase
-          .from("club_subscriptions")
-          .select("is_pro_football, admin_pro_football_override")
-          .eq("club_id", event.club_id)
-          .maybeSingle();
-        
-        if (clubSub?.is_pro_football || clubSub?.admin_pro_football_override) return true;
-      }
-      
-      return false;
-    },
+    queryFn: () => fetchEventProFootballAccess(
+      supabase,
+      event!.team_id!,
+      event?.club_id,
+    ),
     enabled: !!event?.team_id,
   });
   
   // Check if team/club has Pro subscription (for other features like RSVP reminders)
   const { data: hasTeamPro, isLoading: isLoadingHasTeamPro } = useQuery({
     queryKey: ["team-pro-status", event?.team_id, event?.club_id],
-    queryFn: async () => {
-      // First check team-level subscription
-      if (event?.team_id) {
-        const { data: teamSub } = await supabase
-          .from("team_subscriptions")
-          .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .eq("team_id", event.team_id)
-          .maybeSingle();
-        if (teamSub?.is_pro || teamSub?.is_pro_football || teamSub?.admin_pro_override || teamSub?.admin_pro_football_override) {
-          return true;
-        }
-      }
-      
-      // Then check club-level subscription
-      if (event?.club_id) {
-        const { data: clubSub } = await supabase
-          .from("club_subscriptions")
-          .select("is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .eq("club_id", event.club_id)
-          .maybeSingle();
-        if (clubSub?.is_pro || clubSub?.is_pro_football || clubSub?.admin_pro_override || clubSub?.admin_pro_football_override) {
-          return true;
-        }
-      }
-      
-      return false;
-    },
+    queryFn: () => fetchEventProAccess(
+      supabase,
+      event?.team_id,
+      event?.club_id,
+    ),
     enabled: !!event?.team_id || !!event?.club_id,
   });
 
@@ -1241,7 +1166,7 @@ export default function EventDetailPage() {
 
   // Fetch event payments (admin only)
   const { data: payments } = useQuery({
-    queryKey: ["event-payments", id],
+    queryKey: eventKeys.payments(id!),
     queryFn: () => fetchEventPayments(supabase, id!),
     enabled: !!id && canManageEvent,
   });
@@ -1379,7 +1304,7 @@ export default function EventDetailPage() {
               return;
             }
 
-            queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
+            refreshEventPayments(queryClient, id!);
             toast({ title: "Payment successful!" });
           } else {
             toast({ title: "Payment failed", variant: "destructive" });
@@ -1428,7 +1353,7 @@ export default function EventDetailPage() {
       // Remove the query param from URL
       window.history.replaceState({}, '', `/events/${id}`);
       // Refetch payments
-      queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
+      refreshEventPayments(queryClient, id!);
     } else if (paymentStatus === 'cancelled') {
       toast({
         title: "Payment Cancelled",
@@ -1635,7 +1560,7 @@ export default function EventDetailPage() {
       });
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["event-payments", id] });
+      refreshEventPayments(queryClient, id!);
       toast({ title: variables.isPaid ? "Payment removed" : "Marked as paid" });
     },
     onError: (error) => {
@@ -1669,7 +1594,7 @@ export default function EventDetailPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      refreshEventDuties(queryClient, id!);
       setNewDutyName("");
       setSelectedPresetDuty("");
       setAddDutyOpen(false);
@@ -1694,7 +1619,7 @@ export default function EventDetailPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      refreshEventDuties(queryClient, id!);
       toast({ title: "Duty claimed!" });
     },
     onError: (error) => {
@@ -1738,7 +1663,7 @@ export default function EventDetailPage() {
       });
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      refreshEventDuties(queryClient, id!);
       if (result?.outcome === "completed") {
         toast({ title: "Duty completed!" });
       }
@@ -1748,7 +1673,7 @@ export default function EventDetailPage() {
       if (error instanceof DutyNotificationPartialError) {
         // The duty IS completed — never roll back or reopen it, and never
         // report a total failure.
-        queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+        refreshEventDuties(queryClient, id!);
         toast({
           title: "Duty completed — notification failed",
           description: `The duty was marked complete, but administrators couldn't be notified. ${error.underlying}`,
@@ -1775,7 +1700,7 @@ export default function EventDetailPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      refreshEventDuties(queryClient, id!);
       toast({ title: "Marked as not complete" });
     },
     onError: (error) => {
@@ -1793,7 +1718,7 @@ export default function EventDetailPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      refreshEventDuties(queryClient, id!);
       toast({ title: "Duty removed" });
     },
   });
@@ -1827,7 +1752,7 @@ export default function EventDetailPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["event-duties", id] });
+      refreshEventDuties(queryClient, id!);
       setAssignDialogOpen(false);
       setSelectedDutyId(null);
       setSelectedUserId("");
@@ -1967,7 +1892,7 @@ export default function EventDetailPage() {
     onSuccess: () => {
       console.log("[CancelEvent] Success - event cancelled");
       setCancelDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["event", id] });
+      queryClient.invalidateQueries({ queryKey: eventKeys.detail(id!) });
       refreshEventCaches(queryClient, user?.id);
       toast({ title: "Event cancelled", description: "A message has been posted to the chat" });
     },
@@ -1977,11 +1902,11 @@ export default function EventDetailPage() {
         // Part of the series IS cancelled — never roll back client-side, and
         // never report either complete success or complete failure.
         setCancelDialogOpen(false);
-        queryClient.invalidateQueries({ queryKey: ["event", id] });
-        queryClient.invalidateQueries({ queryKey: ["events"] });
-        queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
-        queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
-        queryClient.invalidateQueries({ queryKey: ["event-groups", id] });
+        queryClient.invalidateQueries({ queryKey: eventKeys.detail(id!) });
+        queryClient.invalidateQueries({ queryKey: eventKeys.lists() });
+        queryClient.invalidateQueries({ queryKey: eventKeys.rsvps(id!) });
+        queryClient.invalidateQueries({ queryKey: eventKeys.goingRsvps(id!) });
+        queryClient.invalidateQueries({ queryKey: eventKeys.groups(id!) });
         const cancelled = error.childrenCommitted
           ? "The repeat occurrences were cancelled"
           : "The main recurring event was cancelled";
@@ -2047,7 +1972,7 @@ export default function EventDetailPage() {
         return next;
       });
       // Refresh the 24h cooldown set so the "Reminded" state survives a page reload
-      queryClient.invalidateQueries({ queryKey: ["event-recent-reminders", id] });
+      queryClient.invalidateQueries({ queryKey: eventKeys.recentReminders(id!) });
       const description = isChild
         ? `${count} parent${count !== 1 ? "s" : ""} of ${displayName} ${count !== 1 ? "have" : "has"} been reminded to RSVP`
         : `${displayName} has been reminded to RSVP`;
@@ -2161,7 +2086,7 @@ export default function EventDetailPage() {
           {transientFailure && (
             <Button
               variant="default"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ["event", id] })}
+              onClick={() => queryClient.invalidateQueries({ queryKey: eventKeys.detail(id!) })}
             >
               Try again
             </Button>

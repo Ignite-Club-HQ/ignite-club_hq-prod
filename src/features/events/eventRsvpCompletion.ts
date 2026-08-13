@@ -12,14 +12,14 @@ export function completeEventRsvp(
   queryClient: any,
   options: RsvpCompletionOptions,
 ): void {
-  queryClient.invalidateQueries({ queryKey: ["event-rsvps", options.eventId] });
-  queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", options.eventId] });
+  queryClient.invalidateQueries({ queryKey: eventKeys.rsvps(options.eventId) });
+  queryClient.invalidateQueries({ queryKey: eventKeys.goingRsvps(options.eventId) });
   if (options.includeGroups) {
-    queryClient.invalidateQueries({ queryKey: ["event-groups", options.eventId] });
+    queryClient.invalidateQueries({ queryKey: eventKeys.groups(options.eventId) });
   }
   if (options.includePitch) {
     queryClient.invalidateQueries({
-      queryKey: ["team-members-for-pitch", options.teamId, options.eventId],
+      queryKey: eventKeys.pitchTeamMembers(options.teamId, options.eventId),
     });
   }
   if (options.includePoints) {
@@ -30,3 +30,4 @@ export function completeEventRsvp(
     }, 1500);
   }
 }
+import { eventKeys } from "./eventQueryKeys";
