@@ -4,49 +4,64 @@ import { useAuth } from "@/hooks/useAuth";
 
 /**
  * Whether the current user (or any of their children) is a member of the
- * team/club this event belongs to. Used to gate "RSVP Required" prompts —
- * non-members should never be nagged to RSVP for an event that isn't theirs.
+ * audience this event was actually sent to. Used to gate "RSVP Required"
+ * prompts — non-members should never be nagged to RSVP for an event that isn't
+ * theirs.
  *
  * Membership rules:
  *  - Team events: user has a `user_roles` row for that team_id, OR has a
  *    child assigned to that team via `child_team_assignments`.
- *  - Club events (no team_id): user has any `user_roles` row for the club_id.
+ *  - Club events WITH `target_team_ids`: only members (or guardians of children)
+ *    of one of the targeted teams count. A club role on a non-targeted team,
+ *    or a club-level role, is NOT membership — those users can see the event
+ *    (admins/committee) but must not be prompted to RSVP.
+ *  - Club events WITHOUT targets: user has any `user_roles` row for the club_id.
  *
  * Returns `true` while loading so we don't briefly hide content for members.
  * The caller can check `isFetched` if it needs to wait.
  */
 export function useEventMembership(event: {
+  id?: string;
   team_id: string | null;
   club_id: string;
+  /** Pass through when known; otherwise the hook loads it for club-wide events. */
+  target_team_ids?: string[] | null;
 }) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["event-membership", event.team_id, event.club_id, user?.id],
+    queryKey: [
+      "event-membership",
+      event.id ?? null,
+      event.team_id,
+      event.club_id,
+      user?.id,
+    ],
     queryFn: async (): Promise<boolean> => {
       if (!user) return false;
 
-      if (event.team_id) {
-        // Direct team role
-        const { data: roleRow } = await supabase
+      /** Membership against a concrete set of team ids. */
+      const isMemberOfAnyTeam = async (teamIds: string[]): Promise<boolean> => {
+        if (teamIds.length === 0) return false;
+
+        const { data: roleRows } = await supabase
           .from("user_roles")
           .select("id")
           .eq("user_id", user.id)
-          .eq("team_id", event.team_id)
-          .limit(1)
-          .maybeSingle();
-        if (roleRow) return true;
+          .in("team_id", teamIds)
+          .limit(1);
+        if ((roleRows?.length ?? 0) > 0) return true;
 
-        // Child on the team — own children
+        // Child on one of the teams — own children
         const { data: ownChildren } = await supabase
           .from("children")
           .select("id, child_team_assignments!inner(team_id)")
           .eq("parent_id", user.id)
-          .eq("child_team_assignments.team_id", event.team_id)
+          .in("child_team_assignments.team_id", teamIds)
           .limit(1);
         if ((ownChildren?.length ?? 0) > 0) return true;
 
-        // Child on the team — guardian links
+        // Child on one of the teams — guardian links
         const { data: guardianLinks } = await supabase
           .from("child_guardians")
           .select("child_id")
@@ -56,16 +71,39 @@ export function useEventMembership(event: {
           const { data: assignments } = await supabase
             .from("child_team_assignments")
             .select("child_id")
-            .eq("team_id", event.team_id)
+            .in("team_id", teamIds)
             .in("child_id", guardianChildIds)
             .limit(1);
           if ((assignments?.length ?? 0) > 0) return true;
         }
 
         return false;
+      };
+
+      if (event.team_id) return isMemberOfAnyTeam([event.team_id]);
+
+      // Club-wide event: resolve the invited teams, if any.
+      let targets: string[] | null =
+        event.target_team_ids === undefined
+          ? null
+          : (event.target_team_ids ?? null);
+
+      if (event.target_team_ids === undefined && event.id) {
+        const { data: row } = await supabase
+          .from("events")
+          .select("target_team_ids")
+          .eq("id", event.id)
+          .maybeSingle();
+        targets = (row?.target_team_ids as string[] | null) ?? null;
       }
 
-      // Club-wide event — any club role qualifies
+      const targetTeamIds = (targets ?? []).filter(Boolean);
+      if (targetTeamIds.length > 0) {
+        // Targeted club-wide event — only the invited teams' people qualify.
+        return isMemberOfAnyTeam(targetTeamIds);
+      }
+
+      // Untargeted club-wide event — any club role qualifies.
       const { data: clubRole } = await supabase
         .from("user_roles")
         .select("id")
