@@ -18,6 +18,7 @@ import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadE
 import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker, ensurePhotoLibraryPermission, PhotoPermissionDeniedError, isPhotoPermissionError } from "@/lib/nativePhotoPicker";
 import { showPhotoPermissionDeniedToast } from "@/lib/showPhotoPermissionDeniedToast";
 import { syncGalleryPhotoToVault } from "@/lib/galleryVaultSync";
+import { refreshGalleryUpload } from "@/features/vault/vaultCacheCompletion";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
@@ -876,10 +877,7 @@ export function UploadPhotoSheet({
     }
     
     // Invalidate photos query, vault files query, and storage breakdown
-    queryClient.invalidateQueries({ queryKey: ["photos"] });
-    queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-    queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
-    queryClient.invalidateQueries({ queryKey: ["club-free-usage"] });
+    refreshGalleryUpload(queryClient);
     
     // Notify parent that uploading is complete
     onUploadingCountChange?.(0);

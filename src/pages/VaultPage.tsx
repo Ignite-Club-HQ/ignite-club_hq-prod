@@ -25,7 +25,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -80,11 +79,11 @@ import {
   VAULT_EXPORT_CANCELLED_MESSAGE,
 } from "@/features/vault/vaultExportService";
 import {
-  buildVaultLargeFileItems,
   prepareVaultLargeFileDeletion,
   type VaultLargeFileItem,
   type VaultLargeFileSort,
 } from "@/features/vault/vaultLargeFileManagement";
+import { fetchVaultLargeFiles } from "@/features/vault/vaultLargeFileRepository";
 import type { VaultFolderView } from "@/features/vault/types";
 import {
   abbreviateVaultOrganisationName,
@@ -95,7 +94,6 @@ import {
   canAccessVault as resolveCanAccessVault,
   getVaultAdminUpgradeInfo,
   getVaultTeamIds,
-  hasVaultProEntitlement,
   hasVaultRoleAccess as resolveHasVaultRoleAccess,
   isVaultClubAdminOrCommittee,
   isVaultCoachOrTeamAdmin,
@@ -109,6 +107,13 @@ import {
   fetchVaultTeamHasPro,
   fetchVaultUserRoles,
 } from "@/features/vault/vaultAccessRepository";
+import {
+  fetchVaultClubTeams,
+  fetchVaultMiniLeagues,
+  fetchVaultTeamFolders,
+  resolveVaultFolderDeepLink,
+  resolveVaultScopeDeepLink,
+} from "@/features/vault/vaultNavigationRepository";
 import {
   fetchVaultFolderTree,
   fetchVaultItems,
@@ -136,6 +141,17 @@ import {
 } from "@/features/vault/vaultMutationRepository";
 import { summarizeVaultDeletion, buildVaultDeleteMessage } from "@/features/vault/vaultDeleteReporting";
 import { runZipExport, summarizeZipExport, type ZipExportItem } from "@/features/vault/vaultZipExport";
+import { vaultKeys } from "@/features/vault/vaultQueryKeys";
+import {
+  refreshVaultBulkDelete,
+  refreshVaultFileStorage,
+  refreshVaultFiles,
+  refreshVaultFolders,
+  refreshVaultImportedContent,
+  refreshVaultPermanentDelete,
+  refreshVaultRestore,
+  refreshVaultUpload,
+} from "@/features/vault/vaultCacheCompletion";
 
 
 import {
@@ -259,7 +275,7 @@ export default function VaultPage() {
               ? "Tip: link a Google Drive folder so private files can be renamed too."
               : undefined,
         });
-        queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+        refreshVaultFiles(queryClient);
       }
     } catch (err: any) {
       console.error("resolve-drive-titles failed", err);
@@ -327,7 +343,7 @@ export default function VaultPage() {
   }, [isAppAdmin, userRoles]);
 
   const { data: userClubs, isLoading: isLoadingClubs } = useQuery({
-    queryKey: ["vault-clubs", user?.id, isAppAdmin],
+    queryKey: vaultKeys.clubsForUser(user?.id, isAppAdmin),
     queryFn: () => fetchVaultAccessibleClubs(user!.id, Boolean(isAppAdmin)),
     enabled: !!user && isAppAdmin !== undefined,
   });
@@ -416,7 +432,7 @@ export default function VaultPage() {
 
   // Check if the current club has Pro
   const { data: currentClubHasPro, isLoading: isLoadingClubHasPro } = useQuery({
-    queryKey: ["vault-club-has-pro", (currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league") ? currentView.clubId : null],
+    queryKey: vaultKeys.clubHasPro((currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league") ? currentView.clubId : null),
     queryFn: () => currentView.type === "root"
       ? false
       : fetchVaultClubHasPro(currentView.clubId),
@@ -425,7 +441,7 @@ export default function VaultPage() {
 
   // Check if the current team has Pro (for teams in non-Pro clubs)
   const { data: currentTeamHasPro, isLoading: isLoadingTeamHasPro } = useQuery({
-    queryKey: ["vault-team-has-pro", currentView.type === "team" ? currentView.teamId : null],
+    queryKey: vaultKeys.teamHasPro(currentView.type === "team" ? currentView.teamId : null),
     queryFn: () => currentView.type === "team"
       ? fetchVaultTeamHasPro(currentView.teamId)
       : false,
@@ -438,147 +454,35 @@ export default function VaultPage() {
   }, [currentView.type, currentClubHasPro, currentTeamHasPro]);
 
   const { data: clubTeams } = useQuery({
-    queryKey: ["vault-club-teams", currentView.type === "club" ? currentView.clubId : null, isClubAdmin, userTeamIds, currentClubHasPro],
-    queryFn: async () => {
-      if (currentView.type !== "club") return [];
-      
-      // First get all teams user can potentially access
-      let teams: { id: string; name: string; folder_id: string | null }[] = [];
-      
-      if (isClubAdmin) {
-        // Club admins and app admins can see all teams
-        const { data } = await supabase
-          .from("teams")
-          .select("id, name, folder_id")
-          .eq("club_id", currentView.clubId)
-          .is("deleted_at", null)
-          .order("name");
-        teams = data || [];
-      } else {
-        // Non-club admins only see teams they are members of
-        if (userTeamIds.length === 0) return [];
-        
-        const { data } = await supabase
-          .from("teams")
-          .select("id, name, folder_id")
-          .eq("club_id", currentView.clubId)
-          .in("id", userTeamIds)
-          .is("deleted_at", null)
-          .order("name");
-        teams = data || [];
-      }
-      
-      // If club has Pro, all teams inherit it - show all
-      if (currentClubHasPro) return teams;
-      
-      // If club doesn't have Pro, only show teams with individual Pro subscriptions
-      if (teams.length === 0) return [];
-      
-      const teamIds = teams.map(t => t.id);
-      const { data: teamSubs } = await supabase
-        .from("team_subscriptions")
-        .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-        .in("team_id", teamIds);
-      
-      const proTeamIds = new Set(
-        (teamSubs || [])
-          .filter(hasVaultProEntitlement)
-          .map(sub => sub.team_id)
-      );
-      
-      return teams.filter(t => proTeamIds.has(t.id));
-    },
+    queryKey: vaultKeys.clubTeamsForAccess(currentView.type === "club" ? currentView.clubId : null, isClubAdmin, userTeamIds, currentClubHasPro),
+    queryFn: () => currentView.type === "club"
+      ? fetchVaultClubTeams({
+        clubId: currentView.clubId,
+        isClubAdmin,
+        userTeamIds,
+        clubHasPro: Boolean(currentClubHasPro),
+      })
+      : [],
     enabled: currentView.type === "club" && currentClubHasPro !== undefined,
   });
 
   // Fetch team folders for the current club
   const { data: teamFolders } = useQuery({
-    queryKey: ["vault-team-folders", currentView.type === "club" ? currentView.clubId : null],
-    queryFn: async () => {
-      if (currentView.type !== "club") return [];
-      const { data } = await supabase
-        .from("team_folders")
-        .select("*")
-        .eq("club_id", currentView.clubId)
-        .order("sort_order", { ascending: true });
-      return data || [];
-    },
+    queryKey: vaultKeys.teamFoldersForClub(currentView.type === "club" ? currentView.clubId : null),
+    queryFn: () => currentView.type === "club" ? fetchVaultTeamFolders(currentView.clubId) : [],
     enabled: currentView.type === "club",
   });
 
   // Fetch mini-leagues for the current club (Pro Football only)
   const { data: clubMiniLeagues } = useQuery({
-    queryKey: ["vault-club-mini-leagues", currentView.type === "club" ? currentView.clubId : null, isClubAdmin, user?.id, userRoles?.length],
-    queryFn: async () => {
-      if (currentView.type !== "club") return [];
-      
-      const clubId = currentView.clubId;
-      
-      // First fetch the user's roles fresh to avoid stale closure issues
-      const { data: freshRoles } = await supabase
-        .from("user_roles")
-        .select("role, club_id, team_id")
-        .eq("user_id", user!.id);
-      
-      console.log("[Vault Mini-Leagues] Fresh roles for user:", user!.id, freshRoles);
-      
-      // Check if club has Pro Football access
-      const { data: clubSub } = await supabase
-        .from("club_subscriptions")
-        .select("is_pro_football, admin_pro_football_override")
-        .eq("club_id", clubId)
-        .maybeSingle();
-      
-      const hasProFootball = clubSub?.is_pro_football || clubSub?.admin_pro_football_override;
-      if (!hasProFootball && !isAppAdmin) {
-        console.log("[Vault Mini-Leagues] Club doesn't have Pro Football, returning empty");
-        return [];
-      }
-      
-      // Check roles from freshly fetched data
-      const isClubAdminRole = freshRoles?.some(r => r.role === "club_admin" && r.club_id === clubId);
-      const isLeagueAdmin = freshRoles?.some(r => r.role === "league_admin" && r.club_id === clubId);
-      const isCoach = freshRoles?.some(r => r.role === "coach" && r.club_id === clubId);
-      const isCommitteeMember = freshRoles?.some(r => r.role === "committee_member" && r.club_id === clubId);
-      
-      console.log("[Vault Mini-Leagues Debug]", {
-        clubId,
-        freshRoles,
-        isAppAdmin,
-        isClubAdminRole,
-        isLeagueAdmin,
-        isCoach,
-        isCommitteeMember,
-        hasAccess: isAppAdmin || isClubAdminRole || isLeagueAdmin || isCoach || isCommitteeMember
-      });
-      
-      if (isAppAdmin || isClubAdminRole || isLeagueAdmin || isCoach || isCommitteeMember) {
-        // Admins, committee members, coaches and league admins can see all mini-leagues
-        const { data } = await supabase
-          .from("mini_leagues")
-          .select("id, name")
-          .eq("club_id", clubId)
-          .order("name");
-        console.log("[Vault Mini-Leagues] Fetched leagues:", data);
-        return data || [];
-      } else {
-        // Parents can only see leagues their children are in
-        console.log("[Vault Mini-Leagues] User doesn't have admin access, checking for children");
-        const { data: playerLeagues } = await supabase
-          .from("mini_league_players")
-          .select("mini_league_id, mini_leagues!inner(id, name, club_id)")
-          .eq("parent_user_id", user!.id);
-        
-        if (playerLeagues) {
-          const filtered = playerLeagues
-            .filter((pl: any) => pl.mini_leagues?.club_id === clubId)
-            .map((pl: any) => ({ id: pl.mini_leagues.id, name: pl.mini_leagues.name }));
-          console.log("[Vault Mini-Leagues] Leagues via children:", filtered);
-          return filtered;
-        }
-        return [];
-      }
-    },
+    queryKey: vaultKeys.clubMiniLeaguesForAccess(currentView.type === "club" ? currentView.clubId : null, isClubAdmin, user?.id, userRoles?.length),
+    queryFn: () => currentView.type === "club"
+      ? fetchVaultMiniLeagues({
+        clubId: currentView.clubId,
+        userId: user!.id,
+        isAppAdmin: Boolean(isAppAdmin),
+      })
+      : [],
     enabled: currentView.type === "club" && !!user,
   });
 
@@ -593,9 +497,10 @@ export default function VaultPage() {
   const userClubRoleSet = useMemo(() => {
     return collectVaultClubRoles(userRoles, getCurrentClubId());
   }, [userRoles, currentView]);
+  const userClubRoleSignature = Array.from(userClubRoleSet).sort().join(",");
 
   const { data: subfolders } = useQuery({
-    queryKey: ["vault-subfolders", currentView, isClubAdmin, isCoachOrTeamAdmin, isAppAdmin, Array.from(userClubRoleSet).sort().join(",")],
+    queryKey: vaultKeys.subfoldersForView(currentView, isClubAdmin, isCoachOrTeamAdmin, Boolean(isAppAdmin), userClubRoleSignature),
     queryFn: () => fetchVaultSubfolders({
       view: currentView,
       isAppAdmin: Boolean(isAppAdmin),
@@ -612,7 +517,7 @@ export default function VaultPage() {
   // Photos uploaded via Media page are also added to vault_files
   // Photos uploaded directly to Vault stay in vault_files only (not in photos table)
   const { data: vaultItems } = useQuery({
-    queryKey: ["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin],
+    queryKey: vaultKeys.filesForView(currentView, isClubAdmin, isCoachOrTeamAdmin),
     queryFn: () => fetchVaultItems({ view: currentView, isClubAdmin, isCoachOrTeamAdmin }),
     enabled: currentView.type !== "root" && !showTrash,
   });
@@ -639,15 +544,14 @@ export default function VaultPage() {
 
   // Folder tree cache (per scope) — used for path display and descendant set.
   const { data: folderTree } = useQuery({
-    queryKey: [
-      "vault-folder-tree",
+    queryKey: vaultKeys.folderTree(
       recursiveScope.type,
       recursiveScope.clubId,
       recursiveScope.teamId,
       isClubAdmin,
-      isAppAdmin,
-      Array.from(userClubRoleSet).sort().join(","),
-    ],
+      Boolean(isAppAdmin),
+      userClubRoleSignature,
+    ),
     queryFn: () => fetchVaultFolderTree({
       view: currentView,
       isPrivilegedViewer: Boolean(isAppAdmin || isClubAdmin),
@@ -658,14 +562,13 @@ export default function VaultPage() {
   });
 
   const { data: recursiveData, isFetching: isFetchingRecursive } = useQuery({
-    queryKey: [
-      "vault-recursive-search",
+    queryKey: vaultKeys.recursiveSearch(
       recursiveScope,
       debouncedVaultSearchQuery.trim().toLowerCase(),
       isClubAdmin,
       isCoachOrTeamAdmin,
-      Array.from(userClubRoleSet).sort().join(","),
-    ],
+      userClubRoleSignature,
+    ),
     queryFn: () => searchVaultContents({
       view: currentView,
       searchQuery: debouncedVaultSearchQuery,
@@ -699,7 +602,7 @@ export default function VaultPage() {
 
   // Trash query - fetches ALL deleted items from vault_files for the current club
   const { data: trashItems, isLoading: isLoadingTrash } = useQuery({
-    queryKey: ["vault-trash", currentView.type !== "root" ? (currentView.type === "club" ? currentView.clubId : currentView.clubId) : null],
+    queryKey: vaultKeys.trashForClub(currentView.type !== "root" ? currentView.clubId : null),
     queryFn: () => fetchVaultTrash(currentView),
     enabled: showTrash && currentView.type !== "root",
   });
@@ -731,7 +634,7 @@ export default function VaultPage() {
       searchParams.delete("success");
       setSearchParams(searchParams, { replace: true });
       queryClient.invalidateQueries({ queryKey: ["club-purchased-storage"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
+      queryClient.invalidateQueries({ queryKey: vaultKeys.clubs() });
     }
   }, [searchParams, setSearchParams, queryClient]);
 
@@ -741,70 +644,15 @@ export default function VaultPage() {
       if (!urlFolderId || initialLoadComplete || !userClubs) return;
       
       try {
-        // Fetch the folder to get its details
-        const { data: folder, error } = await supabase
-          .from("vault_folders")
-          .select("*, teams!vault_folders_team_id_fkey(id, name, club_id), clubs!club_id(id, name)")
-          .eq("id", urlFolderId)
-          .maybeSingle();
-        
-        if (error || !folder) {
+        const destination = await resolveVaultFolderDeepLink(urlFolderId);
+        if (!destination) {
           toast.error("Folder not found or access denied");
           navigate("/vault", { replace: true });
           setInitialLoadComplete(true);
           return;
         }
-
-        // Build folder path by traversing parent folders
-        const path: { id: string; name: string }[] = [];
-        let currentFolderId = folder.parent_id;
-        
-        while (currentFolderId) {
-          const { data: parentFolder } = await supabase
-            .from("vault_folders")
-            .select("id, name, parent_id")
-            .eq("id", currentFolderId)
-            .maybeSingle();
-          
-          if (parentFolder) {
-            path.unshift({ id: parentFolder.id, name: parentFolder.name });
-            currentFolderId = parentFolder.parent_id;
-          } else {
-            break;
-          }
-        }
-        
-        // Add the target folder to path
-        path.push({ id: folder.id, name: folder.name });
-        setFolderPath(path);
-
-        // Set the view based on folder type
-        if (folder.team_id && folder.teams) {
-          const clubId = folder.teams.club_id;
-          const { data: club } = await supabase
-            .from("clubs")
-            .select("name")
-            .eq("id", clubId)
-            .maybeSingle();
-          
-          setCurrentView({
-            type: "team",
-            clubId: clubId,
-            clubName: club?.name || "Unknown Club",
-            teamId: folder.team_id,
-            teamName: folder.teams.name,
-            folderId: folder.id,
-            folderName: folder.name,
-          });
-        } else if (folder.club_id && folder.clubs) {
-          setCurrentView({
-            type: "club",
-            clubId: folder.club_id,
-            clubName: folder.clubs.name,
-            folderId: folder.id,
-            folderName: folder.name,
-          });
-        }
+        setFolderPath(destination.path);
+        if (destination.view) setCurrentView(destination.view);
         
         setInitialLoadComplete(true);
       } catch (error) {
@@ -833,61 +681,15 @@ export default function VaultPage() {
       }
 
       try {
-        if (miniLeagueId) {
-          // Navigate directly to mini-league vault folder
-          const { data: league } = await supabase
-            .from("mini_leagues")
-            .select("id, name, club_id")
-            .eq("id", miniLeagueId)
-            .maybeSingle();
-
-          if (league) {
-            const club = userClubs.find(c => c.id === league.club_id);
-            if (club) {
-              setCurrentView({
-                type: "mini-league",
-                clubId: league.club_id,
-                clubName: club.name,
-                miniLeagueId: league.id,
-                miniLeagueName: league.name,
-              });
-              setSearchParams({}, { replace: true });
-            }
-          }
-        } else if (teamId) {
-          // Navigate directly to team vault
-          const { data: team } = await supabase
-            .from("teams")
-            .select("id, name, club_id")
-            .eq("id", teamId)
-            .maybeSingle();
-
-          if (team) {
-            const club = userClubs.find(c => c.id === team.club_id);
-            if (club) {
-              setCurrentView({
-                type: "team",
-                clubId: team.club_id,
-                clubName: club.name,
-                teamId: team.id,
-                teamName: team.name,
-              });
-              // Clear query params without losing history
-              setSearchParams({}, { replace: true });
-            }
-          }
-        } else if (clubId) {
-          // Navigate directly to club vault
-          const club = userClubs.find(c => c.id === clubId);
-          if (club) {
-            setCurrentView({
-              type: "club",
-              clubId: club.id,
-              clubName: club.name,
-            });
-            // Clear query params without losing history
-            setSearchParams({}, { replace: true });
-          }
+        const destination = await resolveVaultScopeDeepLink({
+          clubId,
+          teamId,
+          miniLeagueId,
+          accessibleClubs: userClubs,
+        });
+        if (destination) {
+          setCurrentView(destination);
+          setSearchParams({}, { replace: true });
         }
       } catch (error) {
         console.error("Error loading from query params:", error);
@@ -961,7 +763,7 @@ export default function VaultPage() {
 
   // Query for storage breakdown by file type, team, and mini-league
   const { data: storageBreakdown } = useQuery({
-    queryKey: ["storage-breakdown", currentClub?.id],
+    queryKey: vaultKeys.storageBreakdownForClub(currentClub?.id),
     queryFn: () => currentClub?.id
       ? fetchVaultStorageBreakdown(currentClub.id)
       : emptyVaultStorageBreakdown(),
@@ -1134,7 +936,7 @@ export default function VaultPage() {
       view: currentView,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-subfolders"] });
+      refreshVaultFolders(queryClient);
       setNewFolderDialogOpen(false);
       setNewFolderName("");
       toast.success("Folder created!");
@@ -1147,7 +949,7 @@ export default function VaultPage() {
   const deleteFolderMutation = useMutation({
     mutationFn: deleteVaultFolder,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-subfolders"] });
+      refreshVaultFolders(queryClient);
       setDeleteFolderId(null);
       toast.success("Folder deleted");
     },
@@ -1160,7 +962,7 @@ export default function VaultPage() {
     mutationFn: ({ folderId, newName }: { folderId: string; newName: string }) =>
       renameVaultFolder(folderId, newName),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["vault-subfolders"] });
+      refreshVaultFolders(queryClient);
       // Update folder path if renamed folder is in the path
       setFolderPath(prev => prev.map(f => f.id === variables.folderId ? { ...f, name: variables.newName } : f));
       setRenameFolderId(null);
@@ -1176,7 +978,7 @@ export default function VaultPage() {
     mutationFn: ({ fileId, newName }: { fileId: string; newName: string }) =>
       renameVaultItem(fileId, newName),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      refreshVaultFiles(queryClient);
       setRenameFileId(null);
       setRenameFileName("");
       toast.success("File renamed");
@@ -1191,7 +993,7 @@ export default function VaultPage() {
     mutationFn: ({ photoId, newName }: { photoId: string; newName: string }) =>
       renameVaultItem(photoId, newName),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      refreshVaultFiles(queryClient);
       setRenamePhotoId(null);
       setRenamePhotoName("");
       toast.success("Photo renamed");
@@ -1214,9 +1016,7 @@ export default function VaultPage() {
     }),
 
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      refreshVaultUpload(queryClient, { includeFreeUsage: false });
       setUploadDialogOpen(false);
       // No toast for successful photo uploads
     },
@@ -1236,10 +1036,7 @@ export default function VaultPage() {
     }),
 
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-clubs"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
-      queryClient.invalidateQueries({ queryKey: ["club-free-usage"] });
+      refreshVaultUpload(queryClient, { includeFreeUsage: true });
       setUploadDialogOpen(false);
       setFileName("");
       toast.success("File uploaded successfully!");
@@ -1258,7 +1055,7 @@ export default function VaultPage() {
       view: currentView,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      refreshVaultFiles(queryClient);
       setAddLinkDialogOpen(false);
       toast.success("Link added successfully!");
     },
@@ -1276,13 +1073,14 @@ export default function VaultPage() {
       setLightboxOpen(false);
       
       // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["vault-files"] });
+      await queryClient.cancelQueries({ queryKey: vaultKeys.files() });
       
       // Snapshot the previous value
-      const previousItems = queryClient.getQueryData(["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin]);
+      const viewKey = vaultKeys.filesForView(currentView, isClubAdmin, isCoachOrTeamAdmin);
+      const previousItems = queryClient.getQueryData(viewKey);
       
       // Optimistically remove the photo from the cache
-      queryClient.setQueryData(["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin], (old: any[] | undefined) => {
+      queryClient.setQueryData(viewKey, (old: any[] | undefined) => {
         if (!old) return old;
         return old.filter((item: any) => item.id !== photoId);
       });
@@ -1297,21 +1095,22 @@ export default function VaultPage() {
     onError: (error: any, _, context) => {
       // Rollback on error
       if (context?.previousItems) {
-        queryClient.setQueryData(["vault-files", currentView, isClubAdmin, isCoachOrTeamAdmin], context.previousItems);
+        queryClient.setQueryData(
+          vaultKeys.filesForView(currentView, isClubAdmin, isCoachOrTeamAdmin),
+          context.previousItems,
+        );
       }
       toast.error(error.message || "Failed to delete photo");
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      refreshVaultFileStorage(queryClient);
     },
   });
 
   const deleteFileMutation = useMutation({
     mutationFn: (fileId: string) => softDeleteVaultItem(fileId, user?.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      refreshVaultFileStorage(queryClient);
       setDeleteFileId(null);
       // Silent success - no toast
     },
@@ -1324,8 +1123,7 @@ export default function VaultPage() {
   const restorePhotoMutation = useMutation({
     mutationFn: restoreVaultItem,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      refreshVaultRestore(queryClient);
       toast.success("Photo restored to original location");
     },
     onError: (error: any) => {
@@ -1337,8 +1135,7 @@ export default function VaultPage() {
   const restoreFileMutation = useMutation({
     mutationFn: restoreVaultItem,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      refreshVaultRestore(queryClient);
       toast.success("File restored to original location");
     },
     onError: (error: any) => {
@@ -1351,10 +1148,7 @@ export default function VaultPage() {
     mutationFn: permanentlyDeleteVaultPhoto,
     onSuccess: (photoId) => {
       removePhotoFromCache(photoId);
-      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      refreshVaultPermanentDelete(queryClient, { includePhotos: true });
       toast.success("Photo permanently deleted");
     },
     onError: (error: any) => {
@@ -1366,9 +1160,7 @@ export default function VaultPage() {
   const permanentDeleteFileMutation = useMutation({
     mutationFn: permanentlyDeleteVaultFile,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      refreshVaultPermanentDelete(queryClient, { includePhotos: false });
       toast.success("File permanently deleted");
     },
     onError: (error: any) => {
@@ -1404,10 +1196,7 @@ export default function VaultPage() {
 
 
       // Always refresh so remaining (failed) items stay visible and counts are accurate
-      queryClient.invalidateQueries({ queryKey: ["vault-trash"] });
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      refreshVaultPermanentDelete(queryClient, { includePhotos: true });
 
       // Exactly one toast; never a success message when any item failed
       const outcome = resolveEmptyTrashOutcome({ succeededCount, failedCount });
@@ -1426,7 +1215,7 @@ export default function VaultPage() {
     mutationFn: (variables: { fileId: string; targetFolderId: string | null; targetTeamId?: string | null }) =>
       moveVaultFile(variables),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
+      refreshVaultFiles(queryClient);
       setMoveFileDialogOpen(false);
       setFileToMove(null);
       toast.success("File moved successfully");
@@ -1454,9 +1243,7 @@ export default function VaultPage() {
       const deletedCount = result.deletedPhotoIds.length + result.deletedFileIds.length;
       const errorCount = result.failed.length;
 
-      queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
-      queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
+      refreshVaultBulkDelete(queryClient);
 
       if (errorCount === 0) {
         toast.success(`Moved ${deletedCount} items to trash`);
@@ -1480,36 +1267,7 @@ export default function VaultPage() {
     setSelectedLargeFiles(new Set());
     
     try {
-      // Get teams for the club
-      const { data: teamsData } = await supabase
-        .from("teams")
-        .select("id, name")
-        .eq("club_id", currentClub.id)
-        .is("deleted_at", null);
-      
-      // Get photos with size
-      const { data: photosData } = await supabase
-        .from("photos")
-        .select("id, file_url, file_size, team_id, title, created_at")
-        .eq("club_id", currentClub.id)
-        .not("file_size", "is", null)
-        .order("file_size", { ascending: false })
-        .limit(50);
-      
-      // Get files with size
-      const { data: filesData } = await supabase
-        .from("vault_files")
-        .select("id, file_url, file_size, team_id, name, created_at")
-        .eq("club_id", currentClub.id)
-        .not("file_size", "is", null)
-        .order("file_size", { ascending: false })
-        .limit(50);
-      
-      const items = buildVaultLargeFileItems(
-        teamsData || [],
-        photosData || [],
-        filesData || [],
-      );
+      const items = await fetchVaultLargeFiles(currentClub.id);
       setLargeFilesData({ loading: false, items });
     } catch (error) {
       console.error("Failed to fetch large files:", error);
@@ -1556,9 +1314,7 @@ export default function VaultPage() {
       const { outcome, message } = buildVaultDeleteMessage(summary, formatStorageSize);
 
       if (summary.deletedCount > 0) {
-        queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-        queryClient.invalidateQueries({ queryKey: ["storage-breakdown"] });
-        queryClient.invalidateQueries({ queryKey: ["photos"] });
+        refreshVaultBulkDelete(queryClient);
       }
 
       // Failed items stay selected so the user can retry; successes are cleared.
@@ -2728,8 +2484,7 @@ export default function VaultPage() {
               open={googleDriveImportOpen}
               onOpenChange={setGoogleDriveImportOpen}
               onImportComplete={() => {
-                queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-                queryClient.invalidateQueries({ queryKey: ["vault-folders"] });
+                refreshVaultImportedContent(queryClient);
               }}
               targetFolderId={currentView.type === "team" || currentView.type === "mini-league" ? (currentView.folderId || null) : null}
               targetTeamId={currentView.type === "team" ? currentView.teamId : null}
@@ -2744,8 +2499,7 @@ export default function VaultPage() {
                 clubId={currentView.clubId}
                 teamId={currentView.type === "team" ? currentView.teamId : null}
                 onChanged={() => {
-                  queryClient.invalidateQueries({ queryKey: ["vault-files"] });
-                  queryClient.invalidateQueries({ queryKey: ["vault-folders"] });
+                  refreshVaultImportedContent(queryClient);
                 }}
               />
             )}
