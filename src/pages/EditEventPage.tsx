@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Bell, Calendar, FileText, DollarSign, ChevronDown, ClipboardList, Plus, X, Repeat, Users, Building2, UserPlus } from "lucide-react";
@@ -444,13 +444,14 @@ export default function EditEventPage() {
     enabled: !!user,
   });
 
-  // All teams in the selected club — used by the target-teams picker.
+  // All teams in the selected club — used by the target-teams picker and, for
+  // club-level admins, as the authoritative team list for this club.
   const { data: allClubTeams } = useQuery({
     queryKey: ["all-club-teams-for-edit-target", selectedClubId],
     queryFn: async () => {
       const { data } = await supabase
         .from("teams")
-        .select("id, name")
+        .select("id, name, club_id, default_match_arrival_minutes")
         .eq("club_id", selectedClubId)
         .is("deleted_at", null)
         .order("name");
@@ -458,6 +459,59 @@ export default function EditEventPage() {
     },
     enabled: !!selectedClubId,
   });
+
+  // Club admins / committee members / app admins can manage any team in the
+  // club even without a per-team role, so their selectable team list must not
+  // be limited to teams they personally hold team_admin/coach on.
+  const { data: isClubLevelAdmin } = useQuery({
+    queryKey: ["edit-event-club-level-admin", user?.id, selectedClubId],
+    queryFn: async () => {
+      const { data: appAdmin } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("role", "app_admin")
+        .limit(1);
+      if (appAdmin && appAdmin.length > 0) return true;
+
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("club_id", selectedClubId!)
+        .in("role", ["club_admin", "committee_member", "league_admin"])
+        .limit(1);
+      return !!data && data.length > 0;
+    },
+    enabled: !!user && !!selectedClubId,
+  });
+
+  // Authoritative team list for the club/team scope guard + team picker.
+  // Always includes the event's own team when it belongs to the selected club,
+  // so editing an existing event never fails closed on a stale role list.
+  const selectableTeams = useMemo(() => {
+    const base = isClubLevelAdmin ? (allClubTeams ?? []) : (userTeams ?? []);
+    const merged = new Map<string, { id: string; name: string; club_id: string; default_match_arrival_minutes: number | null }>();
+    for (const t of base as any[]) {
+      merged.set(t.id, {
+        id: t.id,
+        name: t.name,
+        club_id: t.club_id,
+        default_match_arrival_minutes: t.default_match_arrival_minutes ?? null,
+      });
+    }
+    const evTeam = (event as any)?.teams;
+    if (event?.team_id && event.club_id === selectedClubId && !merged.has(event.team_id)) {
+      merged.set(event.team_id, {
+        id: event.team_id,
+        name: evTeam?.name ?? "Current team",
+        club_id: event.club_id,
+        default_match_arrival_minutes: evTeam?.default_match_arrival_minutes ?? null,
+      });
+    }
+    return Array.from(merged.values());
+  }, [isClubLevelAdmin, allClubTeams, userTeams, event, selectedClubId]);
+
 
   // Populate form with existing data
   useEffect(() => {
@@ -507,9 +561,9 @@ export default function EditEventPage() {
       setTeamDefaultArrival(DEFAULT_MATCH_ARRIVAL_MINUTES);
       return;
     }
-    const selectedTeam = userTeams?.find((team) => team.id === selectedTeamId);
+    const selectedTeam = selectableTeams.find((team) => team.id === selectedTeamId);
     setTeamDefaultArrival(selectedTeam?.default_match_arrival_minutes ?? DEFAULT_MATCH_ARRIVAL_MINUTES);
-  }, [selectedTeamId, userTeams]);
+  }, [selectedTeamId, selectableTeams]);
 
   // Load existing duties
   useEffect(() => {
@@ -547,7 +601,7 @@ export default function EditEventPage() {
     // validate_event_team_club_scope trigger. Fail closed if the team list
     // is unavailable or stale so we never submit an ambiguous combination.
     {
-      const check = validateEventTeamClubScope(selectedTeamId, userTeams, selectedClubId);
+      const check = validateEventTeamClubScope(selectedTeamId, selectableTeams, selectedClubId);
       if (check.ok === false) {
         const reason = check.reason;
         toast({
@@ -957,7 +1011,7 @@ export default function EditEventPage() {
                       ...((type === "social" || type === "game")
                         ? [{ value: "__none__", label: "Club-wide event" }]
                         : []),
-                      ...(userTeams?.map((team) => ({ value: team.id, label: team.name })) || []),
+                      ...selectableTeams.map((team) => ({ value: team.id, label: team.name })),
                     ]}
                     placeholder={(type === "social" || type === "game") ? "Club-wide (optional)" : "Select team"}
                     label="Team"
