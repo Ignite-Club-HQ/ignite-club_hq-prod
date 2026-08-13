@@ -81,6 +81,8 @@ import { useEventGroupMap } from "@/hooks/useEventGroupMap";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
 import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, isParentFirstEvent } from "@/lib/rsvpAudience";
+import { resolveRsvpChildren, resolveEventChildRoster } from "@/lib/resolveEventChildScope";
+
 
 import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
 
