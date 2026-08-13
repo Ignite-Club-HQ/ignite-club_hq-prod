@@ -603,21 +603,30 @@ export default function EditEventPage() {
     {
       const check = validateEventTeamClubScope(selectedTeamId, selectableTeams, selectedClubId);
       if (check.ok === false) {
-        const reason = check.reason;
-        toast({
-          title:
-            reason === "list_unavailable"
-              ? "Team list unavailable"
-              : "Team does not belong to selected club",
-          description:
-            reason === "list_unavailable"
-              ? "Please reselect the club so we can load its teams before saving."
-              : "The selected team is not part of the selected club. Please choose a team from this club.",
-          variant: "destructive",
-        });
+        // Distinguish "you can't manage this team" (team is in the club, but you
+        // don't coach/admin it) from a genuine cross-club mismatch.
+        const teamIsInClub = (allClubTeams ?? []).some((t) => t.id === selectedTeamId);
+        if (check.reason === "list_unavailable") {
+          toast({
+            title: "Just a moment",
+            description: "We're still loading this club's teams — please try again in a second.",
+          });
+        } else if (teamIsInClub) {
+          toast({
+            title: "You don't have access to this team",
+            description:
+              "Only this team's coaches and admins (or a club admin) can edit its events. Ask a club admin if you need this changed.",
+          });
+        } else {
+          toast({
+            title: "Pick a team from this club",
+            description: "That team isn't part of the selected club — choose one of this club's teams.",
+          });
+        }
         return;
       }
     }
+
 
     // Validate recurring settings if converting to recurring
     if (enableRecurring && !isRecurring && !recurrenceEndDate) {
