@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
@@ -263,7 +263,7 @@ export default function DirectMessagePage() {
     ? { chat_type: "direct", conversation_id: conversationId }
     : null;
   const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
-  const [replyTo, setReplyTo] = useState<DirectMessage | null>(null);
+  const [replyTo, setReplyTo] = useChatDraftReply<DirectMessage>(conversationId);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);

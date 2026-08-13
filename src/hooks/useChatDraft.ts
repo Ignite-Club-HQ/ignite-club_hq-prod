@@ -100,6 +100,58 @@ export function useChatDraft(
   return [message, setMessage, clearDraft];
 }
 
+const REPLY_PREFIX = "chat_draft_reply_";
+
+function readReplyDraft<T>(key: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function writeReplyDraft(key: string, value: unknown) {
+  try {
+    if (value) sessionStorage.setItem(key, JSON.stringify(value));
+    else sessionStorage.removeItem(key);
+  } catch {
+    // Storage full/unavailable — ignore
+  }
+}
+
+/**
+ * Like useState<T | null>(null) but persists the reply target for a chat to
+ * sessionStorage, so navigating away mid-reply and returning keeps BOTH the
+ * draft text and the message you were replying to.
+ */
+export function useChatDraftReply<T>(
+  chatId: string | undefined,
+): [T | null, (value: T | null | ((prev: T | null) => T | null)) => void] {
+  const key = chatId ? `${REPLY_PREFIX}${chatId}` : "";
+
+  const [replyTo, setReplyToState] = useState<T | null>(() => (key ? readReplyDraft<T>(key) : null));
+
+  useEffect(() => {
+    setReplyToState(key ? readReplyDraft<T>(key) : null);
+  }, [key]);
+
+  const setReplyTo = useCallback(
+    (value: T | null | ((prev: T | null) => T | null)) => {
+      setReplyToState((prev) => {
+        const next = typeof value === "function" ? (value as (p: T | null) => T | null)(prev) : value;
+        if (key) writeReplyDraft(key, next);
+        return next;
+      });
+    },
+    [key],
+  );
+
+  return [replyTo, setReplyTo];
+}
+
+
 /**
  * Return a snapshot of all chat drafts keyed by their chat id.
  */

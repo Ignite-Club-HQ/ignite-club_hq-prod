@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
@@ -273,7 +273,7 @@ export default function GroupChatPage() {
   const scheduleTarget: ScheduleTarget | null = groupId
     ? { chat_type: "group", group_id: groupId }
     : null;
-  const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
+  const [replyTo, setReplyTo] = useChatDraftReply<GroupMessage>(groupId);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
@@ -2941,6 +2941,9 @@ export default function GroupChatPage() {
           }}
           teamId={group?.team_id || undefined}
           clubId={group?.club_id || undefined}
+          miniLeagueId={group?.mini_league_id ?? null}
+          competitionId={(group as any)?.competition_id ?? null}
+
         />
         <BoardPickerSheet
           open={boardPickerOpen}

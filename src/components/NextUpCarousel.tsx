@@ -530,7 +530,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
   const { data: childrenOnEvent, isFetched: childrenFetched } = useChildrenForEvent(event, user?.id);
   const { data: childRsvps, isFetched: childRsvpsFetched } = useChildRsvps(event.id, user?.id);
   const { data: rsvpSummary, isFetched: rsvpSummaryFetched } = useRsvpSummary(event.id, event.type);
-  const { data: isEventMember = true, isFetched: membershipFetched } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
+  const { data: isEventMember = true, isFetched: membershipFetched } = useEventMembership({ id: event.id, team_id: event.team_id, club_id: event.club_id, target_team_ids: (event as any).target_team_ids });
 
   // Hold the card's interactive sections until per-event queries settle so the
   // card doesn't grow (Children's RSVP accordion appears, helper text disappears)

@@ -5,7 +5,7 @@ import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePend
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
-import { useChatDraft } from "@/hooks/useChatDraft";
+import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
@@ -229,7 +229,7 @@ export default function TeamChatPage() {
   // fetch and visual-settle window on notification opens.
   const chatReady = useChatPageReady();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; authorName: string | null } | null>(null);
+  const [replyingTo, setReplyingTo] = useChatDraftReply<{ id: string; text: string; authorName: string | null }>(teamId);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);

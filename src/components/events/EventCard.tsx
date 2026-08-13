@@ -349,7 +349,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
   const currentRsvpStatus = (myRsvp?.status as RsvpStatus) ?? null;
   const canSendReminders = hasPro === true;
-  const { data: isEventMember = true } = useEventMembership({ team_id: event.team_id, club_id: event.club_id });
+  const { data: isEventMember = true } = useEventMembership({ id: event.id, team_id: event.team_id, club_id: event.club_id, target_team_ids: (event as any).target_team_ids });
 
   // Invalidate every cache key the household RSVP touches.
   const invalidateRsvpQueries = useCallback(() => {
