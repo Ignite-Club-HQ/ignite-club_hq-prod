@@ -17,9 +17,21 @@
  * settle-pass scrollToIndex jolts).
  */
 let active = false;
+let activatedAt = 0;
 const listeners = new Set<(value: boolean) => void>();
 
+/**
+ * Hard ceiling for how long a jump may be considered "in flight". The flag is
+ * module-global (not thread-scoped), so an interrupted jump — user navigates
+ * away mid-hydration, target never arrives — could leave it stuck `true` for
+ * the rest of the JS session. Every subsequent plain chat open then skipped
+ * its bottom-pin sequence entirely and rendered off-bottom. Reads self-heal
+ * past this age.
+ */
+const MAX_ACTIVE_MS = 8000;
+
 export function setChatJumpActive(value: boolean): void {
+  if (value) activatedAt = performance.now();
   if (active === value) return;
   active = value;
   listeners.forEach((l) => {
@@ -28,8 +40,14 @@ export function setChatJumpActive(value: boolean): void {
 }
 
 export function isChatJumpActive(): boolean {
-  return active;
+  if (!active) return false;
+  if (performance.now() - activatedAt > MAX_ACTIVE_MS) {
+    setChatJumpActive(false);
+    return false;
+  }
+  return true;
 }
+
 
 export function subscribeChatJumpActive(listener: (value: boolean) => void): () => void {
   listeners.add(listener);
