@@ -103,6 +103,35 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // ── HARD KILL-SWITCH ─────────────────────────────────────────────
+    // Feature is disabled unless app_settings.engagement_reminders.enabled
+    // is exactly true. Missing row, read error or any other value => OFF.
+    // No message/photo/read/reaction scan and no notification or
+    // engagement_reminder_log writes happen when disabled.
+    const { data: killSwitchRow, error: killSwitchError } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "engagement_reminders")
+      .maybeSingle();
+
+    const killSwitchValue = (killSwitchRow?.value ?? null) as { enabled?: unknown } | null;
+    const enabled = !killSwitchError && killSwitchValue?.enabled === true;
+
+    if (!enabled) {
+      console.log("[EngagementReminder] disabled via app_settings — no work performed");
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          disabled: true,
+          scanned: 0,
+          sent: 0,
+          reason: "engagement_reminders disabled",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+
     const now = new Date();
     const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
