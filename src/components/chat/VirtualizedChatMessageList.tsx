@@ -1432,6 +1432,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       bottomPinReadyRef.current = true;
       pinnedRevisionRef.current = bottomPinRevision;
       pinAttemptRevisionRef.current = null;
+      const TARGET_PENDING_HOLD_MS = 2500;
       const holdMs = Math.max(
         400,
         Math.min(3000, chatJumpLifecycleRemaining(TARGET_PENDING_HOLD_MS)),
