@@ -19,6 +19,7 @@ import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker, ens
 import { showPhotoPermissionDeniedToast } from "@/lib/showPhotoPermissionDeniedToast";
 import { syncGalleryPhotoToVault } from "@/lib/galleryVaultSync";
 import { refreshGalleryUpload } from "@/features/vault/vaultCacheCompletion";
+import { buildMediaStorageUrl } from "@/features/media/mediaStorageUrl";
 import {
   isIOSEnvironment,
   scheduleIOSNativeOverlayRecovery,
@@ -435,9 +436,9 @@ export function UploadPhotoSheet({
 
     if (uploadError) throw uploadError;
 
-    // Store the Supabase storage URL format (will be converted to signed URL when displayed)
-    const supabaseUrl = "https://yabcfiuntwqjwvschnji.supabase.co";
-    const storageUrl = `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+    // Store the URL for the same environment that accepted the object upload.
+    // Display still converts this legacy public-format URL to a signed URL.
+    const storageUrl = buildMediaStorageUrl(storagePath);
 
     // 1. Insert into photos table (for media gallery)
     const { data: insertedPhoto, error: insertError } = await supabase.from("photos").insert({

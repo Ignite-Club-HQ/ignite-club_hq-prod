@@ -26,6 +26,24 @@ describe("useChatComposerController", () => {
     expect(result.current.canSend).toBe(true);
   });
 
+  it("restores both draft text and its exact reply target after remount", () => {
+    const first = renderHook(() => useChatComposerController("remount-test"));
+    const reply = { id: "message-42", text: "Original message", authorName: "Alex" };
+    act(() => {
+      first.result.current.setText("My unsent reply");
+      first.result.current.setReplyingTo(reply);
+    });
+    first.unmount();
+
+    const second = renderHook(() => useChatComposerController("remount-test"));
+    expect(second.result.current.text).toBe("My unsent reply");
+    expect(second.result.current.replyingTo).toEqual(reply);
+    expect(second.result.current.buildSubmission()).toMatchObject({
+      text: "My unsent reply",
+      replyToId: "message-42",
+    });
+  });
+
   it("starts and cancels editing without retaining a reply target", () => {
     const { result } = renderHook(() => useChatComposerController("edit-test"));
     act(() => result.current.setReplyingTo({ id: "reply-1", text: "parent", authorName: "Alex" }));

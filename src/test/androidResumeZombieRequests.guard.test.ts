@@ -23,6 +23,7 @@ const adapter = read("../lib/reactQueryNativeAdapter.ts");
 const ensureFresh = read("../lib/ensureFreshSession.ts");
 const eventsPage = read("../pages/EventsPage.tsx");
 const mediaPage = read("../pages/MediaPage.tsx");
+const mediaRealtime = read("../features/media/useMediaRealtime.ts");
 
 describe("supabaseAuthRetry wall-clock deadlines", () => {
   it("tracks in-flight REST GETs with a wall-clock deadline, not just a timer", () => {
@@ -94,10 +95,9 @@ describe("page-level escape hatches", () => {
   });
 
   it("Media opts out of its own visibility listeners on native", () => {
-    const listeners =
-      mediaPage.match(/addEventListener\("visibilitychange"/g) ?? [];
-    expect(listeners.length).toBe(2);
-    const optOuts = mediaPage.match(/if \(isNativeRuntime\(\)\) return;/g) ?? [];
-    expect(optOuts.length).toBeGreaterThanOrEqual(2);
+    expect(mediaPage).toMatch(/addEventListener\("visibilitychange", onVisible\)/);
+    expect(mediaPage).toMatch(/if \(isNativeRuntime\(\)\) return;/);
+    expect(mediaRealtime).toMatch(/addEventListener\("visibilitychange", onVisible\)/);
+    expect(mediaRealtime).toMatch(/if \(isNativeRuntime\(\) \|\| document\.visibilityState !== "visible"\) return;/);
   });
 });

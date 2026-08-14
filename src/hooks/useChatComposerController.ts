@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useChatDraft } from "./useChatDraft";
+import { useChatDraft, useChatDraftReply } from "./useChatDraft";
 import { beginChatMessageEdit, cancelChatMessageEdit, type EditableChatMessage } from "@/lib/chatComposerEdit";
 import { buildChatComposerText, hasChatComposerContent } from "@/lib/chatComposerIntent";
 import { resetChatComposerAfterSend } from "@/lib/chatComposerSubmission";
@@ -34,7 +34,7 @@ export function useChatComposerController<
 ) {
   const [text, setText, clearDraft] = useChatDraft(draftId);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useState<TReply | null>(null);
+  const [replyingTo, setReplyingTo] = useChatDraftReply<TReply>(draftId);
   const [editingMessage, setEditingMessage] = useState<TEdit | null>(null);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
 

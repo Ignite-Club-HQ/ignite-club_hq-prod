@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { buildMediaStorageUrl, MEDIA_BUCKET } from "@/features/media/mediaStorageUrl";
 
 /**
  * Publish a chat-attached image to the team / club media gallery.
@@ -31,9 +32,6 @@ export interface PublishChatImageResult {
   photoId: string;
   alreadyPublished: boolean;
 }
-
-const PHOTOS_BUCKET = "photos";
-const SUPABASE_URL = "https://yabcfiuntwqjwvschnji.supabase.co";
 
 function inferExtension(blob: Blob, fallback = "jpg"): string {
   const fromMime = blob.type?.split("/")?.[1];
@@ -97,7 +95,7 @@ export async function publishChatImageToGallery(
     : `clubs/${clubId}/${uploaderId}/${timestamp}-${randomSuffix}.${ext}`;
 
   const { error: uploadError } = await supabase.storage
-    .from(PHOTOS_BUCKET)
+    .from(MEDIA_BUCKET)
     .upload(storagePath, blob, {
       contentType: blob.type || `image/${ext}`,
       upsert: false,
@@ -108,7 +106,7 @@ export async function publishChatImageToGallery(
     throw new Error("Could not save image to the gallery");
   }
 
-  const storageUrl = `${SUPABASE_URL}/storage/v1/object/public/${PHOTOS_BUCKET}/${storagePath}`;
+  const storageUrl = buildMediaStorageUrl(storagePath);
 
   // 4. Insert the photos row. Cleanup storage if the insert fails (RLS, etc.).
   const { data: inserted, error: insertError } = await supabase
@@ -129,7 +127,7 @@ export async function publishChatImageToGallery(
   if (insertError || !inserted) {
     console.error("[publishChatImageToGallery] insert failed", insertError);
     try {
-      await supabase.storage.from(PHOTOS_BUCKET).remove([storagePath]);
+      await supabase.storage.from(MEDIA_BUCKET).remove([storagePath]);
     } catch (cleanupErr) {
       console.warn("[publishChatImageToGallery] cleanup failed", cleanupErr);
     }

@@ -849,7 +849,7 @@ describe("EventDetailPage business-operation characterization", () => {
       enabled: true,
     });
     expect(latestQuery("all-children-on-team")).toMatchObject({
-      queryKey: ["all-children-on-team", null, "team-2,team-3"],
+      queryKey: ["all-children-on-team", null, "club-1", false, "all", "team-2,team-3"],
       enabled: true,
     });
     expect(latestQuery("event-payments").enabled).toBe(true);
@@ -964,9 +964,9 @@ describe("EventDetailPage business-operation characterization", () => {
     }];
 
     await expect(latestQuery("children-on-team").queryFn()).resolves.toEqual([
-      { id: "child-direct", name: "Direct Child" },
-      { id: "child-both", name: "Shared Child" },
-      { id: "child-guardian", name: "Guardian Child" },
+      { id: "child-direct", name: "Direct Child", parent_id: null },
+      { id: "child-both", name: "Shared Child", parent_id: null },
+      { id: "child-guardian", name: "Guardian Child", parent_id: null },
     ]);
   });
 

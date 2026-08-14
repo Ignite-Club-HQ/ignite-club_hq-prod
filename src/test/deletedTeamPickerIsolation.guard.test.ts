@@ -29,14 +29,17 @@ describe("soft-deleted team isolation across destination pickers", () => {
   });
 
   it("excludes deleted teams from the Gallery browsing filter", () => {
-    const media = source("src/pages/MediaPage.tsx");
-    expectActiveTeamsOnly(queryWindow(media, '"media-filter-teams"'));
+    const media = source("src/features/media/mediaAccessRepository.ts");
+    const query = queryWindow(media, "fetchMediaFilterTeams");
+    expectActiveTeamsOnly(query);
+    expect(source("src/pages/MediaPage.tsx")).toContain("fetchMediaFilterTeams(");
   });
 
   it("excludes deleted teams from Vault choices for admins and members", () => {
-    const vault = source("src/pages/VaultPage.tsx");
-    const query = queryWindow(vault, '"vault-club-teams"', 3_400);
-    expect(query.match(/\.is\("deleted_at", null\)/g)).toHaveLength(2);
+    const vault = source("src/features/vault/vaultNavigationRepository.ts");
+    const query = queryWindow(vault, "fetchVaultClubTeams", 3_400);
+    expectActiveTeamsOnly(query);
+    expect(source("src/pages/VaultPage.tsx")).toContain("fetchVaultClubTeams(");
   });
 
   it("revalidates an Event team immediately before writing, closing stale-selection races", () => {

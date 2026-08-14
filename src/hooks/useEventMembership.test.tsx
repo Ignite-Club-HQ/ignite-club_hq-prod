@@ -28,7 +28,7 @@ describe("useEventMembership", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("accepts a direct team role without querying child membership", async () => {
-    from.mockReturnValueOnce(query({ data: { id: "role-1" } }));
+    from.mockReturnValueOnce(query({ data: [{ id: "role-1" }] }));
     const { result } = renderHook(
       () => useEventMembership({ team_id: "team-1", club_id: "club-1" }),
       { wrapper },

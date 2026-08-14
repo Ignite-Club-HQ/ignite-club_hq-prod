@@ -68,7 +68,14 @@ const baseProps = {
 };
 
 function defaultResults(audience = "players_and_parents") {
-  queueResult("events", { data: { rsvp_audience: audience } });
+  queueResult("events", { data: {
+    team_id: "team-1",
+    club_id: "club-1",
+    target_team_ids: null,
+    rsvp_audience: audience,
+    adults_only: false,
+    restricted_to_roles: null,
+  } });
   queueResult("teams", { data: { default_rsvp_audience: null } });
   queueResult("children", { data: [] });
   queueResult("child_guardians", { data: [] });
@@ -99,6 +106,7 @@ describe("QuickRSVPDialog business behaviour", () => {
   it("uses an event audience override to show players but hide the parent response", async () => {
     defaultResults("players_only");
     queueResult("children", { data: [{ id: "child-1", name: "Ava" }] });
+    queueResult("child_team_assignments", { data: [{ child_id: "child-1" }] });
     renderDialog();
 
     expect(await screen.findByText("Ava")).toBeInTheDocument();
@@ -117,10 +125,18 @@ describe("QuickRSVPDialog business behaviour", () => {
   });
 
   it("falls back to the team audience when the event has no override", async () => {
-    queueResult("events", { data: { rsvp_audience: null } });
+    queueResult("events", { data: {
+      team_id: "team-1",
+      club_id: "club-1",
+      target_team_ids: null,
+      rsvp_audience: null,
+      adults_only: false,
+      restricted_to_roles: null,
+    } });
     queueResult("teams", { data: { default_rsvp_audience: "players_only" } });
     queueResult("children", { data: [{ id: "child-1", name: "Ava" }] });
     queueResult("child_guardians", { data: [] });
+    queueResult("child_team_assignments", { data: [{ child_id: "child-1" }] });
     queueResult("rsvps", { data: [] });
     renderDialog();
 
@@ -186,7 +202,7 @@ describe("QuickRSVPDialog business behaviour", () => {
     expect(await screen.findByText("Blair")).toBeInTheDocument();
     expect(screen.queryByText("Ava")).not.toBeInTheDocument();
     const assignment = mocks.queries.find(q => q.table === "child_team_assignments")!.chain;
-    expect(assignment.eq).toHaveBeenCalledWith("team_id", "team-1");
+    expect(assignment.in).toHaveBeenCalledWith("team_id", ["team-1"]);
     expect(assignment.in).toHaveBeenCalledWith("child_id", ["child-1", "child-2"]);
   });
 
@@ -220,6 +236,7 @@ describe("QuickRSVPDialog business behaviour", () => {
   it("updates an existing child RSVP regardless of which guardian created it", async () => {
     defaultResults("players_only");
     queueResult("children", { data: [{ id: "child-1", name: "Ava" }] });
+    queueResult("child_team_assignments", { data: [{ child_id: "child-1" }] });
     queueResult("rsvps",
       { data: [] },
       { data: [] },
