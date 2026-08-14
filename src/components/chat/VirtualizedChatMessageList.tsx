@@ -1443,11 +1443,20 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
 
     if (!initialBottomPinned) {
       bottomPinReadyRef.current = true;
-      pinnedRevisionRef.current = bottomPinRevision;
+      // Do NOT stamp `pinnedRevisionRef` here. The parent computes
+      // `initialBottomPinned={initialBottomPinned && (virtualReady || isPinned)}`,
+      // which is frequently `false` on the FIRST render of a mount and flips
+      // `true` a frame later. Stamping the revision on that transient false
+      // pass made the guard below short-circuit the real pin sequence when the
+      // prop flipped, so a plain reopen (e.g. straight after posting a
+      // message) revealed wherever Virtuoso happened to mount instead of the
+      // bottom — and nothing corrected it afterwards.
+      pinnedRevisionRef.current = null;
       pinAttemptRevisionRef.current = null;
       setInitialRevealReady(true);
       return;
     }
+
     if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
     if (isChatJumpActive()) {
       bottomPinReadyRef.current = true;
