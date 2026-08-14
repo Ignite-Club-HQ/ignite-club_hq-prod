@@ -1422,6 +1422,24 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     }
 
 
+    // Deep-link target requested but its row is NOT in the loaded window yet.
+    // Revealing here paints the fallback (bottom/LAST) anchor, and moments
+    // later the parent's target-window hydration bumps the scroller key and
+    // remounts this list — the user sees content, then a skeleton, then the
+    // real target. Stay masked while the target fetch is in flight, bounded by
+    // the jump lifecycle budget so a target that never arrives still reveals.
+    if (initialTargetMessageId && initialTargetIndex < 0) {
+      bottomPinReadyRef.current = true;
+      pinnedRevisionRef.current = bottomPinRevision;
+      pinAttemptRevisionRef.current = null;
+      const holdMs = Math.max(
+        400,
+        Math.min(3000, chatJumpLifecycleRemaining(TARGET_PENDING_HOLD_MS)),
+      );
+      const holdTimer = window.setTimeout(() => setInitialRevealReady(true), holdMs);
+      return () => window.clearTimeout(holdTimer);
+    }
+
     if (!initialBottomPinned) {
       bottomPinReadyRef.current = true;
       pinnedRevisionRef.current = bottomPinRevision;
