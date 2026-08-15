@@ -58,8 +58,12 @@ describe("brace-expansion security upgrade safety", () => {
     };
     const expand = mod.default ?? mod.expand;
     expect(expand?.("a{b,c}d")).toEqual(["abd", "acd"]);
-    const { minimatch } = await import("minimatch");
-    expect(minimatch("src/a.ts", "src/*.{ts,tsx}")).toBe(true);
+    const mm = (await import("minimatch")) as unknown as {
+      default?: (p: string, pattern: string) => boolean;
+      minimatch?: (p: string, pattern: string) => boolean;
+    };
+    const match = mm.minimatch ?? mm.default;
+    expect(match?.("src/a.ts", "src/*.{ts,tsx}")).toBe(true);
   });
 
   it("keeps ExcelJS usable (transitive brace-expansion consumer)", async () => {
