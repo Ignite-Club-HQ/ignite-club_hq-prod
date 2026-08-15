@@ -75,3 +75,17 @@ describe("brace-expansion security upgrade safety", () => {
     expect(buf.byteLength).toBeGreaterThan(0);
   });
 });
+
+describe("bun.lock brace-expansion pins", () => {
+  const bunLock = readFileSync("bun.lock", "utf8");
+  const entries = [...bunLock.matchAll(/brace-expansion@(\d+\.\d+\.\d+)"/g)].map((m) => m[1]);
+
+  it("locks every bun-resolved copy to the patched version for its major", () => {
+    expect(entries.length).toBeGreaterThan(0);
+    for (const version of entries) {
+      const min = MIN_BY_MAJOR[version.split(".")[0]];
+      expect(min, `unexpected brace-expansion major in bun.lock: ${version}`).toBeDefined();
+      expect(cmp(version, min!), `bun.lock brace-expansion@${version}`).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
