@@ -52,8 +52,12 @@ describe("brace-expansion security upgrade safety", () => {
   });
 
   it("keeps brace expansion behaviour working for glob-style consumers", async () => {
-    const { default: expand } = await import("brace-expansion");
-    expect(expand("a{b,c}d")).toEqual(["abd", "acd"]);
+    const mod = (await import("brace-expansion")) as unknown as {
+      default?: (pattern: string) => string[];
+      expand?: (pattern: string) => string[];
+    };
+    const expand = mod.default ?? mod.expand;
+    expect(expand?.("a{b,c}d")).toEqual(["abd", "acd"]);
     const { minimatch } = await import("minimatch");
     expect(minimatch("src/a.ts", "src/*.{ts,tsx}")).toBe(true);
   });
