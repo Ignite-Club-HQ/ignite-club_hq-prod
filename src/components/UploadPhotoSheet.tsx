@@ -94,6 +94,10 @@ export function UploadPhotoSheet({
   const recoveryCleanupRef = useRef<(() => void) | null>(null);
   const platform = Capacitor.getPlatform();
   const isNativeIOS = Capacitor.isNativePlatform() && platform === "ios";
+  // On native (iOS + Android) the primary tile is hijacked by the Capacitor
+  // Camera plugin, which can only return photos. Videos therefore need their
+  // own file input on every native platform, not just iOS.
+  const isNativeApp = Capacitor.isNativePlatform();
   const shouldStabilizeIOSLayout = isIOSEnvironment();
   const primaryFileInputRef = useRef<HTMLInputElement>(null);
   const addMoreFileInputRef = useRef<HTMLInputElement>(null);
