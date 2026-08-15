@@ -1183,8 +1183,26 @@ export function UploadPhotoSheet({
                           disabled={uploading || isPickingNativePhoto}
                         />
                       </label>
-                    )}
-                  </div>
+                     )}
+                   </div>
+
+                  {isNativeApp && !uploading && (
+                    <label className={cn(
+                      "flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/30 py-3 text-sm font-medium cursor-pointer hover:border-muted-foreground/50 hover:bg-muted transition-colors",
+                      isPickingNativePhoto && "pointer-events-none opacity-70"
+                    )}>
+                      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current"><path d="M8 5v14l11-7z" /></svg>
+                      <span>Add a video (up to 30s)</span>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="sr-only"
+                        onChange={handleFileSelect}
+                        disabled={uploading || isPickingNativePhoto}
+                      />
+                    </label>
+                  )}
+
                   
                   {/* Status Summary */}
                   <div className="flex flex-wrap items-center gap-3 text-sm">
