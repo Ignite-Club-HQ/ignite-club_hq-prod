@@ -1010,12 +1010,12 @@ export function UploadPhotoSheet({
                       <p className="font-medium">
                         {isPickingNativePhoto
                           ? "Opening photo library..."
-                          : isNativeIOS
+                          : isNativeApp
                             ? "Tap to add photos"
                             : "Tap to select photos or videos"}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {isNativeIOS
+                        {isNativeApp
                           ? "Choose one or more photos from your library"
                           : "Photos (multi-select) or short videos up to 30s"}
                       </p>
@@ -1031,7 +1031,7 @@ export function UploadPhotoSheet({
                     disabled={uploading || isPickingNativePhoto}
                   />
                   </label>
-                  {isNativeIOS && (
+                  {isNativeApp && (
                     <div className="mt-3">
                       <label className={cn(
                         "flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/25 bg-muted/30 py-3 text-sm font-medium cursor-pointer hover:border-muted-foreground/50 hover:bg-muted transition-colors",
