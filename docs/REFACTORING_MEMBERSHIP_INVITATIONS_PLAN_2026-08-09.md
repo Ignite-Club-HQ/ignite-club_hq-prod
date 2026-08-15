@@ -2,7 +2,7 @@
 
 **Established:** 9 August 2026
 **Development branch:** `codespaces-review`
-**Status:** MI1–MI7e and MI8 automated closeout completed locally; commit pending; MI-D1/MI-D2 defects deferred
+**Status:** MI1–MI8 complete on the cumulative integration branch; automated closeout passed; MI-D1/MI-D2 remain recorded debt; delegated manual acceptance and promotion pending. See `REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md`.
 
 ## Objective
 

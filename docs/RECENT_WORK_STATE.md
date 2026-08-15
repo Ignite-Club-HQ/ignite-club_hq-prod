@@ -3,6 +3,13 @@
 > Snapshot of the current branch/state so we don't rely on conversation memory.
 > Last updated: 2026-07-21.
 
+> **Superseded checkpoint:** This file is retained as July history and must not
+> be treated as the current branch or release state. The current cumulative
+> refactoring candidate is recorded in
+> [`REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md`](REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md),
+> and its outstanding review is
+> [`testing/REFACTORING_MANUAL_ACCEPTANCE.md`](testing/REFACTORING_MANUAL_ACCEPTANCE.md).
+
 ## Active Session Context
 
 - **Environment**: Dev has been cloned from prod and neutered.

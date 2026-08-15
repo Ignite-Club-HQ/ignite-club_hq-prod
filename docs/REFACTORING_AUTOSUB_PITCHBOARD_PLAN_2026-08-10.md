@@ -2,7 +2,7 @@
 
 **Established:** 10 August 2026
 **Development branch:** `codespaces-review`
-**Status:** AP0–AP7 completed and fully verified locally; review/commit pending
+**Status:** AP0–AP7 complete on the cumulative integration branch; automated closeout passed; delegated manual acceptance and promotion pending. See `REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md`.
 
 ## Objective
 

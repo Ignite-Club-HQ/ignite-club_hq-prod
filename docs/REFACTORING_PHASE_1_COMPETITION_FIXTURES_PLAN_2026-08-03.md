@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Branch: `codespaces-review`
-Status: implementation complete locally; final Playwright, isolated-local and one-click baseline gates remain
+Status: implementation complete on the cumulative integration branch; Playwright, isolated-local and one-click automated gates passed; delegated manual acceptance and promotion pending. See `REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md`.
 
 ## Progress
 

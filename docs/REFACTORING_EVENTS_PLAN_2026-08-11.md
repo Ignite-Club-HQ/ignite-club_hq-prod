@@ -3,7 +3,7 @@
 **Established:** 11 August 2026
 **Development branch:** `codespaces-review`
 **Starting checkpoint:** `74d6ec4d4`
-**Status:** E0-E2 complete; E3 create/edit workflows in progress
+**Status:** E0–E7 complete on the cumulative integration branch; automated closeout passed; delegated manual acceptance and promotion pending. See `REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md`.
 
 ## E1 progress — 11 August 2026
 

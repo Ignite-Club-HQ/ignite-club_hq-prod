@@ -249,7 +249,7 @@ If any answer is *"not yet"*, do not accept operational ownership.
 
 ---
 
-*Companion documents:* `docs/VENDOR_HANDOVER.md` (full technical reference), `docs/PROMOTION.md` (release process), `docs/PROMOTION_CHECKLIST.md` (env var checklist).
+*Companion documents:* `docs/VENDOR_HANDOVER.md` (full technical reference), `docs/PROMOTION.md` (release process), `docs/PROMOTION_CHECKLIST.md` (env var checklist), `docs/REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md` (current cumulative checkpoint), and `docs/testing/REFACTORING_MANUAL_ACCEPTANCE.md` (delegated acceptance evidence).
 
 ---
 

@@ -4,7 +4,7 @@ Date: 2026-08-04
 Development branch: `refactor/messaging`
 Baseline: `93919f092` (`origin/codespaces-review` at branch creation)
 Recovery branch: `backup/messaging-pre-refactor`
-Status: M1–M10 technically complete on `codespaces-review`; automated closeout complete; native manual UI review deferred, so promotion remains pending
+Status: M1–M10 complete on the cumulative integration branch; automated closeout passed; delegated manual/native acceptance and promotion pending. See `REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md`.
 
 ## 2026-08-07 messaging closeout
 

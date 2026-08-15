@@ -2,7 +2,7 @@
 
 **Audience:** External software vendor / development agency / technical support partner.
 **Purpose:** Enough detail to take over development, support, deployment, and scaling of the platform without prior exposure to it.
-**Status:** Supporting technical reference, reviewed 2026-08-13.
+**Status:** Supporting technical reference, reviewed 2026-08-15. The cumulative refactoring candidate is documented in [`REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md`](REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md); it is not promotion-ready until the delegated manual checklist is recorded.
 **Authority:** Start with [`README.md`](../README.md), [`docs/ARCHITECTURE.md`](ARCHITECTURE.md), and [`docs/PROMOTION.md`](PROMOTION.md). Those documents override this reference for architecture boundaries, testing, promotion, and rollback. Counts and external dashboard state below are point-in-time observations. Items not verifiable from Git require external confirmation.
 
 > ⚠️ **No secrets or real data in this document.** Never copy hosted credentials or data into local tests. Key names below are inventory labels only.
@@ -16,6 +16,9 @@
 5. Obtain least-privilege service access through invitations, not shared secrets.
 6. Verify hosting, backup, monitoring, stores, and Supabase settings in their consoles.
 7. Shadow a release and rollback exercise before operating production.
+8. For the current refactoring candidate, complete the [manual acceptance
+   checklist](testing/REFACTORING_MANUAL_ACCEPTANCE.md) against the exact
+   recorded commit before constructing a promotion branch.
 
 ---
 
