@@ -337,7 +337,26 @@ export function AppLayout() {
       <SkipToContent />
       <AppHeader />
       <main id="main-content" aria-label="Main content" className={mainClassName}>
-        <Outlet />
+        {/*
+          Local Suspense boundary. Every routed page is `lazy()`. Without a
+          boundary HERE, a still-pending chunk import suspends the commit and
+          bubbles to the App-level <Suspense>, which unmounts this ALREADY
+          PAINTED layout (header + nav) and swaps in the bare PageLoader —
+          then remounts everything when the chunk lands. That is the
+          "reveal → flash → reveal again" seen when opening a chat from a push
+          notification, where the chat chunk prefetch can lose the race with
+          the auth/theme gate opening. Keeping the boundary inside <main>
+          preserves the chrome and confines the fallback to the content area.
+        */}
+        <Suspense
+          fallback={
+            <div className="flex-1 flex items-center justify-center py-16" role="status" aria-label="Loading page">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
       <BottomNav />
       <OfflineIndicator />

@@ -18,6 +18,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 const packageJson = JSON.parse(
   fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"),
 );
+const packageLock = JSON.parse(
+  fs.readFileSync(path.resolve(process.cwd(), "package-lock.json"), "utf8"),
+);
 
 function LocationProbe() {
   const location = useLocation();
@@ -268,10 +271,9 @@ describe("React Router 7 security-upgrade acceptance gates", () => {
       packageJson.dependencies?.["react-router-dom"] ??
       packageJson.devDependencies?.["react-router-dom"];
     expect(version).toBeDefined();
-    const normalized = String(version).replace(/^[^\d]*/, "");
-    const [major, minor] = normalized.split(".").map(Number);
-    expect(major).toBe(7);
-    expect(minor).toBeGreaterThanOrEqual(18);
+    expect(String(version)).toBe("7.18.2");
+    expect(packageLock.packages?.["node_modules/react-router-dom"]?.version).toBe("7.18.2");
+    expect(packageLock.packages?.["node_modules/react-router"]?.version).toBe("7.18.2");
   });
 
   it("does not retain a separate direct react-router version that can drift", () => {

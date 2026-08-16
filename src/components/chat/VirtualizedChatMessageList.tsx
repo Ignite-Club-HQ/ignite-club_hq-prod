@@ -587,13 +587,41 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     }
 
 
-    if (!initialBottomPinned) {
+    // Deep-link target requested but its row is NOT in the loaded window yet.
+    // Revealing here paints the fallback (bottom/LAST) anchor, and moments
+    // later the parent's target-window hydration bumps the scroller key and
+    // remounts this list — the user sees content, then a skeleton, then the
+    // real target. Stay masked while the target fetch is in flight, bounded by
+    // the jump lifecycle budget so a target that never arrives still reveals.
+    if (initialTargetMessageId && initialTargetIndex < 0) {
       bottomPinReadyRef.current = true;
       pinnedRevisionRef.current = bottomPinRevision;
+      pinAttemptRevisionRef.current = null;
+      const TARGET_PENDING_HOLD_MS = 2500;
+      const holdMs = Math.max(
+        400,
+        Math.min(3000, chatJumpLifecycleRemaining(TARGET_PENDING_HOLD_MS)),
+      );
+      const holdTimer = window.setTimeout(() => setInitialRevealReady(true), holdMs);
+      return () => window.clearTimeout(holdTimer);
+    }
+
+    if (!initialBottomPinned) {
+      bottomPinReadyRef.current = true;
+      // Do NOT stamp `pinnedRevisionRef` here. The parent computes
+      // `initialBottomPinned={initialBottomPinned && (virtualReady || isPinned)}`,
+      // which is frequently `false` on the FIRST render of a mount and flips
+      // `true` a frame later. Stamping the revision on that transient false
+      // pass made the guard below short-circuit the real pin sequence when the
+      // prop flipped, so a plain reopen (e.g. straight after posting a
+      // message) revealed wherever Virtuoso happened to mount instead of the
+      // bottom — and nothing corrected it afterwards.
+      pinnedRevisionRef.current = null;
       pinAttemptRevisionRef.current = null;
       setInitialRevealReady(true);
       return;
     }
+
     if (bottomPinReadyRef.current && pinnedRevisionRef.current === bottomPinRevision) return;
     if (isChatJumpActive()) {
       bottomPinReadyRef.current = true;

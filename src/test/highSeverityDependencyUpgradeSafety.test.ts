@@ -131,7 +131,7 @@ describe("high-severity dependency compatibility", () => {
 describe("high-severity dependency acceptance gate", () => {
   const minimumVersions: Record<string, string> = {
     flatted: "3.4.3",
-    "js-yaml": "4.3.0",
+    "js-yaml": "4.3.1",
     tmp: "0.2.7",
   };
 

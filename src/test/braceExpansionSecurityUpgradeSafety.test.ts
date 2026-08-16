@@ -16,6 +16,15 @@ const root = resolve(import.meta.dirname, "../..");
 const packageLock = JSON.parse(
   readFileSync(resolve(root, "package-lock.json"), "utf8"),
 );
+const packageJson = JSON.parse(
+  readFileSync(resolve(root, "package.json"), "utf8"),
+);
+
+const minimumByMajor: Record<string, string> = {
+  "1": "1.1.18",
+  "2": "2.1.4",
+  "5": "5.0.9",
+};
 
 function versionTuple(version: string): [number, number, number] {
   const match = version.match(/^(\d+)\.(\d+)\.(\d+)/);
@@ -123,18 +132,14 @@ describe("brace-expansion consumer compatibility", () => {
   });
 });
 
-const describeUpgradeCandidate =
-  process.env.BRACE_EXPANSION_UPGRADE_CANDIDATE === "true"
-    ? describe
-    : describe.skip;
-
-describeUpgradeCandidate("brace-expansion security acceptance gate", () => {
+describe("brace-expansion security acceptance gate", () => {
   it("resolves every brace-expansion copy to the patched range", () => {
     const installed = resolutions("brace-expansion");
     expect(installed.length).toBeGreaterThan(0);
-    const vulnerable = installed.filter(
-      ({ version }) => !atLeast(version, "5.0.8"),
-    );
+    const vulnerable = installed.filter(({ version }) => {
+      const minimum = minimumByMajor[versionTuple(version)[0]];
+      return minimum === undefined || !atLeast(version, minimum);
+    });
 
     expect(
       vulnerable,
@@ -142,6 +147,12 @@ describeUpgradeCandidate("brace-expansion security acceptance gate", () => {
         .map(({ path, version }) => `${path}: ${version}`)
         .join("\n")}`,
     ).toEqual([]);
+  });
+
+  it("keeps separate patched overrides for every supported consumer major", () => {
+    expect(packageJson.overrides?.["brace-expansion@1.x"]).toBe("1.1.18");
+    expect(packageJson.overrides?.["brace-expansion@2.x"]).toBe("2.1.4");
+    expect(packageJson.overrides?.["brace-expansion@5.x"]).toBe("5.0.9");
   });
 
   it("does not downgrade the major consumers to satisfy npm audit", () => {

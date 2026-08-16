@@ -124,12 +124,12 @@ describe("security-sensitive transitive dependency boundaries", () => {
 describe("transitive dependency security resolution", () => {
   const minimumVersions: Record<string, string> = {
     "@grpc/grpc-js": "1.9.16",
-    dompurify: "3.4.12",
+    dompurify: "3.4.13",
     lodash: "4.18.1",
-    postcss: "8.5.22",
+    postcss: "8.5.23",
     protobufjs: "7.6.5",
     "serialize-javascript": "7.0.7",
-    undici: "7.28.0",
+    undici: "7.29.0",
     "websocket-driver": "0.7.5",
     "workbox-build": "7.4.1",
     ws: "8.21.1",

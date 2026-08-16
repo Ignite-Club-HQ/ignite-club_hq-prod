@@ -13,6 +13,7 @@ const recreatedTeamMessageId = "00000000-0000-4000-8000-000000009023";
 const syntheticImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='30'%3E%3Crect width='40' height='30' fill='%23007acc'/%3E%3C/svg%3E";
 const offlineEventTitle = "Synthetic cached offline fixture";
 const offlinePhotoTitle = "Synthetic cached offline photo";
+const futureEventDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const user = { id: userId, aud: "authenticated", role: "authenticated", email: "synthetic.messaging@local.invalid", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" };
 const messages = Array.from({ length: 90 }, (_, i) => ({
   id: i === 18 ? targetId : `00000000-0000-4000-8000-${String(9100 + i).padStart(12, "0")}`,
@@ -301,8 +302,8 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       id: "00000000-0000-4000-8000-000000009040",
       title: offlineEventTitle,
       type: "game",
-      event_date: "2026-08-15T00:00:00.000Z",
-      start_time: behavior.pitchBoardController ? "2026-08-15T10:00:00.000Z" : "10:00:00",
+      event_date: `${futureEventDate}T00:00:00.000Z`,
+      start_time: behavior.pitchBoardController ? `${futureEventDate}T10:00:00.000Z` : "10:00:00",
       end_time: "11:00:00",
       description: "Cached journey fixture",
       address: "1 Local Test Road",

@@ -7,6 +7,7 @@ import { useViewportHeightSettled } from "@/hooks/useViewportHeightSettled";
 import { markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { isChatJumpActive, setChatJumpActive } from "@/lib/chatJumpActive";
 import { resolveChatScrollViewport } from "@/lib/chatScroll";
+import { isViewportUserActive } from "@/lib/chatScrollIntent";
 import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 
 
@@ -548,25 +549,44 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
     if (!virtualReady) return;
     const handle = virtualHandleRef.current;
     if (!handle) return;
-    const lastId = messages.length > 0 ? messages[messages.length - 1].id : null;
+    const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+    const lastId = lastMessage?.id ?? null;
     const lastChanged = lastId !== lastKnownLastIdRef.current;
     const kbChanged = lastKnownKbRef.current !== isKeyboardOpen;
     lastKnownLastIdRef.current = lastId;
     lastKnownKbRef.current = isKeyboardOpen;
     if (!lastChanged && !kbChanged) return;
-    // When a new last message arrives (very often the user's own just-sent
-    // message via optimistic append), use a generous tolerance: the row
-    // grows AFTER the initial pin as the read-frontier + timestamp hydrate,
-    // which can push `isNearBottom` past the tight 360px threshold for a
-    // frame. Missing the pin in that window leaves the sent bubble behind
-    // the composer (user report 2026-07-10). A wider tolerance is safe:
-    // if the user was genuinely scrolled up reading history, they won't
-    // be within 800px of bottom.
-    const tolerance = lastChanged ? 800 : 360;
+    // Distinguish the user's OWN optimistic append (an explicit intent change —
+    // they just hit send) from an INCOMING message written by someone else.
+    // Only the own-send case may use the generous tolerance + `force`. On a
+    // cold open with an unread message arriving, the incoming path used to run
+    // with tolerance 800 + force, which routes the guard through the
+    // touch-only `isViewportTouching` check — so a scroll-up whose finger had
+    // already lifted (or a wheel gesture) was invisible and the user got
+    // yanked straight back to the newest message for ~1s after open.
+    const ownAppend =
+      !!currentUserId &&
+      (lastMessage as { author_id?: string | null } | null)?.author_id === currentUserId;
+    // When a new last message arrives from the current user, use a generous
+    // tolerance: the row grows AFTER the initial pin as the read-frontier +
+    // timestamp hydrate, which can push `isNearBottom` past the tight 360px
+    // threshold for a frame. Missing the pin in that window leaves the sent
+    // bubble behind the composer (user report 2026-07-10).
+    const tolerance = lastChanged ? (ownAppend ? 800 : 240) : 360;
     if (!handle.isNearBottom(tolerance)) return;
+    // Incoming messages and mere keyboard toggles must never override a live
+    // user scroll: drop `force` so the handle uses the wheel-aware,
+    // 600ms-cooldown `isViewportUserActive` guard.
+    const force = ownAppend || kbChanged;
+    const userIsScrolling = () => {
+      if (force) return false;
+      const viewport = virtualScrollerElRef.current ?? resolveChatScrollViewport(mountBoxRef.current);
+      return !!viewport && isViewportUserActive(viewport as HTMLElement);
+    };
     const pin = () => {
       if (isChatJumpActive()) return;
-      handle.scrollToBottom("auto", { force: true });
+      if (userIsScrolling()) return;
+      handle.scrollToBottom("auto", { force });
       markChatScrollWrite();
     };
     // Two rAFs first so bottomPadding (Footer) has flushed, then belt-and-
@@ -585,7 +605,8 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       cancelAnimationFrame(r1);
       timers.forEach((t) => window.clearTimeout(t));
     };
-  }, [messages, isKeyboardOpen, virtualReady, virtualHandleRef]);
+  }, [messages, isKeyboardOpen, virtualReady, virtualHandleRef, currentUserId]);
+
 
 
   // Stable renderer identity — recreating it on every parent re-render
