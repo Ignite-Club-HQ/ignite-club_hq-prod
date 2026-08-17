@@ -291,8 +291,8 @@ export default function JoinTeamPage() {
       try {
         const childIds = await provisionInviteChildren({
           inviteId: pendingInviteData.id,
-          userId: user.id,
         });
+
         if (childIds.length > 0) {
           queryClient.invalidateQueries({ queryKey: ["team-children-for-linking", pendingInviteData.team_id] });
           toast({
