@@ -476,6 +476,42 @@ jobs:
             echo "✅ Orphan history rows cleared; PROD schema untouched."
           fi
 
+      - name: Apply legacy parser-incompatible migrations
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres@db.${PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
+          run_sql() { PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" -v ON_ERROR_STOP=1 -qtAX "$@"; }
+
+          # Supabase CLI 2.34.3 incorrectly sends this PL/pgSQL function and its
+          # trailing REVOKE/GRANT statements as one prepared statement, causing
+          # SQLSTATE 42601. psql parses the same migration correctly. Apply it in
+          # one transaction, then record the version so normal db push resumes at
+          # the next pending migration. The history check makes retries harmless.
+          LEGACY_VERSIONS=(
+            20260811113952
+          )
+
+          for version in "${LEGACY_VERSIONS[@]}"; do
+            file=$(ls "supabase/migrations/${version}_"*.sql 2>/dev/null | head -1 || true)
+            if [ -z "$file" ]; then
+              echo "::error::Legacy migration file for $version is missing."
+              exit 1
+            fi
+
+            applied=$(run_sql -c "select exists (select 1 from supabase_migrations.schema_migrations where version = '${version}');")
+            if [ "$applied" = "t" ]; then
+              echo "✅ Migration $version is already applied."
+              continue
+            fi
+
+            echo "Applying parser-incompatible migration $version transactionally via psql …"
+            PGPASSWORD="$SUPABASE_DB_PASSWORD" psql "$DB_URL" \
+              -v ON_ERROR_STOP=1 --single-transaction -f "$file"
+            supabase migration repair --linked --status applied "$version"
+            echo "✅ Migration $version applied and recorded."
+          done
+
       - name: Apply migrations to PROD
         if: github.event_name == 'push'
         run: supabase db push --linked
