@@ -8,6 +8,51 @@ import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
 
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
+import {
+  acceptParentTeamInvite,
+  isNotChildParentInviteError,
+} from "@/features/membership/acceptParentInvite";
+
+/** Best-effort "child added" email for a second parent. Never blocks acceptance. */
+async function notifySecondParent(
+  secondParentUserId: string,
+  teamId: string,
+  childNames: string[]
+) {
+  if (childNames.length === 0) return;
+  try {
+    const { data: teamInfo } = await supabase
+      .from("teams")
+      .select("name, club_id, clubs:club_id(name, logo_url, contact_email)")
+      .eq("id", teamId)
+      .single();
+    if (!teamInfo) return;
+    const club = (teamInfo as any).clubs;
+    await supabase.functions.invoke("send-email", {
+      body: {
+        toUserId: secondParentUserId,
+        subject:
+          childNames.length === 1
+            ? `${club?.name || "Your club"}: See which team ${childNames[0]} is in ⚽`
+            : `${club?.name || "Your club"}: Your children have been added to ${(teamInfo as any).name} ⚽`,
+        template: "child-added",
+        senderName: club?.name || undefined,
+        replyTo: club?.contact_email || undefined,
+        templateData: {
+          recipientName: "Parent",
+          childrenNames: childNames,
+          teamName: (teamInfo as any).name,
+          clubName: club?.name || "The Club",
+          clubLogoUrl: club?.logo_url || undefined,
+          inviteLink: `${window.location.origin}/teams/${teamId}`,
+        },
+      },
+    });
+  } catch (emailErr) {
+    console.error("[InviteAutoAccept] Second-parent child-added email failed:", emailErr);
+  }
+}
+
 
 /**
  * Silently auto-accepts any pending invites for the logged-in user.
@@ -247,6 +292,53 @@ export function PendingInviteWelcomeDialog() {
             }
             continue; // guardian branch complete — do not fall through
           }
+
+          // Parent invitations carrying child metadata: one atomic RPC creates
+          // the children, guardian links, team assignment, the parent role and
+          // marks the invite accepted. Any failure rolls everything back and
+          // leaves the invite pending so the next attempt can retry.
+          const hasChildMetadata =
+            invite.role === "parent" &&
+            Array.isArray(parentInviteMeta?.children) &&
+            parentInviteMeta.children.length > 0 &&
+            !(parentInviteMeta?.child_id && parentInviteMeta?.mini_league_id) &&
+            !["mini_league_parent_join_link", "league_admin_join_link"].includes(
+              parentInviteMeta?.kind ?? ""
+            );
+
+          if (hasChildMetadata) {
+            try {
+              const result = await acceptParentTeamInvite({ inviteId: invite.id });
+              console.log("[InviteAutoAccept] Parent invite accepted atomically:", {
+                inviteId: invite.id,
+                children: result.childIds.length,
+                alreadyAccepted: result.alreadyAccepted,
+              });
+            } catch (rpcError) {
+              if (!isNotChildParentInviteError(rpcError)) {
+                console.error(
+                  "[InviteAutoAccept] Parent invite RPC failed, leaving invite pending:",
+                  invite.id
+                );
+                continue; // no partial membership, no acceptance
+              }
+              console.warn(
+                "[InviteAutoAccept] Invite not eligible for parent RPC, using legacy path:",
+                invite.id
+              );
+            }
+
+            if (parentInviteMeta?.second_parent_user_id && invite.team_id) {
+              await notifySecondParent(
+                parentInviteMeta.second_parent_user_id,
+                invite.team_id,
+                (parentInviteMeta.children as any[]).map((c: any) => c?.name).filter(Boolean)
+              );
+            }
+            continue;
+          }
+
+
 
           // Non-guardian path: check if role already exists
           const roleQuery = supabase
