@@ -1208,6 +1208,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   wasEmptyRef.current = messages.length === 0;
   const latestInitialSettleSignatureRef = useRef("");
   latestInitialSettleSignatureRef.current = `${messages.length}:${lastMessageId ?? ""}:${firstItemIndex}:${String(bottomPadding)}`;
+  // Tail id of the list at the moment it was last revealed. Used to tell a
+  // "cached/placeholder → authoritative response corrected the head" swap
+  // (same tail, already visible: must NOT re-hide) apart from a genuine
+  // thread/anchor change.
+  const revealedTailIdRef = useRef<string | null>(null);
+  const initialRevealReadyRef = useRef(false);
+  initialRevealReadyRef.current = initialRevealReady;
+  if (initialRevealReady && lastMessageId) revealedTailIdRef.current = lastMessageId;
+
 
   const safeScrollToIndex = useCallback(
     (payload: any, reason: string) => {
