@@ -217,6 +217,7 @@ export function AddMiniLeagueMemberSheet({ miniLeagueId, miniLeagueName, clubId,
       const { data } = await supabase.rpc("search_invitable_profiles", {
         _query: debouncedParentQuery.trim(),
         _limit: 6,
+        _club_id: clubId ?? null,
       });
       const profiles = (data || []) as Array<{
         id: string;
