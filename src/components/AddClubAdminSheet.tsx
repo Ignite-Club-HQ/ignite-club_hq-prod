@@ -63,6 +63,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
   const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
 
   const debouncedSearch = useDebounce(customName, 300);
+  const nativeKbHeight = useNativeKeyboardBottomInset();
 
   // Fetch existing club admins
   const { data: existingMembers } = useQuery({
