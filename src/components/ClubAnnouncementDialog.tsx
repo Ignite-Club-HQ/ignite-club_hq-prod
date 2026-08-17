@@ -133,6 +133,25 @@ export function ClubAnnouncementDialog({
             />
           </div>
 
+          {/* Club chat destination */}
+          <div className="space-y-2">
+            <Label>Send to club chat</Label>
+            <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50">
+              <Checkbox
+                checked={sendToClubChat}
+                onCheckedChange={(checked) => setSendToClubChat(checked === true)}
+              />
+              <span className="text-sm">
+                {clubName} club chat
+                <span className="block text-xs text-muted-foreground">
+                  Posted by the club account to all club members
+                </span>
+              </span>
+            </label>
+          </div>
+
+
+
           {/* Team selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
