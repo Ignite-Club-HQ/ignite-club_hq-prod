@@ -806,8 +806,14 @@ export default function GroupChatPage() {
       (m: any) => !m?.group_id || m.group_id === groupId,
     );
     if (isUsableCachedThread(cachedScoped as any)) {
-      return cachedScoped as GroupMessage[];
+      // Merge the flat reactions array onto the rows so the seeded first paint
+      // shows reactions without waiting for the merge effect.
+      return attachReactionsToMessages(
+        cachedScoped as GroupMessage[],
+        cachedQueryData?.reactions ?? [],
+      );
     }
+
 
     const fromCache = getCachedGroupMessages(groupId).messages;
     return isUsableCachedThread(fromCache as any) ? fromCache : undefined;
