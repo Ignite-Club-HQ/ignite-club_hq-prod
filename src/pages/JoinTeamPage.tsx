@@ -1118,8 +1118,20 @@ export default function JoinTeamPage() {
     );
   }
 
-  // Check if pending invite is already used (only for pending invite routes)
-  if (isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending") {
+  // Check if pending invite is already used (only for pending invite routes).
+  // Suppressed while the profile/auto-join hand-off is still resolving, and
+  // whenever the invite was accepted by THIS user — otherwise a brand-new
+  // signup sees a one-frame "Invite Already Used" error before we redirect
+  // them onward to /complete-profile.
+  if (
+    isPendingInvite &&
+    pendingInviteData &&
+    pendingInviteData.status !== "pending" &&
+    !profileLoading &&
+    !needsProfileCompletion &&
+    !acceptedInviteIsOurs
+  ) {
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
