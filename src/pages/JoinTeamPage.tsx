@@ -291,6 +291,7 @@ export default function JoinTeamPage() {
       try {
         const childIds = await provisionInviteChildren({
           inviteId: pendingInviteData.id,
+          guardianId: user.id,
         });
 
         if (childIds.length > 0) {
