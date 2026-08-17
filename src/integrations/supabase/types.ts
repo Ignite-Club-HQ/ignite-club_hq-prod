@@ -12267,6 +12267,10 @@ export type Database = {
           used_bytes: number
         }[]
       }
+      resolve_actor_display_name: {
+        Args: { p_user_id: string }
+        Returns: string
+      }
       resolve_invite_short_code: { Args: { _code: string }; Returns: string }
       resolve_vault_record_scope: {
         Args: { _kind: string; _record_id: string }
