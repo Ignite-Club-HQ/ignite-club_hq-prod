@@ -60,7 +60,7 @@ export default function ManageTeamRolesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teams")
-        .select("*, clubs!club_id (name)")
+        .select("*, clubs!club_id (name, bot_user_id)")
         .eq("id", teamId!)
         .single();
       if (error) throw error;
@@ -184,9 +184,12 @@ export default function ManageTeamRolesPage() {
     return <div className="py-6 text-center text-muted-foreground">Team not found</div>;
   }
 
+  // Exclude the club's broadcast/bot account from the member list
+  const botUserId = (team as any)?.clubs?.bot_user_id ?? null;
+
   const userRoles = roles?.reduce((acc, role) => {
     const userId = role.profiles?.id;
-    if (!userId) return acc;
+    if (!userId || userId === botUserId) return acc;
     if (!acc[userId]) {
       acc[userId] = { profile: role.profiles, roles: [] };
     }
