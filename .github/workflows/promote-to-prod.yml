@@ -493,8 +493,9 @@ jobs:
           )
 
           for version in "${LEGACY_VERSIONS[@]}"; do
-            file=$(ls "supabase/migrations/${version}_"*.sql 2>/dev/null | head -1 || true)
-            if [ -z "$file" ]; then
+            files=("supabase/migrations/${version}_"*.sql)
+            file="${files[0]}"
+            if [ ! -f "$file" ]; then
               echo "::error::Legacy migration file for $version is missing."
               exit 1
             fi
