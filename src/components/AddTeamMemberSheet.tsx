@@ -2335,24 +2335,60 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
-            {/* Persistent team join link — primary action on first open. */}
-            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
-              <TeamJoinLinkCard teamId={teamId} teamName={teamName} teamType={teamType} />
+            {/* STEP 0 — the only decision on first open: one link, or one person. */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && !linkFlowOpen && (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Link2 className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">Share a team link</p>
+                      <p className="text-xs text-muted-foreground">Invite several people at once.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    className="w-full h-11 text-sm font-semibold"
+                    onClick={() => setLinkFlowOpen(true)}
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Create link
+                  </Button>
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <UserPlus className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">Invite someone directly</p>
+                      <p className="text-xs text-muted-foreground">Send an individual invitation by email or SMS.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-11 text-sm font-semibold bg-background"
+                    onClick={() => setInviteByNameExpanded(true)}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite person
+                  </Button>
+                </div>
+              </div>
             )}
 
-            {/* Secondary "Invite by name" toggle — collapsed by default. */}
-            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && (
-              <button
-                type="button"
-                onClick={() => setInviteByNameExpanded(true)}
-                className="w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                  Invite a specific person
-                </span>
-                <span className="text-xs text-muted-foreground">Email or SMS</span>
-              </button>
+            {/* Join-link flow — role choice + link actions, shown after "Create link". */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && linkFlowOpen && !inviteByNameExpanded && (
+              <TeamJoinLinkCard
+                teamId={teamId}
+                teamName={teamName}
+                teamType={teamType}
+                onBack={() => setLinkFlowOpen(false)}
+              />
             )}
 
             {/* Invite-by-name body (form + wizard) — only when expanded */}
