@@ -25,11 +25,16 @@ import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
 
 import { resolveCanonicalChildId, createChildForParentOrReuse } from "@/lib/childDedup";
-import { getParentInviteErrorMessage, provisionInviteChildren } from "@/features/membership/acceptParentInvite";
+import {
+  acceptParentTeamInvite,
+  getParentInviteErrorMessage,
+  provisionInviteChildren,
+} from "@/features/membership/acceptParentInvite";
 
 
 interface PendingInvite {
   id: string;
+  status: "pending" | "accepted";
   team_id: string | null;
   club_id: string | null;
   role: string;
@@ -127,6 +132,7 @@ export default function CompleteProfilePage() {
           .from("pending_invites")
           .select(`
             id,
+            status,
             team_id,
             club_id,
             role,
@@ -144,6 +150,7 @@ export default function CompleteProfilePage() {
           console.log('[CompleteProfile] Found pending invites:', invites);
           const formattedInvites: PendingInvite[] = invites.map((inv: any) => ({
             id: inv.id,
+            status: inv.status,
             team_id: inv.team_id,
             club_id: inv.club_id,
             role: inv.role,
@@ -392,17 +399,30 @@ export default function CompleteProfilePage() {
             invite.metadata.children.length > 0 &&
             !invite.metadata?.mini_league_id;
 
-          // Always run the authoritative idempotent RPC, including when a
-          // backend trigger accepted this invite before this screen mounted.
+          // Standard parent invites have one authoritative server path. Do not
+          // fall through to the legacy client-side role/child writes below:
+          // those can race the profile trigger and process the same child twice.
           if (isStandardParentChildInvite) {
             try {
-              await provisionInviteChildren({
-                inviteId: invite.id,
-                guardianId: user.id,
-              });
+              if (invite.status === "pending") {
+                await acceptParentTeamInvite({ inviteId: invite.id });
+              } else {
+                await provisionInviteChildren({
+                  inviteId: invite.id,
+                  guardianId: user.id,
+                });
+              }
+
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["children"] }),
+                queryClient.invalidateQueries({ queryKey: ["user-roles"] }),
+                queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
+              ]);
             } catch (provisionError) {
               throw new Error(getParentInviteErrorMessage(provisionError));
             }
+
+            continue;
           }
 
           // Check if role already exists
@@ -913,9 +933,19 @@ export default function CompleteProfilePage() {
       navigate("/", { replace: true });
     } catch (err) {
       console.error("Profile update failed:", err);
+      const friendlyMessage =
+        err instanceof Error && err.message.startsWith("We couldn't finish accepting your invitation")
+          ? err.message
+          : err instanceof Error && err.message.startsWith("We couldn't add your child")
+            ? err.message
+            : err instanceof Error && err.message.startsWith("The child on this invitation")
+              ? err.message
+              : err instanceof Error && err.message.startsWith("This invitation")
+                ? err.message
+                : "Something went wrong. Please try again.";
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
+        description: friendlyMessage,
         variant: "destructive",
       });
       setSaving(false);
