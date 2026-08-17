@@ -55,6 +55,8 @@ interface TeamJoinLinkCardProps {
   teamId: string;
   teamName: string;
   teamType?: TeamType;
+  /** Optional back affordance rendered in the card header (used by the invite sheet). */
+  onBack?: () => void;
 }
 
 interface JoinLinkRow {
