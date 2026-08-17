@@ -248,6 +248,53 @@ export function PendingInviteWelcomeDialog() {
             continue; // guardian branch complete — do not fall through
           }
 
+          // Parent invitations carrying child metadata: one atomic RPC creates
+          // the children, guardian links, team assignment, the parent role and
+          // marks the invite accepted. Any failure rolls everything back and
+          // leaves the invite pending so the next attempt can retry.
+          const hasChildMetadata =
+            invite.role === "parent" &&
+            Array.isArray(parentInviteMeta?.children) &&
+            parentInviteMeta.children.length > 0 &&
+            !(parentInviteMeta?.child_id && parentInviteMeta?.mini_league_id) &&
+            !["mini_league_parent_join_link", "league_admin_join_link"].includes(
+              parentInviteMeta?.kind ?? ""
+            );
+
+          if (hasChildMetadata) {
+            try {
+              const result = await acceptParentTeamInvite({ inviteId: invite.id });
+              console.log("[InviteAutoAccept] Parent invite accepted atomically:", {
+                inviteId: invite.id,
+                children: result.childIds.length,
+                alreadyAccepted: result.alreadyAccepted,
+              });
+            } catch (rpcError) {
+              if (!isNotChildParentInviteError(rpcError)) {
+                console.error(
+                  "[InviteAutoAccept] Parent invite RPC failed, leaving invite pending:",
+                  invite.id
+                );
+                continue; // no partial membership, no acceptance
+              }
+              console.warn(
+                "[InviteAutoAccept] Invite not eligible for parent RPC, using legacy path:",
+                invite.id
+              );
+            }
+
+            if (parentInviteMeta?.second_parent_user_id && invite.team_id) {
+              await notifySecondParent(
+                parentInviteMeta.second_parent_user_id,
+                invite.team_id,
+                (parentInviteMeta.children as any[]).map((c: any) => c?.name).filter(Boolean)
+              );
+            }
+            continue;
+          }
+
+
+
           // Non-guardian path: check if role already exists
           const roleQuery = supabase
             .from("user_roles")
