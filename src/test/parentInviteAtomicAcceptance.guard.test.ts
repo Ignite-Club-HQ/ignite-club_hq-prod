@@ -101,7 +101,19 @@ describe("parent invite atomic acceptance", () => {
     const autoAccept = latestFunctionDefinition("auto_accept_pending_invites_on_role");
     expect(autoAccept).not.toBe("");
     expect(autoAccept).toContain("children");
-    expect(autoAccept).toContain("child_guardians");
-    expect(autoAccept).toContain("child_team_assignments");
+    expect(autoAccept).toContain("provision_invite_children");
+  });
+
+  it("does not let an authenticated caller provision children for another user", () => {
+    const provisioner = latestFunctionDefinition("provision_invite_children");
+    expect(provisioner).not.toBe("");
+    expect(provisioner).toContain("auth.uid()");
+    expect(provisioner).toMatch(/p_user_id\s*(?:<>|!=)\s*auth\.uid\(\)/i);
+  });
+
+  it("checks invite ownership inside the provisioning RPC rather than trusting its caller", () => {
+    const provisioner = latestFunctionDefinition("provision_invite_children");
+    expect(provisioner).toContain("invited_user_id");
+    expect(provisioner).toMatch(/invited_user_id\s*=\s*p_user_id/i);
   });
 });
