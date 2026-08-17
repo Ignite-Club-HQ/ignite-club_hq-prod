@@ -52,15 +52,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { club_id, team_ids, message, club_name } = await req.json();
+    const { club_id, team_ids, message, club_name, include_club_chat } = await req.json();
     const requestedTeamIds = [...new Set((team_ids || []).filter(Boolean))];
+    const sendToClubChat = include_club_chat === true;
 
-    if (!club_id || !requestedTeamIds.length || !message?.trim()) {
-      return new Response(JSON.stringify({ error: "club_id, team_ids, and message required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!club_id || (!requestedTeamIds.length && !sendToClubChat) || !message?.trim()) {
+      return new Response(
+        JSON.stringify({ error: "club_id, message and at least one destination required" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
+
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
