@@ -1304,7 +1304,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // We still update the anchor itself so subsequent prepends shift
       // `firstItemIndex` correctly from the new baseline.
       const userIsReadingHistory = bottomPinReadyRef.current && !atBottomRef.current;
-      if (!userIsReadingHistory) {
+      // Already-revealed content whose tail is unchanged means this reset is
+      // only anchor bookkeeping (a cached/placeholder head being corrected by
+      // the authoritative response). Re-arming the pin here would clear the
+      // reveal latch and flash an already-populated thread back to a skeleton.
+      const alreadyRevealedAndStable =
+        initialRevealReadyRef.current &&
+        !!lastMessageId &&
+        revealedTailIdRef.current === lastMessageId;
+      if (!userIsReadingHistory && !alreadyRevealedAndStable) {
         bottomPinReadyRef.current = false;
         bottomPinReadyAtRef.current = 0;
         userHasScrolledAfterPinRef.current = false;
@@ -1318,10 +1326,11 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         newBaseFirstId: newFirstId,
         messagesLen: messages.length,
         newBaseFirstIndex: START_INDEX - messages.length,
-        suppressedRePin: userIsReadingHistory,
+        suppressedRePin: userIsReadingHistory || alreadyRevealedAndStable,
       } as Record<string, unknown>);
     }
-  }, [needsAnchorReset, newFirstId, messages.length]);
+  }, [needsAnchorReset, newFirstId, messages.length, lastMessageId]);
+
 
   // Trace firstItemIndex movement (the dominant signal for "the viewport
   // jumped under me"). Cheap when debug is off.
