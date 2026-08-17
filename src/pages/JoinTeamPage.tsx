@@ -19,7 +19,7 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
-import { acceptParentTeamInvite, getParentInviteErrorMessage } from "@/features/membership/acceptParentInvite";
+import { acceptParentTeamInvite, getParentInviteErrorMessage, provisionInviteChildren } from "@/features/membership/acceptParentInvite";
 
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
