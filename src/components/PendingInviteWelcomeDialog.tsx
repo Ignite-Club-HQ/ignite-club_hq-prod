@@ -8,6 +8,51 @@ import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
 
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
+import {
+  acceptParentTeamInvite,
+  isNotChildParentInviteError,
+} from "@/features/membership/acceptParentInvite";
+
+/** Best-effort "child added" email for a second parent. Never blocks acceptance. */
+async function notifySecondParent(
+  secondParentUserId: string,
+  teamId: string,
+  childNames: string[]
+) {
+  if (childNames.length === 0) return;
+  try {
+    const { data: teamInfo } = await supabase
+      .from("teams")
+      .select("name, club_id, clubs:club_id(name, logo_url, contact_email)")
+      .eq("id", teamId)
+      .single();
+    if (!teamInfo) return;
+    const club = (teamInfo as any).clubs;
+    await supabase.functions.invoke("send-email", {
+      body: {
+        toUserId: secondParentUserId,
+        subject:
+          childNames.length === 1
+            ? `${club?.name || "Your club"}: See which team ${childNames[0]} is in ⚽`
+            : `${club?.name || "Your club"}: Your children have been added to ${(teamInfo as any).name} ⚽`,
+        template: "child-added",
+        senderName: club?.name || undefined,
+        replyTo: club?.contact_email || undefined,
+        templateData: {
+          recipientName: "Parent",
+          childrenNames: childNames,
+          teamName: (teamInfo as any).name,
+          clubName: club?.name || "The Club",
+          clubLogoUrl: club?.logo_url || undefined,
+          inviteLink: `${window.location.origin}/teams/${teamId}`,
+        },
+      },
+    });
+  } catch (emailErr) {
+    console.error("[InviteAutoAccept] Second-parent child-added email failed:", emailErr);
+  }
+}
+
 
 /**
  * Silently auto-accepts any pending invites for the logged-in user.
