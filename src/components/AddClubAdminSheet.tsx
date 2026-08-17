@@ -92,12 +92,13 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
 
   // Search for existing users
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["user-search-club-admin", debouncedSearch],
+    queryKey: ["user-search-club-admin", debouncedSearch, clubId],
     queryFn: async () => {
       if (debouncedSearch.length < 2) return [];
       const { data } = await supabase.rpc("search_invitable_profiles", {
         _query: debouncedSearch,
         _limit: 8,
+        _club_id: clubId ?? null,
       });
       return (data || []) as Array<{
         id: string;
