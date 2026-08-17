@@ -92,7 +92,22 @@ export function ResponsiveDialogContent({
 
   if (isMobile) {
     return (
-      <DrawerContent className={fullScreen ? "h-[calc(100dvh-env(safe-area-inset-top,0px))] max-h-[calc(100dvh-env(safe-area-inset-top,0px))] top-[env(safe-area-inset-top,0px)]" : className}>
+      <DrawerContent
+        className={fullScreen ? "top-[env(safe-area-inset-top,0px)]" : className}
+        style={
+          fullScreen
+            ? {
+                // On Android the WebView's dvh shrinks with the soft keyboard and
+                // does not restore reliably, leaving a blank gap under the sheet.
+                // --visual-vh is monotonic-max locked, so it stays stable.
+                height:
+                  "calc(var(--visual-vh, 100dvh) - env(safe-area-inset-top,0px))",
+                maxHeight:
+                  "calc(var(--visual-vh, 100dvh) - env(safe-area-inset-top,0px))",
+              }
+            : undefined
+        }
+      >
         <div className={fullScreen 
           ? "flex flex-1 min-h-0 flex-col w-full overflow-hidden" 
           : "mx-auto w-full max-w-lg px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] max-h-[85vh] overflow-y-auto"
