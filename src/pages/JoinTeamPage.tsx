@@ -346,6 +346,21 @@ export default function JoinTeamPage() {
   // Check if user needs to complete their profile first
   const needsProfileCompletion = user && userProfile !== undefined && !userProfile?.display_name;
 
+  /**
+   * True when an already-accepted pending invite was accepted BY the signed-in
+   * user (matched on invited_user_id or invited email). In that case the invite
+   * did its job — showing "Invite Already Used" would flash a scary error while
+   * the auto-join effect redirects to /complete-profile or home.
+   */
+  const acceptedInviteIsOurs = (() => {
+    if (!isPendingInvite || !pendingInviteData || !user) return false;
+    const invitedEmail = (pendingInviteData.invited_email || "").toLowerCase().trim();
+    const userEmail = (user.email || "").toLowerCase().trim();
+    if ((pendingInviteData as { invited_user_id?: string }).invited_user_id === user.id) return true;
+    return !!invitedEmail && !!userEmail && invitedEmail === userEmail;
+  })();
+
+
   // Validate name for pending invites - only block EXISTING users with a different name already set
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
   useEffect(() => {
