@@ -288,18 +288,57 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
           Invite to Team
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader className="space-y-1 pb-4 border-b">
+      <SheetContent
+        side="bottom"
+        hideCloseButton
+        className="rounded-t-2xl flex flex-col overflow-hidden overscroll-contain sm:mx-auto sm:max-w-md"
+        data-lock-keyboard-scroll="true"
+        data-allow-scroll
+        style={{
+          touchAction: "pan-y",
+          WebkitOverflowScrolling: "touch",
+          bottom: nativeKbHeight > 0 ? `${nativeKbHeight}px` : undefined,
+          maxHeight:
+            nativeKbHeight > 0
+              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
+              : "calc(100dvh - env(safe-area-inset-top, 0px) - 8px)",
+          height:
+            nativeKbHeight > 0
+              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
+              : undefined,
+          transitionProperty: "bottom, height, max-height",
+          transitionDuration: "200ms",
+          transitionTimingFunction: "ease",
+        }}
+      >
+        <SheetHeader className="space-y-1 pb-3 border-b shrink-0 relative pr-10">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-full ${selectedRole === "club_admin" ? "bg-purple-500/10" : "bg-cyan-500/10"}`}>
+            <div className={`p-2 sm:p-2.5 rounded-full shrink-0 ${selectedRole === "club_admin" ? "bg-purple-500/10" : "bg-cyan-500/10"}`}>
               <Users className={`h-5 w-5 ${selectedRole === "club_admin" ? "text-purple-500" : "text-cyan-500"}`} />
             </div>
-            <div>
-              <SheetTitle>Add Club Member</SheetTitle>
-              <SheetDescription className="text-sm">{clubName}</SheetDescription>
+            <div className="min-w-0 text-left">
+              <SheetTitle className="text-base sm:text-lg truncate">Add Club Member</SheetTitle>
+              <SheetDescription className="text-xs sm:text-sm truncate">{clubName}</SheetDescription>
             </div>
           </div>
+          <SheetClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-0 top-0 h-8 w-8 rounded-full opacity-70 hover:opacity-100"
+              aria-label="Close invite sheet"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </SheetClose>
         </SheetHeader>
+
+        <div
+          data-allow-scroll
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-6 px-6"
+          style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
+        >
 
         {/* Success State - Email sent confirmation */}
         {inviteLink && (
