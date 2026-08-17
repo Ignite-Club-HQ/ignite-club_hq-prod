@@ -109,7 +109,7 @@ export function ClubAnnouncementDialog({
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-primary" />
-            Send to Team Chats
+            Send Announcement
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
