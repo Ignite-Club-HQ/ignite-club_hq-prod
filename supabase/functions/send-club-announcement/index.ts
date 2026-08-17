@@ -52,15 +52,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { club_id, team_ids, message, club_name } = await req.json();
+    const { club_id, team_ids, message, club_name, include_club_chat } = await req.json();
     const requestedTeamIds = [...new Set((team_ids || []).filter(Boolean))];
+    const sendToClubChat = include_club_chat === true;
 
-    if (!club_id || !requestedTeamIds.length || !message?.trim()) {
-      return new Response(JSON.stringify({ error: "club_id, team_ids, and message required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!club_id || (!requestedTeamIds.length && !sendToClubChat) || !message?.trim()) {
+      return new Response(
+        JSON.stringify({ error: "club_id, message and at least one destination required" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
+
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
@@ -193,22 +198,62 @@ Deno.serve(async (req) => {
       if (botRoleInsertError) throw botRoleInsertError;
     }
 
-    // Insert messages using service role (bypasses RLS author_id check)
-    const inserts = validTeamIds.map((teamId: string) => ({
-      team_id: teamId,
-      author_id: botUserId,
-      text: message.trim(),
-      is_club_announcement: true,
-      club_announcement_name: resolvedClubName,
-    }));
+    if (sendToClubChat) {
+      // Ensure the bot has a club-level membership row so club chat access
+      // checks / notification fan-out treat it as a member of the club.
+      const { data: clubLevelRole, error: clubLevelRoleError } = await adminClient
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", botUserId)
+        .eq("club_id", club_id)
+        .is("team_id", null)
+        .maybeSingle();
 
-    const { error: insertError } = await adminClient.from("team_messages").insert(inserts);
-    if (insertError) throw insertError;
+      if (clubLevelRoleError) throw clubLevelRoleError;
+
+      if (!clubLevelRole) {
+        const { error: clubRoleInsertError } = await adminClient.from("user_roles").insert({
+          user_id: botUserId,
+          club_id,
+          role: "basic_user" as const,
+        });
+        if (clubRoleInsertError) throw clubRoleInsertError;
+      }
+    }
+
+    // Insert messages using service role (bypasses RLS author_id check)
+    if (validTeamIds.length > 0) {
+      const inserts = validTeamIds.map((teamId: string) => ({
+        team_id: teamId,
+        author_id: botUserId,
+        text: message.trim(),
+        is_club_announcement: true,
+        club_announcement_name: resolvedClubName,
+      }));
+
+      const { error: insertError } = await adminClient.from("team_messages").insert(inserts);
+      if (insertError) throw insertError;
+    }
+
+    if (sendToClubChat) {
+      const { error: clubInsertError } = await adminClient.from("club_messages").insert({
+        club_id,
+        author_id: botUserId,
+        text: message.trim(),
+      });
+      if (clubInsertError) throw clubInsertError;
+    }
 
     return new Response(
-      JSON.stringify({ success: true, bot_user_id: botUserId, messages_sent: validTeamIds.length }),
+      JSON.stringify({
+        success: true,
+        bot_user_id: botUserId,
+        messages_sent: validTeamIds.length + (sendToClubChat ? 1 : 0),
+        club_chat_sent: sendToClubChat,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (err) {
     console.error("Error in send-club-announcement:", err);
     return new Response(
