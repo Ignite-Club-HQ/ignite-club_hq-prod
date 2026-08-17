@@ -64,10 +64,24 @@ export function ClubAnnouncementDialog({
   const sendMutation = useMutation({
     mutationFn: async () => {
       const teamIds = Array.from(selectedTeamIds);
-      
+
+      // Make sure we send a live access token: a stale/expired session is the
+      // most common cause of a 401 from the announcement function.
+      let { data: sessionData } = await supabase.auth.getSession();
+      let accessToken = sessionData.session?.access_token ?? null;
+      const expiresAt = sessionData.session?.expires_at ?? 0;
+      if (!accessToken || expiresAt * 1000 - Date.now() < 60_000) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        accessToken = refreshed.session?.access_token ?? accessToken;
+      }
+      if (!accessToken) {
+        throw new Error("Your session expired. Please sign in again.");
+      }
+
       // Send via edge function which creates/uses bot profile as author
       // This makes announcements backwards-compatible with old app builds
       const { data, error } = await supabase.functions.invoke("send-club-announcement", {
+        headers: { Authorization: `Bearer ${accessToken}` },
         body: {
           club_id: clubId,
           team_ids: teamIds,
@@ -77,7 +91,19 @@ export function ClubAnnouncementDialog({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Surface the function's JSON error body instead of a generic message.
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          try {
+            const body = await ctx.json();
+            if (body?.error) throw new Error(String(body.error));
+          } catch (_e) {
+            // fall through to the raw error below
+          }
+        }
+        throw error;
+      }
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
@@ -92,10 +118,12 @@ export function ClubAnnouncementDialog({
       setSendToClubChat(false);
       onOpenChange(false);
     },
-    onError: () => {
-      toast.error("Failed to send announcement");
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "";
+      toast.error(msg ? `Failed to send announcement: ${msg}` : "Failed to send announcement");
     },
   });
+
 
   const canSend =
     message.trim().length > 0 &&
