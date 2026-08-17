@@ -40,6 +40,7 @@ export function ClubAnnouncementDialog({
 }: ClubAnnouncementDialogProps) {
   const [message, setMessage] = useState("");
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
+  const [sendToClubChat, setSendToClubChat] = useState(false);
 
   const activeTeams = teams.filter((t) => !t.is_archived);
 
@@ -70,6 +71,7 @@ export function ClubAnnouncementDialog({
         body: {
           club_id: clubId,
           team_ids: teamIds,
+          include_club_chat: sendToClubChat,
           message: message.trim(),
           club_name: clubName,
         },
@@ -79,9 +81,15 @@ export function ClubAnnouncementDialog({
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      toast.success(`Announcement sent to ${selectedTeamIds.size} team${selectedTeamIds.size > 1 ? "s" : ""}`);
+      const parts: string[] = [];
+      if (selectedTeamIds.size > 0) {
+        parts.push(`${selectedTeamIds.size} team${selectedTeamIds.size > 1 ? "s" : ""}`);
+      }
+      if (sendToClubChat) parts.push("club chat");
+      toast.success(`Announcement sent to ${parts.join(" and ")}`);
       setMessage("");
       setSelectedTeamIds(new Set());
+      setSendToClubChat(false);
       onOpenChange(false);
     },
     onError: () => {
@@ -89,7 +97,11 @@ export function ClubAnnouncementDialog({
     },
   });
 
-  const canSend = message.trim().length > 0 && selectedTeamIds.size > 0 && !sendMutation.isPending;
+  const canSend =
+    message.trim().length > 0 &&
+    (selectedTeamIds.size > 0 || sendToClubChat) &&
+    !sendMutation.isPending;
+
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
