@@ -226,17 +226,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Single-invite wizard step: 1 = Person, 2 = Role (+ children/guardian for parents), 3 = Delivery
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   // Whether the "invite by name" section is expanded. Defaults to collapsed so
-  // the join-link flow is the visually primary action on first open.
+  // the first screen is a simple two-way choice: share a link, or invite one person.
   const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
+  // Progressive disclosure: the join-link role selector only appears after the
+  // user chooses "Create link" on the first screen.
+  const [linkFlowOpen, setLinkFlowOpen] = useState(false);
   // When the user can't share the bulk join link (non-admins/coaches), the
   // invite-by-name form is the only available flow, so it must be visible by
   // default — otherwise the sheet renders an empty body.
   const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
 
-  // Reset to collapsed each time the sheet is opened so the join-link flow
-  // remains the primary action on every reopen.
+  // Reset to the chooser each time the sheet is opened.
   useEffect(() => {
-    if (open) setInviteByNameExpanded(false);
+    if (open) {
+      setInviteByNameExpanded(false);
+      setLinkFlowOpen(false);
+    }
   }, [open]);
 
   // When the name is confirmed (or an existing user is selected), the role
