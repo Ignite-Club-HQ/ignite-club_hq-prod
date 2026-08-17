@@ -78,7 +78,7 @@ function generateShortToken(): string {
     .replace(/=/g, "");
 }
 
-export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" }: TeamJoinLinkCardProps) {
+export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed", onBack }: TeamJoinLinkCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -93,7 +93,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
   const [activeRole, setActiveRole] = useState<RoleVariant>(defaultRole);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
-  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [confirmGenerate, setConfirmGenerate] = useState(false);
   const [autoSelected, setAutoSelected] = useState(false);
 
