@@ -80,6 +80,40 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
   const lastTouchReactionAtRef = useRef<{ at: number; type: string } | null>(null);
   // Ignore dismiss events for a short window after mount.
   const mountedAtRef = useRef(0);
+  // True once the gesture that opened the picker (the long-press finger) has
+  // been released. Emoji taps are accepted from that point on — previously a
+  // blanket 500ms dead zone after mount swallowed the user's real first tap.
+  const gestureReleasedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    gestureReleasedRef.current = false;
+    // Mark released on the NEXT macrotask so the very touchend/mouseup that
+    // completes the opening long-press cannot also select an emoji.
+    const markReleased = () => {
+      window.setTimeout(() => {
+        gestureReleasedRef.current = true;
+      }, 0);
+    };
+    window.addEventListener("touchend", markReleased, { capture: true, once: true });
+    window.addEventListener("touchcancel", markReleased, { capture: true, once: true });
+    window.addEventListener("pointerup", markReleased, { capture: true, once: true });
+    window.addEventListener("mouseup", markReleased, { capture: true, once: true });
+    // Fail-safe: never leave the picker permanently unresponsive.
+    const failSafe = window.setTimeout(() => {
+      gestureReleasedRef.current = true;
+    }, 500);
+    return () => {
+      window.removeEventListener("touchend", markReleased, { capture: true } as any);
+      window.removeEventListener("touchcancel", markReleased, { capture: true } as any);
+      window.removeEventListener("pointerup", markReleased, { capture: true } as any);
+      window.removeEventListener("mouseup", markReleased, { capture: true } as any);
+      window.clearTimeout(failSafe);
+    };
+  }, [isOpen]);
+
+  const canAcceptEmojiTap = () =>
+    gestureReleasedRef.current && Date.now() - mountedAtRef.current > 60;
 
   useLayoutEffect(() => {
     if (!isOpen || !anchorRef.current) {
@@ -87,6 +121,7 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
       return;
     }
     mountedAtRef.current = Date.now();
+
 
     // Clear any text selection left behind by the long-press that opened the
     // picker. On Android WebView this otherwise leaves a teal selection handle
