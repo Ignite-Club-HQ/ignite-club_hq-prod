@@ -10493,6 +10493,10 @@ export type Database = {
         Args: { _invite_id: string }
         Returns: Json
       }
+      accept_parent_team_invite: {
+        Args: { _invite_id?: string; _invite_token?: string }
+        Returns: Json
+      }
       acknowledge_ai_catch_up_disclosure: { Args: never; Returns: string }
       admin_get_user_emails: {
         Args: { user_ids: string[] }

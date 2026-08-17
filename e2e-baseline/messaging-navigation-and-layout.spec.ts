@@ -1693,12 +1693,27 @@ test(`${nativeCase.label} Team page entry reopens the actual pitchboard after We
 
   // A native OS can destroy and recreate the WebView during lock. This drops
   // React modal state and globals while retaining localStorage.
-  await page.reload();
+  await page.evaluate(() => {
+    (window as any).__pitchBoardPreRecreationDocument = true;
+  });
+  await page.reload().catch((error) => {
+    const message = String(error);
+    // WebKit occasionally reports an internal navigation error after the new
+    // document has already loaded. The assertions below still require proof
+    // that the old document was destroyed and the pitchboard was restored.
+    if (
+      !message.includes("Frame load interrupted")
+      && !message.includes("WebKit encountered an internal error")
+    ) {
+      throw error;
+    }
+  });
 
   await expect.poll(() => page.evaluate(() => ({
+    recreated: (window as any).__pitchBoardPreRecreationDocument !== true,
     open: localStorage.getItem("ignite-pitch-board-open"),
     mounted: (window as any).__pitchBoardMounted === true,
-  })), { timeout: 15_000 }).toEqual({ open: "true", mounted: true });
+  })), { timeout: 15_000 }).toEqual({ recreated: true, open: "true", mounted: true });
   await expect(page).toHaveURL(new RegExp(`/teams/${teamId}(?:\\?|$)`));
 });
 

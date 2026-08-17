@@ -19,6 +19,8 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
+import { acceptParentTeamInvite, getParentInviteErrorMessage } from "@/features/membership/acceptParentInvite";
+
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -470,158 +472,21 @@ export default function JoinTeamPage() {
           throw new Error(`Couldn't link you to your child: ${claimErr.message}`);
         }
       } else if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
-        console.log("[JoinTeam] Creating children from invite metadata:", metadata.children.length);
-        
-        // Fetch existing children to avoid duplicates
-        const { data: existingChildren } = await supabase
-          .from("children")
-          .select("id, name, year_of_birth")
-          .eq("parent_id", user.id);
-        
-        const createdChildIds: string[] = [];
-        for (const childData of metadata.children) {
-          const childNameLower = childData.name.toLowerCase().trim();
-          
-          let childId: string | null = null;
-          
-          if (childData.existingChildId) {
-            // Admin linked to an existing club child — add as guardian
-            childId = childData.existingChildId;
-            console.log("[JoinTeam] Linking to existing club child:", childData.name, "ID:", childId);
-            const { error: guardErr } = await supabase.from("child_guardians").insert({
-              child_id: childId,
-              guardian_id: user.id,
-              relationship_type: "parent",
-              is_primary: false,
-            });
-            if (guardErr && !guardErr.message?.includes("duplicate")) {
-              console.error("[JoinTeam] Failed to link guardian:", guardErr.message);
-            }
-          } else {
-            // Check if a child with the same name already exists for this parent
-            const existingChild = existingChildren?.find(
-              c => c.name.toLowerCase().trim() === childNameLower
-            );
-            
-            if (existingChild) {
-              childId = existingChild.id;
-              console.log("[JoinTeam] Child already exists:", childData.name, "ID:", childId);
-            } else {
-              // Create the child record
-              const { childId: createdChildId, error: childError } =
-                await createChildForParentOrReuse(
-                  user.id,
-                  childData.name,
-                  childData.yearOfBirth ?? null
-                );
-              const newChild = createdChildId ? { id: createdChildId } : null;
-              
-              if (childError) {
-                console.error("[JoinTeam] Failed to create child:", childError.message);
-                continue;
-              }
-              childId = newChild?.id || null;
-              console.log("[JoinTeam] Created new child:", childData.name, "ID:", childId);
-            }
-          }
-          if (childId) createdChildIds.push(childId);
-          
-          // Assign child to the team (with duplicate check)
-          if (childId && pendingInviteData.team_id) {
-            // Check if already assigned to this team
-            const { data: existingAssignment } = await supabase
-              .from("child_team_assignments")
-              .select("id")
-              .eq("child_id", childId)
-              .eq("team_id", pendingInviteData.team_id)
-              .maybeSingle();
-            
-            if (existingAssignment) {
-              console.log("[JoinTeam] Child already assigned to team:", childData.name);
-            } else {
-              const { error: assignError } = await supabase
-                .from("child_team_assignments")
-                .insert({
-                  child_id: childId,
-                  team_id: pendingInviteData.team_id,
-                });
-              
-              if (assignError) {
-                console.error("[JoinTeam] Failed to assign child to team:", assignError.message);
-              } else {
-                console.log("[JoinTeam] Child assigned to team:", childData.name);
-              }
-            }
-
-            // The server may have merged this child into the canonical roster
-            // child. Re-resolve so guardian/league links target the survivor.
-            const canonicalId = await resolveCanonicalChildId(
-              childId,
-              pendingInviteData.team_id,
-              childData.name
-            );
-            if (canonicalId && canonicalId !== childId) {
-              const stale = createdChildIds.indexOf(childId);
-              if (stale !== -1) createdChildIds[stale] = canonicalId;
-              childId = canonicalId;
-            }
-          }
-          
-          // Assign child to mini league if mini_league_id exists in metadata
-          if (childId && metadata.mini_league_id) {
-            // Check if already assigned to this league
-            const { data: existingLeagueAssignment } = await supabase
-              .from("child_mini_league_assignments")
-              .select("id")
-              .eq("child_id", childId)
-              .eq("mini_league_id", metadata.mini_league_id)
-              .maybeSingle();
-            
-            if (existingLeagueAssignment) {
-              console.log("[JoinTeam] Child already assigned to league:", childData.name);
-            } else {
-              const { error: leagueAssignError } = await supabase
-                .from("child_mini_league_assignments")
-                .insert({
-                  child_id: childId,
-                  mini_league_id: metadata.mini_league_id,
-                  ability_rating: 3, // Default rating
-                });
-              
-              if (leagueAssignError) {
-                console.error("[JoinTeam] Failed to assign child to league:", leagueAssignError.message);
-              } else {
-                console.log("[JoinTeam] Child assigned to mini league:", childData.name);
-              }
-            }
-            
-            // Update legacy mini_league_players record
-            if (metadata.player_id) {
-              await supabase
-                .from("mini_league_players")
-                .update({ parent_user_id: user.id, child_id: childId })
-                .eq("id", metadata.player_id);
-            }
-          }
-        }
-        
-        // Link second parent (existing user) as guardian to created children
-        if (metadata.second_parent_user_id && createdChildIds.length > 0) {
-          for (const cid of createdChildIds) {
-            await supabase.from("child_guardians").insert({
-              child_id: cid,
-              guardian_id: metadata.second_parent_user_id,
-              relationship_type: "parent",
-              is_primary: false,
-            }).then(({ error: guardErr }) => {
-              if (guardErr && !guardErr.message?.includes("duplicate")) {
-                console.error("[JoinTeam] Failed to link second parent:", guardErr.message);
-              }
-            });
-          }
-          console.log("[JoinTeam] Linked second parent to", createdChildIds.length, "children");
+        // Transactional acceptance: children, guardian links, team assignment,
+        // the parent role and the invite status all commit together. On failure
+        // nothing is written and the invite stays pending for a retry.
+        console.log("[JoinTeam] Accepting parent invite via transactional RPC");
+        try {
+          const result = await acceptParentTeamInvite({ inviteId: pendingInviteData.id });
+          console.log("[JoinTeam] Parent invite accepted:", {
+            children: result.childIds.length,
+            alreadyAccepted: result.alreadyAccepted,
+          });
+        } catch (rpcError) {
+          throw new Error(getParentInviteErrorMessage(rpcError));
         }
       } else if (pendingInviteData.role === "parent" && metadata?.child_id) {
+
         // Link existing child to this parent (child was pre-created by admin)
         console.log("[JoinTeam] Linking existing child to parent:", metadata.child_id);
         await supabase
