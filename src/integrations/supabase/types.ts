@@ -10488,6 +10488,10 @@ export type Database = {
     Functions: {
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
+      _provision_invite_children_internal: {
+        Args: { p_invite_id: string; p_user_id: string }
+        Returns: Json
+      }
       accept_current_legal_terms: { Args: never; Returns: undefined }
       accept_guardian_parent_invite: {
         Args: { _invite_id: string }
@@ -12138,7 +12142,7 @@ export type Database = {
         }[]
       }
       provision_invite_children: {
-        Args: { p_invite_id: string; p_user_id: string }
+        Args: { p_invite_id: string }
         Returns: Json
       }
       prune_active_games_write_log: { Args: never; Returns: undefined }
