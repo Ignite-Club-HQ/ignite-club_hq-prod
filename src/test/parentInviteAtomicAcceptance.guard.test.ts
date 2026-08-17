@@ -93,8 +93,7 @@ describe("parent invite atomic acceptance", () => {
     const claimant = latestFunctionDefinition("claim_pending_invites_on_profile_create");
     expect(claimant).not.toBe("");
     expect(claimant).toContain("children");
-    expect(claimant).toContain("child_guardians");
-    expect(claimant).toContain("child_team_assignments");
+    expect(claimant).toContain("_provision_invite_children_internal");
   });
 
   it("never lets the user-role trigger consume a normal parent invite without provisioning children", () => {
@@ -108,12 +107,14 @@ describe("parent invite atomic acceptance", () => {
     const provisioner = latestFunctionDefinition("provision_invite_children");
     expect(provisioner).not.toBe("");
     expect(provisioner).toContain("auth.uid()");
-    expect(provisioner).toMatch(/p_user_id\s*(?:<>|!=)\s*auth\.uid\(\)/i);
+    expect(provisioner).not.toContain("p_user_id");
+    expect(provisioner).toContain("_provision_invite_children_internal(p_invite_id, _uid)");
   });
 
   it("checks invite ownership inside the provisioning RPC rather than trusting its caller", () => {
     const provisioner = latestFunctionDefinition("provision_invite_children");
     expect(provisioner).toContain("invited_user_id");
-    expect(provisioner).toMatch(/invited_user_id\s*=\s*p_user_id/i);
+    expect(provisioner).toMatch(/_inv\.invited_user_id\s*=\s*_uid/i);
+    expect(provisioner).toContain("invite_not_for_this_user");
   });
 });

@@ -17,6 +17,7 @@ type ChildInput = {
 describe("local transaction: new-parent invite creates every required child", () => {
   let fixture: SecurityFixture;
   const users: SyntheticUser[] = [];
+  const profilelessUserIds: string[] = [];
 
   beforeAll(async () => {
     await assertSyntheticLocalMarker();
@@ -26,6 +27,7 @@ describe("local transaction: new-parent invite creates every required child", ()
   afterAll(async () => {
     await fixture?.cleanup();
     await Promise.all(users.map((user) => service.auth.admin.deleteUser(user.id)));
+    await Promise.all(profilelessUserIds.map((id) => service.auth.admin.deleteUser(id)));
   });
 
   async function newUser(label: string) {
@@ -48,6 +50,19 @@ describe("local transaction: new-parent invite creates every required child", ()
     }).select("id, invite_token").single();
     if (result.error) throw result.error;
     return result.data;
+  }
+
+  async function createProfilelessUser(label: string) {
+    const nonce = crypto.randomUUID();
+    const email = `${label}.${nonce}@local.invalid`;
+    const created = await service.auth.admin.createUser({
+      email,
+      password: `Local-only-${nonce}!`,
+      email_confirm: true,
+    });
+    if (created.error || !created.data.user) throw created.error ?? new Error("Local user creation failed");
+    profilelessUserIds.push(created.data.user.id);
+    return { id: created.data.user.id, email };
   }
 
   async function rowsFor(userId: string, inviteId: string) {
@@ -92,6 +107,76 @@ describe("local transaction: new-parent invite creates every required child", ()
       id: childId, parent_id: parent.id, name: "Synthetic New Child", year_of_birth: 2017,
     }));
     expect(assignment.data).toEqual([{ child_id: childId, team_id: fixture.teamA }]);
+  });
+
+  it("provisions a normal parent invite atomically from the profile-creation trigger", async () => {
+    const parent = await createProfilelessUser("parent-invite-profile-trigger");
+    const invite = await service.from("pending_invites").insert({
+      role: "parent",
+      invited_by_user_id: fixture.adminA.id,
+      // A pre-signup email invite has no Auth user to reference yet. The
+      // profile trigger must claim it by email and set invited_user_id only
+      // after the account exists.
+      invited_user_id: null,
+      invited_email: parent.email,
+      club_id: fixture.clubA,
+      team_id: fixture.teamA,
+      invite_token: crypto.randomUUID(),
+      metadata: { children: [{ name: "Synthetic Trigger Child", existingChildId: null }] },
+    }).select("id").single();
+    if (invite.error) throw invite.error;
+
+    const profile = await service.from("profiles").insert({
+      id: parent.id,
+      display_name: "Synthetic Trigger Parent",
+    });
+    expect(profile.error).toBeNull();
+
+    const [inviteRow, children, roles] = await Promise.all([
+      service.from("pending_invites").select("status, invited_user_id").eq("id", invite.data.id).single(),
+      service.from("children").select("id, name").eq("parent_id", parent.id),
+      service.from("user_roles").select("role, club_id, team_id")
+        .eq("user_id", parent.id).eq("role", "parent").eq("team_id", fixture.teamA),
+    ]);
+    expect(inviteRow.data).toEqual({ status: "accepted", invited_user_id: parent.id });
+    expect(children.data).toEqual([{ id: expect.any(String), name: "Synthetic Trigger Child" }]);
+    expect(roles.data).toEqual([{ role: "parent", club_id: fixture.clubA, team_id: fixture.teamA }]);
+
+    const childId = children.data![0].id;
+    const [guardian, assignment] = await Promise.all([
+      service.from("child_guardians").select("child_id, guardian_id")
+        .eq("child_id", childId).eq("guardian_id", parent.id),
+      service.from("child_team_assignments").select("child_id, team_id")
+        .eq("child_id", childId).eq("team_id", fixture.teamA),
+    ]);
+    expect(guardian.data).toEqual([{ child_id: childId, guardian_id: parent.id }]);
+    expect(assignment.data).toEqual([{ child_id: childId, team_id: fixture.teamA }]);
+  });
+
+  it("denies direct recovery for another user's invite without creating children", async () => {
+    const intended = await newUser("parent-invite-secure-recipient");
+    const attacker = await newUser("parent-invite-secure-attacker");
+    const invite = await createInvite(intended, [{ name: "Synthetic Protected Child" }]);
+
+    const denied = await attacker.client.rpc("provision_invite_children" as any, {
+      p_invite_id: invite.id,
+    });
+    expect(denied.error).not.toBeNull();
+    expect(denied.error?.code).toBe("42501");
+
+    const children = await service.from("children").select("id").eq("parent_id", intended.id);
+    expect(children.data).toEqual([]);
+  });
+
+  it("prevents authenticated clients from executing the private provisioning function", async () => {
+    const parent = await newUser("parent-invite-private-function");
+    const invite = await createInvite(parent, [{ name: "Synthetic Private Child" }]);
+    const denied = await parent.client.rpc("_provision_invite_children_internal" as any, {
+      p_invite_id: invite.id,
+      p_user_id: parent.id,
+    });
+    expect(denied.error).not.toBeNull();
+    expect(denied.error?.code).toBe("42501");
   });
 
   it("creates and assigns every child before accepting a multi-child invite", async () => {

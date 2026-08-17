@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   MemoryRouter,
   Route,
@@ -64,17 +65,26 @@ function LocationProbe() {
 }
 
 function renderRoute(initialEntry: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <LocationProbe />
-      <Routes>
-        <Route path="/auth" element={<div>authentication page</div>} />
-        <Route path="/complete-profile" element={<div>complete profile page</div>} />
-        <Route element={<AppLayout />}>
-          <Route path="*" element={<div>protected destination</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <LocationProbe />
+        <Routes>
+          <Route path="/auth" element={<div>authentication page</div>} />
+          <Route path="/complete-profile" element={<div>complete profile page</div>} />
+          <Route element={<AppLayout />}>
+            <Route path="*" element={<div>protected destination</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
