@@ -4,6 +4,7 @@ import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useClubScopeGuard } from "@/hooks/useClubScopeGuard";
 import { useChatRouteOverscrollLock } from "@/hooks/useChatRouteOverscrollLock";
 import { useTrackPresence } from "@/hooks/useUserPresence";
 import { Loader2 } from "lucide-react";
@@ -32,6 +33,9 @@ export function AppLayout() {
     sweepStaleDeletedTeams(user?.id);
   }, [user?.id]);
   const { isThemeReady } = useClubTheme();
+  // Bounce the user home if the open route belongs to a different club than the
+  // active club filter (e.g. after switching club themes).
+  useClubScopeGuard();
   const launchIntentPending = useLaunchIntentPending();
   const location = useLocation();
   const [retrying, setRetrying] = useState(false);
