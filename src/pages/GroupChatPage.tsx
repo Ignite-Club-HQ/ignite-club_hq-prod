@@ -206,6 +206,27 @@ interface MessageReaction {
   group_message_id: string | null;
 }
 
+const attachReactionsToMessages = (
+  messages: GroupMessage[],
+  reactions: MessageReaction[],
+): GroupMessage[] => {
+  if (!messages.length) return messages;
+  if (!reactions.length) return messages;
+  const byMessage = new Map<string, MessageReaction[]>();
+  for (const reaction of reactions) {
+    const key = reaction.group_message_id;
+    if (!key) continue;
+    const list = byMessage.get(key);
+    if (list) list.push(reaction);
+    else byMessage.set(key, [reaction]);
+  }
+  return messages.map((message) => {
+    const own = byMessage.get(message.id);
+    if (!own || own.length === 0) return message;
+    return { ...(message as any), reactions: own } as GroupMessage;
+  });
+};
+
 const getCachedGroupMessages = (groupId: string) => {
   const cachedMessages = getCachedMessages("group", groupId);
 
@@ -240,8 +261,12 @@ const getCachedGroupMessages = (groupId: string) => {
     })),
   ) as MessageReaction[];
 
-  return { messages, reactions };
+  // Embed reactions on the message rows too, so the very first paint (which is
+  // seeded straight from this cache) already shows existing reactions instead
+  // of waiting for the post-mount merge effect / refetch.
+  return { messages: attachReactionsToMessages(messages, reactions), reactions };
 };
+
 
 export default function GroupChatPage() {
   // [chat-perf-diag] track mount/unmount lifetime
