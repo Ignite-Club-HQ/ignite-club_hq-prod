@@ -279,13 +279,12 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onTouchStart={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    if (Date.now() - mountedAtRef.current < 500) return;
+                    if (!canAcceptEmojiTap()) return;
                     triggerEmojiSelection(type);
                   }}
                   onTouchEnd={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    if (Date.now() - mountedAtRef.current < 500) return;
                   }}
                   onPointerDown={(e) => {
                     e.stopPropagation();
@@ -298,8 +297,9 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    if (Date.now() - mountedAtRef.current < 500) return;
+                    if (!canAcceptEmojiTap()) return;
                     triggerEmojiSelection(type);
+
                   }}
                   style={{
                     touchAction: "none",
