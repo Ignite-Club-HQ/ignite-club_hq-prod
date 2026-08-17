@@ -628,7 +628,13 @@ export default function GroupChatPage() {
               group_message_id: message.id,
             }))
           ) as MessageReaction[];
-          return { messages: groupMessages, hasOlderMessages: false, reactions: cachedReactions, fromCache: true };
+          return {
+            messages: attachReactionsToMessages(groupMessages, cachedReactions),
+            hasOlderMessages: false,
+            reactions: cachedReactions,
+            fromCache: true,
+          };
+
         }
         throw new Error("No cached messages available offline");
       }
