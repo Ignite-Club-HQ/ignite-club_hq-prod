@@ -681,7 +681,14 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pt-3 px-1 pb-4">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto space-y-3 pt-3 px-1 pb-4"
+          style={
+            isKeyboardOpen && !(selectedUsers.length > 0 || isCustomGroup)
+              ? { paddingBottom: `${keyboardHeight + 16}px` }
+              : undefined
+          }
+        >
           {(checkingPro && hasProAccess === undefined) || (checkingCanSend && canSendDMs === undefined) ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
