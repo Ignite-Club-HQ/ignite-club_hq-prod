@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 
 /**
  * Parent-invite child provisioning must stay:
- *  - authorization-safe: the public RPC derives the user from auth.uid() only;
+ *  - authorization-safe: the public RPC verifies guardian against auth.uid();
  *  - private where it accepts an explicit user id (trigger-only helper);
  *  - version-controlled: the profile-claim function and its trigger live in a
  *    forward-only migration, not just in the hosted database.
@@ -17,6 +17,7 @@ const allSql = migrations.join("\n");
 
 const clientApi = readFileSync("src/features/membership/acceptParentInvite.ts", "utf8");
 const joinTeamPage = readFileSync("src/pages/JoinTeamPage.tsx", "utf8");
+const completeProfilePage = readFileSync("src/pages/CompleteProfilePage.tsx", "utf8");
 
 describe("parent invite provisioning security", () => {
   it("keeps the user-id-taking provisioning function private", () => {
@@ -32,28 +33,21 @@ describe("parent invite provisioning security", () => {
     );
   });
 
-  it("drops the legacy two-argument public RPC", () => {
-    expect(allSql).toContain("DROP FUNCTION IF EXISTS public.provision_invite_children(uuid, uuid);");
-  });
-
-  it("authorises the public wrapper against auth.uid() and the invite recipient", () => {
-    const start = allSql.lastIndexOf("CREATE OR REPLACE FUNCTION public.provision_invite_children(p_invite_id uuid)");
+  it("authorises the two-argument RPC against auth.uid() and invite ownership", () => {
+    const start = allSql.lastIndexOf("CREATE OR REPLACE FUNCTION public.provision_invite_children(");
     expect(start).toBeGreaterThan(-1);
-    const fn = allSql.slice(start, start + 3000);
-    expect(fn).toContain("_uid uuid := auth.uid()");
-    expect(fn).toContain("not_authenticated");
+    const fn = allSql.slice(start, start + 15000);
+    expect(fn).toContain("_caller uuid := auth.uid()");
+    expect(fn).toContain("_caller <> _guardian_id");
     expect(fn).toContain("invite_not_for_this_user");
-    expect(fn).toContain("lower(btrim(_inv.invited_email)) = lower(btrim(_email))");
-    expect(fn).toContain("_provision_invite_children_internal(p_invite_id, _uid)");
-    // Never accepts a caller-supplied user id.
-    expect(fn).not.toContain("p_user_id");
+    expect(fn).toContain("lower(btrim(_invite.invited_email)) = _guardian_email");
   });
 
   it("revokes the public wrapper from PUBLIC and anon", () => {
-    expect(allSql).toContain("REVOKE ALL ON FUNCTION public.provision_invite_children(uuid) FROM PUBLIC;");
-    expect(allSql).toContain("REVOKE ALL ON FUNCTION public.provision_invite_children(uuid) FROM anon;");
+    expect(allSql).toContain("REVOKE ALL ON FUNCTION public.provision_invite_children(uuid, uuid) FROM PUBLIC;");
+    expect(allSql).toContain("REVOKE ALL ON FUNCTION public.provision_invite_children(uuid, uuid) FROM anon;");
     expect(allSql).toContain(
-      "GRANT EXECUTE ON FUNCTION public.provision_invite_children(uuid) TO authenticated, service_role;"
+      "GRANT EXECUTE ON FUNCTION public.provision_invite_children(uuid, uuid) TO authenticated, service_role;"
     );
   });
 
@@ -68,14 +62,14 @@ describe("parent invite provisioning security", () => {
   it("provisions children before the invite is marked accepted", () => {
     const start = allSql.lastIndexOf("CREATE OR REPLACE FUNCTION public.claim_pending_invites_on_profile_create()");
     const fn = allSql.slice(start, start + 6000);
-    const provision = fn.indexOf("_provision_invite_children_internal(inv.id, NEW.id)");
+    const provision = fn.indexOf("provision_invite_children(inv.id, NEW.id)");
     const accept = fn.indexOf("SET status = 'accepted'");
     expect(provision).toBeGreaterThan(-1);
     expect(accept).toBeGreaterThan(provision);
 
     const roleFnStart = allSql.lastIndexOf("CREATE OR REPLACE FUNCTION public.auto_accept_pending_invites_on_role()");
     const roleFn = allSql.slice(roleFnStart, roleFnStart + 8000);
-    expect(roleFn.indexOf("_provision_invite_children_internal(a.id, NEW.user_id)")).toBeLessThan(
+    expect(roleFn.indexOf("provision_invite_children(a.id, NEW.user_id)")).toBeLessThan(
       roleFn.indexOf("SET status = 'accepted'")
     );
   });
@@ -89,10 +83,11 @@ describe("parent invite provisioning security", () => {
     expect(fn).toContain("child_team_assignment_failed");
   });
 
-  it("removes the user id from the public TypeScript API", () => {
-    expect(clientApi).not.toContain("p_user_id");
-    expect(clientApi).toContain("provisionInviteChildren(params: {\n  inviteId: string;\n})");
-    expect(joinTeamPage).toContain("provisionInviteChildren({\n          inviteId: pendingInviteData.id,\n        })");
+  it("passes the signed-in guardian to the secured RPC on both frontend paths", () => {
+    expect(clientApi).toContain("guardianId: string;");
+    expect(joinTeamPage).toContain("guardianId: user.id");
+    expect(completeProfilePage).toContain('.in("status", ["pending", "accepted"])');
+    expect(completeProfilePage).toContain("guardianId: user.id");
   });
 
   it("invalidates children, membership and RSVP caches after recovery", () => {
