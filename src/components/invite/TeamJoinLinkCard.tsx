@@ -38,10 +38,15 @@ const ALL_ROLE_OPTIONS: { value: RoleVariant; label: string; juniorOnly?: boolea
 ];
 
 const ROLE_DESCRIPTIONS: Record<RoleVariant, string> = {
-  parent: "One link anyone can tap to join as a parent. Great for WhatsApp groups or sign-up nights.",
-  player: "Anyone with this link joins as a player. Best for senior squads and adult teams.",
-  coach: "Anyone with this link joins as a coach with edit access. Share carefully.",
-  team_admin: "Anyone with this link joins as a team admin with full access. Share carefully.",
+  parent: "Can view team information and respond to events.",
+  player: "Can view team information and respond to events.",
+  coach: "Can manage team information, events and other coach-level features.",
+  team_admin: "Has full team administration access.",
+};
+
+const ROLE_WARNINGS: Partial<Record<RoleVariant, string>> = {
+  coach: "Coach links give people team management access. Only share with people you trust.",
+  team_admin: "Admin links provide full team administration access. Only share with trusted administrators.",
 };
 
 const SENSITIVE_ROLES: RoleVariant[] = ["coach", "team_admin"];
