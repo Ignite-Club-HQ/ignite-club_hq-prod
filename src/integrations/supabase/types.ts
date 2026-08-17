@@ -10488,6 +10488,10 @@ export type Database = {
     Functions: {
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
+      _provision_invite_children_internal: {
+        Args: { p_invite_id: string; p_user_id: string }
+        Returns: Json
+      }
       accept_current_legal_terms: { Args: never; Returns: undefined }
       accept_guardian_parent_invite: {
         Args: { _invite_id: string }
@@ -12137,6 +12141,10 @@ export type Database = {
           team_name: string
         }[]
       }
+      provision_invite_children: {
+        Args: { p_invite_id: string }
+        Returns: Json
+      }
       prune_active_games_write_log: { Args: never; Returns: undefined }
       prune_old_diagnostic_logs: {
         Args: never
@@ -12262,6 +12270,10 @@ export type Database = {
           reservation_id: string
           used_bytes: number
         }[]
+      }
+      resolve_actor_display_name: {
+        Args: { p_user_id: string }
+        Returns: string
       }
       resolve_invite_short_code: { Args: { _code: string }; Returns: string }
       resolve_vault_record_scope: {

@@ -40,6 +40,7 @@ export function ClubAnnouncementDialog({
 }: ClubAnnouncementDialogProps) {
   const [message, setMessage] = useState("");
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
+  const [sendToClubChat, setSendToClubChat] = useState(false);
 
   const activeTeams = teams.filter((t) => !t.is_archived);
 
@@ -70,6 +71,7 @@ export function ClubAnnouncementDialog({
         body: {
           club_id: clubId,
           team_ids: teamIds,
+          include_club_chat: sendToClubChat,
           message: message.trim(),
           club_name: clubName,
         },
@@ -79,9 +81,15 @@ export function ClubAnnouncementDialog({
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      toast.success(`Announcement sent to ${selectedTeamIds.size} team${selectedTeamIds.size > 1 ? "s" : ""}`);
+      const parts: string[] = [];
+      if (selectedTeamIds.size > 0) {
+        parts.push(`${selectedTeamIds.size} team${selectedTeamIds.size > 1 ? "s" : ""}`);
+      }
+      if (sendToClubChat) parts.push("club chat");
+      toast.success(`Announcement sent to ${parts.join(" and ")}`);
       setMessage("");
       setSelectedTeamIds(new Set());
+      setSendToClubChat(false);
       onOpenChange(false);
     },
     onError: () => {
@@ -89,7 +97,11 @@ export function ClubAnnouncementDialog({
     },
   });
 
-  const canSend = message.trim().length > 0 && selectedTeamIds.size > 0 && !sendMutation.isPending;
+  const canSend =
+    message.trim().length > 0 &&
+    (selectedTeamIds.size > 0 || sendToClubChat) &&
+    !sendMutation.isPending;
+
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
@@ -97,7 +109,7 @@ export function ClubAnnouncementDialog({
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-primary" />
-            Send to Team Chats
+            Send Announcement
           </ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
 
@@ -120,6 +132,25 @@ export function ClubAnnouncementDialog({
               className="resize-none"
             />
           </div>
+
+          {/* Club chat destination */}
+          <div className="space-y-2">
+            <Label>Send to club chat</Label>
+            <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50">
+              <Checkbox
+                checked={sendToClubChat}
+                onCheckedChange={(checked) => setSendToClubChat(checked === true)}
+              />
+              <span className="text-sm">
+                {clubName} club chat
+                <span className="block text-xs text-muted-foreground">
+                  Posted by the club account to all club members
+                </span>
+              </span>
+            </label>
+          </div>
+
+
 
           {/* Team selection */}
           <div className="space-y-2">
