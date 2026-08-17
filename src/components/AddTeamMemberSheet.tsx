@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -2268,6 +2269,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       <SheetContent
         side="bottom"
         enableDragToClose
+        hideCloseButton
         className="rounded-t-2xl flex flex-col overflow-hidden overscroll-contain"
         data-lock-keyboard-scroll="true"
         data-allow-scroll
@@ -2297,11 +2299,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           transitionTimingFunction: 'ease',
         }}
       >
-        <SheetHeader className="mb-3 shrink-0">
+        <SheetHeader className="mb-3 shrink-0 relative pr-2">
           <SheetTitle>Invite to Team</SheetTitle>
           <SheetDescription>
             Add players, parents or coaches
           </SheetDescription>
+          <SheetClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute -right-1 top-0 h-8 w-8 rounded-full opacity-70 hover:opacity-100"
+              aria-label="Close invite sheet"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </SheetClose>
         </SheetHeader>
 
         {/* Club admin confirmation banner */}
