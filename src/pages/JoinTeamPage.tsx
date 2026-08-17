@@ -258,6 +258,60 @@ export default function JoinTeamPage() {
     refetchOnMount: 'always',
   });
 
+  /**
+   * Backend safety-net triggers can flip an invite to `accepted` before this
+   * page runs its accept flow. Previously we bailed out with "invite already
+   * used" and the invited children were never created, leaving the parent in
+   * the team with nobody to RSVP for. Re-run the idempotent provisioning RPC
+   * whenever the already-accepted invite belongs to the signed-in user.
+   */
+  const provisionedInviteRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || !isPendingInvite || !pendingInviteData) return;
+    if (pendingInviteData.status === "pending") return;
+
+    const meta = (pendingInviteData.metadata ?? null) as {
+      children?: unknown[];
+      mini_league_id?: string;
+    } | null;
+    if (!meta?.children?.length || meta.mini_league_id) return;
+    if (!["parent", "guardian"].includes(String(pendingInviteData.role))) return;
+
+    const invitedEmail = (pendingInviteData.invited_email || "").toLowerCase().trim();
+    const userEmail = (user.email || "").toLowerCase().trim();
+    const belongsToUser =
+      (invitedEmail && userEmail && invitedEmail === userEmail) ||
+      (pendingInviteData as { invited_user_id?: string }).invited_user_id === user.id;
+    if (!belongsToUser) return;
+
+    if (provisionedInviteRef.current === pendingInviteData.id) return;
+    provisionedInviteRef.current = pendingInviteData.id;
+
+    (async () => {
+      try {
+        const childIds = await provisionInviteChildren({
+          inviteId: pendingInviteData.id,
+          userId: user.id,
+        });
+        if (childIds.length > 0) {
+          queryClient.invalidateQueries({ queryKey: ["team-children-for-linking", pendingInviteData.team_id] });
+          toast({
+            title: "You're all set",
+            description: `${childIds.length} ${childIds.length === 1 ? "child" : "children"} added to the team.`,
+          });
+        }
+      } catch (err) {
+        provisionedInviteRef.current = null;
+        toast({
+          title: "Couldn't finish setting up",
+          description: getParentInviteErrorMessage(err),
+          variant: "destructive",
+        });
+      }
+    })();
+  }, [user, isPendingInvite, pendingInviteData, queryClient, toast]);
+
+
   // Fetch existing children on this team for parent linking.
   // Only surface children who don't yet have a primary parent or any guardians,
   // so a new parent can claim them without colliding with existing families.
