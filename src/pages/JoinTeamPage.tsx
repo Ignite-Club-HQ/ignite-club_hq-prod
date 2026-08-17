@@ -291,6 +291,7 @@ export default function JoinTeamPage() {
       try {
         const childIds = await provisionInviteChildren({
           inviteId: pendingInviteData.id,
+          guardianId: user.id,
         });
 
         if (childIds.length > 0) {
@@ -462,8 +463,9 @@ export default function JoinTeamPage() {
         );
       }
 
-      // Check if pending invite is already used
-      if (pendingInviteData.status !== "pending") {
+      // Accepted parent invites remain recoverable because the backend may
+      // accept the invite before its child metadata is provisioned.
+      if (!["pending", "accepted"].includes(pendingInviteData.status)) {
         throw new Error("This invite has already been used");
       }
 
@@ -575,11 +577,24 @@ export default function JoinTeamPage() {
         // nothing is written and the invite stays pending for a retry.
         console.log("[JoinTeam] Accepting parent invite via transactional RPC");
         try {
-          const result = await acceptParentTeamInvite({ inviteId: pendingInviteData.id });
-          console.log("[JoinTeam] Parent invite accepted:", {
-            children: result.childIds.length,
-            alreadyAccepted: result.alreadyAccepted,
+          if (pendingInviteData.status === "pending") {
+            const result = await acceptParentTeamInvite({ inviteId: pendingInviteData.id });
+            console.log("[JoinTeam] Parent invite accepted:", {
+              children: result.childIds.length,
+              alreadyAccepted: result.alreadyAccepted,
+            });
+          }
+
+          const childIds = await provisionInviteChildren({
+            inviteId: pendingInviteData.id,
+            guardianId: user.id,
           });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["children"] }),
+            queryClient.invalidateQueries({ queryKey: ["user-roles"] }),
+            queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
+          ]);
+          console.log("[JoinTeam] Parent invite children provisioned:", childIds.length);
         } catch (rpcError) {
           throw new Error(getParentInviteErrorMessage(rpcError));
         }

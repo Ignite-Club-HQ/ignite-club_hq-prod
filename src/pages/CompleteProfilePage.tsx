@@ -25,6 +25,7 @@ import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
 import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
 
 import { resolveCanonicalChildId, createChildForParentOrReuse } from "@/lib/childDedup";
+import { getParentInviteErrorMessage, provisionInviteChildren } from "@/features/membership/acceptParentInvite";
 
 
 interface PendingInvite {
@@ -135,7 +136,7 @@ export default function CompleteProfilePage() {
             teams:team_id(name)
           `)
           .ilike("invited_email", userEmail)
-          .eq("status", "pending");
+          .in("status", ["pending", "accepted"]);
         
         if (error) {
           console.error('[CompleteProfile] Error fetching pending invites:', error);
@@ -383,6 +384,25 @@ export default function CompleteProfilePage() {
           }
           if (clubId && !firstInvitedClubId) {
             firstInvitedClubId = clubId;
+          }
+
+          const isStandardParentChildInvite =
+            invite.role === "parent" &&
+            Array.isArray(invite.metadata?.children) &&
+            invite.metadata.children.length > 0 &&
+            !invite.metadata?.mini_league_id;
+
+          // Always run the authoritative idempotent RPC, including when a
+          // backend trigger accepted this invite before this screen mounted.
+          if (isStandardParentChildInvite) {
+            try {
+              await provisionInviteChildren({
+                inviteId: invite.id,
+                guardianId: user.id,
+              });
+            } catch (provisionError) {
+              throw new Error(getParentInviteErrorMessage(provisionError));
+            }
           }
 
           // Check if role already exists

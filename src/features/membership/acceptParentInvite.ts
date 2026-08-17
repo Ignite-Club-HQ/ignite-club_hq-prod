@@ -106,10 +106,12 @@ export async function acceptParentTeamInvite(params: {
  */
 export async function provisionInviteChildren(params: {
   inviteId: string;
+  guardianId: string;
 }): Promise<string[]> {
-  // The RPC derives the user strictly from auth.uid(); never pass a user id.
+  // The RPC verifies auth.uid(), guardianId and invite ownership before writing.
   const { data, error } = await supabase.rpc("provision_invite_children" as any, {
-    p_invite_id: params.inviteId,
+    _invite_id: params.inviteId,
+    _guardian_id: params.guardianId,
   });
 
 
