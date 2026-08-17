@@ -715,13 +715,18 @@ export default function GroupChatPage() {
         reply_to: m.reply_to,
       })));
       
+      const resolvedReactions = (
+        reactionsResult.error ? cachedReactions : (reactionsResult.data || [])
+      ) as MessageReaction[];
+
       return {
-        messages,
+        // Reactions are embedded on the rows as well as returned flat, so any
+        // render that seeds straight from this payload shows them immediately.
+        messages: attachReactionsToMessages(messages, resolvedReactions),
         hasOlderMessages: hasMore,
-        reactions: reactionsResult.error
-          ? cachedReactions
-          : (reactionsResult.data || []) as MessageReaction[],
+        reactions: resolvedReactions,
       };
+
     },
     enabled: !!groupId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
