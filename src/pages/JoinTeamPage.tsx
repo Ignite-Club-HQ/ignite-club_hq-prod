@@ -252,15 +252,20 @@ export default function JoinTeamPage() {
       try {
         const childIds = await provisionInviteChildren({
           inviteId: pendingInviteData.id,
-          userId: user.id,
         });
+
         if (childIds.length > 0) {
           queryClient.invalidateQueries({ queryKey: ["team-children-for-linking", pendingInviteData.team_id] });
+          queryClient.invalidateQueries({ queryKey: ["children"] });
+          queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+          queryClient.invalidateQueries({ queryKey: ["rsvps"] });
+          queryClient.invalidateQueries({ queryKey: ["team-members", pendingInviteData.team_id] });
           toast({
             title: "You're all set",
             description: `${childIds.length} ${childIds.length === 1 ? "child" : "children"} added to the team.`,
           });
         }
+
       } catch (err) {
         provisionedInviteRef.current = null;
         toast({
