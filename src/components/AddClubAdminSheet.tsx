@@ -583,9 +583,14 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                 <span className="text-xs text-muted-foreground">{roleConfig[selectedRole].description}</span>
               </div>
             </div>
+          </div>
+        )}
+        </div>
 
+        {!inviteLink && (
+          <div className="shrink-0 border-t pt-3 pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] -mx-6 px-6 bg-background">
             <Button
-              className="w-full h-12"
+              className="w-full h-12 text-sm sm:text-base"
               onClick={() => {
                 if (selectedUser) {
                   addExistingUserMutation.mutate();
@@ -602,13 +607,15 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               }
             >
               {addPendingMemberMutation.isPending || addExistingUserMutation.isPending || isSendingNotification ? (
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                <Loader2 className="h-5 w-5 mr-2 animate-spin shrink-0" />
               ) : (
-                <UserPlus className="h-5 w-5 mr-2" />
+                <UserPlus className="h-5 w-5 mr-2 shrink-0" />
               )}
-              {(customName.trim() || selectedUser)
-                ? `Add ${selectedUser?.display_name || customName.trim()} as ${roleConfig[selectedRole].label}`
-                : "Enter name to continue"}
+              <span className="truncate">
+                {(customName.trim() || selectedUser)
+                  ? `Add ${selectedUser?.display_name || customName.trim()} as ${roleConfig[selectedRole].label}`
+                  : "Enter name to continue"}
+              </span>
             </Button>
           </div>
         )}
