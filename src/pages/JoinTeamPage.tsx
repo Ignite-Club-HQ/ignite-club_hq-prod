@@ -300,11 +300,10 @@ export default function JoinTeamPage() {
           queryClient.invalidateQueries({ queryKey: ["user-roles"] });
           queryClient.invalidateQueries({ queryKey: ["rsvps"] });
           queryClient.invalidateQueries({ queryKey: ["team-members", pendingInviteData.team_id] });
-          toast({
-            title: "You're all set",
-            description: `${childIds.length} ${childIds.length === 1 ? "child" : "children"} added to the team.`,
-          });
+          // No toast: child provisioning is an invisible part of accepting the
+          // invite. The join/welcome confirmation already covers it.
         }
+
 
       } catch (err) {
         provisionedInviteRef.current = null;
