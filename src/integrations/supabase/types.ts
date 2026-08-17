@@ -12303,7 +12303,7 @@ export type Database = {
         }[]
       }
       search_invitable_profiles: {
-        Args: { _limit?: number; _query: string }
+        Args: { _club_id?: string; _limit?: number; _query: string }
         Returns: {
           avatar_url: string
           display_name: string
