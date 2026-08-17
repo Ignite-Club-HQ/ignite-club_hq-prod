@@ -681,7 +681,14 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pt-3 px-1 pb-4">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto space-y-3 pt-3 px-1 pb-4"
+          style={
+            isKeyboardOpen && !(selectedUsers.length > 0 || isCustomGroup)
+              ? { paddingBottom: `${keyboardHeight + 16}px` }
+              : undefined
+          }
+        >
           {(checkingPro && hasProAccess === undefined) || (checkingCanSend && canSendDMs === undefined) ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -866,14 +873,16 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
               )}
 
 
-              <div className="relative px-0.5 pt-0.5">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search members..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-11 rounded-xl pl-9"
-                />
+              <div className="sticky top-0 z-10 -mx-1 px-1.5 pt-0.5 pb-2 bg-background">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search members..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-11 rounded-xl pl-9"
+                  />
+                </div>
               </div>
 
               <div>
