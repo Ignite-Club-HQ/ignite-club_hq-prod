@@ -951,55 +951,21 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 </div>
               )}
 
-              {/* Filters — only show club picker when there's a real choice */}
-              {(showClubFilter || filteredTeams.length > 0) && (
-                <div className="flex gap-2">
-                  {showClubFilter && (
-                    <Select value={selectedClubId} onValueChange={handleClubChange}>
-                      <SelectTrigger className="flex-1 h-11 rounded-xl">
-                        <SelectValue placeholder="All Clubs" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[1000020]">
-                        <SelectItem value="all">All Clubs</SelectItem>
-                        {availableClubs.map(club => (
-                          <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {filteredTeams.length > 0 && (
-                    <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                      <SelectTrigger className="flex-1 h-11 rounded-xl">
-                        <SelectValue placeholder="All Teams" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[1000020]">
-                        <SelectItem value="all">All Teams</SelectItem>
-                        {filteredTeams.map(team => (
-                          <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              )}
-              {isClubFilterLocked && availableClubs.length === 1 && (
-                <p className="text-[11px] text-muted-foreground -mt-1 px-0.5">
-                  Showing members of {availableClubs[0].name}
-                </p>
+              {/* Club picker only when the user really belongs to several clubs */}
+              {showClubFilter && (
+                <Select value={selectedClubId} onValueChange={handleClubChange}>
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue placeholder="All Clubs" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[1000020]">
+                    <SelectItem value="all">All Clubs</SelectItem>
+                    {availableClubs.map(club => (
+                      <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
 
-
-              <div className="sticky top-0 z-10 -mx-1 px-1.5 pt-0.5 pb-2 bg-background">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search members..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-11 rounded-xl pl-9"
-                  />
-                </div>
-              </div>
 
               <div>
                 <div className="space-y-1">
