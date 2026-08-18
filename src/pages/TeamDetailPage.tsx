@@ -2273,6 +2273,34 @@ export default function TeamDetailPage() {
               </Card>
             </Link>
           )}
+
+          {hasProFootball ? (
+            <Link to={`/reports/player-stats?teamId=${id}`}>
+              <Card className="hover:border-primary/50 transition-colors">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/10">
+                    <FileText className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <span className="font-medium">Player Stats Reports</span>
+                </CardContent>
+              </Card>
+            </Link>
+          ) : (
+            <Link to={`/teams/${id}/upgrade`}>
+              <Card className="hover:border-primary/50 transition-colors opacity-75">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-muted">
+                    <FileText className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <span className="font-medium text-muted-foreground">Player Stats Reports</span>
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    <Lock className="h-3 w-3 mr-1" />
+                    Pro Football
+                  </Badge>
+                </CardContent>
+              </Card>
+            </Link>
+          )}
                 </div>
               </AccordionContent>
             </AccordionItem>
