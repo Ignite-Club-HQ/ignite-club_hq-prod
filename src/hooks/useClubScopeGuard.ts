@@ -63,6 +63,8 @@ export function useClubScopeGuard() {
 
   // Guard against redirect loops if "/" itself somehow resolved to a scope.
   const lastRedirectedFrom = useRef<string | null>(null);
+  // Re-evaluates the guard after an in-flight notification switch resolves.
+  const [recheckTick, setRecheckTick] = useState(0);
 
   useEffect(() => {
     if (!activeClubFilter || !owningClubId) return;
@@ -72,7 +74,14 @@ export function useClubScopeGuard() {
     // so also honour the short-lived in-flight marker written the moment the
     // switch is requested — otherwise the guard wins the race and bounces home.
     if (getAppliedNotificationClubSwitch() === owningClubId) return;
-    if (isNotificationClubSwitchInFlight(owningClubId)) return;
+    if (isNotificationClubSwitchInFlight(owningClubId)) {
+      // Re-check shortly: if membership verification rejects the switch the
+      // marker disappears and the route must still be scoped out.
+      const t = setTimeout(() => setRecheckTick((n) => n + 1), 1000);
+      return () => clearTimeout(t);
+    }
+
+
 
     if (location.pathname === "/") return;
     if (lastRedirectedFrom.current === location.pathname + "|" + activeClubFilter) return;
