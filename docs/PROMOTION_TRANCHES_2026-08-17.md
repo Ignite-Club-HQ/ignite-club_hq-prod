@@ -4,7 +4,7 @@
 
 **Source branch:** `integrate/competition-current`
 
-**Source tested commit:** `c887c4fd7b6713fe6c031582997513378215d240`
+**Source tested commit:** `bca406b0c`
 
 **Target:** fresh review branches created from then-current `origin/main`
 

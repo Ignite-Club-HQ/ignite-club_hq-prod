@@ -2,7 +2,7 @@
 
 **Audience:** External software vendor / development agency / technical support partner.
 **Purpose:** Enough detail to take over development, support, deployment, and scaling of the platform without prior exposure to it.
-**Status:** Supporting technical reference, reviewed 2026-08-17. The current
+**Status:** Supporting technical reference, reviewed 2026-08-18. The current
 cumulative refactoring evidence is recorded in
 [`RELEASE_CANDIDATE_2026-08-17.md`](RELEASE_CANDIDATE_2026-08-17.md), with its
 review and rollback sequence in
@@ -142,7 +142,7 @@ A user opens the mobile app (Capacitor wrapping the built React SPA in `dist/`) 
 - Long-running / scheduled work runs via `pg_cron` scheduled RPCs that hit these edge functions (see the many `*-cron` functions: `auto-rsvp-push-cron`, `playhq-sync-cron`, `auto-default-rsvp-confirm-cron`, `auto-purge-trash`, `chat-photo-gallery-reminders`, `check-pending-subs`, `check-push-failure-rate`, `cleanup-*`, `scheduled-backup`, `process-scheduled-messages`, `expire-subscriptions`, `retry-missed-push-notifications`, `process-weekly-engagement-*`).
 
 ### 2.3 Database
-- Postgres via Supabase. At review there are 1,023 SQL migration files. Hosted table counts require verification against the target environment.
+- Postgres via Supabase. At review there are 1,029 SQL migration files. Hosted table counts require verification against the target environment.
 - All new tables must follow the four-step order: `CREATE TABLE` → `GRANT` → `ENABLE RLS` → `CREATE POLICY`. Historic tables all use this pattern.
 - Roles enum: `public.app_role`. Role check: `public.has_role(uuid, app_role)` SECURITY DEFINER.
 
@@ -217,7 +217,7 @@ Top-level layout:
 ├── supabase/
 │   ├── config.toml         verify_jwt overrides per function
 │   ├── functions/          118 deployable entry points + _shared/
-│   └── migrations/         1,023 SQL migrations at review (append-only)
+│   └── migrations/         1,029 SQL migrations at review (append-only)
 ├── android/                Generated Capacitor Android project (in Codemagic)
 ├── ios/                    Capacitor iOS project (committed)
 ├── firebase/               GoogleService-Info.plist + google-services.json

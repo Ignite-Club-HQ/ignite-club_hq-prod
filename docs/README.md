@@ -1,6 +1,6 @@
 # Ignite Club HQ Documentation Index
 
-**Last reviewed:** 2026-08-17
+**Last reviewed:** 2026-08-18
 
 The categories below distinguish current operating guidance from point-in-time
 analysis. If a dated report conflicts with an authoritative document or the
@@ -15,6 +15,7 @@ documentation.
 - [Dev to Prod environment checklist](PROMOTION_CHECKLIST.md)
 - [Local Supabase test safety](testing/local-supabase.md)
 - [Edge Function authentication](EDGE_FUNCTION_AUTH.md)
+- [Edge Function and scheduled-work ownership](EDGE_FUNCTION_OWNERSHIP.md)
 - [Push delivery queue](PUSH_DELIVERY_QUEUE.md)
 - [Native IAP verification](NATIVE_IAP_VERIFICATION.md)
 
@@ -24,6 +25,7 @@ documentation.
 - [Vendor access and support pack](VENDOR_HANDOVER_PACK.md)
 - [Current cumulative release-candidate evidence](RELEASE_CANDIDATE_2026-08-17.md)
 - [Current promotion tranche and rollback plan](PROMOTION_TRANCHES_2026-08-17.md)
+- [Current code-quality ratchet](CODE_QUALITY_RATCHET_2026-08-18.md)
 - [Refactoring automated closeout](REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md)
 - [Delegated refactoring acceptance checklist](testing/REFACTORING_MANUAL_ACCEPTANCE.md)
 - [Recent work state](RECENT_WORK_STATE.md) — a checkpoint; verify branch and

@@ -2,7 +2,7 @@
 
 **Candidate branch:** `integrate/competition-current`
 
-**Candidate commit:** `c887c4fd7b6713fe6c031582997513378215d240`
+**Candidate commit:** `bca406b0c`
 
 **Evidence:** [`../RELEASE_CANDIDATE_2026-08-17.md`](../RELEASE_CANDIDATE_2026-08-17.md)
 

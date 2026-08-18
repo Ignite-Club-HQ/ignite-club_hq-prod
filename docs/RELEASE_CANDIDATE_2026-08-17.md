@@ -2,7 +2,7 @@
 
 **Candidate branch:** `integrate/competition-current`
 
-**Automated-test commit:** `c887c4fd7b6713fe6c031582997513378215d240`
+**Automated-test commit:** `bca406b0c`
 
 **Status:** automated verification passed; promotion tranche construction and
 human acceptance remain pending
@@ -29,9 +29,10 @@ Results:
 
 | Layer | Result |
 | --- | --- |
-| Frontend Vitest | 510 files; 5,244 passed; 1 intentional skip |
+| Production TypeScript | passed (`tsconfig.production.json`) |
+| Frontend Vitest | 516 files; 5,332 passed; 1 intentional skip |
 | Isolated Playwright | 139/139 passed |
-| Local Supabase integration | 33 files; 270/270 passed |
+| Local Supabase integration | 33 files; 272/272 passed |
 | Synthetic migration ledger | all 26 local migrations applied from a clean start |
 | Local Supabase cleanup | passed; no allowlisted containers or data volumes remained |
 | Strict feature/workflow TypeScript boundary | passed |
@@ -43,11 +44,10 @@ when `REMAINING_SECURITY_UPGRADE_CANDIDATE=true`; it is intentionally excluded
 while the application remains on the reviewed Babel 7 resolution and is not a
 skipped business-behaviour test.
 
-The table above records the checks that actually ran at that historical
-checkpoint. It does not claim that repository-wide ESLint or the test-inclusive
-`tsconfig.app.json` check was green. A production-only TypeScript gate was added
-after this checkpoint; the current candidate must pass that gate and a fresh
-complete baseline before this evidence record is advanced to a newer SHA.
+The table above records the checks that actually ran at this checkpoint. It does
+not claim that repository-wide ESLint or the test-inclusive `tsconfig.app.json`
+check is green. Those remain tracked historical debt; production compilation and
+the stricter feature/workflow boundaries are the enforced compiler gates.
 
 No hosted Supabase project, hosted frontend, real club, or real user data was
 read or modified. The database portion used only the disposable
