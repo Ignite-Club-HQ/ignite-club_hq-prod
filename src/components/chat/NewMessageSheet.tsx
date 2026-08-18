@@ -133,12 +133,13 @@ export function NewMessageSheet({
           <div className="space-y-2.5">
             <ActionRow
               icon={MessageCircle}
-              title="New Direct Message"
+              title="New Message"
               subtitle={
                 gated
                   ? "Pro feature — tap to upgrade"
-                  : "Message one person, or several at once"
+                  : "Select one or more people"
               }
+
               accent="primary"
               locked={gated}
               onClick={() => {
