@@ -37,6 +37,43 @@ interface EventPayload {
 
 const ENQUEUE_BATCH_SIZE = 500;
 
+/**
+ * Human-readable " — <date> <time> at <venue>" suffix for invite messages.
+ * Every part is optional; an unparsable value is omitted rather than shown raw.
+ */
+function eventDetailSuffix(row: {
+  event_date?: string | null;
+  start_time?: string | null;
+  location?: string | null;
+}): string {
+  const parts: string[] = [];
+  const date = row.event_date ? new Date(row.event_date) : null;
+  if (date && !Number.isNaN(date.getTime())) {
+    parts.push(
+      date.toLocaleDateString("en-AU", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        timeZone: "Australia/Adelaide",
+      }),
+    );
+  }
+  const start = row.start_time ? new Date(row.start_time) : null;
+  if (start && !Number.isNaN(start.getTime())) {
+    parts.push(
+      start.toLocaleTimeString("en-AU", {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "Australia/Adelaide",
+      }),
+    );
+  }
+  let suffix = parts.length > 0 ? ` — ${parts.join(" ")}` : "";
+  const venue = (row.location || "").trim();
+  if (venue) suffix += `${suffix ? " " : " — "}at ${venue}`;
+  return suffix;
+}
+
 async function kickWorker(supabaseUrl: string, serviceKey: string) {
   try {
     fetch(`${supabaseUrl}/functions/v1/process-push-delivery-queue`, {
@@ -81,7 +118,9 @@ Deno.serve(async (req) => {
     // Authoritative event lookup — never trust caller scope.
     const { data: eventRow, error: eventErr } = await supabase
       .from("events")
-      .select("id, club_id, team_id, mini_league_id, created_by, title, is_cancelled, parent_event_id")
+      .select(
+        "id, club_id, team_id, mini_league_id, created_by, title, is_cancelled, parent_event_id, event_date, start_time, location",
+      )
       .eq("id", eventId)
       .maybeSingle();
     if (eventErr) {
@@ -144,7 +183,7 @@ Deno.serve(async (req) => {
         });
       }
       notificationType = "event_invite";
-      message = `You've been invited to: ${title}`;
+      message = `📅 New event: ${title}${eventDetailSuffix(eventRow)}`;
       try {
         recipientUserIds = await resolveRecipients(supabase, eventId, clubId, teamId, miniLeagueId, createdBy);
       } catch (e) {
@@ -188,7 +227,24 @@ Deno.serve(async (req) => {
     }
 
     const expected = recipientUserIds.length;
-    console.log(`[EVENT-NOTIFY] ${expected} recipients for ${action}`);
+    console.log(
+      "[EVENT-NOTIFY] Resolved audience",
+      JSON.stringify({
+        action,
+        eventId,
+        clubId,
+        teamId,
+        miniLeagueId,
+        recipientCount: expected,
+      }),
+    );
+    if (expected === 0) {
+      // Silent no-ops previously looked identical to a successful fan-out.
+      console.warn(
+        "[EVENT-NOTIFY] No recipients resolved — nobody will be notified",
+        JSON.stringify({ action, eventId, clubId, teamId, miniLeagueId }),
+      );
+    }
 
     let created = 0;
     let alreadyExisting = 0;
