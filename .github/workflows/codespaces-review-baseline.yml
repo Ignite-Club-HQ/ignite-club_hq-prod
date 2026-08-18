@@ -1,0 +1,86 @@
+name: Complete isolated baseline
+
+on:
+  push:
+    branches:
+      - codespaces-review
+  workflow_dispatch:
+
+# A newer review commit supersedes an older in-flight run. The baseline script
+# handles TERM/INT cleanup, and GitHub then discards the entire runner VM.
+concurrency:
+  group: codespaces-review-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  complete-baseline:
+    name: Frontend, journeys and local Supabase
+    if: github.ref_name == 'codespaces-review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      CI: "true"
+      TZ: UTC
+
+    steps:
+      - name: Check out tested commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Guard against destructive migrations
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          BEFORE="$PUSH_BEFORE"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD^"
+          fi
+          node scripts/destructive-migration-guard.mjs \
+            --base="$BEFORE" \
+            --head="$GITHUB_SHA"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium and WebKit
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Verify local-only baseline configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REF_NAME}" = "codespaces-review"
+          grep -Fq 'project_id = "ignite-club-local-security-tests"' local-supabase-workspace/supabase/config.toml
+          grep -Fq 'http://127.0.0.1:54321' scripts/local-baseline-safety.mjs
+          if env | grep -Eq '^(SUPABASE|DATABASE_URL|PGPASSWORD)='; then
+            echo "::error::A hosted-database-like environment variable is present."
+            exit 1
+          fi
+
+      - name: Run complete isolated baseline
+        run: npm run test:baseline
+
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-baseline-diagnostics-${{ github.run_id }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
