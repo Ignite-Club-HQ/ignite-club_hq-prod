@@ -631,7 +631,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
     });
 
     return sorted;
-  }, [dmableUsers, searchQuery, selectedClubId, selectedTeamId]);
+  }, [dmableUsers, searchQuery, selectedClubId, selectedTeamId, roleFilter]);
 
   // Detect display-name collisions within the current visible result set so we
   // can append a privacy-friendly disambiguator (#abcd from user id) only when
