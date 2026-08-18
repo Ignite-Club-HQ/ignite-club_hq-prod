@@ -61,6 +61,51 @@ describe("useUserHasAnyClubPro fail-safe", () => {
     expect(result.current.hasAnyClubPro).toBe(true);
   });
 
+  it.each([
+    { is_pro: true },
+    { is_pro_football: true },
+    { admin_pro_override: true },
+    { admin_pro_football_override: true },
+  ])("recognises every active entitlement form: %o", async (entitlement) => {
+    rolesResult.data = [{ club_id: "c1", team_id: null }];
+    subsResult.data = [{ ...entitlement, expires_at: null }];
+    const { result } = renderHook(() => useUserHasAnyClubPro(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.hasAnyClubPro).toBe(true);
+  });
+
+  it("resolves club access inherited through a team membership", async () => {
+    rolesResult.data = [{ club_id: null, team_id: "t1" }];
+    teamsResult.data = [{ club_id: "c1" }];
+    subsResult.data = [{ is_pro: true, expires_at: null }];
+    const { result } = renderHook(() => useUserHasAnyClubPro(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.hasAnyClubPro).toBe(true);
+  });
+
+  it("ignores an expired entitlement while granting another active club", async () => {
+    rolesResult.data = [
+      { club_id: "expired", team_id: null },
+      { club_id: "active", team_id: null },
+    ];
+    subsResult.data = [
+      { is_pro: true, expires_at: "2020-01-01T00:00:00Z" },
+      { admin_pro_override: true, expires_at: "2099-01-01T00:00:00Z" },
+    ];
+    const { result } = renderHook(() => useUserHasAnyClubPro(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.hasAnyClubPro).toBe(true);
+  });
+
+  it("resolves definitive Free when every entitlement is expired", async () => {
+    rolesResult.data = [{ club_id: "c1", team_id: null }];
+    subsResult.data = [{ is_pro_football: true, expires_at: "2020-01-01T00:00:00Z" }];
+    const { result } = renderHook(() => useUserHasAnyClubPro(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.hasAnyClubPro).toBe(false);
+    expect(result.current.isError).toBe(false);
+  });
+
   it("resolves Free (definitive) when subscriptions are all inactive/expired", async () => {
     rolesResult.data = [{ club_id: "c1", team_id: null }];
     subsResult.data = [{ is_pro: false, expires_at: null }];

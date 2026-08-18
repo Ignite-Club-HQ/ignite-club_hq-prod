@@ -29,6 +29,8 @@ import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce } from "@/lib/pendingChatJump";
 import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
+import { notificationKeys } from "@/features/notifications/queryKeys";
+import { invalidateNotificationSurfaces } from "@/features/notifications/cachePolicy";
 
 // Preload Ignite icon so it's instantly available when switching from club theme
 const preloadedIgniteIcon = new Image();
@@ -534,14 +536,11 @@ export function AppHeader() {
     onMutate: () => {
       // Optimistically clear the badge and dropdown immediately
       clearUnreadCount();
-      queryClient.setQueriesData<unknown[]>({ queryKey: ["recent-notifications"] }, () => []);
-      queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, () => 0);
+      queryClient.setQueriesData<unknown[]>({ queryKey: notificationKeys.recent }, () => []);
+      queryClient.setQueriesData<number>({ queryKey: notificationKeys.clubUnread }, () => 0);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-count"] });
-      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+      invalidateNotificationSurfaces(queryClient);
       setNotificationsOpen(false);
       // Force refresh to get accurate count from server
       setTimeout(() => refreshUnreadCount(), 300);
@@ -549,14 +548,14 @@ export function AppHeader() {
     onError: () => {
       // Re-fetch so the dropdown reflects true server state instead of the
       // optimistic empty list.
-      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.recent });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.clubUnread });
       refreshUnreadCount();
     },
   });
 
   const { data: recentNotifications = [], refetch: refetchRecentNotifications } = useQuery({
-    queryKey: ["recent-notifications", user?.id, activeClubFilter],
+    queryKey: notificationKeys.recentFor(user?.id, activeClubFilter),
     queryFn: async () => {
       if (!user?.id) return [];
       let q = supabase
@@ -594,7 +593,7 @@ export function AppHeader() {
 
   // Per-club unread count (only when a club filter is active)
   const { data: clubUnreadCount = 0 } = useQuery({
-    queryKey: ["club-unread-count", user?.id, activeClubFilter],
+    queryKey: notificationKeys.clubUnreadFor(user?.id, activeClubFilter),
     queryFn: async () => {
       if (!user?.id || !activeClubFilter) return 0;
       // Pull unread rows (capped) so we can drop DMs from senders who don't
@@ -630,10 +629,7 @@ export function AppHeader() {
       return id;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-count"] });
-      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
+      invalidateNotificationSurfaces(queryClient);
     },
   });
 
