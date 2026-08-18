@@ -48,7 +48,7 @@ export default function CompetitionsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competitions")
-        .select("id, name, sport, season, status, visibility, starts_on, ends_on, organizer_club_id, source, last_synced_at, clubs:organizer_club_id(name), competition_entries(team_id, teams:team_id(club_id))")
+        .select("id, name, sport, season, status, visibility, starts_on, ends_on, organizer_club_id, source, last_synced_at, clubs:organizer_club_id(name), competition_entries(team_id, status, teams:team_id(club_id, deleted_at))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -63,7 +63,14 @@ export default function CompetitionsPage() {
       if (!activeClubFilter) return true;
       if (c.organizer_club_id === activeClubFilter) return true;
       const entries = Array.isArray(c.competition_entries) ? c.competition_entries : [];
-      return entries.some((e: any) => e?.teams?.club_id === activeClubFilter);
+      // Only an accepted entry from a live (non-deleted) team keeps a club in
+      // the competition — stale entries must not resurrect it in the list.
+      return entries.some(
+        (e: any) =>
+          e?.status === "accepted" &&
+          !e?.teams?.deleted_at &&
+          e?.teams?.club_id === activeClubFilter,
+      );
     });
   }, [allCompetitions, activeClubFilter, adminClubs]);
 
@@ -81,10 +88,11 @@ export default function CompetitionsPage() {
       if (teamIds.length === 0) return [];
       const { data } = await supabase
         .from("competition_entries")
-        .select("id, status, team_id, competition_id, teams:team_id(name, club_id), competitions:competition_id(name, sport)")
+        .select("id, status, team_id, competition_id, teams!inner(name, club_id, deleted_at), competitions:competition_id(name, sport)")
         .in("team_id", teamIds)
-        .eq("status", "invited");
-      const rows = data ?? [];
+        .eq("status", "invited")
+        .is("teams.deleted_at", null);
+      const rows = (data ?? []).filter((r: any) => !r.teams?.deleted_at);
       if (!activeClubFilter) return rows;
       return rows.filter((r: any) => r.teams?.club_id === activeClubFilter);
     },

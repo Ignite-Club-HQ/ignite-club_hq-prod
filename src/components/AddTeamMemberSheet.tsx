@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown, ChevronUp, Link2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -225,17 +226,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Single-invite wizard step: 1 = Person, 2 = Role (+ children/guardian for parents), 3 = Delivery
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   // Whether the "invite by name" section is expanded. Defaults to collapsed so
-  // the join-link flow is the visually primary action on first open.
+  // the first screen is a simple two-way choice: share a link, or invite one person.
   const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
+  // Progressive disclosure: the join-link role selector only appears after the
+  // user chooses "Create link" on the first screen.
+  const [linkFlowOpen, setLinkFlowOpen] = useState(false);
   // When the user can't share the bulk join link (non-admins/coaches), the
   // invite-by-name form is the only available flow, so it must be visible by
   // default — otherwise the sheet renders an empty body.
   const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
 
-  // Reset to collapsed each time the sheet is opened so the join-link flow
-  // remains the primary action on every reopen.
+  // Reset to the chooser each time the sheet is opened.
   useEffect(() => {
-    if (open) setInviteByNameExpanded(false);
+    if (open) {
+      setInviteByNameExpanded(false);
+      setLinkFlowOpen(false);
+    }
   }, [open]);
 
   // When the name is confirmed (or an existing user is selected), the role
@@ -422,12 +428,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   });
 
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["user-search-team-member", debouncedNameInput],
+    queryKey: ["user-search-team-member", debouncedNameInput, clubId],
     queryFn: async () => {
       if (debouncedNameInput.length < 2) return [];
       const { data, error } = await supabase.rpc("search_invitable_profiles", {
         _query: debouncedNameInput,
         _limit: 8,
+        _club_id: clubId ?? null,
       });
       if (error) throw error;
       return (data || []) as Array<{
@@ -574,6 +581,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           const { data: rpcData } = await supabase.rpc("search_invitable_profiles", {
             _query: term,
             _limit: 8,
+            _club_id: clubId ?? null,
           });
 
           const profileResults = ((rpcData || []) as Array<{
@@ -2266,6 +2274,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       <SheetContent
         side="bottom"
         enableDragToClose
+        hideCloseButton
         className="rounded-t-2xl flex flex-col overflow-hidden overscroll-contain"
         data-lock-keyboard-scroll="true"
         data-allow-scroll
@@ -2295,11 +2304,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           transitionTimingFunction: 'ease',
         }}
       >
-        <SheetHeader className="mb-3 shrink-0">
+        <SheetHeader className="mb-3 shrink-0 relative pr-2">
           <SheetTitle>Invite to Team</SheetTitle>
           <SheetDescription>
             Add players, parents or coaches
           </SheetDescription>
+          <SheetClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute -right-1 top-0 h-8 w-8 rounded-full opacity-70 hover:opacity-100"
+              aria-label="Close invite sheet"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </SheetClose>
         </SheetHeader>
 
         {/* Club admin confirmation banner */}
@@ -2309,30 +2329,66 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </div>
         )}
 
-        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-4 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           {/* Multiple/bulk tab removed — join link + single invite cover all cases */}
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
-            {/* Persistent team join link — primary action on first open. */}
-            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
-              <TeamJoinLinkCard teamId={teamId} teamName={teamName} teamType={teamType} />
+            {/* STEP 0 — the only decision on first open: one link, or one person. */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && !linkFlowOpen && (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Link2 className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">Share a team link</p>
+                      <p className="text-xs text-muted-foreground">Invite several people at once.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    className="w-full h-11 text-sm font-semibold"
+                    onClick={() => setLinkFlowOpen(true)}
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Create link
+                  </Button>
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <UserPlus className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">Invite someone directly</p>
+                      <p className="text-xs text-muted-foreground">Send an individual invitation by email or SMS.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-11 text-sm font-semibold bg-background"
+                    onClick={() => setInviteByNameExpanded(true)}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite person
+                  </Button>
+                </div>
+              </div>
             )}
 
-            {/* Secondary "Invite by name" toggle — collapsed by default. */}
-            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && (
-              <button
-                type="button"
-                onClick={() => setInviteByNameExpanded(true)}
-                className="w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                  Invite a specific person
-                </span>
-                <span className="text-xs text-muted-foreground">Email or SMS</span>
-              </button>
+            {/* Join-link flow — role choice + link actions, shown after "Create link". */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && linkFlowOpen && !inviteByNameExpanded && (
+              <TeamJoinLinkCard
+                teamId={teamId}
+                teamName={teamName}
+                teamType={teamType}
+                onBack={() => setLinkFlowOpen(false)}
+              />
             )}
 
             {/* Invite-by-name body (form + wizard) — only when expanded */}

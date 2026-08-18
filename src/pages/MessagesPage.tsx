@@ -1065,13 +1065,22 @@ export default function MessagesPage() {
     enabled: competitionIdsForGroups.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
+      // Only ACTIVE participation maps a club into a competition:
+      // - the entry must still be accepted (not invited/declined/withdrawn)
+      // - the entering team must not be soft-deleted
+      // Otherwise stale entries keep a competition's chat groups visible in a
+      // club's inbox forever after its teams leave or are deleted.
       const { data, error } = await supabase
         .from("competition_entries")
-        .select("competition_id, teams:team_id(club_id)")
-        .in("competition_id", competitionIdsForGroups);
+        .select("competition_id, status, teams!inner(club_id, deleted_at)")
+        .in("competition_id", competitionIdsForGroups)
+        .eq("status", "accepted")
+        .is("teams.deleted_at", null);
       if (error) throw error;
       const map: Record<string, Set<string>> = {};
       for (const row of (data ?? []) as any[]) {
+        if (row?.status !== "accepted") continue;
+        if (row?.teams?.deleted_at) continue;
         const clubId = row?.teams?.club_id;
         if (!clubId) continue;
         (map[row.competition_id] ||= new Set()).add(clubId);
