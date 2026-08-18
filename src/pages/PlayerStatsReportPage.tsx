@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import PlayerStatsReportView from "@/components/reports/PlayerStatsReportView";
@@ -21,6 +22,7 @@ interface Team {
   id: string;
   name: string;
   logo_url: string | null;
+  club_id: string | null;
   clubs: {
     name: string;
     logo_url: string | null;
@@ -36,6 +38,7 @@ interface GameEvent {
 
 export default function PlayerStatsReportPage() {
   const { user } = useAuth();
+  const { activeClubFilter } = useClubTheme();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
@@ -251,30 +254,79 @@ export default function PlayerStatsReportPage() {
     setTimeout(() => printWindow.print(), 500);
   };
 
-  // Fetch teams where user is admin/coach
+  // Fetch teams the user can report on, strictly scoped to the active club filter.
   const { data: teams, isLoading: teamsLoading } = useQuery({
-    queryKey: ["admin-coach-teams", user?.id],
+    queryKey: ["admin-coach-teams", user?.id, activeClubFilter],
     queryFn: async () => {
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
-        .select("team_id, role")
+        .select("team_id, club_id, role")
         .eq("user_id", user!.id)
-        .in("role", ["team_admin", "coach"])
-        .not("team_id", "is", null);
+        .in("role", ["team_admin", "coach", "club_admin", "committee_member"]);
 
-      if (!roles || roles.length === 0) return [];
+      if (rolesError) throw rolesError;
 
-      const teamIds = [...new Set(roles.map((r) => r.team_id))];
+      // Team-level roles
+      const teamIds = new Set<string>();
+      // Club-level admin roles grant reporting on every team in that club
+      const adminClubIds = new Set<string>();
 
-      const { data: teams } = await supabase
-        .from("teams")
-        .select("id, name, logo_url, clubs!club_id(name, logo_url)")
-        .in("id", teamIds);
+      for (const r of roles ?? []) {
+        if (activeClubFilter && r.club_id && r.club_id !== activeClubFilter) continue;
+        if (r.team_id && (r.role === "team_admin" || r.role === "coach")) {
+          teamIds.add(r.team_id);
+        }
+        if (r.club_id && (r.role === "club_admin" || r.role === "committee_member")) {
+          adminClubIds.add(r.club_id);
+        }
+      }
 
-      return (teams as Team[]) || [];
+      const results = new Map<string, Team>();
+
+      const addRows = (rows: Team[] | null) => {
+        for (const t of rows ?? []) {
+          // Fail-closed club boundary: never surface a team from another club.
+          if (activeClubFilter && t.club_id !== activeClubFilter) continue;
+          results.set(t.id, t);
+        }
+      };
+
+      const select = "id, name, logo_url, club_id, clubs!club_id(name, logo_url)";
+
+      if (teamIds.size > 0) {
+        const { data, error } = await supabase
+          .from("teams")
+          .select(select)
+          .in("id", Array.from(teamIds))
+          .is("deleted_at", null);
+        if (error) throw error;
+        addRows(data as unknown as Team[]);
+      }
+
+      if (adminClubIds.size > 0) {
+        const { data, error } = await supabase
+          .from("teams")
+          .select(select)
+          .in("club_id", Array.from(adminClubIds))
+          .is("deleted_at", null);
+        if (error) throw error;
+        addRows(data as unknown as Team[]);
+      }
+
+      return Array.from(results.values()).sort((a, b) => a.name.localeCompare(b.name));
     },
     enabled: !!user,
   });
+
+  // If the active club changes, drop a selection that no longer belongs to it.
+  useEffect(() => {
+    if (!selectedTeamId || !teams) return;
+    if (!teams.some((t) => t.id === selectedTeamId)) {
+      setSelectedTeamId("");
+      setSelectedEventId("");
+    }
+  }, [teams, selectedTeamId]);
+
 
   // Fetch game events for selected team that have stats
   const { data: gameEvents, isLoading: eventsLoading } = useQuery({
