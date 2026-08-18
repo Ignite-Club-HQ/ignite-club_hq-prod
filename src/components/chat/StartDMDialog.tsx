@@ -873,40 +873,22 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 </div>
               )}
               {selectedUsers.length > 0 && (
-                <div className="sticky top-0 z-20 space-y-2 rounded-xl border border-primary/30 bg-background p-2.5 shadow-sm shadow-primary/10">
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedUsers.map(u => (
-                      <Badge key={u.id} variant="secondary" className="gap-1 pr-1 rounded-full">
-                        {u.display_name?.split(" ")[0] || "User"}
-                        <button
-                          onClick={() => removeSelectedUser(u.id)}
-                          className="ml-0.5 rounded-full hover:bg-background/60 p-0.5"
-                          aria-label="Remove"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                  {!isCustomGroup && (
-                    <Button
-                      type="button"
-                      onClick={handleStartConversation}
-                      disabled={isPending}
-                      className="h-12 w-full rounded-xl text-base font-semibold gap-2 shadow-sm"
-                    >
-                      {isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : selectedUsers.length > 1 ? (
-                        <Users className="h-4 w-4" />
-                      ) : (
-                        <MessageCircle className="h-4 w-4" />
-                      )}
-                      {dmActionLabel}
-                    </Button>
-                  )}
+                <div className="flex flex-wrap gap-1.5 px-0.5">
+                  {selectedUsers.map(u => (
+                    <Badge key={u.id} variant="secondary" className="gap-1 pr-1 rounded-full">
+                      {u.display_name?.split(" ")[0] || "User"}
+                      <button
+                        onClick={() => removeSelectedUser(u.id)}
+                        className="ml-0.5 rounded-full hover:bg-background/60 p-0.5"
+                        aria-label="Remove"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
                 </div>
               )}
+
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
               {(isCustomGroup || selectedUsers.length > 1) && (
