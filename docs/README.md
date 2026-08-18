@@ -1,6 +1,6 @@
 # Ignite Club HQ Documentation Index
 
-**Last reviewed:** 2026-08-15
+**Last reviewed:** 2026-08-17
 
 The categories below distinguish current operating guidance from point-in-time
 analysis. If a dated report conflicts with an authoritative document or the
@@ -22,6 +22,8 @@ documentation.
 
 - [Detailed vendor technical handover](VENDOR_HANDOVER.md)
 - [Vendor access and support pack](VENDOR_HANDOVER_PACK.md)
+- [Current cumulative release-candidate evidence](RELEASE_CANDIDATE_2026-08-17.md)
+- [Current promotion tranche and rollback plan](PROMOTION_TRANCHES_2026-08-17.md)
 - [Refactoring automated closeout](REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md)
 - [Delegated refactoring acceptance checklist](testing/REFACTORING_MANUAL_ACCEPTANCE.md)
 - [Recent work state](RECENT_WORK_STATE.md) — a checkpoint; verify branch and
@@ -56,8 +58,9 @@ These documents explain decisions and supply acceptance criteria. They are not
 deployment instructions and may describe work already completed on a tranche or
 integration branch.
 
-The 15 August automated closeout is the current cumulative refactoring status;
-the dated tranche plans remain the detailed decision history.
+The 17 August release-candidate record and promotion-tranche plan are the
+current cumulative status; the dated closeout and tranche plans remain the
+detailed decision history.
 
 - [Codebase vendor-readiness audit](CODEBASE_VENDOR_READINESS_AUDIT_2026-07-26.md)
 - [Code health check](CODE_HEALTH_CHECK_2026-07-22.md)

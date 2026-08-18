@@ -73,7 +73,12 @@ export async function processBulkInvitationBatch<T extends BulkInvitationWorkflo
         inviterUserId: context.inviterUserId,
         role: member.role,
         roleLabel: context.roleLabel(member.role),
-        children: validChildren,
+        children: validChildren.map((child) => ({
+          name: child.name,
+          yearOfBirth: child.yearOfBirth ?? "",
+          jerseyNumber: child.jerseyNumber ?? "",
+          existingChildId: child.existingChildId,
+        })),
         clubChildren: context.clubChildren,
         selectedSecondGuardian: member.selectedSecondParent ?? null,
         secondGuardianName: member.secondParentName ?? "",

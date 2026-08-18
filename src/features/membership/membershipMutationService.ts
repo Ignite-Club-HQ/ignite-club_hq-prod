@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import type { TeamRole } from "./invitationPolicy";
 import type { BulkPendingInviteMetadata } from "./bulkInvitationPlanner";
 import { isDuplicateChildError } from "@/lib/childDedup";
@@ -105,6 +105,7 @@ export interface ExistingParentChildrenResult {
 }
 
 export interface PendingInviteChildMetadata {
+  [key: string]: Json | undefined;
   name: string;
   yearOfBirth: number | null;
   existingChildId: string | null;
@@ -378,7 +379,7 @@ export async function createChildForParentOnTeam(
     p_parent_user_id: input.parentUserId,
     p_team_id: input.teamId,
     p_name: input.name.trim(),
-    p_year_of_birth: input.yearOfBirth ? parseInt(input.yearOfBirth) : null,
+    p_year_of_birth: input.yearOfBirth ? parseInt(input.yearOfBirth) : undefined,
   });
   if (error) throw error;
   return data;

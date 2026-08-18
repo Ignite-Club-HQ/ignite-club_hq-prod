@@ -310,6 +310,7 @@ try {
     VITE_SUPABASE_URL: LOCAL_URL,
     VITE_SUPABASE_PUBLISHABLE_KEY: localKeys.publishableKey,
   };
+  runStage("Strict feature boundary", "npm", ["run", "typecheck:strict-features"], frontendEnvironment);
   runStage("Frontend Vitest", "npm", ["run", "test:ci"], frontendEnvironment);
   runStage("Isolated Playwright", "npm", ["run", "test:e2e-baseline"], frontendEnvironment);
   runStage("Local Supabase integration", "npm", ["run", "test:local-supabase"], {

@@ -2,7 +2,9 @@
 
 **Candidate branch:** `integrate/competition-current`
 
-**Candidate commit:** `6d691b52ddad7d266571fdba2058b39072c51f74`
+**Candidate commit:** `c887c4fd7b6713fe6c031582997513378215d240`
+
+**Evidence:** [`../RELEASE_CANDIDATE_2026-08-17.md`](../RELEASE_CANDIDATE_2026-08-17.md)
 
 **Expected duration:** 30–45 minutes
 

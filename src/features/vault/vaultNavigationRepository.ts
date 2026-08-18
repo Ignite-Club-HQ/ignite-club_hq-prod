@@ -93,8 +93,9 @@ export async function resolveVaultScopeDeepLink(
       .select("id, name, club_id")
       .eq("id", options.miniLeagueId)
       .maybeSingle();
-    const club = league && options.accessibleClubs.find((item) => item.id === league.club_id);
-    return league && club ? {
+    if (!league?.club_id) return null;
+    const club = options.accessibleClubs.find((item) => item.id === league.club_id);
+    return club ? {
       type: "mini-league",
       clubId: league.club_id,
       clubName: club.name,
@@ -108,8 +109,9 @@ export async function resolveVaultScopeDeepLink(
       .select("id, name, club_id")
       .eq("id", options.teamId)
       .maybeSingle();
-    const club = team && options.accessibleClubs.find((item) => item.id === team.club_id);
-    return team && club ? {
+    if (!team?.club_id) return null;
+    const club = options.accessibleClubs.find((item) => item.id === team.club_id);
+    return club ? {
       type: "team",
       clubId: team.club_id,
       clubName: club.name,

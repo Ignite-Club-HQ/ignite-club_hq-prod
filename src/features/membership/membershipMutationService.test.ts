@@ -698,7 +698,7 @@ describe("existing-user child and guardian mutations", () => {
     });
   });
 
-  it("preserves null year and rethrows the original RPC error", async () => {
+  it("uses the RPC null default for an omitted year and rethrows the original RPC error", async () => {
     const error = { code: "42501", message: "creation denied" };
     const rpc = vi.fn(async () => ({ data: null, error }));
     const client = { rpc } as unknown as IgniteSupabaseClient;
@@ -709,7 +709,7 @@ describe("existing-user child and guardian mutations", () => {
       yearOfBirth: "",
     }, client)).rejects.toBe(error);
     expect(rpc).toHaveBeenCalledWith("create_child_for_parent_on_team", expect.objectContaining({
-      p_year_of_birth: null,
+      p_year_of_birth: undefined,
     }));
   });
 });

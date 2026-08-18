@@ -134,9 +134,9 @@ export async function fetchVaultSubfolders(
   let query = client.from("vault_folders").select("*").is("deleted_at", null);
 
   if (view.type === "club") {
-    query = query.eq("club_id", scope.clubId).is("team_id", null);
+    query = query.eq("club_id", view.clubId).is("team_id", null);
   } else {
-    query = query.eq("team_id", scope.teamId);
+    query = query.eq("team_id", view.teamId);
   }
 
   query = scope.folderId
@@ -205,8 +205,8 @@ export async function fetchVaultFolderTree(
     .from("vault_folders")
     .select("id,name,parent_id,restricted_roles");
   query = options.view.type === "club"
-    ? query.eq("club_id", scope.clubId).is("team_id", null)
-    : query.eq("team_id", scope.teamId);
+    ? query.eq("club_id", options.view.clubId).is("team_id", null)
+    : query.eq("team_id", options.view.teamId);
   const { data } = await query;
   return buildVaultFolderTree(data ?? [], scope.folderId, options);
 }
@@ -235,13 +235,13 @@ export async function searchVaultContents(
 
   if (options.view.type === "club") {
     query = query
-      .eq("club_id", scope.clubId)
+      .eq("club_id", options.view.clubId)
       .is("team_id", null)
       .is("mini_league_id", null);
   } else if (options.view.type === "team") {
-    query = query.eq("team_id", scope.teamId);
+    query = query.eq("team_id", options.view.teamId);
   } else {
-    query = query.eq("mini_league_id", scope.miniLeagueId);
+    query = query.eq("mini_league_id", options.view.miniLeagueId);
   }
 
   if (scope.folderId) {

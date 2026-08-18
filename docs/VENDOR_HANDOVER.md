@@ -2,7 +2,12 @@
 
 **Audience:** External software vendor / development agency / technical support partner.
 **Purpose:** Enough detail to take over development, support, deployment, and scaling of the platform without prior exposure to it.
-**Status:** Supporting technical reference, reviewed 2026-08-15. The cumulative refactoring candidate is documented in [`REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md`](REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md); it is not promotion-ready until the delegated manual checklist is recorded.
+**Status:** Supporting technical reference, reviewed 2026-08-17. The current
+cumulative refactoring evidence is recorded in
+[`RELEASE_CANDIDATE_2026-08-17.md`](RELEASE_CANDIDATE_2026-08-17.md), with its
+review and rollback sequence in
+[`PROMOTION_TRANCHES_2026-08-17.md`](PROMOTION_TRANCHES_2026-08-17.md). It is
+not promotion-ready until the delegated manual checklist is recorded.
 **Authority:** Start with [`README.md`](../README.md), [`docs/ARCHITECTURE.md`](ARCHITECTURE.md), and [`docs/PROMOTION.md`](PROMOTION.md). Those documents override this reference for architecture boundaries, testing, promotion, and rollback. Counts and external dashboard state below are point-in-time observations. Items not verifiable from Git require external confirmation.
 
 > ⚠️ **No secrets or real data in this document.** Never copy hosted credentials or data into local tests. Key names below are inventory labels only.
@@ -752,6 +757,14 @@ Use synthetic data in the disposable local Supabase workspace. Never copy real u
 - **Framework:** Vitest (`vitest.config.ts`, `vitest.matrix.config.ts`).
 - **E2E:** Playwright, including baseline journeys.
 - **Frontend only:** `npm run test:run`.
+- **Strict feature boundary:** `npm run typecheck:strict-features`. This is a
+  curated, non-emitting strict-TypeScript gate for extracted business policies,
+  contracts, scopes, query keys, repositories, workflows, cache-completion
+  handlers, and services. The policy and workflow islands can also be checked
+  separately with `npm run typecheck:strict-policies` and
+  `npm run typecheck:strict-workflows`. Expand them incrementally only when every
+  newly included module is already clean; this is not a claim that the entire
+  legacy frontend is strict yet.
 - **Complete isolated baseline:** `npm run test:baseline`.
 - **CI:** frontend tests run for `main`; the complete baseline runs on `codespaces-review`.
 - **Manual test docs:** `docs/qa/android-keyboard-checklist.md`, `docs/qa/ios-pinch-zoom-checklist.md`.
@@ -791,6 +804,7 @@ Sourced from repository tests, dated audits, and code inspection; verify each it
 | Universal Links | Two AASA / assetlinks needed if DEV bundle diverges; currently unified |
 | PITR | Not enabled — cost decision; rely on nightly artifact + supabase daily |
 | Realtime billing | Bare `.channel().subscribe()` outside `useEffect` leaks channels |
+| Strict-TypeScript expansion | The initial policy and workflow islands cover 106 production modules. Continue expansion incrementally; require behaviour tests and deliberate database nullability/JSON-contract review rather than broad casts |
 | 1,023 migrations at review | High reconstruction/review cost; retain history until a baseline is independently verified |
 | Public schema grants | Historic migrations should be audited for missing GRANTs |
 | Storage backup destination | **[Needs confirmation]** and long-term off-GitHub archive |

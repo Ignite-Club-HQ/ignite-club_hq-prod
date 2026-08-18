@@ -1,4 +1,5 @@
 import type { TeamRole } from "./invitationPolicy";
+import type { Json } from "@/integrations/supabase/types";
 
 export interface BulkInvitationPlanningChild {
   name: string;
@@ -20,6 +21,7 @@ export interface BulkInvitationPlanningMember {
 }
 
 export interface BulkPendingChildMetadata {
+  [key: string]: Json | undefined;
   name: string;
   yearOfBirth: number | null;
   jerseyNumber: number | null;
@@ -27,6 +29,7 @@ export interface BulkPendingChildMetadata {
 }
 
 export interface BulkPendingInviteMetadata {
+  [key: string]: Json | undefined;
   children: BulkPendingChildMetadata[];
   linked_invite_token?: string;
   second_guardian_name?: string | null;

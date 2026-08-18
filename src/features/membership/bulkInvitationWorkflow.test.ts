@@ -78,6 +78,26 @@ describe("bulk invitation batch orchestration", () => {
     expect(first.childrenNames).toEqual(["Child A"]);
   });
 
+  it("normalizes omitted optional child fields before the existing-parent mutation boundary", async () => {
+    const ops = operations();
+    await processBulkInvitationBatch([{
+      name: "Existing Parent",
+      email: "parent@example.test",
+      role: "parent",
+      children: [{ name: "Child Without Optional Fields" }],
+      selectedUser: { id: "parent-a", display_name: "Existing Parent" },
+    }], context, ops);
+
+    expect(ops.processExisting).toHaveBeenCalledWith(expect.objectContaining({
+      children: [{
+        name: "Child Without Optional Fields",
+        yearOfBirth: "",
+        jerseyNumber: "",
+        existingChildId: undefined,
+      }],
+    }));
+  });
+
   it("continues after an existing-role failure and reports only successful recipients", async () => {
     const ops = operations();
     const denied = { code: "42501", message: "role denied" };

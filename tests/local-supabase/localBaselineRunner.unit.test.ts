@@ -124,6 +124,26 @@ describe("complete baseline local lifecycle safety", () => {
     expect(workflow).not.toContain("npm run test:baseline -- --approved-local-session");
   });
 
+  it("keeps the strict feature boundary in the complete baseline", () => {
+    const packageJson = JSON.parse(
+      readFileSync(resolve(process.cwd(), "package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+    expect(packageJson.scripts?.["typecheck:strict-policies"])
+      .toBe("tsc -p tsconfig.strict-features.json --noEmit");
+    expect(packageJson.scripts?.["typecheck:strict-workflows"])
+      .toBe("tsc -p tsconfig.strict-workflows.json --noEmit");
+    expect(packageJson.scripts?.["typecheck:strict-features"])
+      .toBe("npm run typecheck:strict-policies && npm run typecheck:strict-workflows");
+
+    const baselineRunner = readFileSync(
+      resolve(process.cwd(), "scripts/run-complete-baseline.mjs"),
+      "utf8",
+    );
+    expect(baselineRunner).toContain(
+      'runStage("Strict feature boundary", "npm", ["run", "typecheck:strict-features"]',
+    );
+  });
+
   it("tests dirty worktrees in place without attempting an automatic branch update", () => {
     expect(worktreeUpdateMode(0, "")).toBe("update");
     expect(worktreeUpdateMode(0, " M src/example.test.ts\n")).toBe("test-current");

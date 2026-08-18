@@ -10,13 +10,13 @@ import {
 } from "./vaultNavigationRepository";
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
-type Result = { data: any; error: unknown };
+type Result = { data: unknown; error: unknown };
 type Call = { table: string; method: string; args: unknown[] };
 
 function scriptedClient(script: Record<string, Result[]>) {
   const calls: Call[] = [];
   const from = (table: string) => {
-    const query: Record<string, any> = {};
+    const query: Record<string, unknown> = {};
     const record = (method: string) => (...args: unknown[]) => {
       calls.push({ table, method, args });
       return query;
@@ -72,6 +72,23 @@ describe("Vault navigation repository", () => {
     await expect(resolveVaultScopeDeepLink({
       clubId: null, teamId: null, miniLeagueId: "league-b", accessibleClubs: clubs,
     }, hiddenLeagueClient)).resolves.toBeNull();
+  });
+
+  it("fails closed when a team or mini-league row has no club scope", async () => {
+    const clubs = [{ id: "club-a", name: "Synthetic Club" }];
+    const teamClient = scriptedClient({
+      teams: [{ data: { id: "team-a", name: "Orphan Team", club_id: null }, error: null }],
+    }).client;
+    await expect(resolveVaultScopeDeepLink({
+      clubId: null, teamId: "team-a", miniLeagueId: null, accessibleClubs: clubs,
+    }, teamClient)).resolves.toBeNull();
+
+    const leagueClient = scriptedClient({
+      mini_leagues: [{ data: { id: "league-a", name: "Orphan League", club_id: null }, error: null }],
+    }).client;
+    await expect(resolveVaultScopeDeepLink({
+      clubId: null, teamId: null, miniLeagueId: "league-a", accessibleClubs: clubs,
+    }, leagueClient)).resolves.toBeNull();
   });
 
   it("returns all non-deleted club teams for an admin when the club has Pro", async () => {

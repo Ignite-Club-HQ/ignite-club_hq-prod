@@ -4,11 +4,17 @@
 
 **Branch:** `integrate/competition-current`
 
-**Verified commit:** `6d691b52ddad7d266571fdba2058b39072c51f74`
+**Historical verified commit:** `6d691b52ddad7d266571fdba2058b39072c51f74`
 
-**Status:** Automated verification complete; delegated manual acceptance and promotion pending
+**Status:** Superseded by the current
+[`RELEASE_CANDIDATE_2026-08-17.md`](RELEASE_CANDIDATE_2026-08-17.md); delegated
+manual acceptance and promotion remain pending
 
 ## Decision
+
+> This document records the 15 August checkpoint. Use the current release
+> candidate and promotion-tranche documents for present evidence and next
+> actions.
 
 The planned Competition, Messaging, Membership/Invitations, Vault, AutoSub and
 PitchBoard, Events, Home/data-boundary, and Media refactoring tranches are
