@@ -226,83 +226,87 @@ function useChildRsvps(eventId: string, userId: string | undefined) {
   });
 }
 
-function useChildrenForEvent(event: Pick<EventItem, "id" | "team_id" | "club_id"> & { mini_league_id?: string | null; adults_only?: boolean | null }, userId: string | undefined) {
+function useChildrenForEvent(
+  event: Pick<EventItem, "id" | "team_id" | "club_id"> & {
+    mini_league_id?: string | null;
+    adults_only?: boolean | null;
+    target_team_ids?: string[] | null;
+    restricted_to_roles?: string[] | null;
+    rsvp_audience?: string | null;
+  },
+  userId: string | undefined,
+) {
+  const miniLeagueId = (event as any).mini_league_id as string | null | undefined;
   return useQuery({
-    queryKey: ["event-children-card", event.id, event.team_id, event.club_id, (event as any).mini_league_id, (event as any).adults_only, userId],
+    queryKey: [
+      "event-children-card",
+      event.id,
+      event.team_id,
+      event.club_id,
+      miniLeagueId,
+      (event as any).adults_only,
+      ((event as any).target_team_ids ?? []).join(","),
+      ((event as any).restricted_to_roles ?? []).join(","),
+      (event as any).rsvp_audience,
+      userId,
+    ],
     queryFn: async () => {
-      if ((event as any).adults_only) return [] as Array<{ id: string; name: string }>;
-      const [ownChildren, guardianLinks] = await Promise.all([
-        event.team_id
-          ? supabase
-              .from("children")
-              .select("id, name, child_team_assignments!inner (team_id)")
-              .eq("parent_id", userId!)
-              .eq("child_team_assignments.team_id", event.team_id)
-          : supabase
-              .from("children")
-              .select("id, name")
-              .eq("parent_id", userId!),
-        supabase
-          .from("child_guardians")
-          .select("child_id, children!inner (id, name)")
-          .eq("guardian_id", userId!),
-      ]);
-      // Throw on any sub-query error so React Query retries and keeps prior
-      // data instead of caching an empty roster (which briefly hides guardian
-      // children like Winnie and reverts the card to a parent-only RSVP prompt).
-      if (ownChildren.error) throw ownChildren.error;
-      if (guardianLinks.error) throw guardianLinks.error;
-
-      const directChildren = ownChildren.data || [];
-      const guardianChildren = (guardianLinks.data || [])
-        .map((guardianLink: any) => guardianLink.children)
-        .filter(Boolean);
-
-      let filteredGuardianChildren = guardianChildren;
-
-      if (event.team_id && guardianChildren.length > 0) {
-        const guardianChildIds = guardianChildren.map((child: any) => child.id);
-        const { data: assignments, error: assignErr } = await supabase
-          .from("child_team_assignments")
-          .select("child_id")
-          .eq("team_id", event.team_id)
-          .in("child_id", guardianChildIds);
-        if (assignErr) throw assignErr;
-
-        const assignedIds = new Set((assignments || []).map((assignment: any) => assignment.child_id));
-        filteredGuardianChildren = guardianChildren.filter((child: any) => assignedIds.has(child.id));
-      }
-
-
-      const seen = new Set<string>();
-      let merged = [...directChildren, ...filteredGuardianChildren].filter((child: any) => {
-        if (seen.has(child.id)) return false;
-        seen.add(child.id);
-        return true;
-      }) as Array<{ id: string; name: string }>;
-
-      // Mini-league event with no team scope: only show children actually rostered to that league.
-      if (!event.team_id && (event as any).mini_league_id && merged.length > 0) {
-        const ids = merged.map((c) => c.id);
-        const { data: players } = await supabase
+      // Mini-league events keep their own roster rule: children rostered to
+      // the league, which is not a team assignment.
+      if (!event.team_id && miniLeagueId) {
+        const [ownChildren, guardianLinks] = await Promise.all([
+          supabase.from("children").select("id, name").eq("parent_id", userId!),
+          supabase
+            .from("child_guardians")
+            .select("child_id, children!inner (id, name)")
+            .eq("guardian_id", userId!),
+        ]);
+        if (ownChildren.error) throw ownChildren.error;
+        if (guardianLinks.error) throw guardianLinks.error;
+        const seen = new Set<string>();
+        const merged = [
+          ...(ownChildren.data || []),
+          ...((guardianLinks.data || []) as any[]).map((g) => g.children).filter(Boolean),
+        ].filter((child: any) => {
+          if (!child?.id || seen.has(child.id)) return false;
+          seen.add(child.id);
+          return true;
+        }) as Array<{ id: string; name: string }>;
+        if (merged.length === 0) return merged;
+        const { data: players, error: playersError } = await supabase
           .from("mini_league_players")
           .select("child_id")
-          .eq("mini_league_id", (event as any).mini_league_id)
-          .in("child_id", ids);
+          .eq("mini_league_id", miniLeagueId)
+          .in("child_id", merged.map((c) => c.id));
+        if (playersError) throw playersError;
         const allowed = new Set((players || []).map((p: any) => p.child_id).filter(Boolean));
-        merged = merged.filter((c) => allowed.has(c.id));
+        return merged.filter((c) => allowed.has(c.id));
       }
-      // Pure club-wide events (no team, no mini-league): show all household
-      // children so parents can RSVP on their behalf.
 
-      return merged;
-
+      // Everything else goes through the single source of truth, which
+      // enforces adults-only / parents-only / role-restricted exclusions
+      // BEFORE any team lookup, and only ever shows children actually
+      // assigned to a team in this event's scope (so a club-wide event can
+      // never surface children who belong to another club's teams).
+      const children = await resolveRsvpChildren({
+        event: {
+          team_id: event.team_id,
+          club_id: event.club_id,
+          target_team_ids: ((event as any).target_team_ids ?? null) as string[] | null,
+          rsvp_audience: ((event as any).rsvp_audience ?? null) as string | null,
+          adults_only: ((event as any).adults_only ?? null) as boolean | null,
+          restricted_to_roles: ((event as any).restricted_to_roles ?? null) as string[] | null,
+        },
+        userId,
+      });
+      return children.map((c) => ({ id: c.id, name: c.name }));
     },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
   });
 }
+
 
 function useRsvpSummary(eventId: string, eventType?: string) {
   const isSocial = eventType === "social";
