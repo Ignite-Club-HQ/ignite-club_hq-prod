@@ -37,8 +37,9 @@ interface GameEvent {
 export default function PlayerStatsReportPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
-  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(searchParams.get("teamId") || "");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: startOfMonth(new Date()),
