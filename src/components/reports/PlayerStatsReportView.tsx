@@ -313,7 +313,9 @@ export default function PlayerStatsReportView({
                       <td>${formatMinutes(stat.minutes_played)}</td>
                       <td>${positionMinsHtml}</td>
                       <td style="text-align: center;">${stat.substitutions_count}</td>
-                      <td style="text-align: center;">${stat.started_on_pitch ? "Yes" : "No"}</td>
+                      ${dateRange
+                        ? `<td style="text-align: center;">${stat.games_played ?? 1}</td><td style="text-align: center;">${stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)}</td>`
+                        : `<td style="text-align: center;">${stat.started_on_pitch ? "Yes" : "No"}</td>`}
                     </tr>
                   `;
                 }).join("")}
@@ -487,9 +489,19 @@ export default function PlayerStatsReportView({
                   <TableCell className="text-center hidden sm:table-cell">
                     {stat.substitutions_count}
                   </TableCell>
-                  <TableCell className="text-center hidden sm:table-cell">
-                    {stat.started_on_pitch ? "✓" : "-"}
-                  </TableCell>
+                  {dateRange ? (
+                    <>
+                      <TableCell className="text-center font-mono">{stat.games_played ?? 1}</TableCell>
+                      <TableCell className="text-center font-mono">
+                        {stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)}
+                      </TableCell>
+                    </>
+                  ) : (
+                    <TableCell className="text-center hidden sm:table-cell">
+                      {stat.started_on_pitch ? "✓" : "-"}
+                    </TableCell>
+                  )}
+
                 </TableRow>
               ))}
             </TableBody>
