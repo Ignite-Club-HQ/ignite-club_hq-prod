@@ -1037,9 +1037,9 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
                     ) : (
                       guardianUnrespondedCount > 0
                         ? <span>{guardianUnrespondedCount === childrenOnEvent!.length
-                            ? `${childrenOnEvent!.length} players need RSVP`
-                            : `${guardianUnrespondedCount} of ${childrenOnEvent!.length} players need RSVP`}</span>
-                        : <span>RSVP for your players</span>
+                            ? `${childrenOnEvent!.length} ${rsvpGroupNoun} need RSVP`
+                            : `${guardianUnrespondedCount} of ${childrenOnEvent!.length} ${rsvpGroupNoun} need RSVP`}</span>
+                        : <span>RSVP for your {rsvpGroupNoun}</span>
                     )}
                   </div>
 
