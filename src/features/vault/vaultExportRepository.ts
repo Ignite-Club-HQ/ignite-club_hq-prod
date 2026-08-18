@@ -1,134 +1,118 @@
-/**
- * Vault recursive-export repository.
- *
- * Invariants:
- *  1. `vault_files` is the ONLY item source. `public.photos` is never queried
- *     here — gallery photos reach the Vault via one-way mirroring into
- *     `vault_files` ("Gallery Uploads"), so reading both would duplicate rows
- *     and surface media-gallery rows that are not visible in the Vault.
- *  2. Soft-deleted rows (`deleted_at IS NOT NULL`) are excluded.
- *  3. Scope fails closed: with neither `clubId` nor `teamId` we perform ZERO
- *     database queries and return an empty result rather than exporting every
- *     club the user can read via RLS.
- */
-import { supabase as defaultClient } from "@/integrations/supabase/client";
+/** Canonical, scoped reads for recursive Vault exports. */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { isVaultImageItem } from "./vaultItemClassification";
 
-type Client = typeof defaultClient;
+type IgniteSupabaseClient = SupabaseClient<Database>;
+type VaultFileRow = Database["public"]["Tables"]["vault_files"]["Row"];
+type VaultFolderRow = Database["public"]["Tables"]["vault_folders"]["Row"];
+type VaultExportPhoto = VaultFileRow & {
+  path: string;
+  image_url: string;
+  uploader_id: string | null;
+  title: string;
+};
 
-export interface VaultExportScope {
+export interface VaultExportOptions {
   folderId: string | null;
   clubId: string | null;
   teamId: string | null;
+  path?: string;
 }
 
-export interface VaultFolderContents {
-  photos: any[];
-  files: any[];
-  subfolders: { folder: any; path: string }[];
+export interface VaultExportFolderContents {
+  photos: VaultExportPhoto[];
+  files: Array<VaultFileRow & { path: string }>;
+  subfolders: Array<{ folder: VaultFolderRow; path: string }>;
 }
 
-export interface VaultExportContents {
-  photos: any[];
-  files: any[];
-  subfolders: { folder: any; path: string }[];
-  folderBreakdown: { path: string; photoCount: number; fileCount: number }[];
+export interface VaultExportCollection {
+  photos: VaultExportFolderContents["photos"];
+  files: VaultExportFolderContents["files"];
+  folderBreakdown: Array<{ path: string; photoCount: number; fileCount: number }>;
 }
 
-export const hasVaultExportScope = (scope: {
-  clubId: string | null;
-  teamId: string | null;
-}) => Boolean(scope.teamId || scope.clubId);
+export const hasVaultExportScope = (
+  scope: Pick<VaultExportOptions, "clubId" | "teamId">,
+): boolean => Boolean(scope.teamId || scope.clubId);
 
-const applyScope = (query: any, clubId: string | null, teamId: string | null) => {
-  if (teamId) return query.eq("team_id", teamId);
-  return query.eq("club_id", clubId).is("team_id", null);
-};
+function applyScope<T extends { eq: Function; is: Function }>(
+  query: T,
+  options: Pick<VaultExportOptions, "clubId" | "teamId">,
+): T {
+  if (options.teamId) return query.eq("team_id", options.teamId) as T;
+  return query.eq("club_id", options.clubId).is("team_id", null) as T;
+}
 
-/** Map a `vault_files` image row to the photo-like shape the export UI expects. */
-const toPhotoShape = (row: any, path: string) => ({
-  ...row,
-  path,
-  image_url: row.file_url,
-  uploader_id: row.uploaded_by,
-  title: row.name,
-});
-
-export const fetchVaultFolderContents = async (
-  { folderId, clubId, teamId }: VaultExportScope,
-  path: string = "",
-  client: Client = defaultClient,
-): Promise<VaultFolderContents> => {
-  // Fail closed — no scope means no export.
-  if (!hasVaultExportScope({ clubId, teamId })) {
+export async function fetchVaultExportFolderContents(
+  options: VaultExportOptions,
+  client: IgniteSupabaseClient = supabase,
+): Promise<VaultExportFolderContents> {
+  if (!hasVaultExportScope(options)) {
     return { photos: [], files: [], subfolders: [] };
   }
 
-  let itemsQuery = client.from("vault_files").select("*").is("deleted_at", null);
-  itemsQuery = applyScope(itemsQuery, clubId, teamId);
-  itemsQuery = folderId
-    ? itemsQuery.eq("folder_id", folderId)
-    : itemsQuery.is("folder_id", null);
-  const { data: rows } = await itemsQuery;
+  const path = options.path ?? "";
+  let filesQuery = client.from("vault_files").select("*").is("deleted_at", null);
+  filesQuery = applyScope(filesQuery, options);
+  filesQuery = options.folderId
+    ? filesQuery.eq("folder_id", options.folderId)
+    : filesQuery.is("folder_id", null);
+  const { data: folderItems } = await filesQuery;
 
-  let subfoldersQuery = client
-    .from("vault_folders")
-    .select("*")
-    .is("deleted_at", null);
-  subfoldersQuery = applyScope(subfoldersQuery, clubId, teamId);
-  subfoldersQuery = folderId
-    ? subfoldersQuery.eq("parent_id", folderId)
-    : subfoldersQuery.is("parent_id", null);
-  const { data: childFolders } = await subfoldersQuery;
+  let foldersQuery = client.from("vault_folders").select("*").is("deleted_at", null);
+  foldersQuery = applyScope(foldersQuery, options);
+  foldersQuery = options.folderId
+    ? foldersQuery.eq("parent_id", options.folderId)
+    : foldersQuery.is("parent_id", null);
+  const { data: childFolders } = await foldersQuery;
 
-  const all = rows || [];
+  const items = folderItems ?? [];
   return {
-    photos: all.filter(isVaultImageItem).map(r => toPhotoShape(r, path)),
-    files: all.filter(r => !isVaultImageItem(r)).map(f => ({ ...f, path })),
-    subfolders: (childFolders || []).map(folder => ({
+    photos: items.filter(isVaultImageItem).map((item) => ({
+      ...item,
+      path,
+      image_url: item.file_url,
+      uploader_id: item.uploaded_by,
+      title: item.name,
+    })),
+    files: items.filter((item) => !isVaultImageItem(item)).map((item) => ({ ...item, path })),
+    subfolders: (childFolders ?? []).map((folder) => ({
       folder,
       path: path ? `${path}/${folder.name}` : folder.name,
     })),
   };
-};
+}
 
-/** Depth-first recursive collection with per-folder breakdown counts. */
-export const collectVaultExportContents = async (
-  scope: VaultExportScope,
-  path: string = "",
-  folderBreakdown: { path: string; photoCount: number; fileCount: number }[] = [],
-  client: Client = defaultClient,
-): Promise<VaultExportContents> => {
-  if (!hasVaultExportScope(scope)) {
-    return { photos: [], files: [], subfolders: [], folderBreakdown: [] };
+export async function collectVaultExportContents(
+  options: VaultExportOptions,
+  client: IgniteSupabaseClient = supabase,
+  folderBreakdown: VaultExportCollection["folderBreakdown"] = [],
+): Promise<VaultExportCollection> {
+  if (!hasVaultExportScope(options)) {
+    return { photos: [], files: [], folderBreakdown: [] };
   }
 
-  const contents = await fetchVaultFolderContents(scope, path, client);
-
+  const path = options.path ?? "";
+  const contents = await fetchVaultExportFolderContents({ ...options, path }, client);
   folderBreakdown.push({
     path: path || "(current folder)",
     photoCount: contents.photos.length,
     fileCount: contents.files.length,
   });
 
-  let allPhotos = [...contents.photos];
-  let allFiles = [...contents.files];
-
-  for (const { folder, path: subPath } of contents.subfolders) {
-    const sub = await collectVaultExportContents(
-      { ...scope, folderId: folder.id },
-      subPath,
-      folderBreakdown,
-      client,
-    );
-    allPhotos = [...allPhotos, ...sub.photos];
-    allFiles = [...allFiles, ...sub.files];
+  const photos = [...contents.photos];
+  const files = [...contents.files];
+  for (const subfolder of contents.subfolders) {
+    const nested = await collectVaultExportContents({
+      folderId: subfolder.folder.id,
+      clubId: options.clubId,
+      teamId: options.teamId,
+      path: subfolder.path,
+    }, client, folderBreakdown);
+    photos.push(...nested.photos);
+    files.push(...nested.files);
   }
-
-  return {
-    photos: allPhotos,
-    files: allFiles,
-    subfolders: contents.subfolders,
-    folderBreakdown,
-  };
-};
+  return { photos, files, folderBreakdown };
+}
