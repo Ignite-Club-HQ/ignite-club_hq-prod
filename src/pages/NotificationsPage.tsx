@@ -33,7 +33,7 @@ import {
   NOTIFICATION_FALLBACK_PATH,
   type ChatTarget,
 } from "@/lib/notificationChatRouting";
-import { requestClubSwitchForChatTarget } from "@/lib/notificationClubSwitch";
+import { requestClubSwitchForChatTarget, requestClubSwitchForNotificationUrl } from "@/lib/notificationClubSwitch";
 
 
 /**
@@ -193,6 +193,8 @@ export default function NotificationsPage() {
   const { activeClubFilter } = useClubTheme();
   usePageTitle("Notifications");
   const navigate = useNavigate();
+  const routerNavigate = navigate;
+
   const queryClient = useQueryClient();
   
   // Sync unread badge on mount
@@ -695,6 +697,18 @@ export default function NotificationsPage() {
   };
 
   const handleNotificationClick = async (notification: Notification) => {
+    // Every non-chat branch below navigates straight into club-owned content
+    // (`/events/:id`, `/media?photo=…`, `/teams/:id`, `/clubs/:id`, …). Route
+    // those through a club-scope-aware navigate: a bell tap is user-driven, so
+    // it MAY move the active club filter to the club that owns the tapped item.
+    // Without this the app stayed filtered to the previous club and
+    // `useClubScopeGuard` bounced the user straight back home.
+    const navigate = (to: string) => {
+      void requestClubSwitchForNotificationUrl(null, to)
+        .catch(() => { /* never block navigation */ })
+        .finally(() => routerNavigate(to));
+    };
+
     // Mark as read first
     if (!notification.read) {
       markAsRead.mutate(notification.id);
@@ -703,6 +717,7 @@ export default function NotificationsPage() {
     // Navigate based on notification type
     const relatedId = notification.related_id;
     if (!relatedId) return;
+
 
     switch (notification.type) {
       case "message_reaction": {
