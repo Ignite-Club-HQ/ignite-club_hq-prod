@@ -76,18 +76,38 @@ Deno.serve(async (req) => {
 
 
     const { club_id, team_ids, message, club_name, include_club_chat } = await req.json();
-    const requestedTeamIds = [...new Set((team_ids || []).filter(Boolean))];
+    const requestedTeamIds = [...new Set((team_ids || []).filter(Boolean))] as string[];
     const sendToClubChat = include_club_chat === true;
 
-    if (!club_id || (!requestedTeamIds.length && !sendToClubChat) || !message?.trim()) {
+    // Distinct messages so a 400 identifies itself, and a log line for every
+    // early exit — these used to return silently, which made the failure
+    // undiagnosable from either the toast or the function logs.
+    const missing =
+      !club_id
+        ? "club_id is required"
+        : !requestedTeamIds.length && !sendToClubChat
+          ? "At least one team (or the club chat) is required"
+          : !message?.trim()
+            ? "message is required"
+            : null;
+
+    if (missing) {
+      console.warn("Announcement rejected: missing_fields", {
+        reason: missing,
+        club_id: club_id ?? null,
+        requestedTeamIds: requestedTeamIds.length,
+        include_club_chat: sendToClubChat,
+        messageLength: typeof message === "string" ? message.length : null,
+      });
       return new Response(
-        JSON.stringify({ error: "club_id, message and at least one destination required" }),
+        JSON.stringify({ error: missing, code: "missing_fields" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
     }
+
 
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
