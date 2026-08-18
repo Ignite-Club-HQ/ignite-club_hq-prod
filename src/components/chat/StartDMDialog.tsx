@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-import { Search, MessageCircle, Loader2, Crown, Lock, Check, X, Users, Filter } from "lucide-react";
+import { Search, MessageCircle, Loader2, Crown, Lock, Check, X, Users, SlidersHorizontal, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -26,8 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+
 
 interface DMableUser {
   id: string;
@@ -117,6 +123,10 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
+  // Role-group filter used by the compact "Filter" chip (coaches / committee).
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+
 
   // Use controlled or uncontrolled state
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -587,6 +597,20 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
     if (selectedTeamId !== "all") {
       filtered = filtered.filter(u => u.team_ids.includes(selectedTeamId));
     }
+
+    // Filter by role group (coaches / committee & admins)
+    if (roleFilter !== "all") {
+      filtered = filtered.filter(u => {
+        const label = (u.role_label || "").toLowerCase();
+        if (roleFilter === "coach") return label === "coach";
+        if (roleFilter === "committee") return label === "committee" || label.includes("admin");
+        if (roleFilter === "parent") return label === "parent";
+        if (roleFilter === "player") return label === "player";
+        return true;
+      });
+    }
+
+
     
     // Filter by search query
     if (searchQuery.trim()) {
@@ -607,7 +631,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
     });
 
     return sorted;
-  }, [dmableUsers, searchQuery, selectedClubId, selectedTeamId]);
+  }, [dmableUsers, searchQuery, selectedClubId, selectedTeamId, roleFilter]);
 
   // Detect display-name collisions within the current visible result set so we
   // can append a privacy-friendly disambiguator (#abcd from user id) only when
@@ -649,8 +673,22 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   const CREATE_CATEGORY_VALUE = "__create_new__";
   const selectedPrimaryName = selectedUsers[0]?.display_name?.trim() || "selected member";
   const dmActionLabel = selectedUsers.length === 1
-    ? `Start chat with ${selectedPrimaryName.split(" ")[0] || selectedPrimaryName}`
-    : `Create group with ${selectedUsers.length} people`;
+    ? `Message ${selectedPrimaryName.split(" ")[0] || selectedPrimaryName}`
+    : `Start group chat · ${selectedUsers.length}`;
+  const canPickPeople = !!hasProAccess && !!canSendDMs?.canSend;
+  const activeFilterLabel =
+    selectedTeamId !== "all"
+      ? teamNameById.get(selectedTeamId) ?? "Team"
+      : roleFilter === "coach"
+        ? "Coaches"
+        : roleFilter === "committee"
+          ? "Committee"
+          : roleFilter === "parent"
+            ? "Parents"
+            : roleFilter === "player"
+              ? "Players"
+              : "All teams";
+  const filterActive = selectedTeamId !== "all" || roleFilter !== "all";
 
   return (
     <ResponsiveDialog open={isOpen} onOpenChange={(open) => {
@@ -661,12 +699,14 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         setSearchQuery("");
         setSelectedClubId(activeClubFilter || "all");
         setSelectedTeamId("all");
+        setRoleFilter("all");
+        setFilterOpen(false);
       }
     }}>
       <ResponsiveDialogContent className="sm:max-w-md" fullScreen>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            {mode === "custom-group" ? "New Custom Group" : "New Direct Message"}
+            {mode === "custom-group" ? "New Custom Group" : "New Message"}
             {!hasProAccess && (
               <Badge variant="secondary" className="gap-1">
                 <Crown className="h-3 w-3" />
@@ -677,9 +717,102 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           <ResponsiveDialogDescription>
             {mode === "custom-group"
               ? "Pick people one by one and give your group a name"
-              : "Pick one person to chat 1:1, or several to start a quick group"}
+              : "Select one or more people"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
+
+        {/* Compact sticky search + filter toolbar: stays under the header while
+            the member list scrolls independently beneath it. */}
+        {canPickPeople && (
+          <div className="shrink-0 flex items-center gap-2 pt-2 pb-2 px-1 bg-background border-b border-border">
+            <div className="relative flex-1 min-w-0">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search people..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-10 rounded-xl pl-9 pr-8"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant={filterActive ? "secondary" : "outline"}
+                  className="h-10 shrink-0 rounded-xl gap-1.5 px-3 text-xs font-medium max-w-[9.5rem]"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{activeFilterLabel}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="z-[1000020] w-56 p-1">
+                <div className="max-h-[60vh] overflow-y-auto">
+                  {[
+                    { key: "all", label: "All teams" },
+                    { key: "role:coach", label: "Coaches" },
+                    { key: "role:committee", label: "Committee & admins" },
+                    { key: "role:parent", label: "Parents" },
+                    { key: "role:player", label: "Players" },
+                  ].map((opt) => {
+                    const selected =
+                      opt.key === "all"
+                        ? !filterActive
+                        : selectedTeamId === "all" && `role:${roleFilter}` === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTeamId("all");
+                          setRoleFilter(opt.key === "all" ? "all" : opt.key.split(":")[1]);
+                          setFilterOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-accent"
+                      >
+                        <span className="truncate">{opt.label}</span>
+                        {selected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
+                  {filteredTeams.length > 0 && (
+                    <>
+                      <p className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Teams
+                      </p>
+                      {filteredTeams.map((team) => (
+                        <button
+                          key={team.id}
+                          type="button"
+                          onClick={() => {
+                            setRoleFilter("all");
+                            setSelectedTeamId(team.id);
+                            setFilterOpen(false);
+                          }}
+                          className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-accent"
+                        >
+                          <span className="truncate">{team.name}</span>
+                          {selectedTeamId === team.id && (
+                            <Check className="h-4 w-4 text-primary shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
 
         <div
           className="flex-1 min-h-0 overflow-y-auto space-y-3 pt-3 px-1 pb-4"
@@ -689,6 +822,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
               : undefined
           }
         >
+
           {(checkingPro && hasProAccess === undefined) || (checkingCanSend && canSendDMs === undefined) ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -739,40 +873,22 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 </div>
               )}
               {selectedUsers.length > 0 && (
-                <div className="sticky top-0 z-20 space-y-2 rounded-xl border border-primary/30 bg-background p-2.5 shadow-sm shadow-primary/10">
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedUsers.map(u => (
-                      <Badge key={u.id} variant="secondary" className="gap-1 pr-1 rounded-full">
-                        {u.display_name?.split(" ")[0] || "User"}
-                        <button
-                          onClick={() => removeSelectedUser(u.id)}
-                          className="ml-0.5 rounded-full hover:bg-background/60 p-0.5"
-                          aria-label="Remove"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                  {!isCustomGroup && (
-                    <Button
-                      type="button"
-                      onClick={handleStartConversation}
-                      disabled={isPending}
-                      className="h-12 w-full rounded-xl text-base font-semibold gap-2 shadow-sm"
-                    >
-                      {isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : selectedUsers.length > 1 ? (
-                        <Users className="h-4 w-4" />
-                      ) : (
-                        <MessageCircle className="h-4 w-4" />
-                      )}
-                      {dmActionLabel}
-                    </Button>
-                  )}
+                <div className="flex flex-wrap gap-1.5 px-0.5">
+                  {selectedUsers.map(u => (
+                    <Badge key={u.id} variant="secondary" className="gap-1 pr-1 rounded-full">
+                      {u.display_name?.split(" ")[0] || "User"}
+                      <button
+                        onClick={() => removeSelectedUser(u.id)}
+                        className="ml-0.5 rounded-full hover:bg-background/60 p-0.5"
+                        aria-label="Remove"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
                 </div>
               )}
+
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
               {(isCustomGroup || selectedUsers.length > 1) && (
@@ -835,55 +951,21 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 </div>
               )}
 
-              {/* Filters — only show club picker when there's a real choice */}
-              {(showClubFilter || filteredTeams.length > 0) && (
-                <div className="flex gap-2">
-                  {showClubFilter && (
-                    <Select value={selectedClubId} onValueChange={handleClubChange}>
-                      <SelectTrigger className="flex-1 h-11 rounded-xl">
-                        <SelectValue placeholder="All Clubs" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[1000020]">
-                        <SelectItem value="all">All Clubs</SelectItem>
-                        {availableClubs.map(club => (
-                          <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {filteredTeams.length > 0 && (
-                    <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                      <SelectTrigger className="flex-1 h-11 rounded-xl">
-                        <SelectValue placeholder="All Teams" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[1000020]">
-                        <SelectItem value="all">All Teams</SelectItem>
-                        {filteredTeams.map(team => (
-                          <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-              )}
-              {isClubFilterLocked && availableClubs.length === 1 && (
-                <p className="text-[11px] text-muted-foreground -mt-1 px-0.5">
-                  Showing members of {availableClubs[0].name}
-                </p>
+              {/* Club picker only when the user really belongs to several clubs */}
+              {showClubFilter && (
+                <Select value={selectedClubId} onValueChange={handleClubChange}>
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue placeholder="All Clubs" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[1000020]">
+                    <SelectItem value="all">All Clubs</SelectItem>
+                    {availableClubs.map(club => (
+                      <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
 
-
-              <div className="sticky top-0 z-10 -mx-1 px-1.5 pt-0.5 pb-2 bg-background">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search members..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-11 rounded-xl pl-9"
-                  />
-                </div>
-              </div>
 
               <div>
                 <div className="space-y-1">
@@ -942,68 +1024,71 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                           key={dmUser.id}
                           onClick={() => toggleUserSelection(dmUser)}
                           disabled={isPending}
-                          className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left active:scale-[0.99] touch-manipulation border ${
+                          aria-pressed={isSelected}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left touch-manipulation border ${
                             isSelected
-                              ? "bg-primary/10 border-primary/40 shadow-sm shadow-primary/10"
-                              : "bg-card border-border hover:border-primary/30 hover:bg-accent/40"
+                              ? "bg-primary/10 border-primary/40"
+                              : "bg-transparent border-transparent hover:bg-accent/40"
                           }`}
                         >
-                          <div className="relative">
-                            <Avatar className={`h-11 w-11 ring-2 transition-all ${isSelected ? "ring-primary" : "ring-transparent"}`}>
-                              <AvatarImage src={dmUser.avatar_url || undefined} />
-                              <AvatarFallback className="text-xs font-semibold bg-muted">
-                                {initials || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            {isSelected && (
-                              <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center ring-2 ring-background">
-                                <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
-                              </span>
-                            )}
-                          </div>
+                          <Avatar className="h-10 w-10 shrink-0">
+                            <AvatarImage src={dmUser.avatar_url || undefined} />
+                            <AvatarFallback className="text-xs font-semibold bg-muted">
+                              {initials || "?"}
+                            </AvatarFallback>
+                          </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate text-sm leading-tight">
-                              {dmUser.display_name || "Unknown User"}
+                            <p className="font-medium truncate text-sm leading-tight flex items-center gap-1.5">
+                              <span className="truncate">{dmUser.display_name || "Unknown User"}</span>
                               {idSuffix && (
-                                <span className="ml-1.5 text-[10px] font-mono font-normal text-muted-foreground align-middle">
+                                <span className="text-[10px] font-mono font-normal text-muted-foreground shrink-0">
                                   {idSuffix}
                                 </span>
                               )}
                               {dmUser.has_prior_dm && (
-                                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground align-middle">
-                                  · DM'd before
-                                </span>
+                                <History
+                                  className="h-3 w-3 shrink-0 text-muted-foreground/60"
+                                  aria-label="You've messaged before"
+                                />
                               )}
                             </p>
-                            {secondaryLine && (
-                              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                                {secondaryLine}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              {dmUser.shared_clubs.slice(0, 1).map(c => (
-                                <span
-                                  key={c}
-                                  className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground max-w-[180px] truncate"
-                                >
-                                  {c}
+                            <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                              {secondaryLine && (
+                                <span className="text-[11px] text-muted-foreground truncate">
+                                  {secondaryLine}
                                 </span>
-                              ))}
+                              )}
                               {singleTeamName ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary max-w-[180px] truncate">
+                                <span className="inline-flex items-center gap-1 shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary max-w-[140px]">
                                   <Users className="h-2.5 w-2.5 shrink-0" />
                                   <span className="truncate">{singleTeamName}</span>
                                 </span>
                               ) : teamCount > 0 ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
+                                <span className="inline-flex items-center gap-1 shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
                                   <Users className="h-2.5 w-2.5" />
                                   {teamCount} teams
                                 </span>
                               ) : null}
                             </div>
                           </div>
+                          <span
+                            aria-hidden
+                            className={`h-6 w-6 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+                              isSelected
+                                ? "bg-primary border-primary"
+                                : "border-muted-foreground/30"
+                            }`}
+                          >
+                            <Check
+                              className={`h-3.5 w-3.5 text-primary-foreground transition-opacity ${
+                                isSelected ? "opacity-100" : "opacity-0"
+                              }`}
+                              strokeWidth={3}
+                            />
+                          </span>
                         </button>
                       );
+
                     })
                   )}
                 </div>
@@ -1064,7 +1149,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 <Button
                   onClick={handleStartConversation}
                   disabled={isPending}
-                  className="flex-1 h-11 rounded-xl font-semibold gap-2"
+                  className="flex-1 h-12 rounded-xl text-base font-semibold gap-2"
                 >
                   {isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1073,9 +1158,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                   ) : (
                     <MessageCircle className="h-4 w-4" />
                   )}
-                  {selectedUsers.length === 1
-                    ? "Start Chat"
-                    : `Create Group (${selectedUsers.length} people)`}
+                  {dmActionLabel}
+
                 </Button>
               </div>
             )}
