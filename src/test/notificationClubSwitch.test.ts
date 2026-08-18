@@ -23,12 +23,16 @@ import {
   requestClubSwitchForNotification,
   peekPendingNotificationClubSwitch,
   clearPendingNotificationClubSwitch,
+  isNotificationClubSwitchInFlight,
+  clearNotificationClubSwitchInFlight,
 } from "@/lib/notificationClubSwitch";
 
 beforeEach(() => {
   for (const k of Object.keys(rows)) delete rows[k];
   clearPendingNotificationClubSwitch();
+  clearNotificationClubSwitchInFlight();
 });
+
 
 describe("resolveNotificationClubId", () => {
   it("prefers an explicit club_id from the payload", async () => {
