@@ -1024,68 +1024,71 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                           key={dmUser.id}
                           onClick={() => toggleUserSelection(dmUser)}
                           disabled={isPending}
-                          className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left active:scale-[0.99] touch-manipulation border ${
+                          aria-pressed={isSelected}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left touch-manipulation border ${
                             isSelected
-                              ? "bg-primary/10 border-primary/40 shadow-sm shadow-primary/10"
-                              : "bg-card border-border hover:border-primary/30 hover:bg-accent/40"
+                              ? "bg-primary/10 border-primary/40"
+                              : "bg-transparent border-transparent hover:bg-accent/40"
                           }`}
                         >
-                          <div className="relative">
-                            <Avatar className={`h-11 w-11 ring-2 transition-all ${isSelected ? "ring-primary" : "ring-transparent"}`}>
-                              <AvatarImage src={dmUser.avatar_url || undefined} />
-                              <AvatarFallback className="text-xs font-semibold bg-muted">
-                                {initials || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            {isSelected && (
-                              <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center ring-2 ring-background">
-                                <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
-                              </span>
-                            )}
-                          </div>
+                          <Avatar className="h-10 w-10 shrink-0">
+                            <AvatarImage src={dmUser.avatar_url || undefined} />
+                            <AvatarFallback className="text-xs font-semibold bg-muted">
+                              {initials || "?"}
+                            </AvatarFallback>
+                          </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate text-sm leading-tight">
-                              {dmUser.display_name || "Unknown User"}
+                            <p className="font-medium truncate text-sm leading-tight flex items-center gap-1.5">
+                              <span className="truncate">{dmUser.display_name || "Unknown User"}</span>
                               {idSuffix && (
-                                <span className="ml-1.5 text-[10px] font-mono font-normal text-muted-foreground align-middle">
+                                <span className="text-[10px] font-mono font-normal text-muted-foreground shrink-0">
                                   {idSuffix}
                                 </span>
                               )}
                               {dmUser.has_prior_dm && (
-                                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground align-middle">
-                                  · DM'd before
-                                </span>
+                                <History
+                                  className="h-3 w-3 shrink-0 text-muted-foreground/60"
+                                  aria-label="You've messaged before"
+                                />
                               )}
                             </p>
-                            {secondaryLine && (
-                              <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                                {secondaryLine}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              {dmUser.shared_clubs.slice(0, 1).map(c => (
-                                <span
-                                  key={c}
-                                  className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground max-w-[180px] truncate"
-                                >
-                                  {c}
+                            <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                              {secondaryLine && (
+                                <span className="text-[11px] text-muted-foreground truncate">
+                                  {secondaryLine}
                                 </span>
-                              ))}
+                              )}
                               {singleTeamName ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary max-w-[180px] truncate">
+                                <span className="inline-flex items-center gap-1 shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary max-w-[140px]">
                                   <Users className="h-2.5 w-2.5 shrink-0" />
                                   <span className="truncate">{singleTeamName}</span>
                                 </span>
                               ) : teamCount > 0 ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
+                                <span className="inline-flex items-center gap-1 shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
                                   <Users className="h-2.5 w-2.5" />
                                   {teamCount} teams
                                 </span>
                               ) : null}
                             </div>
                           </div>
+                          <span
+                            aria-hidden
+                            className={`h-6 w-6 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+                              isSelected
+                                ? "bg-primary border-primary"
+                                : "border-muted-foreground/30"
+                            }`}
+                          >
+                            <Check
+                              className={`h-3.5 w-3.5 text-primary-foreground transition-opacity ${
+                                isSelected ? "opacity-100" : "opacity-0"
+                              }`}
+                              strokeWidth={3}
+                            />
+                          </span>
                         </button>
                       );
+
                     })
                   )}
                 </div>
