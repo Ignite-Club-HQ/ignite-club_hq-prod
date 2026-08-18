@@ -775,10 +775,12 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
   // producing the ~1s flash of "RSVP Required" on cold start.
   const showNeedsRsvp = needsRsvp && rsvpDataFullySettled;
 
+  const rsvpGroupNoun = event.type === "social" ? "members" : "players";
+
   const needsRsvpPillLabel = hasGuardianChildren
     ? (guardianUnrespondedCount === 1
         ? `${(guardianUnrespondedChildren[0].name.split(" ")[0] || guardianUnrespondedChildren[0].name)} needs RSVP`
-        : `${guardianUnrespondedCount} players need RSVP`)
+        : `${guardianUnrespondedCount} ${rsvpGroupNoun} need RSVP`)
     : "RSVP Required";
 
   if (!heroDataReady) {
