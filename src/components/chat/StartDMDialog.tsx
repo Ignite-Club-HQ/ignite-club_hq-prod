@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-import { Search, MessageCircle, Loader2, Crown, Lock, Check, X, Users, Filter } from "lucide-react";
+import { Search, MessageCircle, Loader2, Crown, Lock, Check, X, Users, SlidersHorizontal, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -26,8 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
+
 
 interface DMableUser {
   id: string;
