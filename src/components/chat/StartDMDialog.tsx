@@ -597,6 +597,20 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
     if (selectedTeamId !== "all") {
       filtered = filtered.filter(u => u.team_ids.includes(selectedTeamId));
     }
+
+    // Filter by role group (coaches / committee & admins)
+    if (roleFilter !== "all") {
+      filtered = filtered.filter(u => {
+        const label = (u.role_label || "").toLowerCase();
+        if (roleFilter === "coach") return label === "coach";
+        if (roleFilter === "committee") return label === "committee" || label.includes("admin");
+        if (roleFilter === "parent") return label === "parent";
+        if (roleFilter === "player") return label === "player";
+        return true;
+      });
+    }
+
+
     
     // Filter by search query
     if (searchQuery.trim()) {
