@@ -2282,27 +2282,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           touchAction: 'pan-y',
           WebkitOverflowScrolling: 'touch',
           // When the soft keyboard is open (Capacitor Keyboard.resize='none'),
-          // lift the sheet ABOVE the keyboard by offsetting its bottom edge,
-          // and shrink its height so it fits in the remaining viewport. Without
-          // the bottom offset the sheet stays anchored to bottom:0 on iOS,
-          // which leaves the form hidden behind the keyboard.
+          // lift the sheet ABOVE the keyboard by offsetting its bottom edge.
           bottom: nativeKbHeight > 0 ? `${nativeKbHeight}px` : undefined,
-          // Cap the sheet so it never crosses the iOS status bar / Dynamic Island.
-          // Reserve env(safe-area-inset-top) plus a small visual gap.
-          maxHeight:
-            nativeKbHeight > 0
-              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
-              : 'calc(100dvh - env(safe-area-inset-top, 0px) - 8px)',
-          height:
-            nativeKbHeight > 0
-              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
-              : undefined,
-          // Longhand only — the shared SheetContent also sets transition longhands
-          // (for drag-to-close), and mixing shorthand + longhand triggers a React warning.
-          transitionProperty: 'bottom, height, max-height',
+          // STABLE HEIGHT: the sheet keeps ONE height for the whole invite
+          // workflow so it never grows/shrinks (and visibly jolts) as steps
+          // change or as validation rows/errors appear while typing. Only the
+          // keyboard inset changes it; all content scrolls inside.
+          // `--visual-vh` is the monotonic-max locked viewport height.
+          height: `calc(min(86vh, calc(var(--visual-vh, 100dvh) * 0.86)) - ${nativeKbHeight}px)`,
+          maxHeight: `calc(var(--visual-vh, 100dvh) - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`,
+          // Only animate the keyboard lift — never height, so content changes
+          // cannot produce an animated up/down jolt.
+          transitionProperty: 'bottom',
           transitionDuration: '200ms',
           transitionTimingFunction: 'ease',
         }}
+
       >
         <SheetHeader className="mb-3 shrink-0 relative pr-2">
           <SheetTitle>Invite to Team</SheetTitle>
