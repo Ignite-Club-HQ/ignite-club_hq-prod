@@ -1197,7 +1197,10 @@ export default function JoinTeamPage() {
     pendingInviteData.status !== "pending" &&
     !profileLoading &&
     !needsProfileCompletion &&
-    !acceptedInviteIsOurs
+    !acceptedInviteIsOurs &&
+    !alreadyMemberOfInviteScope &&
+    (!membershipCheckEnabled || membershipChecked)
+
   ) {
 
     return (
