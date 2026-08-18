@@ -171,7 +171,8 @@ Signed URLs are issued by `get-signed-photo-url` edge function; permanent delete
 - **Transactional email:** Resend. All `send-*-email` edge functions call `Resend.emails.send(...)`. `RESEND_API_KEY` is a Supabase Edge Function secret.
 - **Push (native):** Firebase Cloud Messaging via `@capacitor/push-notifications` and `@capacitor-firebase/messaging`. Server dispatch through `send-fcm-notification` / `send-push-notification`. Tokens in `fcm_tokens`.
 - **Push (web):** VAPID web push. Subscriptions in `push_subscriptions`. Diagnostic function `check-vapid-key`.
-- **In-app notifications:** `notifications` table + Realtime subscription in `NotificationsPage`.
+- **In-app notifications:** `notifications` table + the page-owned Realtime lifecycle in
+  `src/features/notifications/useNotificationRealtime.ts`, composed by `NotificationsPage`.
 
 ### 2.7 Hosting & deployment
 - **Web:** Netlify. `netlify.toml` sets SPA fallback (`/* → /index.html 200`) and an edge function `share` at `/share` (`netlify/edge-functions/share.ts`). **[Needs confirmation]** which Netlify site/team owns the domain.

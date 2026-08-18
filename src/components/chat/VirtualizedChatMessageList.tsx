@@ -27,6 +27,7 @@ import { useChatVirtualizationEnabled } from "@/hooks/useChatVirtualizationEnabl
 import { isChatJumpActive, setChatJumpActive } from "@/lib/chatJumpActive";
 import { isRecentChatScrollWrite, markChatScrollWrite } from "@/lib/chatScrollWriteLock";
 import { waitForChatJumpTargetReveal } from "@/lib/chatJumpReveal";
+import { waitForChatVisualContentSettle } from "@/lib/chatInitialVisualSettle";
 import { chatJumpLifecycleRemaining } from "@/lib/chatJumpLifecycle";
 import { getChatBottomPaddingOffset } from "@/lib/chatBottomPadding";
 import { createChatRowSignature } from "./chatRowSignature";
@@ -51,6 +52,7 @@ import {
 import {
   markDeferredPrependUpwardMotion,
   markDeferredPrependUserInput,
+  isDeferredPrependUserScrollActive,
   setDeferredPrependScroller,
   setDeferredPrependScrolling,
   useDeferredChatPrepends,
@@ -931,7 +933,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // and would otherwise permanently disable the post-reveal stay-pinned
     // guard — leaving the last message hidden behind the composer after
     // late avatar/image hydration on first cold-cache open.
-    const userDrivenScroll = isViewportUserActive(el) || (prependVirtuosoIsScrolling && prependScrollSessionIsUserDriven);
+    const userDrivenScroll = isViewportUserActive(el) || isDeferredPrependUserScrollActive();
     if (!userDrivenScroll) return;
     if (previousTop !== null && currentTop < previousTop - 2) {
       markDeferredPrependUpwardMotion();

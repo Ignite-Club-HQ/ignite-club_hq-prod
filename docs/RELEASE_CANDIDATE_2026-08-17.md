@@ -34,14 +34,20 @@ Results:
 | Local Supabase integration | 33 files; 270/270 passed |
 | Synthetic migration ledger | all 26 local migrations applied from a clean start |
 | Local Supabase cleanup | passed; no allowlisted containers or data volumes remained |
-| Production TypeScript check | passed |
-| Repository ESLint | passed |
+| Strict feature/workflow TypeScript boundary | passed |
+| Focused lint checks for changed files | passed |
 | Production Vite build | passed, with recorded chunk/import warnings |
 
 The single skip is the opt-in Babel 8 candidate acceptance gate. It runs only
 when `REMAINING_SECURITY_UPGRADE_CANDIDATE=true`; it is intentionally excluded
 while the application remains on the reviewed Babel 7 resolution and is not a
 skipped business-behaviour test.
+
+The table above records the checks that actually ran at that historical
+checkpoint. It does not claim that repository-wide ESLint or the test-inclusive
+`tsconfig.app.json` check was green. A production-only TypeScript gate was added
+after this checkpoint; the current candidate must pass that gate and a fresh
+complete baseline before this evidence record is advanced to a newer SHA.
 
 No hosted Supabase project, hosted frontend, real club, or real user data was
 read or modified. The database portion used only the disposable

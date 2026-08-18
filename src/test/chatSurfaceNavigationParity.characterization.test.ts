@@ -50,7 +50,10 @@ describe("chat-surface navigation parity", () => {
   }
 
   it("the notification bell resolves every message table before falling back", () => {
-    const text = source("pages/NotificationsPage.tsx");
+    const page = source("pages/NotificationsPage.tsx");
+    const repository = source(
+      "features/notifications/notificationNavigationRepository.ts",
+    );
     for (const table of [
       "team_messages",
       "club_messages",
@@ -59,9 +62,12 @@ describe("chat-surface navigation parity", () => {
       "broadcast_messages",
       "club_admin_messages",
     ]) {
-      expect(text).toContain(`from(\"${table}\")`);
+      expect(repository).toContain(`from(\"${table}\")`);
     }
-    expect(text).toContain("setPendingChatJump");
-    expect(text).toContain("withChatJumpNonce");
+    expect(page).toContain("resolveScopedMessageNotificationTarget");
+    expect(page).toContain("resolveDirectNotificationTarget");
+    expect(page).toContain("resolveLegacyReactionTarget");
+    expect(page).toContain("setPendingChatJump");
+    expect(page).toContain("withChatJumpNonce");
   });
 });

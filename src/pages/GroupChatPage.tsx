@@ -1569,7 +1569,7 @@ export default function GroupChatPage() {
           const cachedProfile = cachedProfiles.get(newMsg.author_id);
           
           // IMMEDIATELY update cache with message (don't wait for profile fetch)
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions?: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [{
               ...newMsg,
               author: cachedProfile 
@@ -1667,7 +1667,7 @@ export default function GroupChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions?: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [], reactions: [] };
             return removeMessageFromQueryEnvelope<GroupMessage>(old, deletedId);
           });
@@ -1690,7 +1690,7 @@ export default function GroupChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
+            queryClient.setQueryData<{ messages: GroupMessage[], reactions?: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
               if (!old) return { messages: [], reactions: [] };
               return removeMessageFromQueryEnvelope<GroupMessage>(old, updated.id);
             });
@@ -1700,7 +1700,7 @@ export default function GroupChatPage() {
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions?: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [], reactions: [] };
             return applyMessageUpdateToQueryEnvelope<GroupMessage>(old, updated);
           });

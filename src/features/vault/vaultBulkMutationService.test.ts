@@ -108,7 +108,7 @@ describe("empty Vault trash preparation", () => {
       "https://files/a.jpg": "legacy-a",
       "https://files/b.jpg": "legacy-b",
     });
-    const deleteItems = vi.fn().mockResolvedValue({ photosDeleted: 2, filesDeleted: 3, failed: [] });
+    const deleteItems = vi.fn().mockResolvedValue({ photosDeleted: 2, filesDeleted: 3, succeeded: [], failed: [] });
 
     const result = await permanentlyDeleteVaultTrash({
       photos: [
@@ -126,7 +126,19 @@ describe("empty Vault trash preparation", () => {
       photoIds: ["legacy-a", "legacy-b"],
       fileIds: ["vault-photo-a", "vault-photo-b", "vault-file-a"],
     });
-    expect(result).toEqual({ photosDeleted: 2, filesDeleted: 3, failed: [] });
+    expect(result).toEqual({
+      photosDeleted: 2,
+      filesDeleted: 3,
+      requested: [
+        { id: "legacy-a", kind: "photo" },
+        { id: "legacy-b", kind: "photo" },
+        { id: "vault-photo-a", kind: "file" },
+        { id: "vault-photo-b", kind: "file" },
+        { id: "vault-file-a", kind: "file" },
+      ],
+      succeeded: [],
+      failed: [],
+    });
   });
 
   it("skips missing URLs and absent mirrors without omitting Vault rows", async () => {
@@ -134,6 +146,7 @@ describe("empty Vault trash preparation", () => {
     const deleteItems = vi.fn().mockResolvedValue({
       photosDeleted: 0,
       filesDeleted: 2,
+      succeeded: [],
       failed: [],
     });
 
@@ -157,6 +170,7 @@ describe("empty Vault trash preparation", () => {
     const outcome = {
       photosDeleted: 0,
       filesDeleted: 1,
+      succeeded: [{ id: "vault-file-a", kind: "file" as const }],
       failed: [{ id: "vault-file-b", kind: "file" as const, code: "denied" }],
     };
     const deleteItems = vi.fn().mockResolvedValue(outcome);
@@ -164,6 +178,12 @@ describe("empty Vault trash preparation", () => {
     await expect(permanentlyDeleteVaultTrash({
       photos: [],
       files: [{ id: "vault-file-a" }, { id: "vault-file-b" }],
-    }, fake.client, deleteItems)).resolves.toBe(outcome);
+    }, fake.client, deleteItems)).resolves.toEqual({
+      ...outcome,
+      requested: [
+        { id: "vault-file-a", kind: "file" },
+        { id: "vault-file-b", kind: "file" },
+      ],
+    });
   });
 });

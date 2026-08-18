@@ -328,7 +328,10 @@ test("club admin creates a club-wide game by grade, edits it to team grouping, a
     }),
   );
   await page.reload();
-  await expect(page.getByRole("alert")).toContainText(/grouped attendance (?:couldn.t be loaded|could not be loaded|is unavailable)/i);
+  const groupedAttendanceFailure = page.getByRole("alert").filter({
+    hasText: /grouped attendance (?:couldn.t be loaded|could not be loaded|is unavailable)/i,
+  });
+  await expect(groupedAttendanceFailure).toBeVisible({ timeout: 15_000 });
 });
 
 test("a denied club-wide event edit remains retryable without changing committed state", async ({ page }) => {

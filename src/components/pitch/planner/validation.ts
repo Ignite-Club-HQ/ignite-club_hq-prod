@@ -1,11 +1,15 @@
-import type { PlannerPlayer, PlannerSubstitutionEvent } from "./analysis";
+import type { PlannerPlayer } from "./analysis";
 
 export function isPlanPlayableFromPlayers<
   P extends Pick<PlannerPlayer, "id" | "position">,
-  S extends Pick<
-    PlannerSubstitutionEvent,
-    "half" | "time" | "playerOut" | "playerIn" | "executed" | "skipped"
-  >,
+  S extends {
+    half: 1 | 2;
+    time: number;
+    playerOut: Pick<PlannerPlayer, "id">;
+    playerIn: Pick<PlannerPlayer, "id">;
+    executed?: boolean;
+    skipped?: boolean;
+  },
 >(players: P[], plan: S[], halfDurationSeconds: number): boolean {
   const playerIds = new Set(players.map((player) => player.id));
   const onPitch = new Set(

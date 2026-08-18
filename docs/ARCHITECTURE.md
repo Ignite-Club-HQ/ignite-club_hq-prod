@@ -135,7 +135,8 @@ It uses only the disposable project under `local-supabase-workspace`. See
 - Supabase access is still distributed across many frontend modules. Prefer
   feature-owned adapters and canonical query keys over a broad rewrite.
 - TypeScript strict mode is not enabled globally, and explicit `any` remains
-  common. Tighten types incrementally at touched boundaries.
+  common. The production-only compiler gate and stricter feature/workflow
+  boundaries must remain green; tighten strict coverage incrementally.
 - Migration and Edge Function volume makes promotion review expensive. Preserve
   forward-only migrations and keep shared Edge Function auth/response helpers
   small and tested.

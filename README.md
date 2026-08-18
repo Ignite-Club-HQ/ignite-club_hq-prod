@@ -62,7 +62,8 @@ the correct non-production setup through the repository owner.
 Fast checks:
 
 ```bash
-npx tsc --noEmit
+npm run typecheck:production
+npm run typecheck:strict-features
 npm run build
 npm run test:run
 ```

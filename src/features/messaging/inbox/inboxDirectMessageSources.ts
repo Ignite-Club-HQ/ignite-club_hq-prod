@@ -18,7 +18,6 @@ export interface CachedDirectMessageRow {
   updated_at?: string | null;
   created_by?: string | null;
   other_user?: { id?: string | null } | null;
-  [key: string]: unknown;
 }
 
 export type HydratedDirectMessageRow<T extends CachedDirectMessageRow> = T & {
@@ -36,7 +35,6 @@ export interface DirectMessagePeerProfile {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
-  [key: string]: unknown;
 }
 
 export interface DirectMessageConversationIdentitySource {
@@ -124,7 +122,6 @@ export interface DirectMessageConversationSource {
   id: string;
   participant_1: string;
   participant_2: string;
-  [key: string]: unknown;
 }
 
 export interface DirectMessagePreviewSource {

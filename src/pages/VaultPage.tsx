@@ -1181,10 +1181,7 @@ export default function VaultPage() {
       });
 
       // Item-level acknowledgements only; aggregate counts never imply success.
-      const requestedKeys = new Set<string>([
-        ...photoTableIds.map((id) => `photo:${id}`),
-        ...[...allPhotoIds, ...allFileIds].map((id: string) => `file:${id}`),
-      ]);
+      const requestedKeys = new Set(result.requested.map((item) => `${item.kind}:${item.id}`));
       const failedKeys = new Set(result.failed.map((f) => `${f.kind}:${f.id}`));
       const succeededKeys = new Set(
         result.succeeded

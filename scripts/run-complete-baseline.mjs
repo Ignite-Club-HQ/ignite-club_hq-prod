@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
+import { createServer } from "node:net";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
@@ -251,6 +252,30 @@ function runStage(name, executable, args, environment = safeEnvironment) {
   results.push({ name, status: result.status ?? 1, skipped: false });
 }
 
+function reserveAvailableLoopbackPort(preferredPort = 4173) {
+  return new Promise((resolvePort, reject) => {
+    const probe = createServer();
+    probe.unref();
+    probe.once("error", (error) => {
+      if (error?.code !== "EADDRINUSE") {
+        reject(error);
+        return;
+      }
+      const fallback = createServer();
+      fallback.unref();
+      fallback.once("error", reject);
+      fallback.listen(0, "127.0.0.1", () => {
+        const address = fallback.address();
+        const port = typeof address === "object" && address ? address.port : null;
+        fallback.close((closeError) => closeError ? reject(closeError) : resolvePort(port));
+      });
+    });
+    probe.listen(preferredPort, "127.0.0.1", () => {
+      probe.close((closeError) => closeError ? reject(closeError) : resolvePort(preferredPort));
+    });
+  });
+}
+
 async function approveLocalSession() {
   console.log("\n========== Local Supabase test-session approval ==========");
   console.log(`Exact startup command: cd ${LOCAL_WORKSPACE} && npx --yes ${LOCAL_SUPABASE_CLI} start`);
@@ -310,9 +335,15 @@ try {
     VITE_SUPABASE_URL: LOCAL_URL,
     VITE_SUPABASE_PUBLISHABLE_KEY: localKeys.publishableKey,
   };
+  runStage("Production TypeScript", "npm", ["run", "typecheck:production"], frontendEnvironment);
   runStage("Strict feature boundary", "npm", ["run", "typecheck:strict-features"], frontendEnvironment);
   runStage("Frontend Vitest", "npm", ["run", "test:ci"], frontendEnvironment);
-  runStage("Isolated Playwright", "npm", ["run", "test:e2e-baseline"], frontendEnvironment);
+  const playwrightPort = await reserveAvailableLoopbackPort();
+  console.log(`Playwright will use isolated loopback port ${playwrightPort}.`);
+  runStage("Isolated Playwright", "npm", ["run", "test:e2e-baseline"], {
+    ...frontendEnvironment,
+    PLAYWRIGHT_BASELINE_PORT: String(playwrightPort),
+  });
   runStage("Local Supabase integration", "npm", ["run", "test:local-supabase"], {
     ...safeEnvironment,
     LOCAL_SUPABASE_URL: LOCAL_URL,

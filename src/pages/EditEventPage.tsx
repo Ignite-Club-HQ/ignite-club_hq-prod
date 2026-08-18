@@ -51,6 +51,7 @@ import { EventSponsorSelector } from "@/components/EventSponsorSelector";
 import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
 import { validateEventTeamClubScope } from "@/lib/eventScopeValidation";
 import { SeriesEndDateEditor } from "@/components/event/SeriesEndDateEditor";
+import { refreshEventCaches } from "@/lib/eventCacheRefresh";
 import { buildSharedEventPayload } from "@/features/events/eventPayloadPolicy";
 import {
   alignEditedEventTimes,

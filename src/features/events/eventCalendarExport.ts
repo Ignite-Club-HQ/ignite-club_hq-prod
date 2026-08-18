@@ -1,5 +1,7 @@
+import type { IcsEventInput } from "@/lib/icsExport";
+
 export async function exportEventToCalendar(
-  exporter: (event: Record<string, unknown>) => Promise<unknown>,
+  exporter: (event: IcsEventInput) => Promise<unknown>,
   event: any,
   shareUrl: string,
 ): Promise<void> {

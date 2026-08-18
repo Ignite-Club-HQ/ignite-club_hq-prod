@@ -209,7 +209,7 @@ export function FixtureMatchRow({
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
             {/* Home */}
             <div className="flex items-center gap-2 min-w-0">
-              <FixtureTeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} size={24} />
+              <FixtureTeamAvatar name={homeName} logoUrl={match.home?.logo_url} initials={homeInitials} />
               <div
                 className={`flex-1 min-w-0 text-[15px] font-semibold leading-tight tracking-[-0.01em] truncate ${awayWon ? "text-muted-foreground" : "text-foreground"}`}
                 title={homeName}
@@ -233,7 +233,7 @@ export function FixtureMatchRow({
 
             {/* Away — mirrored: avatar on outside, name flush to centre */}
             <div className="flex flex-row-reverse items-center gap-2 min-w-0">
-              <FixtureTeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} size={24} />
+              <FixtureTeamAvatar name={awayName} logoUrl={match.away?.logo_url} initials={awayInitials} />
               <div
                 className={`flex-1 min-w-0 text-[15px] font-semibold leading-tight tracking-[-0.01em] truncate text-right ${homeWon ? "text-muted-foreground" : "text-foreground"}`}
                 title={awayName}

@@ -144,6 +144,22 @@ describe("complete baseline local lifecycle safety", () => {
     );
   });
 
+  it("selects a free loopback port for Playwright instead of reusing an unrelated server", () => {
+    const baselineRunner = readFileSync(
+      resolve(process.cwd(), "scripts/run-complete-baseline.mjs"),
+      "utf8",
+    );
+    expect(baselineRunner).toContain("reserveAvailableLoopbackPort");
+    expect(baselineRunner).toContain('PLAYWRIGHT_BASELINE_PORT: String(playwrightPort)');
+
+    const playwrightConfig = readFileSync(
+      resolve(process.cwd(), "playwright.baseline.config.ts"),
+      "utf8",
+    );
+    expect(playwrightConfig).toContain('reuseExistingServer: false');
+    expect(playwrightConfig).toContain('--strictPort');
+  });
+
   it("tests dirty worktrees in place without attempting an automatic branch update", () => {
     expect(worktreeUpdateMode(0, "")).toBe("update");
     expect(worktreeUpdateMode(0, " M src/example.test.ts\n")).toBe("test-current");

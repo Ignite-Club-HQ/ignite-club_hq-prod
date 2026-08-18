@@ -4,6 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   permanentlyDeleteVaultItems,
   type VaultDeleteFailure,
+  type VaultDeleteSuccess,
 } from "@/lib/vaultDelete";
 import { softDeleteVaultItem } from "./vaultMutationRepository";
 
@@ -53,6 +54,8 @@ export async function softDeleteVaultSelection(
 export interface VaultTrashDeleteResult {
   photosDeleted: number;
   filesDeleted: number;
+  requested: VaultDeleteSuccess[];
+  succeeded: VaultDeleteSuccess[];
   failed: VaultDeleteFailure[];
 }
 
@@ -75,11 +78,19 @@ export async function permanentlyDeleteVaultTrash(
     if (photoRecord) photoTableIds.push(photoRecord.id);
   }
 
-  return deleteItems({
+  const fileIds = [
+    ...options.photos.map((photo) => photo.id),
+    ...options.files.map((file) => file.id),
+  ];
+  const result = await deleteItems({
     photoIds: photoTableIds,
-    fileIds: [
-      ...options.photos.map((photo) => photo.id),
-      ...options.files.map((file) => file.id),
-    ],
+    fileIds,
   });
+  return {
+    ...result,
+    requested: [
+      ...photoTableIds.map((id) => ({ id, kind: "photo" as const })),
+      ...fileIds.map((id) => ({ id, kind: "file" as const })),
+    ],
+  };
 }

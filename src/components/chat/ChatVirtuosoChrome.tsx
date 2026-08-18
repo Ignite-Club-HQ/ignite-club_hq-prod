@@ -14,7 +14,7 @@ export const ChatVirtuosoFooter = ({ context }: { context?: ChatVirtuosoContext 
   <div style={{ height: context?.bottomPadding ?? 0 }} />
 );
 
-type VirtuosoDivProps = ComponentProps<"div"> & { context?: unknown };
+type VirtuosoDivProps = ComponentProps<"div"> & { context?: ChatVirtuosoContext };
 
 export const ChatVirtuosoScroller = forwardRef<HTMLDivElement, VirtuosoDivProps>(
   ({ context: _context, style, className, ...props }, ref) => (

@@ -38,6 +38,10 @@ export function setDeferredPrependScrolling(scrolling: boolean) {
   lastPrependScrollStoppedAt = now;
 }
 
+export function isDeferredPrependUserScrollActive(): boolean {
+  return prependVirtuosoIsScrolling && prependScrollSessionIsUserDriven;
+}
+
 function canRecordPrependUpwardMotion(explicitGesture = false) {
   if (explicitGesture) return true;
   const scroller = prependScroller?.();

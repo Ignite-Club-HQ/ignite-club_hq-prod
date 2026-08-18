@@ -75,7 +75,8 @@ quietly entering production.
 Fast checks:
 
 ```bash
-npx tsc --noEmit
+npm run typecheck:production
+npm run typecheck:strict-features
 npm run build
 npm run test:run
 ```
