@@ -20,6 +20,7 @@ import { Capacitor } from "@capacitor/core";
 import { mark as coldMark } from "@/lib/coldStartMarks";
 import { sweepStaleDeletedTeams } from "@/lib/staleDeletedTeamSweep";
 import { useLaunchIntentPending } from "@/hooks/useLaunchIntentPending";
+import { useInviteFlowSweeper } from "@/hooks/useInviteFlowSweeper";
 
 const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
 
@@ -36,6 +37,9 @@ export function AppLayout() {
   // Bounce the user home if the open route belongs to a different club than the
   // active club filter (e.g. after switching club themes).
   useClubScopeGuard();
+  // Drop the invite-flow banner as soon as the invite is definitively done
+  // (profile complete + at least one membership), instead of waiting for TTL.
+  useInviteFlowSweeper(user?.id, !!profile?.display_name);
   const launchIntentPending = useLaunchIntentPending();
   const location = useLocation();
   const [retrying, setRetrying] = useState(false);
