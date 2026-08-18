@@ -147,17 +147,36 @@ Deno.serve(async (req) => {
       .from("teams")
       .select("id")
       .eq("club_id", club_id)
+      // Soft-deleted teams must fail loudly as invalid_teams rather than
+      // silently passing validation and receiving an announcement.
+      .is("deleted_at", null)
       .in("id", requestedTeamIds);
 
     if (clubTeamsError) throw clubTeamsError;
 
     const validTeamIds = (clubTeams || []).map((team) => team.id);
     if (validTeamIds.length !== requestedTeamIds.length) {
-      return new Response(JSON.stringify({ error: "One or more teams are invalid for this club" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const offendingTeamIds = requestedTeamIds.filter((id) => !validTeamIds.includes(id));
+      console.warn("Announcement rejected: invalid_teams", {
+        club_id,
+        requestedTeamIds: requestedTeamIds.length,
+        validTeamIds: validTeamIds.length,
+        offendingTeamIds,
+        messageLength: typeof message === "string" ? message.length : null,
       });
+      return new Response(
+        JSON.stringify({
+          error: `One or more teams are invalid for this club (${offendingTeamIds.length} rejected)`,
+          code: "invalid_teams",
+          invalid_team_ids: offendingTeamIds,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
+
 
     let botUserId = club.bot_user_id;
     const resolvedClubName = club_name || club.name;
