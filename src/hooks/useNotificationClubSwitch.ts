@@ -19,11 +19,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import {
+  clearNotificationClubSwitchInFlight,
   consumePendingNotificationClubSwitch,
   markNotificationClubSwitchApplied,
   peekPendingNotificationClubSwitch,
   subscribeNotificationClubSwitch,
 } from "@/lib/notificationClubSwitch";
+
 
 type MembershipVerdict = "yes" | "no" | "error";
 
@@ -115,6 +117,7 @@ export function useNotificationClubSwitch() {
       if (cancelled) return;
       if (!clubId) {
         consumePendingNotificationClubSwitch();
+        clearNotificationClubSwitchInFlight();
         return;
       }
       if (clubId === activeClubTheme) {
@@ -122,6 +125,7 @@ export function useNotificationClubSwitch() {
         // cannot drag the filter back to a previously stored club.
         markNotificationClubSwitchApplied(clubId);
         consumePendingNotificationClubSwitch();
+        clearNotificationClubSwitchInFlight();
         return;
       }
       try {
@@ -133,14 +137,21 @@ export function useNotificationClubSwitch() {
         }
         if (cancelled) return;
         consumePendingNotificationClubSwitch();
-        if (verified === "no") return; // not a member — never switch
+        if (verified === "no") {
+          // Not a member — never switch, and stop shielding the route from the
+          // club scope guard.
+          clearNotificationClubSwitchInFlight();
+          return;
+        }
         console.log("[NotificationClubSwitch] switching active club", { from: activeClubTheme, to: clubId });
         markNotificationClubSwitchApplied(clubId);
         setActiveClubTheme(clubId);
+        clearNotificationClubSwitchInFlight();
       } catch (err) {
         console.warn("[NotificationClubSwitch] switch failed", err);
       }
     };
+
 
     // Drain anything stashed before mount (cold-start tap).
     const pending = peekPendingNotificationClubSwitch();

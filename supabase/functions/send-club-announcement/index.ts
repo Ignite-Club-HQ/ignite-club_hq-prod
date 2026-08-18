@@ -76,18 +76,38 @@ Deno.serve(async (req) => {
 
 
     const { club_id, team_ids, message, club_name, include_club_chat } = await req.json();
-    const requestedTeamIds = [...new Set((team_ids || []).filter(Boolean))];
+    const requestedTeamIds = [...new Set((team_ids || []).filter(Boolean))] as string[];
     const sendToClubChat = include_club_chat === true;
 
-    if (!club_id || (!requestedTeamIds.length && !sendToClubChat) || !message?.trim()) {
+    // Distinct messages so a 400 identifies itself, and a log line for every
+    // early exit — these used to return silently, which made the failure
+    // undiagnosable from either the toast or the function logs.
+    const missing =
+      !club_id
+        ? "club_id is required"
+        : !requestedTeamIds.length && !sendToClubChat
+          ? "At least one team (or the club chat) is required"
+          : !message?.trim()
+            ? "message is required"
+            : null;
+
+    if (missing) {
+      console.warn("Announcement rejected: missing_fields", {
+        reason: missing,
+        club_id: club_id ?? null,
+        requestedTeamIds: requestedTeamIds.length,
+        include_club_chat: sendToClubChat,
+        messageLength: typeof message === "string" ? message.length : null,
+      });
       return new Response(
-        JSON.stringify({ error: "club_id, message and at least one destination required" }),
+        JSON.stringify({ error: missing, code: "missing_fields" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
     }
+
 
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
@@ -127,17 +147,36 @@ Deno.serve(async (req) => {
       .from("teams")
       .select("id")
       .eq("club_id", club_id)
+      // Soft-deleted teams must fail loudly as invalid_teams rather than
+      // silently passing validation and receiving an announcement.
+      .is("deleted_at", null)
       .in("id", requestedTeamIds);
 
     if (clubTeamsError) throw clubTeamsError;
 
     const validTeamIds = (clubTeams || []).map((team) => team.id);
     if (validTeamIds.length !== requestedTeamIds.length) {
-      return new Response(JSON.stringify({ error: "One or more teams are invalid for this club" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const offendingTeamIds = requestedTeamIds.filter((id) => !validTeamIds.includes(id));
+      console.warn("Announcement rejected: invalid_teams", {
+        club_id,
+        requestedTeamIds: requestedTeamIds.length,
+        validTeamIds: validTeamIds.length,
+        offendingTeamIds,
+        messageLength: typeof message === "string" ? message.length : null,
       });
+      return new Response(
+        JSON.stringify({
+          error: `One or more teams are invalid for this club (${offendingTeamIds.length} rejected)`,
+          code: "invalid_teams",
+          invalid_team_ids: offendingTeamIds,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
+
 
     let botUserId = club.bot_user_id;
     const resolvedClubName = club_name || club.name;
