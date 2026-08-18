@@ -42,7 +42,9 @@ export default function PlayerStatsReportPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(searchParams.get("teamId") || "");
+  const lockedTeamId = searchParams.get("teamId") || "";
+  const isLockedToTeam = !!lockedTeamId;
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(lockedTeamId || "");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: startOfMonth(new Date()),
