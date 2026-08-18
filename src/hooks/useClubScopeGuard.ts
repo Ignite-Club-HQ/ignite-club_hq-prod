@@ -68,7 +68,12 @@ export function useClubScopeGuard() {
     if (!activeClubFilter || !owningClubId) return;
     if (owningClubId === activeClubFilter) return;
     // A push-notification driven switch is mid-reconciliation: let it settle.
+    // `applied` lands only after membership verification (several round trips),
+    // so also honour the short-lived in-flight marker written the moment the
+    // switch is requested — otherwise the guard wins the race and bounces home.
     if (getAppliedNotificationClubSwitch() === owningClubId) return;
+    if (isNotificationClubSwitchInFlight(owningClubId)) return;
+
     if (location.pathname === "/") return;
     if (lastRedirectedFrom.current === location.pathname + "|" + activeClubFilter) return;
     lastRedirectedFrom.current = location.pathname + "|" + activeClubFilter;
