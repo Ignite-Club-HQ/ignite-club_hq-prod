@@ -123,6 +123,10 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
+  // Role-group filter used by the compact "Filter" chip (coaches / committee).
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+
 
   // Use controlled or uncontrolled state
   const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
