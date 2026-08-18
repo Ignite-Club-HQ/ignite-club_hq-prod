@@ -818,10 +818,13 @@ export default function ClubEngagementAnalyticsPage({
           .limit(500);
         return data || [];
       }
+      // Active participation only: accepted entries from non-deleted teams.
       const { data: entries } = await supabase
         .from("competition_entries")
-        .select("competition_id, team_id, teams!inner(club_id)")
+        .select("competition_id, team_id, teams!inner(club_id, deleted_at)")
         .eq("teams.club_id", clubId!)
+        .eq("status", "accepted")
+        .is("teams.deleted_at", null)
         .limit(500);
       const compIds = Array.from(new Set((entries || []).map((e: any) => e.competition_id).filter(Boolean)));
       if (compIds.length === 0) return [] as any[];
@@ -1341,10 +1344,14 @@ function CompetitionPanel({ competitions, range }: { competitions: { id: string;
           .gte("created_at", range.start.toISOString())
           .lte("created_at", range.end.toISOString())
           .limit(1000),
+        // "Active teams" must exclude withdrawn/declined entries and teams that
+        // have been soft-deleted.
         supabase
           .from("competition_entries")
-          .select("id, team_id", { count: "exact", head: true })
-          .in("competition_id", compIds),
+          .select("id, team_id, teams!inner(deleted_at)", { count: "exact", head: true })
+          .in("competition_id", compIds)
+          .eq("status", "accepted")
+          .is("teams.deleted_at", null),
       ]);
       const totalMatches = matches.data?.length || 0;
       const completed = (matches.data || []).filter((m: any) => m.home_score !== null && m.away_score !== null).length;

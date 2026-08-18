@@ -2303,9 +2303,10 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
           .order("goals_for", { ascending: false }),
         supabase
           .from("competition_entries")
-          .select("team_id, division_id, status")
+          .select("team_id, division_id, status, teams!inner(deleted_at)")
           .eq("competition_id", competitionId)
-          .eq("status", "accepted"),
+          .eq("status", "accepted")
+          .is("teams.deleted_at", null),
       ]);
       if (ladderRes.error) throw ladderRes.error;
       if (entriesRes.error) throw entriesRes.error;
