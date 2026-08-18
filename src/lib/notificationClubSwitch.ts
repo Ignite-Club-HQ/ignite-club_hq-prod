@@ -20,12 +20,22 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { getJumpTarget, type ChatJumpKind } from "@/lib/pendingChatJump";
+import { resolveRouteClubScope } from "@/lib/routeClubScope";
 
 const SS_KEY = "ignite_pending_notification_club_switch";
 const APPLIED_KEY = "ignite_notification_club_switch_applied";
+/**
+ * Short-TTL "switch in flight" marker. `APPLIED_KEY` is only written after
+ * membership verification (up to 4 round trips), but navigation happens
+ * immediately — so `useClubScopeGuard` could bounce a legitimate cross-club
+ * notification target home before the switch landed. This marker closes that
+ * window.
+ */
+const INFLIGHT_KEY = "ignite_notification_club_switch_inflight";
 const EVENT = "ignite:notification-club-switch";
 /** Stale pending switches must never hijack a later, unrelated session. */
 const TTL_MS = 120_000;
+const INFLIGHT_TTL_MS = 30_000;
 
 interface PendingSwitch {
   clubId: string;
@@ -35,6 +45,39 @@ interface PendingSwitch {
 export function clearPendingNotificationClubSwitch(): void {
   try { sessionStorage.removeItem(SS_KEY); } catch { /* noop */ }
 }
+
+function markNotificationClubSwitchInFlight(clubId: string): void {
+  try {
+    sessionStorage.setItem(INFLIGHT_KEY, JSON.stringify({ clubId, ts: Date.now() } satisfies PendingSwitch));
+  } catch { /* noop */ }
+}
+
+export function clearNotificationClubSwitchInFlight(): void {
+  try { sessionStorage.removeItem(INFLIGHT_KEY); } catch { /* noop */ }
+}
+
+/**
+ * True when a notification-driven switch to `clubId` was requested and has not
+ * finished reconciling yet. Consumed by `useClubScopeGuard` so it never bounces
+ * a route whose club is about to become active.
+ */
+export function isNotificationClubSwitchInFlight(clubId: string | null | undefined): boolean {
+  if (!clubId) return false;
+  try {
+    const raw = sessionStorage.getItem(INFLIGHT_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as PendingSwitch;
+    if (!parsed?.clubId) return false;
+    if (Date.now() - parsed.ts > INFLIGHT_TTL_MS) {
+      clearNotificationClubSwitchInFlight();
+      return false;
+    }
+    return parsed.clubId === clubId;
+  } catch {
+    return false;
+  }
+}
+
 
 /**
  * Records that a notification-driven club switch has been APPLIED.
