@@ -360,6 +360,74 @@ export default function JoinTeamPage() {
     return !!invitedEmail && !!userEmail && invitedEmail === userEmail;
   })();
 
+  /**
+   * Re-opening the app can replay a stale invite deep link (stored
+   * `pwa_pending_invite`, native launch URL, browser history). If the invite is
+   * already accepted AND the signed-in user is already in that team/club, the
+   * link simply did its job — show nothing scary, just go home.
+   */
+  const usedInviteTeamId =
+    isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending"
+      ? ((pendingInviteData as { team_id?: string | null }).team_id ?? null)
+      : null;
+  const usedInviteClubId =
+    isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending"
+      ? ((pendingInviteData as { club_id?: string | null }).club_id ?? null)
+      : null;
+  const membershipCheckEnabled = !!user && (!!usedInviteTeamId || !!usedInviteClubId);
+
+  const { data: alreadyMemberOfInviteScope, isFetched: membershipChecked } = useQuery({
+    queryKey: ["used-invite-membership", user?.id, usedInviteTeamId, usedInviteClubId],
+    queryFn: async () => {
+      if (!user) return false;
+      if (usedInviteTeamId) {
+        const { data: tm } = await (supabase as any)
+          .from("team_memberships")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("team_id", usedInviteTeamId)
+          .eq("status", "active")
+          .limit(1);
+
+        if (tm?.length) return true;
+        const { data: tr } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("team_id", usedInviteTeamId)
+          .limit(1);
+        if (tr?.length) return true;
+      }
+      if (usedInviteClubId) {
+        const { data: cr } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("club_id", usedInviteClubId)
+          .limit(1);
+        if (cr?.length) return true;
+      }
+      return false;
+    },
+    enabled: membershipCheckEnabled,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!alreadyMemberOfInviteScope) return;
+    clearInviteFlowContext();
+    try {
+      localStorage.removeItem("pwa_pending_invite");
+    } catch {
+      /* storage blocked */
+    }
+    safeSessionRemove("autoJoinAfterAuth");
+    navigate("/", { replace: true });
+  }, [alreadyMemberOfInviteScope, navigate]);
+
+
+
 
   // Validate name for pending invites - only block EXISTING users with a different name already set
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
@@ -1129,7 +1197,10 @@ export default function JoinTeamPage() {
     pendingInviteData.status !== "pending" &&
     !profileLoading &&
     !needsProfileCompletion &&
-    !acceptedInviteIsOurs
+    !acceptedInviteIsOurs &&
+    !alreadyMemberOfInviteScope &&
+    (!membershipCheckEnabled || membershipChecked)
+
   ) {
 
     return (
