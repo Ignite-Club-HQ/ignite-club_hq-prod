@@ -136,6 +136,8 @@ export default function PlayerStatsReportView({
               positions_played: [...stat.positions_played],
               position_minutes: stat.position_minutes ? { ...stat.position_minutes } : null,
               goals_scored: stat.goals_scored || 0,
+              games_played: 1,
+              starts_count: stat.started_on_pitch ? 1 : 0,
             });
           }
         });
