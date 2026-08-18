@@ -25,9 +25,11 @@ documentation.
 - [Vendor access and support pack](VENDOR_HANDOVER_PACK.md)
 - [Current cumulative release-candidate evidence](RELEASE_CANDIDATE_2026-08-17.md)
 - [Current promotion tranche and rollback plan](PROMOTION_TRANCHES_2026-08-17.md)
+- [Current promotion construction preflight](PROMOTION_PREFLIGHT_2026-08-18.md)
 - [Current code-quality ratchet](CODE_QUALITY_RATCHET_2026-08-18.md)
 - [Refactoring automated closeout](REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md)
 - [Delegated refactoring acceptance checklist](testing/REFACTORING_MANUAL_ACCEPTANCE.md)
+- [External and physical-device acceptance record](testing/EXTERNAL_ACCEPTANCE_2026-08-18.md)
 - [Recent work state](RECENT_WORK_STATE.md) — a checkpoint; verify branch and
   commit before relying on it
 - [Android keyboard QA](qa/android-keyboard-checklist.md)
