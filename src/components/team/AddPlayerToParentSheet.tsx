@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { refreshTeamRoleChange } from "@/features/membership/teamMembershipCacheCompletion";
 
 interface ParentCandidate {
   user_id: string;
@@ -156,7 +157,7 @@ export default function AddPlayerToParentSheet({
         description: `${childName.trim()} added to ${teamName}.`,
       });
       queryClient.invalidateQueries({ queryKey: ["team-children", teamId] });
-      queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
+      refreshTeamRoleChange(queryClient, teamId);
       handleOpenChange(false);
     },
     onError: (err: Error) => {

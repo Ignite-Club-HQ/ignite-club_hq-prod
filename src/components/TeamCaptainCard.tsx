@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { invalidateRolesCache } from "@/lib/rolesCache";
+import { refreshTeamRoleChange } from "@/features/membership/teamMembershipCacheCompletion";
 
 interface TeamCaptainCardProps {
   teamId: string;
@@ -67,7 +68,7 @@ export default function TeamCaptainCard({
   const afterChange = () => {
     invalidateRolesCache();
     queryClient.invalidateQueries({ queryKey: ["team-captains", teamId] });
-    queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
+    refreshTeamRoleChange(queryClient, teamId);
     queryClient.invalidateQueries({ queryKey: ["user-team-roles", teamId] });
   };
 

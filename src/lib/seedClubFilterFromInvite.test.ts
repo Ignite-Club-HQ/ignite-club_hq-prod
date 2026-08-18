@@ -1,38 +1,44 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { seedClubFilterFromInvite } from "./seedClubFilterFromInvite";
 
-const KEY = (u: string) => `ignite-club-theme-${u}`;
-const SENTINEL = "__ignite_no_club__";
-
 describe("seedClubFilterFromInvite", () => {
-  beforeEach(() => {
-    localStorage.clear();
+  beforeEach(() => localStorage.clear());
+
+  it("does nothing without both user and invited club identity", () => {
+    const setTheme = vi.fn();
+    expect(seedClubFilterFromInvite(null, "club-1", setTheme)).toBe(false);
+    expect(seedClubFilterFromInvite("user-1", null, setTheme)).toBe(false);
+    expect(setTheme).not.toHaveBeenCalled();
   });
 
-  it("seeds when no preference exists", () => {
-    const set = vi.fn();
-    expect(seedClubFilterFromInvite("u1", "club-1", set)).toBe(true);
-    expect(set).toHaveBeenCalledWith("club-1");
+  it("seeds the invited club when the user has no existing preference", () => {
+    const setTheme = vi.fn();
+    expect(seedClubFilterFromInvite("user-1", "club-invited", setTheme)).toBe(true);
+    expect(setTheme).toHaveBeenCalledWith("club-invited");
   });
 
-  it("replaces the no-club sentinel", () => {
-    localStorage.setItem(KEY("u1"), SENTINEL);
-    const set = vi.fn();
-    expect(seedClubFilterFromInvite("u1", "club-1", set)).toBe(true);
-    expect(set).toHaveBeenCalledWith("club-1");
+  it("never overwrites an explicit club choice", () => {
+    localStorage.setItem("ignite-club-theme-user-1", "club-existing");
+    const setTheme = vi.fn();
+    expect(seedClubFilterFromInvite("user-1", "club-invited", setTheme)).toBe(false);
+    expect(setTheme).not.toHaveBeenCalled();
   });
 
-  it("never overrides an explicit club selection", () => {
-    localStorage.setItem(KEY("u1"), "club-existing");
-    const set = vi.fn();
-    expect(seedClubFilterFromInvite("u1", "club-1", set)).toBe(false);
-    expect(set).not.toHaveBeenCalled();
+  it("replaces the automatic no-club sentinel by default", () => {
+    localStorage.setItem("ignite-club-theme-user-1", "__ignite_no_club__");
+    const setTheme = vi.fn();
+    expect(seedClubFilterFromInvite("user-1", "club-invited", setTheme)).toBe(true);
+    expect(setTheme).toHaveBeenCalledWith("club-invited");
   });
 
-  it("does nothing when user id or club id is missing", () => {
-    const set = vi.fn();
-    expect(seedClubFilterFromInvite(null, "club-1", set)).toBe(false);
-    expect(seedClubFilterFromInvite("u1", null, set)).toBe(false);
-    expect(set).not.toHaveBeenCalled();
+  it("respects an instruction not to replace the no-club sentinel", () => {
+    localStorage.setItem("ignite-club-theme-user-1", "__ignite_no_club__");
+    const setTheme = vi.fn();
+    expect(seedClubFilterFromInvite("user-1", "club-invited", setTheme, { overrideSentinel: false })).toBe(false);
+    expect(setTheme).not.toHaveBeenCalled();
+  });
+
+  it("fails safely if applying the theme throws", () => {
+    expect(seedClubFilterFromInvite("user-1", "club-invited", () => { throw new Error("storage failed"); })).toBe(false);
   });
 });

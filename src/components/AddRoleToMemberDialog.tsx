@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { refreshTeamRoleChange } from "@/features/membership/teamMembershipCacheCompletion";
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 
@@ -84,7 +85,7 @@ export default function AddRoleToMemberDialog({
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
+      refreshTeamRoleChange(queryClient, teamId);
       setOpen(false);
       setSelectedRoles([]);
       toast({ title: "Role(s) added successfully" });

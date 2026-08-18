@@ -30,6 +30,16 @@ import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
+import { membershipKeys } from "@/features/membership/membershipQueryKeys";
+import {
+  fetchPendingInviteByToken,
+  fetchTeamInviteByToken,
+} from "@/features/membership/inviteTokenRepository";
+import {
+  resolveInviteJoinCompletion,
+  selectNewInviteRoles,
+  validateReusableTeamInvite,
+} from "@/features/membership/inviteAcceptancePolicy";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -92,27 +102,8 @@ export default function JoinTeamPage() {
 
   // Fetch pending invite details using RPC function (for name-restricted invites)
   const { data: pendingInviteData, isLoading: pendingInviteLoading, error: pendingInviteError, isError: pendingInviteIsError } = useQuery({
-    queryKey: ["pending-invite-token", token],
-    queryFn: async () => {
-      console.log("[JoinTeam] Fetching pending invite for token:", token);
-      try {
-        const { data, error } = await supabase
-          .rpc("get_pending_invite_by_token", { _token: token! });
-        console.log("[JoinTeam] RPC response:", { data, error });
-        if (error) {
-          console.error("[JoinTeam] RPC error:", error);
-          throw error;
-        }
-        if (data && data.length > 0) {
-          return data[0];
-        }
-        console.log("[JoinTeam] No invite found for token");
-        return null;
-      } catch (err) {
-        console.error("[JoinTeam] Exception fetching invite:", err);
-        throw err;
-      }
-    },
+    queryKey: membershipKeys.pendingInviteToken(token ?? ""),
+    queryFn: () => fetchPendingInviteByToken(supabase, token!),
     enabled: !!token && isPendingInvite,
     retry: 2,
     retryDelay: 1000,
@@ -121,38 +112,8 @@ export default function JoinTeamPage() {
 
   // Fetch team invite details using secure RPC function (for regular invites)
   const { data: teamInvite, isLoading: teamInviteLoading, error: teamInviteError } = useQuery({
-    queryKey: ["team-invite", token],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc("get_team_invite_by_token", { _token: token! });
-      if (error) throw error;
-      if (data && data.length > 0) {
-        const row = data[0];
-        return {
-          id: row.id,
-          team_id: row.team_id,
-          role: row.role,
-          token: row.token,
-          uses_count: row.uses_count,
-          max_uses: row.max_uses,
-          expires_at: row.expires_at,
-          created_at: row.created_at,
-          created_by: row.created_by,
-          metadata: row.metadata as { child_name?: string; child_year_of_birth?: number } | null,
-          teams: {
-            id: row.team_id,
-            name: row.team_name,
-            logo_url: row.team_logo_url,
-            club_id: row.club_id,
-            clubs: {
-              name: row.club_name,
-              logo_url: undefined as string | undefined
-            }
-          }
-        };
-      }
-      return null;
-    },
+    queryKey: membershipKeys.teamInvite(token ?? ""),
+    queryFn: () => fetchTeamInviteByToken(supabase, token!),
     enabled: !!token && !isPendingInvite,
     retry: 2,
     retryDelay: 1000,
@@ -224,7 +185,7 @@ export default function JoinTeamPage() {
 
   // Fetch user's existing roles for the invite destination
   const { data: existingRoles = EMPTY_ROLES } = useQuery({
-    queryKey: ["user-invite-roles", invite?.team_id, inviteClubId, user?.id],
+    queryKey: membershipKeys.inviteRoles(invite?.team_id, inviteClubId, user?.id ?? ""),
     queryFn: async () => {
       let query = supabase
         .from("user_roles")
@@ -248,7 +209,7 @@ export default function JoinTeamPage() {
   // Fetch user's profile for name validation and profile completion check
   // Use staleTime: 0 to ensure fresh data when returning from profile completion
   const { data: userProfile, isLoading: profileLoading } = useQuery({
-    queryKey: ["user-profile-for-join", user?.id],
+    queryKey: membershipKeys.joinProfile(user?.id ?? ""),
     queryFn: async () => {
       const { data } = await selectCachedProfileById(user!.id);
       return data;
@@ -321,7 +282,7 @@ export default function JoinTeamPage() {
   // Only surface children who don't yet have a primary parent or any guardians,
   // so a new parent can claim them without colliding with existing families.
   const { data: existingTeamChildren = [] } = useQuery({
-    queryKey: ["team-children-for-linking", invite?.team_id],
+    queryKey: membershipKeys.teamChildrenForLinking(invite?.team_id ?? ""),
     queryFn: async () => {
       const { data } = await supabase
         .from("child_team_assignments")
@@ -602,13 +563,11 @@ export default function JoinTeamPage() {
       }
     } else if (!isPendingInvite) {
       // Regular team invite - check expiry and usage limits
-      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-        throw new Error("This invite link has expired");
-      }
-
-      if (invite.max_uses && invite.uses_count >= invite.max_uses) {
-        throw new Error("This invite link has reached its usage limit");
-      }
+      validateReusableTeamInvite({
+        expiresAt: invite.expires_at,
+        maxUses: invite.max_uses,
+        usesCount: invite.uses_count,
+      });
 
       // Reconcile any matching pending invites for this user (by user_id or email)
       const userEmail = user.email?.toLowerCase().trim();
@@ -822,7 +781,7 @@ export default function JoinTeamPage() {
       }
 
       // Filter out roles user already has
-      const rolesToAdd = selectedRoles.filter(role => !existingRoles?.includes(role));
+      const rolesToAdd = selectNewInviteRoles(selectedRoles, existingRoles ?? []);
 
       if (rolesToAdd.length === 0) {
         throw new Error("You already have all selected roles in this team");
@@ -858,13 +817,13 @@ export default function JoinTeamPage() {
       
       // If parent role was added via a regular invite WITHOUT child metadata, show child step.
       // Same flow for mini-league parent shareable join link (no preset child).
-      const isLeagueParentLink =
-        isPendingInvite &&
-        (pendingInviteData?.metadata as any)?.kind === "mini_league_parent_join_link";
-      if (
-        (!isPendingInvite && rolesToAdd.includes("parent") && !teamInvite?.metadata) ||
-        (isLeagueParentLink && rolesToAdd.includes("parent"))
-      ) {
+      const completion = resolveInviteJoinCompletion({
+        isPendingInvite,
+        addedRoles: rolesToAdd,
+        regularInviteHasMetadata: !!teamInvite?.metadata,
+        pendingInviteKind: (pendingInviteData?.metadata as any)?.kind,
+      });
+      if (completion === "add-child") {
         setShowChildStep(true);
       } else {
         setJoined(true);
@@ -967,7 +926,14 @@ export default function JoinTeamPage() {
         const result = await executeJoin(pendingJoinRoles);
         const roleNames = result.map(r => roleLabels[r]).join(", ");
         toast({ title: `Successfully joined as ${roleNames}!` });
-        if (!isPendingInvite && result.includes("parent") && !teamInvite?.metadata) {
+        const completion = resolveInviteJoinCompletion({
+          isPendingInvite,
+          addedRoles: result,
+          regularInviteHasMetadata: !!teamInvite?.metadata,
+          pendingInviteKind: (pendingInviteData?.metadata as any)?.kind,
+          completedAfterPhotoConsent: true,
+        });
+        if (completion === "add-child") {
           setShowChildStep(true);
         } else {
           setJoined(true);
@@ -1304,7 +1270,9 @@ export default function JoinTeamPage() {
       setLinkExistingChildId(null);
       // Refresh the "existing children on team" list so the just-linked child
       // disappears from the choices.
-      queryClient.invalidateQueries({ queryKey: ["team-children-for-linking", invite?.team_id] });
+      queryClient.invalidateQueries({
+        queryKey: membershipKeys.teamChildrenForLinking(invite?.team_id ?? ""),
+      });
     } catch (err) {
       console.error("[JoinTeam] Error adding child:", err);
       toast({ title: "Failed to add child", variant: "destructive" });
