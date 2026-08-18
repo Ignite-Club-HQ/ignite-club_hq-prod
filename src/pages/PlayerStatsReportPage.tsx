@@ -315,7 +315,12 @@ export default function PlayerStatsReportPage() {
         addRows(data as unknown as Team[]);
       }
 
-      return Array.from(results.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const allTeams = Array.from(results.values()).sort((a, b) => a.name.localeCompare(b.name));
+      // When accessed from a team page, restrict reporting to that team only.
+      if (lockedTeamId) {
+        return allTeams.filter((t) => t.id === lockedTeamId);
+      }
+      return allTeams;
     },
     enabled: !!user,
   });
