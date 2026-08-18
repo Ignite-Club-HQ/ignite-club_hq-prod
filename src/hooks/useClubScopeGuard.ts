@@ -87,5 +87,5 @@ export function useClubScopeGuard() {
     if (lastRedirectedFrom.current === location.pathname + "|" + activeClubFilter) return;
     lastRedirectedFrom.current = location.pathname + "|" + activeClubFilter;
     navigate("/", { replace: true });
-  }, [activeClubFilter, owningClubId, location.pathname, navigate]);
+  }, [activeClubFilter, owningClubId, location.pathname, navigate, recheckTick]);
 }
