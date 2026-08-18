@@ -9,6 +9,9 @@ import { join } from "node:path";
  */
 const messages = readFileSync(join(__dirname, "../pages/MessagesPage.tsx"), "utf8");
 const cache = readFileSync(join(__dirname, "../lib/messagesPageCache.ts"), "utf8");
+const revealPolicy = readFileSync(join(__dirname, "../features/messaging/inbox/inboxRevealPolicy.ts"), "utf8");
+const displaySources = readFileSync(join(__dirname, "../features/messaging/inbox/inboxDisplaySources.ts"), "utf8");
+const groupVisibility = readFileSync(join(__dirname, "../features/messaging/inbox/inboxGroupVisibility.ts"), "utf8");
 
 describe("cold-offline messages inbox guards", () => {
   it("tracks online status", () => {
@@ -16,21 +19,21 @@ describe("cold-offline messages inbox guards", () => {
   });
 
   it("never shows skeletons while offline", () => {
-    expect(messages).toMatch(/const showSkeletonLoading = isOnline &&/);
+    expect(revealPolicy).toMatch(/input\.isOnline && !input\.hasRevealedStableInbox/);
   });
 
   it("does not wait on remote queries to settle while offline", () => {
-    expect(messages).toMatch(/const freshSortDataReady = !isOnline \|\|/);
+    expect(revealPolicy).toMatch(/!input\.isOnline \|\| sortSourcesSettled/);
   });
 
   it("keeps cached teams, clubs and groups when offline results are empty", () => {
-    expect(messages).toMatch(/!isOnline \|\| !teamsFetched\) \? \(cachedData\?\.teams as any\)/);
-    expect(messages).toMatch(/!isOnline \|\| !memberClubsFetched\) \? \(cachedData\?\.memberClubs as any\)/);
-    expect(messages).toMatch(/!isOnline \|\| !chatGroupsFetched\) \? \(cachedData\?\.chatGroups as any\)/);
+    expect(messages.match(/resolveInboxDisplayList\(/g)).toHaveLength(3);
+    expect(displaySources).toMatch(/\(!isOnline \|\| !isFetched\) && cached/);
   });
 
   it("does not drop club/team groups when roles cannot load offline", () => {
-    expect(messages).toMatch(/rolesUnavailableOffline/);
+    expect(messages).toMatch(/filterInboxGroupsByVisibility/);
+    expect(groupVisibility).toMatch(/!isOnline && !roles\?\.length/);
   });
 
   it("rebuilds DM conversations from the cache when offline", () => {

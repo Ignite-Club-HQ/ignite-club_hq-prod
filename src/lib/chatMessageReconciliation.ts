@@ -129,6 +129,33 @@ export function removeMessage<T extends ReconcilableMessage>(
   return messages.filter((m) => m.id !== messageId);
 }
 
+type ChatQueryEnvelope<T extends ReconcilableMessage> = {
+  messages?: T[];
+  [key: string]: unknown;
+};
+
+/** Preserve query metadata while removing one message from its envelope. */
+export function removeMessageFromQueryEnvelope<T extends ReconcilableMessage>(
+  envelope: ChatQueryEnvelope<T> | undefined,
+  messageId: string,
+): ChatQueryEnvelope<T> & { messages: T[] } {
+  return {
+    ...(envelope ?? {}),
+    messages: removeMessage(envelope?.messages ?? [], messageId),
+  };
+}
+
+/** Preserve query metadata while applying one partial realtime update. */
+export function applyMessageUpdateToQueryEnvelope<T extends ReconcilableMessage>(
+  envelope: ChatQueryEnvelope<T> | undefined,
+  updated: Record<string, unknown> & { id: string },
+): ChatQueryEnvelope<T> & { messages: T[] } {
+  return {
+    ...(envelope ?? {}),
+    messages: applyMessageUpdate(envelope?.messages ?? [], updated),
+  };
+}
+
 function extractPatch(row: Record<string, unknown>): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
   for (const field of RECONCILED_FIELDS) {

@@ -35,7 +35,9 @@ describe("chat cross-thread bleed guard", () => {
 
   it("GroupChatPage scopes rendered/seeded/merged messages to the active group", () => {
     const page = src("pages/GroupChatPage.tsx");
-    const scopedGuards = page.match(/group_id !== groupId|m\.group_id === groupId/g) ?? [];
+    const scopedGuards = page.match(
+      /group_id !== groupId|(?:m|message)\.group_id === groupId/g,
+    ) ?? [];
     // render filter + placeholderData reuse check + seed filter + merge filter
     expect(scopedGuards.length).toBeGreaterThanOrEqual(4);
   });

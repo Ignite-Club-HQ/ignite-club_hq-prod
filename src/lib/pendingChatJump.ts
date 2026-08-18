@@ -16,6 +16,9 @@
 
 import { setFromNotificationFlag } from "@/lib/notificationPreload";
 import { setChatJumpActive, isChatJumpActive } from "@/lib/chatJumpActive";
+import type { ChatJumpKind } from "@/features/notifications/navigationPolicy";
+
+export type { ChatJumpKind } from "@/features/notifications/navigationPolicy";
 
 /**
  * Safety timeout (ms) for the eagerly-armed chatJumpActive flag set when a
@@ -55,8 +58,6 @@ const STORAGE_KEY = "ignite_pending_chat_jump_v1";
 const TTL_MS = 60_000;
 const JUMP_EVENT = "ignite:pending-chat-jump";
 let lastConsumedJump: StoredJump | null = null;
-
-export type ChatJumpKind = "team" | "club" | "group" | "dm" | "broadcast" | "club_admin";
 
 interface StoredJump {
   kind: ChatJumpKind;

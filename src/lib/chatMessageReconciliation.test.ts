@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
+  applyMessageUpdateToQueryEnvelope,
   applyMessageUpdate,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   recordRealtimeMutation,
   reconcileMessages,
   isTombstoned,
@@ -13,6 +15,8 @@ type Msg = {
   id: string;
   text: string | null;
   image_url?: string | null;
+  is_club_announcement?: boolean;
+  club_announcement_name?: string | null;
   created_at: string;
   profiles?: { display_name: string } | null;
   reactions?: { id: string }[];
@@ -112,10 +116,47 @@ describe("chatMessageReconciliation", () => {
       is_club_announcement: true,
       club_announcement_name: "Riverside FC",
     });
-    const [a] = reconcileMessages(SCOPE, base()) as any[];
+    const [a] = reconcileMessages(SCOPE, base())!;
     expect(a.image_url).toBe("https://cdn/new.jpg");
     expect(a.is_club_announcement).toBe(true);
     expect(a.club_announcement_name).toBe("Riverside FC");
     expect(a.text).toBe("one");
+  });
+});
+
+describe("chat query envelope reconciliation", () => {
+  it("removes a message while preserving query metadata", () => {
+    const result = removeMessageFromQueryEnvelope(
+      { messages: base(), hasOlderMessages: true, fromCache: true },
+      "a",
+    );
+
+    expect(result.messages.map((message) => message.id)).toEqual(["b"]);
+    expect(result.hasOlderMessages).toBe(true);
+    expect(result.fromCache).toBe(true);
+  });
+
+  it("applies a partial update while preserving enrichment and query metadata", () => {
+    const result = applyMessageUpdateToQueryEnvelope(
+      { messages: base(), hasOlderMessages: false },
+      { id: "a", text: "edited" },
+    );
+
+    expect(result.messages[0]).toEqual(
+      expect.objectContaining({
+        id: "a",
+        text: "edited",
+        profiles: { display_name: "A" },
+        reactions: [{ id: "r1" }],
+      }),
+    );
+    expect(result.hasOlderMessages).toBe(false);
+  });
+
+  it("creates the same empty envelope shape when query data is absent", () => {
+    expect(removeMessageFromQueryEnvelope<Msg>(undefined, "missing")).toEqual({ messages: [] });
+    expect(
+      applyMessageUpdateToQueryEnvelope<Msg>(undefined, { id: "missing", text: "edited" }),
+    ).toEqual({ messages: [] });
   });
 });

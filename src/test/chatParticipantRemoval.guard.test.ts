@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 
 const src = readFileSync("src/components/chat/ChatParticipantsList.tsx", "utf8");
+const completion = readFileSync(
+  "src/features/membership/teamMembershipCacheCompletion.ts",
+  "utf8",
+);
 const removalFn = src.slice(
   src.indexOf("const handleRemoveMember"),
   src.indexOf("useEffect(() => {\n    if (!membersLoading"),
@@ -21,15 +25,17 @@ describe("ChatParticipantsList team-member removal", () => {
   });
 
   it("refreshes team roster, chat members and authorized scopes on success", () => {
-    expect(removalFn).toContain('queryKey: ["team-roles", effectiveTeamId]');
-    expect(removalFn).toContain('queryKey: ["chat-members", chatType, chatId]');
-    expect(removalFn).toContain('queryKey: ["authorized-scopes"]');
+    expect(removalFn).toContain(
+      "refreshChatRemovedTeamMember(queryClient, effectiveTeamId, chatType, chatId)",
+    );
+    expect(completion).toContain("refreshChatManagedTeamMembership(queryClient, teamId, chatType, chatId)");
+    expect(completion).toContain("membershipKeys.authorizedScopes()");
   });
 
   it("bails out on RPC failure without closing the sheet or invalidating", () => {
     const failureBlock = removalFn.slice(
       removalFn.indexOf("if (error) {"),
-      removalFn.indexOf("const refreshMembership"),
+      removalFn.indexOf('const { error: notifyError }'),
     );
     expect(failureBlock).toContain('toast.error("Failed to remove member")');
     expect(failureBlock).toContain("return;");
@@ -41,7 +47,7 @@ describe("ChatParticipantsList team-member removal", () => {
     expect(removalFn).toContain("notifyError");
     expect(removalFn).toContain("Member removed — notification failed");
     // Caches still refresh, and the role is never recreated.
-    expect(removalFn.indexOf("refreshMembership();")).toBeGreaterThan(
+    expect(removalFn.indexOf("refreshChatRemovedTeamMember(")).toBeGreaterThan(
       removalFn.indexOf("notifications"),
     );
     expect(removalFn).not.toContain("insert({ user_id: selectedMember.userId, role");

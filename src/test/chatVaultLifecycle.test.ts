@@ -53,6 +53,7 @@ describe("per-surface vault lifecycle wiring", () => {
 
       it("mirrors only on confirmed delivery", () => {
         expect(src).toMatch(/isConfirmedDelivery\([\s\S]{0,40}\)\s*\)?\s*syncSendToVault\(/);
+        expect(src).toMatch(/useChatVaultDeliverySync\(\{/);
       });
 
       it("marks the offline queue path as queued acceptance", () => {
@@ -70,11 +71,12 @@ describe("per-surface vault lifecycle wiring", () => {
       it("treats an errored-but-authoritative send like a success", () => {
         const idx = src.indexOf("authoritativeMessageExists(");
         const branch = src.slice(idx, idx + 600);
-        expect(branch).toMatch(/syncSendToVault\(variables\)/);
+        expect(branch).toMatch(/syncSendToVault\(/);
       });
 
-      it("keeps Vault sync fire-and-forget (never rethrown into the send)", () => {
-        expect(src).toMatch(/vault sync failed/);
+      it("delegates Vault failures to the shared fire-and-forget boundary", () => {
+        expect(src).toMatch(/surfaceLabel:/);
+        expect(src).not.toMatch(/await syncSendToVault/);
       });
     });
   }

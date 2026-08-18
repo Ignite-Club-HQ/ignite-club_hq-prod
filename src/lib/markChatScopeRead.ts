@@ -5,6 +5,7 @@ import {
   getTotalUnreadMessageCount,
   type UnreadMessageCounts,
 } from "@/lib/unreadMessageCounts";
+import { notificationKeys } from "@/features/notifications/queryKeys";
 
 type Scope =
   | { kind: "team"; teamId: string }
@@ -44,7 +45,7 @@ export function markChatScopeNotificationsRead({
   refreshUnreadCount,
 }: Args) {
   // 1 + 2: optimistic local update
-  const cacheKey = ["unread-message-counts", userId];
+  const cacheKey = notificationKeys.messageUnreadFor(userId);
   const current =
     queryClient.getQueryData<UnreadMessageCounts>(cacheKey) ??
     createEmptyUnreadMessageCounts();
@@ -89,10 +90,10 @@ export function markChatScopeNotificationsRead({
     // pill + AppHeader bell when a club filter is active). Without this they
     // wait for the realtime UPDATE → invalidate → refetch round-trip, which
     // can take 10-15s on slow networks/mobile.
-    queryClient.setQueriesData<number>({ queryKey: ["club-messages-unread"] }, (old) =>
+    queryClient.setQueriesData<number>({ queryKey: notificationKeys.clubMessageUnread }, (old) =>
       typeof old === "number" ? Math.max(0, old - scopeCount) : old
     );
-    queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, (old) =>
+    queryClient.setQueriesData<number>({ queryKey: notificationKeys.clubUnread }, (old) =>
       typeof old === "number" ? Math.max(0, old - scopeCount) : old
     );
   }
@@ -130,10 +131,10 @@ export function markChatScopeNotificationsRead({
         // bell + club badges up so they don't snap upward later.
         const delta = affected - scopeCount;
         decrementUnreadCount(delta);
-        queryClient.setQueriesData<number>({ queryKey: ["club-messages-unread"] }, (old) =>
+        queryClient.setQueriesData<number>({ queryKey: notificationKeys.clubMessageUnread }, (old) =>
           typeof old === "number" ? Math.max(0, old - delta) : old
         );
-        queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, (old) =>
+        queryClient.setQueriesData<number>({ queryKey: notificationKeys.clubUnread }, (old) =>
           typeof old === "number" ? Math.max(0, old - delta) : old
         );
       }
@@ -146,9 +147,9 @@ export function markChatScopeNotificationsRead({
     try {
       await refreshUnreadCount();
     } catch { }
-    queryClient.invalidateQueries({ queryKey: ["unread-message-counts", userId] });
-    queryClient.invalidateQueries({ queryKey: ["chat-group-unread-cache", userId] });
-    queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+    queryClient.invalidateQueries({ queryKey: notificationKeys.messageUnreadFor(userId) });
+    queryClient.invalidateQueries({ queryKey: notificationKeys.chatGroupUnreadFor(userId) });
+    queryClient.invalidateQueries({ queryKey: notificationKeys.recent });
     const post = queryClient.getQueryData<UnreadMessageCounts>(cacheKey);
     if (post) {
       void getTotalUnreadMessageCount(post);

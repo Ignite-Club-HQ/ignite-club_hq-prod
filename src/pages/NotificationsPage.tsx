@@ -16,24 +16,59 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SwipeableNotificationCard } from "@/components/SwipeableNotificationCard";
-import { supabase } from "@/integrations/supabase/client";
-import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { playNotificationSound, showBrowserNotification } from "@/lib/notifications";
 import { toast } from "sonner";
-import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import {
-  chatTargetPath,
-  resolveChatTargetForMessageId,
   resolveChatTargetResult,
   NOTIFICATION_FALLBACK_PATH,
   type ChatTarget,
 } from "@/lib/notificationChatRouting";
 import { requestClubSwitchForChatTarget } from "@/lib/notificationClubSwitch";
+import { notificationKeys } from "@/features/notifications/queryKeys";
+import {
+  beginNotificationListUpdate,
+  invalidateNotificationSurfaces,
+  notificationListFamilyKey,
+  restoreQuerySnapshots,
+  snapshotAndUpdateQueries,
+  type QuerySnapshot,
+} from "@/features/notifications/cachePolicy";
+import {
+  resolveDirectNotificationTarget,
+  resolveLegacyReactionContainerPath,
+  resolveLegacyReactionTarget,
+  resolveScopedMessageNotificationTarget,
+} from "@/features/notifications/notificationNavigationRepository";
+import {
+  clearNotifications,
+  deleteNotification as deleteNotificationRecord,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type NotificationListItem,
+} from "@/features/notifications/notificationRepository";
+import {
+  resolveCommentNotificationTarget,
+  resolvePhotoInteractionTarget,
+  resolvePhotoPromptTarget,
+  resolveUploadedPhotoTarget,
+} from "@/features/notifications/mediaNotificationRepository";
+import {
+  friendlyRoleRequestError,
+  processRoleRequest,
+} from "@/features/notifications/roleRequestService";
+import {
+  resolveInviteNotificationPath,
+  resolveJoinedMemberPath,
+  resolveProcessedJoinRequestPath,
+} from "@/features/notifications/membershipNotificationRepository";
+import { resolveGameNotificationPath } from "@/features/notifications/gameNotificationRepository";
+import { useNotificationRealtime } from "@/features/notifications/useNotificationRealtime";
 
 
 /**
@@ -77,90 +112,7 @@ function jumpAndNavigate(
 }
 
 
-interface Notification {
-  id: string;
-  user_id: string;
-  type: string;
-  message: string;
-  read: boolean;
-  created_at: string;
-  related_id: string | null;
-}
-
-type MessageReactionTargetRow = {
-  team_message_id?: string | null;
-  club_message_id?: string | null;
-  group_message_id?: string | null;
-  direct_message_id?: string | null;
-  broadcast_message_id?: string | null;
-  club_admin_message_id?: string | null;
-};
-
-
-const resolveLegacyReactionTarget = async (notification: Notification): Promise<ChatTarget | null> => {
-  if (!notification.related_id) return null;
-  const at = new Date(notification.created_at).getTime();
-  if (!Number.isFinite(at)) return null;
-  const from = new Date(at - 5000).toISOString();
-  const to = new Date(at + 5000).toISOString();
-
-  const { data: reactions } = await supabase
-    .from("message_reactions")
-    .select("team_message_id, club_message_id, group_message_id, direct_message_id, broadcast_message_id, club_admin_message_id, created_at")
-    .gte("created_at", from)
-    .lte("created_at", to)
-    .order("created_at", { ascending: false })
-    .limit(30);
-
-  const rows: MessageReactionTargetRow[] = Array.isArray(reactions) ? reactions : [];
-  const pick = (key: keyof MessageReactionTargetRow) => rows.map((r) => r[key]).filter((id): id is string => Boolean(id));
-  const relatedId = notification.related_id;
-  const authorId = notification.user_id;
-
-  const teamIds = pick("team_message_id");
-  if (teamIds.length) {
-    const { data } = await supabase.from("team_messages").select("id, team_id").in("id", teamIds).eq("team_id", relatedId).eq("author_id", authorId).limit(1);
-    const msg = data?.[0];
-    if (msg?.id && msg.team_id) return { kind: "team", targetId: msg.team_id, messageId: msg.id, path: chatTargetPath("team", msg.team_id, msg.id) };
-  }
-
-  const clubIds = pick("club_message_id");
-  if (clubIds.length) {
-    const { data } = await supabase.from("club_messages").select("id, club_id").in("id", clubIds).eq("club_id", relatedId).eq("author_id", authorId).limit(1);
-    const msg = data?.[0];
-    if (msg?.id && msg.club_id) return { kind: "club", targetId: msg.club_id, messageId: msg.id, path: chatTargetPath("club", msg.club_id, msg.id) };
-  }
-
-  const groupIds = pick("group_message_id");
-  if (groupIds.length) {
-    const { data } = await supabase.from("group_messages").select("id, group_id").in("id", groupIds).eq("group_id", relatedId).eq("author_id", authorId).limit(1);
-    const msg = data?.[0];
-    if (msg?.id && msg.group_id) return { kind: "group", targetId: msg.group_id, messageId: msg.id, path: chatTargetPath("group", msg.group_id, msg.id) };
-  }
-
-  const dmIds = pick("direct_message_id");
-  if (dmIds.length) {
-    const { data } = await supabase.from("direct_messages").select("id, conversation_id").in("id", dmIds).eq("conversation_id", relatedId).eq("author_id", authorId).limit(1);
-    const msg = data?.[0];
-    if (msg?.id && msg.conversation_id) return { kind: "dm", targetId: msg.conversation_id, messageId: msg.id, path: chatTargetPath("dm", msg.conversation_id, msg.id) };
-  }
-
-  const broadcastIds = pick("broadcast_message_id");
-  if (broadcastIds.length) {
-    const { data } = await supabase.from("broadcast_messages").select("id").in("id", broadcastIds).eq("author_id", authorId).limit(1);
-    const msg = data?.[0];
-    if (msg?.id) return { kind: "broadcast", targetId: null, messageId: msg.id, path: chatTargetPath("broadcast", null, msg.id) };
-  }
-
-  const clubAdminIds = pick("club_admin_message_id");
-  if (clubAdminIds.length) {
-    const { data } = await supabase.from("club_admin_messages").select("id, conversation_id").in("id", clubAdminIds).eq("conversation_id", relatedId).eq("author_id", authorId).limit(1);
-    const msg = data?.[0];
-    if (msg?.id && msg.conversation_id) return { kind: "club_admin", targetId: msg.conversation_id, messageId: msg.id, path: chatTargetPath("club_admin", msg.conversation_id, msg.id) };
-  }
-
-  return null;
-};
+type Notification = NotificationListItem;
 
 const navigateToChatTarget = (navigate: (to: string) => void, target: ChatTarget) => {
   jumpAndNavigate(navigate, target.kind, target.targetId, target.messageId, target.path);
@@ -212,7 +164,11 @@ export default function NotificationsPage() {
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     setDisplayCount(NOTIFICATIONS_PER_PAGE);
-    await queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] });
+    if (user?.id) {
+      await queryClient.invalidateQueries({
+        queryKey: [notificationKeys.lists[0], user.id],
+      });
+    }
     setTimeout(() => {
       setIsRefreshing(false);
       setPullDistance(0);
@@ -248,37 +204,8 @@ export default function NotificationsPage() {
   }, [pullDistance, isRefreshing, handleRefresh]);
 
   const { data: notifications, isLoading } = useQuery({
-    queryKey: ["notifications", user?.id, activeClubFilter ?? "all"],
-    queryFn: async () => {
-      let q = supabase
-        .from("notifications")
-        .select("id, user_id, type, message, related_id, is_read, created_at, club_id")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(500); // Cap at 500 for performance
-
-      // When the user has filtered the app to a specific club, only show
-      // notifications tagged to that club. Truly cross-club / user-global
-      // types (DMs, streaks, rewards) are always shown so they aren't lost,
-      // but null-club notifications belonging to other clubs (chat replies,
-      // reactions, photo-prompt nudges, club-admin messages, etc.) are
-      // hidden when scoped to a single club.
-      if (activeClubFilter) {
-        const CROSS_CLUB_TYPES = [
-          "direct_message",
-          "streak_progress",
-          "reward_unlocked",
-        ];
-        q = q.or(
-          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
-        );
-      }
-
-      const { data, error } = await q;
-
-      if (error) throw error;
-      return (data || []).map(n => ({ ...n, read: n.is_read })) as Notification[];
-    },
+    queryKey: notificationKeys.list(user?.id, activeClubFilter),
+    queryFn: () => listNotifications(user!.id, activeClubFilter),
     enabled: !!user,
     staleTime: 30000, // Consider data fresh for 30 seconds
   });
@@ -291,406 +218,137 @@ export default function NotificationsPage() {
     setDisplayCount(prev => prev + NOTIFICATIONS_PER_PAGE);
   }, []);
 
-  // Real-time subscription for new notifications - direct cache updates
-  useEffect(() => {
-    if (!user) return;
-
-    // Channel name is scoped to the user id AND to this page. `useAuth` runs
-    // its own global `notifications-realtime` subscription for unread-count
-    // updates; if this page reused the same channel name, supabase-js would
-    // return the already-subscribed channel from its registry and adding
-    // `.on('postgres_changes', ...)` here would throw
-    // "cannot add postgres_changes callbacks after subscribe()".
-    const channel = supabase
-      .channel(`notifications-page-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const raw = payload.new as any;
-          const newNotification: Notification = { ...raw, read: raw.is_read };
-          queryClient.setQueriesData<Notification[]>(
-            { queryKey: ["notifications", user.id] },
-            (old) => old ? [newNotification, ...old] : [newNotification]
-          );
-          
-          refreshUnreadCount();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const raw = payload.new as any;
-          const updated: Notification = { ...raw, read: raw.is_read };
-          queryClient.setQueriesData<Notification[]>(
-            { queryKey: ["notifications", user.id] },
-            (old) => old?.map(n => n.id === updated.id ? updated : n) || []
-          );
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const deleted = payload.old as { id: string };
-          queryClient.setQueriesData<Notification[]>(
-            { queryKey: ["notifications", user.id] },
-            (old) => old?.filter(n => n.id !== deleted.id) || []
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, queryClient, refreshUnreadCount]);
+  useNotificationRealtime(user?.id, queryClient, refreshUnreadCount);
 
   const markAsRead = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", id);
-      if (error) throw error;
-      return id;
-    },
+    mutationFn: markNotificationRead,
     onMutate: async (id) => {
-      // Optimistic update
-      queryClient.setQueriesData<Notification[]>(
-        { queryKey: ["notifications", user?.id] },
-        (old) => old?.map(n => n.id === id ? { ...n, read: true } : n) || []
+      const snapshots = await beginNotificationListUpdate<Notification[]>(
+        queryClient,
+        user?.id,
+        (old) => old?.map(n => n.id === id ? { ...n, read: true } : n) || [],
       );
+      return { snapshots };
     },
     onSuccess: () => {
       refreshUnreadCount();
     },
+    onError: (_error, _id, context) => {
+      restoreQuerySnapshots(
+        queryClient,
+        context?.snapshots ?? ([] as QuerySnapshot<Notification[]>[]),
+      );
+      refreshUnreadCount();
+    },
   });
 
-  const CROSS_CLUB_TYPES = [
-    "direct_message",
-    "streak_progress",
-    "reward_unlocked",
-  ];
-
   const markAllAsRead = useMutation({
-    mutationFn: async () => {
-      let q = supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user!.id)
-        .eq("is_read", false);
-      if (activeClubFilter) {
-        q = q.or(
-          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
-        );
-      }
-      const { error } = await q;
-      if (error) throw error;
-    },
+    mutationFn: () => markAllNotificationsRead(user!.id, activeClubFilter),
     onMutate: async () => {
-      // Optimistic update - mark visible notifications as read
-      queryClient.setQueriesData<Notification[]>(
-        { queryKey: ["notifications", user?.id] },
-        (old) => old?.map(n => ({ ...n, read: true })) || []
+      const snapshots = await beginNotificationListUpdate<Notification[]>(
+        queryClient,
+        user?.id,
+        (old) => old?.map(n => ({ ...n, read: true })) || [],
       );
+      return { snapshots };
     },
     onSuccess: () => {
       if (!activeClubFilter) clearUnreadCount();
-      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-count"] });
-      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-      queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+      invalidateNotificationSurfaces(queryClient, { includeMessageUnread: true });
       setTimeout(() => refreshUnreadCount(), 300);
+    },
+    onError: (_error, _variables, context) => {
+      restoreQuerySnapshots(
+        queryClient,
+        context?.snapshots ?? ([] as QuerySnapshot<Notification[]>[]),
+      );
+      refreshUnreadCount();
     },
   });
 
 
   const deleteNotification = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("notifications")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-      return id;
-    },
+    mutationFn: deleteNotificationRecord,
     onMutate: async (id) => {
-      // Optimistic update - remove from list
-      queryClient.setQueriesData<Notification[]>(
-        { queryKey: ["notifications", user?.id] },
-        (old) => old?.filter(n => n.id !== id) || []
+      const snapshots = await beginNotificationListUpdate<Notification[]>(
+        queryClient,
+        user?.id,
+        (old) => old?.filter(n => n.id !== id) || [],
       );
+      return { snapshots };
     },
     onSuccess: () => {
+      refreshUnreadCount();
+    },
+    onError: (_error, _id, context) => {
+      restoreQuerySnapshots(
+        queryClient,
+        context?.snapshots ?? ([] as QuerySnapshot<Notification[]>[]),
+      );
       refreshUnreadCount();
     },
   });
 
   const clearAllNotifications = useMutation({
-    mutationFn: async () => {
-      let q = supabase
-        .from("notifications")
-        .delete()
-        .eq("user_id", user!.id);
-      if (activeClubFilter) {
-        q = q.or(
-          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
-        );
-      }
-      const { error } = await q;
-      if (error) throw error;
-    },
+    mutationFn: () => clearNotifications(user!.id, activeClubFilter),
     onMutate: async () => {
       // Cancel any in-flight queries to prevent stale data overwriting
-      await queryClient.cancelQueries({ queryKey: ["notifications", user?.id] });
-      await queryClient.cancelQueries({ queryKey: ["recent-notifications"] });
-      await queryClient.cancelQueries({ queryKey: ["unread-count"] });
-      // Optimistic update - clear visible notifications
-      queryClient.setQueriesData<Notification[]>({ queryKey: ["notifications", user?.id] }, []);
+      const queryKey = notificationListFamilyKey(user?.id);
+      await queryClient.cancelQueries({ queryKey });
+      await queryClient.cancelQueries({ queryKey: notificationKeys.recent });
+      await queryClient.cancelQueries({ queryKey: notificationKeys.globalUnread });
+      const snapshots = snapshotAndUpdateQueries<Notification[]>(
+        queryClient,
+        queryKey,
+        () => [],
+      );
+      return { snapshots };
     },
     onSuccess: () => {
       if (!activeClubFilter) clearUnreadCount();
       setDisplayCount(NOTIFICATIONS_PER_PAGE);
       // Invalidate all notification-related queries for consistency
-      queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-count"] });
-      queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-      queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
+      invalidateNotificationSurfaces(queryClient, { includeMessageUnread: true });
       // Force refresh to get accurate count from server
       setTimeout(() => refreshUnreadCount(), 300);
+    },
+    onError: (_error, _variables, context) => {
+      restoreQuerySnapshots(
+        queryClient,
+        context?.snapshots ?? ([] as QuerySnapshot<Notification[]>[]),
+      );
+      refreshUnreadCount();
     },
   });
 
 
-  type AppRole = Database["public"]["Enums"]["app_role"];
-
-  // Translate raw RPC / network errors into a friendly, actionable toast message.
-  const friendlyRequestError = (error: unknown, action: "approve" | "deny"): string => {
-    const e = error as { message?: string; details?: string; hint?: string; code?: string } | null;
-    const raw = [e?.message, e?.details, e?.hint, e?.code, String(error ?? "")]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    const verb = action === "approve" ? "approve" : "deny";
-
-    if (raw.includes("not authorized") || raw.includes("permission denied")) {
-      return `You don't have permission to ${verb} this request. Only team admins, coaches, and club admins can manage join requests.`;
-    }
-    if (
-      raw.includes("already processed") ||
-      raw.includes("already approved") ||
-      raw.includes("already denied") ||
-      raw.includes("already handled") ||
-      raw.includes("not pending")
-    ) {
-      const past = action === "approve" ? "approved" : "denied";
-      return `This request has already been ${past} — likely by another admin. Pull to refresh to see the latest list.`;
-    }
-    if (raw.includes("request not found") || raw.includes("not found")) {
-      return "This request no longer exists — it may have been withdrawn or already actioned.";
-    }
-    if (raw.includes("network") || raw.includes("failed to fetch") || raw.includes("timeout")) {
-      return `We couldn't reach the server. Check your connection and try ${verb}ing again.`;
-    }
-    return `Couldn't ${verb} this request right now. Please try again in a moment — if it keeps failing, contact support.`;
-  };
-
   const approveRequest = useMutation({
-    mutationFn: async (requestId: string) => {
-      // Get the request details for email sending
-      const { data: request, error: fetchError } = await supabase
-        .from("role_requests")
-        .select(`
-          *,
-          teams:team_id(id, name, club_id, clubs:club_id(id, name, logo_url)),
-          clubs:club_id(id, name, logo_url)
-        `)
-        .eq("id", requestId)
-        .maybeSingle();
-
-      if (fetchError || !request) {
-        throw new Error("Request not found");
-      }
-
-      // Use the secure RPC to approve (handles role insert, notifications, child linking)
-      const { error } = await supabase.rpc("approve_role_request", { p_request_id: requestId });
-      if (error) throw error;
-
-      // ── Side-effects below: best-effort only. Failures here MUST NOT surface as
-      // a "Failed to approve" toast because the approval itself already succeeded.
-      try {
-        const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
-        const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
-        const teamName = teamData?.name;
-        const clubName = teamData?.clubs?.name || clubData?.name || "the club";
-        const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
-        const entityName = teamName || clubName;
-        const roleName = request.role.replace("_", " ");
-
-        const { data: requesterProfile } = await selectCachedProfileById(request.user_id);
-
-        const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
-        const userEmail = emailData?.[0]?.email;
-
-        if (userEmail) {
-          const teamLink = request.team_id
-            ? `/teams/${request.team_id}`
-            : `/clubs/${request.club_id}`;
-
-          await supabase.functions.invoke("send-email", {
-            body: {
-              to: userEmail,
-              subject: `Welcome to ${entityName}! 🎉`,
-              template: "join-request-response",
-              templateData: {
-                recipientName: requesterProfile?.display_name || "Member",
-                teamName: teamName,
-                clubName: clubName,
-                roleName: roleName,
-                approved: true,
-                teamLink: teamLink,
-                clubLogoUrl: clubLogoUrl,
-              },
-            },
-          });
-        }
-      } catch (sideEffectError) {
-        // Approval succeeded; only the welcome email pipeline failed.
-        console.warn("[approveRequest] Welcome email side-effect failed:", sideEffectError);
-      }
-    },
+    mutationFn: (requestId: string) => processRoleRequest(requestId, "approve"),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.lists });
       toast.success("Request approved");
     },
     onError: (error: Error) => {
-      toast.error(friendlyRequestError(error, "approve"));
+      toast.error(friendlyRoleRequestError(error, "approve"));
     },
   });
 
   const denyRequest = useMutation({
-    mutationFn: async (requestId: string) => {
-      // Get request details for email
-      const { data: request, error: fetchError } = await supabase
-        .from("role_requests")
-        .select(`
-          *,
-          teams:team_id(id, name, club_id, clubs:club_id(id, name, logo_url)),
-          clubs:club_id(id, name, logo_url)
-        `)
-        .eq("id", requestId)
-        .maybeSingle();
-
-      if (fetchError || !request) {
-        throw new Error("Request not found");
-      }
-
-      // Use the secure RPC to deny
-      const { error } = await supabase.rpc("deny_role_request", { p_request_id: requestId });
-      if (error) throw error;
-
-      // Best-effort email — never let a failure here masquerade as "Failed to deny".
-      try {
-        const teamData = request.teams as { id: string; name: string; club_id: string; clubs: { id: string; name: string; logo_url: string | null } | null } | null;
-        const clubData = request.clubs as { id: string; name: string; logo_url: string | null } | null;
-        const teamName = teamData?.name;
-        const clubName = teamData?.clubs?.name || clubData?.name || "the club";
-        const clubLogoUrl = teamData?.clubs?.logo_url || clubData?.logo_url;
-        const entityName = teamName || clubName;
-        const roleName = request.role.replace("_", " ");
-
-        const { data: requesterProfile } = await selectCachedProfileById(request.user_id);
-
-        const { data: emailData } = await supabase.rpc("get_user_emails_by_ids", { user_ids: [request.user_id] });
-        const userEmail = emailData?.[0]?.email;
-
-        if (userEmail) {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              to: userEmail,
-              subject: `Update on your request to join ${entityName}`,
-              template: "join-request-response",
-              templateData: {
-                recipientName: requesterProfile?.display_name || "Member",
-                teamName: teamName,
-                clubName: clubName,
-                roleName: roleName,
-                approved: false,
-                clubLogoUrl: clubLogoUrl,
-              },
-            },
-          });
-        }
-      } catch (sideEffectError) {
-        console.warn("[denyRequest] Notification email side-effect failed:", sideEffectError);
-      }
-    },
+    mutationFn: (requestId: string) => processRoleRequest(requestId, "deny"),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.lists });
       toast.success("Request denied");
     },
     onError: (error: Error) => {
-      toast.error(friendlyRequestError(error, "deny"));
+      toast.error(friendlyRoleRequestError(error, "deny"));
     },
   });
 
   const openDirectMessageNotification = async (relatedId: string, createdAt?: string | null) => {
-    const { data: directMsg } = await supabase
-      .from("direct_messages")
-      .select("id, conversation_id")
-      .eq("id", relatedId)
-      .maybeSingle();
-    if (directMsg?.conversation_id) {
-      jumpAndNavigate(navigate, "dm", directMsg.conversation_id, directMsg.id, `/messages/dm/${directMsg.conversation_id}?message=${directMsg.id}`);
-      return true;
-    }
-
-    const { data: conversation } = await supabase
-      .from("direct_conversations")
-      .select("id")
-      .eq("id", relatedId)
-      .maybeSingle();
-    if (!conversation) return false;
-
-    const clickedAt = createdAt ? new Date(createdAt) : null;
-    const upperBound = clickedAt && !Number.isNaN(clickedAt.getTime())
-      ? new Date(clickedAt.getTime() + 30_000).toISOString()
-      : null;
-    let messageQuery = supabase
-      .from("direct_messages")
-      .select("id, conversation_id")
-      .eq("conversation_id", relatedId)
-      .is("deleted_at", null);
-    if (user?.id) messageQuery = messageQuery.neq("author_id", user.id);
-    if (upperBound) messageQuery = messageQuery.lte("created_at", upperBound);
-    const { data: nearestMsg } = await messageQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
-
-    if (nearestMsg?.id) {
-      jumpAndNavigate(navigate, "dm", relatedId, nearestMsg.id, `/messages/dm/${relatedId}?message=${nearestMsg.id}`);
-    } else {
-      navigate(`/messages/dm/${relatedId}`);
-    }
+    const target = await resolveDirectNotificationTarget(relatedId, user?.id, createdAt);
+    if (!target) return false;
+    if (target.messageId) jumpAndNavigate(navigate, "dm", target.conversationId, target.messageId, target.path);
+    else navigate(target.path);
     return true;
   };
 
@@ -715,15 +373,7 @@ export default function NotificationsPage() {
         const legacyReactionTarget = await resolveLegacyReactionTarget(notification);
         if (legacyReactionTarget) { navigateToChatTarget(navigate, legacyReactionTarget); break; }
         // Backward-compat: old notifications stored container id as related_id.
-        const { data: teamCheck } = await supabase.from("teams").select("id").eq("id", relatedId).maybeSingle();
-        if (teamCheck) { navigate(`/messages/${relatedId}`); break; }
-        const { data: clubCheck } = await supabase.from("clubs").select("id").eq("id", relatedId).maybeSingle();
-        if (clubCheck) { navigate(`/messages/club/${relatedId}`); break; }
-        const { data: groupCheck } = await supabase.from("chat_groups").select("id").eq("id", relatedId).maybeSingle();
-        if (groupCheck) { navigate(`/groups/${relatedId}`); break; }
-        const { data: convCheck } = await supabase.from("direct_conversations").select("id").eq("id", relatedId).maybeSingle();
-        if (convCheck) { navigate(`/messages/dm/${relatedId}`); break; }
-        navigate("/messages");
+        navigate(await resolveLegacyReactionContainerPath(relatedId) ?? "/messages");
         break;
       }
       case "team_message":
@@ -749,45 +399,21 @@ export default function NotificationsPage() {
       }
 
 
-      case "club_message":
-        const { data: clubMessage } = await supabase
-          .from("club_messages")
-          .select("club_id")
-          .eq("id", relatedId)
-          .single();
-        if (clubMessage?.club_id) {
-          jumpAndNavigate(navigate, "club", clubMessage.club_id, relatedId, `/messages/club/${clubMessage.club_id}?message=${relatedId}`);
-        }
+      case "club_message": {
+        const target = await resolveScopedMessageNotificationTarget("club", relatedId);
+        if (target?.messageId) jumpAndNavigate(navigate, target.kind, target.targetId, target.messageId, target.path);
         break;
-      case "group_message":
-        const { data: groupMessage } = await supabase
-          .from("group_messages")
-          .select("group_id")
-          .eq("id", relatedId)
-          .single();
-        if (groupMessage?.group_id) {
-          jumpAndNavigate(navigate, "group", groupMessage.group_id, relatedId, `/groups/${groupMessage.group_id}?message=${relatedId}`);
-        }
+      }
+      case "group_message": {
+        const target = await resolveScopedMessageNotificationTarget("group", relatedId);
+        if (target?.messageId) jumpAndNavigate(navigate, target.kind, target.targetId, target.messageId, target.path);
         break;
+      }
       case "club_admin_message": {
-        // related_id is the club_admin_messages.id; look up its conversation
-        const { data: caMsg } = await (supabase as any)
-          .from("club_admin_messages")
-          .select("conversation_id")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (caMsg?.conversation_id) {
-          jumpAndNavigate(navigate, "club_admin", caMsg.conversation_id, relatedId, `/messages/club-admin/${caMsg.conversation_id}?message=${relatedId}`);
-        } else {
-          // Fallback: related_id might already be a conversation id
-          const { data: convCheck } = await (supabase as any)
-            .from("club_admin_conversations")
-            .select("id")
-            .eq("id", relatedId)
-            .maybeSingle();
-          if (convCheck) navigate(`/messages/club-admin/${relatedId}`);
-          else navigate("/messages");
-        }
+        const target = await resolveScopedMessageNotificationTarget("club_admin", relatedId);
+        if (!target) navigate("/messages");
+        else if (target.messageId) jumpAndNavigate(navigate, target.kind, target.targetId, target.messageId, target.path);
+        else navigate(target.path);
         break;
       }
       case "broadcast":
@@ -811,110 +437,38 @@ export default function NotificationsPage() {
         break;
       case "photo_comment":
       case "photo_reaction": {
-        const { data: photoCheck } = await supabase
-          .from("photos")
-          .select("id, deleted_at")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (!photoCheck || photoCheck.deleted_at) {
+        const target = await resolvePhotoInteractionTarget(relatedId, notification.type === "photo_comment");
+        if (target.status === "unavailable") {
           toast.info("This photo is no longer available.");
           break;
         }
-        const suffix = notification.type === "photo_comment" ? "&comments=1" : "";
-        navigate(`/media?photo=${relatedId}${suffix}`);
+        navigate(target.path);
         break;
       }
       case "photo_uploaded": {
         // Land on the gallery filtered to the team/club, not fullscreen.
-        const { data: photoCheck } = await supabase
-          .from("photos")
-          .select("id, team_id, club_id, deleted_at")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (!photoCheck || photoCheck.deleted_at) {
-          navigate("/media");
-          break;
-        }
-        if (photoCheck.team_id) {
-          navigate(`/media?team=${photoCheck.team_id}`);
-        } else if (photoCheck.club_id) {
-          navigate(`/media?club=${photoCheck.club_id}`);
-        } else {
-          navigate("/media");
-        }
+        navigate(await resolveUploadedPhotoTarget(relatedId));
         break;
       }
       case "photo_prompt_reminder": {
         // related_id is the event_id — open Media gallery filtered to that team/event
         // with the upload sheet auto-opened.
-        const { data: ev } = await supabase
-          .from("events")
-          .select("id, team_id")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (ev?.team_id) {
-          navigate(`/media?team=${ev.team_id}&event=${ev.id}&upload=1`);
-        } else {
-          navigate(`/media?upload=1`);
-        }
+        navigate(await resolvePhotoPromptTarget(relatedId));
         break;
       }
       case "comment_reaction":
       case "comment_reply": {
-        let targetPhotoId: string | null = null;
-        if (notification.type === "comment_reply") {
-          targetPhotoId = relatedId;
-        } else {
-          const { data: commentData } = await supabase
-            .from("photo_comments")
-            .select("photo_id")
-            .eq("id", relatedId)
-            .maybeSingle();
-          targetPhotoId = commentData?.photo_id ?? null;
-        }
-        if (!targetPhotoId) {
+        const target = await resolveCommentNotificationTarget(relatedId, notification.type === "comment_reply");
+        if (target.status === "unavailable") {
           toast.info("This photo is no longer available.");
           break;
         }
-        const { data: photoCheck2 } = await supabase
-          .from("photos")
-          .select("id, deleted_at")
-          .eq("id", targetPhotoId)
-          .maybeSingle();
-        if (!photoCheck2 || photoCheck2.deleted_at) {
-          toast.info("This photo is no longer available.");
-          break;
-        }
-        // comment replies / reactions also belong on the comment screen
-        navigate(`/media?photo=${targetPhotoId}&comments=1`);
+        navigate(target.path);
         break;
       }
       case "team_invite": {
-        // related_id is the pending_invite id — look up status and team
-        const { data: inviteData } = await supabase
-          .from("pending_invites")
-          .select("invite_token, team_id, club_id, status, metadata")
-          .eq("id", relatedId)
-          .maybeSingle();
-        if (inviteData) {
-          const inviteMeta = inviteData.metadata as any;
-          if (inviteData.status === 'accepted' || inviteData.status === 'auto_accepted') {
-            // Already accepted — navigate to the right page
-            if (inviteMeta?.mini_league_id) {
-              navigate(`/mini-leagues/${inviteMeta.mini_league_id}`);
-            } else if (inviteData.team_id) {
-              navigate(`/teams/${inviteData.team_id}`);
-            } else if (inviteData.club_id) {
-              navigate(`/clubs/${inviteData.club_id}`);
-            }
-          } else if (inviteData.invite_token) {
-            if (inviteData.team_id) {
-              navigate(`/join/${inviteData.invite_token}`);
-            } else {
-              navigate(`/join/p/${inviteData.invite_token}`);
-            }
-          }
-        }
+        const path = await resolveInviteNotificationPath(relatedId);
+        if (path) navigate(path);
         break;
       }
       case "role_assigned":
@@ -927,28 +481,7 @@ export default function NotificationsPage() {
         break;
       }
       case "member_joined": {
-        // related_id could be mini_league_id, team_id, or club_id — check which one
-        if (relatedId) {
-          const { data: miniLeagueCheck } = await supabase
-            .from("mini_leagues")
-            .select("id")
-            .eq("id", relatedId)
-            .maybeSingle();
-          if (miniLeagueCheck) {
-            navigate(`/mini-leagues/${relatedId}`);
-          } else {
-            const { data: clubCheckMJ } = await supabase
-              .from("clubs")
-              .select("id")
-              .eq("id", relatedId)
-              .maybeSingle();
-            if (clubCheckMJ) {
-              navigate(`/clubs/${relatedId}`);
-            } else {
-              navigate(`/teams/${relatedId}`);
-            }
-          }
-        }
+        navigate(await resolveJoinedMemberPath(relatedId));
         break;
       }
       case "club_join": {
@@ -965,20 +498,7 @@ export default function NotificationsPage() {
       case "join_request_approved":
       case "join_request_denied":
       case "join_request_processed":
-        // Navigate to the club or team - relatedId is club_id or team_id
-        if (relatedId) {
-          // Try to determine if it's a club or team
-          const { data: clubCheck } = await supabase
-            .from("clubs")
-            .select("id")
-            .eq("id", relatedId)
-            .single();
-          if (clubCheck) {
-            navigate(`/clubs/${relatedId}`);
-          } else {
-            navigate(`/teams/${relatedId}`);
-          }
-        }
+        navigate(await resolveProcessedJoinRequestPath(relatedId));
         break;
       case "pending_sub":
         // Navigate to home and open the pitch board
@@ -990,23 +510,7 @@ export default function NotificationsPage() {
         break;
       case "half_time":
       case "game_finished":
-        // related_id is game.id — try to find the linked event from the active game
-        if (relatedId) {
-          const { data: activeGame } = await supabase
-            .from("active_games")
-            .select("pitch_state")
-            .eq("id", relatedId)
-            .maybeSingle();
-          const linkedEventId = (activeGame?.pitch_state as any)?.linkedEventId;
-          if (linkedEventId) {
-            navigate(`/events/${linkedEventId}`);
-          } else {
-            // Fallback: navigate to home page instead of non-existent /pitch-board
-            navigate("/");
-          }
-        } else {
-          navigate("/");
-        }
+        navigate(await resolveGameNotificationPath(relatedId));
         break;
       case "formation_change":
         // Open the pitch board (same flow as pending_sub).

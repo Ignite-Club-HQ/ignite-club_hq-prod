@@ -1,25 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getChatScopeAdapterByTable,
+  type ChatMessageTable,
+} from "@/features/messaging/scopes/chatScopeAdapters";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
 
-type ChatTable =
-  | "team_messages"
-  | "club_messages"
-  | "group_messages"
-  | "broadcast_messages"
-  | "club_admin_messages"
-  | "direct_messages";
-
-const REACTION_FK: Record<ChatTable, string | null> = {
-  team_messages: "team_message_id",
-  club_messages: "club_message_id",
-  group_messages: "group_message_id",
-  broadcast_messages: "broadcast_message_id",
-  club_admin_messages: "club_admin_message_id",
-  direct_messages: "direct_message_id",
-};
-
 interface Args {
-  table: ChatTable;
+  table: ChatMessageTable;
   scope: Record<string, string>;
   query: string;
   signal: AbortSignal;
@@ -59,7 +46,7 @@ export async function searchChatHistory({
   const messageIds = rows.map((m) => m.id);
   const replyToIds = rows.filter((m) => m.reply_to_id).map((m) => m.reply_to_id as string);
   const authorIds = [...new Set(rows.map((m) => m.author_id).filter(Boolean))];
-  const reactionFk = REACTION_FK[table];
+  const reactionFk = getChatScopeAdapterByTable(table).reactionForeignKey;
 
   const reactionsPromise: Promise<{ data: any[] }> = reactionFk
     ? ((supabase.from as any)("message_reactions")
