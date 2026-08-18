@@ -288,7 +288,10 @@ export default function PlayerStatsReportView({
                 <th style="width: 80px;">Total</th>
                 <th>Minutes by Position</th>
                 <th style="width: 60px; text-align: center;">Subs</th>
-                <th style="width: 70px; text-align: center;">Started</th>
+                ${dateRange ? `
+                <th style="width: 60px; text-align: center;">GP</th>
+                <th style="width: 60px; text-align: center;">Starts</th>
+                ` : `<th style="width: 70px; text-align: center;">Started</th>`}
               </tr>
             </thead>
             <tbody>
@@ -419,7 +422,14 @@ export default function PlayerStatsReportView({
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="hidden sm:table-cell">Minutes by Position</TableHead>
                 <TableHead className="text-center hidden sm:table-cell">Subs</TableHead>
-                <TableHead className="text-center hidden sm:table-cell">Started</TableHead>
+                {dateRange ? (
+                  <>
+                    <TableHead className="text-center">GP</TableHead>
+                    <TableHead className="text-center">Starts</TableHead>
+                  </>
+                ) : (
+                  <TableHead className="text-center hidden sm:table-cell">Started</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
