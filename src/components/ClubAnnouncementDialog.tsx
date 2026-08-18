@@ -44,7 +44,21 @@ export function ClubAnnouncementDialog({
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
   const [sendToClubChat, setSendToClubChat] = useState(false);
 
-  const activeTeams = teams.filter((t) => !t.is_archived);
+  const activeTeams = useMemo(() => teams.filter((t) => !t.is_archived), [teams]);
+  const activeTeamIds = useMemo(
+    () => new Set(activeTeams.map((t) => t.id).filter(Boolean)),
+    [activeTeams],
+  );
+
+  // Teams can be archived or refetched while the dialog is open. Prune the
+  // selection so a stale id can never reach the edge function (which rejects
+  // the whole payload with a 400 if any id is not a live team of this club).
+  useEffect(() => {
+    setSelectedTeamIds((prev) => {
+      const next = new Set([...prev].filter((id) => activeTeamIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [activeTeamIds]);
 
   const toggleTeam = (teamId: string) => {
     setSelectedTeamIds((prev) => {
@@ -63,9 +77,41 @@ export function ClubAnnouncementDialog({
     }
   };
 
+  /** Exactly what gets sent: selection ∩ live active teams, deduped, no falsy. */
+  const resolvedTeamIds = useMemo(
+    () => [...new Set([...selectedTeamIds].filter((id) => id && activeTeamIds.has(id)))],
+    [selectedTeamIds, activeTeamIds],
+  );
+
   const sendMutation = useMutation({
     mutationFn: async () => {
-      const teamIds = Array.from(selectedTeamIds);
+      const teamIds = resolvedTeamIds;
+      const trimmed = message.trim();
+
+      // Client-side guard: never invoke the function with a payload it must
+      // reject. Keeps the button state and the real payload in sync.
+      if (!trimmed) throw new Error("Write a message before sending.");
+      if (teamIds.length === 0 && !sendToClubChat) {
+        throw new Error("Pick at least one team or the club chat.");
+      }
+
+      const parsed = z
+        .object({
+          club_id: z.string().uuid(),
+          team_ids: z.array(z.string().uuid()),
+          message: z.string().trim().min(1).max(4000),
+        })
+        .refine((v) => v.team_ids.length > 0 || sendToClubChat, {
+          message: "Pick at least one team or the club chat.",
+        })
+        .safeParse({ club_id: clubId, team_ids: teamIds, message: trimmed });
+
+      if (!parsed.success) {
+        throw new Error(
+          parsed.error.issues[0]?.message || "That announcement isn't valid — please check it.",
+        );
+      }
+
 
       // Make sure we send a live access token: a stale/expired session is the
       // most common cause of a 401 from the announcement function.
