@@ -19,11 +19,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import {
+  clearNotificationClubSwitchInFlight,
   consumePendingNotificationClubSwitch,
   markNotificationClubSwitchApplied,
   peekPendingNotificationClubSwitch,
   subscribeNotificationClubSwitch,
 } from "@/lib/notificationClubSwitch";
+
 
 type MembershipVerdict = "yes" | "no" | "error";
 
