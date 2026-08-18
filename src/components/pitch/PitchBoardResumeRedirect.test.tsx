@@ -137,7 +137,7 @@ describe("PitchBoardResumeRedirect lock/unlock recovery", () => {
     // phone is locked. This is not a user navigation and must not close the
     // persisted board.
     await act(async () => screen.getByRole("button", { name: "media" }).click());
-    expect(screen.getByTestId("location")).toHaveTextContent("/media");
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/media"));
 
     visibility = "visible";
     await act(async () => document.dispatchEvent(new Event("visibilitychange")));
@@ -162,7 +162,7 @@ describe("PitchBoardResumeRedirect lock/unlock recovery", () => {
     });
     document.dispatchEvent(new Event("visibilitychange"));
     await act(async () => screen.getByRole("button", { name: "media" }).click());
-    expect(screen.getByTestId("location")).toHaveTextContent("/media");
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/media"));
 
     await waitFor(() => expect(native.appStateHandler).toBeTypeOf("function"));
     visibility = "visible";
@@ -219,7 +219,7 @@ describe("PitchBoardResumeRedirect lock/unlock recovery", () => {
     await act(async () => screen.getByRole("button", { name: "media" }).click());
 
     await signalNativeResume();
-    expect(screen.getByTestId("location")).toHaveTextContent("/media");
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/media"));
   });
 
   it("does not restore a different route when the persisted board marker is stale", async () => {

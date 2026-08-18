@@ -2,9 +2,28 @@
 
 **Audience:** External software vendor / development agency / technical support partner.
 **Purpose:** Enough detail to take over development, support, deployment, and scaling of the platform without prior exposure to it.
-**Status of this doc:** Generated from an inspection of the current repository, `supabase/config.toml`, `codemagic.yaml`, `.github/workflows/*`, `capacitor.config.ts`, `netlify.toml`, and the `src/` tree. Items that could not be verified from code alone are marked **[Needs confirmation]**.
+**Status:** Supporting technical reference, reviewed 2026-08-18. The current
+cumulative refactoring evidence is recorded in
+[`RELEASE_CANDIDATE_2026-08-17.md`](RELEASE_CANDIDATE_2026-08-17.md), with its
+review and rollback sequence in
+[`PROMOTION_TRANCHES_2026-08-17.md`](PROMOTION_TRANCHES_2026-08-17.md). It is
+not promotion-ready until the delegated manual checklist is recorded.
+**Authority:** Start with [`README.md`](../README.md), [`docs/ARCHITECTURE.md`](ARCHITECTURE.md), and [`docs/PROMOTION.md`](PROMOTION.md). Those documents override this reference for architecture boundaries, testing, promotion, and rollback. Counts and external dashboard state below are point-in-time observations. Items not verifiable from Git require external confirmation.
 
-> ⚠️ **No secrets in this document.** All API keys, tokens, passwords, and signing credentials are referenced by name only.
+> ⚠️ **No secrets or real data in this document.** Never copy hosted credentials or data into local tests. Key names below are inventory labels only.
+
+## Vendor first day
+
+1. Read the canonical architecture, promotion runbook, and [documentation index](README.md).
+2. Confirm the branch/commit and whether it is cumulative or promotion-ready.
+3. Install with Node 22 using `npm ci`; run TypeScript, build, and focused tests.
+4. Read the [local Supabase safety guide](testing/local-supabase.md); never test against a hosted database.
+5. Obtain least-privilege service access through invitations, not shared secrets.
+6. Verify hosting, backup, monitoring, stores, and Supabase settings in their consoles.
+7. Shadow a release and rollback exercise before operating production.
+8. For the current refactoring candidate, complete the [manual acceptance
+   checklist](testing/REFACTORING_MANUAL_ACCEPTANCE.md) against the exact
+   recorded commit before constructing a promotion branch.
 
 ---
 
@@ -57,7 +76,7 @@ Access is enforced in three layers: RLS policies, `public.has_role(uuid, app_rol
 | Notifications | `notifications`, `push_subscriptions`, `fcm_tokens`, `notification_preferences`, `push_notification_logs` | `NotificationsPage`, `NotificationPreferencesPage`, `PushAnalyticsPage` |
 
 ### 1.4 Core technologies
-- **Frontend:** React 18, Vite 5, TypeScript, TailwindCSS, shadcn-ui (Radix primitives), react-router-dom, TanStack Query, Zod, react-hook-form.
+- **Frontend:** React 18, Vite 7, TypeScript, TailwindCSS, shadcn-ui (Radix primitives), react-router-dom, TanStack Query, Zod, react-hook-form.
 - **Mobile:** Capacitor 8 (iOS + Android), Firebase Messaging (FCM), Firebase Crashlytics, Capacitor push, AdMob, in-app purchases (`@capgo/native-purchases`), biometrics, camera, filesystem.
 - **Backend:** Supabase — Postgres, Auth, Storage, Edge Functions (Deno), Realtime.
 - **Email:** Resend via `npm:resend@2.0.0` (see `supabase/functions/deno.json`).
@@ -119,11 +138,11 @@ A user opens the mobile app (Capacitor wrapping the built React SPA in `dist/`) 
 - Shadcn/Radix component library in `src/components/ui/` (56 primitives).
 
 ### 2.2 Backend
-- All backend logic lives in **Supabase Edge Functions** (Deno) at `supabase/functions/<name>/index.ts`. 116 functions total. Configuration (`verify_jwt`, etc.) is in `supabase/config.toml`. Deno import map: `supabase/functions/deno.json`.
+- Privileged HTTP/integration logic primarily lives in **Supabase Edge Functions**; database functions, triggers, policies, and scheduled SQL are also backend logic. At review there are 118 deployable function entry points.
 - Long-running / scheduled work runs via `pg_cron` scheduled RPCs that hit these edge functions (see the many `*-cron` functions: `auto-rsvp-push-cron`, `playhq-sync-cron`, `auto-default-rsvp-confirm-cron`, `auto-purge-trash`, `chat-photo-gallery-reminders`, `check-pending-subs`, `check-push-failure-rate`, `cleanup-*`, `scheduled-backup`, `process-scheduled-messages`, `expire-subscriptions`, `retry-missed-push-notifications`, `process-weekly-engagement-*`).
 
 ### 2.3 Database
-- Postgres via Supabase. 926 migrations in `supabase/migrations/`. Approximately 170 tables in `public` (see §5.2 for the full list).
+- Postgres via Supabase. At review there are 1,029 SQL migration files. Hosted table counts require verification against the target environment.
 - All new tables must follow the four-step order: `CREATE TABLE` → `GRANT` → `ENABLE RLS` → `CREATE POLICY`. Historic tables all use this pattern.
 - Roles enum: `public.app_role`. Role check: `public.has_role(uuid, app_role)` SECURITY DEFINER.
 
@@ -152,7 +171,8 @@ Signed URLs are issued by `get-signed-photo-url` edge function; permanent delete
 - **Transactional email:** Resend. All `send-*-email` edge functions call `Resend.emails.send(...)`. `RESEND_API_KEY` is a Supabase Edge Function secret.
 - **Push (native):** Firebase Cloud Messaging via `@capacitor/push-notifications` and `@capacitor-firebase/messaging`. Server dispatch through `send-fcm-notification` / `send-push-notification`. Tokens in `fcm_tokens`.
 - **Push (web):** VAPID web push. Subscriptions in `push_subscriptions`. Diagnostic function `check-vapid-key`.
-- **In-app notifications:** `notifications` table + Realtime subscription in `NotificationsPage`.
+- **In-app notifications:** `notifications` table + the page-owned Realtime lifecycle in
+  `src/features/notifications/useNotificationRealtime.ts`, composed by `NotificationsPage`.
 
 ### 2.7 Hosting & deployment
 - **Web:** Netlify. `netlify.toml` sets SPA fallback (`/* → /index.html 200`) and an edge function `share` at `/share` (`netlify/edge-functions/share.ts`). **[Needs confirmation]** which Netlify site/team owns the domain.
@@ -196,8 +216,8 @@ Top-level layout:
 │   └── test/           Vitest setup
 ├── supabase/
 │   ├── config.toml         verify_jwt overrides per function
-│   ├── functions/          116 edge functions + _shared/
-│   └── migrations/         926 SQL migrations (append-only, managed by CI)
+│   ├── functions/          118 deployable entry points + _shared/
+│   └── migrations/         1,029 SQL migrations at review (append-only)
 ├── android/                Generated Capacitor Android project (in Codemagic)
 ├── ios/                    Capacitor iOS project (committed)
 ├── firebase/               GoogleService-Info.plist + google-services.json
@@ -230,7 +250,7 @@ Top-level layout:
 ## 4. Frontend Documentation
 
 ### 4.1 Framework & libraries
-- React 18, TypeScript, Vite 5.
+- React 18, TypeScript, Vite 7.
 - Router: `react-router-dom` (BrowserRouter, ~114 routes, most lazy).
 - Data: `@tanstack/react-query` (all server state — never `useState` for server data).
 - Forms: `react-hook-form` + `zod` + `@hookform/resolvers`.
@@ -320,16 +340,16 @@ Full table list is in the system context; ~170 tables. They fall into these clus
 - **Business match (associations feature):** `business_matches`, `business_profiles`, `business_shortlist`.
 - **Vault:** `vault_drive_links`, `vault_files`, `vault_folders`.
 
-For each table's exact columns, RLS policies, FKs — use the `supabase--read_query` tool (or the Supabase dashboard's Table Editor / SQL Editor). Producing per-table docs for 170 tables is out of scope for this handover; the source of truth is `supabase/migrations/` and `information_schema`.
+For exact columns, policies, and foreign keys, review generated types and migrations first. Authorized operators may verify the relevant environment in the Supabase dashboard. Never connect local tests to a hosted database merely to discover schema.
 
 ### 5.3 RLS
-Every table in `public` has RLS enabled. Row visibility uses:
+Tenant-scoped tables are expected to have RLS and appropriate grants. Do not assume universal coverage: verify every changed table and test allowed plus cross-tenant denial paths. Row visibility commonly uses:
 1. `public.has_role(auth.uid(), '<role>')` for role-based access.
 2. Membership joins to `team_memberships` / `club_players` / `child_guardians` / `mini_league_admins` / `competition_roles`.
 3. Chat access uses `can_access_chat_group(chat_group_id, user_id)` (see core memory).
 4. Vault files gate on `can_access_chat_group` when `chat_group_id IS NOT NULL` (core memory).
 
-### 5.4 Edge functions (116 total)
+### 5.4 Edge functions (118 deployable entry points at review)
 See `supabase/functions/*/index.ts`. Categorised:
 
 | Category | Functions |
@@ -442,9 +462,13 @@ Who needs access during vendor handover: see §17.
 
 ## 8. Deployment Documentation
 
+[`docs/PROMOTION.md`](PROMOTION.md) is authoritative. This section is supporting context only.
+
 ### 8.1 Branches
 - `main` — DEV branch. Lovable auto-commits here.
+- `codespaces-review` — isolated complete-baseline validation branch.
 - `prod` — PROD branch. Merged into via PR from `main`.
+- `verify/*`, `refactor/*`, `integrate/*` — temporary work; never promote a cumulative branch directly.
 
 ### 8.2 Web deployment (Netlify)
 - **[Needs confirmation]** Netlify site is set to build from `prod` for production and `main` for a preview deploy.
@@ -456,9 +480,9 @@ Who needs access during vendor handover: see §17.
 - Required Netlify env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` (must match the environment the build is for; if unset, published site breaks silently — the classic client has no missing-variable guard).
 
 ### 8.3 Backend deployment (Supabase)
-Fully automated via `.github/workflows/promote-to-prod.yml`, triggered on:
-- `push` to `prod` → applies migrations + deploys edge functions.
-- `pull_request` targeting `prod` → runs preview / guard / destructive-migration check but does NOT apply.
+`.github/workflows/promote-to-prod.yml` has isolated event paths:
+- `push` or authorized manual dispatch on `prod` runs the privileged production job;
+- a PR targeting `prod` runs file-only migration/change analysis with no production secrets, CLI, database connection, or deployment.
 
 Steps in the workflow:
 1. Install Supabase CLI.
@@ -469,7 +493,7 @@ Steps in the workflow:
 6. **Guard against destructive migrations** (blocks anything that would drop media/user tables).
 7. Backup prod (schema + roles only — fast).
 8. `supabase db push` (apply migrations).
-9. `supabase functions deploy` (all functions, non-destructive — does not remove functions not in repo).
+9. Deploy functions selected by the workflow's change-detection and shared-function rules.
 
 ### 8.4 Mobile deployment (Codemagic)
 `codemagic.yaml` defines 4 workflows:
@@ -689,8 +713,8 @@ Treat these tables with extreme care in any restore/export/vendor handoff.
 ## 14. Local Development Setup
 
 ### 14.1 Prereqs
-- Node.js ≥ 20 (recommend 22, matching Codemagic).
-- npm ≥ 10 (or bun — repo uses `bun.lockb`).
+- Node.js ≥ 22.12 (the `package.json` engine requirement).
+- npm with the committed `package-lock.json`.
 - Git.
 - For native builds: Xcode 15+ (iOS), Android Studio Ladybug+ (Android).
 - Supabase CLI (`supabase --version`), Docker (only if running Supabase locally).
@@ -699,11 +723,11 @@ Treat these tables with extreme care in any restore/export/vendor handoff.
 ```sh
 git clone <repo>
 cd ignite-club-launchpad
-npm install     # or bun install
+npm ci
 ```
 
-### 14.3 `.env` (already committed for dev)
-Contains: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_URL`. These point to the DEV Supabase project.
+### 14.3 Environment
+The repository currently tracks a development `.env`, but this does not authorize exposing, duplicating, or using its values in tests. Obtain environment access from the owner. The isolated baseline strips inherited hosted Supabase/database variables and accepts only localhost endpoints.
 
 ### 14.4 Run
 ```sh
@@ -720,7 +744,7 @@ npx cap open android   # or ios
 ```
 
 ### 14.6 Test data
-DEV Supabase is a cloned-and-neutered copy of PROD. See `SETUP-DEV-ENV.md` and `NATIVE_APP_BUILD_GUIDE.md`.
+Use synthetic data in the disposable local Supabase workspace. Never copy real users/clubs or run automated integration tests against hosted development or production. See `SETUP-DEV-ENV.md`, `NATIVE_APP_BUILD_GUIDE.md`, and [`docs/testing/local-supabase.md`](testing/local-supabase.md).
 
 ### 14.7 Common issues
 - Blank page after publish → check `.env` contains all three `VITE_SUPABASE_*` vars (Vite has no missing-var guard).
@@ -732,9 +756,18 @@ DEV Supabase is a cloned-and-neutered copy of PROD. See `SETUP-DEV-ENV.md` and `
 ## 15. Testing and QA
 
 - **Framework:** Vitest (`vitest.config.ts`, `vitest.matrix.config.ts`).
-- **E2E:** Playwright (`playwright.config.ts`, `e2e/`).
-- **Run all:** `npm run test:run`.
-- **CI:** `.github/workflows/frontend-tests.yml` runs on PR.
+- **E2E:** Playwright, including baseline journeys.
+- **Frontend only:** `npm run test:run`.
+- **Strict feature boundary:** `npm run typecheck:strict-features`. This is a
+  curated, non-emitting strict-TypeScript gate for extracted business policies,
+  contracts, scopes, query keys, repositories, workflows, cache-completion
+  handlers, and services. The policy and workflow islands can also be checked
+  separately with `npm run typecheck:strict-policies` and
+  `npm run typecheck:strict-workflows`. Expand them incrementally only when every
+  newly included module is already clean; this is not a claim that the entire
+  legacy frontend is strict yet.
+- **Complete isolated baseline:** `npm run test:baseline`.
+- **CI:** frontend tests run for `main`; the complete baseline runs on `codespaces-review`.
 - **Manual test docs:** `docs/qa/android-keyboard-checklist.md`, `docs/qa/ios-pinch-zoom-checklist.md`.
 
 ### Pre-release checklist
@@ -756,12 +789,12 @@ DEV Supabase is a cloned-and-neutered copy of PROD. See `SETUP-DEV-ENV.md` and `
 
 ## 16. Known Issues, Technical Debt and Risks
 
-Sourced from `mem://index.md` (persistent project memory) and code inspection:
+Sourced from repository tests, dated audits, and code inspection; verify each item against current code:
 
 | Area | Risk |
 |---|---|
 | Chat virtualization | Virtuoso identity must be stable; empty-mount crash previously hit — guarded but requires care |
-| Native cold start | Push nav / auth race — see `mem://technical/native-cold-start-resilience` |
+| Native cold start | Push navigation/auth/resume ordering is regression-sensitive; preserve native harness coverage |
 | Backdrop blur | Banned over scrollers — will freeze Android WebView |
 | Per-user cache | Must use `ignite_` prefix or previous-user data leaks |
 | Chat message queries | Must use `refetchOnMount: "always"` — `true` is a no-op with staleTime |
@@ -772,7 +805,8 @@ Sourced from `mem://index.md` (persistent project memory) and code inspection:
 | Universal Links | Two AASA / assetlinks needed if DEV bundle diverges; currently unified |
 | PITR | Not enabled — cost decision; rely on nightly artifact + supabase daily |
 | Realtime billing | Bare `.channel().subscribe()` outside `useEffect` leaks channels |
-| 926 migrations | Long CI apply time on fresh restore; consolidation project overdue |
+| Strict-TypeScript expansion | The initial policy and workflow islands cover 106 production modules. Continue expansion incrementally; require behaviour tests and deliberate database nullability/JSON-contract review rather than broad casts |
+| 1,023 migrations at review | High reconstruction/review cost; retain history until a baseline is independently verified |
 | Public schema grants | Historic migrations should be audited for missing GRANTs |
 | Storage backup destination | **[Needs confirmation]** and long-term off-GitHub archive |
 | Two Firebase projects | Currently one project shared by DEV/PROD — no isolation for test push |
@@ -802,8 +836,8 @@ Access to transfer:
 
 Release process for vendor:
 1. Develop on `main` branch (Lovable auto-commits or vendor PRs).
-2. Verify in DEV Supabase.
-3. Open PR `main → prod`. Preview + guard + SQL diff runs.
+2. Validate focused behaviour and the isolated baseline on `codespaces-review`.
+3. Complete required manual checks; open a `prod` PR only for an authorized release window.
 4. Merge → `promote-to-prod.yml` applies migrations + deploys edge fns.
 5. Codemagic (on same push) builds Android + iOS. Uploads to stores.
 6. Manually promote store builds Internal → Production when ready.
@@ -859,7 +893,7 @@ Rollback:
 
 ## 19. Scaling Considerations
 
-Recommendations from `mem://scaling/near-term` and `mem://scaling/long-term`:
+Recommendations from the dated capacity assessment and current architecture review:
 
 | Concern | Trigger point | Action |
 |---|---|---|
@@ -871,7 +905,7 @@ Recommendations from `mem://scaling/near-term` and `mem://scaling/long-term`:
 | Netlify bandwidth | Sustained traffic | Consider CDN egress plan |
 | Codemagic minutes | Multiple daily builds | Reserve M2 slot / self-host build agent |
 | Multi-club risk | 100+ clubs | Audit any hard-coded club-scoped queries; verify RLS scopes on every table |
-| Migration set | 926+ (already large) | Consolidate migrations into baseline for faster clones |
+| Migration set | 1,023 files at review | Retain history; design a baseline only with independent parity and rollback verification |
 | Trigger coalescing | Chat volume | Batch notification enqueue triggers |
 | Presence table | Chat volume | Split `user_presence` into hot/cold |
 
@@ -893,14 +927,14 @@ Assumptions that may break at scale:
 5. RLS + `has_role()` is the authorization backbone. Never store roles on `profiles`.
 6. All emails go through Resend via `send-*-email` edge functions.
 7. Push = FCM (native) + VAPID (web). Tokens in `fcm_tokens` / `push_subscriptions`.
-8. Nightly DB backups via GitHub Actions; PITR NOT enabled.
+8. Backup workflows exist; retention, restorability, and hosted PITR state require external verification.
 9. Bundle ID for both DEV and PROD is the PROD bundle — release tracks separate them.
-10. Read the core project memories (`mem://index.md`) — they encode hard-won constraints (backdrop-blur, virtualization, Camera gesture rules, cache prefix, refetchOnMount, etc.).
+10. Read canonical docs and relevant regression tests before changing virtualization, native lifecycle, caching, or camera gestures.
 
 ### Top 10 technical risks
-1. 926 migrations — restore/clone time is long; consolidation overdue.
+1. 1,023 migration files at review — reconstruction and review cost is high; retain history until a replacement baseline is independently verified.
 2. Public-schema `GRANT` compliance across historic migrations not audited.
-3. PITR disabled — 24h RPO worst case (nightly backup only).
+3. Hosted PITR/retention and proven restore time are not repository-verifiable.
 4. Single Firebase project shared DEV/PROD.
 5. Storage backup destination not confirmed — potential data loss window.
 6. Realtime subscription discipline critical to bill control.
@@ -913,7 +947,7 @@ Assumptions that may break at scale:
 1. Consolidate migrations into a baseline dump.
 2. Add CI check that every new `CREATE TABLE public.*` has GRANTs in same migration.
 3. Push nightly backup artifact off GitHub to long-term cold storage.
-4. Enable Supabase daily automatic backups (Pro tier) if not already.
+4. Verify Supabase backup/PITR configuration and perform a controlled restore exercise.
 5. Split DEV/PROD Firebase projects.
 6. Introduce Sentry (web + native) — Crashlytics only covers native crashes.
 7. Add an automated restore-verification workflow.
@@ -944,14 +978,16 @@ Assumptions that may break at scale:
 - `.github/workflows/promote-to-prod.yml` guard step.
 
 ## Appendix B — Key documents in this repo
-- `README.md` — Lovable-standard readme.
-- `PROMOTION.md` — dev→prod release process.
+- `README.md` — canonical repository entry point.
+- `docs/ARCHITECTURE.md` — authoritative system boundaries and invariants.
+- `docs/PROMOTION.md` — authoritative promotion and rollback process.
 - `SETUP-DEV-ENV.md` — local dev environment.
 - `NATIVE_APP_BUILD_GUIDE.md` — mobile build walkthrough.
 - `VIDEO_RECORDING_GUIDE.md` — pitch-board video recording feature.
 - `docs/PROMOTION_CHECKLIST.md` — mirroring secrets from dev to prod.
 - `docs/edge-secrets.md` — edge function secret inventory.
 - `docs/qa/*.md` — manual QA checklists.
+- `docs/README.md` — documentation authority and history index.
 
 ---
 

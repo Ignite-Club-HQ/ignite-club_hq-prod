@@ -24,13 +24,13 @@ Include these only when constructing and verifying the cumulative Vault/Media tr
 
 Include these only when constructing and verifying the cumulative PitchBoard/timer/AutoSub tranche. The function is a local test fixture, not a deployable hosted function.
 
-## Ownership review required — Club Links
+## Tranche 08 — Club Links local RLS verification
 
 - `local-supabase-workspace/supabase/migrations/20260810010000_local_club_links_rls.sql`
 
-The promotion dependency manifest does not explicitly assign this fixture to a remaining tranche. It supports Club/Home link behavior and must receive an explicit ownership review before inclusion. Do not silently bundle it into Tranche 06 or Tranche 07.
+The promotion dependency manifest did not explicitly assign this fixture to a domain tranche. Its ownership was reviewed during Tranche 08 after the application tranches were complete. The production Club Links management, Home quick-link, and embed behavior already existed on the cumulative base; the remaining delta is local release-governance coverage only.
 
-At tranche construction time, verify the owning production code and tests (including Club Links management, Home quick links, embed behavior, and `tests/local-supabase/club-links-rls.test.ts`) and record the ownership decision in the tranche review.
+Tranche 08 therefore owns this synthetic migration together with `tests/local-supabase/club-links-rls.test.ts`. Both must stay local-only. This decision does not authorize a production migration or a hosted schema change.
 
 ## Retrieval checklist
 
@@ -40,4 +40,4 @@ Before completing Tranche 06 or 07:
 2. Restore/stage only the paths owned by that tranche.
 3. Run the isolated local Supabase reset and cumulative backend suite.
 4. Confirm the paths remain under `local-supabase-workspace` and are absent from production migrations/functions.
-5. Record the Club Links ownership decision before the final promotion closeout.
+5. Confirm the Tranche 08 Club Links fixture and test remain local-only during final promotion closeout.

@@ -20,7 +20,7 @@ const IS_PROD = process.env.LOVABLE_ENV === 'prod';
 
 const APP_ID = 'app.lovable.igniteteamhub';
 
-const config: CapacitorConfig = {
+const config = {
   appId: APP_ID,
   appName: IS_PROD ? 'Ignite' : 'Ignite DEV',
   webDir: 'dist',
@@ -57,7 +57,7 @@ const config: CapacitorConfig = {
     // Keep all navigation inside the WebView
     appendUserAgent: IS_PROD ? 'IgniteClubHQ-Android' : 'IgniteClubHQ-Android-DEV',
     // Disable native overscroll glow/spinner
-    overScrollMode: 'never' as any,
+    overScrollMode: 'never',
   },
   ios: {
     // Let the WebView span edge-to-edge; the app already applies safe-area padding in CSS.
@@ -75,7 +75,7 @@ const config: CapacitorConfig = {
   },
 };
 
-export default config;
+export default config as CapacitorConfig;
 
 /*
  * IMPORTANT: Deep Linking Setup for Google OAuth
