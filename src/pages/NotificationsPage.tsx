@@ -33,7 +33,7 @@ import {
   NOTIFICATION_FALLBACK_PATH,
   type ChatTarget,
 } from "@/lib/notificationChatRouting";
-import { requestClubSwitchForChatTarget } from "@/lib/notificationClubSwitch";
+import { requestClubSwitchForChatTarget, requestClubSwitchForNotificationUrl } from "@/lib/notificationClubSwitch";
 
 
 /**
