@@ -142,10 +142,14 @@ export function consumePendingNotificationClubSwitch(): string | null {
 function stash(clubId: string) {
   const payload: PendingSwitch = { clubId, ts: Date.now() };
   try { sessionStorage.setItem(SS_KEY, JSON.stringify(payload)); } catch { /* noop */ }
+  // Guard the route immediately: the club is not active yet (membership check
+  // still pending) but the user is already navigating into its content.
+  markNotificationClubSwitchInFlight(clubId);
   try {
     window.dispatchEvent(new CustomEvent(EVENT, { detail: payload }));
   } catch { /* noop */ }
 }
+
 
 export function subscribeNotificationClubSwitch(handler: (clubId: string) => void): () => void {
   if (typeof window === "undefined") return () => {};
