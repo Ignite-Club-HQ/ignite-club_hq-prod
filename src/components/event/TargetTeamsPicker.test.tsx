@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { useState } from "react";
 import { TargetTeamsPicker } from "./TargetTeamsPicker";
 
 const TEAMS = [
@@ -19,6 +20,16 @@ const TEAMS = [
   { id: "team-b", name: "U8 Red" },
   { id: "team-c", name: "U10 Red" },
 ];
+
+function StatefulPicker({ initial = null }: { initial?: string[] | null }) {
+  const [value, setValue] = useState<string[] | null>(initial);
+  return (
+    <>
+      <TargetTeamsPicker teams={TEAMS} value={value} onChange={setValue} />
+      <output data-testid="selection">{JSON.stringify(value)}</output>
+    </>
+  );
+}
 
 describe("TargetTeamsPicker", () => {
   it("(1) from null → 'Only selected teams' opens checklist with []", () => {
@@ -83,5 +94,42 @@ describe("TargetTeamsPicker", () => {
     // Checklist visible (checkboxes rendered) even though value = [].
     expect(screen.getByText("U8 Blue")).toBeInTheDocument();
     expect(screen.getByText(/select at least 2 teams/i)).toBeInTheDocument();
+  });
+
+  it("completes the real null → selected-mode render transition", () => {
+    render(<StatefulPicker />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Only selected teams/i }));
+
+    expect(screen.getByTestId("selection")).toHaveTextContent("[]");
+    expect(screen.getByRole("checkbox", { name: "U8 Blue" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "U8 Red" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "U10 Red" })).toBeInTheDocument();
+  });
+
+  it("adds and removes teams while preserving the remaining selection", () => {
+    render(<StatefulPicker initial={["team-a", "team-b"]} />);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "U10 Red" }));
+    expect(screen.getByTestId("selection")).toHaveTextContent(
+      '["team-a","team-b","team-c"]',
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "U8 Red" }));
+    expect(screen.getByTestId("selection")).toHaveTextContent(
+      '["team-a","team-c"]',
+    );
+  });
+
+  it("shows an empty state when selected-team mode has no available teams", () => {
+    render(
+      <TargetTeamsPicker
+        teams={[]}
+        value={[]}
+        onChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByText(/No teams available in this club/i)).toBeInTheDocument();
   });
 });
