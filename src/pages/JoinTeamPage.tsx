@@ -381,13 +381,14 @@ export default function JoinTeamPage() {
     queryFn: async () => {
       if (!user) return false;
       if (usedInviteTeamId) {
-        const { data: tm } = await supabase
+        const { data: tm } = await (supabase as any)
           .from("team_memberships")
           .select("id")
           .eq("user_id", user.id)
           .eq("team_id", usedInviteTeamId)
           .eq("status", "active")
           .limit(1);
+
         if (tm?.length) return true;
         const { data: tr } = await supabase
           .from("user_roles")
