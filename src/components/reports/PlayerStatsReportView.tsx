@@ -40,6 +40,8 @@ interface PlayerStat {
   substitutions_count: number;
   started_on_pitch: boolean;
   goals_scored: number;
+  games_played?: number;
+  starts_count?: number;
   profiles?: {
     display_name: string | null;
     avatar_url: string | null;
@@ -112,6 +114,8 @@ export default function PlayerStatsReportView({
             existing.minutes_played += stat.minutes_played;
             existing.substitutions_count += stat.substitutions_count;
             existing.goals_scored += stat.goals_scored || 0;
+            existing.games_played = (existing.games_played || 0) + 1;
+            existing.starts_count = (existing.starts_count || 0) + (stat.started_on_pitch ? 1 : 0);
             stat.positions_played.forEach((pos: string) => {
               if (!existing.positions_played.includes(pos)) {
                 existing.positions_played.push(pos);
