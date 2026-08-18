@@ -3,7 +3,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { getAppliedNotificationClubSwitch } from "@/lib/notificationClubSwitch";
+import {
+  getAppliedNotificationClubSwitch,
+  isNotificationClubSwitchInFlight,
+} from "@/lib/notificationClubSwitch";
 import { resolveRouteClubScope } from "@/lib/routeClubScope";
 
 /**
