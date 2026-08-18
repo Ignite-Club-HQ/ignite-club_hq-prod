@@ -27,6 +27,11 @@
 
 ## Construction order
 
+> Superseding dependency detail: use
+> [`PROMOTION_DEPENDENCY_MANIFEST_2026-08-18.md`](PROMOTION_DEPENDENCY_MANIFEST_2026-08-18.md)
+> for exact ownership exceptions and cumulative order. In particular, Events
+> must precede PitchBoard, and Messaging must precede Vault/Media integration.
+
 ### Tranche 00 — Test and release governance
 
 Purpose: establish the non-production test harness and review controls before
