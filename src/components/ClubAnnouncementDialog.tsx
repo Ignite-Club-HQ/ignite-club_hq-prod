@@ -131,33 +131,41 @@ export function ClubAnnouncementDialog({
       const { data, error } = await supabase.functions.invoke("send-club-announcement", {
         headers: { Authorization: `Bearer ${accessToken}` },
         body: {
-          club_id: clubId,
-          team_ids: teamIds,
+          club_id: parsed.data.club_id,
+          team_ids: parsed.data.team_ids,
           include_club_chat: sendToClubChat,
-          message: message.trim(),
+          message: parsed.data.message,
           club_name: clubName,
         },
       });
 
       if (error) {
         // Surface the function's JSON error body instead of a generic message.
+        // NOTE: the body read must not throw inside the try — otherwise the
+        // catch swallows the real reason and we fall back to the generic error.
         const ctx = (error as { context?: Response }).context;
+        let serverMessage: string | null = null;
         if (ctx && typeof ctx.json === "function") {
           try {
             const body = await ctx.json();
-            if (body?.error) throw new Error(String(body.error));
-          } catch (_e) {
-            // fall through to the raw error below
+            if (body?.error) serverMessage = String(body.error);
+          } catch {
+            try {
+              const text = await ctx.text?.();
+              if (text) serverMessage = text.slice(0, 300);
+            } catch {
+              /* body already consumed or empty */
+            }
           }
         }
-        throw error;
+        throw new Error(serverMessage || (error as Error).message || "Request failed");
       }
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       const parts: string[] = [];
-      if (selectedTeamIds.size > 0) {
-        parts.push(`${selectedTeamIds.size} team${selectedTeamIds.size > 1 ? "s" : ""}`);
+      if (resolvedTeamIds.length > 0) {
+        parts.push(`${resolvedTeamIds.length} team${resolvedTeamIds.length > 1 ? "s" : ""}`);
       }
       if (sendToClubChat) parts.push("club chat");
       toast.success(`Announcement sent to ${parts.join(" and ")}`);
@@ -168,15 +176,16 @@ export function ClubAnnouncementDialog({
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "";
-      toast.error(msg ? `Failed to send announcement: ${msg}` : "Failed to send announcement");
+      toast.error(msg ? `Couldn't send announcement: ${msg}` : "Failed to send announcement");
     },
   });
 
 
   const canSend =
     message.trim().length > 0 &&
-    (selectedTeamIds.size > 0 || sendToClubChat) &&
+    (resolvedTeamIds.length > 0 || sendToClubChat) &&
     !sendMutation.isPending;
+
 
 
   return (
