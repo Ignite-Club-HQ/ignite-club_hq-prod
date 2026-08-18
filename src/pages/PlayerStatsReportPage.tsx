@@ -347,9 +347,11 @@ export default function PlayerStatsReportPage() {
     enabled: !!user,
   });
 
-  // Select first team by default
-  if (teams && teams.length > 0 && !selectedTeamId) {
-    setSelectedTeamId(teams[0].id);
+  // Select first team by default, or preselect the team passed via URL query param
+  if (teams && teams.length > 0 && (!selectedTeamId || !teams.some((t) => t.id === selectedTeamId))) {
+    const urlTeamId = searchParams.get("teamId");
+    const preselected = urlTeamId && teams.some((t) => t.id === urlTeamId) ? urlTeamId : teams[0].id;
+    setSelectedTeamId(preselected);
   }
 
   const selectedTeam = teams?.find((t) => t.id === selectedTeamId);
