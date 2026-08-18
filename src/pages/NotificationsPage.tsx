@@ -193,6 +193,8 @@ export default function NotificationsPage() {
   const { activeClubFilter } = useClubTheme();
   usePageTitle("Notifications");
   const navigate = useNavigate();
+  const routerNavigate = navigate;
+
   const queryClient = useQueryClient();
   
   // Sync unread badge on mount
