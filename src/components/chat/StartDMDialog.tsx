@@ -1149,7 +1149,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                 <Button
                   onClick={handleStartConversation}
                   disabled={isPending}
-                  className="flex-1 h-11 rounded-xl font-semibold gap-2"
+                  className="flex-1 h-12 rounded-xl text-base font-semibold gap-2"
                 >
                   {isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1158,9 +1158,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                   ) : (
                     <MessageCircle className="h-4 w-4" />
                   )}
-                  {selectedUsers.length === 1
-                    ? "Start Chat"
-                    : `Create Group (${selectedUsers.length} people)`}
+                  {dmActionLabel}
+
                 </Button>
               </div>
             )}
