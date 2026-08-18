@@ -47,6 +47,7 @@
     "src/features/messaging/thread/chatMessageOrdering.ts",
     "src/features/messaging/thread/chatThreadQueryData.ts",
     "src/features/notifications/queryKeys.ts",
+    "src/features/notifications/navigationPolicy.ts",
     "src/features/vault/types.ts",
     "src/features/vault/vaultDeleteReporting.ts",
     "src/features/vault/vaultExportSelection.ts",

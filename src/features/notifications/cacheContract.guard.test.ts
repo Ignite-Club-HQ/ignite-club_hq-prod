@@ -62,11 +62,11 @@ describe("notification cache migration characterization", () => {
   });
 
   it("characterizes user-filtered realtime ownership and cleanup", () => {
-    const page = read("src/pages/NotificationsPage.tsx");
+    const realtimeHook = read("src/features/notifications/useNotificationRealtime.ts");
 
-    expect(page).toContain("`notifications-page-${user.id}`");
-    expect(page).toContain("filter: `user_id=eq.${user.id}`");
-    expect(page).toContain("supabase.removeChannel(channel)");
+    expect(realtimeHook).toContain("`notifications-page-${userId}`");
+    expect(realtimeHook).toContain("filter: `user_id=eq.${userId}`");
+    expect(realtimeHook).toContain("supabase.removeChannel(channel)");
   });
 
   it("keeps notification consumers free from whole-cache invalidation", () => {
