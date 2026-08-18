@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Calendar, FileText, Users, Loader2, Check, Lock } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -37,8 +37,9 @@ interface GameEvent {
 export default function PlayerStatsReportPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
-  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(searchParams.get("teamId") || "");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: startOfMonth(new Date()),
@@ -346,9 +347,11 @@ export default function PlayerStatsReportPage() {
     enabled: !!user,
   });
 
-  // Select first team by default
-  if (teams && teams.length > 0 && !selectedTeamId) {
-    setSelectedTeamId(teams[0].id);
+  // Select first team by default, or preselect the team passed via URL query param
+  if (teams && teams.length > 0 && (!selectedTeamId || !teams.some((t) => t.id === selectedTeamId))) {
+    const urlTeamId = searchParams.get("teamId");
+    const preselected = urlTeamId && teams.some((t) => t.id === urlTeamId) ? urlTeamId : teams[0].id;
+    setSelectedTeamId(preselected);
   }
 
   const selectedTeam = teams?.find((t) => t.id === selectedTeamId);
