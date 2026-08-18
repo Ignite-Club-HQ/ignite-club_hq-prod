@@ -673,8 +673,22 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
   const CREATE_CATEGORY_VALUE = "__create_new__";
   const selectedPrimaryName = selectedUsers[0]?.display_name?.trim() || "selected member";
   const dmActionLabel = selectedUsers.length === 1
-    ? `Start chat with ${selectedPrimaryName.split(" ")[0] || selectedPrimaryName}`
-    : `Create group with ${selectedUsers.length} people`;
+    ? `Message ${selectedPrimaryName.split(" ")[0] || selectedPrimaryName}`
+    : `Start group chat · ${selectedUsers.length}`;
+  const canPickPeople = !!hasProAccess && !!canSendDMs?.canSend;
+  const activeFilterLabel =
+    selectedTeamId !== "all"
+      ? teamNameById.get(selectedTeamId) ?? "Team"
+      : roleFilter === "coach"
+        ? "Coaches"
+        : roleFilter === "committee"
+          ? "Committee"
+          : roleFilter === "parent"
+            ? "Parents"
+            : roleFilter === "player"
+              ? "Players"
+              : "All teams";
+  const filterActive = selectedTeamId !== "all" || roleFilter !== "all";
 
   return (
     <ResponsiveDialog open={isOpen} onOpenChange={(open) => {
@@ -685,12 +699,14 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         setSearchQuery("");
         setSelectedClubId(activeClubFilter || "all");
         setSelectedTeamId("all");
+        setRoleFilter("all");
+        setFilterOpen(false);
       }
     }}>
       <ResponsiveDialogContent className="sm:max-w-md" fullScreen>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            {mode === "custom-group" ? "New Custom Group" : "New Direct Message"}
+            {mode === "custom-group" ? "New Custom Group" : "New Message"}
             {!hasProAccess && (
               <Badge variant="secondary" className="gap-1">
                 <Crown className="h-3 w-3" />
@@ -701,9 +717,102 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
           <ResponsiveDialogDescription>
             {mode === "custom-group"
               ? "Pick people one by one and give your group a name"
-              : "Pick one person to chat 1:1, or several to start a quick group"}
+              : "Select one or more people"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
+
+        {/* Compact sticky search + filter toolbar: stays under the header while
+            the member list scrolls independently beneath it. */}
+        {canPickPeople && (
+          <div className="shrink-0 flex items-center gap-2 pt-2 pb-2 px-1 bg-background border-b border-border">
+            <div className="relative flex-1 min-w-0">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search people..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-10 rounded-xl pl-9 pr-8"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant={filterActive ? "secondary" : "outline"}
+                  className="h-10 shrink-0 rounded-xl gap-1.5 px-3 text-xs font-medium max-w-[9.5rem]"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{activeFilterLabel}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="z-[1000020] w-56 p-1">
+                <div className="max-h-[60vh] overflow-y-auto">
+                  {[
+                    { key: "all", label: "All teams" },
+                    { key: "role:coach", label: "Coaches" },
+                    { key: "role:committee", label: "Committee & admins" },
+                    { key: "role:parent", label: "Parents" },
+                    { key: "role:player", label: "Players" },
+                  ].map((opt) => {
+                    const selected =
+                      opt.key === "all"
+                        ? !filterActive
+                        : selectedTeamId === "all" && `role:${roleFilter}` === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTeamId("all");
+                          setRoleFilter(opt.key === "all" ? "all" : opt.key.split(":")[1]);
+                          setFilterOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-accent"
+                      >
+                        <span className="truncate">{opt.label}</span>
+                        {selected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
+                  {filteredTeams.length > 0 && (
+                    <>
+                      <p className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Teams
+                      </p>
+                      {filteredTeams.map((team) => (
+                        <button
+                          key={team.id}
+                          type="button"
+                          onClick={() => {
+                            setRoleFilter("all");
+                            setSelectedTeamId(team.id);
+                            setFilterOpen(false);
+                          }}
+                          className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-accent"
+                        >
+                          <span className="truncate">{team.name}</span>
+                          {selectedTeamId === team.id && (
+                            <Check className="h-4 w-4 text-primary shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
 
         <div
           className="flex-1 min-h-0 overflow-y-auto space-y-3 pt-3 px-1 pb-4"
@@ -713,6 +822,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
               : undefined
           }
         >
+
           {(checkingPro && hasProAccess === undefined) || (checkingCanSend && canSendDMs === undefined) ? (
             <div className="flex justify-center py-8 flex-1 items-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
