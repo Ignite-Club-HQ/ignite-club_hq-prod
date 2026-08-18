@@ -42,7 +42,9 @@ export default function PlayerStatsReportPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(searchParams.get("teamId") || "");
+  const lockedTeamId = searchParams.get("teamId") || "";
+  const isLockedToTeam = !!lockedTeamId;
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(lockedTeamId || "");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: startOfMonth(new Date()),
@@ -313,7 +315,12 @@ export default function PlayerStatsReportPage() {
         addRows(data as unknown as Team[]);
       }
 
-      return Array.from(results.values()).sort((a, b) => a.name.localeCompare(b.name));
+      const allTeams = Array.from(results.values()).sort((a, b) => a.name.localeCompare(b.name));
+      // When accessed from a team page, restrict reporting to that team only.
+      if (lockedTeamId) {
+        return allTeams.filter((t) => t.id === lockedTeamId);
+      }
+      return allTeams;
     },
     enabled: !!user,
   });
@@ -493,55 +500,57 @@ export default function PlayerStatsReportPage() {
         </CardContent>
       </Card>
 
-      {/* Team Selection - Card-based for mobile */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Team</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {teams.length === 1 ? (
-            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-              <div className="flex-1">
-                <p className="font-medium">{teams[0].name}</p>
-                {teams[0].clubs?.name && (
-                  <p className="text-xs text-muted-foreground">{teams[0].clubs.name}</p>
-                )}
+      {/* Team Selection - Card-based for mobile; hidden when locked to a team from the team page */}
+      {!isLockedToTeam && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Team</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {teams.length === 1 ? (
+              <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                <div className="flex-1">
+                  <p className="font-medium">{teams[0].name}</p>
+                  {teams[0].clubs?.name && (
+                    <p className="text-xs text-muted-foreground">{teams[0].clubs.name}</p>
+                  )}
+                </div>
+                <Check className="h-4 w-4 text-primary" />
               </div>
-              <Check className="h-4 w-4 text-primary" />
-            </div>
-          ) : (
-            <ScrollArea className="max-h-[200px]">
-              <div className="space-y-2">
-                {teams.map((team) => (
-                  <button
-                    key={team.id}
-                    onClick={() => {
-                      setSelectedTeamId(team.id);
-                      setSelectedEventId("");
-                    }}
-                    className={cn(
-                      "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors",
-                      selectedTeamId === team.id
-                        ? "bg-primary/10 border border-primary/30"
-                        : "bg-muted hover:bg-muted/80"
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{team.name}</p>
-                      {team.clubs?.name && (
-                        <p className="text-xs text-muted-foreground truncate">{team.clubs.name}</p>
+            ) : (
+              <ScrollArea className="max-h-[200px]">
+                <div className="space-y-2">
+                  {teams.map((team) => (
+                    <button
+                      key={team.id}
+                      onClick={() => {
+                        setSelectedTeamId(team.id);
+                        setSelectedEventId("");
+                      }}
+                      className={cn(
+                        "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors",
+                        selectedTeamId === team.id
+                          ? "bg-primary/10 border border-primary/30"
+                          : "bg-muted hover:bg-muted/80"
                       )}
-                    </div>
-                    {selectedTeamId === team.id && (
-                      <Check className="h-4 w-4 text-primary shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-        </CardContent>
-      </Card>
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{team.name}</p>
+                        {team.clubs?.name && (
+                          <p className="text-xs text-muted-foreground truncate">{team.clubs.name}</p>
+                        )}
+                      </div>
+                      {selectedTeamId === team.id && (
+                        <Check className="h-4 w-4 text-primary shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {selectedTeamId && (
         <Tabs value={reportType} onValueChange={(v) => setReportType(v as "game" | "dateRange")}>
