@@ -200,6 +200,19 @@ export default function AuthPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Read invite metadata from sessionStorage on mount. This pre-fills the email
+  // and drives the invite banner and locked-email UI.
+  useEffect(() => {
+    const context = readInviteAuthContext();
+    if (context) {
+      setInviteAuthContext(context);
+      if (context.invitedEmail) {
+        setEmail(context.invitedEmail);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   
   // Invite flow context is trusted as-is. It is NOT invalidated just because
   // `redirectAfterAuth` is missing — in restricted webviews that storage write
