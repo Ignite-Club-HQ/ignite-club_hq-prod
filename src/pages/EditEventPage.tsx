@@ -130,16 +130,20 @@ export default function EditEventPage() {
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
+  // Types that support a club-wide ("All Club") scope and therefore team targeting.
+  const supportsClubWideScope = type === "game" || type === "social" || type === "training";
+
   // Clear stale target_team_ids whenever the event moves out of the
-  // "club-wide game/social" window. See CreateEventPage for rationale.
+  // club-wide window. See CreateEventPage for rationale.
   useEffect(() => {
     if (
       targetTeamIds !== null &&
-      (selectedTeamId || (type !== "game" && type !== "social"))
+      (selectedTeamId || (type !== "game" && type !== "social" && type !== "training"))
     ) {
       setTargetTeamIds(null);
     }
   }, [selectedTeamId, type, targetTeamIds]);
+
 
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
@@ -587,15 +591,19 @@ export default function EditEventPage() {
       return;
     }
 
-    // Training requires a team. Games can be club-wide ("All Club").
+    // Training, games and socials may be club-wide or targeted at a subset of
+    // teams. A subset must contain 2+ teams (mirrors the backend trigger).
     const isMiniLeagueEvent = !!(event as any)?.mini_league_id;
-    if (type === "training" && !selectedTeamId && !isMiniLeagueEvent) {
+    if (!selectedTeamId && targetTeamIds !== null && targetTeamIds.length < 2) {
       toast({
-        title: "Team required",
-        description: "Please select a team for training sessions.",
+        title: "Select at least 2 teams",
+        description:
+          "Pick two or more teams, or leave it club-wide. For a single team, select it in the Team dropdown.",
+        variant: "destructive",
       });
       return;
     }
+
 
     // Frontend club/team scope guard — matches backend
     // validate_event_team_club_scope trigger. Fail closed if the team list
@@ -689,13 +697,14 @@ export default function EditEventPage() {
           type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
         adults_only: adultsOnly,
         rsvp_grouping:
-          !selectedTeamId && (type === "game" || type === "social") && rsvpGrouping
+          !selectedTeamId && supportsClubWideScope && rsvpGrouping
             ? rsvpGrouping
             : null,
         target_team_ids:
-          !selectedTeamId && (type === "game" || type === "social") && targetTeamIds && targetTeamIds.length >= 2
+          !selectedTeamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
             ? targetTeamIds
             : null,
+
       } as any;
 
       // If converting single event to recurring series.
@@ -1014,25 +1023,24 @@ export default function EditEventPage() {
 
                 ) : (
                   <MobileCardSelect
-                    value={selectedTeamId || ((type === "social" || type === "game") ? "__none__" : "")}
+                    value={selectedTeamId || (supportsClubWideScope ? "__none__" : "")}
                     onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
                     options={[
-                      ...((type === "social" || type === "game")
+                      ...(supportsClubWideScope
                         ? [{ value: "__none__", label: "Club-wide event" }]
                         : []),
                       ...selectableTeams.map((team) => ({ value: team.id, label: team.name })),
                     ]}
-                    placeholder={(type === "social" || type === "game") ? "Club-wide (optional)" : "Select team"}
+                    placeholder={supportsClubWideScope ? "Club-wide (optional)" : "Select team"}
                     label="Team"
-                    required={type === "training"}
                   />
                 )}
-                {(type === "social" || type === "game") && (
+                {supportsClubWideScope && (
                   <p className="text-xs text-muted-foreground">
                     Leave blank for a club-wide event.
                   </p>
                 )}
-                {!selectedTeamId && (type === "game" || type === "social") && !(event as any)?.mini_league_id && (
+                {!selectedTeamId && supportsClubWideScope && !(event as any)?.mini_league_id && (
                   <MobileCardSelect
                     value={rsvpGrouping || "none"}
                     onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
@@ -1045,7 +1053,8 @@ export default function EditEventPage() {
                     label="RSVP grouping"
                   />
                 )}
-                {!selectedTeamId && (type === "game" || type === "social") && !(event as any)?.mini_league_id && (
+                {!selectedTeamId && supportsClubWideScope && !(event as any)?.mini_league_id && (
+
                   <TargetTeamsPicker
                     teams={allClubTeams ?? undefined}
                     value={targetTeamIds}
