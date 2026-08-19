@@ -2090,9 +2090,14 @@ export default function TeamDetailPage() {
                         const rolePending = pendingByRole[role] || [];
                         if (roleMembers.length === 0 && rolePending.length === 0) return null;
 
+                        const mergeWithChildren = role === "player" && childBlockShown;
+
                         return (
                           <div key={role} className="mb-3 pb-3 border-b last:border-b-0 last:mb-0 last:pb-0">
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{roleGroupLabels[role] || role}</p>
+                            {!mergeWithChildren && (
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{roleGroupLabels[role] || role}</p>
+                            )}
+
                             <div className="space-y-2">
                               {roleMembers.map(([userId, member]) => {
                                 const canManage = (isAdmin || isClubAdmin) && userId !== user?.id;
