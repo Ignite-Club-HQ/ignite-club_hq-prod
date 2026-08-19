@@ -1746,12 +1746,13 @@ export default function TeamDetailPage() {
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     )}
-                    {/* Children/Players Section - shown first */}
+                    {/* Combined Players section — child players first, adult players
+                        continue directly below under the same heading. */}
                     {(teamChildren.length > 0 || pendingInvites.some(inv => {
                       const meta = inv.metadata as { children?: { name: string }[] } | null;
                       return meta?.children && meta.children.length > 0;
                     })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
-                      <div className="mb-6 pb-4 border-b">
+                      <div className={adultPlayerCount > 0 ? "mb-2" : "mb-6 pb-4 border-b"}>
                         <div className="flex items-center justify-between mb-3">
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                             Players ({(() => {
@@ -1772,8 +1773,9 @@ export default function TeamDetailPage() {
                                 }
                                 return seen.size;
                               })();
-                              return teamChildren.length + pendingOnlyCount;
+                              return teamChildren.length + pendingOnlyCount + adultPlayerCount;
                             })()})
+
                           </p>
                           {(isAdmin || isClubAdmin) && (
                             <Button
