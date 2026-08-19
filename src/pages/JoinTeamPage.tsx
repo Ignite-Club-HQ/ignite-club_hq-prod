@@ -1093,6 +1093,32 @@ export default function JoinTeamPage() {
     });
   };
 
+  const persistInviteAuthContext = () => {
+    const nextPath = location.pathname + location.search;
+    safeSessionSet("redirectAfterAuth", nextPath);
+    safeSessionSet("autoJoinAfterAuth", "true");
+    safeSessionSet(
+      INVITE_AUTH_CONTEXT_KEY,
+      JSON.stringify({
+        clubName: invite?.teams?.clubs?.name ?? null,
+        teamName: invite?.teams?.name ?? null,
+        invitedEmail: isPendingInvite ? (pendingInviteData?.invited_email ?? null) : null,
+        roleLabel: roleLabels[invite?.role as AppRole] ?? null,
+      }),
+    );
+    // Keep the existing invite-flow context (localStorage) up to date so the
+    // progress indicator and PWA install resume path continue to work.
+    setInviteFlowContext({
+      ...(getInviteFlowContext() ?? {}),
+      active: true,
+      clubName: invite?.teams?.clubs?.name || undefined,
+      teamName: invite?.teams?.name || undefined,
+      role: invite?.role || undefined,
+      inviteToken: token,
+      currentStep: "auth",
+    });
+  };
+
   const handleCreateAccountClick = () => {
     persistInviteAuthContext();
     navigate(
@@ -1138,32 +1164,6 @@ export default function JoinTeamPage() {
     
     // User is logged in with complete profile - proceed with join (may need photo consent for parent role)
     joinMutation.mutate();
-  };
-
-  const persistInviteAuthContext = () => {
-    const nextPath = location.pathname + location.search;
-    safeSessionSet("redirectAfterAuth", nextPath);
-    safeSessionSet("autoJoinAfterAuth", "true");
-    safeSessionSet(
-      INVITE_AUTH_CONTEXT_KEY,
-      JSON.stringify({
-        clubName: invite?.teams?.clubs?.name ?? null,
-        teamName: invite?.teams?.name ?? null,
-        invitedEmail: isPendingInvite ? (pendingInviteData?.invited_email ?? null) : null,
-        roleLabel: roleLabels[invite?.role as AppRole] ?? null,
-      }),
-    );
-    // Keep the existing invite-flow context (localStorage) up to date so the
-    // progress indicator and PWA install resume path continue to work.
-    setInviteFlowContext({
-      ...(getInviteFlowContext() ?? {}),
-      active: true,
-      clubName: invite?.teams?.clubs?.name || undefined,
-      teamName: invite?.teams?.name || undefined,
-      role: invite?.role || undefined,
-      inviteToken: token,
-      currentStep: "auth",
-    });
   };
 
 
