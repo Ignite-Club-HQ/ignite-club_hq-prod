@@ -1033,7 +1033,18 @@ export default function AuthPage() {
                     Create an account to get started.
                   </CardDescription>
                 )}
-                <div className={signupFormClassName}>
+                <form
+                  className={signupFormClassName}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAuth("signup");
+                  }}
+                >
+                  {authError && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                      {authError}
+                    </div>
+                  )}
                   <div className={signupFieldClassName}>
                     <Label htmlFor="signup-email">Email</Label>
                     <div className="relative">
@@ -1044,9 +1055,15 @@ export default function AuthPage() {
                         placeholder="you@example.com"
                         className="pl-10"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={!!inviteAuthContext?.invitedEmail}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setEmailError(null);
+                          setAuthError(null);
+                        }}
                       />
                     </div>
+                    {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
                   </div>
                   <div className={signupFieldClassName}>
                     <Label htmlFor="signup-password">Password</Label>
@@ -1058,7 +1075,11 @@ export default function AuthPage() {
                         placeholder="••••••••"
                         className="pl-10 pr-10"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setPasswordError(null);
+                          setAuthError(null);
+                        }}
                       />
                       <button
                         type="button"
@@ -1069,6 +1090,7 @@ export default function AuthPage() {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
                     {password && (() => {
                       const unmet = passwordRequirements.filter((req) => !req.test(password));
                       const collapseChecklist = unmet.length === 0 && hibpStatus !== 'compromised';
@@ -1128,7 +1150,11 @@ export default function AuthPage() {
                         placeholder="••••••••"
                         className="pl-10 pr-10"
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          setConfirmPasswordError(null);
+                          setAuthError(null);
+                        }}
                         onFocus={(e) => {
                           const el = e.currentTarget;
                           // Keyboard opening reflows the viewport; nudge the field
@@ -1147,13 +1173,18 @@ export default function AuthPage() {
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {confirmPasswordError && <p className="text-xs text-destructive mt-1">{confirmPasswordError}</p>}
                   </div>
                   
                   <div className="flex items-start gap-2 pt-1">
                     <Checkbox
                       id="accept-terms"
                       checked={acceptedTerms}
-                      onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                      onCheckedChange={(checked) => {
+                        setAcceptedTerms(checked === true);
+                        setTermsError(null);
+                        setAuthError(null);
+                      }}
                       className="mt-0.5 shrink-0"
                     />
                     <label htmlFor="accept-terms" className="text-xs text-muted-foreground leading-snug cursor-pointer flex-1">
@@ -1163,14 +1194,28 @@ export default function AuthPage() {
                       <Link to="/privacy" {...(!Capacitor.isNativePlatform() ? { target: "_blank" } : {})} className="text-primary hover:underline">Privacy Policy</Link>
                     </label>
                   </div>
+                  {termsError && <p className="text-xs text-destructive -mt-1">{termsError}</p>}
 
                   <Button 
+                    type="submit"
                     className="w-full" 
-                    onClick={() => handleAuth("signup")}
                     disabled={loading || googleLoading}
                   >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Account"}
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : inviteAuthContext ? "Create account & join" : "Create Account"}
                   </Button>
+
+                  {inviteAuthContext && (
+                    <div className="text-center text-sm text-muted-foreground">
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        className="text-primary hover:underline font-medium"
+                        onClick={switchToSignIn}
+                      >
+                        Sign in
+                      </button>
+                    </div>
+                  )}
                   
                   {/* Hide Google sign-up on native apps - OAuth redirects outside the app */}
                   {!Capacitor.isNativePlatform() && (
@@ -1185,6 +1230,7 @@ export default function AuthPage() {
                       </div>
                       
                       <Button 
+                        type="button"
                         variant="outline" 
                         className="w-full gap-2" 
                         onClick={handleGoogleSignIn}
@@ -1220,7 +1266,7 @@ export default function AuthPage() {
                   )}
 
                   {/* Sign in link - only shown when NOT in invite flow */}
-                  {!isInInviteFlow && !isSignupKeyboardOpen && (
+                  {!inviteAuthContext && !isSignupKeyboardOpen && (
                     <div className="text-center text-sm text-muted-foreground pt-2">
                       Already have an account?{" "}
                       <button
@@ -1232,7 +1278,7 @@ export default function AuthPage() {
                       </button>
                     </div>
                   )}
-                </div>
+                </form>
               </CardContent>
             </>
           )}
