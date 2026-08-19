@@ -856,64 +856,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
-      // Handle second parent
-      let secondParentInviteLink: string | null = null;
-      let secondParentAddedDirectly = false;
-      
-      if (selectedSecondParent && selectedRole === "parent") {
-        // Add existing user directly as second parent (ignore duplicate)
-        const { error: roleErr } = await supabase.from("user_roles").insert({
-          user_id: selectedSecondParent.id,
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent",
+      // Handle second parent through the one shared helper. The primary role and
+      // children are already committed at this point, so a second-parent failure
+      // is reported as a partial success — never swallowed, never a bare "success".
+      let secondParent: SecondParentResult = { status: "skipped", label: null };
+      let secondParentFailure: string | null = null;
+      try {
+        secondParent = await ensureSecondParent({
+          role: selectedRole,
+          selectedProfile: selectedSecondParent,
+          name: secondParentName,
+          email: secondParentEmail,
+          teamId,
+          clubId,
+          teamName,
+          childIds: createdChildIds,
+          childrenMetadata: resolvedChildren.map((child) => ({
+            name: child.name,
+            yearOfBirth: child.yearOfBirth,
+            existingChildId: child.id,
+          })),
+          invitedByUserId: user!.id,
         });
-        if (roleErr && !isDuplicateError(roleErr)) {
-          console.error("Failed to add second parent role:", roleErr.message);
-        }
-
-        // Link all children (existing and newly created) as guardian for second parent
-        for (const childId of createdChildIds) {
-          await supabase.from("child_guardians").insert({
-            child_id: childId,
-            guardian_id: selectedSecondParent.id,
-          }).select().maybeSingle(); // ignore duplicate errors
-        }
-
-        // Send notification
-        await supabase.from("notifications").insert({
-          user_id: selectedSecondParent.id,
-          type: "membership",
-          message: `You have been added to ${teamName} as Parent`,
-          related_id: teamId,
-        });
-
-        secondParentAddedDirectly = true;
-      } else if (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") {
-        // Create pending invite for new second parent
-        const secondToken = crypto.randomUUID();
-        const childrenMetadata = resolvedChildren.length > 0 
-          ? resolvedChildren.map(child => ({ 
-              name: child.name,
-              yearOfBirth: child.yearOfBirth,
-              existingChildId: child.id,
-            }))
-          : null;
-
-        await supabase.from("pending_invites").insert({
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent" as any,
-          invited_user_id: null,
-          invited_by_user_id: user!.id,
-          invited_label: secondParentName.trim(),
-          invited_email: secondParentEmail.trim().toLowerCase(),
-          invite_token: secondToken,
-          metadata: childrenMetadata ? { children: childrenMetadata } : null,
-        } as any);
-
-        secondParentInviteLink = `${window.location.origin}/join/p/${secondToken}`;
+      } catch (err) {
+        console.error("[AddTeamMember] second parent failed", (err as Error)?.message);
+        secondParentFailure = err instanceof SecondParentError ? (err.label ?? "the second parent") : "the second parent";
       }
+      const secondParentInviteLink = secondParent.inviteLink ?? null;
+      const secondParentAddedDirectly = secondParent.status === "added";
+
 
       // Send notification (role is already committed — a failure here is a
       // partial success, not a failed add)
