@@ -72,6 +72,13 @@ const PRESERVE_LOCAL_KEYS = new Set<string>([
   // needs to outlive a user switch (e.g. an install-id).
 ]);
 
+// Prefix allow-list: keys that are already keyed BY user id and represent a
+// permanent "seen once" record. Sweeping them re-shows one-shot coach-marks
+// after every sign-out, which reads as a bug (the user dismissed it already).
+const PRESERVE_LOCAL_PREFIXES = [
+  "ignite_club_switcher_hint_",
+];
+
 const PRESERVE_SESSION_KEYS = new Set<string>([
   // add explicit allow-list entries here if a future `ignite_*` session
   // key is genuinely device-level and should survive a user switch.
@@ -93,6 +100,7 @@ function sweepStorage(
   storage: Storage | undefined | null,
   preserve: Set<string>,
   extraPrefixes: string[] = [],
+  preservePrefixes: string[] = [],
 ): void {
   if (!storage) return;
   try {
@@ -105,6 +113,7 @@ function sweepStorage(
         extraPrefixes.some((prefix) => key.startsWith(prefix));
       if (!matches) continue;
       if (preserve.has(key)) continue;
+      if (preservePrefixes.some((prefix) => key.startsWith(prefix))) continue;
       toRemove.push(key);
     }
     for (const key of toRemove) {
@@ -145,6 +154,7 @@ export function clearUserScopedCaches(): void {
     typeof localStorage !== "undefined" ? localStorage : null,
     PRESERVE_LOCAL_KEYS,
     LEGACY_LOCAL_PREFIXES,
+    PRESERVE_LOCAL_PREFIXES,
   );
 
   // 4. Sweep namespaced sessionStorage entries — same rule as localStorage.
