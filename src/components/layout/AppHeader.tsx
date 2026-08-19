@@ -29,6 +29,11 @@ import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce } from "@/lib/pendingChatJump";
 import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
+import {
+  ClubSwitcherHint,
+  hasSeenClubSwitcherHint,
+  markClubSwitcherHintSeen,
+} from "@/components/layout/ClubSwitcherHint";
 
 // Preload Ignite icon so it's instantly available when switching from club theme
 const preloadedIgniteIcon = new Image();
