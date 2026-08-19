@@ -1059,13 +1059,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
-      // Send second parent email if applicable
-      if (result?.secondParentInviteLink && secondParentEmail.trim()) {
+      // Send second parent email ONLY when the pending_invites row was created.
+      if (result?.secondParentStatus === "invited" && result.secondParentInviteLink && result.secondParentInviteEmail) {
         try {
           const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
           const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
             body: {
-              to: secondParentEmail.trim().toLowerCase(),
+              to: result.secondParentInviteEmail,
               subject: childrenNames.length === 1
                 ? (discoverEmailStyle
                     ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
