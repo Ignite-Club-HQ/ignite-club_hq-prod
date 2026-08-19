@@ -10988,6 +10988,13 @@ export type Database = {
           team_msgs: number
         }[]
       }
+      club_scoped_child_guardians: {
+        Args: { p_child_ids: string[]; p_club_id: string }
+        Returns: {
+          child_id: string
+          guardian_id: string
+        }[]
+      }
       complete_stripe_webhook_event: {
         Args: { p_event_id: string }
         Returns: undefined
@@ -11896,6 +11903,10 @@ export type Database = {
       }
       is_guardian_of_child: {
         Args: { _child_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_guardian_visible_in_club: {
+        Args: { _club_id: string; _guardian_id: string }
         Returns: boolean
       }
       is_league_admin: {
