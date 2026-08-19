@@ -1169,22 +1169,53 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === selectedRole)?.label || selectedRole}`,
             related_id: teamId,
           });
+          // Second parent still goes through the shared helper so it can never
+          // be silently dropped on this branch either.
+          let dedupeSecondParent: SecondParentResult = { status: "skipped", label: null };
+          let dedupeSecondParentFailure: string | null = null;
+          try {
+            dedupeSecondParent = await ensureSecondParent({
+              role: selectedRole,
+              selectedProfile: selectedSecondParent,
+              name: secondParentName,
+              email: secondParentEmail,
+              teamId,
+              clubId,
+              teamName,
+              childrenMetadata: singleChildren
+                .filter((c) => c.name.trim())
+                .map((c) => ({
+                  name: c.name.trim(),
+                  yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+                  existingChildId: c.existingChildId || null,
+                })),
+              invitedByUserId: user!.id,
+            });
+          } catch (err) {
+            console.error("[AddTeamMember] second parent failed", (err as Error)?.message);
+            dedupeSecondParentFailure =
+              err instanceof SecondParentError ? (err.label ?? "the second parent") : "the second parent";
+          }
           return {
             link: "",
             shareLink: "",
             email: "",
             childrenCount: 0,
             childrenNames: [] as string[],
-            secondParentLink: null as string | null,
-            secondParentEmail: "",
-            secondParentName: "",
-            secondParentAddedDirectly: false,
+            secondParentLink: dedupeSecondParent.inviteLink ?? null,
+            secondParentEmail: dedupeSecondParent.email ?? "",
+            secondParentName: dedupeSecondParent.label ?? "",
+            secondParentAddedDirectly: dedupeSecondParent.status === "added",
+            secondParentStatus: dedupeSecondParent.status,
+            secondParentLabel: dedupeSecondParent.label,
+            secondParentFailure: dedupeSecondParentFailure,
             existingUserAdded: {
               name: match.display_name || dedupeEmail,
               notificationFailed: !!notifyErr,
               notificationError: notifyErr?.message ?? null,
             },
           };
+
 
         }
       }
