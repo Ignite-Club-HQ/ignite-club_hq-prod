@@ -159,13 +159,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     if (teamType === "junior") {
       // Junior teams: no adult players
       return !opt.seniorOnly;
-    } else if (teamType === "senior") {
-      // Senior teams: no parents/kids
-      return !opt.juniorOnly;
     }
-    // Mixed: all roles
+    // Senior + mixed: keep Parent available — an adult player on a senior team
+    // may still need a child added/invited to the same team.
     return true;
   });
+
   
   // Get default role based on team type
   const getDefaultRole = (): TeamRole => {
