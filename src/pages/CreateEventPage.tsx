@@ -60,6 +60,11 @@ import {
   CONFLICT_CHECK_ERROR_DESCRIPTION,
   type ConflictCheckResult,
 } from "@/features/events/trainingConflictPolicy";
+import {
+  resolveEventTeamTargeting,
+  shouldClearEventTeamTargets,
+  supportsClubWideEventScope,
+} from "@/features/events/eventTeamTargetingPolicy";
 
 type EventType = "game" | "training" | "social" | "mini_league";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
@@ -155,14 +160,14 @@ export default function CreateEventPage() {
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
   // Types that support a club-wide ("All Club") scope and therefore team targeting.
-  const supportsClubWideScope = type === "game" || type === "social" || type === "training";
+  const supportsClubWideScope = supportsClubWideEventScope(type);
 
   // Clear stale target_team_ids whenever the event moves out of the
   // club-wide window (team picked, unsupported type, club changed).
   useEffect(() => {
     if (
       targetTeamIds !== null &&
-      (teamId || (type !== "game" && type !== "social" && type !== "training"))
+      shouldClearEventTeamTargets(type, teamId)
     ) {
       setTargetTeamIds(null);
     }
@@ -684,7 +689,13 @@ export default function CreateEventPage() {
 
     // Training, games and socials may be club-wide ("All Club") or targeted at
     // a subset of teams. When a subset is chosen it must contain 2+ teams.
-    if (!teamId && targetTeamIds !== null && targetTeamIds.length < 2) {
+    const teamTargeting = resolveEventTeamTargeting({
+      eventType: type,
+      teamId,
+      targetTeamIds,
+      rsvpGrouping,
+    });
+    if (!teamTargeting.valid) {
       toast({
         title: "Select at least 2 teams",
         description:
@@ -832,11 +843,8 @@ export default function CreateEventPage() {
         type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
       adults_only: adultsOnly,
       rsvp_grouping:
-        !teamId && supportsClubWideScope && rsvpGrouping ? rsvpGrouping : null,
-      target_team_ids:
-        !teamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
-          ? targetTeamIds
-          : null,
+        teamTargeting.rsvpGrouping,
+      target_team_ids: teamTargeting.targetTeamIds,
 
     } as any;
 
@@ -1183,6 +1191,7 @@ export default function CreateEventPage() {
                     setClubId(v);
                     setTeamId("");
                     setMiniLeagueId("");
+                    setTargetTeamIds(null);
                   }}
                   options={filteredClubs?.map((club) => ({ value: club.id, label: club.name })) || []}
                   placeholder="Select club"

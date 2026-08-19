@@ -52,6 +52,11 @@ import { EventSponsorSelector } from "@/components/EventSponsorSelector";
 import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
 import { validateEventTeamClubScope } from "@/lib/eventScopeValidation";
 import { SeriesEndDateEditor } from "@/components/event/SeriesEndDateEditor";
+import {
+  resolveEventTeamTargeting,
+  shouldClearEventTeamTargets,
+  supportsClubWideEventScope,
+} from "@/features/events/eventTeamTargetingPolicy";
 
 type EventType = "game" | "training" | "social";
 type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
@@ -131,14 +136,14 @@ export default function EditEventPage() {
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
   // Types that support a club-wide ("All Club") scope and therefore team targeting.
-  const supportsClubWideScope = type === "game" || type === "social" || type === "training";
+  const supportsClubWideScope = supportsClubWideEventScope(type);
 
   // Clear stale target_team_ids whenever the event moves out of the
   // club-wide window. See CreateEventPage for rationale.
   useEffect(() => {
     if (
       targetTeamIds !== null &&
-      (selectedTeamId || (type !== "game" && type !== "social" && type !== "training"))
+      shouldClearEventTeamTargets(type, selectedTeamId)
     ) {
       setTargetTeamIds(null);
     }
@@ -594,7 +599,13 @@ export default function EditEventPage() {
     // Training, games and socials may be club-wide or targeted at a subset of
     // teams. A subset must contain 2+ teams (mirrors the backend trigger).
     const isMiniLeagueEvent = !!(event as any)?.mini_league_id;
-    if (!selectedTeamId && targetTeamIds !== null && targetTeamIds.length < 2) {
+    const teamTargeting = resolveEventTeamTargeting({
+      eventType: type,
+      teamId: selectedTeamId,
+      targetTeamIds,
+      rsvpGrouping,
+    });
+    if (!teamTargeting.valid) {
       toast({
         title: "Select at least 2 teams",
         description:
@@ -697,13 +708,8 @@ export default function EditEventPage() {
           type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
         adults_only: adultsOnly,
         rsvp_grouping:
-          !selectedTeamId && supportsClubWideScope && rsvpGrouping
-            ? rsvpGrouping
-            : null,
-        target_team_ids:
-          !selectedTeamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
-            ? targetTeamIds
-            : null,
+          teamTargeting.rsvpGrouping,
+        target_team_ids: teamTargeting.targetTeamIds,
 
       } as any;
 
@@ -1005,6 +1011,7 @@ export default function EditEventPage() {
                     setSelectedClubId(value);
                     if (value !== selectedClubId) {
                       setSelectedTeamId("");
+                      setTargetTeamIds(null);
                     }
                   }}
                   options={userClubs?.map((club) => ({ value: club.id, label: club.name })) || []}
