@@ -28,6 +28,7 @@ import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDia
 import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users, MoreVertical, AlertCircle } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
+import { useViewerIsAdultPlayer } from "@/hooks/useViewerIsAdultPlayer";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
@@ -42,8 +43,8 @@ import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 import { useEventMembership } from "@/hooks/useEventMembership";
 import {
   resolveRsvpAudience,
-  shouldPromptParent,
   shouldPromptPlayer,
+  shouldPromptSelf,
   type RsvpAudience,
 } from "@/lib/rsvpAudience";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
@@ -220,7 +221,12 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     event.rsvp_audience,
     event.teams?.default_rsvp_audience,
   );
-  const promptParent = shouldPromptParent(audience);
+  const { data: viewerIsAdultPlayer } = useViewerIsAdultPlayer({
+    team_id: event.team_id,
+    club_id: event.club_id,
+    target_team_ids: (event as any).target_team_ids ?? null,
+  });
+  const promptParent = shouldPromptSelf(audience, viewerIsAdultPlayer);
   const promptPlayer = shouldPromptPlayer(audience);
 
   // Fetch full household children (so we can show "Louie needs RSVP" even when no row exists yet)
