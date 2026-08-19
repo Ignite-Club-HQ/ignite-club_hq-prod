@@ -837,7 +837,7 @@ export default function AuthPage() {
                 <h2 className={`font-semibold text-center ${isSignInKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Sign In</h2>
                 {inviteAuthContext && (
                   <CardDescription className="text-center text-primary font-medium">
-                    You're joining {inviteAuthContext.clubName} — {inviteAuthContext.teamName} as a {roleLabels[inviteAuthContext.role] || inviteAuthContext.role}.
+                    {buildInviteBannerText(inviteAuthContext)}
                   </CardDescription>
                 )}
               </CardHeader>
@@ -1033,7 +1033,7 @@ export default function AuthPage() {
                 <h2 className={`font-semibold text-center ${isSignupKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Create Account</h2>
                 {inviteAuthContext && (
                   <CardDescription className="text-center text-primary font-medium">
-                    You're joining {inviteAuthContext.clubName} — {inviteAuthContext.teamName} as a {roleLabels[inviteAuthContext.role] || inviteAuthContext.role}.
+                    {buildInviteBannerText(inviteAuthContext)}
                   </CardDescription>
                 )}
               </CardHeader>
