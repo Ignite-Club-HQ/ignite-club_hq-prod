@@ -80,7 +80,7 @@ import { AttendanceSection } from "@/components/event/AttendanceSection";
 import { useEventGroupMap } from "@/hooks/useEventGroupMap";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
-import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, isParentFirstEvent } from "@/lib/rsvpAudience";
+import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, shouldPromptSelf, isParentFirstEvent } from "@/lib/rsvpAudience";
 import { resolveRsvpChildren, resolveEventChildRoster } from "@/lib/resolveEventChildScope";
 
 
@@ -3206,7 +3206,14 @@ export default function EventDetailPage() {
           (event as any)?.rsvp_audience,
           (event as any)?.teams?.default_rsvp_audience,
         );
-        const promptParent = isMiniLeagueEvent ? true : shouldPromptParent(audience);
+        // Mixed teams: an adult who holds role='player' in this event's scope
+        // is prompted for themselves even on a players_only audience.
+        const viewerIsAdultPlayer = !!user?.id && (
+          (event as any)?.team_id
+            ? !!teamPlayerAdultIds?.has(user.id)
+            : !!clubPlayerAdultIds?.has(user.id)
+        );
+        const promptParent = isMiniLeagueEvent ? true : shouldPromptSelf(audience, viewerIsAdultPlayer);
         const promptPlayer = isMiniLeagueEvent ? true : shouldPromptPlayer(audience);
         const childrenBlock = (!isMiniLeagueEvent && promptPlayer && !hasRestrictedEventRoles && childrenOnTeam && childrenOnTeam.length > 0) ? (() => {
           const unrespondedChildren = childrenOnTeam.filter(
