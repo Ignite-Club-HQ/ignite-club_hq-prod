@@ -833,8 +833,13 @@ export default function AuthPage() {
         <Card className={authCardClassName}>
           {authMode === "signin" ? (
             <>
-              <CardHeader className={isSignInKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'}>
+              <CardHeader className={`${isSignInKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'} gap-1`}>
                 <h2 className={`font-semibold text-center ${isSignInKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Sign In</h2>
+                {inviteAuthContext && (
+                  <CardDescription className="text-center text-primary font-medium">
+                    You're joining {inviteAuthContext.clubName} — {inviteAuthContext.teamName} as a {roleLabels[inviteAuthContext.role] || inviteAuthContext.role}.
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent className={signInCardContentClassName}>
                 {!isSignInKeyboardOpen && (
@@ -1024,8 +1029,13 @@ export default function AuthPage() {
             </>
           ) : (
             <>
-              <CardHeader className={isSignupKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'}>
+              <CardHeader className={`${isSignupKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'} gap-1`}>
                 <h2 className={`font-semibold text-center ${isSignupKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Create Account</h2>
+                {inviteAuthContext && (
+                  <CardDescription className="text-center text-primary font-medium">
+                    You're joining {inviteAuthContext.clubName} — {inviteAuthContext.teamName} as a {roleLabels[inviteAuthContext.role] || inviteAuthContext.role}.
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent className={signupCardContentClassName}>
                 {!isSignupKeyboardOpen && (
