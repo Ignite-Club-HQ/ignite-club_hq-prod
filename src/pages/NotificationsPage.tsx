@@ -190,7 +190,7 @@ const NOTIFICATIONS_PER_PAGE = 30;
 
 export default function NotificationsPage() {
   const { user, refreshUnreadCount, clearUnreadCount } = useAuth();
-  const { activeClubFilter } = useClubTheme();
+  const { activeClubFilter, setActiveClubTheme } = useClubTheme();
   usePageTitle("Notifications");
   const navigate = useNavigate();
   const routerNavigate = navigate;
@@ -287,6 +287,40 @@ export default function NotificationsPage() {
 
   // Paginated display
   const displayedNotifications = notifications?.slice(0, displayCount) || [];
+
+  // Cross-club unread nudge: unread notifications that belong to a DIFFERENT
+  // club than the active filter are invisible here by design. Surface a single
+  // subtle row so multi-club users know they exist. Skipped when viewing
+  // "All clubs" (nothing is hidden then).
+  const { data: otherClubUnread } = useQuery({
+    queryKey: ["notifications-other-clubs-unread", user?.id, activeClubFilter],
+    enabled: !!user?.id && !!activeClubFilter,
+    staleTime: 30000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .eq("is_read", false)
+        .not("club_id", "is", null)
+        .neq("club_id", activeClubFilter!)
+        .limit(500);
+      if (error) throw error;
+
+      const rows = data || [];
+      const clubIds = [...new Set(rows.map((r: any) => r.club_id).filter(Boolean))] as string[];
+      let singleClubName: string | null = null;
+      if (clubIds.length === 1) {
+        const { data: club } = await supabase
+          .from("clubs")
+          .select("name")
+          .eq("id", clubIds[0])
+          .maybeSingle();
+        singleClubName = (club as any)?.name?.trim() || null;
+      }
+      return { count: rows.length, singleClubName };
+    },
+  });
   const hasMore = (notifications?.length || 0) > displayCount;
 
   const loadMore = useCallback(() => {
@@ -1144,6 +1178,20 @@ export default function NotificationsPage() {
           )}
         </div>
       </div>
+
+      {!!activeClubFilter && (otherClubUnread?.count ?? 0) > 0 && (
+        <button
+          type="button"
+          onClick={() => setActiveClubTheme(null)}
+          className="mb-3 flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-left transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="text-xs text-muted-foreground">
+            {otherClubUnread!.count} unread in{" "}
+            {otherClubUnread!.singleClubName ?? "other clubs"}
+          </span>
+          <span className="text-xs font-medium text-primary shrink-0">View all clubs →</span>
+        </button>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">

@@ -29,6 +29,11 @@ import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce } from "@/lib/pendingChatJump";
 import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
+import {
+  ClubSwitcherHint,
+  hasSeenClubSwitcherHint,
+  markClubSwitcherHintSeen,
+} from "@/components/layout/ClubSwitcherHint";
 
 // Preload Ignite icon so it's instantly available when switching from club theme
 const preloadedIgniteIcon = new Image();
@@ -322,6 +327,42 @@ export function AppHeader() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [demoLoginOpen, setDemoLoginOpen] = useState(false);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState(false);
+
+  // Multi-club detection for the one-shot club-switcher coach-mark. Cheap
+  // (two id-only role reads, 5 min staleTime) and skipped entirely once the
+  // hint has already been seen on this device for this user.
+  const hintAlreadySeen = user?.id ? hasSeenClubSwitcherHint(user.id) : true;
+  const { data: userClubCount = 0 } = useQuery({
+    queryKey: ["user-club-count-for-switcher-hint", user?.id],
+    enabled: !!user?.id && !hintAlreadySeen,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      if (!user?.id) return 0;
+      const [clubRoles, teamRoles] = await Promise.all([
+        supabase.from("user_roles").select("club_id").eq("user_id", user.id).not("club_id", "is", null),
+        supabase
+          .from("user_roles")
+          .select("team_id, teams!inner(club_id)")
+          .eq("user_id", user.id)
+          .not("team_id", "is", null),
+      ]);
+      const ids = new Set<string>();
+      (clubRoles.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
+      (teamRoles.data || []).forEach((r: any) => {
+        const clubId = r.teams?.club_id;
+        if (clubId) ids.add(clubId);
+      });
+      return ids.size;
+    },
+  });
+
+  const dismissClubSwitcherHint = () => {
+    if (hintDismissed) return;
+    setHintDismissed(true);
+    if (user?.id) markClubSwitcherHintSeen(user.id);
+  };
+  
   
   // Handle theme toggle with save to profile
   const handleThemeToggle = async () => {
@@ -1063,9 +1104,10 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
-        <DropdownMenu>
+        <div className="relative">
+        <DropdownMenu onOpenChange={(open) => { if (open) dismissClubSwitcherHint(); }}>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2.5 px-1.5 py-1 -ml-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
+            <button onPointerDown={dismissClubSwitcherHint} className="flex items-center gap-2.5 px-1.5 py-1 -ml-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
               {shouldShowClubTheming ? (
                 <>
                   {showClubLogo ? (
@@ -1168,6 +1210,14 @@ export function AppHeader() {
           </DropdownMenuTrigger>
           <LogoClubThemeDropdown />
         </DropdownMenu>
+        {user?.id && !hintDismissed && (
+          <ClubSwitcherHint
+            userId={user.id}
+            enabled={userClubCount > 1}
+            onDismiss={() => setHintDismissed(true)}
+          />
+        )}
+        </div>
 
         <div className="flex items-center gap-4">
           <DropdownMenu open={notificationsOpen} onOpenChange={(open) => {
