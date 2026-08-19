@@ -283,6 +283,86 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // default — otherwise the sheet renders an empty body.
   const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
 
+  // Derived list of named children for the single-invite parent flow
+  const validSingleChildren = singleChildren.filter((c) => c.name.trim());
+
+  // Review summary helper shared by the new-member and existing-user parent flows
+  interface ParentReviewSummaryProps {
+    parentName: string;
+    roleLabel: string;
+    teamName: string;
+    children: BulkChild[];
+    secondParent?:
+      | { display_name?: string | null; name?: string; email?: string }
+      | null;
+  }
+
+  function ParentReviewSummary({
+    parentName,
+    roleLabel,
+    teamName,
+    children,
+    secondParent,
+  }: ParentReviewSummaryProps) {
+    const namedChildren = children.filter((c) => c.name.trim());
+    return (
+      <div className="space-y-3">
+        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">{parentName}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Badge variant="outline" className="text-xs">
+              {roleLabel}
+            </Badge>
+            <span>• {teamName}</span>
+          </div>
+        </div>
+
+        {namedChildren.length > 0 && (
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Baby className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">
+                {namedChildren.length === 1 ? "Child" : "Children"}
+              </span>
+            </div>
+            <div className="space-y-1">
+              {namedChildren.map((child) => (
+                <div
+                  key={child.id}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="text-sm">{child.name.trim()}</span>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                    {child.yearOfBirth && <span>Born {child.yearOfBirth}</span>}
+                    {child.jerseyNumber && (
+                      <span>Jersey #{child.jerseyNumber}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {secondParent && (
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Second Parent / Guardian</span>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {secondParent.display_name || secondParent.name || "Second parent / guardian"}
+              {secondParent.email ? ` · ${secondParent.email}` : null}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Reset to the chooser each time the sheet is opened.
   useEffect(() => {
     if (open) {
@@ -2605,6 +2685,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Pencil className="h-2.5 w-2.5 shrink-0" />
                   </button>
                 )}
+                {wizardStep === 3 && selectedRole === "parent" && validSingleChildren.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep(2)}
+                    className="inline-flex items-center gap-1.5 max-w-full rounded-full border border-border bg-muted/50 hover:bg-muted px-2 py-1 text-xs transition-colors"
+                    aria-label="Edit children"
+                  >
+                    <Baby className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="font-medium truncate">
+                      {validSingleChildren.map((c) => c.name.trim()).join(", ")}
+                    </span>
+                    <Pencil className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
               </div>
             )}
 
@@ -2857,6 +2951,38 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     className="pl-10"
                   />
                 </div>
+              </div>
+            )}
+
+            {/* STEP 3 (existing user, parent role): review children before adding */}
+            {wizardStep === 3 && selectedUser && selectedRole === "parent" && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Review</h3>
+
+                <ParentReviewSummary
+                  parentName={selectedUser.display_name || "Unknown"}
+                  roleLabel={
+                    roleOptions.find((r) => r.value === selectedRole)?.label || selectedRole
+                  }
+                  teamName={teamName}
+                  children={singleChildren}
+                  secondParent={
+                    selectedSecondParent ||
+                    (secondParentName.trim() || secondParentEmail.trim()
+                      ? { name: secondParentName, email: secondParentEmail }
+                      : null)
+                  }
+                />
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-11"
+                  onClick={() => setWizardStep(2)}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit children
+                </Button>
               </div>
             )}
 
@@ -4031,6 +4157,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
             const handleSubmit = () => {
               if (submitNeedsEmail || submitInvalidEmail || secondParentBlocked) return;
+              if (selectedRole === "parent" && !singleChildren.some((c) => c.name.trim())) {
+                toast({
+                  title: "Add at least one child before adding this parent.",
+                  variant: "destructive",
+                });
+                return;
+              }
               if (selectedUser) addExistingUserMutation.mutate();
               else addPendingMemberMutation.mutate();
             };
