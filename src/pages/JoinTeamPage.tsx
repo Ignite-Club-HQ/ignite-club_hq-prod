@@ -125,6 +125,30 @@ export default function JoinTeamPage() {
     staleTime: 0,
   });
 
+  /**
+   * Silent check: does the invited email already have an Ignite account?
+   * Token-gated RPC (no email enumeration — the caller must already hold a
+   * valid invite token). Never blocks render; failures fall back to the
+   * default "Create account" behaviour.
+   */
+  const { data: invitedEmailHasAccount } = useQuery({
+    queryKey: ["invite-email-has-account", token],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("invite_token_has_existing_account", {
+        _token: token!,
+      });
+      if (error) {
+        console.warn("[JoinTeam] existing-account check failed", error.message);
+        return false;
+      }
+      return data === true;
+    },
+    enabled: !!token && isPendingInvite && !user,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+
   // Fetch team invite details using secure RPC function (for regular invites)
   const { data: teamInvite, isLoading: teamInviteLoading, error: teamInviteError } = useQuery({
     queryKey: ["team-invite", token],
@@ -1708,9 +1732,12 @@ export default function JoinTeamPage() {
               </p>
               {!user && (
                 <p className="text-xs text-muted-foreground">
-                  Create an account to join as {pendingInviteData.invited_label}
+                  {invitedEmailHasAccount
+                    ? `Sign in to join as ${pendingInviteData.invited_label}`
+                    : `Create an account to join as ${pendingInviteData.invited_label}`}
                 </p>
               )}
+
             </div>
           )}
         </CardHeader>
@@ -1739,22 +1766,49 @@ export default function JoinTeamPage() {
 
           {!user ? (
             <div className="space-y-3">
-              <Button
-                onClick={handleCreateAccountClick}
-                className="w-full"
-                size="lg"
-              >
-                Create account to join
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleSignInClick}
-                className="w-full"
-                size="lg"
-              >
-                Already have an account? Sign in
-              </Button>
+              {invitedEmailHasAccount && pendingInviteData?.invited_email && (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <UserCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <p className="text-sm text-muted-foreground">
+                    We found an existing Ignite account for{" "}
+                    <span className="font-medium text-foreground break-all">
+                      {pendingInviteData.invited_email}
+                    </span>
+                    . Sign in to accept this invite.
+                  </p>
+                </div>
+              )}
+              {invitedEmailHasAccount ? (
+                <>
+                  <Button onClick={handleSignInClick} className="w-full" size="lg">
+                    Sign in to join
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleCreateAccountClick}
+                    className="w-full"
+                    size="lg"
+                  >
+                    Create a new account instead
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={handleCreateAccountClick} className="w-full" size="lg">
+                    Create account to join
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleSignInClick}
+                    className="w-full"
+                    size="lg"
+                  >
+                    Already have an account? Sign in
+                  </Button>
+                </>
+              )}
             </div>
+
           ) : (
             <Button
               onClick={handleJoinClick}
