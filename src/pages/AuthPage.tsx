@@ -64,6 +64,58 @@ const signupPasswordSchema = z.string()
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
   .regex(/[a-z]/, "Password must contain at least one lowercase letter")
   .regex(/[0-9]/, "Password must contain at least one number");
+
+// Invite metadata stored by the invite page so the auth page can show a banner
+// and pre-fill the invited email. This lives in sessionStorage, not localStorage,
+// so it is scoped to the current invite hand-off.
+const INVITE_AUTH_CONTEXT_KEY = "inviteAuthContext";
+
+type AppRole = Database["public"]["Enums"]["app_role"];
+
+const roleLabels: Record<AppRole, string> = {
+  basic_user: "Basic User",
+  club_admin: "Club Admin",
+  team_admin: "Team Admin",
+  coach: "Coach",
+  player: "Player",
+  parent: "Parent",
+  app_admin: "App Admin",
+  league_admin: "League Admin",
+  committee_member: "Committee Member",
+  association_admin: "Association Admin",
+  competition_admin: "Competition Admin",
+};
+
+function readInviteAuthContext(): {
+  clubName: string | null;
+  teamName: string | null;
+  invitedEmail: string | null;
+  roleLabel: string | null;
+} | null {
+  const raw = safeSessionGet(INVITE_AUTH_CONTEXT_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      clubName: typeof parsed.clubName === "string" ? parsed.clubName : null,
+      teamName: typeof parsed.teamName === "string" ? parsed.teamName : null,
+      invitedEmail: typeof parsed.invitedEmail === "string" ? parsed.invitedEmail : null,
+      roleLabel: typeof parsed.roleLabel === "string" ? parsed.roleLabel : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildInviteBannerText(context: NonNullable<ReturnType<typeof readInviteAuthContext>>): string {
+  const parts: string[] = [];
+  if (context.clubName) parts.push(context.clubName);
+  if (context.teamName) parts.push(context.teamName);
+  const scope = parts.join(" — ");
+  const role = context.roleLabel || "member";
+  return scope ? `You're joining ${scope} as a ${role}.` : `You're joining as a ${role}.`;
+}
+
 /**
  * Sanitize a stored `redirectAfterAuth` value. Only permit same-origin,
  * single-slash-prefixed paths. Rejects external URLs (`https://…`,
