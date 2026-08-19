@@ -2685,6 +2685,20 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Pencil className="h-2.5 w-2.5 shrink-0" />
                   </button>
                 )}
+                {wizardStep === 3 && selectedRole === "parent" && validSingleChildren.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep(2)}
+                    className="inline-flex items-center gap-1.5 max-w-full rounded-full border border-border bg-muted/50 hover:bg-muted px-2 py-1 text-xs transition-colors"
+                    aria-label="Edit children"
+                  >
+                    <Baby className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="font-medium truncate">
+                      {validSingleChildren.map((c) => c.name.trim()).join(", ")}
+                    </span>
+                    <Pencil className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                  </button>
+                )}
               </div>
             )}
 
