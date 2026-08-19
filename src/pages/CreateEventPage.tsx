@@ -934,7 +934,7 @@ export default function CreateEventPage() {
         if (!title.trim()) missingFields.push("Event title");
         if (!clubId) missingFields.push("Club selection");
         if (!eventDateTime) missingFields.push("Date and time");
-        if ((type === "game" || type === "training") && !teamId) missingFields.push("Team selection");
+        if (!teamId && targetTeamIds !== null && targetTeamIds.length < 2) missingFields.push("Team selection");
         
         if (missingFields.length > 0) {
           errorDescription = `Missing required fields: ${missingFields.join(", ")}`;
