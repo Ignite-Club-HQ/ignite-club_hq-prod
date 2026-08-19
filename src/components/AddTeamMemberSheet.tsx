@@ -501,13 +501,27 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       if (debouncedNameInput.length < 2) return [];
       const { data: invites } = await supabase
         .from("pending_invites")
-        .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
+        .select("id, invited_label, invited_email, invited_user_id, metadata, team_id, role")
         .eq("club_id", clubId)
         .eq("status", "pending")
         .ilike("invited_label", `%${debouncedNameInput}%`)
         .limit(12);
       
       if (!invites?.length) return [];
+
+      // Resolve team names so team-scoped invites can show their actual scope
+      const teamIds = Array.from(new Set(invites.filter(i => i.team_id).map(i => i.team_id!)));
+      const teamNameById: Record<string, string> = {};
+      if (teamIds.length > 0 && clubId) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("id, name")
+          .in("id", teamIds)
+          .eq("club_id", clubId);
+        for (const t of teams || []) {
+          teamNameById[t.id] = t.name;
+        }
+      }
       
       // For invites that have an invited_user_id, fetch profile data
       const userIds = invites.filter(i => i.invited_user_id).map(i => i.invited_user_id!);
@@ -520,18 +534,25 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
       
-      return invites.map(invite => ({
-        id: invite.invited_user_id || `pending-${invite.id}`,
-        display_name: invite.invited_user_id 
-          ? (profileMap.get(invite.invited_user_id)?.display_name || invite.invited_label)
-          : invite.invited_label,
-        avatar_url: invite.invited_user_id 
-          ? (profileMap.get(invite.invited_user_id)?.avatar_url || null) 
-          : null,
-        invited_email: invite.invited_email,
-        isPendingInvite: true,
-        pendingInviteId: invite.id,
-      }));
+      return invites.map(invite => {
+        const teamName = invite.team_id ? teamNameById[invite.team_id] || null : null;
+        return {
+          id: invite.invited_user_id || `pending-${invite.id}`,
+          display_name: invite.invited_user_id 
+            ? (profileMap.get(invite.invited_user_id)?.display_name || invite.invited_label)
+            : invite.invited_label,
+          avatar_url: invite.invited_user_id 
+            ? (profileMap.get(invite.invited_user_id)?.avatar_url || null) 
+            : null,
+          invited_email: invite.invited_email,
+          isPendingInvite: true,
+          pendingInviteId: invite.id,
+          role: invite.role,
+          teamId: invite.team_id,
+          teamName,
+          childName: getPendingInviteChildName(invite.metadata),
+        };
+      });
     },
     enabled: debouncedNameInput.length >= 2,
   });
