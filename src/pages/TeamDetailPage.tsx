@@ -470,6 +470,31 @@ export default function TeamDetailPage() {
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
   }, [rawMembers, team?.clubs?.bot_user_id]);
 
+  /**
+   * Adult members whose primary role is "player". Used purely for presentation:
+   * child players and adult players are shown under one combined "Players (N)"
+   * heading so the roster reads as a single squad list.
+   */
+  const adultPlayerCount = useMemo(() => {
+    const priority = ["player", "parent", "coach", "team_admin", "club_admin", "app_admin", "basic_user"];
+    let count = 0;
+    for (const member of Object.values(members)) {
+      let primaryRole = "basic_user";
+      let best = Infinity;
+      for (const r of member.roles || []) {
+        const idx = priority.indexOf(r.role);
+        if (idx !== -1 && idx < best) {
+          best = idx;
+          primaryRole = r.role;
+        }
+      }
+      if (primaryRole === "player") count++;
+    }
+    return count;
+  }, [members]);
+
+
+
   // When the pitch board is opened in the context of a match (linkedEventId
   // set by the "nearby game" detection), restrict the roster to players whose
   // RSVP for that event is "going". Adults (staff) are always retained so they
@@ -1721,12 +1746,13 @@ export default function TeamDetailPage() {
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     )}
-                    {/* Children/Players Section - shown first */}
+                    {/* Combined Players section — child players first, adult players
+                        continue directly below under the same heading. */}
                     {(teamChildren.length > 0 || pendingInvites.some(inv => {
                       const meta = inv.metadata as { children?: { name: string }[] } | null;
                       return meta?.children && meta.children.length > 0;
                     })) && (memberRoleFilter === "all" || memberRoleFilter === "child") && (
-                      <div className="mb-6 pb-4 border-b">
+                      <div className={adultPlayerCount > 0 ? "mb-2" : "mb-6 pb-4 border-b"}>
                         <div className="flex items-center justify-between mb-3">
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                             Players ({(() => {
@@ -1747,8 +1773,9 @@ export default function TeamDetailPage() {
                                 }
                                 return seen.size;
                               })();
-                              return teamChildren.length + pendingOnlyCount;
+                              return teamChildren.length + pendingOnlyCount + adultPlayerCount;
                             })()})
+
                           </p>
                           {(isAdmin || isClubAdmin) && (
                             <Button
@@ -1993,9 +2020,19 @@ export default function TeamDetailPage() {
 
                     {/* Role-grouped members with headers */}
                     {(() => {
+                      // True when the child-players block above is on screen — the
+                      // adult "player" group then continues it without its own header.
+                      const childBlockShown =
+                        (teamChildren.length > 0 ||
+                          pendingInvites.some((inv) => {
+                            const meta = inv.metadata as { children?: { name: string }[] } | null;
+                            return !!meta?.children && meta.children.length > 0;
+                          })) &&
+                        (memberRoleFilter === "all" || memberRoleFilter === "child");
                       const filteredMembers = Object.entries(members).filter(([_, member]) =>
                         memberRoleFilter === "all" || memberRoleFilter === "child" ? memberRoleFilter === "all" : member.roles?.some(r => r.role === memberRoleFilter)
                       );
+
                       const roleOrder = ["player", "parent", "team_admin", "club_admin", "app_admin", "basic_user"] as const;
                       const roleGroupLabels: Record<string, string> = {
                         player: "Players",
@@ -2053,9 +2090,14 @@ export default function TeamDetailPage() {
                         const rolePending = pendingByRole[role] || [];
                         if (roleMembers.length === 0 && rolePending.length === 0) return null;
 
+                        const mergeWithChildren = role === "player" && childBlockShown;
+
                         return (
                           <div key={role} className="mb-3 pb-3 border-b last:border-b-0 last:mb-0 last:pb-0">
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{roleGroupLabels[role] || role}</p>
+                            {!mergeWithChildren && (
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">{roleGroupLabels[role] || role}</p>
+                            )}
+
                             <div className="space-y-2">
                               {roleMembers.map(([userId, member]) => {
                                 const canManage = (isAdmin || isClubAdmin) && userId !== user?.id;
