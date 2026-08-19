@@ -1179,6 +1179,20 @@ export default function NotificationsPage() {
         </div>
       </div>
 
+      {!!activeClubFilter && (otherClubUnread?.count ?? 0) > 0 && (
+        <button
+          type="button"
+          onClick={() => setActiveClubTheme(null)}
+          className="mb-3 flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-left transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="text-xs text-muted-foreground">
+            {otherClubUnread!.count} unread in{" "}
+            {otherClubUnread!.singleClubName ?? "other clubs"}
+          </span>
+          <span className="text-xs font-medium text-primary shrink-0">View all clubs →</span>
+        </button>
+      )}
+
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
