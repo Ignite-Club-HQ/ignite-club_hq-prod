@@ -2954,6 +2954,38 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </div>
             )}
 
+            {/* STEP 3 (existing user, parent role): review children before adding */}
+            {wizardStep === 3 && selectedUser && selectedRole === "parent" && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Review</h3>
+
+                <ParentReviewSummary
+                  parentName={selectedUser.display_name || "Unknown"}
+                  roleLabel={
+                    roleOptions.find((r) => r.value === selectedRole)?.label || selectedRole
+                  }
+                  teamName={teamName}
+                  children={singleChildren}
+                  secondParent={
+                    selectedSecondParent ||
+                    (secondParentName.trim() || secondParentEmail.trim()
+                      ? { name: secondParentName, email: secondParentEmail }
+                      : null)
+                  }
+                />
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-11"
+                  onClick={() => setWizardStep(2)}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit children
+                </Button>
+              </div>
+            )}
+
             {/* STEP 2 (existing user, parent role): child fields + second guardian */}
             {wizardStep === 2 && selectedUser && selectedRole === "parent" && (
               <>
