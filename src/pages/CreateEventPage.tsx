@@ -151,19 +151,23 @@ export default function CreateEventPage() {
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
   const [adultsOnly, setAdultsOnly] = useState(false);
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
-  // Subset targeting for club-wide games/socials: null = all club, [...] = only those teams
+  // Subset targeting for club-wide games/socials/trainings: null = all club, [...] = only those teams
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
+  // Types that support a club-wide ("All Club") scope and therefore team targeting.
+  const supportsClubWideScope = type === "game" || type === "social" || type === "training";
+
   // Clear stale target_team_ids whenever the event moves out of the
-  // "club-wide game/social" window (team picked, unsupported type, club
-  // changed). Prevents a stale UUID subset from being submitted after the
-  // relationship changes — the backend validation trigger would reject it
-  // anyway, but clearing gives a clean UX.
+  // club-wide window (team picked, unsupported type, club changed).
   useEffect(() => {
-    if (targetTeamIds !== null && (teamId || (type !== "game" && type !== "social"))) {
+    if (
+      targetTeamIds !== null &&
+      (teamId || (type !== "game" && type !== "social" && type !== "training"))
+    ) {
       setTargetTeamIds(null);
     }
   }, [teamId, type, clubId, targetTeamIds]);
+
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
