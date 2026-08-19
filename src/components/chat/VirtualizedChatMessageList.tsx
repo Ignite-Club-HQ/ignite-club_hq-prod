@@ -1435,11 +1435,31 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // 2.2 s jump tail onto a fresh 6.5 s settle wait (re-armed every 80 ms),
       // which left a correctly aligned thread masked for many seconds.
       const JUMP_REVEAL_FAILSAFE_MS = 4000;
-      const finish = () => {
-        if (cancelled) return;
-        cancelled = true;
+      // This gate owns the exact-DOM correction for this target; the overlay
+      // gate defers to it so only ONE alignment authority writes scrollTop.
+      jumpAlignOwnedByContentGateRef.current = initialTargetMessageId;
+      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      const reveal = () => {
         cleanup?.();
         revealFrame = requestAnimationFrame(() => setInitialRevealReady(true));
+      };
+      const finish = () => {
+        if (cancelled) return;
+        // Do not unmask while the composer inset is still settling — the
+        // in-flow Virtuoso footer height changes with it and would move the
+        // just-revealed target row. Bounded by the same lifecycle budget.
+        const elapsed = (typeof performance !== "undefined" ? performance.now() : Date.now()) - startedAt;
+        if (!bottomPaddingQuiet(180) && elapsed < JUMP_REVEAL_FAILSAFE_MS) {
+          revealFrame = requestAnimationFrame(() => {
+            if (cancelled) return;
+            alignMessageIdInView(initialTargetMessageId, "end");
+            finish();
+          });
+          return;
+        }
+        cancelled = true;
+        jumpAlignOwnedByContentGateRef.current = null;
+        reveal();
       };
       const wait = () => {
         if (cancelled) return;
@@ -1452,7 +1472,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           scroller,
           {
             targetMessageId: initialTargetMessageId,
-            usableBottomInsetPx: getChatBottomPaddingOffset(bottomPadding),
+            usableBottomInsetPx: getChatBottomPaddingOffset(bottomPaddingRef.current),
             quietMs: 240,
             budgetMs: Math.max(
               600,
@@ -1466,9 +1486,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       wait();
       return () => {
         cancelled = true;
+        if (jumpAlignOwnedByContentGateRef.current === initialTargetMessageId) {
+          jumpAlignOwnedByContentGateRef.current = null;
+        }
         cleanup?.();
         if (revealFrame !== null) cancelAnimationFrame(revealFrame);
       };
+
     }
 
 
