@@ -2830,9 +2830,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         </Avatar>
                         <div className="flex flex-col min-w-0">
                           <span className="text-sm font-medium truncate">{result.display_name || "Unknown"}</span>
+                          {existingMembers?.includes(result.id) && (
+                            <span className="text-[11px] text-muted-foreground truncate">
+                              Already on this team — pick to add a child
+                            </span>
+                          )}
                           {identityMap[result.id]?.contextLine && (
                             <span className="text-xs text-muted-foreground truncate">{identityMap[result.id].contextLine}</span>
                           )}
+
                           {(result as any).masked_email && (
                             <span className="text-[11px] text-muted-foreground/70 truncate">{(result as any).masked_email}</span>
                           )}
