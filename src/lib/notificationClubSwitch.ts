@@ -20,12 +20,22 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { getJumpTarget, type ChatJumpKind } from "@/lib/pendingChatJump";
+import { resolveRouteClubScope } from "@/lib/routeClubScope";
 
 const SS_KEY = "ignite_pending_notification_club_switch";
 const APPLIED_KEY = "ignite_notification_club_switch_applied";
+/**
+ * Short-TTL "switch in flight" marker. `APPLIED_KEY` is only written after
+ * membership verification (up to 4 round trips), but navigation happens
+ * immediately — so `useClubScopeGuard` could bounce a legitimate cross-club
+ * notification target home before the switch landed. This marker closes that
+ * window.
+ */
+const INFLIGHT_KEY = "ignite_notification_club_switch_inflight";
 const EVENT = "ignite:notification-club-switch";
 /** Stale pending switches must never hijack a later, unrelated session. */
 const TTL_MS = 120_000;
+const INFLIGHT_TTL_MS = 30_000;
 
 interface PendingSwitch {
   clubId: string;
@@ -35,6 +45,39 @@ interface PendingSwitch {
 export function clearPendingNotificationClubSwitch(): void {
   try { sessionStorage.removeItem(SS_KEY); } catch { /* noop */ }
 }
+
+function markNotificationClubSwitchInFlight(clubId: string): void {
+  try {
+    sessionStorage.setItem(INFLIGHT_KEY, JSON.stringify({ clubId, ts: Date.now() } satisfies PendingSwitch));
+  } catch { /* noop */ }
+}
+
+export function clearNotificationClubSwitchInFlight(): void {
+  try { sessionStorage.removeItem(INFLIGHT_KEY); } catch { /* noop */ }
+}
+
+/**
+ * True when a notification-driven switch to `clubId` was requested and has not
+ * finished reconciling yet. Consumed by `useClubScopeGuard` so it never bounces
+ * a route whose club is about to become active.
+ */
+export function isNotificationClubSwitchInFlight(clubId: string | null | undefined): boolean {
+  if (!clubId) return false;
+  try {
+    const raw = sessionStorage.getItem(INFLIGHT_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as PendingSwitch;
+    if (!parsed?.clubId) return false;
+    if (Date.now() - parsed.ts > INFLIGHT_TTL_MS) {
+      clearNotificationClubSwitchInFlight();
+      return false;
+    }
+    return parsed.clubId === clubId;
+  } catch {
+    return false;
+  }
+}
+
 
 /**
  * Records that a notification-driven club switch has been APPLIED.
@@ -99,10 +142,14 @@ export function consumePendingNotificationClubSwitch(): string | null {
 function stash(clubId: string) {
   const payload: PendingSwitch = { clubId, ts: Date.now() };
   try { sessionStorage.setItem(SS_KEY, JSON.stringify(payload)); } catch { /* noop */ }
+  // Guard the route immediately: the club is not active yet (membership check
+  // still pending) but the user is already navigating into its content.
+  markNotificationClubSwitchInFlight(clubId);
   try {
     window.dispatchEvent(new CustomEvent(EVENT, { detail: payload }));
   } catch { /* noop */ }
 }
+
 
 export function subscribeNotificationClubSwitch(handler: (clubId: string) => void): () => void {
   if (typeof window === "undefined") return () => {};
@@ -115,12 +162,66 @@ export function subscribeNotificationClubSwitch(handler: (clubId: string) => voi
 }
 
 /**
+ * Resolves the owning club for a NON-chat notification url (`/events/:id`,
+ * `/teams/:id`, `/clubs/:id`, `/mini-leagues/:id`, `/media?photo=…`, …).
+ *
+ * Push senders overwhelmingly omit `club_id` from the payload for these types,
+ * and `getJumpTarget` only understands chat urls — so without this the filter
+ * stayed on the previously selected club and `useClubScopeGuard` bounced the
+ * user home. Resolution mirrors `useClubScopeGuard` exactly (same tables, same
+ * fail-open behaviour) so the two can never disagree.
+ */
+async function resolveClubIdFromUrl(url: string | null | undefined): Promise<string | null> {
+  if (!url) return null;
+  let pathname = url;
+  let search = "";
+  try {
+    const parsed = new URL(url, "https://app.local");
+    pathname = parsed.pathname;
+    search = parsed.search;
+  } catch {
+    const qIdx = url.indexOf("?");
+    if (qIdx >= 0) {
+      pathname = url.slice(0, qIdx);
+      search = url.slice(qIdx);
+    }
+  }
+
+  // /media?photo=<id> — resolve through the photo row (club or its team).
+  if (pathname.startsWith("/media")) {
+    const photoId = new URLSearchParams(search).get("photo");
+    if (!photoId) return null;
+    const { data, error } = await (supabase as any)
+      .from("photos").select("club_id, team_id").eq("id", photoId).maybeSingle();
+    if (error || !data) return null;
+    if (data.club_id) return data.club_id as string;
+    if (data.team_id) {
+      const { data: team } = await supabase
+        .from("teams").select("club_id").eq("id", data.team_id).maybeSingle();
+      return (team as any)?.club_id ?? null;
+    }
+    return null;
+  }
+
+  const scope = resolveRouteClubScope(pathname);
+  if (scope.kind === "direct") return scope.clubId;
+  if (scope.kind === "lookup") {
+    const { data, error } = await (supabase as any)
+      .from(scope.table).select("club_id").eq("id", scope.id).maybeSingle();
+    if (error) return null;
+    return (data?.club_id as string | null) ?? null;
+  }
+  return null;
+}
+
+/**
  * Resolves the owning club id for a tapped notification.
  *
  * Order of trust:
  *  1. Explicit `club_id` on the push payload (set by the senders).
  *  2. The chat jump target (team / group / club-admin conversation) resolved
  *     through an RLS-scoped lookup.
+ *  3. The notification url itself (events, teams, clubs, media, …).
  *
  * Returns `null` when the club can't be determined — callers must then leave
  * the current filter untouched rather than guess.
@@ -161,7 +262,22 @@ export async function resolveNotificationClubId(
       return (convo as any)?.club_id ?? null;
     }
 
-    // dm / broadcast are not club-scoped.
+    // dm / broadcast are not club-scoped — but a DM url never reaches here with
+    // a club-scoped path, so the url fallback is safe for everything else.
+    if (kind === "dm" || kind === "broadcast") return null;
+
+    // Non-chat notifications (events, media, teams, clubs, rewards, invites …).
+    const fromUrl = await resolveClubIdFromUrl(url);
+    if (fromUrl) return fromUrl;
+
+    // Last resort: a team id on the payload.
+    const payloadTeamId = data?.team_id || data?.teamId;
+    if (payloadTeamId && typeof payloadTeamId === "string") {
+      const { data: team } = await supabase
+        .from("teams").select("club_id").eq("id", payloadTeamId).maybeSingle();
+      return (team as any)?.club_id ?? null;
+    }
+
     return null;
   } catch (err) {
     console.warn("[NotificationClubSwitch] resolve failed", err);
@@ -179,6 +295,28 @@ export function requestClubSwitchForNotification(data: any, url: string | null |
     if (clubId) stash(clubId);
   });
 }
+
+/**
+ * In-app (bell) tap entry point for a notification whose owning club is already
+ * known or resolvable from its url. Bounded so navigation is never delayed for
+ * long; a slow lookup still stashes and is drained by
+ * `useNotificationClubSwitch`.
+ */
+export async function requestClubSwitchForNotificationUrl(
+  data: any,
+  url: string | null | undefined,
+  timeoutMs = 600,
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  const resolving = resolveNotificationClubId(data, url).then((clubId) => {
+    if (clubId) stash(clubId);
+  });
+  await Promise.race([
+    resolving,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
 
 /**
  * Resolve the owning club for an already-resolved chat target (in-app

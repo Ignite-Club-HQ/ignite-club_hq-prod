@@ -12141,10 +12141,9 @@ export type Database = {
           team_name: string
         }[]
       }
-      provision_invite_children: {
-        Args: { p_invite_id: string }
-        Returns: Json
-      }
+      provision_invite_children:
+        | { Args: { _guardian_id: string; _invite_id: string }; Returns: Json }
+        | { Args: { p_invite_id: string }; Returns: Json }
       prune_active_games_write_log: { Args: never; Returns: undefined }
       prune_old_diagnostic_logs: {
         Args: never
@@ -12304,7 +12303,7 @@ export type Database = {
         }[]
       }
       search_invitable_profiles: {
-        Args: { _limit?: number; _query: string }
+        Args: { _club_id?: string; _limit?: number; _query: string }
         Returns: {
           avatar_url: string
           display_name: string

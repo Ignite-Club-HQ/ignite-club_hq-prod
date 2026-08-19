@@ -244,11 +244,12 @@ test("messages inbox exposes the button that starts a new direct-message flow", 
   const newMessage = page.getByRole("button", { name: "New message" });
   await expect(newMessage).toBeVisible({ timeout: 15_000 });
   await newMessage.click();
-  const newDm = page.getByRole("button", { name: /New Direct Message/ });
+  const newDm = page.getByRole("button", { name: /New Message Select one or more people/ });
   await expect(newDm).toBeVisible();
   await newDm.click();
-  await expect(page.getByRole("heading", { name: /New Direct Message/ })).toBeVisible();
-  await expect(page.getByText("Pick one person to chat 1:1, or several to start a quick group")).toBeVisible();
+  const dmDialog = page.getByRole("dialog", { name: /New Message/ });
+  await expect(dmDialog.getByRole("heading", { name: "New Message" })).toBeVisible();
+  await expect(dmDialog.getByText("Select one or more people")).toBeVisible();
 });
 
 test("an all-club-admin inbox preview opens the same non-blank message thread", async ({ page }) => {

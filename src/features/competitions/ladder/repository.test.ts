@@ -18,9 +18,10 @@ function queryBuilder(table: string) {
     eq: BuilderMethod;
     order: BuilderMethod;
     in: BuilderMethod;
+    is: BuilderMethod;
   };
   const builder = {} as TestBuilder;
-  for (const method of ["select", "eq", "order", "in"] as const) {
+  for (const method of ["select", "eq", "order", "in", "is"] as const) {
     builder[method] = vi.fn((...args: unknown[]) => {
       mocks.calls.push({ table, method, args });
       return builder;
@@ -47,7 +48,7 @@ describe("competition ladder repository", () => {
       error: null,
     });
     mocks.responses.set("competition_entries", {
-      data: [{ team_id: "team-2", division_id: null, status: "accepted" }],
+      data: [{ team_id: "team-2", division_id: null, status: "accepted", teams: { deleted_at: null } }],
       error: null,
     });
     mocks.responses.set("teams", {
@@ -67,9 +68,10 @@ describe("competition ladder repository", () => {
       { table: "competition_ladder", method: "order", args: ["points", { ascending: false }] },
       { table: "competition_ladder", method: "order", args: ["goal_diff", { ascending: false }] },
       { table: "competition_ladder", method: "order", args: ["goals_for", { ascending: false }] },
-      { table: "competition_entries", method: "select", args: ["team_id, division_id, status"] },
+      { table: "competition_entries", method: "select", args: ["team_id, division_id, status, teams!inner(deleted_at)"] },
       { table: "competition_entries", method: "eq", args: ["competition_id", "competition-1"] },
       { table: "competition_entries", method: "eq", args: ["status", "accepted"] },
+      { table: "competition_entries", method: "is", args: ["teams.deleted_at", null] },
       { table: "teams", method: "select", args: ["id, name, logo_url"] },
       { table: "teams", method: "in", args: ["id", ["team-1", "team-2"]] },
     ]);

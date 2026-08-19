@@ -21,6 +21,9 @@ export interface HomeEvent {
   amount: number | null;
   opponent: string | null;
   arrival_minutes_before: number | null;
+  adults_only?: boolean | null;
+  restricted_to_roles?: string[] | null;
+  rsvp_audience?: string | null;
   teams: { name: string; default_match_arrival_minutes: number | null } | null;
   clubs: { name: string; sport: string | null };
 }
@@ -117,7 +120,7 @@ export async function fetchHomeMembershipsAndEvents(
       // (that is a known tsc blow-up). Row shape is pinned via .returns<T>().
       const sel = (s: string): string => s;
       const EVENT_SELECT =
-        "id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, target_team_ids, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, adults_only, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)";
+        "id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, target_team_ids, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, adults_only, restricted_to_roles, rsvp_audience, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)";
       // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
       // today's local-morning fixtures are stored as YESTERDAY's UTC date
       // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing against

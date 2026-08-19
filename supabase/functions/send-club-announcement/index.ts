@@ -16,7 +16,10 @@ Deno.serve(async (req) => {
     const apikeyHeader = req.headers.get("apikey");
 
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Not authenticated" }), {
+      console.error("Announcement auth failed: missing bearer token", {
+        hasAuthHeader: !!authHeader,
+      });
+      return new Response(JSON.stringify({ error: "Not authenticated (no bearer token)" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -26,45 +29,85 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? apikeyHeader;
 
-    if (!anonKey) {
-      console.error("Missing anon key for send-club-announcement auth check");
-      return new Response(JSON.stringify({ error: "Server misconfiguration" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const accessToken = authHeader.replace(/^Bearer\s+/i, "").trim();
 
-    const accessToken = authHeader.replace(/^Bearer\s+/i, "");
-
-    // Verify the caller with the explicit bearer token
-    const anonClient = createClient(supabaseUrl, anonKey);
-    const { data: userData, error: userError } = await anonClient.auth.getUser(accessToken);
-    const user = userData?.user;
-
-    if (userError || !user) {
-      console.error("Announcement auth failed", {
-        hasAuthHeader: true,
-        userError: userError?.message ?? null,
-      });
-      return new Response(JSON.stringify({ error: "Not authenticated" }), {
+    // Reject an anon/publishable key presented as the bearer token.
+    if (!accessToken || accessToken === anonKey || accessToken === apikeyHeader) {
+      console.error("Announcement auth failed: api key presented as user token");
+      return new Response(JSON.stringify({ error: "Not authenticated (no user session)" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Verify the caller. Try the anon client first, then fall back to the
+    // service-role client: if the legacy anon key is disabled/rotated, the
+    // anon-key verification path fails even for a perfectly valid user token.
+    let user: { id: string; email?: string | null } | null = null;
+    let lastAuthError: string | null = null;
+
+    for (const key of [anonKey, serviceRoleKey]) {
+      if (!key) continue;
+      try {
+        const client = createClient(supabaseUrl, key, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        const { data, error } = await client.auth.getUser(accessToken);
+        if (data?.user?.id) {
+          user = data.user;
+          break;
+        }
+        lastAuthError = error?.message ?? "no user for token";
+      } catch (e) {
+        lastAuthError = (e as Error)?.message ?? "verification threw";
+      }
+    }
+
+    if (!user) {
+      console.error("Announcement auth failed", { reason: lastAuthError });
+      return new Response(
+        JSON.stringify({ error: "Not authenticated (session invalid or expired)" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+
     const { club_id, team_ids, message, club_name, include_club_chat } = await req.json();
-    const requestedTeamIds = [...new Set((team_ids || []).filter(Boolean))];
+    const requestedTeamIds = [...new Set((team_ids || []).filter(Boolean))] as string[];
     const sendToClubChat = include_club_chat === true;
 
-    if (!club_id || (!requestedTeamIds.length && !sendToClubChat) || !message?.trim()) {
+    // Distinct messages so a 400 identifies itself, and a log line for every
+    // early exit — these used to return silently, which made the failure
+    // undiagnosable from either the toast or the function logs.
+    const missing =
+      !club_id
+        ? "club_id is required"
+        : !requestedTeamIds.length && !sendToClubChat
+          ? "At least one team (or the club chat) is required"
+          : !message?.trim()
+            ? "message is required"
+            : null;
+
+    if (missing) {
+      console.warn("Announcement rejected: missing_fields", {
+        reason: missing,
+        club_id: club_id ?? null,
+        requestedTeamIds: requestedTeamIds.length,
+        include_club_chat: sendToClubChat,
+        messageLength: typeof message === "string" ? message.length : null,
+      });
       return new Response(
-        JSON.stringify({ error: "club_id, message and at least one destination required" }),
+        JSON.stringify({ error: missing, code: "missing_fields" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
     }
+
 
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
@@ -104,17 +147,36 @@ Deno.serve(async (req) => {
       .from("teams")
       .select("id")
       .eq("club_id", club_id)
+      // Soft-deleted teams must fail loudly as invalid_teams rather than
+      // silently passing validation and receiving an announcement.
+      .is("deleted_at", null)
       .in("id", requestedTeamIds);
 
     if (clubTeamsError) throw clubTeamsError;
 
     const validTeamIds = (clubTeams || []).map((team) => team.id);
     if (validTeamIds.length !== requestedTeamIds.length) {
-      return new Response(JSON.stringify({ error: "One or more teams are invalid for this club" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const offendingTeamIds = requestedTeamIds.filter((id) => !validTeamIds.includes(id));
+      console.warn("Announcement rejected: invalid_teams", {
+        club_id,
+        requestedTeamIds: requestedTeamIds.length,
+        validTeamIds: validTeamIds.length,
+        offendingTeamIds,
+        messageLength: typeof message === "string" ? message.length : null,
       });
+      return new Response(
+        JSON.stringify({
+          error: `One or more teams are invalid for this club (${offendingTeamIds.length} rejected)`,
+          code: "invalid_teams",
+          invalid_team_ids: offendingTeamIds,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
+
 
     let botUserId = club.bot_user_id;
     const resolvedClubName = club_name || club.name;

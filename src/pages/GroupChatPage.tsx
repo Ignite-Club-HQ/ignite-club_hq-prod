@@ -222,6 +222,27 @@ interface MessageReaction {
   group_message_id: string | null;
 }
 
+const attachReactionsToMessages = (
+  messages: GroupMessage[],
+  reactions: MessageReaction[],
+): GroupMessage[] => {
+  if (!messages.length) return messages;
+  if (!reactions.length) return messages;
+  const byMessage = new Map<string, MessageReaction[]>();
+  for (const reaction of reactions) {
+    const key = reaction.group_message_id;
+    if (!key) continue;
+    const list = byMessage.get(key);
+    if (list) list.push(reaction);
+    else byMessage.set(key, [reaction]);
+  }
+  return messages.map((message) => {
+    const own = byMessage.get(message.id);
+    if (!own || own.length === 0) return message;
+    return { ...(message as any), reactions: own } as GroupMessage;
+  });
+};
+
 const getCachedGroupMessages = (groupId: string) => {
   const cachedMessages = getCachedMessages("group", groupId);
 
@@ -256,8 +277,12 @@ const getCachedGroupMessages = (groupId: string) => {
     })),
   ) as MessageReaction[];
 
-  return { messages, reactions };
+  // Embed reactions on the message rows too, so the very first paint (which is
+  // seeded straight from this cache) already shows existing reactions instead
+  // of waiting for the post-mount merge effect / refetch.
+  return { messages: attachReactionsToMessages(messages, reactions), reactions };
 };
+
 
 export default function GroupChatPage() {
   // [chat-perf-diag] track mount/unmount lifetime
@@ -633,7 +658,13 @@ export default function GroupChatPage() {
               group_message_id: message.id,
             }))
           ) as MessageReaction[];
-          return { messages: groupMessages, hasOlderMessages: false, reactions: cachedReactions, fromCache: true };
+          return {
+            messages: attachReactionsToMessages(groupMessages, cachedReactions),
+            hasOlderMessages: false,
+            reactions: cachedReactions,
+            fromCache: true,
+          };
+
         }
         throw new Error("No cached messages available offline");
       }
@@ -720,13 +751,18 @@ export default function GroupChatPage() {
         reply_to: m.reply_to,
       })));
       
+      const resolvedReactions = (
+        reactionsResult.error ? cachedReactions : (reactionsResult.data || [])
+      ) as MessageReaction[];
+
       return {
-        messages,
+        // Reactions are embedded on the rows as well as returned flat, so any
+        // render that seeds straight from this payload shows them immediately.
+        messages: attachReactionsToMessages(messages, resolvedReactions),
         hasOlderMessages: hasMore,
-        reactions: reactionsResult.error
-          ? cachedReactions
-          : (reactionsResult.data || []) as MessageReaction[],
+        reactions: resolvedReactions,
       };
+
     },
     enabled: !!groupId && !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
@@ -800,8 +836,14 @@ export default function GroupChatPage() {
       (m: any) => !m?.group_id || m.group_id === groupId,
     );
     if (isUsableCachedThread(cachedScoped as any)) {
-      return cachedScoped as GroupMessage[];
+      // Merge the flat reactions array onto the rows so the seeded first paint
+      // shows reactions without waiting for the merge effect.
+      return attachReactionsToMessages(
+        cachedScoped as GroupMessage[],
+        cachedQueryData?.reactions ?? [],
+      );
     }
+
 
     const fromCache = getCachedGroupMessages(groupId).messages;
     return isUsableCachedThread(fromCache as any) ? fromCache : undefined;

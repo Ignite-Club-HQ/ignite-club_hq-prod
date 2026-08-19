@@ -22,6 +22,7 @@ function latestFunctionDefinition(functionName: string): string {
   const nextFunction = productionMigrations.indexOf("CREATE OR REPLACE FUNCTION public.", start + marker.length);
   return productionMigrations.slice(start, nextFunction < 0 ? undefined : nextFunction);
 }
+const completeProfilePage = readFileSync("src/pages/CompleteProfilePage.tsx", "utf8");
 
 /**
  * A parent invitation that carries child metadata must be accepted atomically.
@@ -48,6 +49,19 @@ describe("parent invite atomic acceptance", () => {
   it("PendingInviteWelcomeDialog routes child metadata invites to the RPC", () => {
     expect(welcomeDialog).toContain("acceptParentTeamInvite({ inviteId: invite.id })");
     expect(welcomeDialog).toContain("hasChildMetadata");
+  });
+
+  it("CompleteProfilePage uses one authoritative path for standard parent invites", () => {
+    const branch = completeProfilePage.slice(
+      completeProfilePage.indexOf("if (isStandardParentChildInvite)"),
+      completeProfilePage.indexOf("// Check if role already exists")
+    );
+    expect(branch).toContain('if (invite.status === "pending")');
+    expect(branch).toContain("acceptParentTeamInvite({ inviteId: invite.id })");
+    expect(branch).toContain("provisionInviteChildren({");
+    expect(branch).toContain("continue;");
+    expect(branch).not.toContain("createChildForParentOrReuse");
+    expect(branch).not.toContain("child_team_assignments");
   });
 
   it("PendingInviteWelcomeDialog leaves the invite pending when the RPC fails", () => {
@@ -93,7 +107,7 @@ describe("parent invite atomic acceptance", () => {
     const claimant = latestFunctionDefinition("claim_pending_invites_on_profile_create");
     expect(claimant).not.toBe("");
     expect(claimant).toContain("children");
-    expect(claimant).toContain("_provision_invite_children_internal");
+    expect(claimant).toContain("provision_invite_children");
   });
 
   it("never lets the user-role trigger consume a normal parent invite without provisioning children", () => {
@@ -108,13 +122,13 @@ describe("parent invite atomic acceptance", () => {
     expect(provisioner).not.toBe("");
     expect(provisioner).toContain("auth.uid()");
     expect(provisioner).not.toContain("p_user_id");
-    expect(provisioner).toContain("_provision_invite_children_internal(p_invite_id, _uid)");
+    expect(provisioner).toMatch(/_caller\s*<>\s*_guardian_id/i);
   });
 
   it("checks invite ownership inside the provisioning RPC rather than trusting its caller", () => {
     const provisioner = latestFunctionDefinition("provision_invite_children");
     expect(provisioner).toContain("invited_user_id");
-    expect(provisioner).toMatch(/_inv\.invited_user_id\s*=\s*_uid/i);
+    expect(provisioner).toMatch(/_invite\.invited_user_id\s*=\s*_guardian_id/i);
     expect(provisioner).toContain("invite_not_for_this_user");
   });
 });

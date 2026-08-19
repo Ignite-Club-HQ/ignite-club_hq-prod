@@ -1041,13 +1041,16 @@ export async function fetchInboxCompetitionClubMap(
 
   const { data, error } = await client
     .from("competition_entries")
-    .select("competition_id, teams:team_id(club_id)")
-    .in("competition_id", [...competitionIds]);
+    .select("competition_id, status, teams!inner(club_id, deleted_at)")
+    .in("competition_id", [...competitionIds])
+    .eq("status", "accepted")
+    .is("teams.deleted_at", null);
 
   if (error) throw error;
 
   const clubIdsByCompetition: Record<string, Set<string>> = {};
   for (const row of data ?? []) {
+    if (row.status !== "accepted" || row.teams?.deleted_at) continue;
     const clubId = row.teams?.club_id;
     if (!clubId) continue;
     (clubIdsByCompetition[row.competition_id] ||= new Set()).add(clubId);

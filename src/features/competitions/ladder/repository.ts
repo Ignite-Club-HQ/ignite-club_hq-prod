@@ -23,9 +23,10 @@ export async function fetchCompetitionLadder(
       .order("goals_for", { ascending: false }),
     supabase
       .from("competition_entries")
-      .select("team_id, division_id, status")
+      .select("team_id, division_id, status, teams!inner(deleted_at)")
       .eq("competition_id", competitionId)
-      .eq("status", "accepted"),
+      .eq("status", "accepted")
+      .is("teams.deleted_at", null),
   ]);
   if (ladderResult.error) throw ladderResult.error;
   if (entriesResult.error) throw entriesResult.error;

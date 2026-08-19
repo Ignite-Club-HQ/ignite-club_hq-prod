@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -21,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 
 type ClubRole = "club_admin" | "committee_member";
 
@@ -61,6 +63,7 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
   const [deliveryMethod, setDeliveryMethod] = useState<"email" | "share">("share");
 
   const debouncedSearch = useDebounce(customName, 300);
+  const nativeKbHeight = useNativeKeyboardBottomInset();
 
   // Fetch existing club admins
   const { data: existingMembers } = useQuery({
@@ -92,12 +95,13 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
 
   // Search for existing users
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["user-search-club-admin", debouncedSearch],
+    queryKey: ["user-search-club-admin", debouncedSearch, clubId],
     queryFn: async () => {
       if (debouncedSearch.length < 2) return [];
       const { data } = await supabase.rpc("search_invitable_profiles", {
         _query: debouncedSearch,
         _limit: 8,
+        _club_id: clubId ?? null,
       });
       return (data || []) as Array<{
         id: string;
@@ -287,18 +291,57 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
           Invite to Team
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader className="space-y-1 pb-4 border-b">
+      <SheetContent
+        side="bottom"
+        hideCloseButton
+        className="rounded-t-2xl flex flex-col overflow-hidden overscroll-contain sm:mx-auto sm:max-w-md"
+        data-lock-keyboard-scroll="true"
+        data-allow-scroll
+        style={{
+          touchAction: "pan-y",
+          WebkitOverflowScrolling: "touch",
+          bottom: nativeKbHeight > 0 ? `${nativeKbHeight}px` : undefined,
+          maxHeight:
+            nativeKbHeight > 0
+              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
+              : "calc(100dvh - env(safe-area-inset-top, 0px) - 8px)",
+          height:
+            nativeKbHeight > 0
+              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
+              : undefined,
+          transitionProperty: "bottom, height, max-height",
+          transitionDuration: "200ms",
+          transitionTimingFunction: "ease",
+        }}
+      >
+        <SheetHeader className="space-y-1 pb-3 border-b shrink-0 relative pr-10">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-full ${selectedRole === "club_admin" ? "bg-purple-500/10" : "bg-cyan-500/10"}`}>
+            <div className={`p-2 sm:p-2.5 rounded-full shrink-0 ${selectedRole === "club_admin" ? "bg-purple-500/10" : "bg-cyan-500/10"}`}>
               <Users className={`h-5 w-5 ${selectedRole === "club_admin" ? "text-purple-500" : "text-cyan-500"}`} />
             </div>
-            <div>
-              <SheetTitle>Add Club Member</SheetTitle>
-              <SheetDescription className="text-sm">{clubName}</SheetDescription>
+            <div className="min-w-0 text-left">
+              <SheetTitle className="text-base sm:text-lg truncate">Add Club Member</SheetTitle>
+              <SheetDescription className="text-xs sm:text-sm truncate">{clubName}</SheetDescription>
             </div>
           </div>
+          <SheetClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-0 top-0 h-8 w-8 rounded-full opacity-70 hover:opacity-100"
+              aria-label="Close invite sheet"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </SheetClose>
         </SheetHeader>
+
+        <div
+          data-allow-scroll
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-6 px-6"
+          style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
+        >
 
         {/* Success State - Email sent confirmation */}
         {inviteLink && (
@@ -543,9 +586,14 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
                 <span className="text-xs text-muted-foreground">{roleConfig[selectedRole].description}</span>
               </div>
             </div>
+          </div>
+        )}
+        </div>
 
+        {!inviteLink && (
+          <div className="shrink-0 border-t pt-3 pb-[max(env(safe-area-inset-bottom,0px),0.5rem)] -mx-6 px-6 bg-background">
             <Button
-              className="w-full h-12"
+              className="w-full h-12 text-sm sm:text-base"
               onClick={() => {
                 if (selectedUser) {
                   addExistingUserMutation.mutate();
@@ -562,13 +610,15 @@ export default function AddClubAdminSheet({ clubId, clubName }: AddClubAdminShee
               }
             >
               {addPendingMemberMutation.isPending || addExistingUserMutation.isPending || isSendingNotification ? (
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                <Loader2 className="h-5 w-5 mr-2 animate-spin shrink-0" />
               ) : (
-                <UserPlus className="h-5 w-5 mr-2" />
+                <UserPlus className="h-5 w-5 mr-2 shrink-0" />
               )}
-              {(customName.trim() || selectedUser)
-                ? `Add ${selectedUser?.display_name || customName.trim()} as ${roleConfig[selectedRole].label}`
-                : "Enter name to continue"}
+              <span className="truncate">
+                {(customName.trim() || selectedUser)
+                  ? `Add ${selectedUser?.display_name || customName.trim()} as ${roleConfig[selectedRole].label}`
+                  : "Enter name to continue"}
+              </span>
             </Button>
           </div>
         )}

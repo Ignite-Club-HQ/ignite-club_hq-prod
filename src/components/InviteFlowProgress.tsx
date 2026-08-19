@@ -41,12 +41,24 @@ export interface InviteFlowContext {
   inviteToken?: string;
   isIOS?: boolean;
   currentStep?: InviteStep; // Track current step to resume properly
+  /** Epoch ms when this flow was last touched — used to expire stale banners. */
+  updatedAt?: number;
 }
+
+/**
+ * An invite flow that hasn't progressed within this window is stale: the user
+ * has almost certainly finished (or abandoned) it. Without expiry, re-opening
+ * the app days later still showed "Create Account • 2 steps remaining".
+ */
+const INVITE_FLOW_TTL_MS = 6 * 60 * 60 * 1000;
 
 export function setInviteFlowContext(context: InviteFlowContext) {
   try {
     // Use localStorage to persist across browser close/PWA open
-    localStorage.setItem(INVITE_FLOW_KEY, JSON.stringify(context));
+    localStorage.setItem(
+      INVITE_FLOW_KEY,
+      JSON.stringify({ ...context, updatedAt: Date.now() }),
+    );
   } catch {
     // localStorage not available
   }
@@ -56,13 +68,21 @@ export function getInviteFlowContext(): InviteFlowContext | null {
   try {
     const stored = localStorage.getItem(INVITE_FLOW_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored) as InviteFlowContext;
+      const updatedAt = typeof parsed.updatedAt === "number" ? parsed.updatedAt : 0;
+      // Missing/old timestamp => stale from a previous session, drop it.
+      if (!updatedAt || Date.now() - updatedAt > INVITE_FLOW_TTL_MS) {
+        clearInviteFlowContext();
+        return null;
+      }
+      return parsed;
     }
   } catch {
     // localStorage not available or invalid JSON
   }
   return null;
 }
+
 
 export function clearInviteFlowContext() {
   try {

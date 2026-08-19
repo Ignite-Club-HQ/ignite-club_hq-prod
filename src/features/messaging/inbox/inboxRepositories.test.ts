@@ -1498,11 +1498,11 @@ describe("messaging inbox repositories", () => {
   it("deduplicates competition club membership while preserving competition scope", async () => {
     const fake = queryClient({
       data: [
-        { competition_id: "comp-1", teams: { club_id: "club-1" } },
-        { competition_id: "comp-1", teams: { club_id: "club-1" } },
-        { competition_id: "comp-1", teams: { club_id: "club-2" } },
-        { competition_id: "comp-2", teams: { club_id: "club-3" } },
-        { competition_id: "comp-2", teams: null },
+        { competition_id: "comp-1", status: "accepted", teams: { club_id: "club-1", deleted_at: null } },
+        { competition_id: "comp-1", status: "accepted", teams: { club_id: "club-1", deleted_at: null } },
+        { competition_id: "comp-1", status: "accepted", teams: { club_id: "club-2", deleted_at: null } },
+        { competition_id: "comp-2", status: "accepted", teams: { club_id: "club-3", deleted_at: null } },
+        { competition_id: "comp-2", status: "accepted", teams: null },
       ],
       error: null,
     });
@@ -1511,8 +1511,10 @@ describe("messaging inbox repositories", () => {
     expect([...result["comp-1"]]).toEqual(["club-1", "club-2"]);
     expect([...result["comp-2"]]).toEqual(["club-3"]);
     expect(fake.from).toHaveBeenCalledWith("competition_entries");
-    expect(fake.builder.select).toHaveBeenCalledWith("competition_id, teams:team_id(club_id)");
+    expect(fake.builder.select).toHaveBeenCalledWith("competition_id, status, teams!inner(club_id, deleted_at)");
     expect(fake.builder.in).toHaveBeenCalledWith("competition_id", ["comp-1", "comp-2"]);
+    expect(fake.builder.eq).toHaveBeenCalledWith("status", "accepted");
+    expect(fake.builder.is).toHaveBeenCalledWith("teams.deleted_at", null);
   });
 
   it("keeps an empty competition scope query-free and propagates backend failures", async () => {

@@ -235,11 +235,13 @@ export async function fetchPendingInviteChildren(
 export async function searchInvitableProfiles(
   query: string,
   client: IgniteSupabaseClient = supabase,
+  clubId?: string,
 ): Promise<InvitableProfileResult[]> {
   if (query.length < 2) return [];
   const { data } = await client.rpc("search_invitable_profiles", {
     _query: query,
     _limit: 8,
+    ...(clubId ? { _club_id: clubId } : {}),
   });
   return (data ?? []) as InvitableProfileResult[];
 }
@@ -359,7 +361,7 @@ export async function searchBulkInvitationCandidates(
   if (!terms.length) return [];
 
   return Promise.all(terms.map(async (term) => {
-    const profiles = await searchInvitableProfiles(term, client);
+    const profiles = await searchInvitableProfiles(term, client, context.clubId);
     const profileResults = profiles.filter(
       (profile) =>
         profile.id === context.currentUserId ||

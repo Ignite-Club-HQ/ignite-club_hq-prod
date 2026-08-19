@@ -252,6 +252,7 @@ export default function JoinTeamPage() {
       try {
         const childIds = await provisionInviteChildren({
           inviteId: pendingInviteData.id,
+          guardianId: user.id,
         });
 
         if (childIds.length > 0) {
@@ -260,11 +261,10 @@ export default function JoinTeamPage() {
           queryClient.invalidateQueries({ queryKey: ["user-roles"] });
           queryClient.invalidateQueries({ queryKey: ["rsvps"] });
           queryClient.invalidateQueries({ queryKey: ["team-members", pendingInviteData.team_id] });
-          toast({
-            title: "You're all set",
-            description: `${childIds.length} ${childIds.length === 1 ? "child" : "children"} added to the team.`,
-          });
+          // No toast: child provisioning is an invisible part of accepting the
+          // invite. The join/welcome confirmation already covers it.
         }
+
 
       } catch (err) {
         provisionedInviteRef.current = null;
@@ -306,6 +306,89 @@ export default function JoinTeamPage() {
 
   // Check if user needs to complete their profile first
   const needsProfileCompletion = user && userProfile !== undefined && !userProfile?.display_name;
+
+  /**
+   * True when an already-accepted pending invite was accepted BY the signed-in
+   * user (matched on invited_user_id or invited email). In that case the invite
+   * did its job — showing "Invite Already Used" would flash a scary error while
+   * the auto-join effect redirects to /complete-profile or home.
+   */
+  const acceptedInviteIsOurs = (() => {
+    if (!isPendingInvite || !pendingInviteData || !user) return false;
+    const invitedEmail = (pendingInviteData.invited_email || "").toLowerCase().trim();
+    const userEmail = (user.email || "").toLowerCase().trim();
+    if ((pendingInviteData as { invited_user_id?: string }).invited_user_id === user.id) return true;
+    return !!invitedEmail && !!userEmail && invitedEmail === userEmail;
+  })();
+
+  /**
+   * Re-opening the app can replay a stale invite deep link (stored
+   * `pwa_pending_invite`, native launch URL, browser history). If the invite is
+   * already accepted AND the signed-in user is already in that team/club, the
+   * link simply did its job — show nothing scary, just go home.
+   */
+  const usedInviteTeamId =
+    isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending"
+      ? ((pendingInviteData as { team_id?: string | null }).team_id ?? null)
+      : null;
+  const usedInviteClubId =
+    isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending"
+      ? ((pendingInviteData as { club_id?: string | null }).club_id ?? null)
+      : null;
+  const membershipCheckEnabled = !!user && (!!usedInviteTeamId || !!usedInviteClubId);
+
+  const { data: alreadyMemberOfInviteScope, isFetched: membershipChecked } = useQuery({
+    queryKey: ["used-invite-membership", user?.id, usedInviteTeamId, usedInviteClubId],
+    queryFn: async () => {
+      if (!user) return false;
+      if (usedInviteTeamId) {
+        const { data: tm } = await (supabase as any)
+          .from("team_memberships")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("team_id", usedInviteTeamId)
+          .eq("status", "active")
+          .limit(1);
+
+        if (tm?.length) return true;
+        const { data: tr } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("team_id", usedInviteTeamId)
+          .limit(1);
+        if (tr?.length) return true;
+      }
+      if (usedInviteClubId) {
+        const { data: cr } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("club_id", usedInviteClubId)
+          .limit(1);
+        if (cr?.length) return true;
+      }
+      return false;
+    },
+    enabled: membershipCheckEnabled,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!alreadyMemberOfInviteScope) return;
+    clearInviteFlowContext();
+    try {
+      localStorage.removeItem("pwa_pending_invite");
+    } catch {
+      /* storage blocked */
+    }
+    safeSessionRemove("autoJoinAfterAuth");
+    navigate("/", { replace: true });
+  }, [alreadyMemberOfInviteScope, navigate]);
+
+
+
 
   // Validate name for pending invites - only block EXISTING users with a different name already set
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
@@ -423,8 +506,9 @@ export default function JoinTeamPage() {
         );
       }
 
-      // Check if pending invite is already used
-      if (pendingInviteData.status !== "pending") {
+      // Accepted parent invites remain recoverable because the backend may
+      // accept the invite before its child metadata is provisioned.
+      if (!["pending", "accepted"].includes(pendingInviteData.status)) {
         throw new Error("This invite has already been used");
       }
 
@@ -536,11 +620,24 @@ export default function JoinTeamPage() {
         // nothing is written and the invite stays pending for a retry.
         console.log("[JoinTeam] Accepting parent invite via transactional RPC");
         try {
-          const result = await acceptParentTeamInvite({ inviteId: pendingInviteData.id });
-          console.log("[JoinTeam] Parent invite accepted:", {
-            children: result.childIds.length,
-            alreadyAccepted: result.alreadyAccepted,
+          if (pendingInviteData.status === "pending") {
+            const result = await acceptParentTeamInvite({ inviteId: pendingInviteData.id });
+            console.log("[JoinTeam] Parent invite accepted:", {
+              children: result.childIds.length,
+              alreadyAccepted: result.alreadyAccepted,
+            });
+          }
+
+          const childIds = await provisionInviteChildren({
+            inviteId: pendingInviteData.id,
+            guardianId: user.id,
           });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["children"] }),
+            queryClient.invalidateQueries({ queryKey: ["user-roles"] }),
+            queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
+          ]);
+          console.log("[JoinTeam] Parent invite children provisioned:", childIds.length);
         } catch (rpcError) {
           throw new Error(getParentInviteErrorMessage(rpcError));
         }
@@ -1055,8 +1152,23 @@ export default function JoinTeamPage() {
     );
   }
 
-  // Check if pending invite is already used (only for pending invite routes)
-  if (isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending") {
+  // Check if pending invite is already used (only for pending invite routes).
+  // Suppressed while the profile/auto-join hand-off is still resolving, and
+  // whenever the invite was accepted by THIS user — otherwise a brand-new
+  // signup sees a one-frame "Invite Already Used" error before we redirect
+  // them onward to /complete-profile.
+  if (
+    isPendingInvite &&
+    pendingInviteData &&
+    pendingInviteData.status !== "pending" &&
+    !profileLoading &&
+    !needsProfileCompletion &&
+    !acceptedInviteIsOurs &&
+    !alreadyMemberOfInviteScope &&
+    (!membershipCheckEnabled || membershipChecked)
+
+  ) {
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">

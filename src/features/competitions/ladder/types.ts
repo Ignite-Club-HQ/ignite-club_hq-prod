@@ -24,6 +24,7 @@ export interface AcceptedCompetitionEntry {
   team_id: string | null;
   division_id: string | null;
   status: string;
+  teams?: { deleted_at: string | null } | null;
 }
 
 export interface LadderFilterOption {

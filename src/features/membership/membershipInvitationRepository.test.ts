@@ -253,6 +253,16 @@ describe("membership invitation read repository", () => {
     }]);
   });
 
+  it("scopes invitable profile searches to the active club when provided", async () => {
+    const { client, calls } = scriptedClient({}, { data: [], error: null });
+    await searchInvitableProfiles("Alex", client, "club-1");
+    expect(calls[0]).toEqual({
+      table: "$rpc",
+      method: "search_invitable_profiles",
+      args: [{ _query: "Alex", _limit: 8, _club_id: "club-1" }],
+    });
+  });
+
   it("short-circuits profile and parent searches below two characters", async () => {
     const { client, calls } = scriptedClient({});
     await expect(searchInvitableProfiles("A", client)).resolves.toEqual([]);
