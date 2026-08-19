@@ -1014,25 +1014,24 @@ export default function EditEventPage() {
 
                 ) : (
                   <MobileCardSelect
-                    value={selectedTeamId || ((type === "social" || type === "game") ? "__none__" : "")}
+                    value={selectedTeamId || (supportsClubWideScope ? "__none__" : "")}
                     onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
                     options={[
-                      ...((type === "social" || type === "game")
+                      ...(supportsClubWideScope
                         ? [{ value: "__none__", label: "Club-wide event" }]
                         : []),
                       ...selectableTeams.map((team) => ({ value: team.id, label: team.name })),
                     ]}
-                    placeholder={(type === "social" || type === "game") ? "Club-wide (optional)" : "Select team"}
+                    placeholder={supportsClubWideScope ? "Club-wide (optional)" : "Select team"}
                     label="Team"
-                    required={type === "training"}
                   />
                 )}
-                {(type === "social" || type === "game") && (
+                {supportsClubWideScope && (
                   <p className="text-xs text-muted-foreground">
                     Leave blank for a club-wide event.
                   </p>
                 )}
-                {!selectedTeamId && (type === "game" || type === "social") && !(event as any)?.mini_league_id && (
+                {!selectedTeamId && supportsClubWideScope && !(event as any)?.mini_league_id && (
                   <MobileCardSelect
                     value={rsvpGrouping || "none"}
                     onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
@@ -1045,7 +1044,8 @@ export default function EditEventPage() {
                     label="RSVP grouping"
                   />
                 )}
-                {!selectedTeamId && (type === "game" || type === "social") && !(event as any)?.mini_league_id && (
+                {!selectedTeamId && supportsClubWideScope && !(event as any)?.mini_league_id && (
+
                   <TargetTeamsPicker
                     teams={allClubTeams ?? undefined}
                     value={targetTeamIds}
