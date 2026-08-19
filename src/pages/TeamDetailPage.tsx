@@ -2020,9 +2020,19 @@ export default function TeamDetailPage() {
 
                     {/* Role-grouped members with headers */}
                     {(() => {
+                      // True when the child-players block above is on screen — the
+                      // adult "player" group then continues it without its own header.
+                      const childBlockShown =
+                        (teamChildren.length > 0 ||
+                          pendingInvites.some((inv) => {
+                            const meta = inv.metadata as { children?: { name: string }[] } | null;
+                            return !!meta?.children && meta.children.length > 0;
+                          })) &&
+                        (memberRoleFilter === "all" || memberRoleFilter === "child");
                       const filteredMembers = Object.entries(members).filter(([_, member]) =>
                         memberRoleFilter === "all" || memberRoleFilter === "child" ? memberRoleFilter === "all" : member.roles?.some(r => r.role === memberRoleFilter)
                       );
+
                       const roleOrder = ["player", "parent", "team_admin", "club_admin", "app_admin", "basic_user"] as const;
                       const roleGroupLabels: Record<string, string> = {
                         player: "Players",
