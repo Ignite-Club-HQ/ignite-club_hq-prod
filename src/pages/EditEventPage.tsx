@@ -591,15 +591,19 @@ export default function EditEventPage() {
       return;
     }
 
-    // Training requires a team. Games can be club-wide ("All Club").
+    // Training, games and socials may be club-wide or targeted at a subset of
+    // teams. A subset must contain 2+ teams (mirrors the backend trigger).
     const isMiniLeagueEvent = !!(event as any)?.mini_league_id;
-    if (type === "training" && !selectedTeamId && !isMiniLeagueEvent) {
+    if (!selectedTeamId && targetTeamIds !== null && targetTeamIds.length < 2) {
       toast({
-        title: "Team required",
-        description: "Please select a team for training sessions.",
+        title: "Select at least 2 teams",
+        description:
+          "Pick two or more teams, or leave it club-wide. For a single team, select it in the Team dropdown.",
+        variant: "destructive",
       });
       return;
     }
+
 
     // Frontend club/team scope guard — matches backend
     // validate_event_team_club_scope trigger. Fail closed if the team list
