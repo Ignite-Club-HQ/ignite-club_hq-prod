@@ -904,10 +904,11 @@ export default function CompleteProfilePage() {
       // This is a user-driven action — they accepted the invite — so it
       // does not violate the "filter only changes by user action" rule.
       if (firstInvitedClubId) {
-        const seeded = seedClubFilterFromInvite(user.id, firstInvitedClubId, setActiveClubTheme);
-        if (seeded) {
-          console.log("[CompleteProfile] Applied club filter from invite:", firstInvitedClubId);
-        }
+        // Normally seeds (new users have no prior club). If they somehow
+        // already belong to another club, switch + announce with Undo.
+        await applyInviteClubSwitch(user.id, firstInvitedClubId, setActiveClubTheme, {
+          source: "CompleteProfile",
+        });
       } else {
         // Defensive: the invite may already have been marked accepted (DB
         // trigger or an earlier partial run), so the pending list was empty.
