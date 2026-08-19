@@ -941,6 +941,32 @@ export default function NotificationsPage() {
         }
         break;
       }
+      case "membership":
+      case "role_removed": {
+        // related_id is the team_id (team roles) or club_id (club roles).
+        // Without this branch the tap fell through to `default` and left the
+        // user on /notifications under whichever club was previously active.
+        if (relatedId) {
+          const { data: teamCheckM } = await supabase
+            .from("teams")
+            .select("id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (teamCheckM) {
+            navigate(`/teams/${relatedId}`);
+            break;
+          }
+          const { data: clubCheckM } = await supabase
+            .from("clubs")
+            .select("id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          if (clubCheckM) {
+            navigate(`/clubs/${relatedId}`);
+          }
+        }
+        break;
+      }
       case "member_joined": {
         // related_id could be mini_league_id, team_id, or club_id — check which one
         if (relatedId) {
