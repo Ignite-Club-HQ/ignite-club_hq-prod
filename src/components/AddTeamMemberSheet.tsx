@@ -1569,6 +1569,87 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       if (validMembers.length === 0) throw new Error("Please enter at least one name");
 
       const results: { name: string; email: string; link: string; sent: boolean; role: string; childrenCount: number }[] = [];
+      const secondParentFailures: string[] = [];
+      const secondParentInvited: string[] = [];
+      const secondParentAdded: string[] = [];
+
+      /**
+       * Single second-parent path for BOTH bulk branches. Always creates a real
+       * invite row (or attaches an existing profile), never swallows an error,
+       * and records the outcome so the summary toast can report it.
+       */
+      const handleSecondParent = async (
+        member: BulkMember,
+        validChildren: BulkMember["children"],
+        childIds: string[],
+        linkedInviteToken: string | null,
+      ) => {
+        try {
+          const res = await ensureSecondParent({
+            role: member.role,
+            selectedProfile: member.selectedSecondParent ?? null,
+            name: member.secondParentName,
+            email: member.secondParentEmail,
+            teamId,
+            clubId,
+            teamName,
+            childIds,
+            childrenMetadata: validChildren
+              .filter((c) => c.name.trim())
+              .map((c) => ({
+                name: c.name.trim(),
+                yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+                existingChildId: c.existingChildId || null,
+              })),
+            invitedByUserId: user!.id,
+            linkedInviteToken,
+          });
+
+          if (res.status === "added" && res.label) {
+            secondParentAdded.push(res.label);
+          } else if (res.status === "invited" && res.email && res.inviteLink) {
+            secondParentInvited.push(res.label || res.email);
+            try {
+              const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
+                body: {
+                  to: res.email,
+                  subject: `${clubBranding?.name || 'Your club'}: You've been invited as a guardian ⚽`,
+                  template: "team-invite",
+                  senderName: clubBranding?.name || undefined,
+                  replyTo: (clubBranding as any)?.contact_email || undefined,
+                  templateData: {
+                    recipientName: res.label || "Parent",
+                    invitedEmail: res.email,
+                    teamName,
+                    clubName: clubBranding?.name || "The Club",
+                    roleName: "Parent",
+                    inviteLink: res.inviteLink,
+                    clubLogoUrl: clubBranding?.logo_url || undefined,
+                    childrenNames: validChildren.filter(c => c.name.trim()).map(c => c.name.trim()),
+                  },
+                },
+              });
+              const emailSent = !funcError && emailResult?.verified && emailResult?.success;
+              await supabase
+                .from("pending_invites")
+                .update({
+                  email_sent_at: emailSent ? new Date().toISOString() : null,
+                  email_id: emailResult?.emailId || null,
+                  email_error: !emailSent ? (emailResult?.error || "Email not verified") : null,
+                } as any)
+                .eq("invite_token", res.inviteToken!);
+            } catch (err) {
+              console.error("[BulkAdd] second guardian email failed", (err as Error)?.message);
+            }
+          }
+        } catch (err) {
+          console.error("[BulkAdd] second parent failed", (err as Error)?.message);
+          secondParentFailures.push(
+            err instanceof SecondParentError ? (err.label ?? "a second parent") : "a second parent",
+          );
+        }
+      };
+
 
       // Pre-generate tokens for all members so we can cross-link parent pairs
       const memberTokens = validMembers.map(() => crypto.randomUUID());
