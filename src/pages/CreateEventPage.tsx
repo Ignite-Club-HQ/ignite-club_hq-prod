@@ -679,18 +679,21 @@ export default function CreateEventPage() {
       return;
     }
 
-    // Require team selection for games and training
     // Remember last used event type
     localStorage.setItem("lastEventType", type);
 
-    // Training always requires a team. Games can be "All Club" (club-wide match).
-    if (type === "training" && !teamId) {
+    // Training, games and socials may be club-wide ("All Club") or targeted at
+    // a subset of teams. When a subset is chosen it must contain 2+ teams.
+    if (!teamId && targetTeamIds !== null && targetTeamIds.length < 2) {
       toast({
-        title: "Team required",
-        description: "Please select a team for training sessions.",
+        title: "Select at least 2 teams",
+        description:
+          "Pick two or more teams, or choose All Club members. For a single team, select it in the Team dropdown.",
+        variant: "destructive",
       });
       return;
     }
+
 
     // Guard against a stale team selection: if the team was soft-deleted
     // (possibly from another device) the event — and its auto "event created"
