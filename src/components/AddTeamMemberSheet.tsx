@@ -3917,6 +3917,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               isFinalStep && deliveryMethod === "email" && !selectedUser && !emailTrimmed;
             const submitInvalidEmail =
               isFinalStep && deliveryMethod === "email" && !selectedUser && !!emailTrimmed && !emailRegex.test(emailTrimmed);
+            // A second-parent name without a valid email must block submission —
+            // it must never be silently discarded.
+            const secondParentBlocked = secondParentValidationError({
+              role: selectedRole,
+              name: secondParentName,
+              email: secondParentEmail,
+              selectedProfile: selectedSecondParent,
+            });
 
             // Guardrail: human-readable reason explaining why the primary
             // action is currently blocked. Surfaced inline above the footer
