@@ -1902,9 +1902,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         });
       }
 
-      return results;
+      return { results, secondParentFailures, secondParentInvited, secondParentAdded };
     },
-    onSuccess: (results) => {
+    onSuccess: ({ results, secondParentFailures, secondParentInvited, secondParentAdded }) => {
       setBulkResults(results);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
@@ -1918,7 +1918,28 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           ? `${sentCount} member${sentCount > 1 ? "s were" : " was"} added or emailed successfully`
           : "Share the invite links with your members",
       });
+
+      if (secondParentAdded.length > 0 || secondParentInvited.length > 0) {
+        toast({
+          title: "Second parents handled",
+          description: [
+            secondParentAdded.length > 0 ? `Added: ${secondParentAdded.join(", ")}` : null,
+            secondParentInvited.length > 0 ? `Invited: ${secondParentInvited.join(", ")}` : null,
+          ].filter(Boolean).join(" · "),
+        });
+      }
+      if (secondParentFailures.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Some second parents were not invited",
+          description: secondParentPartialFailureMessage(
+            "Members were added",
+            secondParentFailures.join(", "),
+          ),
+        });
+      }
     },
+
     onError: (error: Error) => {
       toast({
         title: "Failed to add members",
