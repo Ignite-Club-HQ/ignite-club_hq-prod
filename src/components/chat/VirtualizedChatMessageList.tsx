@@ -2406,15 +2406,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
             Math.min(OVERLAY_REVEAL_FAILSAFE_MS, budget),
           ),
           finalAlign: () => {
-            if (targetId) alignMessageIdInViewRef.current?.(targetId, "end");
+            // Single alignment authority: while the content-reveal gate owns
+            // this target, its own `finalAlign` is the only one allowed to
+            // write scrollTop. Two gates correcting the same row on different
+            // frames is what produced the down-then-up settle.
+            if (!targetId) return;
+            if (jumpAlignOwnedByContentGateRef.current === targetId) return;
+            alignMessageIdInViewRef.current?.(targetId, "end");
           },
         },
         () => {
           cancelSettleWait = null;
           // Tiny intentional cross-fade so the reveal reads as "settled".
           if (fadeTimer) clearTimeout(fadeTimer);
-          fadeTimer = setTimeout(fadeOut, 80);
+          // Hold the overlay a little longer while the composer inset (and thus
+          // the in-flow Virtuoso footer height) is still changing.
+          const delay = bottomPaddingQuiet(180) ? 80 : 220;
+          fadeTimer = setTimeout(fadeOut, delay);
         },
+
       );
     }
     const onEnd = () => {
