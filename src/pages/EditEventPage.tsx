@@ -130,16 +130,20 @@ export default function EditEventPage() {
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
+  // Types that support a club-wide ("All Club") scope and therefore team targeting.
+  const supportsClubWideScope = type === "game" || type === "social" || type === "training";
+
   // Clear stale target_team_ids whenever the event moves out of the
-  // "club-wide game/social" window. See CreateEventPage for rationale.
+  // club-wide window. See CreateEventPage for rationale.
   useEffect(() => {
     if (
       targetTeamIds !== null &&
-      (selectedTeamId || (type !== "game" && type !== "social"))
+      (selectedTeamId || (type !== "game" && type !== "social" && type !== "training"))
     ) {
       setTargetTeamIds(null);
     }
   }, [selectedTeamId, type, targetTeamIds]);
+
 
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
