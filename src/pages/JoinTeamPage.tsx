@@ -1763,22 +1763,49 @@ export default function JoinTeamPage() {
 
           {!user ? (
             <div className="space-y-3">
-              <Button
-                onClick={handleCreateAccountClick}
-                className="w-full"
-                size="lg"
-              >
-                Create account to join
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleSignInClick}
-                className="w-full"
-                size="lg"
-              >
-                Already have an account? Sign in
-              </Button>
+              {invitedEmailHasAccount && pendingInviteData?.invited_email && (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <UserCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <p className="text-sm text-muted-foreground">
+                    We found an existing Ignite account for{" "}
+                    <span className="font-medium text-foreground break-all">
+                      {pendingInviteData.invited_email}
+                    </span>
+                    . Sign in to accept this invite.
+                  </p>
+                </div>
+              )}
+              {invitedEmailHasAccount ? (
+                <>
+                  <Button onClick={handleSignInClick} className="w-full" size="lg">
+                    Sign in to join
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleCreateAccountClick}
+                    className="w-full"
+                    size="lg"
+                  >
+                    Create a new account instead
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={handleCreateAccountClick} className="w-full" size="lg">
+                    Create account to join
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleSignInClick}
+                    className="w-full"
+                    size="lg"
+                  >
+                    Already have an account? Sign in
+                  </Button>
+                </>
+              )}
             </div>
+
           ) : (
             <Button
               onClick={handleJoinClick}
