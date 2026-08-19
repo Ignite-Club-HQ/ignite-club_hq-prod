@@ -581,13 +581,21 @@ export default function AuthPage() {
 
 
   const handleAuth = async (mode: "signin" | "signup") => {
+    // Clear any previous inline errors.
+    setEmailError(null);
+    setPasswordError(null);
+    setConfirmPasswordError(null);
+    setTermsError(null);
+    setAuthError(null);
+
     // For signin, use basic validation
     if (mode === "signin") {
       const validation = authSchema.safeParse({ email, password });
       if (!validation.success) {
-        toast({
-          title: "Please check your details",
-          description: validation.error.errors[0].message,
+        validation.error.errors.forEach((err) => {
+          const field = err.path[0];
+          if (field === "email") setEmailError(err.message);
+          if (field === "password") setPasswordError(err.message);
         });
         return;
       }
@@ -595,10 +603,7 @@ export default function AuthPage() {
       // For signup, validate email first
       const emailValidation = z.string().email("Please enter a valid email").safeParse(email);
       if (!emailValidation.success) {
-        toast({
-          title: "Please check your email",
-          description: emailValidation.error.errors[0].message,
-        });
+        setEmailError(emailValidation.error.errors[0].message);
         return;
       }
       
@@ -606,26 +611,17 @@ export default function AuthPage() {
       const passwordValidation = signupPasswordSchema.safeParse(password);
       if (!passwordValidation.success) {
         const strengthMessage = getPasswordStrengthMessage(password);
-        toast({
-          title: "Password not strong enough",
-          description: strengthMessage || passwordValidation.error.errors[0].message,
-        });
+        setPasswordError(strengthMessage || passwordValidation.error.errors[0].message);
         return;
       }
       
       if (password !== confirmPassword) {
-        toast({
-          title: "Passwords don't match",
-          description: "Please ensure both passwords are identical.",
-        });
+        setConfirmPasswordError("Please ensure both passwords are identical.");
         return;
       }
       
       if (!acceptedTerms) {
-        toast({
-          title: "Terms & Privacy Policy",
-          description: "You must accept the Terms of Service and Privacy Policy to create an account.",
-        });
+        setTermsError("You must accept the Terms of Service and Privacy Policy to create an account.");
         return;
       }
     }
@@ -658,34 +654,26 @@ export default function AuthPage() {
 
 
     if (error) {
-      let message = error.message;
-      let title = "Something went wrong";
+      const message = error.message;
       if (message.includes("already registered")) {
-        title = "Account already exists";
-        message = "This email is already registered. Please sign in using the form below. If you've forgotten your password, tap 'Forgot password?' to reset it.";
+        setEmailError("This email is already registered. Please sign in.");
         switchToSignIn();
       } else if (message.includes("Invalid login")) {
-        title = "Unable to sign in";
-        message = "Invalid email or password. Please try again.";
+        setEmailError("Invalid email or password. Please try again.");
       } else if (message.includes("Email not confirmed")) {
-        title = "Email not verified";
-        message = "Please check your inbox and verify your email.";
+        setEmailError("Please verify your email before signing in.");
       } else if (
         message.includes("Network") ||
         message.includes("fetch") ||
         /load failed/i.test(message) ||
         /timed? out/i.test(message)
       ) {
-        title = "Connection issue";
-        message = "We couldn't reach the server. Check your connection and try again.";
+        setAuthError("We couldn't reach the server. Check your connection and try again.");
       } else if (message.toLowerCase().includes("weak") || message.toLowerCase().includes("easy to guess") || message.toLowerCase().includes("pwned")) {
-        title = "Password not accepted";
-        message = "This password is too common or has appeared in data breaches. Please choose a more unique password (e.g. add symbols or a random word).";
+        setPasswordError("This password is too common or has appeared in data breaches. Please choose a more unique password.");
+      } else {
+        setAuthError(message);
       }
-      toast({
-        title,
-        description: message,
-      });
     } else if (needsEmailConfirmation) {
       // Signup succeeded but Supabase requires email verification, so no
       // session exists yet and no redirect will happen. Tell the user instead
@@ -716,13 +704,10 @@ export default function AuthPage() {
     }
     } catch (err) {
       // The auth dependency rejected instead of returning `{ error }` (e.g.
-      // TypeError: Load failed on mobile). Surface a friendly toast and allow
+      // TypeError: Load failed on mobile). Surface an inline error and allow
       // a retry rather than leaving the form stuck in a loading state.
       console.error("[SignupFlow] auth call threw", err);
-      toast({
-        title: "Connection issue",
-        description: "We couldn't reach the server. Check your connection and try again.",
-      });
+      setAuthError("We couldn't reach the server. Check your connection and try again.");
     } finally {
       authInFlightRef.current = false;
       setLoading(false);
