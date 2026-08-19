@@ -21,7 +21,7 @@ import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext, markP
 import { useQueryClient } from "@tanstack/react-query";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { applyInviteClubSwitch } from "@/lib/inviteClubSwitch";
 import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
 
 import { resolveCanonicalChildId, createChildForParentOrReuse } from "@/lib/childDedup";
