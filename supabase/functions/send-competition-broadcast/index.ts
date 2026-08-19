@@ -46,19 +46,28 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (compErr || !comp) return json({ error: "Competition not found" }, 404);
 
-    // Resolve accepted entries (optionally filter by division)
+    // Resolve accepted entries from live (non-deleted) teams only, so broadcasts
+    // never target teams that have left the competition or been deleted.
     let entriesQuery = admin
       .from("competition_entries")
-      .select("team_id, division_id")
+      .select("team_id, division_id, status, teams!inner(id, deleted_at)")
       .eq("competition_id", competition_id)
-      .eq("status", "accepted");
+      .eq("status", "accepted")
+      .is("teams.deleted_at", null);
     if (Array.isArray(division_ids) && division_ids.length > 0) {
       entriesQuery = entriesQuery.in("division_id", division_ids);
     }
     const { data: entries, error: entriesErr } = await entriesQuery;
     if (entriesErr) throw entriesErr;
 
-    const teamIds = Array.from(new Set((entries ?? []).map((e: any) => e.team_id).filter(Boolean)));
+    const teamIds = Array.from(
+      new Set(
+        (entries ?? [])
+          .filter((e: any) => e?.status === "accepted" && !e?.teams?.deleted_at)
+          .map((e: any) => e.team_id)
+          .filter(Boolean),
+      ),
+    );
     if (teamIds.length === 0) return json({ error: "No accepted teams to broadcast to" }, 400);
 
     // Resolve / create bot author. Prefer organizer club bot; fall back to a per-competition bot.

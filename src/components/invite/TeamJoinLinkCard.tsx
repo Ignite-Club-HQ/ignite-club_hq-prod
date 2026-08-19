@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Loader2, Copy, RefreshCw, Check, Link2, QrCode, Share2, AlertTriangle, Download } from "lucide-react";
+import { Loader2, Copy, Check, ChevronLeft, Link2, QrCode, Share2, AlertTriangle, Download } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
@@ -38,10 +38,15 @@ const ALL_ROLE_OPTIONS: { value: RoleVariant; label: string; juniorOnly?: boolea
 ];
 
 const ROLE_DESCRIPTIONS: Record<RoleVariant, string> = {
-  parent: "One link anyone can tap to join as a parent. Great for WhatsApp groups or sign-up nights.",
-  player: "Anyone with this link joins as a player. Best for senior squads and adult teams.",
-  coach: "Anyone with this link joins as a coach with edit access. Share carefully.",
-  team_admin: "Anyone with this link joins as a team admin with full access. Share carefully.",
+  parent: "Can view team information and respond to events.",
+  player: "Can view team information and respond to events.",
+  coach: "Can manage team information, events and other coach-level features.",
+  team_admin: "Has full team administration access.",
+};
+
+const ROLE_WARNINGS: Partial<Record<RoleVariant, string>> = {
+  coach: "Coach links give people team management access. Only share with people you trust.",
+  team_admin: "Admin links provide full team administration access. Only share with trusted administrators.",
 };
 
 const SENSITIVE_ROLES: RoleVariant[] = ["coach", "team_admin"];
@@ -50,6 +55,8 @@ interface TeamJoinLinkCardProps {
   teamId: string;
   teamName: string;
   teamType?: TeamType;
+  /** Optional back affordance rendered in the card header (used by the invite sheet). */
+  onBack?: () => void;
 }
 
 interface JoinLinkRow {
@@ -71,7 +78,7 @@ function generateShortToken(): string {
     .replace(/=/g, "");
 }
 
-export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" }: TeamJoinLinkCardProps) {
+export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed", onBack }: TeamJoinLinkCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -86,7 +93,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
   const [activeRole, setActiveRole] = useState<RoleVariant>(defaultRole);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
-  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [confirmGenerate, setConfirmGenerate] = useState(false);
   const [autoSelected, setAutoSelected] = useState(false);
 
@@ -299,31 +306,42 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
     }
   };
 
+  const roleWarning = ROLE_WARNINGS[activeRole];
+  const isAdminRole = activeRole === "team_admin";
+
   return (
     <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
       <div className="flex items-start gap-2">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back to invite options"
+            className="h-8 w-8 rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground flex items-center justify-center shrink-0"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
         <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
           <Link2 className="h-4 w-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold">Share a join link</p>
-          <p className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[activeRole]}</p>
+          <p className="text-sm font-semibold">Who is joining?</p>
+          <p className="text-xs text-muted-foreground">Pick the role people get with this link.</p>
         </div>
       </div>
 
       {/* Role selector — segmented control */}
       <div className="space-y-1.5">
-        <Label className="text-xs font-medium text-foreground">Default role for this link</Label>
         <div
           role="radiogroup"
-          aria-label="Default role for this link"
+          aria-label="Role for this link"
           className={`grid gap-1 rounded-lg bg-background border border-border p-1 ${
             roleOptions.length === 2 ? "grid-cols-2" : roleOptions.length === 3 ? "grid-cols-3" : "grid-cols-4"
           }`}
         >
           {roleOptions.map((opt) => {
             const isActive = activeRole === opt.value;
-            const sensitive = SENSITIVE_ROLES.includes(opt.value);
             return (
               <button
                 key={opt.value}
@@ -331,8 +349,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
                 role="radio"
                 aria-checked={isActive}
                 onClick={() => handleRoleChange(opt.value)}
-                aria-label={`${opt.label} link — ${sensitive ? "sensitive, grants edit access" : "safe to share"}`}
-                className={`relative px-2 py-2 text-xs rounded-md transition-colors min-h-[36px] inline-flex items-center justify-center gap-1 ${
+                className={`relative px-2 py-2 text-xs rounded-md transition-colors min-h-[40px] inline-flex items-center justify-center gap-1 ${
                   isActive
                     ? "bg-primary text-primary-foreground font-semibold shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -344,18 +361,19 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
             );
           })}
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          Anyone using this link will join as the selected role.
-        </p>
+        <p className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[activeRole]}</p>
       </div>
 
-
-      {isSensitive && (
-        <div className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-          <span>
-            {activeRoleLabel} links grant {activeRole === "team_admin" ? "full team admin" : "coach edit"} access. Only share with people you trust, and revoke when no longer needed.
-          </span>
+      {roleWarning && (
+        <div
+          className={
+            isAdminRole
+              ? "flex items-start gap-2 rounded-md border-2 border-destructive/50 bg-destructive/10 px-2.5 py-2 text-xs font-medium text-destructive"
+              : "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-400"
+          }
+        >
+          <AlertTriangle className={`shrink-0 mt-0.5 ${isAdminRole ? "h-4 w-4" : "h-3.5 w-3.5"}`} />
+          <span>{roleWarning}</span>
         </div>
       )}
 
@@ -366,39 +384,32 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
       ) : !link ? (
         <div className="space-y-2">
           {isAdmin ? (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="w-full"
-                disabled={createOrRotate.isPending}
-                onClick={() => {
-                  if (isSensitive) setConfirmGenerate(true);
-                  else createOrRotate.mutate({ rotate: false, role: activeRole });
-                }}
-              >
-                {createOrRotate.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Link2 className="h-4 w-4 mr-2" />
-                )}
-                Generate {activeRoleLabel.toLowerCase()} link
-              </Button>
-              <p className="text-[11px] text-muted-foreground text-center">
-                Creates a permanent link — you only need to do this once. Reopen this sheet anytime to grab it again.
-              </p>
-            </>
+            <Button
+              type="button"
+              className="w-full h-11 text-sm font-semibold"
+              disabled={createOrRotate.isPending}
+              onClick={() => {
+                if (isSensitive) setConfirmGenerate(true);
+                else createOrRotate.mutate({ rotate: false, role: activeRole });
+              }}
+            >
+              {createOrRotate.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Link2 className="h-4 w-4 mr-2" />
+              )}
+              Create {activeRoleLabel.toLowerCase()} link
+            </Button>
           ) : (
-            <p className="text-[11px] text-muted-foreground text-center px-2 py-3">
-              No {activeRoleLabel.toLowerCase()} link yet. Ask a coach or admin to generate one — you'll then be able to share it.
+            <p className="text-xs text-muted-foreground text-center px-2 py-3">
+              No {activeRoleLabel.toLowerCase()} link yet. Ask a coach or admin to create one.
             </p>
           )}
           {isError && (
             <button
               type="button"
               onClick={() => refetch()}
-              className="w-full text-[11px] text-muted-foreground underline"
+              className="w-full text-xs text-muted-foreground underline"
             >
               Couldn't load existing links — tap to retry
             </button>
@@ -406,42 +417,55 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
         </div>
       ) : (
         <>
-          <Button
-            type="button"
-            className="w-full h-11 text-sm font-semibold"
-            onClick={handleShare}
-          >
-            <Share2 className="h-4 w-4 mr-2" />
-            Share link
-          </Button>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">{activeRoleLabel} invite link</p>
+            <p className="text-xs text-muted-foreground">This link stays active until you revoke it.</p>
+          </div>
 
           <div className="flex gap-2">
             <button
               type="button"
               onClick={handleCopy}
-              aria-label="Copy join link"
-              className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-muted/50 transition-colors min-h-[40px]"
+              aria-label="Copy invite link"
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors min-h-[44px]"
             >
               {copied ? (
                 <>
-                  <Check className="h-3.5 w-3.5 text-primary" />
+                  <Check className="h-4 w-4 text-primary" />
                   <span className="text-primary">Copied</span>
                 </>
               ) : (
                 <>
-                  <Copy className="h-3.5 w-3.5" />
+                  <Copy className="h-4 w-4" />
                   <span>Copy link</span>
                 </>
               )}
             </button>
+            <Button type="button" className="flex-1 h-11 text-sm font-semibold" onClick={handleShare}>
+              <Share2 className="h-4 w-4 mr-2" />
+              Share
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setShowQR((v) => !v)}
-              className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-muted/50 transition-colors min-h-[40px]"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors min-h-[36px]"
             >
               <QrCode className="h-3.5 w-3.5" />
               {showQR ? "Hide QR" : "Show QR"}
             </button>
+            {isAdmin && (
+              <button
+                type="button"
+                className="rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50 min-h-[36px]"
+                onClick={() => setConfirmRevoke(true)}
+                disabled={revoke.isPending}
+              >
+                Revoke link
+              </button>
+            )}
           </div>
 
           <Collapsible open={showQR}>
@@ -450,12 +474,11 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
                 <div id={`qr-${link.id}`} className="bg-white p-3 rounded-md">
                   <QRCodeSVG value={fullUrl} size={180} level="M" includeMargin={false} />
                 </div>
-                <p className="text-[11px] text-muted-foreground">Point a camera at the code to join as {activeRoleLabel.toLowerCase()}</p>
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="h-7 text-xs"
+                  className="h-8 text-xs"
                   onClick={() => handleSaveQR(link.id)}
                 >
                   <Download className="h-3 w-3 mr-1" />
@@ -465,61 +488,34 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
             </CollapsibleContent>
           </Collapsible>
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 pt-1">
-            <span>
-              {link.uses_count > 0 && (
-                <>
-                  {link.uses_count} {link.uses_count === 1 ? "join" : "joins"}
-                  {pendingCount && pendingCount > 0 ? ` · ${pendingCount} pending` : ""}
-                  {" · "}
-                </>
-              )}
-              {link.uses_count === 0 && pendingCount && pendingCount > 0 ? `${pendingCount} pending · ` : ""}
-              expires {link.expires_at ? new Date(link.expires_at).toLocaleDateString() : "never"}
-            </span>
-            {isAdmin && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="hover:text-foreground transition-colors disabled:opacity-50"
-                  onClick={() => setConfirmRegenerate(true)}
-                  disabled={createOrRotate.isPending}
-                >
-                  Regenerate
-                </button>
-                <span aria-hidden>·</span>
-                <button
-                  type="button"
-                  className="hover:text-destructive transition-colors disabled:opacity-50"
-                  onClick={() => revoke.mutate(activeRole)}
-                  disabled={revoke.isPending}
-                >
-                  Revoke
-                </button>
-              </div>
-            )}
-          </div>
+          {(link.uses_count > 0 || (pendingCount ?? 0) > 0) && (
+            <p className="text-xs text-muted-foreground/80">
+              {link.uses_count > 0 ? `${link.uses_count} ${link.uses_count === 1 ? "join" : "joins"}` : ""}
+              {link.uses_count > 0 && (pendingCount ?? 0) > 0 ? " · " : ""}
+              {(pendingCount ?? 0) > 0 ? `${pendingCount} pending` : ""}
+            </p>
+          )}
         </>
       )}
 
-      <AlertDialog open={confirmRegenerate} onOpenChange={setConfirmRegenerate}>
+      <AlertDialog open={confirmRevoke} onOpenChange={setConfirmRevoke}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Regenerate {activeRoleLabel.toLowerCase()} link?</AlertDialogTitle>
+            <AlertDialogTitle>Revoke {activeRoleLabel.toLowerCase()} link?</AlertDialogTitle>
             <AlertDialogDescription>
-              The current link will stop working immediately. Anyone you've already shared
-              it with won't be able to join — you'll need to send them the new link.
+              The link stops working straight away. Anyone you've already shared it with
+              won't be able to join.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                setConfirmRegenerate(false);
-                createOrRotate.mutate({ rotate: true, role: activeRole });
+                setConfirmRevoke(false);
+                revoke.mutate(activeRole);
               }}
             >
-              Regenerate
+              Revoke link
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -528,23 +524,18 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
       <AlertDialog open={confirmGenerate} onOpenChange={setConfirmGenerate}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Create a {activeRoleLabel.toLowerCase()} join link?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Anyone with this link can join {teamName} as a {activeRoleLabel.toLowerCase()} —
-              that grants {activeRole === "team_admin" ? "full team admin" : "coach edit"} access.
-              Only share it with people you trust, and revoke it when no longer needed.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Create a {activeRoleLabel.toLowerCase()} link?</AlertDialogTitle>
+            <AlertDialogDescription>{roleWarning}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-amber-600 hover:bg-amber-700 text-white"
               onClick={() => {
                 setConfirmGenerate(false);
                 createOrRotate.mutate({ rotate: false, role: activeRole });
               }}
             >
-              Yes, create link
+              Create link
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -552,3 +543,4 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed" 
     </div>
   );
 }
+

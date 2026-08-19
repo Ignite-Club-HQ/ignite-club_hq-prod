@@ -56,6 +56,12 @@ const roleLabels: Record<AppRole, string> = {
   competition_admin: "Competition Admin",
 };
 
+// SessionStorage key for the invite metadata shown on the /auth page banner
+// (club, team, role, invited email). This deliberately lives in sessionStorage
+// so it is scoped to the current invite hand-off and can be read before the
+// form is rendered.
+const INVITE_AUTH_CONTEXT_KEY = "inviteAuthContext";
+
 // Roles that users can request when joining a team
 const selectableRoles: AppRole[] = ["coach", "player", "parent"];
 
@@ -291,6 +297,7 @@ export default function JoinTeamPage() {
       try {
         const childIds = await provisionInviteChildren({
           inviteId: pendingInviteData.id,
+          guardianId: user.id,
         });
 
         if (childIds.length > 0) {
@@ -299,11 +306,10 @@ export default function JoinTeamPage() {
           queryClient.invalidateQueries({ queryKey: ["user-roles"] });
           queryClient.invalidateQueries({ queryKey: ["rsvps"] });
           queryClient.invalidateQueries({ queryKey: ["team-members", pendingInviteData.team_id] });
-          toast({
-            title: "You're all set",
-            description: `${childIds.length} ${childIds.length === 1 ? "child" : "children"} added to the team.`,
-          });
+          // No toast: child provisioning is an invisible part of accepting the
+          // invite. The join/welcome confirmation already covers it.
         }
+
 
       } catch (err) {
         provisionedInviteRef.current = null;
@@ -345,6 +351,89 @@ export default function JoinTeamPage() {
 
   // Check if user needs to complete their profile first
   const needsProfileCompletion = user && userProfile !== undefined && !userProfile?.display_name;
+
+  /**
+   * True when an already-accepted pending invite was accepted BY the signed-in
+   * user (matched on invited_user_id or invited email). In that case the invite
+   * did its job — showing "Invite Already Used" would flash a scary error while
+   * the auto-join effect redirects to /complete-profile or home.
+   */
+  const acceptedInviteIsOurs = (() => {
+    if (!isPendingInvite || !pendingInviteData || !user) return false;
+    const invitedEmail = (pendingInviteData.invited_email || "").toLowerCase().trim();
+    const userEmail = (user.email || "").toLowerCase().trim();
+    if ((pendingInviteData as { invited_user_id?: string }).invited_user_id === user.id) return true;
+    return !!invitedEmail && !!userEmail && invitedEmail === userEmail;
+  })();
+
+  /**
+   * Re-opening the app can replay a stale invite deep link (stored
+   * `pwa_pending_invite`, native launch URL, browser history). If the invite is
+   * already accepted AND the signed-in user is already in that team/club, the
+   * link simply did its job — show nothing scary, just go home.
+   */
+  const usedInviteTeamId =
+    isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending"
+      ? ((pendingInviteData as { team_id?: string | null }).team_id ?? null)
+      : null;
+  const usedInviteClubId =
+    isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending"
+      ? ((pendingInviteData as { club_id?: string | null }).club_id ?? null)
+      : null;
+  const membershipCheckEnabled = !!user && (!!usedInviteTeamId || !!usedInviteClubId);
+
+  const { data: alreadyMemberOfInviteScope, isFetched: membershipChecked } = useQuery({
+    queryKey: ["used-invite-membership", user?.id, usedInviteTeamId, usedInviteClubId],
+    queryFn: async () => {
+      if (!user) return false;
+      if (usedInviteTeamId) {
+        const { data: tm } = await (supabase as any)
+          .from("team_memberships")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("team_id", usedInviteTeamId)
+          .eq("status", "active")
+          .limit(1);
+
+        if (tm?.length) return true;
+        const { data: tr } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("team_id", usedInviteTeamId)
+          .limit(1);
+        if (tr?.length) return true;
+      }
+      if (usedInviteClubId) {
+        const { data: cr } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("club_id", usedInviteClubId)
+          .limit(1);
+        if (cr?.length) return true;
+      }
+      return false;
+    },
+    enabled: membershipCheckEnabled,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!alreadyMemberOfInviteScope) return;
+    clearInviteFlowContext();
+    try {
+      localStorage.removeItem("pwa_pending_invite");
+    } catch {
+      /* storage blocked */
+    }
+    safeSessionRemove("autoJoinAfterAuth");
+    navigate("/", { replace: true });
+  }, [alreadyMemberOfInviteScope, navigate]);
+
+
+
 
   // Validate name for pending invites - only block EXISTING users with a different name already set
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
@@ -462,8 +551,9 @@ export default function JoinTeamPage() {
         );
       }
 
-      // Check if pending invite is already used
-      if (pendingInviteData.status !== "pending") {
+      // Accepted parent invites remain recoverable because the backend may
+      // accept the invite before its child metadata is provisioned.
+      if (!["pending", "accepted"].includes(pendingInviteData.status)) {
         throw new Error("This invite has already been used");
       }
 
@@ -575,11 +665,24 @@ export default function JoinTeamPage() {
         // nothing is written and the invite stays pending for a retry.
         console.log("[JoinTeam] Accepting parent invite via transactional RPC");
         try {
-          const result = await acceptParentTeamInvite({ inviteId: pendingInviteData.id });
-          console.log("[JoinTeam] Parent invite accepted:", {
-            children: result.childIds.length,
-            alreadyAccepted: result.alreadyAccepted,
+          if (pendingInviteData.status === "pending") {
+            const result = await acceptParentTeamInvite({ inviteId: pendingInviteData.id });
+            console.log("[JoinTeam] Parent invite accepted:", {
+              children: result.childIds.length,
+              alreadyAccepted: result.alreadyAccepted,
+            });
+          }
+
+          const childIds = await provisionInviteChildren({
+            inviteId: pendingInviteData.id,
+            guardianId: user.id,
           });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["children"] }),
+            queryClient.invalidateQueries({ queryKey: ["user-roles"] }),
+            queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
+          ]);
+          console.log("[JoinTeam] Parent invite children provisioned:", childIds.length);
         } catch (rpcError) {
           throw new Error(getParentInviteErrorMessage(rpcError));
         }
@@ -990,38 +1093,63 @@ export default function JoinTeamPage() {
     });
   };
 
+  const persistInviteAuthContext = () => {
+    const nextPath = location.pathname + location.search;
+    safeSessionSet("redirectAfterAuth", nextPath);
+    safeSessionSet("autoJoinAfterAuth", "true");
+    safeSessionSet(
+      INVITE_AUTH_CONTEXT_KEY,
+      JSON.stringify({
+        clubName: invite?.teams?.clubs?.name ?? null,
+        teamName: invite?.teams?.name ?? null,
+        invitedEmail: isPendingInvite ? (pendingInviteData?.invited_email ?? null) : null,
+        roleLabel: roleLabels[invite?.role as AppRole] ?? null,
+      }),
+    );
+    // Keep the existing invite-flow context (localStorage) up to date so the
+    // progress indicator and PWA install resume path continue to work.
+    setInviteFlowContext({
+      ...(getInviteFlowContext() ?? {}),
+      active: true,
+      clubName: invite?.teams?.clubs?.name || undefined,
+      teamName: invite?.teams?.name || undefined,
+      role: invite?.role || undefined,
+      inviteToken: token,
+      currentStep: "auth",
+    });
+  };
+
+  const handleCreateAccountClick = () => {
+    persistInviteAuthContext();
+    navigate(
+      buildAuthPathWithIntent({
+        next: location.pathname + location.search,
+        mode: "signup",
+        invite: token,
+      }),
+    );
+  };
+
+  const handleSignInClick = () => {
+    persistInviteAuthContext();
+    navigate(
+      buildAuthPathWithIntent({
+        next: location.pathname + location.search,
+        mode: "signin",
+        invite: token,
+      }),
+    );
+  };
+
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
     // If not logged in, redirect to auth with auto-join flag.
     // The URL carries the whole intent (mode + next + invite token) because
     // sessionStorage writes throw in some webviews; storage is a fallback only.
     if (!user) {
-      const nextPath = location.pathname + location.search;
-      console.log("[SignupFlow] Join click (unauthenticated)", {
-        next: nextPath,
-        role: invite?.role,
-        isPendingInvite,
-      });
-      safeSessionSet("redirectAfterAuth", nextPath);
-      safeSessionSet("autoJoinAfterAuth", "true");
-      // Set the invite-flow context on this (native/app) path too — previously
-      // only the PWA handler set it, so InviteFlowProgress never rendered on
-      // /auth and the flow looked broken.
-      setInviteFlowContext({
-        ...(getInviteFlowContext() ?? {}),
-        active: true,
-        clubName: invite?.teams?.clubs?.name || undefined,
-        teamName: invite?.teams?.name || undefined,
-        role: invite?.role || undefined,
-        inviteToken: token,
-        currentStep: "auth",
-      });
-      navigate(
-        buildAuthPathWithIntent({ next: nextPath, mode: "signup", invite: token }),
-      );
+      handleCreateAccountClick();
       return;
     }
-
 
     // Check if user needs to complete their profile first
     if (!userProfile?.display_name) {
@@ -1089,8 +1217,23 @@ export default function JoinTeamPage() {
     );
   }
 
-  // Check if pending invite is already used (only for pending invite routes)
-  if (isPendingInvite && pendingInviteData && pendingInviteData.status !== "pending") {
+  // Check if pending invite is already used (only for pending invite routes).
+  // Suppressed while the profile/auto-join hand-off is still resolving, and
+  // whenever the invite was accepted by THIS user — otherwise a brand-new
+  // signup sees a one-frame "Invite Already Used" error before we redirect
+  // them onward to /complete-profile.
+  if (
+    isPendingInvite &&
+    pendingInviteData &&
+    pendingInviteData.status !== "pending" &&
+    !profileLoading &&
+    !needsProfileCompletion &&
+    !acceptedInviteIsOurs &&
+    !alreadyMemberOfInviteScope &&
+    (!membershipCheckEnabled || membershipChecked)
+
+  ) {
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
@@ -1594,25 +1737,43 @@ export default function JoinTeamPage() {
             <Badge variant="secondary">{roleLabels[invite.role as AppRole]}</Badge>
           </div>
 
-          <Button 
-            onClick={handleJoinClick} 
-            disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
-            className="w-full"
-            size="lg"
-          >
-            {(joinMutation.isPending || (user && profileLoading)) ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : null}
-            {!joinMutation.isPending && !(user && profileLoading) && (
-                !user 
-                ? "Create Account to Join"
-                : nameValidationError 
+          {!user ? (
+            <div className="space-y-3">
+              <Button
+                onClick={handleCreateAccountClick}
+                className="w-full"
+                size="lg"
+              >
+                Create account to join
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleSignInClick}
+                className="w-full"
+                size="lg"
+              >
+                Already have an account? Sign in
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleJoinClick}
+              disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
+              className="w-full"
+              size="lg"
+            >
+              {(joinMutation.isPending || (user && profileLoading)) ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              {!joinMutation.isPending && !(user && profileLoading) && (
+                nameValidationError
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion
                     ? "Complete Profile to Join"
                     : `Join as ${roleLabels[invite.role as AppRole]}`
-            )}
-          </Button>
+              )}
+            </Button>
+          )}
           <Button 
             variant="ghost" 
             onClick={() => navigate("/")}

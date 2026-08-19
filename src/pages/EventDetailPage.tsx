@@ -1270,21 +1270,24 @@ export default function EventDetailPage() {
 
 
 
-  // Fetch guardians for children on this team (so guardians are excluded from "not responded" when their child has RSVP'd)
+  // Fetch guardians for children on this team (so guardians are excluded from "not responded" when their child has RSVP'd).
+  // Club-scoped: guardians linked to the child at another club are not part of this event's audience.
   const childIdsOnTeam = (allChildrenOnTeam || []).map((c: any) => c.id);
   const { data: childGuardiansOnTeam } = useQuery({
-    queryKey: ["child-guardians-on-team", event?.team_id, childIdsOnTeam.join(",")],
+    queryKey: ["child-guardians-on-team", event?.team_id, event?.club_id, childIdsOnTeam.join(",")],
     queryFn: async () => {
       if (childIdsOnTeam.length === 0) return [];
-      const { data, error } = await supabase
-        .from("child_guardians")
-        .select("child_id, guardian_id")
-        .in("child_id", childIdsOnTeam);
+      if (!event?.club_id) return [];
+      const { data, error } = await supabase.rpc("club_scoped_child_guardians", {
+        p_child_ids: childIdsOnTeam,
+        p_club_id: event.club_id,
+      });
       if (error) throw error;
       return data || [];
     },
     enabled: childIdsOnTeam.length > 0,
   });
+
 
   // Recipients for on-demand reminders. For a targeted club-wide event the
   // audience is NOT "everyone in the club": only members holding a role on a
@@ -2411,10 +2414,20 @@ export default function EventDetailPage() {
 
       if (childId) {
         // Both reads are authoritative — a failure in either must fail closed.
+        // Guardians are club-scoped: only guardians who belong to this event's
+        // club are reminded (a parent linked at another club is not notified).
         const [guardiansRes, childRes] = await Promise.all([
-          supabase.from("child_guardians").select("guardian_id").eq("child_id", childId),
+          event?.club_id
+            ? supabase
+                .rpc("club_scoped_child_guardians", { p_child_ids: [childId], p_club_id: event.club_id })
+                .then((res) => ({
+                  data: (res.data as { guardian_id: string }[] | null) ?? null,
+                  error: res.error,
+                }))
+            : supabase.from("child_guardians").select("guardian_id").eq("child_id", childId),
           supabase.from("children").select("parent_id").eq("id", childId).maybeSingle(),
         ]);
+
 
         const resolved = resolveReminderRecipients({
           userId,

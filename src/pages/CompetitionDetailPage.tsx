@@ -98,14 +98,18 @@ export default function CompetitionDetailPage() {
     queryKey: ["competition-entries", id],
     enabled: !!id,
     queryFn: async () => {
+      // Soft-deleted teams are no longer participants and must not appear in the
+      // entries list, counts or division allocation.
       const { data } = await supabase
         .from("competition_entries")
-        .select("*, teams:team_id(id, name, club_id, is_shell, shell_contact_name, shell_contact_email, clubs:club_id(name)), competition_divisions:division_id(name)")
+        .select("*, teams!inner(id, name, club_id, is_shell, shell_contact_name, shell_contact_email, deleted_at, clubs:club_id(name)), competition_divisions:division_id(name)")
         .eq("competition_id", id!)
+        .is("teams.deleted_at", null)
         .order("created_at");
-      return data ?? [];
+      return (data ?? []).filter((e: any) => !e?.teams?.deleted_at);
     },
   });
+
 
   // Summary metrics for header
   const { data: summary } = useQuery({

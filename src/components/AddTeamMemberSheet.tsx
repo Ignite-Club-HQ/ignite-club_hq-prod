@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown, ChevronUp } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown, ChevronUp, Link2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -26,6 +27,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastAction } from "@/components/ui/toast";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +35,15 @@ import { computeMemberIdentity, type MemberRole, type MemberIdentity } from "@/l
 import { useDebounce } from "@/hooks/useDebounce";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { isDuplicateChildError } from "@/lib/childDedup";
+import {
+  ensureSecondParent,
+  secondParentValidationError,
+  secondParentPartialFailureMessage,
+  isValidSecondParentEmail,
+  SecondParentError,
+  SECOND_PARENT_EMAIL_REQUIRED,
+  type SecondParentResult,
+} from "@/features/membership/secondParentInvite";
 
 interface BulkChild {
   id: string;
@@ -80,6 +91,43 @@ interface BulkMember {
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 type TeamType = "junior" | "senior" | "mixed";
+
+type AppRole = Database["public"]["Enums"]["app_role"];
+
+const roleLabels: Record<AppRole, string> = {
+  basic_user: "Member",
+  club_admin: "Club admin",
+  team_admin: "Team admin",
+  coach: "Coach",
+  player: "Player",
+  parent: "Parent",
+  app_admin: "App admin",
+  league_admin: "League admin",
+  committee_member: "Committee member",
+  association_admin: "Association admin",
+  competition_admin: "Competition admin",
+};
+
+function getPendingInviteChildName(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const children = (metadata as { children?: unknown }).children;
+  if (Array.isArray(children) && children.length > 0) {
+    const first = children[0] as { name?: unknown };
+    if (first?.name) return String(first.name).trim();
+  }
+  return null;
+}
+
+function formatPendingInviteSubtitle(
+  role: string,
+  teamName: string | null | undefined,
+  childName: string | null | undefined,
+): string {
+  const roleLabel = roleLabels[role as AppRole] || role.replace(/_/g, " ") || "Member";
+  const scope = teamName ? `— ${teamName}` : "(club)";
+  const childSuffix = childName ? ` (${childName})` : "";
+  return `Pending: ${roleLabel} ${scope}${childSuffix}`;
+}
 
 interface AddTeamMemberSheetProps {
   teamId: string;
@@ -225,17 +273,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Single-invite wizard step: 1 = Person, 2 = Role (+ children/guardian for parents), 3 = Delivery
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   // Whether the "invite by name" section is expanded. Defaults to collapsed so
-  // the join-link flow is the visually primary action on first open.
+  // the first screen is a simple two-way choice: share a link, or invite one person.
   const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
+  // Progressive disclosure: the join-link role selector only appears after the
+  // user chooses "Create link" on the first screen.
+  const [linkFlowOpen, setLinkFlowOpen] = useState(false);
   // When the user can't share the bulk join link (non-admins/coaches), the
   // invite-by-name form is the only available flow, so it must be visible by
   // default — otherwise the sheet renders an empty body.
   const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
 
-  // Reset to collapsed each time the sheet is opened so the join-link flow
-  // remains the primary action on every reopen.
+  // Reset to the chooser each time the sheet is opened.
   useEffect(() => {
-    if (open) setInviteByNameExpanded(false);
+    if (open) {
+      setInviteByNameExpanded(false);
+      setLinkFlowOpen(false);
+    }
   }, [open]);
 
   // When the name is confirmed (or an existing user is selected), the role
@@ -422,12 +475,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   });
 
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["user-search-team-member", debouncedNameInput],
+    queryKey: ["user-search-team-member", debouncedNameInput, clubId],
     queryFn: async () => {
       if (debouncedNameInput.length < 2) return [];
       const { data, error } = await supabase.rpc("search_invitable_profiles", {
         _query: debouncedNameInput,
         _limit: 8,
+        _club_id: clubId ?? null,
       });
       if (error) throw error;
       return (data || []) as Array<{
@@ -447,13 +501,27 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       if (debouncedNameInput.length < 2) return [];
       const { data: invites } = await supabase
         .from("pending_invites")
-        .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
+        .select("id, invited_label, invited_email, invited_user_id, metadata, team_id, role")
         .eq("club_id", clubId)
         .eq("status", "pending")
         .ilike("invited_label", `%${debouncedNameInput}%`)
         .limit(12);
       
       if (!invites?.length) return [];
+
+      // Resolve team names so team-scoped invites can show their actual scope
+      const teamIds = Array.from(new Set(invites.filter(i => i.team_id).map(i => i.team_id!)));
+      const teamNameById: Record<string, string> = {};
+      if (teamIds.length > 0 && clubId) {
+        const { data: teams } = await supabase
+          .from("teams")
+          .select("id, name")
+          .in("id", teamIds)
+          .eq("club_id", clubId);
+        for (const t of teams || []) {
+          teamNameById[t.id] = t.name;
+        }
+      }
       
       // For invites that have an invited_user_id, fetch profile data
       const userIds = invites.filter(i => i.invited_user_id).map(i => i.invited_user_id!);
@@ -466,18 +534,25 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
       
-      return invites.map(invite => ({
-        id: invite.invited_user_id || `pending-${invite.id}`,
-        display_name: invite.invited_user_id 
-          ? (profileMap.get(invite.invited_user_id)?.display_name || invite.invited_label)
-          : invite.invited_label,
-        avatar_url: invite.invited_user_id 
-          ? (profileMap.get(invite.invited_user_id)?.avatar_url || null) 
-          : null,
-        invited_email: invite.invited_email,
-        isPendingInvite: true,
-        pendingInviteId: invite.id,
-      }));
+      return invites.map(invite => {
+        const teamName = invite.team_id ? teamNameById[invite.team_id] || null : null;
+        return {
+          id: invite.invited_user_id || `pending-${invite.id}`,
+          display_name: invite.invited_user_id 
+            ? (profileMap.get(invite.invited_user_id)?.display_name || invite.invited_label)
+            : invite.invited_label,
+          avatar_url: invite.invited_user_id 
+            ? (profileMap.get(invite.invited_user_id)?.avatar_url || null) 
+            : null,
+          invited_email: invite.invited_email,
+          isPendingInvite: true,
+          pendingInviteId: invite.id,
+          role: invite.role,
+          teamId: invite.team_id,
+          teamName,
+          childName: getPendingInviteChildName(invite.metadata),
+        };
+      });
     },
     enabled: debouncedNameInput.length >= 2,
   });
@@ -574,6 +649,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           const { data: rpcData } = await supabase.rpc("search_invitable_profiles", {
             _query: term,
             _limit: 8,
+            _club_id: clubId ?? null,
           });
 
           const profileResults = ((rpcData || []) as Array<{
@@ -848,64 +924,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
-      // Handle second parent
-      let secondParentInviteLink: string | null = null;
-      let secondParentAddedDirectly = false;
-      
-      if (selectedSecondParent && selectedRole === "parent") {
-        // Add existing user directly as second parent (ignore duplicate)
-        const { error: roleErr } = await supabase.from("user_roles").insert({
-          user_id: selectedSecondParent.id,
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent",
+      // Handle second parent through the one shared helper. The primary role and
+      // children are already committed at this point, so a second-parent failure
+      // is reported as a partial success — never swallowed, never a bare "success".
+      let secondParent: SecondParentResult = { status: "skipped", label: null };
+      let secondParentFailure: string | null = null;
+      try {
+        secondParent = await ensureSecondParent({
+          role: selectedRole,
+          selectedProfile: selectedSecondParent,
+          name: secondParentName,
+          email: secondParentEmail,
+          teamId,
+          clubId,
+          teamName,
+          childIds: createdChildIds,
+          childrenMetadata: resolvedChildren.map((child) => ({
+            name: child.name,
+            yearOfBirth: child.yearOfBirth,
+            existingChildId: child.id,
+          })),
+          invitedByUserId: user!.id,
         });
-        if (roleErr && !isDuplicateError(roleErr)) {
-          console.error("Failed to add second parent role:", roleErr.message);
-        }
-
-        // Link all children (existing and newly created) as guardian for second parent
-        for (const childId of createdChildIds) {
-          await supabase.from("child_guardians").insert({
-            child_id: childId,
-            guardian_id: selectedSecondParent.id,
-          }).select().maybeSingle(); // ignore duplicate errors
-        }
-
-        // Send notification
-        await supabase.from("notifications").insert({
-          user_id: selectedSecondParent.id,
-          type: "membership",
-          message: `You have been added to ${teamName} as Parent`,
-          related_id: teamId,
-        });
-
-        secondParentAddedDirectly = true;
-      } else if (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") {
-        // Create pending invite for new second parent
-        const secondToken = crypto.randomUUID();
-        const childrenMetadata = resolvedChildren.length > 0 
-          ? resolvedChildren.map(child => ({ 
-              name: child.name,
-              yearOfBirth: child.yearOfBirth,
-              existingChildId: child.id,
-            }))
-          : null;
-
-        await supabase.from("pending_invites").insert({
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent" as any,
-          invited_user_id: null,
-          invited_by_user_id: user!.id,
-          invited_label: secondParentName.trim(),
-          invited_email: secondParentEmail.trim().toLowerCase(),
-          invite_token: secondToken,
-          metadata: childrenMetadata ? { children: childrenMetadata } : null,
-        } as any);
-
-        secondParentInviteLink = `${window.location.origin}/join/p/${secondToken}`;
+      } catch (err) {
+        console.error("[AddTeamMember] second parent failed", (err as Error)?.message);
+        secondParentFailure = err instanceof SecondParentError ? (err.label ?? "the second parent") : "the second parent";
       }
+      const secondParentInviteLink = secondParent.inviteLink ?? null;
+      const secondParentAddedDirectly = secondParent.status === "added";
+
 
       // Send notification (role is already committed — a failure here is a
       // partial success, not a failed add)
@@ -919,6 +966,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       return {
         secondParentInviteLink,
         secondParentAddedDirectly,
+        secondParentStatus: secondParent.status,
+        secondParentLabel: secondParent.label,
+        secondParentInviteEmail: secondParent.email ?? null,
+        secondParentFailure,
         roleWasDuplicate,
         notificationFailed: !!notifyErr,
         notificationError: notifyErr?.message ?? null,
@@ -948,12 +999,29 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         });
       }
 
-      if (result?.secondParentAddedDirectly && selectedSecondParent) {
+      // Second-parent outcome is always explicit: added now, invited by email,
+      // or a visible, retryable partial failure.
+      if (result?.secondParentFailure) {
+        toast({
+          variant: "destructive",
+          title: "Second parent not invited",
+          description: secondParentPartialFailureMessage(
+            `${selectedUser?.display_name || "The member"}${singleChildren.some(c => c.name.trim()) ? ` and ${singleChildren.filter(c => c.name.trim()).map(c => c.name.trim()).join(", ")}` : ""} were added`,
+            result.secondParentFailure,
+          ),
+        });
+      } else if (result?.secondParentStatus === "added") {
         toast({
           title: "Second parent added",
-          description: `${selectedSecondParent.display_name} has also been added as Parent`,
+          description: `${result.secondParentLabel} has also been added as Parent`,
+        });
+      } else if (result?.secondParentStatus === "invited") {
+        toast({
+          title: "Second parent invited",
+          description: `An invitation was created for ${result.secondParentLabel}.`,
         });
       }
+
 
       // Send team-invite email to primary parent (existing user) — uses full onboarding template with download links
       if (selectedRole === "parent" && selectedUser) {
@@ -1050,13 +1118,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }
       }
 
-      // Send second parent email if applicable
-      if (result?.secondParentInviteLink && secondParentEmail.trim()) {
+      // Send second parent email ONLY when the pending_invites row was created.
+      if (result?.secondParentStatus === "invited" && result.secondParentInviteLink && result.secondParentInviteEmail) {
         try {
           const childrenNames = singleChildren.filter(c => c.name.trim()).map(c => c.name.trim());
           const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
             body: {
-              to: secondParentEmail.trim().toLowerCase(),
+              to: result.secondParentInviteEmail,
               subject: childrenNames.length === 1
                 ? (discoverEmailStyle
                     ? `${clubBranding?.name || 'Your club'}: See which team ${childrenNames[0]} is in ⚽`
@@ -1066,8 +1134,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               senderName: clubBranding?.name || undefined,
               replyTo: (clubBranding as any)?.contact_email || undefined,
               templateData: {
-                recipientName: secondParentName.trim(),
-                invitedEmail: secondParentEmail.trim().toLowerCase(),
+                recipientName: result.secondParentLabel || "Parent",
+                invitedEmail: result.secondParentInviteEmail,
                 teamName,
                 clubName: clubBranding?.name || "The Club",
                 roleName: "Parent",
@@ -1093,9 +1161,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           if (emailSent) {
             toast({
               title: "Second parent invited!",
-              description: `Email sent to ${secondParentEmail.trim()}`,
+              description: `Email sent to ${result.secondParentInviteEmail}`,
+            });
+          } else {
+            toast({
+              variant: "destructive",
+              title: "Second parent invite created — email failed",
+              description: `${result.secondParentLabel}'s invitation exists but the email couldn't be sent. Share the invite link or retry.`,
             });
           }
+
         } catch (error) {
           console.error("Failed to send second parent email:", error);
         }
@@ -1153,22 +1228,53 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             message: `You have been added to ${teamName} as ${roleOptions.find(r => r.value === selectedRole)?.label || selectedRole}`,
             related_id: teamId,
           });
+          // Second parent still goes through the shared helper so it can never
+          // be silently dropped on this branch either.
+          let dedupeSecondParent: SecondParentResult = { status: "skipped", label: null };
+          let dedupeSecondParentFailure: string | null = null;
+          try {
+            dedupeSecondParent = await ensureSecondParent({
+              role: selectedRole,
+              selectedProfile: selectedSecondParent,
+              name: secondParentName,
+              email: secondParentEmail,
+              teamId,
+              clubId,
+              teamName,
+              childrenMetadata: singleChildren
+                .filter((c) => c.name.trim())
+                .map((c) => ({
+                  name: c.name.trim(),
+                  yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+                  existingChildId: c.existingChildId || null,
+                })),
+              invitedByUserId: user!.id,
+            });
+          } catch (err) {
+            console.error("[AddTeamMember] second parent failed", (err as Error)?.message);
+            dedupeSecondParentFailure =
+              err instanceof SecondParentError ? (err.label ?? "the second parent") : "the second parent";
+          }
           return {
             link: "",
             shareLink: "",
             email: "",
             childrenCount: 0,
             childrenNames: [] as string[],
-            secondParentLink: null as string | null,
-            secondParentEmail: "",
-            secondParentName: "",
-            secondParentAddedDirectly: false,
+            secondParentLink: dedupeSecondParent.inviteLink ?? null,
+            secondParentEmail: dedupeSecondParent.email ?? "",
+            secondParentName: dedupeSecondParent.label ?? "",
+            secondParentAddedDirectly: dedupeSecondParent.status === "added",
+            secondParentStatus: dedupeSecondParent.status,
+            secondParentLabel: dedupeSecondParent.label,
+            secondParentFailure: dedupeSecondParentFailure,
             existingUserAdded: {
               name: match.display_name || dedupeEmail,
               notificationFailed: !!notifyErr,
               notificationError: notifyErr?.message ?? null,
             },
           };
+
 
         }
       }
@@ -1188,11 +1294,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }))
       ) : null;
 
-      // Generate second parent token only if NOT selecting an existing user
-      const secondToken = (!selectedSecondParent && secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") 
-        ? crypto.randomUUID() : null;
-
-      // Create primary invite
+      // Create primary invite. The second parent always gets its OWN invite row
+      // (created below via the shared helper) linked back with linked_invite_token.
       const { data: primaryInvite, error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: teamId,
         club_id: clubId,
@@ -1205,7 +1308,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         metadata: childrenMetadata 
           ? { 
               children: JSON.parse(childrenMetadata), 
-              ...(secondToken ? { linked_invite_token: secondToken } : {}),
               ...(selectedSecondParent ? { second_parent_user_id: selectedSecondParent.id } : {}),
             } 
           : null,
@@ -1213,48 +1315,31 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       if (inviteError) throw inviteError;
 
       const link = `${window.location.origin}/join/p/${inviteToken}`;
-      
-      // Handle second parent
-      let secondParentLink: string | null = null;
-      let secondParentAddedDirectly = false;
 
-      if (selectedSecondParent && selectedRole === "parent") {
-        // Add existing user directly as second parent (ignore duplicate)
-        const { error: roleErr } = await supabase.from("user_roles").insert({
-          user_id: selectedSecondParent.id,
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent",
+      // Handle second parent through the one shared helper.
+      let secondParent: SecondParentResult = { status: "skipped", label: null };
+      let secondParentFailure: string | null = null;
+      try {
+        secondParent = await ensureSecondParent({
+          role: selectedRole,
+          selectedProfile: selectedSecondParent,
+          name: secondParentName,
+          email: secondParentEmail,
+          teamId,
+          clubId,
+          teamName,
+          childrenMetadata: validChildren.map((c) => ({
+            name: c.name.trim(),
+            yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+            existingChildId: c.existingChildId || null,
+          })),
+          childIds: validChildren.map((c) => c.existingChildId).filter(Boolean) as string[],
+          invitedByUserId: user!.id,
+          linkedInviteToken: inviteToken,
         });
-        if (roleErr && !roleErr.message?.includes("duplicate")) {
-          console.error("Failed to add second parent role:", roleErr.message);
-        }
-
-        await supabase.from("notifications").insert({
-          user_id: selectedSecondParent.id,
-          type: "membership",
-          message: `You have been added to ${teamName} as Parent`,
-          related_id: teamId,
-        });
-
-        secondParentAddedDirectly = true;
-      } else if (secondToken) {
-        const { error: secondError } = await supabase.from("pending_invites").insert({
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent" as any,
-          invited_user_id: null,
-          invited_by_user_id: user!.id,
-          invited_label: secondParentName.trim(),
-          invited_email: secondParentEmail.trim().toLowerCase(),
-          invite_token: secondToken,
-          metadata: childrenMetadata 
-            ? { children: JSON.parse(childrenMetadata), linked_invite_token: inviteToken } 
-            : null,
-        } as any);
-        if (!secondError) {
-          secondParentLink = `${window.location.origin}/join/p/${secondToken}`;
-        }
+      } catch (err) {
+        console.error("[AddTeamMember] second parent failed", (err as Error)?.message);
+        secondParentFailure = err instanceof SecondParentError ? (err.label ?? "the second parent") : "the second parent";
       }
 
       const shortCode = (primaryInvite as any)?.short_code || null;
@@ -1268,10 +1353,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         email: customEmail.trim(), 
         childrenCount: validChildren.length, 
         childrenNames: validChildren.map(c => c.name.trim()),
-        secondParentLink,
-        secondParentEmail: secondParentEmail.trim(),
-        secondParentName: secondParentName.trim(),
-        secondParentAddedDirectly,
+        secondParentLink: secondParent.inviteLink ?? null,
+        secondParentEmail: secondParent.email ?? "",
+        secondParentName: secondParent.label ?? "",
+        secondParentAddedDirectly: secondParent.status === "added",
+        secondParentStatus: secondParent.status,
+        secondParentLabel: secondParent.label,
+        secondParentFailure,
       };
     },
     onSuccess: async (result) => {
@@ -1279,6 +1367,29 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       const existingUserAdded = (result as any).existingUserAdded as
         | { name: string; notificationFailed?: boolean; notificationError?: string | null }
         | undefined;
+
+      const secondParentOutcomeToast = () => {
+        if (result.secondParentFailure) {
+          toast({
+            variant: "destructive",
+            title: "Second parent not invited",
+            description: secondParentPartialFailureMessage(
+              `${nameInput.trim() || "The member"}${childrenNames.length > 0 ? ` and ${childrenNames.join(", ")}` : ""} were added`,
+              result.secondParentFailure,
+            ),
+          });
+        } else if (result.secondParentStatus === "added") {
+          toast({
+            title: "Second parent added",
+            description: `${result.secondParentLabel} has also been added as Parent`,
+          });
+        } else if (result.secondParentStatus === "invited") {
+          toast({
+            title: "Second parent invited",
+            description: `An invitation was created for ${result.secondParentLabel}.`,
+          });
+        }
+      };
 
       // Short-circuit when we attached the role directly to an existing user
       if (existingUserAdded) {
@@ -1296,6 +1407,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
           });
         }
+        secondParentOutcomeToast();
         setNameInput("");
         setCustomEmail("");
         return;
@@ -1306,12 +1418,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       setInviteShareLink(sLink);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
 
-      if (secondParentAddedDirectly && selectedSecondParent) {
-        toast({
-          title: "Second parent added",
-          description: `${selectedSecondParent.display_name} has also been added as Parent`,
-        });
-      }
+      secondParentOutcomeToast();
+
 
       // Auto-send email notification if email was provided
       if (email) {
@@ -1458,7 +1566,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               title: "Second parent invited!",
               description: `Email also sent to ${secondEmail}`,
             });
+          } else {
+            toast({
+              variant: "destructive",
+              title: "Second parent invite created — email failed",
+              description: `${secondName}'s invitation exists but the email couldn't be sent. Share the invite link or retry.`,
+            });
           }
+
         } catch (error) {
           console.error("Failed to send second parent email:", error);
         }
@@ -1513,6 +1628,87 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       if (validMembers.length === 0) throw new Error("Please enter at least one name");
 
       const results: { name: string; email: string; link: string; sent: boolean; role: string; childrenCount: number }[] = [];
+      const secondParentFailures: string[] = [];
+      const secondParentInvited: string[] = [];
+      const secondParentAdded: string[] = [];
+
+      /**
+       * Single second-parent path for BOTH bulk branches. Always creates a real
+       * invite row (or attaches an existing profile), never swallows an error,
+       * and records the outcome so the summary toast can report it.
+       */
+      const handleSecondParent = async (
+        member: BulkMember,
+        validChildren: BulkMember["children"],
+        childIds: string[],
+        linkedInviteToken: string | null,
+      ) => {
+        try {
+          const res = await ensureSecondParent({
+            role: member.role,
+            selectedProfile: member.selectedSecondParent ?? null,
+            name: member.secondParentName,
+            email: member.secondParentEmail,
+            teamId,
+            clubId,
+            teamName,
+            childIds,
+            childrenMetadata: validChildren
+              .filter((c) => c.name.trim())
+              .map((c) => ({
+                name: c.name.trim(),
+                yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+                existingChildId: c.existingChildId || null,
+              })),
+            invitedByUserId: user!.id,
+            linkedInviteToken,
+          });
+
+          if (res.status === "added" && res.label) {
+            secondParentAdded.push(res.label);
+          } else if (res.status === "invited" && res.email && res.inviteLink) {
+            secondParentInvited.push(res.label || res.email);
+            try {
+              const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
+                body: {
+                  to: res.email,
+                  subject: `${clubBranding?.name || 'Your club'}: You've been invited as a guardian ⚽`,
+                  template: "team-invite",
+                  senderName: clubBranding?.name || undefined,
+                  replyTo: (clubBranding as any)?.contact_email || undefined,
+                  templateData: {
+                    recipientName: res.label || "Parent",
+                    invitedEmail: res.email,
+                    teamName,
+                    clubName: clubBranding?.name || "The Club",
+                    roleName: "Parent",
+                    inviteLink: res.inviteLink,
+                    clubLogoUrl: clubBranding?.logo_url || undefined,
+                    childrenNames: validChildren.filter(c => c.name.trim()).map(c => c.name.trim()),
+                  },
+                },
+              });
+              const emailSent = !funcError && emailResult?.verified && emailResult?.success;
+              await supabase
+                .from("pending_invites")
+                .update({
+                  email_sent_at: emailSent ? new Date().toISOString() : null,
+                  email_id: emailResult?.emailId || null,
+                  email_error: !emailSent ? (emailResult?.error || "Email not verified") : null,
+                } as any)
+                .eq("invite_token", res.inviteToken!);
+            } catch (err) {
+              console.error("[BulkAdd] second guardian email failed", (err as Error)?.message);
+            }
+          }
+        } catch (err) {
+          console.error("[BulkAdd] second parent failed", (err as Error)?.message);
+          secondParentFailures.push(
+            err instanceof SecondParentError ? (err.label ?? "a second parent") : "a second parent",
+          );
+        }
+      };
+
 
       // Pre-generate tokens for all members so we can cross-link parent pairs
       const memberTokens = validMembers.map(() => crypto.randomUUID());
@@ -1627,75 +1823,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             }
           }
 
-          // Handle second guardian for bulk parent (existing user flow)
-          if (memberRole === "parent" && validChildren.length > 0) {
-            if (member.selectedSecondParent) {
-              // Add second parent role
-              await supabase.from("user_roles").insert({
-                user_id: member.selectedSecondParent.id,
-                team_id: teamId,
-                club_id: clubId,
-                role: "parent",
-              }).select().maybeSingle();
+          // Second guardian: one shared path, errors surfaced (never swallowed).
+          await handleSecondParent(
+            member,
+            validChildren,
+            validChildren.map((c) => c.existingChildId).filter(Boolean) as string[],
+            null,
+          );
 
-              // Link as guardian to all children
-              for (const child of validChildren) {
-                const childId = child.existingChildId;
-                if (childId) {
-                  await supabase.from("child_guardians").insert({
-                    child_id: childId,
-                    guardian_id: member.selectedSecondParent.id,
-                  }).select().maybeSingle();
-                }
-              }
-            } else if ((member.secondParentName || "").trim() && (member.secondParentEmail || "").trim()) {
-              // Create a pending invite for the second guardian
-              const spToken = crypto.randomUUID();
-              const childIds = validChildren.map(c => c.existingChildId).filter(Boolean);
-              await supabase.from("pending_invites").insert({
-                team_id: teamId,
-                club_id: clubId,
-                role: "parent" as any,
-                invited_user_id: null,
-                invited_by_user_id: user!.id,
-                invited_label: (member.secondParentName || "").trim(),
-                invited_email: (member.secondParentEmail || "").trim().toLowerCase(),
-                invite_token: spToken,
-                metadata: {
-                  guardian_child_id: childIds[0] || null,
-                  guardian_all_team_ids: [teamId],
-                  invited_by_parent: true,
-                  children: validChildren.map(c => ({ name: c.name.trim(), existingChildId: c.existingChildId || null })),
-                },
-              } as any);
-
-              // Send invite email to second guardian
-              const spLink = `${window.location.origin}/join/p/${spToken}`;
-              try {
-                await supabase.functions.invoke("send-email", {
-                  body: {
-                    to: (member.secondParentEmail || "").trim().toLowerCase(),
-                    subject: `${clubBranding?.name || 'Your club'}: You've been invited as a guardian ⚽`,
-                    template: "team-invite",
-                    senderName: clubBranding?.name || undefined,
-                    replyTo: (clubBranding as any)?.contact_email || undefined,
-                    templateData: {
-                      recipientName: (member.secondParentName || "").trim(),
-                      invitedEmail: (member.secondParentEmail || "").trim().toLowerCase(),
-                      teamName,
-                      clubName: clubBranding?.name || "The Club",
-                      roleName: "Parent",
-                      inviteLink: spLink,
-                      clubLogoUrl: clubBranding?.logo_url || undefined,
-                      childrenNames: validChildren.map(c => c.name.trim()),
-                    },
-                  },
-                });
-              } catch (err) {
-                console.error("[BulkAdd] Failed to send second guardian invite email:", err);
-              }
-            }
-          }
 
           await supabase.from("notifications").insert({
             user_id: member.selectedUser.id,
@@ -1717,11 +1852,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
         // Add linked_invite_token if this parent is paired with another
         const linkedToken = crossLinks.get(i);
-        const secondParentMeta = member.secondParentName?.trim() && member.secondParentEmail?.trim()
-          ? { second_guardian_name: member.secondParentName.trim(), second_guardian_email: member.secondParentEmail.trim().toLowerCase() }
-          : (member.selectedSecondParent ? { second_guardian_user_id: member.selectedSecondParent.id, second_guardian_name: member.selectedSecondParent.display_name } : {});
         const metadata = childrenMetadata 
-          ? { children: JSON.parse(childrenMetadata), ...(linkedToken ? { linked_invite_token: linkedToken } : {}), ...secondParentMeta }
+          ? {
+              children: JSON.parse(childrenMetadata),
+              ...(linkedToken ? { linked_invite_token: linkedToken } : {}),
+              ...(member.selectedSecondParent
+                ? { second_parent_user_id: member.selectedSecondParent.id }
+                : {}),
+            }
           : null;
 
         // Create pending invite record with children metadata
@@ -1741,6 +1879,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           console.error("Failed to create invite for", member.name, inviteError);
           continue;
         }
+
+        // Second parent gets its OWN invite row (previously this path only wrote
+        // inert second_guardian_* metadata that nothing consumed).
+        await handleSecondParent(member, validChildren, [], inviteToken);
+
 
         const link = `${window.location.origin}/join/p/${inviteToken}`;
         let sent = false;
@@ -1818,9 +1961,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         });
       }
 
-      return results;
+      return { results, secondParentFailures, secondParentInvited, secondParentAdded };
     },
-    onSuccess: (results) => {
+    onSuccess: ({ results, secondParentFailures, secondParentInvited, secondParentAdded }) => {
       setBulkResults(results);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
       queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
@@ -1834,7 +1977,28 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           ? `${sentCount} member${sentCount > 1 ? "s were" : " was"} added or emailed successfully`
           : "Share the invite links with your members",
       });
+
+      if (secondParentAdded.length > 0 || secondParentInvited.length > 0) {
+        toast({
+          title: "Second parents handled",
+          description: [
+            secondParentAdded.length > 0 ? `Added: ${secondParentAdded.join(", ")}` : null,
+            secondParentInvited.length > 0 ? `Invited: ${secondParentInvited.join(", ")}` : null,
+          ].filter(Boolean).join(" · "),
+        });
+      }
+      if (secondParentFailures.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Some second parents were not invited",
+          description: secondParentPartialFailureMessage(
+            "Members were added",
+            secondParentFailures.join(", "),
+          ),
+        });
+      }
     },
+
     onError: (error: Error) => {
       toast({
         title: "Failed to add members",
@@ -1977,6 +2141,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   };
 
   const validBulkCount = bulkMembers.filter(m => m.name.trim()).length;
+  // Any bulk row with a second-parent name but no valid email blocks the bulk add.
+  const bulkSecondParentBlocked = bulkMembers.some(m => !!secondParentValidationError({
+    role: m.role,
+    name: m.secondParentName,
+    email: m.secondParentEmail,
+    selectedProfile: m.selectedSecondParent,
+  }));
 
   const selectedRoleOption = roleOptions.find(r => r.value === selectedRole);
 
@@ -2266,6 +2437,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       <SheetContent
         side="bottom"
         enableDragToClose
+        hideCloseButton
         className="rounded-t-2xl flex flex-col overflow-hidden overscroll-contain"
         data-lock-keyboard-scroll="true"
         data-allow-scroll
@@ -2273,33 +2445,39 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           touchAction: 'pan-y',
           WebkitOverflowScrolling: 'touch',
           // When the soft keyboard is open (Capacitor Keyboard.resize='none'),
-          // lift the sheet ABOVE the keyboard by offsetting its bottom edge,
-          // and shrink its height so it fits in the remaining viewport. Without
-          // the bottom offset the sheet stays anchored to bottom:0 on iOS,
-          // which leaves the form hidden behind the keyboard.
+          // lift the sheet ABOVE the keyboard by offsetting its bottom edge.
           bottom: nativeKbHeight > 0 ? `${nativeKbHeight}px` : undefined,
-          // Cap the sheet so it never crosses the iOS status bar / Dynamic Island.
-          // Reserve env(safe-area-inset-top) plus a small visual gap.
-          maxHeight:
-            nativeKbHeight > 0
-              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
-              : 'calc(100dvh - env(safe-area-inset-top, 0px) - 8px)',
-          height:
-            nativeKbHeight > 0
-              ? `calc(100dvh - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`
-              : undefined,
-          // Longhand only — the shared SheetContent also sets transition longhands
-          // (for drag-to-close), and mixing shorthand + longhand triggers a React warning.
-          transitionProperty: 'bottom, height, max-height',
+          // STABLE HEIGHT: the sheet keeps ONE height for the whole invite
+          // workflow so it never grows/shrinks (and visibly jolts) as steps
+          // change or as validation rows/errors appear while typing. Only the
+          // keyboard inset changes it; all content scrolls inside.
+          // `--visual-vh` is the monotonic-max locked viewport height.
+          height: `calc(min(86vh, calc(var(--visual-vh, 100dvh) * 0.86)) - ${nativeKbHeight}px)`,
+          maxHeight: `calc(var(--visual-vh, 100dvh) - ${nativeKbHeight}px - env(safe-area-inset-top, 0px) - 8px)`,
+          // Only animate the keyboard lift — never height, so content changes
+          // cannot produce an animated up/down jolt.
+          transitionProperty: 'bottom',
           transitionDuration: '200ms',
           transitionTimingFunction: 'ease',
         }}
+
       >
-        <SheetHeader className="mb-3 shrink-0">
+        <SheetHeader className="mb-3 shrink-0 relative pr-2">
           <SheetTitle>Invite to Team</SheetTitle>
           <SheetDescription>
             Add players, parents or coaches
           </SheetDescription>
+          <SheetClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute -right-1 top-0 h-8 w-8 rounded-full opacity-70 hover:opacity-100"
+              aria-label="Close invite sheet"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </SheetClose>
         </SheetHeader>
 
         {/* Club admin confirmation banner */}
@@ -2309,30 +2487,66 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </div>
         )}
 
-        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-24 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+        <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-4 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           {/* Multiple/bulk tab removed — join link + single invite cover all cases */}
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
-            {/* Persistent team join link — primary action on first open. */}
-            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
-              <TeamJoinLinkCard teamId={teamId} teamName={teamName} teamType={teamType} />
+            {/* STEP 0 — the only decision on first open: one link, or one person. */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && !linkFlowOpen && (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Link2 className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">Share a team link</p>
+                      <p className="text-xs text-muted-foreground">Invite several people at once.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    className="w-full h-11 text-sm font-semibold"
+                    onClick={() => setLinkFlowOpen(true)}
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Create link
+                  </Button>
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <UserPlus className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">Invite someone directly</p>
+                      <p className="text-xs text-muted-foreground">Send an individual invitation by email or SMS.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-11 text-sm font-semibold bg-background"
+                    onClick={() => setInviteByNameExpanded(true)}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite person
+                  </Button>
+                </div>
+              </div>
             )}
 
-            {/* Secondary "Invite by name" toggle — collapsed by default. */}
-            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && (
-              <button
-                type="button"
-                onClick={() => setInviteByNameExpanded(true)}
-                className="w-full flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium hover:bg-muted/40 transition-colors min-h-[44px]"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                  Invite a specific person
-                </span>
-                <span className="text-xs text-muted-foreground">Email or SMS</span>
-              </button>
+            {/* Join-link flow — role choice + link actions, shown after "Create link". */}
+            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && linkFlowOpen && !inviteByNameExpanded && (
+              <TeamJoinLinkCard
+                teamId={teamId}
+                teamName={teamName}
+                teamType={teamType}
+                onBack={() => setLinkFlowOpen(false)}
+              />
             )}
 
             {/* Invite-by-name body (form + wizard) — only when expanded */}
@@ -2561,11 +2775,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         </Avatar>
                         <div className="flex flex-col min-w-0">
                           <span className="text-sm font-medium truncate">{result.display_name || "Unknown"}</span>
-                          {identityMap[result.id]?.contextLine ? (
-                            <span className="text-xs text-muted-foreground truncate">{identityMap[result.id].contextLine}</span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Pending invite (other team)</span>
-                          )}
+                          <span className="text-xs text-muted-foreground truncate">
+                            {formatPendingInviteSubtitle(result.role, result.teamName, result.childName)}
+                          </span>
                         </div>
                       </button>
                     ))}
@@ -3769,6 +3981,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               isFinalStep && deliveryMethod === "email" && !selectedUser && !emailTrimmed;
             const submitInvalidEmail =
               isFinalStep && deliveryMethod === "email" && !selectedUser && !!emailTrimmed && !emailRegex.test(emailTrimmed);
+            // A second-parent name without a valid email must block submission —
+            // it must never be silently discarded.
+            const secondParentBlocked = secondParentValidationError({
+              role: selectedRole,
+              name: secondParentName,
+              email: secondParentEmail,
+              selectedProfile: selectedSecondParent,
+            });
 
             // Guardrail: human-readable reason explaining why the primary
             // action is currently blocked. Surfaced inline above the footer
@@ -3784,6 +4004,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               blockedReason = "Enter an email address to send the invite.";
             } else if (submitInvalidEmail) {
               blockedReason = "That email doesn't look right — double-check the format.";
+            } else if (secondParentBlocked) {
+              blockedReason = secondParentBlocked;
             }
 
             const handleNext = () => {
@@ -3808,14 +4030,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             };
 
             const handleSubmit = () => {
-              if (submitNeedsEmail || submitInvalidEmail) return;
+              if (submitNeedsEmail || submitInvalidEmail || secondParentBlocked) return;
               if (selectedUser) addExistingUserMutation.mutate();
               else addPendingMemberMutation.mutate();
             };
 
             const nextDisabled =
               (wizardStep === 1 && !canAdvanceFromStep1) ||
-              (wizardStep === 2 && !canAdvanceFromStep2);
+              (wizardStep === 2 && !canAdvanceFromStep2) ||
+              !!secondParentBlocked;
 
             return (
               <div className="space-y-2">
@@ -3845,8 +4068,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Button
                       className="flex-1 h-12 text-base font-semibold"
                       onClick={handleSubmit}
-                      disabled={isPending || submitNeedsEmail || submitInvalidEmail}
-                      variant={submitNeedsEmail || submitInvalidEmail ? "outline" : "default"}
+                      disabled={isPending || submitNeedsEmail || submitInvalidEmail || !!secondParentBlocked}
+                      variant={submitNeedsEmail || submitInvalidEmail || secondParentBlocked ? "outline" : "default"}
                     >
                       {isPending ? (
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -3878,7 +4101,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             <Button
               className="w-full h-12 text-base font-semibold"
               onClick={() => addBulkMembersMutation.mutate(undefined)}
-              disabled={validBulkCount === 0 || addBulkMembersMutation.isPending}
+              disabled={validBulkCount === 0 || bulkSecondParentBlocked || addBulkMembersMutation.isPending}
             >
               {addBulkMembersMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />

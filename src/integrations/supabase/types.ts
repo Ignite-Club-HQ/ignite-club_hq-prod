@@ -10988,6 +10988,13 @@ export type Database = {
           team_msgs: number
         }[]
       }
+      club_scoped_child_guardians: {
+        Args: { p_child_ids: string[]; p_club_id: string }
+        Returns: {
+          child_id: string
+          guardian_id: string
+        }[]
+      }
       complete_stripe_webhook_event: {
         Args: { p_event_id: string }
         Returns: undefined
@@ -11898,6 +11905,10 @@ export type Database = {
         Args: { _child_id: string; _user_id: string }
         Returns: boolean
       }
+      is_guardian_visible_in_club: {
+        Args: { _club_id: string; _guardian_id: string }
+        Returns: boolean
+      }
       is_league_admin: {
         Args: { p_mini_league_id: string; p_user_id: string }
         Returns: boolean
@@ -12141,10 +12152,9 @@ export type Database = {
           team_name: string
         }[]
       }
-      provision_invite_children: {
-        Args: { p_invite_id: string }
-        Returns: Json
-      }
+      provision_invite_children:
+        | { Args: { _guardian_id: string; _invite_id: string }; Returns: Json }
+        | { Args: { p_invite_id: string }; Returns: Json }
       prune_active_games_write_log: { Args: never; Returns: undefined }
       prune_old_diagnostic_logs: {
         Args: never
@@ -12304,7 +12314,7 @@ export type Database = {
         }[]
       }
       search_invitable_profiles: {
-        Args: { _limit?: number; _query: string }
+        Args: { _club_id?: string; _limit?: number; _query: string }
         Returns: {
           avatar_url: string
           display_name: string

@@ -8,6 +8,7 @@ import {
 
 const joinTeamPage = readFileSync("src/pages/JoinTeamPage.tsx", "utf8");
 const welcomeDialog = readFileSync("src/components/PendingInviteWelcomeDialog.tsx", "utf8");
+const completeProfilePage = readFileSync("src/pages/CompleteProfilePage.tsx", "utf8");
 
 /**
  * A parent invitation that carries child metadata must be accepted atomically.
@@ -34,6 +35,19 @@ describe("parent invite atomic acceptance", () => {
   it("PendingInviteWelcomeDialog routes child metadata invites to the RPC", () => {
     expect(welcomeDialog).toContain("acceptParentTeamInvite({ inviteId: invite.id })");
     expect(welcomeDialog).toContain("hasChildMetadata");
+  });
+
+  it("CompleteProfilePage uses one authoritative path for standard parent invites", () => {
+    const branch = completeProfilePage.slice(
+      completeProfilePage.indexOf("if (isStandardParentChildInvite)"),
+      completeProfilePage.indexOf("// Check if role already exists")
+    );
+    expect(branch).toContain('if (invite.status === "pending")');
+    expect(branch).toContain("acceptParentTeamInvite({ inviteId: invite.id })");
+    expect(branch).toContain("provisionInviteChildren({");
+    expect(branch).toContain("continue;");
+    expect(branch).not.toContain("createChildForParentOrReuse");
+    expect(branch).not.toContain("child_team_assignments");
   });
 
   it("PendingInviteWelcomeDialog leaves the invite pending when the RPC fails", () => {

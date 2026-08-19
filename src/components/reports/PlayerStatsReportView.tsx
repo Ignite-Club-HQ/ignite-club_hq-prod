@@ -40,6 +40,8 @@ interface PlayerStat {
   substitutions_count: number;
   started_on_pitch: boolean;
   goals_scored: number;
+  games_played?: number;
+  starts_count?: number;
   profiles?: {
     display_name: string | null;
     avatar_url: string | null;
@@ -112,6 +114,8 @@ export default function PlayerStatsReportView({
             existing.minutes_played += stat.minutes_played;
             existing.substitutions_count += stat.substitutions_count;
             existing.goals_scored += stat.goals_scored || 0;
+            existing.games_played = (existing.games_played || 0) + 1;
+            existing.starts_count = (existing.starts_count || 0) + (stat.started_on_pitch ? 1 : 0);
             stat.positions_played.forEach((pos: string) => {
               if (!existing.positions_played.includes(pos)) {
                 existing.positions_played.push(pos);
@@ -132,6 +136,8 @@ export default function PlayerStatsReportView({
               positions_played: [...stat.positions_played],
               position_minutes: stat.position_minutes ? { ...stat.position_minutes } : null,
               goals_scored: stat.goals_scored || 0,
+              games_played: 1,
+              starts_count: stat.started_on_pitch ? 1 : 0,
             });
           }
         });
@@ -282,7 +288,10 @@ export default function PlayerStatsReportView({
                 <th style="width: 80px;">Total</th>
                 <th>Minutes by Position</th>
                 <th style="width: 60px; text-align: center;">Subs</th>
-                <th style="width: 70px; text-align: center;">Started</th>
+                ${dateRange ? `
+                <th style="width: 60px; text-align: center;">GP</th>
+                <th style="width: 60px; text-align: center;">Starts</th>
+                ` : `<th style="width: 70px; text-align: center;">Started</th>`}
               </tr>
             </thead>
             <tbody>
@@ -304,7 +313,9 @@ export default function PlayerStatsReportView({
                       <td>${formatMinutes(stat.minutes_played)}</td>
                       <td>${positionMinsHtml}</td>
                       <td style="text-align: center;">${stat.substitutions_count}</td>
-                      <td style="text-align: center;">${stat.started_on_pitch ? "Yes" : "No"}</td>
+                      ${dateRange
+                        ? `<td style="text-align: center;">${stat.games_played ?? 1}</td><td style="text-align: center;">${stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)}</td>`
+                        : `<td style="text-align: center;">${stat.started_on_pitch ? "Yes" : "No"}</td>`}
                     </tr>
                   `;
                 }).join("")}
@@ -413,7 +424,14 @@ export default function PlayerStatsReportView({
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="hidden sm:table-cell">Minutes by Position</TableHead>
                 <TableHead className="text-center hidden sm:table-cell">Subs</TableHead>
-                <TableHead className="text-center hidden sm:table-cell">Started</TableHead>
+                {dateRange ? (
+                  <>
+                    <TableHead className="text-center">GP</TableHead>
+                    <TableHead className="text-center">Starts</TableHead>
+                  </>
+                ) : (
+                  <TableHead className="text-center hidden sm:table-cell">Started</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -471,9 +489,19 @@ export default function PlayerStatsReportView({
                   <TableCell className="text-center hidden sm:table-cell">
                     {stat.substitutions_count}
                   </TableCell>
-                  <TableCell className="text-center hidden sm:table-cell">
-                    {stat.started_on_pitch ? "✓" : "-"}
-                  </TableCell>
+                  {dateRange ? (
+                    <>
+                      <TableCell className="text-center font-mono">{stat.games_played ?? 1}</TableCell>
+                      <TableCell className="text-center font-mono">
+                        {stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)}
+                      </TableCell>
+                    </>
+                  ) : (
+                    <TableCell className="text-center hidden sm:table-cell">
+                      {stat.started_on_pitch ? "✓" : "-"}
+                    </TableCell>
+                  )}
+
                 </TableRow>
               ))}
             </TableBody>

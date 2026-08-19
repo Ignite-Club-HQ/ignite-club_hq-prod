@@ -3,7 +3,7 @@ import { prefetchProfiles } from "@/hooks/useProfiles";
 import { cacheProfiles, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy, Eye, Radio, MoreVertical, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Users, Calendar, MessageCircle, Settings, Trash2, UserPlus, Loader2, Crown, Pencil, LayoutGrid, Plus, Target, Timer, X, RefreshCw, CreditCard, Flame, Building2, Lock, FolderOpen, BarChart3, Archive, ArchiveRestore, ClipboardCheck, Copy, ChevronRight, LogOut, ArrowRightLeft, Trophy, Eye, Radio, MoreVertical, Image as ImageIcon, FileText } from "lucide-react";
 import { TeamNextEventCard } from "@/components/team/TeamNextEventCard";
 import { TeamRankCard } from "@/components/team/TeamRankCard";
 import { TeamNextStepsCard } from "@/components/team/TeamNextStepsCard";
@@ -338,10 +338,20 @@ export default function TeamDetailPage() {
 
       const childIds = childrenRows.map((row) => row.child_id);
 
-      const { data: guardianLinks } = await supabase
-        .from("child_guardians")
-        .select("child_id, guardian_id")
-        .in("child_id", childIds);
+      // Guardians are club-scoped: a parent linked to this child at ANOTHER club
+      // must never surface on this club's roster.
+      const { data: teamRow } = await supabase
+        .from("teams")
+        .select("club_id")
+        .eq("id", id!)
+        .maybeSingle();
+      const { data: guardianLinks } = teamRow?.club_id
+        ? await supabase.rpc("club_scoped_child_guardians", {
+            p_child_ids: childIds,
+            p_club_id: teamRow.club_id,
+          })
+        : { data: [] as { child_id: string; guardian_id: string }[] };
+
 
       const parentIds = [...new Set([
         ...childrenRows.map((c) => c.parent_id).filter(Boolean),
@@ -2268,6 +2278,34 @@ export default function TeamDetailPage() {
                   <Badge variant="secondary" className="ml-auto text-xs">
                     <Lock className="h-3 w-3 mr-1" />
                     Pro
+                  </Badge>
+                </CardContent>
+              </Card>
+            </Link>
+          )}
+
+          {hasProFootball ? (
+            <Link to={`/reports/player-stats?teamId=${id}`}>
+              <Card className="hover:border-primary/50 transition-colors">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/10">
+                    <FileText className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <span className="font-medium">Player Stats Reports</span>
+                </CardContent>
+              </Card>
+            </Link>
+          ) : (
+            <Link to={`/teams/${id}/upgrade`}>
+              <Card className="hover:border-primary/50 transition-colors opacity-75">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-muted">
+                    <FileText className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <span className="font-medium text-muted-foreground">Player Stats Reports</span>
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    <Lock className="h-3 w-3 mr-1" />
+                    Pro Football
                   </Badge>
                 </CardContent>
               </Card>
