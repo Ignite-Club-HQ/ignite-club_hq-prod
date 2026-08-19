@@ -210,7 +210,6 @@ export default function AuthPage() {
         setEmail(context.invitedEmail);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   
