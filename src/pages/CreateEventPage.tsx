@@ -151,19 +151,23 @@ export default function CreateEventPage() {
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
   const [adultsOnly, setAdultsOnly] = useState(false);
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
-  // Subset targeting for club-wide games/socials: null = all club, [...] = only those teams
+  // Subset targeting for club-wide games/socials/trainings: null = all club, [...] = only those teams
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
+  // Types that support a club-wide ("All Club") scope and therefore team targeting.
+  const supportsClubWideScope = type === "game" || type === "social" || type === "training";
+
   // Clear stale target_team_ids whenever the event moves out of the
-  // "club-wide game/social" window (team picked, unsupported type, club
-  // changed). Prevents a stale UUID subset from being submitted after the
-  // relationship changes — the backend validation trigger would reject it
-  // anyway, but clearing gives a clean UX.
+  // club-wide window (team picked, unsupported type, club changed).
   useEffect(() => {
-    if (targetTeamIds !== null && (teamId || (type !== "game" && type !== "social"))) {
+    if (
+      targetTeamIds !== null &&
+      (teamId || (type !== "game" && type !== "social" && type !== "training"))
+    ) {
       setTargetTeamIds(null);
     }
   }, [teamId, type, clubId, targetTeamIds]);
+
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
@@ -675,18 +679,21 @@ export default function CreateEventPage() {
       return;
     }
 
-    // Require team selection for games and training
     // Remember last used event type
     localStorage.setItem("lastEventType", type);
 
-    // Training always requires a team. Games can be "All Club" (club-wide match).
-    if (type === "training" && !teamId) {
+    // Training, games and socials may be club-wide ("All Club") or targeted at
+    // a subset of teams. When a subset is chosen it must contain 2+ teams.
+    if (!teamId && targetTeamIds !== null && targetTeamIds.length < 2) {
       toast({
-        title: "Team required",
-        description: "Please select a team for training sessions.",
+        title: "Select at least 2 teams",
+        description:
+          "Pick two or more teams, or choose All Club members. For a single team, select it in the Team dropdown.",
+        variant: "destructive",
       });
       return;
     }
+
 
     // Guard against a stale team selection: if the team was soft-deleted
     // (possibly from another device) the event — and its auto "event created"
@@ -825,11 +832,12 @@ export default function CreateEventPage() {
         type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
       adults_only: adultsOnly,
       rsvp_grouping:
-        !teamId && (type === "game" || type === "social") && rsvpGrouping ? rsvpGrouping : null,
+        !teamId && supportsClubWideScope && rsvpGrouping ? rsvpGrouping : null,
       target_team_ids:
-        !teamId && (type === "game" || type === "social") && targetTeamIds && targetTeamIds.length >= 2
+        !teamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
           ? targetTeamIds
           : null,
+
     } as any;
 
     // The event row, any recurring occurrences and the duties are written by a
@@ -926,7 +934,7 @@ export default function CreateEventPage() {
         if (!title.trim()) missingFields.push("Event title");
         if (!clubId) missingFields.push("Club selection");
         if (!eventDateTime) missingFields.push("Date and time");
-        if ((type === "game" || type === "training") && !teamId) missingFields.push("Team selection");
+        if (!teamId && targetTeamIds !== null && targetTeamIds.length < 2) missingFields.push("Team selection");
         
         if (missingFields.length > 0) {
           errorDescription = `Missing required fields: ${missingFields.join(", ")}`;
@@ -1187,23 +1195,22 @@ export default function CreateEventPage() {
                 {/* Team selection - for non-mini-league events */}
                 {type !== "mini_league" && (
                   <MobileCardSelect
-                    value={teamId || ((type === "social" || type === "game") ? "__all__" : "")}
+                    value={teamId || (supportsClubWideScope ? "__all__" : "")}
                     onValueChange={(v) => setTeamId(v === "__all__" ? "" : v)}
                     options={[
-                      ...((type === "social" || type === "game")
+                      ...(supportsClubWideScope
                         ? [{ value: "__all__", label: "All Club" }]
                         : []),
                       ...(teams?.map((team) => ({ value: team.id, label: team.name })) || []),
                     ]}
-                    placeholder={(type === "social" || type === "game") ? "All Club" : "Select team"}
+                    placeholder={supportsClubWideScope ? "All Club" : "Select team"}
                     label="Team"
                     disabled={!clubId}
-                    required={type === "training"}
                   />
                 )}
 
-                {/* RSVP grouping - only for club-wide game/social events */}
-                {!teamId && (type === "game" || type === "social") && (
+                {/* RSVP grouping - only for club-wide events */}
+                {!teamId && supportsClubWideScope && (
                   <MobileCardSelect
                     value={rsvpGrouping || "none"}
                     onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
@@ -1217,8 +1224,9 @@ export default function CreateEventPage() {
                   />
                 )}
 
-                {/* Target teams — restrict a club-wide game/social to a subset of teams */}
-                {!teamId && (type === "game" || type === "social") && (
+                {/* Target teams — restrict a club-wide event to a subset of teams */}
+                {!teamId && supportsClubWideScope && (
+
                   <TargetTeamsPicker
                     teams={allClubTeams ?? undefined}
                     value={targetTeamIds}
@@ -1771,7 +1779,7 @@ export default function CreateEventPage() {
         <Button
           className="w-full h-12 text-base font-semibold shadow-lg disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground"
           onClick={() => handleSubmit()}
-          disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim() || (type === "training" && !teamId)}
+          disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim()}
         >
           {saving ? (
             <Loader2 className="h-5 w-5 animate-spin" />
