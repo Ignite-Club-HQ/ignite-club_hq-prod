@@ -150,6 +150,15 @@ export default function AuthPage() {
   // Synchronous submission lock — guards against double taps in one task.
   const authInFlightRef = useRef(false);
 
+  // Invite metadata persisted by the invite page so the auth page can pre-fill
+  // the email and show a banner.
+  const [inviteAuthContext, setInviteAuthContext] = useState<NonNullable<ReturnType<typeof readInviteAuthContext>> | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
+  const [termsError, setTermsError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
   const isNativePlatform = Capacitor.isNativePlatform();
   const { isOnline } = useOnlineStatus();
   
