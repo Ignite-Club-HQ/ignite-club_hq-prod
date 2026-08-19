@@ -1683,75 +1683,14 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             }
           }
 
-          // Handle second guardian for bulk parent (existing user flow)
-          if (memberRole === "parent" && validChildren.length > 0) {
-            if (member.selectedSecondParent) {
-              // Add second parent role
-              await supabase.from("user_roles").insert({
-                user_id: member.selectedSecondParent.id,
-                team_id: teamId,
-                club_id: clubId,
-                role: "parent",
-              }).select().maybeSingle();
+          // Second guardian: one shared path, errors surfaced (never swallowed).
+          await handleSecondParent(
+            member,
+            validChildren,
+            validChildren.map((c) => c.existingChildId).filter(Boolean) as string[],
+            null,
+          );
 
-              // Link as guardian to all children
-              for (const child of validChildren) {
-                const childId = child.existingChildId;
-                if (childId) {
-                  await supabase.from("child_guardians").insert({
-                    child_id: childId,
-                    guardian_id: member.selectedSecondParent.id,
-                  }).select().maybeSingle();
-                }
-              }
-            } else if ((member.secondParentName || "").trim() && (member.secondParentEmail || "").trim()) {
-              // Create a pending invite for the second guardian
-              const spToken = crypto.randomUUID();
-              const childIds = validChildren.map(c => c.existingChildId).filter(Boolean);
-              await supabase.from("pending_invites").insert({
-                team_id: teamId,
-                club_id: clubId,
-                role: "parent" as any,
-                invited_user_id: null,
-                invited_by_user_id: user!.id,
-                invited_label: (member.secondParentName || "").trim(),
-                invited_email: (member.secondParentEmail || "").trim().toLowerCase(),
-                invite_token: spToken,
-                metadata: {
-                  guardian_child_id: childIds[0] || null,
-                  guardian_all_team_ids: [teamId],
-                  invited_by_parent: true,
-                  children: validChildren.map(c => ({ name: c.name.trim(), existingChildId: c.existingChildId || null })),
-                },
-              } as any);
-
-              // Send invite email to second guardian
-              const spLink = `${window.location.origin}/join/p/${spToken}`;
-              try {
-                await supabase.functions.invoke("send-email", {
-                  body: {
-                    to: (member.secondParentEmail || "").trim().toLowerCase(),
-                    subject: `${clubBranding?.name || 'Your club'}: You've been invited as a guardian ⚽`,
-                    template: "team-invite",
-                    senderName: clubBranding?.name || undefined,
-                    replyTo: (clubBranding as any)?.contact_email || undefined,
-                    templateData: {
-                      recipientName: (member.secondParentName || "").trim(),
-                      invitedEmail: (member.secondParentEmail || "").trim().toLowerCase(),
-                      teamName,
-                      clubName: clubBranding?.name || "The Club",
-                      roleName: "Parent",
-                      inviteLink: spLink,
-                      clubLogoUrl: clubBranding?.logo_url || undefined,
-                      childrenNames: validChildren.map(c => c.name.trim()),
-                    },
-                  },
-                });
-              } catch (err) {
-                console.error("[BulkAdd] Failed to send second guardian invite email:", err);
-              }
-            }
-          }
 
           await supabase.from("notifications").insert({
             user_id: member.selectedUser.id,
