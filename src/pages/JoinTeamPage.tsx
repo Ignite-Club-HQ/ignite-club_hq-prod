@@ -56,6 +56,12 @@ const roleLabels: Record<AppRole, string> = {
   competition_admin: "Competition Admin",
 };
 
+// SessionStorage key for the invite metadata shown on the /auth page banner
+// (club, team, role, invited email). This deliberately lives in sessionStorage
+// so it is scoped to the current invite hand-off and can be read before the
+// form is rendered.
+const INVITE_AUTH_CONTEXT_KEY = "inviteAuthContext";
+
 // Roles that users can request when joining a team
 const selectableRoles: AppRole[] = ["coach", "player", "parent"];
 
