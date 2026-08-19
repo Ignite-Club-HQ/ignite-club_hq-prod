@@ -334,6 +334,7 @@ export default function AuthPage() {
 
     console.log("[AuthPage] Authenticated, redirecting to home");
     clearInviteFlowContext();
+    safeSessionRemove(INVITE_AUTH_CONTEXT_KEY);
     setPostAuthTarget("/");
   }, [
     user,
