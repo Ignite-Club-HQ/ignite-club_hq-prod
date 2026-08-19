@@ -1075,8 +1075,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               senderName: clubBranding?.name || undefined,
               replyTo: (clubBranding as any)?.contact_email || undefined,
               templateData: {
-                recipientName: secondParentName.trim(),
-                invitedEmail: secondParentEmail.trim().toLowerCase(),
+                recipientName: result.secondParentLabel || "Parent",
+                invitedEmail: result.secondParentInviteEmail,
                 teamName,
                 clubName: clubBranding?.name || "The Club",
                 roleName: "Parent",
