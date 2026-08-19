@@ -1104,9 +1104,10 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
-        <DropdownMenu>
+        <div className="relative">
+        <DropdownMenu onOpenChange={(open) => { if (open) dismissClubSwitcherHint(); }}>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2.5 px-1.5 py-1 -ml-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
+            <button onPointerDown={dismissClubSwitcherHint} className="flex items-center gap-2.5 px-1.5 py-1 -ml-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
               {shouldShowClubTheming ? (
                 <>
                   {showClubLogo ? (
