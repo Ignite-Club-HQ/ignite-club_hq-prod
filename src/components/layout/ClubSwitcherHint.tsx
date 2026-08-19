@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * One-shot coach-mark for the header club switcher.
@@ -27,6 +28,32 @@ export function markClubSwitcherHintSeen(userId: string): void {
   } catch {
     /* storage unavailable — hint simply shows again next launch */
   }
+  // Persist across devices; local flag above keeps the UI instant.
+  void supabase
+    .from("profiles")
+    .update({ club_switcher_hint_seen_at: new Date().toISOString() })
+    .eq("id", userId);
+}
+
+/** Server-side dismissal state, so the hint stays dismissed on other devices. */
+export async function fetchClubSwitcherHintSeen(userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("club_switcher_hint_seen_at")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) return true; // fail closed — never nag on an unknown state
+  const seen = !!data?.club_switcher_hint_seen_at;
+  if (seen) markLocalClubSwitcherHintSeen(userId);
+  return seen;
+}
+
+function markLocalClubSwitcherHintSeen(userId: string): void {
+  try {
+    localStorage.setItem(`${KEY_PREFIX}${userId}`, "1");
+  } catch {
+    /* ignore */
+  }
 }
 
 interface ClubSwitcherHintProps {
@@ -42,8 +69,16 @@ export function ClubSwitcherHint({ userId, enabled, onDismiss }: ClubSwitcherHin
   useEffect(() => {
     if (!enabled || !userId) return;
     if (hasSeenClubSwitcherHint(userId)) return;
-    const timer = setTimeout(() => setVisible(true), 600);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void fetchClubSwitcherHintSeen(userId).then((seen) => {
+      if (cancelled || seen) return;
+      timer = setTimeout(() => setVisible(true), 600);
+    });
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [enabled, userId]);
 
   const dismiss = () => {
