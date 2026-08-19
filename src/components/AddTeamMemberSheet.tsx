@@ -940,12 +940,29 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         });
       }
 
-      if (result?.secondParentAddedDirectly && selectedSecondParent) {
+      // Second-parent outcome is always explicit: added now, invited by email,
+      // or a visible, retryable partial failure.
+      if (result?.secondParentFailure) {
+        toast({
+          variant: "destructive",
+          title: "Second parent not invited",
+          description: secondParentPartialFailureMessage(
+            `${selectedUser?.display_name || "The member"}${singleChildren.some(c => c.name.trim()) ? ` and ${singleChildren.filter(c => c.name.trim()).map(c => c.name.trim()).join(", ")}` : ""} were added`,
+            result.secondParentFailure,
+          ),
+        });
+      } else if (result?.secondParentStatus === "added") {
         toast({
           title: "Second parent added",
-          description: `${selectedSecondParent.display_name} has also been added as Parent`,
+          description: `${result.secondParentLabel} has also been added as Parent`,
+        });
+      } else if (result?.secondParentStatus === "invited") {
+        toast({
+          title: "Second parent invited",
+          description: `An invitation was created for ${result.secondParentLabel}.`,
         });
       }
+
 
       // Send team-invite email to primary parent (existing user) — uses full onboarding template with download links
       if (selectedRole === "parent" && selectedUser) {
