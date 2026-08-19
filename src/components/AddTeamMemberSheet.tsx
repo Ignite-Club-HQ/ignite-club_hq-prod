@@ -1309,6 +1309,29 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         | { name: string; notificationFailed?: boolean; notificationError?: string | null }
         | undefined;
 
+      const secondParentOutcomeToast = () => {
+        if (result.secondParentFailure) {
+          toast({
+            variant: "destructive",
+            title: "Second parent not invited",
+            description: secondParentPartialFailureMessage(
+              `${nameInput.trim() || "The member"}${childrenNames.length > 0 ? ` and ${childrenNames.join(", ")}` : ""} were added`,
+              result.secondParentFailure,
+            ),
+          });
+        } else if (result.secondParentStatus === "added") {
+          toast({
+            title: "Second parent added",
+            description: `${result.secondParentLabel} has also been added as Parent`,
+          });
+        } else if (result.secondParentStatus === "invited") {
+          toast({
+            title: "Second parent invited",
+            description: `An invitation was created for ${result.secondParentLabel}.`,
+          });
+        }
+      };
+
       // Short-circuit when we attached the role directly to an existing user
       if (existingUserAdded) {
         queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
@@ -1325,6 +1348,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
           });
         }
+        secondParentOutcomeToast();
         setNameInput("");
         setCustomEmail("");
         return;
@@ -1335,12 +1359,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       setInviteShareLink(sLink);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
 
-      if (secondParentAddedDirectly && selectedSecondParent) {
-        toast({
-          title: "Second parent added",
-          description: `${selectedSecondParent.display_name} has also been added as Parent`,
-        });
-      }
+      secondParentOutcomeToast();
+
 
       // Auto-send email notification if email was provided
       if (email) {
