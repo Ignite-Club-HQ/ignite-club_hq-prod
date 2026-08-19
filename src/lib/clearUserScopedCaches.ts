@@ -154,6 +154,7 @@ export function clearUserScopedCaches(): void {
     typeof localStorage !== "undefined" ? localStorage : null,
     PRESERVE_LOCAL_KEYS,
     LEGACY_LOCAL_PREFIXES,
+    PRESERVE_LOCAL_PREFIXES,
   );
 
   // 4. Sweep namespaced sessionStorage entries — same rule as localStorage.
