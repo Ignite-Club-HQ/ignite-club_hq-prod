@@ -1737,25 +1737,43 @@ export default function JoinTeamPage() {
             <Badge variant="secondary">{roleLabels[invite.role as AppRole]}</Badge>
           </div>
 
-          <Button 
-            onClick={handleJoinClick} 
-            disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
-            className="w-full"
-            size="lg"
-          >
-            {(joinMutation.isPending || (user && profileLoading)) ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : null}
-            {!joinMutation.isPending && !(user && profileLoading) && (
-                !user 
-                ? "Create Account to Join"
-                : nameValidationError 
+          {!user ? (
+            <div className="space-y-3">
+              <Button
+                onClick={handleCreateAccountClick}
+                className="w-full"
+                size="lg"
+              >
+                Create account to join
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleSignInClick}
+                className="w-full"
+                size="lg"
+              >
+                Already have an account? Sign in
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleJoinClick}
+              disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
+              className="w-full"
+              size="lg"
+            >
+              {(joinMutation.isPending || (user && profileLoading)) ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              {!joinMutation.isPending && !(user && profileLoading) && (
+                nameValidationError
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion
                     ? "Complete Profile to Join"
                     : `Join as ${roleLabels[invite.role as AppRole]}`
-            )}
-          </Button>
+              )}
+            </Button>
+          )}
           <Button 
             variant="ghost" 
             onClick={() => navigate("/")}
