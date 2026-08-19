@@ -2414,10 +2414,20 @@ export default function EventDetailPage() {
 
       if (childId) {
         // Both reads are authoritative — a failure in either must fail closed.
+        // Guardians are club-scoped: only guardians who belong to this event's
+        // club are reminded (a parent linked at another club is not notified).
         const [guardiansRes, childRes] = await Promise.all([
-          supabase.from("child_guardians").select("guardian_id").eq("child_id", childId),
+          event?.club_id
+            ? supabase
+                .rpc("club_scoped_child_guardians", { p_child_ids: [childId], p_club_id: event.club_id })
+                .then((res) => ({
+                  data: (res.data as { guardian_id: string }[] | null) ?? null,
+                  error: res.error,
+                }))
+            : supabase.from("child_guardians").select("guardian_id").eq("child_id", childId),
           supabase.from("children").select("parent_id").eq("id", childId).maybeSingle(),
         ]);
+
 
         const resolved = resolveReminderRecipients({
           userId,
