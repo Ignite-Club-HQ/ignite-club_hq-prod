@@ -1195,23 +1195,22 @@ export default function CreateEventPage() {
                 {/* Team selection - for non-mini-league events */}
                 {type !== "mini_league" && (
                   <MobileCardSelect
-                    value={teamId || ((type === "social" || type === "game") ? "__all__" : "")}
+                    value={teamId || (supportsClubWideScope ? "__all__" : "")}
                     onValueChange={(v) => setTeamId(v === "__all__" ? "" : v)}
                     options={[
-                      ...((type === "social" || type === "game")
+                      ...(supportsClubWideScope
                         ? [{ value: "__all__", label: "All Club" }]
                         : []),
                       ...(teams?.map((team) => ({ value: team.id, label: team.name })) || []),
                     ]}
-                    placeholder={(type === "social" || type === "game") ? "All Club" : "Select team"}
+                    placeholder={supportsClubWideScope ? "All Club" : "Select team"}
                     label="Team"
                     disabled={!clubId}
-                    required={type === "training"}
                   />
                 )}
 
-                {/* RSVP grouping - only for club-wide game/social events */}
-                {!teamId && (type === "game" || type === "social") && (
+                {/* RSVP grouping - only for club-wide events */}
+                {!teamId && supportsClubWideScope && (
                   <MobileCardSelect
                     value={rsvpGrouping || "none"}
                     onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
@@ -1225,8 +1224,9 @@ export default function CreateEventPage() {
                   />
                 )}
 
-                {/* Target teams — restrict a club-wide game/social to a subset of teams */}
-                {!teamId && (type === "game" || type === "social") && (
+                {/* Target teams — restrict a club-wide event to a subset of teams */}
+                {!teamId && supportsClubWideScope && (
+
                   <TargetTeamsPicker
                     teams={allClubTeams ?? undefined}
                     value={targetTeamIds}
