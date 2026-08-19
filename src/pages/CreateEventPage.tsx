@@ -1779,7 +1779,7 @@ export default function CreateEventPage() {
         <Button
           className="w-full h-12 text-base font-semibold shadow-lg disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground"
           onClick={() => handleSubmit()}
-          disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim() || (type === "training" && !teamId)}
+          disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim()}
         >
           {saving ? (
             <Loader2 className="h-5 w-5 animate-spin" />
