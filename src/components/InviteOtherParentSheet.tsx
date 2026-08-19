@@ -64,21 +64,38 @@ export default function InviteOtherParentSheet({
 
   const debouncedName = useDebounce(parentName, 300);
 
-  // Search for existing users as parent types
+  // Resolve the owning club for this child's team so search stays club-scoped
+  const { data: scopeClubId = null } = useQuery({
+    queryKey: ["invite-parent-scope-club", teamIds[0] ?? null],
+    enabled: open && !!teamIds[0],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("teams")
+        .select("club_id")
+        .eq("id", teamIds[0])
+        .maybeSingle();
+      return (data?.club_id as string | null) ?? null;
+    },
+  });
+
+  // Search for existing users as parent types — restricted to the club
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["parent-invite-user-search", debouncedName],
+    queryKey: ["parent-invite-user-search", debouncedName, scopeClubId],
     queryFn: async () => {
       if (debouncedName.length < 2) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedName}%`)
-        .limit(6);
-      // Filter out self
-      return (data || []).filter(u => u.id !== user?.id);
+      const { data } = await supabase.rpc("search_invitable_profiles", {
+        _query: debouncedName,
+        _limit: 6,
+        _club_id: scopeClubId ?? null,
+      });
+      return ((data || []) as Array<{ id: string; display_name: string | null; avatar_url: string | null }>)
+        .filter(u => u.id !== user?.id)
+        .map(u => ({ id: u.id, display_name: u.display_name, avatar_url: u.avatar_url }));
     },
-    enabled: open && debouncedName.length >= 2 && !selectedUser,
+    enabled: open && debouncedName.length >= 2 && !selectedUser && (!teamIds[0] || !!scopeClubId),
   });
+
 
   // Direct link existing user as guardian (no invite needed)
   const linkExistingGuardian = useMutation({
