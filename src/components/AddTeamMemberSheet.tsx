@@ -92,6 +92,43 @@ interface BulkMember {
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 type TeamType = "junior" | "senior" | "mixed";
 
+type AppRole = Database["public"]["Enums"]["app_role"];
+
+const roleLabels: Record<AppRole, string> = {
+  basic_user: "Member",
+  club_admin: "Club admin",
+  team_admin: "Team admin",
+  coach: "Coach",
+  player: "Player",
+  parent: "Parent",
+  app_admin: "App admin",
+  league_admin: "League admin",
+  committee_member: "Committee member",
+  association_admin: "Association admin",
+  competition_admin: "Competition admin",
+};
+
+function getPendingInviteChildName(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const children = (metadata as { children?: unknown }).children;
+  if (Array.isArray(children) && children.length > 0) {
+    const first = children[0] as { name?: unknown };
+    if (first?.name) return String(first.name).trim();
+  }
+  return null;
+}
+
+function formatPendingInviteSubtitle(
+  role: string,
+  teamName: string | null | undefined,
+  childName: string | null | undefined,
+): string {
+  const roleLabel = roleLabels[role as AppRole] || role.replace(/_/g, " ") || "Member";
+  const scope = teamName ? `— ${teamName}` : "(club)";
+  const childSuffix = childName ? ` (${childName})` : "";
+  return `Pending: ${roleLabel} ${scope}${childSuffix}`;
+}
+
 interface AddTeamMemberSheetProps {
   teamId: string;
   teamName: string;
