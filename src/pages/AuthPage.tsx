@@ -17,6 +17,7 @@ import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 
 import { z } from "zod";
+import type { Database } from "@/integrations/supabase/types";
 import {
   safeSessionGet,
   safeSessionRemove,
