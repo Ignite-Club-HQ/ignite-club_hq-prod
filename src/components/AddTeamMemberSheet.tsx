@@ -34,6 +34,15 @@ import { computeMemberIdentity, type MemberRole, type MemberIdentity } from "@/l
 import { useDebounce } from "@/hooks/useDebounce";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { isDuplicateChildError } from "@/lib/childDedup";
+import {
+  ensureSecondParent,
+  secondParentValidationError,
+  secondParentPartialFailureMessage,
+  isValidSecondParentEmail,
+  SecondParentError,
+  SECOND_PARENT_EMAIL_REQUIRED,
+  type SecondParentResult,
+} from "@/features/membership/secondParentInvite";
 
 interface BulkChild {
   id: string;
