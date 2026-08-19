@@ -470,6 +470,31 @@ export default function TeamDetailPage() {
     }, {} as Record<string, { profile: any; roles: { id: string; role: string }[] }>);
   }, [rawMembers, team?.clubs?.bot_user_id]);
 
+  /**
+   * Adult members whose primary role is "player". Used purely for presentation:
+   * child players and adult players are shown under one combined "Players (N)"
+   * heading so the roster reads as a single squad list.
+   */
+  const adultPlayerCount = useMemo(() => {
+    const priority = ["player", "parent", "coach", "team_admin", "club_admin", "app_admin", "basic_user"];
+    let count = 0;
+    for (const member of Object.values(members)) {
+      let primaryRole = "basic_user";
+      let best = Infinity;
+      for (const r of member.roles || []) {
+        const idx = priority.indexOf(r.role);
+        if (idx !== -1 && idx < best) {
+          best = idx;
+          primaryRole = r.role;
+        }
+      }
+      if (primaryRole === "player") count++;
+    }
+    return count;
+  }, [members]);
+
+
+
   // When the pitch board is opened in the context of a match (linkedEventId
   // set by the "nearby game" detection), restrict the roster to players whose
   // RSVP for that event is "going". Adults (staff) are always retained so they
