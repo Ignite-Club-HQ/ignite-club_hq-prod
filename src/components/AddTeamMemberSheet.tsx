@@ -737,7 +737,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             avatar_url: string | null;
             masked_email: string | null;
           }>).filter(
-            (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
+            (u) => u
           );
 
           // Also search pending invites across the entire club
