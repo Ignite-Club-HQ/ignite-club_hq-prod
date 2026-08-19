@@ -2082,6 +2082,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   };
 
   const validBulkCount = bulkMembers.filter(m => m.name.trim()).length;
+  // Any bulk row with a second-parent name but no valid email blocks the bulk add.
+  const bulkSecondParentBlocked = bulkMembers.some(m => !!secondParentValidationError({
+    role: m.role,
+    name: m.secondParentName,
+    email: m.secondParentEmail,
+    selectedProfile: m.selectedSecondParent,
+  }));
 
   const selectedRoleOption = roleOptions.find(r => r.value === selectedRole);
 
@@ -3940,6 +3947,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               blockedReason = "Enter an email address to send the invite.";
             } else if (submitInvalidEmail) {
               blockedReason = "That email doesn't look right — double-check the format.";
+            } else if (secondParentBlocked) {
+              blockedReason = secondParentBlocked;
             }
 
             const handleNext = () => {
@@ -3964,14 +3973,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             };
 
             const handleSubmit = () => {
-              if (submitNeedsEmail || submitInvalidEmail) return;
+              if (submitNeedsEmail || submitInvalidEmail || secondParentBlocked) return;
               if (selectedUser) addExistingUserMutation.mutate();
               else addPendingMemberMutation.mutate();
             };
 
             const nextDisabled =
               (wizardStep === 1 && !canAdvanceFromStep1) ||
-              (wizardStep === 2 && !canAdvanceFromStep2);
+              (wizardStep === 2 && !canAdvanceFromStep2) ||
+              !!secondParentBlocked;
 
             return (
               <div className="space-y-2">
@@ -4001,8 +4011,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Button
                       className="flex-1 h-12 text-base font-semibold"
                       onClick={handleSubmit}
-                      disabled={isPending || submitNeedsEmail || submitInvalidEmail}
-                      variant={submitNeedsEmail || submitInvalidEmail ? "outline" : "default"}
+                      disabled={isPending || submitNeedsEmail || submitInvalidEmail || !!secondParentBlocked}
+                      variant={submitNeedsEmail || submitInvalidEmail || secondParentBlocked ? "outline" : "default"}
                     >
                       {isPending ? (
                         <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -4034,7 +4044,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             <Button
               className="w-full h-12 text-base font-semibold"
               onClick={() => addBulkMembersMutation.mutate(undefined)}
-              disabled={validBulkCount === 0 || addBulkMembersMutation.isPending}
+              disabled={validBulkCount === 0 || bulkSecondParentBlocked || addBulkMembersMutation.isPending}
             >
               {addBulkMembersMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
