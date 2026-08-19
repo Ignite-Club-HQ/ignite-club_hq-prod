@@ -842,7 +842,18 @@ export default function AuthPage() {
                     Welcome back! Sign in to your account.
                   </CardDescription>
                 )}
-                <div className={signInFormClassName}>
+                <form
+                  className={signInFormClassName}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAuth("signin");
+                  }}
+                >
+                  {authError && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                      {authError}
+                    </div>
+                  )}
                   <div className={signInFieldClassName}>
                     <Label htmlFor="signin-email">Email</Label>
                     <div className="relative">
@@ -853,9 +864,15 @@ export default function AuthPage() {
                         placeholder="you@example.com"
                         className="pl-10"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={!!inviteAuthContext?.invitedEmail}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setEmailError(null);
+                          setAuthError(null);
+                        }}
                       />
                     </div>
+                    {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
                   </div>
                   <div className={signInFieldClassName}>
                     <div className="flex items-center justify-between">
@@ -876,7 +893,11 @@ export default function AuthPage() {
                         placeholder="••••••••"
                         className="pl-10 pr-10"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setPasswordError(null);
+                          setAuthError(null);
+                        }}
                       />
                       <button
                         type="button"
@@ -887,15 +908,29 @@ export default function AuthPage() {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
                   </div>
                   
                   <Button 
+                    type="submit"
                     className="w-full" 
-                    onClick={() => handleAuth("signin")}
                     disabled={loading || googleLoading}
                   >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : inviteAuthContext ? "Sign in & join" : "Sign In"}
                   </Button>
+                  
+                  {inviteAuthContext && (
+                    <div className="text-center text-sm text-muted-foreground">
+                      Need an account?{" "}
+                      <button
+                        type="button"
+                        className="text-primary hover:underline font-medium"
+                        onClick={switchToSignUp}
+                      >
+                        Create one
+                      </button>
+                    </div>
+                  )}
                   
                   {!isSignInKeyboardOpen && (
                     <>
@@ -911,6 +946,7 @@ export default function AuthPage() {
                       {/* Hide Google sign-in on native apps - OAuth redirects outside the app */}
                       {!Capacitor.isNativePlatform() && (
                         <Button 
+                          type="button"
                           variant="outline" 
                           className="w-full gap-2" 
                           onClick={handleGoogleSignIn}
@@ -946,6 +982,7 @@ export default function AuthPage() {
                       
                       {showBiometricButton ? (
                         <Button 
+                          type="button"
                           variant="outline" 
                           className="w-full gap-2" 
                           onClick={handleBiometricSignIn}
@@ -970,7 +1007,7 @@ export default function AuthPage() {
                   )}
 
                   {/* Sign up link */}
-                  {!isSignInKeyboardOpen && (
+                  {!inviteAuthContext && !isSignInKeyboardOpen && (
                     <div className="text-center text-sm text-muted-foreground pt-2">
                       Don't have an account?{" "}
                       <button
@@ -982,7 +1019,7 @@ export default function AuthPage() {
                       </button>
                     </div>
                   )}
-                </div>
+                </form>
               </CardContent>
             </>
           ) : (
