@@ -1204,11 +1204,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         }))
       ) : null;
 
-      // Generate second parent token only if NOT selecting an existing user
-      const secondToken = (!selectedSecondParent && secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") 
-        ? crypto.randomUUID() : null;
-
-      // Create primary invite
+      // Create primary invite. The second parent always gets its OWN invite row
+      // (created below via the shared helper) linked back with linked_invite_token.
       const { data: primaryInvite, error: inviteError } = await supabase.from("pending_invites").insert({
         team_id: teamId,
         club_id: clubId,
@@ -1221,7 +1218,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         metadata: childrenMetadata 
           ? { 
               children: JSON.parse(childrenMetadata), 
-              ...(secondToken ? { linked_invite_token: secondToken } : {}),
               ...(selectedSecondParent ? { second_parent_user_id: selectedSecondParent.id } : {}),
             } 
           : null,
@@ -1229,48 +1225,31 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       if (inviteError) throw inviteError;
 
       const link = `${window.location.origin}/join/p/${inviteToken}`;
-      
-      // Handle second parent
-      let secondParentLink: string | null = null;
-      let secondParentAddedDirectly = false;
 
-      if (selectedSecondParent && selectedRole === "parent") {
-        // Add existing user directly as second parent (ignore duplicate)
-        const { error: roleErr } = await supabase.from("user_roles").insert({
-          user_id: selectedSecondParent.id,
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent",
+      // Handle second parent through the one shared helper.
+      let secondParent: SecondParentResult = { status: "skipped", label: null };
+      let secondParentFailure: string | null = null;
+      try {
+        secondParent = await ensureSecondParent({
+          role: selectedRole,
+          selectedProfile: selectedSecondParent,
+          name: secondParentName,
+          email: secondParentEmail,
+          teamId,
+          clubId,
+          teamName,
+          childrenMetadata: validChildren.map((c) => ({
+            name: c.name.trim(),
+            yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
+            existingChildId: c.existingChildId || null,
+          })),
+          childIds: validChildren.map((c) => c.existingChildId).filter(Boolean) as string[],
+          invitedByUserId: user!.id,
+          linkedInviteToken: inviteToken,
         });
-        if (roleErr && !roleErr.message?.includes("duplicate")) {
-          console.error("Failed to add second parent role:", roleErr.message);
-        }
-
-        await supabase.from("notifications").insert({
-          user_id: selectedSecondParent.id,
-          type: "membership",
-          message: `You have been added to ${teamName} as Parent`,
-          related_id: teamId,
-        });
-
-        secondParentAddedDirectly = true;
-      } else if (secondToken) {
-        const { error: secondError } = await supabase.from("pending_invites").insert({
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent" as any,
-          invited_user_id: null,
-          invited_by_user_id: user!.id,
-          invited_label: secondParentName.trim(),
-          invited_email: secondParentEmail.trim().toLowerCase(),
-          invite_token: secondToken,
-          metadata: childrenMetadata 
-            ? { children: JSON.parse(childrenMetadata), linked_invite_token: inviteToken } 
-            : null,
-        } as any);
-        if (!secondError) {
-          secondParentLink = `${window.location.origin}/join/p/${secondToken}`;
-        }
+      } catch (err) {
+        console.error("[AddTeamMember] second parent failed", (err as Error)?.message);
+        secondParentFailure = err instanceof SecondParentError ? (err.label ?? "the second parent") : "the second parent";
       }
 
       const shortCode = (primaryInvite as any)?.short_code || null;
@@ -1284,10 +1263,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         email: customEmail.trim(), 
         childrenCount: validChildren.length, 
         childrenNames: validChildren.map(c => c.name.trim()),
-        secondParentLink,
-        secondParentEmail: secondParentEmail.trim(),
-        secondParentName: secondParentName.trim(),
-        secondParentAddedDirectly,
+        secondParentLink: secondParent.inviteLink ?? null,
+        secondParentEmail: secondParent.email ?? "",
+        secondParentName: secondParent.label ?? "",
+        secondParentAddedDirectly: secondParent.status === "added",
+        secondParentStatus: secondParent.status,
+        secondParentLabel: secondParent.label,
+        secondParentFailure,
       };
     },
     onSuccess: async (result) => {
