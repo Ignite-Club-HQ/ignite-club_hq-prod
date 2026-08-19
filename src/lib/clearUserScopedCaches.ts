@@ -100,6 +100,7 @@ function sweepStorage(
   storage: Storage | undefined | null,
   preserve: Set<string>,
   extraPrefixes: string[] = [],
+  preservePrefixes: string[] = [],
 ): void {
   if (!storage) return;
   try {
@@ -112,6 +113,7 @@ function sweepStorage(
         extraPrefixes.some((prefix) => key.startsWith(prefix));
       if (!matches) continue;
       if (preserve.has(key)) continue;
+      if (preservePrefixes.some((prefix) => key.startsWith(prefix))) continue;
       toRemove.push(key);
     }
     for (const key of toRemove) {
