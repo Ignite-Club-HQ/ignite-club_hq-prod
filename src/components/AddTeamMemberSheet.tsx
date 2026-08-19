@@ -1102,9 +1102,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           if (emailSent) {
             toast({
               title: "Second parent invited!",
-              description: `Email sent to ${secondParentEmail.trim()}`,
+              description: `Email sent to ${result.secondParentInviteEmail}`,
+            });
+          } else {
+            toast({
+              variant: "destructive",
+              title: "Second parent invite created — email failed",
+              description: `${result.secondParentLabel}'s invitation exists but the email couldn't be sent. Share the invite link or retry.`,
             });
           }
+
         } catch (error) {
           console.error("Failed to send second parent email:", error);
         }
