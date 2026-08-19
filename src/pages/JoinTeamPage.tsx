@@ -1732,9 +1732,12 @@ export default function JoinTeamPage() {
               </p>
               {!user && (
                 <p className="text-xs text-muted-foreground">
-                  Create an account to join as {pendingInviteData.invited_label}
+                  {invitedEmailHasAccount
+                    ? `Sign in to join as ${pendingInviteData.invited_label}`
+                    : `Create an account to join as ${pendingInviteData.invited_label}`}
                 </p>
               )}
+
             </div>
           )}
         </CardHeader>
