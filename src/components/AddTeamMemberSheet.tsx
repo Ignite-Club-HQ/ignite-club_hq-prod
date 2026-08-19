@@ -898,6 +898,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       return {
         secondParentInviteLink,
         secondParentAddedDirectly,
+        secondParentStatus: secondParent.status,
+        secondParentLabel: secondParent.label,
+        secondParentInviteEmail: secondParent.email ?? null,
+        secondParentFailure,
         roleWasDuplicate,
         notificationFailed: !!notifyErr,
         notificationError: notifyErr?.message ?? null,
