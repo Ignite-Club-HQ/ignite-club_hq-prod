@@ -695,11 +695,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     staleTime: 60 * 1000,
   });
 
-  // Filter out existing members — but allow the current user (admin adding themselves as parent)
-  // When adding a "parent" role, allow existing members to appear (we're adding a child under them)
-  const filteredResults = searchResults.filter(
-    u => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
-  );
+  // Existing team members stay selectable: the role is chosen on step 2, so an
+  // adult player already on this team must still be pickable in order to add a
+  // Parent role + child under them. Rows are labelled "Already on this team".
+  const filteredResults = searchResults;
+
 
   // Merge pending invite results, excluding any already in profile results
   const profileIds = new Set(filteredResults.map(r => r.id));
