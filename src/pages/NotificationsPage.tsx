@@ -190,7 +190,7 @@ const NOTIFICATIONS_PER_PAGE = 30;
 
 export default function NotificationsPage() {
   const { user, refreshUnreadCount, clearUnreadCount } = useAuth();
-  const { activeClubFilter } = useClubTheme();
+  const { activeClubFilter, setActiveClubTheme } = useClubTheme();
   usePageTitle("Notifications");
   const navigate = useNavigate();
   const routerNavigate = navigate;
