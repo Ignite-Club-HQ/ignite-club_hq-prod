@@ -1210,6 +1210,14 @@ export function AppHeader() {
           </DropdownMenuTrigger>
           <LogoClubThemeDropdown />
         </DropdownMenu>
+        {user?.id && !hintDismissed && (
+          <ClubSwitcherHint
+            userId={user.id}
+            enabled={userClubCount > 1}
+            onDismiss={() => setHintDismissed(true)}
+          />
+        )}
+        </div>
 
         <div className="flex items-center gap-4">
           <DropdownMenu open={notificationsOpen} onOpenChange={(open) => {
