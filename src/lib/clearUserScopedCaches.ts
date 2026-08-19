@@ -72,6 +72,13 @@ const PRESERVE_LOCAL_KEYS = new Set<string>([
   // needs to outlive a user switch (e.g. an install-id).
 ]);
 
+// Prefix allow-list: keys that are already keyed BY user id and represent a
+// permanent "seen once" record. Sweeping them re-shows one-shot coach-marks
+// after every sign-out, which reads as a bug (the user dismissed it already).
+const PRESERVE_LOCAL_PREFIXES = [
+  "ignite_club_switcher_hint_",
+];
+
 const PRESERVE_SESSION_KEYS = new Set<string>([
   // add explicit allow-list entries here if a future `ignite_*` session
   // key is genuinely device-level and should survive a user switch.
