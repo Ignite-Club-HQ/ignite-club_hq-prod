@@ -159,13 +159,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     if (teamType === "junior") {
       // Junior teams: no adult players
       return !opt.seniorOnly;
-    } else if (teamType === "senior") {
-      // Senior teams: no parents/kids
-      return !opt.juniorOnly;
     }
-    // Mixed: all roles
+    // Senior + mixed: keep Parent available — an adult player on a senior team
+    // may still need a child added/invited to the same team.
     return true;
   });
+
   
   // Get default role based on team type
   const getDefaultRole = (): TeamRole => {
@@ -696,11 +695,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     staleTime: 60 * 1000,
   });
 
-  // Filter out existing members — but allow the current user (admin adding themselves as parent)
-  // When adding a "parent" role, allow existing members to appear (we're adding a child under them)
-  const filteredResults = searchResults.filter(
-    u => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
-  );
+  // Existing team members stay selectable: the role is chosen on step 2, so an
+  // adult player already on this team must still be pickable in order to add a
+  // Parent role + child under them. Rows are labelled "Already on this team".
+  const filteredResults = searchResults;
+
 
   // Merge pending invite results, excluding any already in profile results
   const profileIds = new Set(filteredResults.map(r => r.id));
@@ -738,7 +737,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             avatar_url: string | null;
             masked_email: string | null;
           }>).filter(
-            (u) => u.id === user?.id || selectedRole === "parent" || !existingMembers?.includes(u.id)
+            () => true // existing members stay selectable (may need a Parent role + child)
           );
 
           // Also search pending invites across the entire club
@@ -1286,11 +1285,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           clubId,
           teamId,
         });
-        if (match?.already_in_team) {
+        if (match?.already_in_team && selectedRole !== "parent") {
           throw new Error(
             `${match.display_name || dedupeEmail} is already on this team.`,
           );
         }
+
         if (match) {
           // Existing user the caller can see — add role directly, no email invite.
           const { error: roleErr } = await supabase.from("user_roles").insert({
@@ -2831,9 +2831,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                         </Avatar>
                         <div className="flex flex-col min-w-0">
                           <span className="text-sm font-medium truncate">{result.display_name || "Unknown"}</span>
+                          {existingMembers?.includes(result.id) && (
+                            <span className="text-[11px] text-muted-foreground truncate">
+                              Already on this team — pick to add a child
+                            </span>
+                          )}
                           {identityMap[result.id]?.contextLine && (
                             <span className="text-xs text-muted-foreground truncate">{identityMap[result.id].contextLine}</span>
                           )}
+
                           {(result as any).masked_email && (
                             <span className="text-[11px] text-muted-foreground/70 truncate">{(result as any).masked_email}</span>
                           )}
