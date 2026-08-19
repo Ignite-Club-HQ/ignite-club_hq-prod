@@ -11855,6 +11855,10 @@ export type Database = {
           token: string
         }[]
       }
+      invite_token_has_existing_account: {
+        Args: { _token: string }
+        Returns: boolean
+      }
       is_any_mini_league_admin: { Args: { _user_id: string }; Returns: boolean }
       is_association_admin: {
         Args: { _association_id: string; _user_id: string }
