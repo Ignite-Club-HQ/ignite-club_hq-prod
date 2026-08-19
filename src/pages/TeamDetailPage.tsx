@@ -338,10 +338,20 @@ export default function TeamDetailPage() {
 
       const childIds = childrenRows.map((row) => row.child_id);
 
-      const { data: guardianLinks } = await supabase
-        .from("child_guardians")
-        .select("child_id, guardian_id")
-        .in("child_id", childIds);
+      // Guardians are club-scoped: a parent linked to this child at ANOTHER club
+      // must never surface on this club's roster.
+      const { data: teamRow } = await supabase
+        .from("teams")
+        .select("club_id")
+        .eq("id", id!)
+        .maybeSingle();
+      const { data: guardianLinks } = teamRow?.club_id
+        ? await supabase.rpc("club_scoped_child_guardians", {
+            p_child_ids: childIds,
+            p_club_id: teamRow.club_id,
+          })
+        : { data: [] as { child_id: string; guardian_id: string }[] };
+
 
       const parentIds = [...new Set([
         ...childrenRows.map((c) => c.parent_id).filter(Boolean),

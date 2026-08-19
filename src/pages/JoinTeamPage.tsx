@@ -56,6 +56,12 @@ const roleLabels: Record<AppRole, string> = {
   competition_admin: "Competition Admin",
 };
 
+// SessionStorage key for the invite metadata shown on the /auth page banner
+// (club, team, role, invited email). This deliberately lives in sessionStorage
+// so it is scoped to the current invite hand-off and can be read before the
+// form is rendered.
+const INVITE_AUTH_CONTEXT_KEY = "inviteAuthContext";
+
 // Roles that users can request when joining a team
 const selectableRoles: AppRole[] = ["coach", "player", "parent"];
 
@@ -1087,38 +1093,63 @@ export default function JoinTeamPage() {
     });
   };
 
+  const persistInviteAuthContext = () => {
+    const nextPath = location.pathname + location.search;
+    safeSessionSet("redirectAfterAuth", nextPath);
+    safeSessionSet("autoJoinAfterAuth", "true");
+    safeSessionSet(
+      INVITE_AUTH_CONTEXT_KEY,
+      JSON.stringify({
+        clubName: invite?.teams?.clubs?.name ?? null,
+        teamName: invite?.teams?.name ?? null,
+        invitedEmail: isPendingInvite ? (pendingInviteData?.invited_email ?? null) : null,
+        roleLabel: roleLabels[invite?.role as AppRole] ?? null,
+      }),
+    );
+    // Keep the existing invite-flow context (localStorage) up to date so the
+    // progress indicator and PWA install resume path continue to work.
+    setInviteFlowContext({
+      ...(getInviteFlowContext() ?? {}),
+      active: true,
+      clubName: invite?.teams?.clubs?.name || undefined,
+      teamName: invite?.teams?.name || undefined,
+      role: invite?.role || undefined,
+      inviteToken: token,
+      currentStep: "auth",
+    });
+  };
+
+  const handleCreateAccountClick = () => {
+    persistInviteAuthContext();
+    navigate(
+      buildAuthPathWithIntent({
+        next: location.pathname + location.search,
+        mode: "signup",
+        invite: token,
+      }),
+    );
+  };
+
+  const handleSignInClick = () => {
+    persistInviteAuthContext();
+    navigate(
+      buildAuthPathWithIntent({
+        next: location.pathname + location.search,
+        mode: "signin",
+        invite: token,
+      }),
+    );
+  };
+
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
     // If not logged in, redirect to auth with auto-join flag.
     // The URL carries the whole intent (mode + next + invite token) because
     // sessionStorage writes throw in some webviews; storage is a fallback only.
     if (!user) {
-      const nextPath = location.pathname + location.search;
-      console.log("[SignupFlow] Join click (unauthenticated)", {
-        next: nextPath,
-        role: invite?.role,
-        isPendingInvite,
-      });
-      safeSessionSet("redirectAfterAuth", nextPath);
-      safeSessionSet("autoJoinAfterAuth", "true");
-      // Set the invite-flow context on this (native/app) path too — previously
-      // only the PWA handler set it, so InviteFlowProgress never rendered on
-      // /auth and the flow looked broken.
-      setInviteFlowContext({
-        ...(getInviteFlowContext() ?? {}),
-        active: true,
-        clubName: invite?.teams?.clubs?.name || undefined,
-        teamName: invite?.teams?.name || undefined,
-        role: invite?.role || undefined,
-        inviteToken: token,
-        currentStep: "auth",
-      });
-      navigate(
-        buildAuthPathWithIntent({ next: nextPath, mode: "signup", invite: token }),
-      );
+      handleCreateAccountClick();
       return;
     }
-
 
     // Check if user needs to complete their profile first
     if (!userProfile?.display_name) {
@@ -1706,25 +1737,43 @@ export default function JoinTeamPage() {
             <Badge variant="secondary">{roleLabels[invite.role as AppRole]}</Badge>
           </div>
 
-          <Button 
-            onClick={handleJoinClick} 
-            disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
-            className="w-full"
-            size="lg"
-          >
-            {(joinMutation.isPending || (user && profileLoading)) ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : null}
-            {!joinMutation.isPending && !(user && profileLoading) && (
-                !user 
-                ? "Create Account to Join"
-                : nameValidationError 
+          {!user ? (
+            <div className="space-y-3">
+              <Button
+                onClick={handleCreateAccountClick}
+                className="w-full"
+                size="lg"
+              >
+                Create account to join
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleSignInClick}
+                className="w-full"
+                size="lg"
+              >
+                Already have an account? Sign in
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleJoinClick}
+              disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
+              className="w-full"
+              size="lg"
+            >
+              {(joinMutation.isPending || (user && profileLoading)) ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              {!joinMutation.isPending && !(user && profileLoading) && (
+                nameValidationError
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion
                     ? "Complete Profile to Join"
                     : `Join as ${roleLabels[invite.role as AppRole]}`
-            )}
-          </Button>
+              )}
+            </Button>
+          )}
           <Button 
             variant="ghost" 
             onClick={() => navigate("/")}
