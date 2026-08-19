@@ -327,6 +327,42 @@ export function AppHeader() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [demoLoginOpen, setDemoLoginOpen] = useState(false);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const [hintDismissed, setHintDismissed] = useState(false);
+
+  // Multi-club detection for the one-shot club-switcher coach-mark. Cheap
+  // (two id-only role reads, 5 min staleTime) and skipped entirely once the
+  // hint has already been seen on this device for this user.
+  const hintAlreadySeen = user?.id ? hasSeenClubSwitcherHint(user.id) : true;
+  const { data: userClubCount = 0 } = useQuery({
+    queryKey: ["user-club-count-for-switcher-hint", user?.id],
+    enabled: !!user?.id && !hintAlreadySeen,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      if (!user?.id) return 0;
+      const [clubRoles, teamRoles] = await Promise.all([
+        supabase.from("user_roles").select("club_id").eq("user_id", user.id).not("club_id", "is", null),
+        supabase
+          .from("user_roles")
+          .select("team_id, teams!inner(club_id)")
+          .eq("user_id", user.id)
+          .not("team_id", "is", null),
+      ]);
+      const ids = new Set<string>();
+      (clubRoles.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
+      (teamRoles.data || []).forEach((r: any) => {
+        const clubId = r.teams?.club_id;
+        if (clubId) ids.add(clubId);
+      });
+      return ids.size;
+    },
+  });
+
+  const dismissClubSwitcherHint = () => {
+    if (hintDismissed) return;
+    setHintDismissed(true);
+    if (user?.id) markClubSwitcherHintSeen(user.id);
+  };
+  
   
   // Handle theme toggle with save to profile
   const handleThemeToggle = async () => {
