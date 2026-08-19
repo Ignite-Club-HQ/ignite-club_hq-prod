@@ -312,6 +312,7 @@ export default function AuthPage() {
     const safe = sanitizeRedirectAfterAuth(stored);
     if (safe) {
       safeSessionRemove("redirectAfterAuth");
+      safeSessionRemove(INVITE_AUTH_CONTEXT_KEY);
       console.log("[AuthPage] Authenticated, redirecting to:", safe);
       setPostAuthTarget(safe);
       return;
