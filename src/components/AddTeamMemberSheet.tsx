@@ -4157,6 +4157,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
             const handleSubmit = () => {
               if (submitNeedsEmail || submitInvalidEmail || secondParentBlocked) return;
+              if (selectedRole === "parent" && !singleChildren.some((c) => c.name.trim())) {
+                toast({
+                  title: "Add at least one child before adding this parent.",
+                  variant: "destructive",
+                });
+                return;
+              }
               if (selectedUser) addExistingUserMutation.mutate();
               else addPendingMemberMutation.mutate();
             };
