@@ -832,11 +832,12 @@ export default function CreateEventPage() {
         type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
       adults_only: adultsOnly,
       rsvp_grouping:
-        !teamId && (type === "game" || type === "social") && rsvpGrouping ? rsvpGrouping : null,
+        !teamId && supportsClubWideScope && rsvpGrouping ? rsvpGrouping : null,
       target_team_ids:
-        !teamId && (type === "game" || type === "social") && targetTeamIds && targetTeamIds.length >= 2
+        !teamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
           ? targetTeamIds
           : null,
+
     } as any;
 
     // The event row, any recurring occurrences and the duties are written by a
