@@ -287,6 +287,40 @@ export default function NotificationsPage() {
 
   // Paginated display
   const displayedNotifications = notifications?.slice(0, displayCount) || [];
+
+  // Cross-club unread nudge: unread notifications that belong to a DIFFERENT
+  // club than the active filter are invisible here by design. Surface a single
+  // subtle row so multi-club users know they exist. Skipped when viewing
+  // "All clubs" (nothing is hidden then).
+  const { data: otherClubUnread } = useQuery({
+    queryKey: ["notifications-other-clubs-unread", user?.id, activeClubFilter],
+    enabled: !!user?.id && !!activeClubFilter,
+    staleTime: 30000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .eq("is_read", false)
+        .not("club_id", "is", null)
+        .neq("club_id", activeClubFilter!)
+        .limit(500);
+      if (error) throw error;
+
+      const rows = data || [];
+      const clubIds = [...new Set(rows.map((r: any) => r.club_id).filter(Boolean))] as string[];
+      let singleClubName: string | null = null;
+      if (clubIds.length === 1) {
+        const { data: club } = await supabase
+          .from("clubs")
+          .select("name")
+          .eq("id", clubIds[0])
+          .maybeSingle();
+        singleClubName = (club as any)?.name?.trim() || null;
+      }
+      return { count: rows.length, singleClubName };
+    },
+  });
   const hasMore = (notifications?.length || 0) > displayCount;
 
   const loadMore = useCallback(() => {
