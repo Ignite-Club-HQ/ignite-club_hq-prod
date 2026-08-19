@@ -29,4 +29,11 @@ describe("membership invite data ownership", () => {
     const queryBlock = autoAccept.slice(queryStart, queryEnd);
     expect(queryBlock).not.toContain('.from("pending_invites")');
   });
+
+  it("routes a logged-out existing invite recipient to sign-in instead of account creation", () => {
+    expect(joinPage).toContain("resolveLoggedOutInviteAuthMode({");
+    expect(joinPage).toContain("invitedUserId: pendingInviteData?.invited_user_id");
+    expect(joinPage).toContain("mode: authMode");
+    expect(joinPage).toContain('"Sign In to Join"');
+  });
 });

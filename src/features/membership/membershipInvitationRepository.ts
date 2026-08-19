@@ -54,6 +54,7 @@ export interface PendingInviteSearchResult {
   invited_email: string | null;
   isPendingInvite: true;
   pendingInviteId: string;
+  invitedUserId: string | null;
 }
 
 export type BulkInvitationCandidate =
@@ -235,13 +236,23 @@ export async function fetchPendingInviteChildren(
 export async function searchInvitableProfiles(
   query: string,
   client: IgniteSupabaseClient = supabase,
+  clubId?: string,
 ): Promise<InvitableProfileResult[]> {
   if (query.length < 2) return [];
   const { data } = await client.rpc("search_invitable_profiles", {
     _query: query,
     _limit: 8,
   });
-  return (data ?? []) as InvitableProfileResult[];
+  const profiles = (data ?? []) as InvitableProfileResult[];
+  if (!clubId || !profiles.length) return profiles;
+
+  const { data: scopedRoles } = await client
+    .from("user_roles")
+    .select("user_id")
+    .eq("club_id", clubId)
+    .in("user_id", profiles.map((profile) => profile.id));
+  const scopedUserIds = new Set((scopedRoles ?? []).map((role) => role.user_id));
+  return profiles.filter((profile) => scopedUserIds.has(profile.id));
 }
 
 export async function searchPendingClubInvites(
@@ -270,7 +281,7 @@ export async function searchPendingClubInvites(
   }
 
   return invites.map((invite) => ({
-    id: invite.invited_user_id || `pending-${invite.id}`,
+    id: `pending-${invite.id}`,
     display_name: invite.invited_user_id
       ? profilesById.get(invite.invited_user_id)?.display_name || invite.invited_label
       : invite.invited_label,
@@ -280,6 +291,7 @@ export async function searchPendingClubInvites(
     invited_email: invite.invited_email,
     isPendingInvite: true,
     pendingInviteId: invite.id,
+    invitedUserId: invite.invited_user_id,
   }));
 }
 
@@ -359,7 +371,7 @@ export async function searchBulkInvitationCandidates(
   if (!terms.length) return [];
 
   return Promise.all(terms.map(async (term) => {
-    const profiles = await searchInvitableProfiles(term, client);
+    const profiles = await searchInvitableProfiles(term, client, context.clubId);
     const profileResults = profiles.filter(
       (profile) =>
         profile.id === context.currentUserId ||
@@ -377,14 +389,15 @@ export async function searchBulkInvitationCandidates(
     const profileIds = new Set(profileResults.map((profile) => profile.id));
     const pendingResults: PendingInviteSearchResult[] = (invites ?? [])
       .map((invite) => ({
-        id: invite.invited_user_id || `pending-${invite.id}`,
+        id: `pending-${invite.id}`,
         display_name: invite.invited_label,
         avatar_url: null,
         invited_email: invite.invited_email,
         isPendingInvite: true as const,
         pendingInviteId: invite.id,
+        invitedUserId: invite.invited_user_id,
       }))
-      .filter((invite) => !profileIds.has(invite.id));
+      .filter((invite) => !invite.invitedUserId || !profileIds.has(invite.invitedUserId));
 
     return { term, results: [...profileResults, ...pendingResults] };
   }));

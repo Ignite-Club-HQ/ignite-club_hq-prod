@@ -319,15 +319,20 @@ describe("local transaction: new-parent invite creates every required child", ()
     });
     expect(denied.error).not.toBeNull();
 
-    const [inviteRow, roles, guardian] = await Promise.all([
+    const [inviteRow, roles, guardian, originalChild, unrelatedParentRoles] = await Promise.all([
       service.from("pending_invites").select("status").eq("id", invite.id).single(),
       service.from("user_roles").select("id").eq("user_id", parent.id).eq("team_id", fixture.teamA),
       service.from("child_guardians").select("id")
         .eq("child_id", otherChild.data.id).eq("guardian_id", parent.id),
+      service.from("children").select("id, parent_id").eq("id", otherChild.data.id).single(),
+      service.from("user_roles").select("id")
+        .eq("user_id", fixture.outsiderB.id).eq("club_id", fixture.clubA),
     ]);
     expect(inviteRow.data?.status).toBe("pending");
     expect(roles.data).toEqual([]);
     expect(guardian.data).toEqual([]);
+    expect(originalChild.data).toEqual({ id: otherChild.data.id, parent_id: fixture.outsiderB.id });
+    expect(unrelatedParentRoles.data).toEqual([]);
   });
 
   it("gives the accepted parent working child RSVP access", async () => {

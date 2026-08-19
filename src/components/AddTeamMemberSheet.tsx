@@ -307,7 +307,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["user-search-team-member", debouncedNameInput],
-    queryFn: () => searchInvitableProfiles(debouncedNameInput),
+    queryFn: () => searchInvitableProfiles(debouncedNameInput, supabase, clubId),
     enabled: debouncedNameInput.length >= 2,
   });
 

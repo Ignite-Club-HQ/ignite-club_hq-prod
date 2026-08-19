@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
   resolveInviteJoinCompletion,
+  resolveLoggedOutInviteAuthMode,
   selectNewInviteRoles,
   validateReusableTeamInvite,
 } from "./inviteAcceptancePolicy";
 
 describe("invite acceptance policy", () => {
+  it("sends an existing account on a pending invite to sign in when logged out", () => {
+    expect(resolveLoggedOutInviteAuthMode({ isPendingInvite: true, invitedUserId: "existing-user" })).toBe("signin");
+    expect(resolveLoggedOutInviteAuthMode({ isPendingInvite: true, invitedUserId: null })).toBe("signup");
+    expect(resolveLoggedOutInviteAuthMode({
+      isPendingInvite: false,
+      invitedUserId: "ignored-for-reusable-link",
+    })).toBe("signup");
+  });
+
   it("adds only roles not already held at the exact destination", () => {
     expect(selectNewInviteRoles(
       ["coach", "parent", "player"],

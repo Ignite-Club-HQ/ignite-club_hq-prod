@@ -21,6 +21,15 @@ export function validateReusableTeamInvite(input: {
 
 export type JoinCompletionStep = "joined" | "add-child";
 
+export type InviteAuthMode = "signin" | "signup";
+
+export function resolveLoggedOutInviteAuthMode(input: {
+  isPendingInvite: boolean;
+  invitedUserId?: string | null;
+}): InviteAuthMode {
+  return input.isPendingInvite && Boolean(input.invitedUserId) ? "signin" : "signup";
+}
+
 /**
  * Preserve the existing direct-join UI decision after a committed role grant.
  * The photo-consent continuation historically only opens the child step for a
