@@ -785,17 +785,23 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   );
 
   const { data: bulkSecondParentResults = [] } = useQuery({
-    queryKey: ["bulk-second-parent-search", bulkSecondParentTerms],
+    queryKey: ["bulk-second-parent-search", bulkSecondParentTerms, clubId],
     queryFn: async () => {
       if (bulkSecondParentTerms.length === 0) return [];
       const searches = await Promise.all(
         bulkSecondParentTerms.map(async (term) => {
-          const { data } = await supabase
-            .from("profiles")
-            .select("id, display_name, avatar_url")
-            .ilike("display_name", `%${term}%`)
-            .limit(5);
-          return { term, results: data || [] };
+          // Club-scoped: never surface profiles outside the active club.
+          const { data } = await supabase.rpc("search_invitable_profiles", {
+            _query: term,
+            _limit: 5,
+            _club_id: clubId ?? null,
+          });
+          return {
+            term,
+            results: ((data || []) as Array<{ id: string; display_name: string | null; avatar_url: string | null }>).map(
+              (r) => ({ id: r.id, display_name: r.display_name, avatar_url: r.avatar_url }),
+            ),
+          };
         })
       );
       return searches;
@@ -805,20 +811,25 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   const bulkSecondParentMap = new Map(bulkSecondParentResults.map((entry) => [entry.term, entry.results]));
 
-  // Search for second parent (existing users)
+  // Search for second parent (existing users) — club-scoped
   const { data: secondParentSearchResults = [] } = useQuery({
-    queryKey: ["second-parent-search", debouncedSecondParentSearch],
+    queryKey: ["second-parent-search", debouncedSecondParentSearch, clubId],
     queryFn: async () => {
       if (debouncedSecondParentSearch.length < 2) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedSecondParentSearch}%`)
-        .limit(5);
-      return data || [];
+      const { data } = await supabase.rpc("search_invitable_profiles", {
+        _query: debouncedSecondParentSearch,
+        _limit: 5,
+        _club_id: clubId ?? null,
+      });
+      return ((data || []) as Array<{ id: string; display_name: string | null; avatar_url: string | null }>).map((r) => ({
+        id: r.id,
+        display_name: r.display_name,
+        avatar_url: r.avatar_url,
+      }));
     },
     enabled: debouncedSecondParentSearch.length >= 2 && !selectedSecondParent,
   });
+
 
   // Filter second parent results: exclude primary user but allow existing members (they may need parent role added)
   const filteredSecondParentResults = secondParentSearchResults.filter(
