@@ -125,6 +125,30 @@ export default function JoinTeamPage() {
     staleTime: 0,
   });
 
+  /**
+   * Silent check: does the invited email already have an Ignite account?
+   * Token-gated RPC (no email enumeration — the caller must already hold a
+   * valid invite token). Never blocks render; failures fall back to the
+   * default "Create account" behaviour.
+   */
+  const { data: invitedEmailHasAccount } = useQuery({
+    queryKey: ["invite-email-has-account", token],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("invite_token_has_existing_account", {
+        _token: token!,
+      });
+      if (error) {
+        console.warn("[JoinTeam] existing-account check failed", error.message);
+        return false;
+      }
+      return data === true;
+    },
+    enabled: !!token && isPendingInvite && !user,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+
   // Fetch team invite details using secure RPC function (for regular invites)
   const { data: teamInvite, isLoading: teamInviteLoading, error: teamInviteError } = useQuery({
     queryKey: ["team-invite", token],
