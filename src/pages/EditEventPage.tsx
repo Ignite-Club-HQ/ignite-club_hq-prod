@@ -697,13 +697,14 @@ export default function EditEventPage() {
           type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
         adults_only: adultsOnly,
         rsvp_grouping:
-          !selectedTeamId && (type === "game" || type === "social") && rsvpGrouping
+          !selectedTeamId && supportsClubWideScope && rsvpGrouping
             ? rsvpGrouping
             : null,
         target_team_ids:
-          !selectedTeamId && (type === "game" || type === "social") && targetTeamIds && targetTeamIds.length >= 2
+          !selectedTeamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
             ? targetTeamIds
             : null,
+
       } as any;
 
       // If converting single event to recurring series.
