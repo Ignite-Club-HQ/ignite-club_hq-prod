@@ -1285,11 +1285,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           clubId,
           teamId,
         });
-        if (match?.already_in_team) {
+        if (match?.already_in_team && selectedRole !== "parent") {
           throw new Error(
             `${match.display_name || dedupeEmail} is already on this team.`,
           );
         }
+
         if (match) {
           // Existing user the caller can see — add role directly, no email invite.
           const { error: roleErr } = await supabase.from("user_roles").insert({
