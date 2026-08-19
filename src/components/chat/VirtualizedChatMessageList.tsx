@@ -1250,7 +1250,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (!row) return false;
       const rowRect = row.getBoundingClientRect();
       const scrollerRect = el.getBoundingClientRect();
-      const reservedBottom = align === "end" ? getChatBottomPaddingOffset(bottomPadding) : 0;
+      // ALWAYS read the LIVE composer inset. Reading a closed-over
+      // `bottomPadding` let the initial reveal align against the 56px composer
+      // floor while the overlay gate aligned against the measured height, so the
+      // two gates computed different offsets and each "corrected" the other —
+      // the visible down-then-up settle after the skeleton reveal.
+      const reservedBottom =
+        align === "end" ? getChatBottomPaddingOffset(bottomPaddingRef.current) : 0;
       const targetTop =
         align === "end"
           ? el.scrollTop + rowRect.bottom - scrollerRect.bottom + reservedBottom
@@ -1258,13 +1264,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           ? el.scrollTop + rowRect.top - scrollerRect.top
           : el.scrollTop + rowRect.top - scrollerRect.top - Math.max(0, (el.clientHeight - rowRect.height) / 2);
       const previousScrollTop = el.scrollTop;
-      el.scrollTo({ top: Math.max(0, targetTop), behavior: "auto" });
+      const nextScrollTop = Math.max(0, targetTop);
+      // Epsilon no-op: sub-pixel/1px differences are invisible but a real
+      // scroll write re-arms the OTHER reveal gate's quiet window (its
+      // scroll/mutation observers see a new geometry signature), producing a
+      // late third correction after the user already reads the list as settled.
+      if (Math.abs(nextScrollTop - previousScrollTop) < 2) return true;
+      el.scrollTo({ top: nextScrollTop, behavior: "auto" });
       markChatScrollWrite();
       console.log("[jumpToMessage] exact DOM correction", {
         messageId,
         align,
         previousScrollTop,
-        targetTop: Math.max(0, targetTop),
+        targetTop: nextScrollTop,
         rowTop: rowRect.top,
         rowBottom: rowRect.bottom,
         scrollerTop: scrollerRect.top,
@@ -1272,14 +1284,34 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       });
       return true;
     },
-    [bottomPadding],
+    [],
   );
 
   // Latest-render mirrors for the mount-once jump overlay effect (deps: []).
   const alignMessageIdInViewRef = useRef(alignMessageIdInView);
   alignMessageIdInViewRef.current = alignMessageIdInView;
   const bottomPaddingRef = useRef(bottomPadding);
-  bottomPaddingRef.current = bottomPadding;
+  const bottomPaddingChangedAtRef = useRef(0);
+  if (bottomPaddingRef.current !== bottomPadding) {
+    bottomPaddingRef.current = bottomPadding;
+    // The composer inset is measured in staggered passes (80/180/360/700ms) and
+    // is rendered as an in-flow Virtuoso footer, so every change physically
+    // moves the message column. Revealing between those passes is exactly the
+    // "moves down then up" artefact — record the change so the reveal gate can
+    // wait for the inset to go quiet.
+    bottomPaddingChangedAtRef.current =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+  }
+  /** True once the composer inset has been unchanged for `quietMs`. */
+  const bottomPaddingQuiet = useCallback((quietMs = 180) => {
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    return now - bottomPaddingChangedAtRef.current >= quietMs;
+  }, []);
+  // Single-owner guard for the exact-DOM correction: while the initial
+  // deep-link reveal gate is running, the overlay gate must NOT issue its own
+  // competing `finalAlign` for the same target.
+  const jumpAlignOwnedByContentGateRef = useRef<string | null>(null);
+
   const jumpOverlayTargetRef = useRef<string | null>(initialTargetMessageId ?? null);
   jumpOverlayTargetRef.current = initialTargetMessageId ?? null;
 
