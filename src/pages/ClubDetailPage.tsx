@@ -5,7 +5,7 @@ import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
 import ClubLinksManager from "@/components/clubs/ClubLinksManager";
 import { clearClubSetupLocalState } from "@/lib/clubSetupLocalState";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles, RefreshCw } from "lucide-react";
+import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles, RefreshCw, FileSpreadsheet } from "lucide-react";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
@@ -620,6 +620,22 @@ export default function ClubDetailPage() {
       return !!data;
     },
     enabled: !!user,
+  });
+
+  const { data: canImportFixtures } = useQuery({
+    queryKey: ["can-import-fixtures", id, user?.id],
+    queryFn: async () => {
+      if (!id || !user) return false;
+      const { data: roles, error } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("club_id", id)
+        .in("role", ["club_admin", "team_admin", "coach", "committee_member"]);
+      if (error) throw error;
+      return (roles?.length ?? 0) > 0;
+    },
+    enabled: !!id && !!user,
   });
 
   const isAdmin = userRole === "club_admin" || isAppAdmin;
@@ -1405,6 +1421,61 @@ export default function ClubDetailPage() {
           </div>
         );
       })()}
+
+      {/* Schedule Section — admin tools for bulk schedule import */}
+      {canImportFixtures && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-1.5">
+            <CalendarDays className="h-5 w-5 text-primary shrink-0" />
+            <h2 className="text-lg font-semibold">Schedule</h2>
+          </div>
+          {(() => {
+            const hasImportProAccess = isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override;
+            return hasImportProAccess ? (
+              <Link to="/events/import">
+                <Card className="hover:border-primary/50 transition-colors">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="rounded-full p-2 bg-primary/10">
+                      <FileSpreadsheet className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium">Import Fixtures</span>
+                      <p className="text-xs text-muted-foreground">From CSV or Excel</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ) : (
+              <Card
+                className="border-muted bg-muted/30 cursor-pointer"
+                onClick={() => {
+                  toast({
+                    title: "Pro feature",
+                    description: "Import Fixtures is available on Pro. Contact your club administrator to upgrade.",
+                  });
+                  navigate(`/clubs/${id}/upgrade`);
+                }}
+              >
+                <CardContent className="p-4 flex items-center gap-3 relative">
+                  <div className="absolute top-2 right-2">
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <Crown className="h-3 w-3" />
+                      Pro
+                    </Badge>
+                  </div>
+                  <div className="rounded-full p-2 bg-muted">
+                    <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-muted-foreground">Import Fixtures</span>
+                    <p className="text-xs text-muted-foreground">Available on Pro</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </section>
+      )}
 
       {/* Teams Section - flat filtered list */}
       {(() => {
