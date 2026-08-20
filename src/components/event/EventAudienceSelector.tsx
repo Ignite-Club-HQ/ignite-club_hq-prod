@@ -32,6 +32,8 @@ interface Props {
   /** Whether this event type can be club-wide at all. */
   supportsClubWideScope: boolean;
   disabled?: boolean;
+  /** Which mode is selected when there is no explicit team/target-team state. */
+  defaultMode?: Mode;
 }
 
 type Mode = "club" | "team" | "selected";
