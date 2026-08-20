@@ -4184,6 +4184,9 @@ export default function EventDetailPage() {
               isPending={addDutyMutation.isPending}
               isMiniLeague={!!event?.mini_league_id}
               context="session"
+              // Soccer/football clubs get Referee / Linesperson / Subs Manager;
+              // other sports get Umpire / Scorer instead.
+              sport={event.clubs?.sport ?? null}
             />
             {duties?.length === 0 ? (
               <p className="text-muted-foreground text-sm">No duties assigned for this event</p>
