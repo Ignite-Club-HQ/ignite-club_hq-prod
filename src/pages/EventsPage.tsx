@@ -906,7 +906,7 @@ export default function EventsPage() {
                 });
                 return;
               }
-              setCreateMenuOpen(true);
+              navigate("/events/new");
             }}
           />
         </div>
