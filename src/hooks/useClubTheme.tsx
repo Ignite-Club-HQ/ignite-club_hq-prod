@@ -148,6 +148,8 @@ const clearAllThemeCSS = () => {
   root.style.removeProperty("--accent");
   root.style.removeProperty("--accent-foreground");
   root.style.removeProperty("--ring");
+  root.style.removeProperty("--rsvp-selected");
+  root.style.removeProperty("--rsvp-selected-foreground");
   root.style.removeProperty("--background");
   root.style.removeProperty("--card");
   root.style.removeProperty("--card-foreground");
