@@ -391,6 +391,23 @@ export default function JoinTeamPage() {
   })();
 
   /**
+   * Email-matched pending invites override the name-mismatch gate. If the
+   * invite's email matches the signed-in user, we treat it as belonging to this
+   * account regardless of any invited_label/display_name difference.
+   */
+  const emailMatches =
+    isPendingInvite &&
+    !!pendingInviteData?.invited_email &&
+    !!user?.email &&
+    pendingInviteData.invited_email.trim().toLowerCase() === user.email.trim().toLowerCase();
+
+  const showNameMismatchInfo =
+    emailMatches &&
+    !!pendingInviteData?.invited_label &&
+    !!userProfile?.display_name &&
+    pendingInviteData.invited_label.trim().toLowerCase() !== userProfile.display_name.trim().toLowerCase();
+
+  /**
    * Re-opening the app can replay a stale invite deep link (stored
    * `pwa_pending_invite`, native launch URL, browser history). If the invite is
    * already accepted AND the signed-in user is already in that team/club, the
