@@ -54,6 +54,37 @@ export function useClubScopeGuard() {
     retry: false,
   });
 
+  // Competitions: resolve every club legitimately participating (organiser +
+  // clubs with an entered team). The route is scoped OUT only when the newly
+  // selected club is in none of them.
+  const competitionId = scope.kind === "membership" ? scope.competitionId : null;
+  const { data: competitionClubIds, isFetched: competitionFetched } = useQuery({
+    queryKey: ["route-competition-clubs", competitionId],
+    queryFn: async () => {
+      if (!competitionId) return null;
+      const [comp, entries] = await Promise.all([
+        supabase.from("competitions").select("organizer_club_id").eq("id", competitionId).maybeSingle(),
+        supabase
+          .from("competition_entries")
+          .select("teams!inner(club_id)")
+          .eq("competition_id", competitionId),
+      ]);
+      // Fail open on any error: never bounce on a network/RLS hiccup.
+      if (comp.error || entries.error) return null;
+      const ids = new Set<string>();
+      if (comp.data?.organizer_club_id) ids.add(comp.data.organizer_club_id as string);
+      for (const row of entries.data ?? []) {
+        const clubId = (row as { teams?: { club_id?: string | null } | null }).teams?.club_id;
+        if (clubId) ids.add(clubId);
+      }
+      return ids.size > 0 ? Array.from(ids) : null;
+    },
+    enabled: !!competitionId && !!activeClubFilter,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: false,
+  });
+
   const owningClubId =
     scope.kind === "direct"
       ? scope.clubId
@@ -66,8 +97,26 @@ export function useClubScopeGuard() {
   // Re-evaluates the guard after an in-flight notification switch resolves.
   const [recheckTick, setRecheckTick] = useState(0);
 
+  // For competition routes the "owning club" is the participation set: report a
+  // mismatch (using the organiser id purely as a marker) when the active club is
+  // absent from it.
+  const competitionMismatch =
+    scope.kind === "membership" &&
+    competitionFetched &&
+    !!competitionClubIds &&
+    !!activeClubFilter &&
+    !competitionClubIds.includes(activeClubFilter);
+
   useEffect(() => {
-    if (!activeClubFilter || !owningClubId) return;
+    if (!activeClubFilter) return;
+    if (competitionMismatch) {
+      if (location.pathname === "/") return;
+      if (lastRedirectedFrom.current === location.pathname + "|" + activeClubFilter) return;
+      lastRedirectedFrom.current = location.pathname + "|" + activeClubFilter;
+      navigate("/", { replace: true });
+      return;
+    }
+    if (!owningClubId) return;
     if (owningClubId === activeClubFilter) return;
     // A push-notification driven switch is mid-reconciliation: let it settle.
     // `applied` lands only after membership verification (several round trips),
@@ -87,5 +136,5 @@ export function useClubScopeGuard() {
     if (lastRedirectedFrom.current === location.pathname + "|" + activeClubFilter) return;
     lastRedirectedFrom.current = location.pathname + "|" + activeClubFilter;
     navigate("/", { replace: true });
-  }, [activeClubFilter, owningClubId, location.pathname, navigate, recheckTick]);
+  }, [activeClubFilter, owningClubId, competitionMismatch, location.pathname, navigate, recheckTick]);
 }
