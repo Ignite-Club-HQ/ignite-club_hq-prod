@@ -38,7 +38,14 @@ export type RouteClubScope =
    * resolves the full set of participating clubs and bounces only when the newly
    * selected club is in none of them.
    */
-  | { kind: "membership"; competitionId: string };
+  | { kind: "membership"; competitionId: string }
+  /**
+   * Direct messages have no owning club column, but DM eligibility IS club
+   * based (`can_dm_user`). A DM with a member of club A must not stay open once
+   * the filter moves to club B unless the other participant is also a member of
+   * club B. The guard resolves the other participant and checks membership.
+   */
+  | { kind: "dm"; conversationId: string };
 
 const seg = (pathname: string) => pathname.split("?")[0].split("#")[0].split("/").filter(Boolean);
 
