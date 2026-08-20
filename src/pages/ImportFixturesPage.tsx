@@ -382,7 +382,13 @@ export default function ImportFixturesPage() {
               ))}
             </SelectContent>
           </Select>
+          {clubLocked && (
+            <p className="text-xs text-muted-foreground">
+              Locked to your currently filtered club. Switch clubs in the header to import for another club.
+            </p>
+          )}
         </div>
+
 
         {clubId && (
           <div className="space-y-2">
