@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useState, useCallback, ReactNode } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, keepPreviousData, useQueryClient } from "@tanstack/react-query";
+import { purgeClubScopedQueryCache } from "@/lib/clubScopeCachePurge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
@@ -243,6 +244,7 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
 };
 
 export function ClubThemeProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   // Safely access auth context - may not be available during HMR or initial render
   let user = null;
   let authLoading = true; // Assume loading until we know for sure
@@ -905,7 +907,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     // set state directly rather than through the guarded setter.
     const pinned = getAppliedNotificationClubSwitch();
     if (pinned && pinned !== clubId) clearAppliedNotificationClubSwitch();
+    const changed = clubId !== activeClubTheme;
     setActiveClubThemeStateRaw(clubId);
+    // Drop every club-scoped cache entry so the previous club's teams, chats,
+    // events, media and vault rows cannot paint under the new club's chrome.
+    if (changed) purgeClubScopedQueryCache(queryClient);
     if (user?.id) {
       const key = getStorageKey(user.id);
       const dataKey = getStorageDataKey(user.id);

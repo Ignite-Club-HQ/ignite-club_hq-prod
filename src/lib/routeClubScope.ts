@@ -24,7 +24,9 @@ export type ClubScopeTable =
   | "chat_groups"
   | "mini_leagues"
   | "vault_folders"
-  | "club_admin_conversations";
+  | "club_admin_conversations"
+  | "photos"
+  | "club_links";
 
 export type RouteClubScope =
   | { kind: "none" }
@@ -100,6 +102,14 @@ export function resolveRouteClubScope(pathname: string): RouteClubScope {
     case "groups":
       return a ? { kind: "lookup", table: "chat_groups", id: a } : { kind: "none" };
 
+    // /media/:photoId — a single photo belongs to at most one club
+    case "media":
+      return a ? { kind: "lookup", table: "photos", id: a } : { kind: "none" };
+
+    // /club-link/:linkId — embedded club policy/registration/shop link
+    case "club-link":
+      return a ? { kind: "lookup", table: "club_links", id: a } : { kind: "none" };
+
     case "mini-leagues":
       return a ? { kind: "lookup", table: "mini_leagues", id: a } : { kind: "none" };
 
@@ -130,4 +140,5 @@ export const NULLABLE_CLUB_TABLES: ReadonlySet<ClubScopeTable> = new Set([
   "chat_groups",
   "events",
   "vault_folders",
+  "photos",
 ]);
