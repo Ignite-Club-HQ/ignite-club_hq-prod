@@ -43,7 +43,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { AddressAutocomplete, SavedLocation } from "@/components/AddressAutocomplete";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
-import { TargetTeamsPicker } from "@/components/event/TargetTeamsPicker";
+import { EventAudienceSelector } from "@/components/event/EventAudienceSelector";
 import { OpponentInput } from "@/components/OpponentInput";
 import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { format, parseISO } from "date-fns";
