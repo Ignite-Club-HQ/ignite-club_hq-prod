@@ -463,25 +463,75 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         assignments?.forEach(a => childIdsFromTeams.add(a.child_id));
       }
       
-      // Strategy 2: Children whose parents have roles in this club
+      // Strategy 2: Children whose parents have roles in this club.
+      // A guardian can be a parent in several clubs, so candidates must be
+      // filtered down to children with an actual footprint in THIS club.
       const { data: clubParents } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("club_id", clubId)
         .eq("role", "parent");
-      
+
       const parentUserIds = [...new Set(clubParents?.map(p => p.user_id) || [])];
-      const childIdsFromParents = new Set<string>();
+      const candidateChildIds = new Set<string>();
       if (parentUserIds.length) {
         const { data: parentChildren } = await supabase
           .from("children")
           .select("id")
           .in("parent_id", parentUserIds);
-        parentChildren?.forEach(c => childIdsFromParents.add(c.id));
+        parentChildren?.forEach(c => candidateChildIds.add(c.id));
       }
-      
+
+      // Drop candidates already proven in-club by strategy 1.
+      const toVerify = [...candidateChildIds].filter(id => !childIdsFromTeams.has(id));
+      const childIdsFromParents = new Set<string>(
+        [...candidateChildIds].filter(id => childIdsFromTeams.has(id)),
+      );
+
+      if (toVerify.length) {
+        const clubTeamIds = (teamIds ?? []).map(t => t.id);
+        const [assignRes, pointsRes, mlRes, inviteRes] = await Promise.all([
+          clubTeamIds.length
+            ? supabase
+                .from("child_team_assignments")
+                .select("child_id")
+                .in("child_id", toVerify)
+                .in("team_id", clubTeamIds)
+            : Promise.resolve({ data: [] as any[] }),
+          supabase
+            .from("child_club_points")
+            .select("child_id")
+            .in("child_id", toVerify)
+            .eq("club_id", clubId),
+          supabase
+            .from("child_mini_league_assignments")
+            .select("child_id, mini_leagues!inner(club_id)")
+            .in("child_id", toVerify)
+            .eq("mini_leagues.club_id", clubId),
+          supabase
+            .from("pending_invites")
+            .select("metadata")
+            .eq("club_id", clubId),
+        ]);
+
+        (assignRes.data as any[] | null)?.forEach(r => childIdsFromParents.add(r.child_id));
+        (pointsRes.data as any[] | null)?.forEach(r => childIdsFromParents.add(r.child_id));
+        (mlRes.data as any[] | null)?.forEach(r => childIdsFromParents.add(r.child_id));
+
+        const verifySet = new Set(toVerify);
+        (inviteRes.data as any[] | null)?.forEach(row => {
+          const meta = row?.metadata as any;
+          const kids = Array.isArray(meta?.children) ? meta.children : [];
+          kids.forEach((child: any) => {
+            const ref = child?.existingChildId;
+            if (typeof ref === "string" && verifySet.has(ref)) childIdsFromParents.add(ref);
+          });
+        });
+      }
+
       // Merge both sets
       const allChildIds = [...new Set([...childIdsFromTeams, ...childIdsFromParents])];
+
       if (!allChildIds.length) return [];
       
       const { data: children } = await supabase
