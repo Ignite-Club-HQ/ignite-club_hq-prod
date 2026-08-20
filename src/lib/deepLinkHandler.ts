@@ -6,6 +6,7 @@ import {
   beginLaunchIntentResolution,
   markLaunchUrlReceived,
 } from '@/lib/nativeLaunchIntent';
+import { abandonPendingNotificationNavigation } from '@/lib/notificationLaunchHandler';
 
 /**
  * Initialize deep link handling for native apps
@@ -227,9 +228,13 @@ async function handleDeepLinkUrl(rawUrl: string) {
             path,
             `${path}${fullSearch || ''}${fullHash || ''}`,
           );
+          // An explicit deep link outranks any stashed push route, otherwise a
+          // stale `/teams/:id` stash lands on top of the invite screen.
+          try { abandonPendingNotificationNavigation(`deep link ${path}`); } catch {}
           console.log('[DeepLink] Navigating to path:', destination);
           navigateApp(destination);
         }
+
       }
     } catch (err) {
       console.error('[DeepLink] Error processing deep link:', err);
