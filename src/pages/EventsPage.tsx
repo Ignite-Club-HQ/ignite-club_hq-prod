@@ -1,18 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useQueryClient, onlineManager } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus, CalendarPlus2, RefreshCw, Crown } from "lucide-react";
-import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
+import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, Filter, CalendarPlus, CalendarPlus2, RefreshCw } from "lucide-react";
 import { exportEventsIcs } from "@/lib/icsExport";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { Button } from "@/components/ui/button";
