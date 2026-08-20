@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, CheckCircle, XCircle, Users, AlertTriangle, Plus, UserCheck, Sparkles } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Users, AlertTriangle, Plus, UserCheck, Sparkles, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -391,6 +391,23 @@ export default function JoinTeamPage() {
   })();
 
   /**
+   * Email-matched pending invites override the name-mismatch gate. If the
+   * invite's email matches the signed-in user, we treat it as belonging to this
+   * account regardless of any invited_label/display_name difference.
+   */
+  const emailMatches =
+    isPendingInvite &&
+    !!pendingInviteData?.invited_email &&
+    !!user?.email &&
+    pendingInviteData.invited_email.trim().toLowerCase() === user.email.trim().toLowerCase();
+
+  const showNameMismatchInfo =
+    emailMatches &&
+    !!pendingInviteData?.invited_label &&
+    !!userProfile?.display_name &&
+    pendingInviteData.invited_label.trim().toLowerCase() !== userProfile.display_name.trim().toLowerCase();
+
+  /**
    * Re-opening the app can replay a stale invite deep link (stored
    * `pwa_pending_invite`, native launch URL, browser history). If the invite is
    * already accepted AND the signed-in user is already in that team/club, the
@@ -461,8 +478,19 @@ export default function JoinTeamPage() {
 
   // Validate name for pending invites - only block EXISTING users with a different name already set
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
+  // A matching email always wins over a name difference.
   useEffect(() => {
     if (isPendingInvite && pendingInviteData?.invited_label && user && userProfile !== undefined) {
+      const emailMatches =
+        !!pendingInviteData.invited_email &&
+        !!user.email &&
+        pendingInviteData.invited_email.trim().toLowerCase() === user.email.trim().toLowerCase();
+
+      if (emailMatches) {
+        setNameValidationError(null);
+        return;
+      }
+
       const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
       const actualName = (userProfile?.display_name || "").toLowerCase().trim();
       
@@ -559,20 +587,26 @@ export default function JoinTeamPage() {
     if (isPendingInvite && pendingInviteData?.invited_label) {
       const { data: profile } = await selectCachedProfileById(user.id);
 
-      const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
-      const actualName = (profile?.display_name || "").toLowerCase().trim();
+      const invitedEmail = (pendingInviteData.invited_email || "").toLowerCase().trim();
+      const userEmail = (user.email || "").toLowerCase().trim();
+      const emailMatches = !!invitedEmail && !!userEmail && invitedEmail === userEmail;
 
       // If user has no display_name, set it to the expected name
-      if (!profile?.display_name || !actualName) {
+      if (!profile?.display_name) {
         await supabase
           .from("profiles")
           .update({ display_name: pendingInviteData.invited_label })
           .eq("id", user.id);
-      } else if (actualName !== expectedName) {
-        const adminType = pendingInviteData.team_id ? "team admin" : "club admin";
-        throw new Error(
-          `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your ${adminType} for a different invite link.`
-        );
+      } else if (!emailMatches) {
+        const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
+        const actualName = (profile?.display_name || "").toLowerCase().trim();
+
+        if (actualName !== expectedName) {
+          const adminType = pendingInviteData.team_id ? "team admin" : "club admin";
+          throw new Error(
+            `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your ${adminType} for a different invite link.`
+          );
+        }
       }
 
       // Accepted parent invites remain recoverable because the backend may
@@ -1756,6 +1790,15 @@ export default function JoinTeamPage() {
             </div>
           )}
 
+          {showNameMismatchInfo && (
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+              <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground">
+                This invite was created for “{pendingInviteData?.invited_label}”. It's linked to your email, so you can accept it as {userProfile?.display_name}.
+              </p>
+            </div>
+          )}
+
           {/* Fixed role display for admin invites - no role selection */}
           {/* Fixed role display - all invites use a predetermined role */}
           <div className="flex items-center justify-center gap-2">
@@ -1812,7 +1855,7 @@ export default function JoinTeamPage() {
           ) : (
             <Button
               onClick={handleJoinClick}
-              disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
+              disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError && !emailMatches)}
               className="w-full"
               size="lg"
             >
@@ -1820,7 +1863,7 @@ export default function JoinTeamPage() {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : null}
               {!joinMutation.isPending && !(user && profileLoading) && (
-                nameValidationError
+                nameValidationError && !emailMatches
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion
                     ? "Complete Profile to Join"

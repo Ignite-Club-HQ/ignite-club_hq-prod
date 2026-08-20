@@ -1422,60 +1422,8 @@ export default function ClubDetailPage() {
         );
       })()}
 
-      {/* Schedule Section — admin tools for bulk schedule import */}
-      {canImportFixtures && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-1.5">
-            <CalendarDays className="h-5 w-5 text-primary shrink-0" />
-            <h2 className="text-lg font-semibold">Schedule</h2>
-          </div>
-          {(() => {
-            const hasImportProAccess = isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override;
-            return hasImportProAccess ? (
-              <Link to="/events/import">
-                <Card className="hover:border-primary/50 transition-colors">
-                  <CardContent className="p-4 flex items-center gap-3">
-                    <div className="rounded-full p-2 bg-primary/10">
-                      <FileSpreadsheet className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-sm font-medium">Import Fixtures</span>
-                      <p className="text-xs text-muted-foreground">From CSV or Excel</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ) : (
-              <Card
-                className="border-muted bg-muted/30 cursor-pointer"
-                onClick={() => {
-                  toast({
-                    title: "Pro feature",
-                    description: "Import Fixtures is available on Pro. Contact your club administrator to upgrade.",
-                  });
-                  navigate(`/clubs/${id}/upgrade`);
-                }}
-              >
-                <CardContent className="p-4 flex items-center gap-3 relative">
-                  <div className="absolute top-2 right-2">
-                    <Badge variant="secondary" className="text-xs gap-1">
-                      <Crown className="h-3 w-3" />
-                      Pro
-                    </Badge>
-                  </div>
-                  <div className="rounded-full p-2 bg-muted">
-                    <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-sm font-medium text-muted-foreground">Import Fixtures</span>
-                    <p className="text-xs text-muted-foreground">Available on Pro</p>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })()}
-        </section>
-      )}
+
+
 
       {/* Teams Section - flat filtered list */}
       {(() => {
@@ -2584,7 +2532,65 @@ export default function ClubDetailPage() {
         );
       })()}
 
+      {/* Schedule tools — tucked away; bulk fixture import is rarely used */}
+      {canImportFixtures && (
+        <AccordionItem value="schedule-tools" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-muted-foreground" />
+              <span className="text-lg font-semibold">Schedule tools</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            {(() => {
+              const hasImportProAccess =
+                isAppAdmin
+                || clubSubscription?.is_pro
+                || clubSubscription?.is_pro_football
+                || clubSubscription?.admin_pro_override
+                || clubSubscription?.admin_pro_football_override;
+              return hasImportProAccess ? (
+                <Link to="/events/import" className="block pb-2">
+                  <div className="flex items-center gap-3 py-2">
+                    <FileSpreadsheet className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium">Import Fixtures</span>
+                      <p className="text-xs text-muted-foreground">From CSV or Excel</p>
+                    </div>
+                  </div>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full text-left pb-2"
+                  onClick={() => {
+                    toast({
+                      title: "Pro feature",
+                      description: "Import Fixtures is available on Pro. Contact your club administrator to upgrade.",
+                    });
+                    navigate(`/clubs/${id}/upgrade`);
+                  }}
+                >
+                  <div className="flex items-center gap-3 py-2">
+                    <FileSpreadsheet className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-muted-foreground">Import Fixtures</span>
+                      <p className="text-xs text-muted-foreground">Available on Pro</p>
+                    </div>
+                    <Badge variant="secondary" className="text-xs gap-1 ml-auto">
+                      <Crown className="h-3 w-3" />
+                      Pro
+                    </Badge>
+                  </div>
+                </button>
+              );
+            })()}
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
       {/* App Admin Section */}
+
       {isAppAdmin && (
         <AccordionItem value="app-admin" className="border rounded-lg px-4 border-red-500/30">
           <AccordionTrigger className="hover:no-underline">
