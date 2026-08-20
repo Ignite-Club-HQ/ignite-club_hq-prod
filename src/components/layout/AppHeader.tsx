@@ -377,10 +377,11 @@ export function AppHeader() {
   // Otherwise a routine tap on the club logo (long before the user ever became
   // multi-club) would permanently burn the one-shot hint.
   const dismissClubSwitcherHint = () => {
-    if (hintDismissed) return;
+    if (!hintVisible || hintDismissed) return;
     setHintDismissed(true);
-    if (hintVisible && user?.id) markClubSwitcherHintSeen(user.id);
+    if (user?.id) markClubSwitcherHintSeen(user.id);
   };
+
 
   
   
