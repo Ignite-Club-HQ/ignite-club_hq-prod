@@ -244,6 +244,7 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
 };
 
 export function ClubThemeProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   // Safely access auth context - may not be available during HMR or initial render
   let user = null;
   let authLoading = true; // Assume loading until we know for sure
