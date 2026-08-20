@@ -570,20 +570,26 @@ export default function JoinTeamPage() {
     if (isPendingInvite && pendingInviteData?.invited_label) {
       const { data: profile } = await selectCachedProfileById(user.id);
 
-      const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
-      const actualName = (profile?.display_name || "").toLowerCase().trim();
+      const invitedEmail = (pendingInviteData.invited_email || "").toLowerCase().trim();
+      const userEmail = (user.email || "").toLowerCase().trim();
+      const emailMatches = !!invitedEmail && !!userEmail && invitedEmail === userEmail;
 
       // If user has no display_name, set it to the expected name
-      if (!profile?.display_name || !actualName) {
+      if (!profile?.display_name) {
         await supabase
           .from("profiles")
           .update({ display_name: pendingInviteData.invited_label })
           .eq("id", user.id);
-      } else if (actualName !== expectedName) {
-        const adminType = pendingInviteData.team_id ? "team admin" : "club admin";
-        throw new Error(
-          `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your ${adminType} for a different invite link.`
-        );
+      } else if (!emailMatches) {
+        const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
+        const actualName = (profile?.display_name || "").toLowerCase().trim();
+
+        if (actualName !== expectedName) {
+          const adminType = pendingInviteData.team_id ? "team admin" : "club admin";
+          throw new Error(
+            `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your ${adminType} for a different invite link.`
+          );
+        }
       }
 
       // Accepted parent invites remain recoverable because the backend may
