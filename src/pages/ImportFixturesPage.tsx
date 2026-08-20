@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ShieldAlert, Crown, Lock, FileSpreadsheet } from "lucide-react";
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { FixturesCSVImport } from "@/components/FixturesCSVImport";
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
@@ -21,6 +22,7 @@ import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 export default function ImportFixturesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { activeClubFilter } = useClubTheme();
   const [clubId, setClubId] = useState("");
   const [teamId, setTeamId] = useState("");
 
