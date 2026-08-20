@@ -23,6 +23,11 @@ describe("resolveRouteClubScope", () => {
     });
   });
 
+  it("scopes DMs by the other participant's clubs", () => {
+    expect(resolveRouteClubScope("/messages/dm/c1")).toEqual({ kind: "dm", conversationId: "c1" });
+    expect(resolveRouteClubScope("/messages/dm")).toEqual({ kind: "none" });
+  });
+
   it("leaves cross-club, personal and creation routes unscoped", () => {
     for (const p of [
       "/",
@@ -31,14 +36,12 @@ describe("resolveRouteClubScope", () => {
       "/messages",
       "/messages/broadcast",
       "/messages/welcome",
-      "/messages/dm/x",
       "/vault",
       "/media",
       "/leaderboard",
       "/clubs",
       "/clubs/new",
       "/teams/new",
-      "/competitions/x",
       "/associations/x",
       "/admin/users",
       "/profile",
