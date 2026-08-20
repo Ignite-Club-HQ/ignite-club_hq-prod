@@ -329,28 +329,43 @@ export function AppHeader() {
   const [demoLoginOpen, setDemoLoginOpen] = useState(false);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [hintDismissed, setHintDismissed] = useState(false);
+  const [hintVisible, setHintVisible] = useState(false);
 
   // Multi-club detection for the one-shot club-switcher coach-mark. Cheap
-  // (two id-only role reads, 5 min staleTime) and skipped entirely once the
-  // hint has already been seen on this device for this user.
+  // (id-only reads, 60s staleTime) and skipped entirely once the hint has
+  // already been seen for this user.
+  //
+  // The count MUST union every membership shape, not just `user_roles.club_id`:
+  // parents/players carried in on a roster hold only team-scoped role rows
+  // (club_id NULL), `team_memberships`, or `club_players` rows. Counting only
+  // club-scoped roles reported "1 club" for a genuinely multi-club user, so the
+  // hint never appeared after they joined a second club.
   const hintAlreadySeen = user?.id ? hasSeenClubSwitcherHint(user.id) : true;
   const { data: userClubCount = 0 } = useQuery({
     queryKey: ["user-club-count-for-switcher-hint", user?.id],
     enabled: !!user?.id && !hintAlreadySeen,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
     queryFn: async () => {
       if (!user?.id) return 0;
-      const [clubRoles, teamRoles] = await Promise.all([
+      const db = supabase as any;
+      const [clubRoles, teamRoles, teamMemberships, clubPlayers] = await Promise.all([
         supabase.from("user_roles").select("club_id").eq("user_id", user.id).not("club_id", "is", null),
         supabase
           .from("user_roles")
           .select("team_id, teams!inner(club_id)")
           .eq("user_id", user.id)
           .not("team_id", "is", null),
+        db
+          .from("team_memberships")
+          .select("teams!inner(club_id)")
+          .eq("user_id", user.id)
+          .eq("status", "active"),
+        db.from("club_players").select("club_id").eq("user_id", user.id),
       ]);
       const ids = new Set<string>();
       (clubRoles.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
-      (teamRoles.data || []).forEach((r: any) => {
+      (clubPlayers.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
+      [...(teamRoles.data || []), ...(teamMemberships.data || [])].forEach((r: any) => {
         const clubId = r.teams?.club_id;
         if (clubId) ids.add(clubId);
       });
@@ -358,11 +373,16 @@ export function AppHeader() {
     },
   });
 
+  // Only *persist* the "seen" flag when the coach-mark was actually on screen.
+  // Otherwise a routine tap on the club logo (long before the user ever became
+  // multi-club) would permanently burn the one-shot hint.
   const dismissClubSwitcherHint = () => {
-    if (hintDismissed) return;
+    if (!hintVisible || hintDismissed) return;
     setHintDismissed(true);
     if (user?.id) markClubSwitcherHintSeen(user.id);
   };
+
+
   
   
   // Handle theme toggle with save to profile
@@ -1206,9 +1226,11 @@ export function AppHeader() {
           <ClubSwitcherHint
             userId={user.id}
             enabled={userClubCount > 1}
+            onVisibleChange={setHintVisible}
             onDismiss={() => setHintDismissed(true)}
           />
         )}
+
         </div>
 
         <div className="flex items-center gap-4">
