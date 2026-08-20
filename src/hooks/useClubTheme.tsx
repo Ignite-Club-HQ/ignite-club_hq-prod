@@ -200,7 +200,16 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
     const fgL = primary.l > 50 ? 10 : 98;
     root.style.setProperty("--primary-foreground", `${primary.h} 10% ${fgL}%`);
     root.style.setProperty("--ring", cssValue);
+
+    // RSVP "selected" state must follow the club identity too — otherwise the
+    // Going / Maybe / Can't go buttons keep the default Ignite blue while the
+    // rest of the card is club-branded.
+    const rsvpL = Math.min(Math.max(primary.l, isDarkMode ? 44 : 34), isDarkMode ? 58 : 50);
+    const rsvpS = Math.max(primary.s, 40);
+    root.style.setProperty("--rsvp-selected", `${primary.h} ${rsvpS}% ${rsvpL}%`);
+    root.style.setProperty("--rsvp-selected-foreground", `${primary.h} 10% ${rsvpL > 55 ? 12 : 98}%`);
   }
+
 
   if (secondary) {
     root.style.setProperty("--secondary", `${secondary.h} ${secondary.s}% ${secondary.l}%`);
