@@ -113,7 +113,7 @@ export function EventAudienceSelector({
             key={o.key}
             type="button"
             disabled={disabled}
-            onClick={() => setMode(o.key)}
+            onClick={() => pickMode(o.key)}
             className={cn(
               "rounded-lg border px-3 py-2 text-left transition-colors",
               mode === o.key
