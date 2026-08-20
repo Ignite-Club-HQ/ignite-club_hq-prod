@@ -29,6 +29,7 @@ import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce } from "@/lib/pendingChatJump";
 import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
+import { resolveTeamInviteRoute } from "@/lib/resolveNotificationRoute";
 import {
   ClubSwitcherHint,
   hasSeenClubSwitcherHint,
