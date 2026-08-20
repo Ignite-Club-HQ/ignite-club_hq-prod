@@ -29,6 +29,8 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 
 type Action = "event_created" | "event_cancelled";
 
+const LOCAL_TIME_ZONE = "Australia/Adelaide";
+
 function fmtWhen(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
