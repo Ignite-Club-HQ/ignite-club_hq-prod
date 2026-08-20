@@ -29,6 +29,7 @@ import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce } from "@/lib/pendingChatJump";
 import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
+import { resolveTeamInviteRoute } from "@/lib/resolveNotificationRoute";
 import {
   ClubSwitcherHint,
   hasSeenClubSwitcherHint,
@@ -991,31 +992,22 @@ export function AppHeader() {
             navigate("/notifications");
           }
           return;
+        case "team_invite": {
+          // related_id may point at team_invites OR pending_invites (parent invites)
+          const resolvedInvite = await resolveTeamInviteRoute(relatedId);
+          if (resolvedInvite.kind === "navigate") {
+            navigate(resolvedInvite.to);
+          } else {
+            toast.info("This invite is no longer available");
+          }
+          return;
+        }
         case "role_assigned":
         case "invite_accepted":
         case "team_join":
-        case "team_invite":
           // Navigate to team page if related_id is available
           if (relatedId) {
-            if (notification.type === "team_invite") {
-              const { data: inviteData } = await supabase
-                .from("pending_invites")
-                .select("team_id, club_id, status, metadata")
-                .eq("id", relatedId)
-                .maybeSingle();
-              const inviteMeta = inviteData?.metadata as any;
-              if (inviteMeta?.mini_league_id) {
-                navigate(`/mini-leagues/${inviteMeta.mini_league_id}`);
-              } else if (inviteData?.team_id) {
-                navigate(`/teams/${inviteData.team_id}`);
-              } else if (inviteData?.club_id) {
-                navigate(`/clubs/${inviteData.club_id}`);
-              } else {
-                navigate("/notifications");
-              }
-            } else {
-              navigate(`/teams/${relatedId}`);
-            }
+            navigate(`/teams/${relatedId}`);
           } else {
             navigate("/notifications");
           }
