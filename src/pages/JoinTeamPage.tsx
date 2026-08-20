@@ -1790,6 +1790,15 @@ export default function JoinTeamPage() {
             </div>
           )}
 
+          {showNameMismatchInfo && (
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+              <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground">
+                This invite was created for “{pendingInviteData?.invited_label}”. It's linked to your email, so you can accept it as {userProfile?.display_name}.
+              </p>
+            </div>
+          )}
+
           {/* Fixed role display for admin invites - no role selection */}
           {/* Fixed role display - all invites use a predetermined role */}
           <div className="flex items-center justify-center gap-2">
