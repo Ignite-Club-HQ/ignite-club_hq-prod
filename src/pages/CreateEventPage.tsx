@@ -1203,6 +1203,7 @@ export default function CreateEventPage() {
                     onTargetTeamIdsChange={setTargetTeamIds}
                     supportsClubWideScope={supportsClubWideScope}
                     disabled={!clubId}
+                    defaultMode="team"
                   />
                 )}
 

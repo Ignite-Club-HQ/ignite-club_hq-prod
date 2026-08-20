@@ -32,6 +32,8 @@ interface Props {
   /** Whether this event type can be club-wide at all. */
   supportsClubWideScope: boolean;
   disabled?: boolean;
+  /** Which mode is selected when there is no explicit team/target-team state. */
+  defaultMode?: Mode;
 }
 
 type Mode = "club" | "team" | "selected";
@@ -45,6 +47,7 @@ export function EventAudienceSelector({
   onTargetTeamIdsChange,
   supportsClubWideScope,
   disabled,
+  defaultMode = "team",
 }: Props) {
   // Derived mode is only a *hint*: picking "One team" before a team is chosen
   // leaves teamId empty, so the mode has to be remembered locally too.
@@ -53,10 +56,10 @@ export function EventAudienceSelector({
     : Array.isArray(targetTeamIds)
       ? "selected"
       : "club";
-  const [mode, setMode] = useState<Mode>(derivedMode);
+  const [mode, setMode] = useState<Mode>(defaultMode !== "club" ? defaultMode : derivedMode);
 
   // Follow external changes (e.g. loading an existing event) without fighting
-  // the user's in-progress choice.
+  // the user's in-progress choice. Once a team is chosen the derived mode wins.
   useEffect(() => {
     if (derivedMode !== "club") setMode(derivedMode);
   }, [derivedMode]);
