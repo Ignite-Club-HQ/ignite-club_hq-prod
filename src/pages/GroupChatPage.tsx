@@ -1552,9 +1552,12 @@ export default function GroupChatPage() {
       });
 
       debugLogEvent("local-replace", { cause: "jump-window", nextLen: anchoredWindow.length });
+      // See TeamChatPage: only remount the scroller if the target row wasn't
+      // already painted, otherwise the remount flashes blank + skeleton.
+      const targetAlreadyRendered = (localMessagesRef.current || []).some((m) => m.id === targetMessageId);
       setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as GroupMessage[]);
       setHasOlderMessages((beforeResult.data || []).length >= WINDOW_BEFORE);
-      setJumpRenderNonce(targetJumpNonce ?? Date.now());
+      if (!targetAlreadyRendered) setJumpRenderNonce(targetJumpNonce ?? Date.now());
     };
 
     void hydrateTargetWindow();

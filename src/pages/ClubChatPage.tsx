@@ -1018,9 +1018,12 @@ export default function ClubChatPage() {
         (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
 
+      // See TeamChatPage: only remount the scroller if the target row wasn't
+      // already painted, otherwise the remount flashes blank + skeleton.
+      const targetAlreadyRendered = (localMessagesRef.current || []).some((m) => m.id === targetMessageId);
       setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as Message[]);
       setHasOlderMessages(windowRows.length >= 13);
-      setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
+      if (!targetAlreadyRendered) setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
     };
 
     void hydrateTargetWindow();
