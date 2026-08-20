@@ -1022,23 +1022,15 @@ export default function EditEventPage() {
                   </div>
 
                 ) : (
-                  <MobileCardSelect
-                    value={selectedTeamId || (supportsClubWideScope ? "__none__" : "")}
-                    onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
-                    options={[
-                      ...(supportsClubWideScope
-                        ? [{ value: "__none__", label: "Club-wide event" }]
-                        : []),
-                      ...selectableTeams.map((team) => ({ value: team.id, label: team.name })),
-                    ]}
-                    placeholder={supportsClubWideScope ? "Club-wide (optional)" : "Select team"}
-                    label="Team"
+                  <EventAudienceSelector
+                    teams={selectableTeams}
+                    clubTeams={allClubTeams ?? undefined}
+                    teamId={selectedTeamId}
+                    onTeamIdChange={setSelectedTeamId}
+                    targetTeamIds={targetTeamIds}
+                    onTargetTeamIdsChange={setTargetTeamIds}
+                    supportsClubWideScope={supportsClubWideScope}
                   />
-                )}
-                {supportsClubWideScope && (
-                  <p className="text-xs text-muted-foreground">
-                    Leave blank for a club-wide event.
-                  </p>
                 )}
                 {!selectedTeamId && supportsClubWideScope && !(event as any)?.mini_league_id && (
                   <MobileCardSelect
@@ -1053,14 +1045,7 @@ export default function EditEventPage() {
                     label="RSVP grouping"
                   />
                 )}
-                {!selectedTeamId && supportsClubWideScope && !(event as any)?.mini_league_id && (
 
-                  <TargetTeamsPicker
-                    teams={allClubTeams ?? undefined}
-                    value={targetTeamIds}
-                    onChange={setTargetTeamIds}
-                  />
-                )}
               </div>
 
               {/* BYE toggle - only for game events */}
