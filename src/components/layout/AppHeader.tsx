@@ -1226,9 +1226,11 @@ export function AppHeader() {
           <ClubSwitcherHint
             userId={user.id}
             enabled={userClubCount > 1}
+            onVisibleChange={setHintVisible}
             onDismiss={() => setHintDismissed(true)}
           />
         )}
+
         </div>
 
         <div className="flex items-center gap-4">
