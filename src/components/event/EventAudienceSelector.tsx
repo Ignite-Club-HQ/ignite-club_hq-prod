@@ -9,6 +9,7 @@
  *   - One team       → teamId = <id>, targetTeamIds = null
  *   - Selected teams → teamId = "",   targetTeamIds = string[] (≥ 2 to submit)
  */
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
@@ -45,23 +46,31 @@ export function EventAudienceSelector({
   supportsClubWideScope,
   disabled,
 }: Props) {
-  const mode: Mode = teamId
+  // Derived mode is only a *hint*: picking "One team" before a team is chosen
+  // leaves teamId empty, so the mode has to be remembered locally too.
+  const derivedMode: Mode = teamId
     ? "team"
     : Array.isArray(targetTeamIds)
       ? "selected"
       : "club";
+  const [mode, setMode] = useState<Mode>(derivedMode);
+
+  // Follow external changes (e.g. loading an existing event) without fighting
+  // the user's in-progress choice.
+  useEffect(() => {
+    if (derivedMode !== "club") setMode(derivedMode);
+  }, [derivedMode]);
 
   const checklistTeams = clubTeams ?? teams;
   const selected: string[] = Array.isArray(targetTeamIds) ? targetTeamIds : [];
 
-  const setMode = (next: Mode) => {
+  const pickMode = (next: Mode) => {
+    setMode(next);
     if (next === "club") {
       onTeamIdChange("");
       onTargetTeamIdsChange(null);
     } else if (next === "team") {
       onTargetTeamIdsChange(null);
-      // Keep any previously chosen team, otherwise wait for the dropdown.
-      onTeamIdChange(teamId);
     } else {
       onTeamIdChange("");
       onTargetTeamIdsChange(selected);
@@ -104,7 +113,7 @@ export function EventAudienceSelector({
             key={o.key}
             type="button"
             disabled={disabled}
-            onClick={() => setMode(o.key)}
+            onClick={() => pickMode(o.key)}
             className={cn(
               "rounded-lg border px-3 py-2 text-left transition-colors",
               mode === o.key
