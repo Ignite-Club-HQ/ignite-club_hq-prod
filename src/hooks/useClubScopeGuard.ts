@@ -171,5 +171,5 @@ export function useClubScopeGuard() {
     if (lastRedirectedFrom.current === location.pathname + "|" + activeClubFilter) return;
     lastRedirectedFrom.current = location.pathname + "|" + activeClubFilter;
     navigate("/", { replace: true });
-  }, [activeClubFilter, owningClubId, competitionMismatch, location.pathname, navigate, recheckTick]);
+  }, [activeClubFilter, owningClubId, competitionMismatch, dmMismatch, location.pathname, navigate, recheckTick]);
 }
