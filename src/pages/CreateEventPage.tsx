@@ -1192,19 +1192,16 @@ export default function CreateEventPage() {
                 />
                 )}
                 
-                {/* Team selection - for non-mini-league events */}
+                {/* Audience selection — single control for club / one team / several teams */}
                 {type !== "mini_league" && (
-                  <MobileCardSelect
-                    value={teamId || (supportsClubWideScope ? "__all__" : "")}
-                    onValueChange={(v) => setTeamId(v === "__all__" ? "" : v)}
-                    options={[
-                      ...(supportsClubWideScope
-                        ? [{ value: "__all__", label: "All Club" }]
-                        : []),
-                      ...(teams?.map((team) => ({ value: team.id, label: team.name })) || []),
-                    ]}
-                    placeholder={supportsClubWideScope ? "All Club" : "Select team"}
-                    label="Team"
+                  <EventAudienceSelector
+                    teams={teams ?? undefined}
+                    clubTeams={allClubTeams ?? undefined}
+                    teamId={teamId}
+                    onTeamIdChange={setTeamId}
+                    targetTeamIds={targetTeamIds}
+                    onTargetTeamIdsChange={setTargetTeamIds}
+                    supportsClubWideScope={supportsClubWideScope}
                     disabled={!clubId}
                   />
                 )}
@@ -1224,15 +1221,6 @@ export default function CreateEventPage() {
                   />
                 )}
 
-                {/* Target teams — restrict a club-wide event to a subset of teams */}
-                {!teamId && supportsClubWideScope && (
-
-                  <TargetTeamsPicker
-                    teams={allClubTeams ?? undefined}
-                    value={targetTeamIds}
-                    onChange={setTargetTeamIds}
-                  />
-                )}
                 
                 {/* Mini League selection - only for mini_league events, hidden when pre-set */}
                 {type === "mini_league" && !isFromMiniLeague && (
