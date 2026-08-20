@@ -1438,7 +1438,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       bottomPinReadyRef.current = true;
       pinnedRevisionRef.current = bottomPinRevision;
       pinAttemptRevisionRef.current = null;
-      setInitialRevealReady(false);
+      armRevealMask();
       let cancelled = false;
       let cleanup: (() => void) | null = null;
       let revealFrame: number | null = null;
@@ -1558,7 +1558,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // `jump("immediate")` below.
     if (pinAttemptRevisionRef.current === bottomPinRevision) return;
     pinAttemptRevisionRef.current = bottomPinRevision;
-    setInitialRevealReady(false);
+    armRevealMask();
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
       // bottom by the time a deferred jump fires (e.g. a refetch landed and
