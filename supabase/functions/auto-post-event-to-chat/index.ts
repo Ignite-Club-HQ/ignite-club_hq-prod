@@ -29,20 +29,26 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 
 type Action = "event_created" | "event_cancelled";
 
+const LOCAL_TIME_ZONE = "Australia/Adelaide";
+
 function fmtWhen(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   // E.g. "Sat 16 May, 2:30 PM"
+  // Edge runtime is UTC — always render in club-local time so chat posts match
+  // the Schedule / Next Up cards users see on their devices.
   const date = d.toLocaleDateString("en-AU", {
     weekday: "short",
     day: "numeric",
     month: "short",
+    timeZone: LOCAL_TIME_ZONE,
   });
   const time = d.toLocaleTimeString("en-AU", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
+    timeZone: LOCAL_TIME_ZONE,
   });
   return `${date}, ${time}`;
 }
