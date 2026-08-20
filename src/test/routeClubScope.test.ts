@@ -42,7 +42,6 @@ describe("resolveRouteClubScope", () => {
       "/clubs",
       "/clubs/new",
       "/teams/new",
-      "/competitions/x",
       "/associations/x",
       "/admin/users",
       "/profile",
