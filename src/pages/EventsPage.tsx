@@ -93,7 +93,6 @@ export default function EventsPage() {
   const [listSelectedDate, setListSelectedDate] = useState<Date | null>(null);
   const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
   const [showFilters, setShowFilters] = useState(false);
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   // How far back (in days) to include past events. Defaults to 30; user can
   // expand on demand via the "Show older events" button on the Past tab.
   const [pastDaysBack, setPastDaysBack] = useState<number>(30);
