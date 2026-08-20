@@ -62,6 +62,12 @@ interface AddDutySheetProps {
   isMiniLeague?: boolean;
   /** Context: session (event level) or match (group level) */
   context?: DutyContext;
+  /**
+   * Club sport. Soccer-family sports get Referee / Linesperson / Subs Manager;
+   * every other sport gets Umpire / Scorer instead. Undefined = treat as
+   * soccer (mini-league / football-only surfaces).
+   */
+  sport?: string | null;
 }
 
 export function AddDutySheet({ 
@@ -71,26 +77,30 @@ export function AddDutySheet({
   isPending,
   isMiniLeague = false,
   context = "session",
+  sport,
 }: AddDutySheetProps) {
   const [selectedDuty, setSelectedDuty] = useState<string>("");
   const [customDutyName, setCustomDutyName] = useState("");
   const [shiftStart, setShiftStart] = useState("");
   const [shiftEnd, setShiftEnd] = useState("");
 
-  // Determine which duties to show based on context
+  // Determine which duties to show based on context + sport
   const dutyOptions = useMemo(() => {
-    if (!isMiniLeague) {
-      // Non-mini league events: show all duties
-      return ALL_DUTY_OPTIONS;
-    }
-    
+    // `sport === undefined` (never fetched) keeps the historical soccer set.
+    const soccerFamily = sport === undefined ? true : isSoccerSport(sport);
+    const bySport = ALL_DUTY_OPTIONS.filter((duty) =>
+      soccerFamily ? !NON_SOCCER_ONLY_DUTIES.has(duty.id) : !SOCCER_ONLY_DUTIES.has(duty.id)
+    );
+
+    if (!isMiniLeague) return bySport;
+
     // Mini league events: filter based on context
     const allowedIds = context === "match" 
       ? MINI_LEAGUE_MATCH_DUTIES 
       : MINI_LEAGUE_SESSION_DUTIES;
     
-    return ALL_DUTY_OPTIONS.filter(duty => allowedIds.includes(duty.id));
-  }, [isMiniLeague, context]);
+    return bySport.filter(duty => allowedIds.includes(duty.id));
+  }, [isMiniLeague, context, sport]);
 
   const showShiftFields = SHIFT_CAPABLE_DUTIES.has(selectedDuty);
 
