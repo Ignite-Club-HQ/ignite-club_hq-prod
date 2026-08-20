@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ShieldAlert, Crown, Lock, FileSpreadsheet } from "lucide-react";
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { supabase } from "@/integrations/supabase/client";
 import { FixturesCSVImport } from "@/components/FixturesCSVImport";
 import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
@@ -21,6 +22,7 @@ import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 export default function ImportFixturesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { activeClubFilter } = useClubTheme();
   const [clubId, setClubId] = useState("");
   const [teamId, setTeamId] = useState("");
 
@@ -55,7 +57,7 @@ export default function ImportFixturesPage() {
   });
 
   // Determine which clubs the user can access
-  const { data: clubs } = useQuery({
+  const { data: allClubs } = useQuery({
     queryKey: ["user-admin-clubs", user?.id, clubAdminRoles, teamAdminRoles],
     queryFn: async () => {
       const clubIdsFromClubs = clubAdminRoles?.map((r) => r.club_id).filter(Boolean) || [];
@@ -74,8 +76,28 @@ export default function ImportFixturesPage() {
     enabled: !!user && (!!clubAdminRoles || !!teamAdminRoles),
   });
 
+  // When the app is filtered to a single club, restrict selection to that club only
+  const clubs = useMemo(() => {
+    if (!allClubs) return allClubs;
+    if (!activeClubFilter) return allClubs;
+    return allClubs.filter((c) => c.id === activeClubFilter);
+  }, [allClubs, activeClubFilter]);
+
+  const clubLocked = !!activeClubFilter && (clubs?.length ?? 0) > 0;
+
+  // Auto-select / correct the club when filtered
+  useEffect(() => {
+    if (!activeClubFilter) return;
+    if (!clubs || clubs.length === 0) return;
+    if (clubId !== activeClubFilter) {
+      setClubId(activeClubFilter);
+      setTeamId("");
+    }
+  }, [activeClubFilter, clubs, clubId]);
+
   // Get current club name and sport for Dribl detection
   const selectedClub = clubs?.find(c => c.id === clubId);
+
   const isFootballClub = selectedClub?.sport?.toLowerCase().includes('football') || 
                           selectedClub?.sport?.toLowerCase().includes('soccer');
 
@@ -347,10 +369,11 @@ export default function ImportFixturesPage() {
       <div className="space-y-4">
         <div className="space-y-2">
           <Label className="text-sm font-medium">Club</Label>
-          <Select value={clubId} onValueChange={(v) => { setClubId(v); setTeamId(""); }}>
+          <Select value={clubId} disabled={clubLocked} onValueChange={(v) => { setClubId(v); setTeamId(""); }}>
             <SelectTrigger className="h-12">
               <SelectValue placeholder="Select a club" />
             </SelectTrigger>
+
             <SelectContent>
               {clubs?.map((club) => (
                 <SelectItem key={club.id} value={club.id}>
@@ -359,7 +382,13 @@ export default function ImportFixturesPage() {
               ))}
             </SelectContent>
           </Select>
+          {clubLocked && (
+            <p className="text-xs text-muted-foreground">
+              Locked to your currently filtered club. Switch clubs in the header to import for another club.
+            </p>
+          )}
         </div>
+
 
         {clubId && (
           <div className="space-y-2">
