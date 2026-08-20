@@ -23,12 +23,12 @@ export async function resolveTeamInviteRoute(relatedId: string | null | undefine
 
   const { data: teamInvite } = await supabase
     .from("team_invites")
-    .select("invite_token")
+    .select("token")
     .eq("id", relatedId)
     .maybeSingle();
 
-  if (teamInvite?.invite_token) {
-    return { kind: "navigate", to: `/join/${teamInvite.invite_token}` };
+  if (teamInvite?.token) {
+    return { kind: "navigate", to: `/join/${teamInvite.token}` };
   }
 
   const { data: pending } = await supabase
