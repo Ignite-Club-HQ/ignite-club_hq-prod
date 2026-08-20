@@ -9,6 +9,7 @@
  *   - One team       → teamId = <id>, targetTeamIds = null
  *   - Selected teams → teamId = "",   targetTeamIds = string[] (≥ 2 to submit)
  */
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
