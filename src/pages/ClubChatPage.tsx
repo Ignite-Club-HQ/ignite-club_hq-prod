@@ -626,9 +626,11 @@ export default function ClubChatPage() {
     setLocalMessages,
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
-  const showLoading =
+  const showLoadingRaw =
     (!authReady && !hasMeaningfulLocal) ||
     (isLoading && !messagesData && !hasMeaningfulLocal);
+  // Latched: see useChatLoadingLatch — no skeleton regression after first paint.
+  const showLoading = useChatLoadingLatch(showLoadingRaw, clubId);
 
   // Android resume escape hatch: abort zombie GETs + re-issue the gating
   // queries while the page is stuck on a skeleton.

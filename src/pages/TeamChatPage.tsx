@@ -840,9 +840,12 @@ export default function TeamChatPage() {
     setLocalMessages,
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
-  const showLoading =
+  const showLoadingRaw =
     (!authReady && !hasMeaningfulLocal) ||
     (loadingMessages && !messagesData && !hasMeaningfulLocal);
+  // Latched: once this thread has painted, a transient local-cache reseed or a
+  // realtime-driven refetch must not re-raise the skeleton.
+  const showLoading = useChatLoadingLatch(showLoadingRaw, teamId);
 
   // Defer banner mounts until each banner's data has resolved. Banners
   // (notification nudge, pinned vault, pinned messages) resolve from async

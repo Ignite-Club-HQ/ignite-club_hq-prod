@@ -997,7 +997,8 @@ export default function GroupChatPage() {
     inboxSaysHasMessage,
     recoveryExhausted,
   });
-  const showLoading = threadPhase === "loading";
+  // Latched: see useChatLoadingLatch — no skeleton regression after first paint.
+  const showLoading = useChatLoadingLatch(threadPhase === "loading", groupId);
 
 
   // Android resume escape hatch: abort zombie GETs + re-issue the gating
