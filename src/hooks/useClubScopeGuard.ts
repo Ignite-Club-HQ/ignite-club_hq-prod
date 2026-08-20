@@ -144,7 +144,7 @@ export function useClubScopeGuard() {
 
   useEffect(() => {
     if (!activeClubFilter) return;
-    if (competitionMismatch) {
+    if (competitionMismatch || dmMismatch) {
       if (location.pathname === "/") return;
       if (lastRedirectedFrom.current === location.pathname + "|" + activeClubFilter) return;
       lastRedirectedFrom.current = location.pathname + "|" + activeClubFilter;
