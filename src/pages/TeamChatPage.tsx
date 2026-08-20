@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect, lazy, Suspense } from "react";
+import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
 import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
 import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
@@ -840,9 +841,12 @@ export default function TeamChatPage() {
     setLocalMessages,
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
-  const showLoading =
+  const showLoadingRaw =
     (!authReady && !hasMeaningfulLocal) ||
     (loadingMessages && !messagesData && !hasMeaningfulLocal);
+  // Latched: once this thread has painted, a transient local-cache reseed or a
+  // realtime-driven refetch must not re-raise the skeleton.
+  const showLoading = useChatLoadingLatch(showLoadingRaw, teamId);
 
   // Defer banner mounts until each banner's data has resolved. Banners
   // (notification nudge, pinned vault, pinned messages) resolve from async
@@ -1313,9 +1317,15 @@ export default function TeamChatPage() {
         (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
 
+      // Only force a scroller remount when the target row was NOT already
+      // rendered. Bumping the nonce unconditionally remounts the virtualized
+      // list over already-painted content — the "messages → blank → skeleton →
+      // messages" flash. When the row is present, the merged window updates in
+      // place and the existing jump/align path handles positioning.
+      const targetAlreadyRendered = (localMessagesRef.current || []).some((m) => m.id === targetMessageId);
       setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as Message[]);
       setHasOlderMessages(windowRows.length >= 13);
-      setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
+      if (!targetAlreadyRendered) setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
     };
 
     void hydrateTargetWindow();

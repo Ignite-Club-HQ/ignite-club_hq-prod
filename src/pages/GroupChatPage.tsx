@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, lazy, Suspense } from "react";
+import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
@@ -997,7 +998,8 @@ export default function GroupChatPage() {
     inboxSaysHasMessage,
     recoveryExhausted,
   });
-  const showLoading = threadPhase === "loading";
+  // Latched: see useChatLoadingLatch — no skeleton regression after first paint.
+  const showLoading = useChatLoadingLatch(threadPhase === "loading", groupId);
 
 
   // Android resume escape hatch: abort zombie GETs + re-issue the gating
@@ -1552,9 +1554,12 @@ export default function GroupChatPage() {
       });
 
       debugLogEvent("local-replace", { cause: "jump-window", nextLen: anchoredWindow.length });
+      // See TeamChatPage: only remount the scroller if the target row wasn't
+      // already painted, otherwise the remount flashes blank + skeleton.
+      const targetAlreadyRendered = (localMessagesRef.current || []).some((m) => m.id === targetMessageId);
       setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as GroupMessage[]);
       setHasOlderMessages((beforeResult.data || []).length >= WINDOW_BEFORE);
-      setJumpRenderNonce(targetJumpNonce ?? Date.now());
+      if (!targetAlreadyRendered) setJumpRenderNonce(targetJumpNonce ?? Date.now());
     };
 
     void hydrateTargetWindow();

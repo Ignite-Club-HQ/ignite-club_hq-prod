@@ -1216,6 +1216,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   const initialRevealReadyRef = useRef(false);
   initialRevealReadyRef.current = initialRevealReady;
   if (initialRevealReady && lastMessageId) revealedTailIdRef.current = lastMessageId;
+  // ONE-WAY REVEAL LATCH. Once this mount has painted its messages, nothing may
+  // put the mask/skeleton back over them. The bottom-pin effect below re-runs on
+  // every `bottomPinRevision` bump, and a bump is unavoidable when an anchor
+  // reset coincides with a NEW message arriving (the `alreadyRevealedAndStable`
+  // guard only covers an unchanged tail). Re-arming `initialRevealReady=false`
+  // there is exactly the reported "messages → blank → skeleton → messages"
+  // flash. Re-pinning/aligning is still allowed — only the masking is not.
+  // Thread changes remount this component (scrollerKey / RemountOnParamChange),
+  // so the latch can never leak across threads.
+  const hasRevealedOnceRef = useRef(false);
+  if (initialRevealReady) hasRevealedOnceRef.current = true;
+  const armRevealMask = useCallback(() => {
+    if (hasRevealedOnceRef.current) return;
+    setInitialRevealReady(false);
+  }, []);
 
 
   const safeScrollToIndex = useCallback(
@@ -1423,7 +1438,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       bottomPinReadyRef.current = true;
       pinnedRevisionRef.current = bottomPinRevision;
       pinAttemptRevisionRef.current = null;
-      setInitialRevealReady(false);
+      armRevealMask();
       let cancelled = false;
       let cleanup: (() => void) | null = null;
       let revealFrame: number | null = null;
@@ -1543,7 +1558,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // `jump("immediate")` below.
     if (pinAttemptRevisionRef.current === bottomPinRevision) return;
     pinAttemptRevisionRef.current = bottomPinRevision;
-    setInitialRevealReady(false);
+    armRevealMask();
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
       // bottom by the time a deferred jump fires (e.g. a refetch landed and

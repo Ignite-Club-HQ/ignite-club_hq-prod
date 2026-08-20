@@ -1,4 +1,5 @@
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
+import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
@@ -626,9 +627,11 @@ export default function ClubChatPage() {
     setLocalMessages,
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
-  const showLoading =
+  const showLoadingRaw =
     (!authReady && !hasMeaningfulLocal) ||
     (isLoading && !messagesData && !hasMeaningfulLocal);
+  // Latched: see useChatLoadingLatch — no skeleton regression after first paint.
+  const showLoading = useChatLoadingLatch(showLoadingRaw, clubId);
 
   // Android resume escape hatch: abort zombie GETs + re-issue the gating
   // queries while the page is stuck on a skeleton.
@@ -1018,9 +1021,12 @@ export default function ClubChatPage() {
         (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
 
+      // See TeamChatPage: only remount the scroller if the target row wasn't
+      // already painted, otherwise the remount flashes blank + skeleton.
+      const targetAlreadyRendered = (localMessagesRef.current || []).some((m) => m.id === targetMessageId);
       setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as Message[]);
       setHasOlderMessages(windowRows.length >= 13);
-      setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
+      if (!targetAlreadyRendered) setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
     };
 
     void hydrateTargetWindow();
