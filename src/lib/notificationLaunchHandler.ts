@@ -342,7 +342,18 @@ async function checkLaunchNotification(PushNotifications: any) {
 export function processPendingNotificationNavigation(navigate: (path: string) => void): boolean {
   const url = getPendingNotificationNavigation();
   if (!url) return false;
+
+  // Never navigate away from an invite/auth deep-link route the user is
+  // currently on — the emailed link is the live intent.
+  try {
+    if (typeof window !== 'undefined' && INVITE_PATH_RE.test(window.location.pathname)) {
+      abandonPendingNotificationNavigation(`on invite route ${window.location.pathname}`);
+      return false;
+    }
+  } catch {}
+
   let path = url;
+
   if (url.startsWith('http://') || url.startsWith('https://')) {
     try {
       const urlObj = new URL(url);
