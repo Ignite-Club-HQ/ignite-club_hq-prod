@@ -61,10 +61,16 @@ interface ClubSwitcherHintProps {
   /** True when the user belongs to more than one club. */
   enabled: boolean;
   onDismiss?: () => void;
+  /** Reports whether the coach-mark is currently on screen. */
+  onVisibleChange?: (visible: boolean) => void;
 }
 
-export function ClubSwitcherHint({ userId, enabled, onDismiss }: ClubSwitcherHintProps) {
+export function ClubSwitcherHint({ userId, enabled, onDismiss, onVisibleChange }: ClubSwitcherHintProps) {
   const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    onVisibleChange?.(visible);
+  }, [visible, onVisibleChange]);
 
   useEffect(() => {
     if (!enabled || !userId) return;
@@ -88,6 +94,7 @@ export function ClubSwitcherHint({ userId, enabled, onDismiss }: ClubSwitcherHin
   };
 
   if (!visible) return null;
+
 
   return (
     <div
