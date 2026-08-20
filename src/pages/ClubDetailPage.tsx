@@ -622,6 +622,22 @@ export default function ClubDetailPage() {
     enabled: !!user,
   });
 
+  const { data: canImportFixtures } = useQuery({
+    queryKey: ["can-import-fixtures", id, user?.id],
+    queryFn: async () => {
+      if (!id || !user) return false;
+      const { data: roles, error } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("club_id", id)
+        .in("role", ["club_admin", "team_admin", "coach", "committee_member"]);
+      if (error) throw error;
+      return (roles?.length ?? 0) > 0;
+    },
+    enabled: !!id && !!user,
+  });
+
   const isAdmin = userRole === "club_admin" || isAppAdmin;
   const isMember = !!userRole || isAppAdmin;
 
