@@ -143,6 +143,8 @@ export function resolveRouteClubScope(pathname: string): RouteClubScope {
       if (a === "club-admin" && b)
         return { kind: "lookup", table: "club_admin_conversations", id: b };
       // DMs, broadcast, welcome and the inbox itself are not club-owned
+      // /messages/dm/:conversationId — scoped by the other participant's clubs
+      if (a === "dm" && b) return { kind: "dm", conversationId: b };
       if (!a || a === "dm" || a === "broadcast" || a === "welcome") return { kind: "none" };
       // /messages/:teamId — team chat
       if (!b && !c) return { kind: "lookup", table: "teams", id: a };
