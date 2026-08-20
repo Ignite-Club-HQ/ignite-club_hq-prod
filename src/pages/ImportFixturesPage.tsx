@@ -55,7 +55,7 @@ export default function ImportFixturesPage() {
   });
 
   // Determine which clubs the user can access
-  const { data: clubs } = useQuery({
+  const { data: allClubs } = useQuery({
     queryKey: ["user-admin-clubs", user?.id, clubAdminRoles, teamAdminRoles],
     queryFn: async () => {
       const clubIdsFromClubs = clubAdminRoles?.map((r) => r.club_id).filter(Boolean) || [];
@@ -74,8 +74,28 @@ export default function ImportFixturesPage() {
     enabled: !!user && (!!clubAdminRoles || !!teamAdminRoles),
   });
 
+  // When the app is filtered to a single club, restrict selection to that club only
+  const clubs = useMemo(() => {
+    if (!allClubs) return allClubs;
+    if (!activeClubFilter) return allClubs;
+    return allClubs.filter((c) => c.id === activeClubFilter);
+  }, [allClubs, activeClubFilter]);
+
+  const clubLocked = !!activeClubFilter && (clubs?.length ?? 0) > 0;
+
+  // Auto-select / correct the club when filtered
+  useEffect(() => {
+    if (!activeClubFilter) return;
+    if (!clubs || clubs.length === 0) return;
+    if (clubId !== activeClubFilter) {
+      setClubId(activeClubFilter);
+      setTeamId("");
+    }
+  }, [activeClubFilter, clubs, clubId]);
+
   // Get current club name and sport for Dribl detection
   const selectedClub = clubs?.find(c => c.id === clubId);
+
   const isFootballClub = selectedClub?.sport?.toLowerCase().includes('football') || 
                           selectedClub?.sport?.toLowerCase().includes('soccer');
 
