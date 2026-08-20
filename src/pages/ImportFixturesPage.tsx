@@ -369,10 +369,11 @@ export default function ImportFixturesPage() {
       <div className="space-y-4">
         <div className="space-y-2">
           <Label className="text-sm font-medium">Club</Label>
-          <Select value={clubId} onValueChange={(v) => { setClubId(v); setTeamId(""); }}>
+          <Select value={clubId} disabled={clubLocked} onValueChange={(v) => { setClubId(v); setTeamId(""); }}>
             <SelectTrigger className="h-12">
               <SelectValue placeholder="Select a club" />
             </SelectTrigger>
+
             <SelectContent>
               {clubs?.map((club) => (
                 <SelectItem key={club.id} value={club.id}>
