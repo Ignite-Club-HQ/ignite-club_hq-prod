@@ -1855,7 +1855,7 @@ export default function JoinTeamPage() {
           ) : (
             <Button
               onClick={handleJoinClick}
-              disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
+              disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError && !emailMatches)}
               className="w-full"
               size="lg"
             >
@@ -1863,7 +1863,7 @@ export default function JoinTeamPage() {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : null}
               {!joinMutation.isPending && !(user && profileLoading) && (
-                nameValidationError
+                nameValidationError && !emailMatches
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion
                     ? "Complete Profile to Join"
