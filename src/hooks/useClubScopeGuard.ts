@@ -8,6 +8,8 @@ import {
   isNotificationClubSwitchInFlight,
 } from "@/lib/notificationClubSwitch";
 import { resolveRouteClubScope } from "@/lib/routeClubScope";
+import { useAuth } from "@/hooks/useAuth";
+import { isIgniteSupportUser } from "@/lib/systemUser";
 
 /**
  * Club scope guard.
@@ -26,6 +28,7 @@ import { resolveRouteClubScope } from "@/lib/routeClubScope";
  */
 export function useClubScopeGuard() {
   const { activeClubFilter } = useClubTheme();
+  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -85,6 +88,38 @@ export function useClubScopeGuard() {
     retry: false,
   });
 
+  // Direct messages: resolve the other participant, then ask the DB whether
+  // they belong to the newly selected club. Fails open on any error, and never
+  // bounces the Ignite Support conversation (a system user with no club).
+  const dmConversationId = scope.kind === "dm" ? scope.conversationId : null;
+  const { data: dmAllowed, isFetched: dmFetched } = useQuery({
+    queryKey: ["route-dm-club-scope", dmConversationId, activeClubFilter, user?.id],
+    queryFn: async () => {
+      if (!dmConversationId || !activeClubFilter || !user?.id) return true;
+      const { data, error } = await supabase
+        .from("direct_conversations")
+        .select("participant_1, participant_2")
+        .eq("id", dmConversationId)
+        .maybeSingle();
+      if (error || !data) return true;
+      const otherId =
+        data.participant_1 === user.id ? data.participant_2 : data.participant_1;
+      if (!otherId || otherId === user.id || isIgniteSupportUser(otherId)) return true;
+      const { data: isMember, error: memberError } = await supabase.rpc("is_club_member", {
+        _user_id: otherId,
+        _club_id: activeClubFilter,
+      });
+      if (memberError) return true;
+      return !!isMember;
+    },
+    enabled: !!dmConversationId && !!activeClubFilter && !!user?.id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: false,
+  });
+
+  const dmMismatch = scope.kind === "dm" && dmFetched && dmAllowed === false;
+
   const owningClubId =
     scope.kind === "direct"
       ? scope.clubId
@@ -109,7 +144,7 @@ export function useClubScopeGuard() {
 
   useEffect(() => {
     if (!activeClubFilter) return;
-    if (competitionMismatch) {
+    if (competitionMismatch || dmMismatch) {
       if (location.pathname === "/") return;
       if (lastRedirectedFrom.current === location.pathname + "|" + activeClubFilter) return;
       lastRedirectedFrom.current = location.pathname + "|" + activeClubFilter;
@@ -136,5 +171,5 @@ export function useClubScopeGuard() {
     if (lastRedirectedFrom.current === location.pathname + "|" + activeClubFilter) return;
     lastRedirectedFrom.current = location.pathname + "|" + activeClubFilter;
     navigate("/", { replace: true });
-  }, [activeClubFilter, owningClubId, competitionMismatch, location.pathname, navigate, recheckTick]);
+  }, [activeClubFilter, owningClubId, competitionMismatch, dmMismatch, location.pathname, navigate, recheckTick]);
 }
