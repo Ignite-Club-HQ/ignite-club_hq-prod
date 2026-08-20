@@ -29,6 +29,17 @@ let pendingNavigationUrl: string | null = null;
 let navigationHandled = false;
 
 const PENDING_NAV_KEY = 'pendingPushNavigationUrl';
+const PENDING_NAV_AT_KEY = 'pendingPushNavigationAt';
+/**
+ * A stashed push route is only ever meant to serve the launch it came from.
+ * Without a TTL a stash that never drained (router race, sign-out mid-flight)
+ * survived in sessionStorage and later hijacked an unrelated launch — e.g. an
+ * emailed `/join/p/:token` invite got pushed aside by an old `/teams/:id`.
+ */
+const PENDING_NAV_TTL_MS = 120_000;
+
+/** Invite/auth deep-link routes that must never be navigated away from. */
+const INVITE_PATH_RE = /^\/(join|join-club|i|claim-team)(\/|$)/;
 
 // Registered navigator from React side (warm-tap path)
 type Navigator = (path: string) => void;
@@ -43,16 +54,48 @@ export function clearNotificationNavigator(nav: Navigator) {
 }
 
 function persistPendingNav(url: string) {
-  try { sessionStorage.setItem(PENDING_NAV_KEY, url); } catch {}
+  try {
+    sessionStorage.setItem(PENDING_NAV_KEY, url);
+    sessionStorage.setItem(PENDING_NAV_AT_KEY, String(Date.now()));
+  } catch {}
 }
 
 function readPersistedPendingNav(): string | null {
-  try { return sessionStorage.getItem(PENDING_NAV_KEY); } catch { return null; }
+  try {
+    const url = sessionStorage.getItem(PENDING_NAV_KEY);
+    if (!url) return null;
+    const at = Number(sessionStorage.getItem(PENDING_NAV_AT_KEY) || 0);
+    if (!at || Date.now() - at > PENDING_NAV_TTL_MS) {
+      clearPersistedPendingNav();
+      return null;
+    }
+    return url;
+  } catch {
+    return null;
+  }
 }
 
 function clearPersistedPendingNav() {
-  try { sessionStorage.removeItem(PENDING_NAV_KEY); } catch {}
+  try {
+    sessionStorage.removeItem(PENDING_NAV_KEY);
+    sessionStorage.removeItem(PENDING_NAV_AT_KEY);
+  } catch {}
 }
+
+/**
+ * A deep link (emailed invite link, universal link) is an explicit, current
+ * user intent and always outranks a stashed push route. Called by the deep
+ * link handler so the stash cannot land on top of the invite screen.
+ */
+export function abandonPendingNotificationNavigation(reason: string) {
+  if (pendingNavigationUrl || readPersistedPendingNav()) {
+    console.log('[NotificationLaunch] Abandoning pending push nav:', reason);
+  }
+  pendingNavigationUrl = null;
+  clearPersistedPendingNav();
+  navigationHandled = true;
+}
+
 
 // Global flag for pending force-update prompt (survives timing races)
 let pendingForceUpdatePrompt: { storeUrl?: string } | null = null;
@@ -299,7 +342,18 @@ async function checkLaunchNotification(PushNotifications: any) {
 export function processPendingNotificationNavigation(navigate: (path: string) => void): boolean {
   const url = getPendingNotificationNavigation();
   if (!url) return false;
+
+  // Never navigate away from an invite/auth deep-link route the user is
+  // currently on — the emailed link is the live intent.
+  try {
+    if (typeof window !== 'undefined' && INVITE_PATH_RE.test(window.location.pathname)) {
+      abandonPendingNotificationNavigation(`on invite route ${window.location.pathname}`);
+      return false;
+    }
+  } catch {}
+
   let path = url;
+
   if (url.startsWith('http://') || url.startsWith('https://')) {
     try {
       const urlObj = new URL(url);
