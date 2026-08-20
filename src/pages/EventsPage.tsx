@@ -71,7 +71,6 @@ interface Event {
 
 export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
-  const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
