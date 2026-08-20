@@ -24,6 +24,7 @@ import { playNotificationSound, showBrowserNotification } from "@/lib/notificati
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
+import { resolveTeamInviteRoute } from "@/lib/resolveNotificationRoute";
 import { setPendingChatJump, withChatJumpNonce, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import {
