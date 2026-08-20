@@ -122,9 +122,10 @@ export default function InviteOtherParentSheet({
   });
 
   const sendInvite = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (requestedDelivery?: "email" | "share") => {
+      const effectiveDelivery = requestedDelivery ?? deliveryMethod;
       if (!user || !parentName.trim()) return;
-      if (deliveryMethod === "email" && !parentEmail.trim()) return;
+      if (effectiveDelivery === "email" && !parentEmail.trim()) return;
 
       const inviteToken = crypto.randomUUID();
 
@@ -202,7 +203,7 @@ export default function InviteOtherParentSheet({
 
       // ---- Email delivery (verified-only success) --------------------------
       let delivery: EmailDeliveryState = "not_requested";
-      if (deliveryMethod === "email" && trimmedEmail) {
+      if (effectiveDelivery === "email" && trimmedEmail) {
         delivery = "failed";
         setEmailDelivery("sending");
 
@@ -527,7 +528,14 @@ export default function InviteOtherParentSheet({
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setDeliveryMethod("share"); setParentEmail(""); }}
+                      onClick={() => {
+                        setDeliveryMethod("share");
+                        setParentEmail("");
+                        if (parentName.trim() && !sendInvite.isPending) {
+                          sendInvite.mutate("share");
+                        }
+                      }}
+                      disabled={sendInvite.isPending}
                       className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
                         deliveryMethod === "share"
                           ? "bg-primary/10 border-primary text-primary"
@@ -550,11 +558,7 @@ export default function InviteOtherParentSheet({
                         className="pl-10"
                       />
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      No email needed — tap <strong>Create Invite</strong> and you'll get a link to share or copy.
-                    </p>
-                  )}
+                  ) : null}
 
                 </div>
               )}
@@ -569,7 +573,7 @@ export default function InviteOtherParentSheet({
             <ResponsiveDialogFooter className="mt-2">
               <Button
                 className="w-full"
-                onClick={() => selectedUser ? linkExistingGuardian.mutate() : sendInvite.mutate()}
+                onClick={() => selectedUser ? linkExistingGuardian.mutate() : sendInvite.mutate(deliveryMethod)}
                 disabled={
                   selectedUser
                     ? linkExistingGuardian.isPending
@@ -589,7 +593,9 @@ export default function InviteOtherParentSheet({
                     ? "Enter name to continue"
                     : deliveryMethod === "email" && !parentEmail.trim()
                       ? "Enter email to continue"
-                      : "Create Invite"}
+                      : deliveryMethod === "share"
+                        ? "Create & Share Link"
+                        : "Create Invite"}
               </Button>
             </ResponsiveDialogFooter>
           </>
