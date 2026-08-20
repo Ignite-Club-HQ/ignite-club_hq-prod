@@ -28,6 +28,7 @@ import { isIgniteSupportUser } from "@/lib/systemUser";
  */
 export function useClubScopeGuard() {
   const { activeClubFilter } = useClubTheme();
+  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
