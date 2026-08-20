@@ -906,7 +906,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     // set state directly rather than through the guarded setter.
     const pinned = getAppliedNotificationClubSwitch();
     if (pinned && pinned !== clubId) clearAppliedNotificationClubSwitch();
+    const changed = clubId !== activeClubTheme;
     setActiveClubThemeStateRaw(clubId);
+    // Drop every club-scoped cache entry so the previous club's teams, chats,
+    // events, media and vault rows cannot paint under the new club's chrome.
+    if (changed) purgeClubScopedQueryCache(queryClient);
     if (user?.id) {
       const key = getStorageKey(user.id);
       const dataKey = getStorageDataKey(user.id);
