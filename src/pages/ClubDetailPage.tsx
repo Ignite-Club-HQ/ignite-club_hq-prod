@@ -1422,6 +1422,61 @@ export default function ClubDetailPage() {
         );
       })()}
 
+      {/* Schedule Section — admin tools for bulk schedule import */}
+      {canImportFixtures && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-1.5">
+            <CalendarDays className="h-5 w-5 text-primary shrink-0" />
+            <h2 className="text-lg font-semibold">Schedule</h2>
+          </div>
+          {(() => {
+            const hasImportProAccess = isAppAdmin || clubSubscription?.is_pro || clubSubscription?.is_pro_football || clubSubscription?.admin_pro_override || clubSubscription?.admin_pro_football_override;
+            return hasImportProAccess ? (
+              <Link to="/events/import">
+                <Card className="hover:border-primary/50 transition-colors">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="rounded-full p-2 bg-primary/10">
+                      <FileSpreadsheet className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium">Import Fixtures</span>
+                      <p className="text-xs text-muted-foreground">From CSV or Excel</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ) : (
+              <Card
+                className="border-muted bg-muted/30 cursor-pointer"
+                onClick={() => {
+                  toast({
+                    title: "Pro feature",
+                    description: "Import Fixtures is available on Pro. Contact your club administrator to upgrade.",
+                  });
+                  navigate(`/clubs/${id}/upgrade`);
+                }}
+              >
+                <CardContent className="p-4 flex items-center gap-3 relative">
+                  <div className="absolute top-2 right-2">
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <Crown className="h-3 w-3" />
+                      Pro
+                    </Badge>
+                  </div>
+                  <div className="rounded-full p-2 bg-muted">
+                    <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-muted-foreground">Import Fixtures</span>
+                    <p className="text-xs text-muted-foreground">Available on Pro</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </section>
+      )}
+
       {/* Teams Section - flat filtered list */}
       {(() => {
         const totalTeams = activeTeams?.length ?? 0;
