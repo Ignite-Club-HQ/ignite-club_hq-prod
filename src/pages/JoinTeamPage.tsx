@@ -461,8 +461,19 @@ export default function JoinTeamPage() {
 
   // Validate name for pending invites - only block EXISTING users with a different name already set
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
+  // A matching email always wins over a name difference.
   useEffect(() => {
     if (isPendingInvite && pendingInviteData?.invited_label && user && userProfile !== undefined) {
+      const emailMatches =
+        !!pendingInviteData.invited_email &&
+        !!user.email &&
+        pendingInviteData.invited_email.trim().toLowerCase() === user.email.trim().toLowerCase();
+
+      if (emailMatches) {
+        setNameValidationError(null);
+        return;
+      }
+
       const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
       const actualName = (userProfile?.display_name || "").toLowerCase().trim();
       
