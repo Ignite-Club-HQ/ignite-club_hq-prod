@@ -6,6 +6,7 @@ import {
   beginLaunchIntentResolution,
   markLaunchUrlReceived,
 } from '@/lib/nativeLaunchIntent';
+import { abandonPendingNotificationNavigation } from '@/lib/notificationLaunchHandler';
 
 /**
  * Initialize deep link handling for native apps
