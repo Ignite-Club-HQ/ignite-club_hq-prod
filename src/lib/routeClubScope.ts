@@ -31,7 +31,14 @@ export type ClubScopeTable =
 export type RouteClubScope =
   | { kind: "none" }
   | { kind: "direct"; clubId: string }
-  | { kind: "lookup"; table: ClubScopeTable; id: string };
+  | { kind: "lookup"; table: ClubScopeTable; id: string }
+  /**
+   * Competitions span clubs: the owning club is the organiser, but every club
+   * with an entered team is also legitimately "in" the competition. The guard
+   * resolves the full set of participating clubs and bounces only when the newly
+   * selected club is in none of them.
+   */
+  | { kind: "membership"; competitionId: string };
 
 const seg = (pathname: string) => pathname.split("?")[0].split("#")[0].split("/").filter(Boolean);
 
@@ -42,7 +49,6 @@ const seg = (pathname: string) => pathname.split("?")[0].split("#")[0].split("/"
  */
 const EXEMPT_ROOTS = new Set([
   "admin",
-  "competitions",
   "associations",
   "profile",
   "edit-profile",
@@ -84,6 +90,11 @@ export function resolveRouteClubScope(pathname: string): RouteClubScope {
     case "clubs":
       if (!a || a === "new") return { kind: "none" };
       return { kind: "direct", clubId: a };
+
+    // /competitions/:id/** — allowed for the organiser club and any entered club
+    case "competitions":
+      if (!a || a === "new" || a === "join") return { kind: "none" };
+      return { kind: "membership", competitionId: a };
 
     case "pay-fees":
       return a ? { kind: "direct", clubId: a } : { kind: "none" };
