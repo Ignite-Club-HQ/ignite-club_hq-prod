@@ -539,7 +539,7 @@ export default function InviteOtherParentSheet({
                     </button>
                   </div>
 
-                  {deliveryMethod === "email" && (
+                  {deliveryMethod === "email" ? (
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -550,7 +550,12 @@ export default function InviteOtherParentSheet({
                         className="pl-10"
                       />
                     </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No email needed — tap <strong>Create Invite</strong> and you'll get a link to share or copy.
+                    </p>
                   )}
+
                 </div>
               )}
 
