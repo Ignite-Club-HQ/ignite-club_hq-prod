@@ -49,10 +49,14 @@ describe("pitch state lineup persistence", () => {
     expect(a?.position).toEqual({ x: 50, y: 80 });
   });
 
-  it("resets game progress and drops fill-ins when stale", () => {
+  it("resets game progress but keeps fill-ins when stale", () => {
     seedStaleState();
     const loaded = loadPitchState(teamId)!;
-    expect(loaded.players.some((p) => p.id === "guest")).toBe(false);
+    // Fill-ins belong to the fixture the coach planned — they must survive to
+    // game day. Cross-fixture leakage is handled by PitchBoard's
+    // savedStateIsForDifferentEvent purge, not here.
+    const guest = loaded.players.find((p) => p.id === "guest");
+    expect(guest?.isFillIn).toBe(true);
     expect(loaded.players.every((p) => (p.minutesPlayed ?? 0) === 0)).toBe(true);
     expect(loaded.goals).toEqual([]);
     expect(loaded.autoSubActive).toBe(false);

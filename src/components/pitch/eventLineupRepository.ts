@@ -34,7 +34,11 @@ export interface EventLineupRecord {
 const isRealTeamId = (teamId: string | null | undefined) =>
   !!teamId && !teamId.startsWith("event-group-") && !teamId.startsWith("mock");
 
-/** Strip live-game data so only the planned lineup is persisted. */
+/**
+ * Strip live-game data so only the planned lineup is persisted.
+ * Fill-in guests ARE included: they belong to this fixture (the snapshot is
+ * keyed by event_id) and coaches expect them to survive to game day.
+ */
 export const buildEventLineupSnapshot = (args: {
   players: Player[];
   teamSize: TeamSize;
@@ -42,7 +46,6 @@ export const buildEventLineupSnapshot = (args: {
   ballPosition?: { x: number; y: number };
 }): EventLineupSnapshot => ({
   players: (args.players || [])
-    .filter((p) => !p.isFillIn)
     .map((p) => ({
       ...p,
       minutesPlayed: 0,

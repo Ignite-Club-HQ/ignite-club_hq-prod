@@ -16,6 +16,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { cn } from "@/lib/utils";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
+import { CompetitionAdminsCard } from "@/components/competitions/CompetitionAdminsCard";
 
 export default function CompetitionSettingsPage() {
   const { id } = useParams<{ id: string }>();
@@ -286,6 +287,14 @@ export default function CompetitionSettingsPage() {
 
       {/* 4. Ladder visibility — hidden for read-only PlayHQ comps */}
       {!isPlayHqReadOnly && <DivisionLadderVisibility competitionId={id!} />}
+
+      {/* 5. Competition admins — manage per-competition admin access */}
+      <CompetitionAdminsCard
+        competitionId={id!}
+        competitionName={competition.name}
+        organizerClubId={(competition as any).organizer_club_id ?? null}
+      />
+
 
 
       {/* Sticky save bar — page-level action */}
