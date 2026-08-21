@@ -33,7 +33,7 @@ describe("pitch state lineup persistence", () => {
     } as never);
 
     // Age the saved state beyond the 12h freshness window.
-    const key = `pitch-board-state-team-${teamId}`;
+    const key = `ignite-pitch-board-state-team-${teamId}`;
     const saved = JSON.parse(localStorage.getItem(key)!);
     saved.lastUpdateTime = Date.now() - 48 * 60 * 60 * 1000;
     localStorage.setItem(key, JSON.stringify(saved));
