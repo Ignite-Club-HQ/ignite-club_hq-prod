@@ -1272,6 +1272,7 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     tryPinchStart,
     tryPinchMove,
     tryPinchEnd,
+    pitchZoomScrollRef,
   } = usePitchBoardPinchZoom();
 
   // Ball state + drag/touch handlers live in usePitchBoardBall
@@ -3378,6 +3379,7 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     mode, movablePitchPlayerIds, nextSubInfo, onClose, onUnlinkEvent, openAutoSubPlanDialog,
     opponentName, pendingAutoSub, pendingBatchSubs, pendingFormationChange, pendingManualSub,
     pendingSubBenchPlayer, pendingSwapBasedSub, pinDrawingToolbar, pitchPlayerActionOpen,
+    pitchZoomScrollRef,
     pitchPlayerActionTarget, pitchSwapConfirmOpen, players, playersOnBench, playersOnPitch,
     portraitSheetDragRef, portraitSheetHeightPct, portraitSheetOpen, portraitTimerPosition,
     portraitTimerScale, positionEditorOpen, positionSwapDialogOpen, preferredSecondHalfGkId,
