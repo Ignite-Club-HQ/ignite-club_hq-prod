@@ -141,9 +141,12 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
         "[PitchState] Stale pitch state (>12h, no live timer) — keeping lineup, resetting game progress",
       );
 
-      // Drop temporary fill-in guests, reset minutes, keep everyone's slot.
+      // Keep fill-in guests too — coaches add them for a specific fixture and
+      // expect them to still be there the next day. Cross-fixture leakage is
+      // already prevented by the `savedStateIsForDifferentEvent` purge in
+      // PitchBoard, which drops fill-ins when opening a DIFFERENT event.
+      // Only game progress (minutes, injuries) is reset; everyone's slot stays.
       const preservedPlayers = (state.players ?? [])
-        .filter((p) => !p.isFillIn)
         .map((p) => ({ ...p, minutesPlayed: 0, isInjured: false }));
 
       const refreshed: PitchBoardState = {
