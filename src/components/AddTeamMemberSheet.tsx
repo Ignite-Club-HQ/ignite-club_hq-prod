@@ -708,7 +708,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         supabase.from("teams").select("id, name").eq("club_id", clubId),
         supabase
           .from("children")
-          .select("parent_id, name")
+          .select("id, parent_id, name")
           .in("parent_id", identityLookupIds),
       ]);
 
@@ -722,12 +722,45 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         rolesByUser.set(r.user_id, arr);
       }
 
+      // A child row is one human shared across clubs, so "Parent of X" must
+      // only name children with an actual footprint in THIS club. Otherwise a
+      // guardian from another club leaks their other club's kids into search.
+      const candidateChildren = (childrenRes.data || []).filter(c => c.id && c.parent_id && c.name);
+      const candidateIds = candidateChildren.map(c => c.id as string);
+      const inClubChildIds = new Set<string>();
+
+      if (candidateIds.length) {
+        const clubTeamIds = Object.keys(teamNameById);
+        const [assignRes, pointsRes, mlRes] = await Promise.all([
+          clubTeamIds.length
+            ? supabase
+                .from("child_team_assignments")
+                .select("child_id")
+                .in("child_id", candidateIds)
+                .in("team_id", clubTeamIds)
+            : Promise.resolve({ data: [] as any[] }),
+          supabase
+            .from("child_club_points")
+            .select("child_id")
+            .in("child_id", candidateIds)
+            .eq("club_id", clubId),
+          supabase
+            .from("child_mini_league_assignments")
+            .select("child_id, mini_leagues!inner(club_id)")
+            .in("child_id", candidateIds)
+            .eq("mini_leagues.club_id", clubId),
+        ]);
+        (assignRes.data as any[] | null)?.forEach(r => inClubChildIds.add(r.child_id));
+        (pointsRes.data as any[] | null)?.forEach(r => inClubChildIds.add(r.child_id));
+        (mlRes.data as any[] | null)?.forEach(r => inClubChildIds.add(r.child_id));
+      }
+
       const childrenByParent = new Map<string, string[]>();
-      for (const c of childrenRes.data || []) {
-        if (!c.parent_id || !c.name) continue;
-        const arr = childrenByParent.get(c.parent_id) || [];
-        arr.push(c.name);
-        childrenByParent.set(c.parent_id, arr);
+      for (const c of candidateChildren) {
+        if (!inClubChildIds.has(c.id as string)) continue;
+        const arr = childrenByParent.get(c.parent_id as string) || [];
+        arr.push(c.name as string);
+        childrenByParent.set(c.parent_id as string, arr);
       }
 
       const out: Record<string, MemberIdentity> = {};
