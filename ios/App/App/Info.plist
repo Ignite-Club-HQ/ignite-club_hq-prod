@@ -19,9 +19,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.2.57</string>
+	<string>1.2.58</string>
 	<key>CFBundleVersion</key>
-	<string>20260820075800</string>
+	<string>20260821054300</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
