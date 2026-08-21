@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { savePitchState } from "../pitchStateUtils";
+import { buildEventLineupSnapshot, lineupSignature, saveEventLineup } from "../eventLineupRepository";
 import type { Player, TeamSize, SubstitutionEvent, Goal } from "../types";
 
 interface UsePitchBoardPersistenceArgs {
@@ -21,6 +22,7 @@ interface UsePitchBoardPersistenceArgs {
   forceEventGroupSync: () => void;
   touchDragPlayer: unknown;
   draggedPlayer: unknown;
+  readOnly?: boolean;
 }
 
 /**
@@ -49,6 +51,7 @@ export function usePitchBoardPersistence({
   forceEventGroupSync,
   touchDragPlayer,
   draggedPlayer,
+  readOnly = false,
 }: UsePitchBoardPersistenceArgs) {
   // Save pitch state to localStorage whenever it changes (only after
   // initialization). Debounced to avoid excessive saves during drag.
@@ -132,4 +135,32 @@ export function usePitchBoardPersistence({
     }, 800);
     return () => clearTimeout(t);
   }, [hasInitialized, userId, teamId, isEventGroup, autoSubActive, autoSubPlan, players, linkedEventId]);
+
+  // Durable per-event lineup mirror (`event_lineups`). Unlike the localStorage
+  // copy, this follows the coach to any device and survives cache clears.
+  // Only the planned lineup is stored — never minutes, goals or the live plan.
+  const lastLineupSigRef = useRef<string>("");
+  useEffect(() => {
+    if (!hasInitialized || readOnly || mockMode || isEventGroup) return;
+    if (!linkedEventId || !teamId) return;
+    if (!players.some((p) => p.position !== null)) return;
+
+    const snapshot = buildEventLineupSnapshot({
+      players,
+      teamSize,
+      selectedFormation,
+      ballPosition,
+    });
+    const signature = `${linkedEventId}|${lineupSignature(snapshot)}`;
+    if (signature === lastLineupSigRef.current) return;
+
+    const t = setTimeout(() => {
+      lastLineupSigRef.current = signature;
+      void saveEventLineup({ eventId: linkedEventId, teamId, userId, snapshot });
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [
+    hasInitialized, readOnly, mockMode, isEventGroup, linkedEventId, teamId,
+    userId, players, teamSize, selectedFormation, ballPosition,
+  ]);
 }
