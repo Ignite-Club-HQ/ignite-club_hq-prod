@@ -885,11 +885,11 @@ export default function PitchBoardLandscapeLayout() {
             </div>
           )}
 
-          <div 
+          <div
             id="landscape-pitch-area"
+            ref={pitchZoomScrollRef}
             className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
             style={{ zIndex: 0 }}
-            onWheel={handleWheel}
             onDrop={handlePitchDrop}
             onDragOver={handleDragOver}
             onDragEnter={handleDragOver}

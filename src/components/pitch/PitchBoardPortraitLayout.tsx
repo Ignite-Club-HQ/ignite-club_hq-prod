@@ -1324,10 +1324,10 @@ export default function PitchBoardPortraitLayout() {
         )}
 
         {/* The Pitch */}
-        <div 
+        <div
           id="portrait-pitch-area"
+          ref={pitchZoomScrollRef}
           className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
-          onWheel={handleWheel}
           onDrop={handlePitchDrop}
           onDragOver={handleDragOver}
           onDragEnter={handleDragOver}
