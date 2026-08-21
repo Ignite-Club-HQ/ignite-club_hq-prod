@@ -398,7 +398,8 @@ export default function PitchBoardLandscapeLayout() {
     touchIdRef,
     trainingMenuOpen,
     undoHistory,
-    zoom
+    zoom,
+    pitchZoomScrollRef
   } = ctx;
 
     return createPortal(

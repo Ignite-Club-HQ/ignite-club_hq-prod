@@ -397,7 +397,8 @@ export default function PitchBoardPortraitLayout() {
     trainingSettingsDialogOpen,
     undoHistory,
     user,
-    zoom
+    zoom,
+    pitchZoomScrollRef
   } = ctx;
 
   const isNative = Capacitor.isNativePlatform();
