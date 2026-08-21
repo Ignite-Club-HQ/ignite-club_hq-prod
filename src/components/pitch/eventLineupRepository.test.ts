@@ -52,7 +52,7 @@ describe("shouldAdoptRemoteLineup", () => {
 });
 
 describe("buildEventLineupSnapshot", () => {
-  it("strips fill-ins and live progress", () => {
+  it("keeps fill-ins but strips live progress", () => {
     const snap = buildEventLineupSnapshot({
       players: [
         { id: "p1", name: "A", number: 1, position: { x: 1, y: 2 }, minutesPlayed: 34, isInjured: true } as never,
@@ -61,8 +61,13 @@ describe("buildEventLineupSnapshot", () => {
       teamSize: "7",
       selectedFormation: 1,
     });
-    expect(snap.players).toHaveLength(1);
+    // Fill-ins belong to this fixture (snapshot is keyed by event_id) and must
+    // persist to game day; only live progress is stripped.
+    expect(snap.players).toHaveLength(2);
     expect(snap.players[0].minutesPlayed).toBe(0);
     expect(snap.players[0].isInjured).toBe(false);
+    const guest = snap.players.find((p) => p.id === "f1");
+    expect(guest?.isFillIn).toBe(true);
+    expect(guest?.minutesPlayed).toBe(0);
   });
 });
