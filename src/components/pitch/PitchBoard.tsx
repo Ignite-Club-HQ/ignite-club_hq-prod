@@ -60,6 +60,7 @@ import { useIsLandscape } from "@/hooks/useIsLandscape";
 import { useEventGroupSync } from "@/hooks/useEventGroupSync";
 
 import { useEventGoingAttendees } from "@/hooks/useEventGoingAttendees";
+import { useEventLineupHydration } from "./hooks/useEventLineupHydration";
 import { hapticImpactMedium, hapticImpactLight } from "@/lib/haptics";
 
 // Import types and utils from extracted files
@@ -174,7 +175,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams, onUnlinkEvent }: PitchBoardProps) {
+function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams, onUnlinkEvent }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
@@ -1574,6 +1575,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     forceEventGroupSync,
     touchDragPlayer,
     draggedPlayer,
+    readOnly,
   });
 
 
@@ -3416,4 +3418,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       {isLandscape ? <PitchBoardLandscapeLayout /> : <PitchBoardPortraitLayout />}
     </PitchBoardLayoutContext.Provider>
   );
+}
+
+/**
+ * Durable lineup gate: when the board is opened for a specific fixture we first
+ * pull the saved lineup for that event from the database into localStorage, so
+ * a lineup planned on another device (or before a cache clear) is restored.
+ * The inner board reads localStorage synchronously on mount, so it must not
+ * render until hydration has settled.
+ */
+export default function PitchBoard(props: PitchBoardProps) {
+  const { ready } = useEventLineupHydration(
+    props.initialLinkedEventId ?? null,
+    props.teamId,
+    { enabled: !props.readOnly && !props.miniLeagueTeams }
+  );
+
+  if (!ready) {
+    return <PitchBoardLoading message="Restoring lineup..." />;
+  }
+
+  return <PitchBoardInner {...props} />;
 }
