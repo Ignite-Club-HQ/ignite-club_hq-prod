@@ -304,6 +304,7 @@ export interface PitchBoardLayoutContextValue {
   undoHistory: { players: Player[]; description: string }[];
   user: any;
   zoom: any;
+  pitchZoomScrollRef: React.RefCallback<HTMLDivElement>;
 }
 
 
