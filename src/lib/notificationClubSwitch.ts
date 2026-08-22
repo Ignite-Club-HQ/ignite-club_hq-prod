@@ -147,31 +147,44 @@ export function clearAppliedNotificationClubSwitch(): void {
   try { sessionStorage.removeItem(APPLIED_KEY); } catch { /* noop */ }
 }
 
-export function peekPendingNotificationClubSwitch(): string | null {
+/**
+ * The full pending switch request, including the raw payload/url when the
+ * club has not been resolved yet. TTL-guarded like the resolved form.
+ */
+export function peekPendingNotificationClubSwitchRequest(): PendingSwitch | null {
   try {
     const raw = sessionStorage.getItem(SS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PendingSwitch;
-    if (!parsed?.clubId) return null;
+    if (!parsed || typeof parsed.ts !== "number") return null;
     if (Date.now() - parsed.ts > TTL_MS) {
       clearPendingNotificationClubSwitch();
       return null;
     }
-    return parsed.clubId;
+    return parsed;
   } catch {
     return null;
   }
 }
 
-/** Reads and clears the pending switch. */
-export function consumePendingNotificationClubSwitch(): string | null {
-  const clubId = peekPendingNotificationClubSwitch();
-  if (clubId) clearPendingNotificationClubSwitch();
-  return clubId;
+export function peekPendingNotificationClubSwitch(): string | null {
+  return peekPendingNotificationClubSwitchRequest()?.clubId ?? null;
 }
 
-function stash(clubId: string) {
-  const payload: PendingSwitch = { clubId, ts: Date.now() };
+/** Reads and clears the pending switch (resolved or still-raw). */
+export function consumePendingNotificationClubSwitch(): string | null {
+  const req = peekPendingNotificationClubSwitchRequest();
+  if (req) clearPendingNotificationClubSwitch();
+  return req?.clubId ?? null;
+}
+
+function stash(clubId: string, data?: unknown, url?: string | null) {
+  const payload: PendingSwitch = {
+    clubId,
+    ts: Date.now(),
+    data: trimNotificationData(data),
+    url: url ?? null,
+  };
   try { sessionStorage.setItem(SS_KEY, JSON.stringify(payload)); } catch { /* noop */ }
   // Guard the route immediately: the club is not active yet (membership check
   // still pending) but the user is already navigating into its content.
@@ -181,12 +194,64 @@ function stash(clubId: string) {
   } catch { /* noop */ }
 }
 
+/**
+ * Stash the RAW tap request before the owning club is known. Synchronous and
+ * synchronous-safe: it must run even when the tap-time DB lookups race auth
+ * restore on a cold start, so `useNotificationClubSwitch` can resolve it once
+ * the session is guaranteed ready.
+ */
+function stashRequest(data?: unknown, url?: string | null): void {
+  if (typeof window === "undefined") return;
+  const payload: PendingSwitch = {
+    clubId: null,
+    ts: Date.now(),
+    data: trimNotificationData(data),
+    url: url ?? null,
+  };
+  try { sessionStorage.setItem(SS_KEY, JSON.stringify(payload)); } catch { /* noop */ }
+  try {
+    window.dispatchEvent(new CustomEvent(EVENT, { detail: payload }));
+  } catch { /* noop */ }
+}
 
-export function subscribeNotificationClubSwitch(handler: (clubId: string) => void): () => void {
+/**
+ * Overwrites a raw pending request with its resolved club. Called by
+ * `useNotificationClubSwitch` after deferred (post-auth) resolution.
+ */
+export function stashResolvedNotificationClubSwitch(
+  clubId: string,
+  data?: unknown,
+  url?: string | null,
+): void {
+  stash(clubId, data, url);
+}
+
+/**
+ * True when the notification can never carry a club (DMs, broadcast) and has
+ * no explicit club/team id on the payload. Those are never stashed — there is
+ * nothing to switch to and nothing to resolve later.
+ */
+export function isDefinitelyNotClubScoped(data: any, url: string | null | undefined): boolean {
+  if (data?.club_id || data?.clubId || data?.team_id || data?.teamId) return false;
+  const type = data?.notificationType || data?.type;
+  if (type === "direct_message" || type === "broadcast_message") return true;
+  const target = url ? getJumpTarget(url) : null;
+  if (target?.kind === "dm" || target?.kind === "broadcast") return true;
+  if (url) {
+    try {
+      const { pathname } = new URL(url, "https://app.local");
+      if (pathname.startsWith("/messages/dm/") || pathname.startsWith("/messages/broadcast")) return true;
+    } catch { /* noop */ }
+  }
+  return false;
+}
+
+
+export function subscribeNotificationClubSwitch(handler: (clubId: string | null) => void): () => void {
   if (typeof window === "undefined") return () => {};
   const listener = (event: Event) => {
     const detail = (event as CustomEvent<PendingSwitch>).detail;
-    if (detail?.clubId) handler(detail.clubId);
+    if (detail) handler(detail.clubId ?? null);
   };
   window.addEventListener(EVENT, listener);
   return () => window.removeEventListener(EVENT, listener);
