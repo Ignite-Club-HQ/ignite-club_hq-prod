@@ -45,6 +45,7 @@ export async function checkRewardThreshold({
         type: "reward_unlocked",
         message: `🎁 Reward unlocked! You've earned: ${reward.name}!`,
         related_id: clubId,
+        club_id: clubId,
       });
     }
 
