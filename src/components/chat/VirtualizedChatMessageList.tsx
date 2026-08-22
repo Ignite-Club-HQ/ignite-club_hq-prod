@@ -1251,6 +1251,51 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   );
 
   /**
+   * CANONICAL bottom pin: park at TRUE max scrollTop (footer included).
+   *
+   * Root cause of the "thread moves up and down after skeleton reveal"
+   * bounce: two different "bottom" targets were being written by competing
+   * pin paths —
+   *   A) `scrollToIndex({ index: "LAST", align: "end" })` parks the last
+   *      ROW flush against the viewport bottom, i.e. scrollTop =
+   *      maxTop - footerHeight (the bottomPadding footer sits below the
+   *      viewport).
+   *   B) direct `scrollTop = scrollHeight - clientHeight` writes (RO
+   *      stay-pinned guard, open-pin window, scrollToBottom's rAF
+   *      follow-up) park at maxTop — 32px further.
+   * A reveal that ended with (A) followed by any (B) writer (or the
+   * scrollToIndex-then-rAF-maxTop sequence inside `scrollToBottom`)
+   * visibly jumped the whole thread up/down by the footer height.
+   *
+   * From now on EVERY bottom pin converges on (B) in a single synchronous
+   * write, so there is no intermediate paint at the end-align position and
+   * no disagreement between writers. Virtuoso tolerates direct scrollTop
+   * jumps (same mechanism as scrollbar drags); bottom pins are only ever
+   * issued at/near the bottom where the tail rows are already mounted
+   * (initial mount anchors at LAST, overscan bottom = 600px).
+   */
+  const pinToTrueBottom = useCallback(
+    (reason: string, behavior: "auto" | "smooth" = "auto") => {
+      if (messagesLengthRef.current <= 0) return false;
+      if (isChatJumpActive()) return false;
+      const el = scrollerElRef.current;
+      if (!el) return false;
+      const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (Math.abs(el.scrollTop - maxTop) <= 1) return true;
+      debugLogEvent("pin-to-true-bottom", { reason, from: Math.round(el.scrollTop), to: Math.round(maxTop) });
+      if (behavior === "smooth") {
+        el.scrollTo({ top: maxTop, behavior: "smooth" });
+      } else {
+        el.scrollTop = maxTop;
+      }
+      markChatScrollWrite();
+      return true;
+    },
+    [],
+  );
+
+
+  /**
    * Exact-DOM alignment for a mounted row. Single implementation shared by the
    * imperative `scrollToMessageId` handle and the jump reveal fail-safe, so
    * "one final exact-DOM alignment" is guaranteed to be the same correction
