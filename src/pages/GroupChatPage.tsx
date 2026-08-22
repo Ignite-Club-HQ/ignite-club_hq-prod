@@ -1199,11 +1199,14 @@ export default function GroupChatPage() {
           reactions: [...incomingReactions, ...missingFromIncoming],
         };
       });
-      const mergedMessages = (reconcileMessages(
+      const mergedMessages = (reconcileReactions(
         reconcileScope,
-        [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
-        ),
+        (reconcileMessages(
+          reconcileScope,
+          [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+            (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+          ),
+        ) ?? []) as GroupMessage[],
       ) ?? []) as GroupMessage[];
       if (prev && mergedMessages.length < prev.length - 5) {
         debugLogEvent("local-replace", {
