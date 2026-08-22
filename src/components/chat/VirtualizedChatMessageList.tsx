@@ -1226,7 +1226,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // Thread changes remount this component (scrollerKey / RemountOnParamChange),
   // so the latch can never leak across threads.
   const hasRevealedOnceRef = useRef(false);
-  if (initialRevealReady) hasRevealedOnceRef.current = true;
+  // Only latch once CONTENT has actually painted. On a cold open (empty
+  // cache — group/committee chats after app launch or a club switch) the
+  // empty branch's 700ms grace reveals an EMPTY list while the page-level
+  // skeleton still covers the thread. If that empty reveal counted as
+  // "revealed", armRevealMask() would stay disarmed when the real messages
+  // land (>700ms fetch), and the entire bottom-pin stabilisation sequence —
+  // immediate/raf1/raf2 pins, per-frame stability checks, reveal-final and
+  // settle pins, plus Virtuoso's end-align park (maxTop - footer) → true
+  // maxTop correction — would play out VISIBLY for seconds. That is the
+  // "thread moves up and down after skeleton reveal" report. An empty-state
+  // reveal has nothing on screen to protect, so it must not disarm re-masking.
+  if (initialRevealReady && messages.length > 0) hasRevealedOnceRef.current = true;
   const armRevealMask = useCallback(() => {
     if (hasRevealedOnceRef.current) return;
     setInitialRevealReady(false);
@@ -1603,7 +1614,18 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     // `jump("immediate")` below.
     if (pinAttemptRevisionRef.current === bottomPinRevision) return;
     pinAttemptRevisionRef.current = bottomPinRevision;
-    armRevealMask();
+    // Re-mask only when a pin can actually MOVE content. If every row fits
+    // inside the viewport (e.g. the first messages landing in a previously
+    // empty open thread) maxTop is 0 and every pin below is a no-op — masking
+    // would just flash a skeleton over the empty state for no benefit. When
+    // the scroller is not measurable yet (missing or zero-sized), default to
+    // masking: an unmeasurable layout cannot prove the pins will be no-ops.
+    const pinViewportEl = scrollerElRef.current;
+    const pinCanMoveContent =
+      !pinViewportEl ||
+      (pinViewportEl.clientHeight === 0 && pinViewportEl.scrollHeight === 0) ||
+      pinViewportEl.scrollHeight > pinViewportEl.clientHeight + 1;
+    if (pinCanMoveContent) armRevealMask();
     const jump = (phase: string) => {
       // Defensive guard: if the user has already scrolled away from the
       // bottom by the time a deferred jump fires (e.g. a refetch landed and
