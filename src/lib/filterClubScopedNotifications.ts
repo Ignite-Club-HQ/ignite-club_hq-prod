@@ -29,9 +29,6 @@ const GLOBAL_PASSTHROUGH = new Set<string>([
   "role_request_approved",
   "role_request_denied",
   "child_added",
-  "streak_progress",
-  "reward_proximity",
-  "reward_unlocked",
   "join_request",
 ]);
 
@@ -58,6 +55,27 @@ const KNOWN_CLUB_SCOPED_TYPES = new Set<string>([
   "comment_reaction",
   "comment_reply",
   "photo_comment",
+  // Reward / gamification family — every one of these is generated per-club
+  // and must never surface while the app is filtered to a different club.
+  "reward_claimed",
+  "reward_proximity",
+  "reward_unlocked",
+  "early_rsvp_points",
+  "streak_progress",
+  "streak_bonus",
+  "leaderboard_update",
+  "points_awarded",
+]);
+
+// Gamification types whose `related_id` IS the owning club's id (producer
+// contract in engagementGamification.ts / earlyRsvpPoints.ts /
+// rewardThresholdCheck.ts). Resolved by direct comparison — no lookup needed.
+const CLUB_ID_RELATED_TYPES = new Set<string>([
+  "reward_unlocked",
+  "early_rsvp_points",
+  "streak_progress",
+  "streak_bonus",
+  "leaderboard_update",
 ]);
 
 export async function filterClubScopedNotifications<T extends NotifRow>(
