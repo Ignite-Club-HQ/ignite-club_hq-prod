@@ -14,15 +14,18 @@
  *  - a request that arrives during cold start survives in sessionStorage and is
  *    drained as soon as the user id is known.
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import {
   clearNotificationClubSwitchInFlight,
   consumePendingNotificationClubSwitch,
+  isDefinitelyNotClubScoped,
   markNotificationClubSwitchApplied,
-  peekPendingNotificationClubSwitch,
+  peekPendingNotificationClubSwitchRequest,
+  resolveNotificationClubId,
+  stashResolvedNotificationClubSwitch,
   subscribeNotificationClubSwitch,
 } from "@/lib/notificationClubSwitch";
 
