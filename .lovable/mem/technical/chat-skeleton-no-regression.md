@@ -30,3 +30,34 @@ regressed":
    TeamChatPage / ClubChatPage / GroupChatPage. `ClubAdminChatPage`'s
    `!conversation` full-page skeleton is likewise gated on having no
    `localMessages`.
+
+Symptom (2026-08-22, "STILL moving up and down after skeleton reveal"): the
+movement was no longer a mask regression but an UNMASKED pin sequence. On a
+cold open with an empty React Query cache (group/committee chats after app
+launch or a club switch — the common case), the list mounts with
+`messages=[]` and the empty branch's 700ms grace calls
+`setInitialRevealReady(true)` while the page-level skeleton still covers the
+thread. That empty reveal armed the one-way `hasRevealedOnceRef` latch, so
+when the real messages landed (>700ms fetch), `armRevealMask()` was a no-op
+and the entire bottom-pin stabilisation sequence — immediate/raf1/raf2 pins,
+per-frame stability checks, reveal-final/settle pins, plus Virtuoso's
+end-align park (maxTop - footer) → true-maxTop correction — played out
+visibly for seconds.
+
+Fix (two parts):
+4. The latch may only arm once CONTENT painted, and only from a PASSIVE
+   effect (`useEffect`), never during render. A render-phase latch arms the
+   moment `initialRevealReady && messages.length > 0` is true — BEFORE the
+   pin layout effect of the same commit can call `armRevealMask()`. The
+   passive effect runs after all layout effects, so the pin effect always
+   wins the race. An empty-state reveal has nothing on screen to protect and
+   must never disarm re-masking.
+5. The pin sequence skips re-masking when content fits inside the viewport
+   (`scrollHeight <= clientHeight + 1` — empty→first-message in an open
+   thread): maxTop is 0 there, every pin is a no-op, and masking would just
+   flash a skeleton over the empty state. Missing/zero-sized scroller
+   defaults to masking (an unmeasurable layout can't prove pins are no-ops).
+
+Regression test: `VirtualizedChatMessageList.emptyMount.test.tsx` —
+"cold-open: an empty-state reveal must NOT disarm re-masking when messages
+land".
