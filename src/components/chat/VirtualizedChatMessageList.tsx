@@ -1226,18 +1226,29 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // Thread changes remount this component (scrollerKey / RemountOnParamChange),
   // so the latch can never leak across threads.
   const hasRevealedOnceRef = useRef(false);
-  // Only latch once CONTENT has actually painted. On a cold open (empty
-  // cache — group/committee chats after app launch or a club switch) the
-  // empty branch's 700ms grace reveals an EMPTY list while the page-level
-  // skeleton still covers the thread. If that empty reveal counted as
-  // "revealed", armRevealMask() would stay disarmed when the real messages
-  // land (>700ms fetch), and the entire bottom-pin stabilisation sequence —
-  // immediate/raf1/raf2 pins, per-frame stability checks, reveal-final and
-  // settle pins, plus Virtuoso's end-align park (maxTop - footer) → true
-  // maxTop correction — would play out VISIBLY for seconds. That is the
-  // "thread moves up and down after skeleton reveal" report. An empty-state
-  // reveal has nothing on screen to protect, so it must not disarm re-masking.
-  if (initialRevealReady && messages.length > 0) hasRevealedOnceRef.current = true;
+  // Only latch once CONTENT has actually painted — and only from a PASSIVE
+  // (post-paint) effect, never during render. Two cold-open races depend on
+  // this:
+  //   1. Empty-cache open (committee/group chats after launch or a club
+  //      switch): the empty branch's 700ms grace reveals an EMPTY list while
+  //      the page-level skeleton still covers the thread. That reveal has
+  //      nothing on screen to protect, so it must not disarm re-masking —
+  //      otherwise when the real messages land (>700ms fetch) the whole
+  //      bottom-pin stabilisation sequence (immediate/raf pins, stability
+  //      checks, settle pins, Virtuoso's end-align park → true-maxTop
+  //      correction) plays out VISIBLY for seconds: the "thread moves up and
+  //      down after skeleton reveal" report.
+  //   2. The messages-arrive commit itself: a render-phase latch would arm
+  //      the moment `initialRevealReady && messages.length > 0` is true —
+  //      BEFORE the pin layout effect below gets to call armRevealMask().
+  //      A passive effect runs after all layout effects of that commit, so
+  //      the pin effect always wins the race and the mask re-arms.
+  // The latch still arms after the first painted content reveal, which is
+  // what blocks re-masking over already-visible messages (the original
+  // flash regression this ref was added for).
+  useEffect(() => {
+    if (initialRevealReady && messages.length > 0) hasRevealedOnceRef.current = true;
+  }, [initialRevealReady, messages.length]);
   const armRevealMask = useCallback(() => {
     if (hasRevealedOnceRef.current) return;
     setInitialRevealReady(false);
