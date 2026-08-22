@@ -382,13 +382,20 @@ export async function resolveNotificationClubId(
 }
 
 /**
- * Entry point for push handlers: resolve the notification's club and stash it
- * as a pending switch. Fire-and-forget — never blocks navigation.
+ * Entry point for push handlers: stash the raw request SYNCHRONOUSLY (so it
+ * survives cold start), then resolve the notification's club and upgrade the
+ * stash. Fire-and-forget — never blocks navigation.
+ *
+ * The raw stash matters: tap-time resolution races the Supabase session
+ * restore on cold start, and a failed lookup used to silently drop the switch
+ * (chat opened, filter stayed on the old club). `useNotificationClubSwitch`
+ * re-resolves unresolved stashes once auth is guaranteed ready.
  */
 export function requestClubSwitchForNotification(data: any, url: string | null | undefined): void {
   if (typeof window === "undefined") return;
+  if (!isDefinitelyNotClubScoped(data, url)) stashRequest(data, url);
   void resolveNotificationClubId(data, url).then((clubId) => {
-    if (clubId) stash(clubId);
+    if (clubId) stash(clubId, data, url);
   });
 }
 
@@ -404,8 +411,9 @@ export async function requestClubSwitchForNotificationUrl(
   timeoutMs = 600,
 ): Promise<void> {
   if (typeof window === "undefined") return;
+  if (!isDefinitelyNotClubScoped(data, url)) stashRequest(data, url);
   const resolving = resolveNotificationClubId(data, url).then((clubId) => {
-    if (clubId) stash(clubId);
+    if (clubId) stash(clubId, data, url);
   });
   await Promise.race([
     resolving,
