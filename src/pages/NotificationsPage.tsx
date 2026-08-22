@@ -469,16 +469,12 @@ export default function NotificationsPage() {
 
   const clearAllNotifications = useMutation({
     mutationFn: async () => {
-      let q = supabase
+      const ids = (notifications || []).map((n) => n.id);
+      if (ids.length === 0) return;
+      const { error } = await supabase
         .from("notifications")
         .delete()
-        .eq("user_id", user!.id);
-      if (activeClubFilter) {
-        q = q.or(
-          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
-        );
-      }
-      const { error } = await q;
+        .in("id", ids);
       if (error) throw error;
     },
     onMutate: async () => {
