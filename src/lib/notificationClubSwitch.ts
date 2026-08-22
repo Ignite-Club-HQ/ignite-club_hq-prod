@@ -38,8 +38,31 @@ const TTL_MS = 120_000;
 const INFLIGHT_TTL_MS = 30_000;
 
 interface PendingSwitch {
-  clubId: string;
+  clubId: string | null;
   ts: number;
+  /**
+   * The raw notification payload + url, kept so an unresolved switch can be
+   * resolved LATER by `useNotificationClubSwitch` once auth is guaranteed
+   * ready. Tap-time resolution races the Supabase session restore on cold
+   * start (RLS denies the `teams` lookup with an anon/refreshing session) and
+   * a null result was previously dropped with no retry — the chat opened via
+   * url navigation while the filter stayed on the old club.
+   */
+  data?: unknown;
+  url?: string | null;
+}
+
+/** Only payload fields resolution depends on — keeps sessionStorage tiny. */
+function trimNotificationData(data: any): Record<string, unknown> | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const KEYS = [
+    "club_id", "clubId", "team_id", "teamId", "message_id", "messageId",
+    "related_id", "relatedId", "group_id", "groupId", "conversation_id",
+    "chat_group_id", "context_id", "contextId", "type", "notificationType",
+  ];
+  const out: Record<string, unknown> = {};
+  for (const k of KEYS) if (data[k] != null) out[k] = data[k];
+  return out;
 }
 
 export function clearPendingNotificationClubSwitch(): void {
