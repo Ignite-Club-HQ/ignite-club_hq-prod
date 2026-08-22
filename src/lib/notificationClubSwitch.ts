@@ -235,7 +235,7 @@ export function isDefinitelyNotClubScoped(data: any, url: string | null | undefi
   if (data?.club_id || data?.clubId || data?.team_id || data?.teamId) return false;
   const type = data?.notificationType || data?.type;
   if (type === "direct_message" || type === "broadcast_message") return true;
-  const target = url ? getJumpTarget(url) : null;
+  const target = url || data ? getJumpTarget(data, url) : null;
   if (target?.kind === "dm" || target?.kind === "broadcast") return true;
   if (url) {
     try {
