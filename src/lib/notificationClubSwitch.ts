@@ -88,14 +88,22 @@ export function isNotificationClubSwitchInFlight(clubId: string | null | undefin
   if (!clubId) return false;
   try {
     const raw = sessionStorage.getItem(INFLIGHT_KEY);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw) as PendingSwitch;
-    if (!parsed?.clubId) return false;
-    if (Date.now() - parsed.ts > INFLIGHT_TTL_MS) {
-      clearNotificationClubSwitchInFlight();
-      return false;
+    if (raw) {
+      const parsed = JSON.parse(raw) as PendingSwitch;
+      if (parsed?.clubId) {
+        if (Date.now() - parsed.ts > INFLIGHT_TTL_MS) {
+          clearNotificationClubSwitchInFlight();
+        } else if (parsed.clubId === clubId) {
+          return true;
+        }
+      }
     }
-    return parsed.clubId === clubId;
+    // Stand down while a RAW switch request is still unresolved: the tap-time
+    // lookup may have raced auth, so we cannot name the club yet — but the
+    // user already tapped into that content and the hook is resolving it.
+    const req = peekPendingNotificationClubSwitchRequest();
+    if (req && !req.clubId && Date.now() - req.ts < INFLIGHT_TTL_MS) return true;
+    return false;
   } catch {
     return false;
   }
