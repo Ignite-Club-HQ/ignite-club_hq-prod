@@ -71,6 +71,24 @@ describe("native cold-start tap stashes the switch directly", () => {
   });
 });
 
+describe("unresolved tap-time requests are re-resolved after auth is ready", () => {
+  const lib = readFileSync("src/lib/notificationClubSwitch.ts", "utf8");
+  const hook = readFileSync("src/hooks/useNotificationClubSwitch.ts", "utf8");
+
+  it("stashes the raw request synchronously at tap time", () => {
+    // The tap-time teams lookup can race the Supabase session restore on cold
+    // start; the raw request must be stashed BEFORE any async resolution.
+    expect(lib).toMatch(/export function requestClubSwitchForNotification[\s\S]{0,400}stashRequest\(data, url\)/);
+  });
+
+  it("the hook drains raw requests via deferred resolution with bounded retries", () => {
+    expect(hook).toContain("peekPendingNotificationClubSwitchRequest");
+    expect(hook).toContain("resolveNotificationClubId");
+    expect(hook).toContain("MAX_RESOLVE_ATTEMPTS");
+    expect(hook).toContain("MAX_VERIFY_ATTEMPTS");
+  });
+});
+
 describe("membership verification covers team-scoped roles", () => {
   const src = readFileSync("src/hooks/useNotificationClubSwitch.ts", "utf8");
 
