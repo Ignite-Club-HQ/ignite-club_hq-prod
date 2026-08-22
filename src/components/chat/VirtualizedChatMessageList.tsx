@@ -1960,6 +1960,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   useEffect(() => {
     if (!initialRevealReady) return;
     if (!initialBottomPinned) return;
+    // Match the sibling watchers' guard — jsdom (and very old WebViews) have
+    // no ResizeObserver; without this the effect throws on reveal.
+    if (typeof ResizeObserver === "undefined") return;
     const viewport = scrollerElRef.current;
     if (!viewport) return;
     const inner = viewport.firstElementChild as HTMLElement | null;
