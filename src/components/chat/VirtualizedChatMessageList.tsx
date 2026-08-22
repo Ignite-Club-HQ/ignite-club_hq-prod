@@ -1656,7 +1656,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // last paddingTop adjustment from overscan-row measurement doesn't
       // visually shift the bottom row at the moment opacity flips to 1.
       if (!isChatJumpActive()) {
-        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-reveal-final");
+        pinToTrueBottom("bottom-pin-reveal-final");
       }
       if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
       bottomPinReadyRef.current = true;
@@ -1674,9 +1674,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           requestAnimationFrame(() => setInitialRevealReady(true));
           return;
         }
-        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-settle");
+        pinToTrueBottom("bottom-pin-settle");
         requestAnimationFrame(() => {
-          safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-settle-raf");
+          pinToTrueBottom("bottom-pin-settle-raf");
           setInitialRevealReady(true);
         });
       });
@@ -1685,7 +1685,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const el = scrollerElRef.current;
       if (!el || cancelled) return;
       if (!isChatJumpActive()) {
-        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-stability-check");
+        pinToTrueBottom("bottom-pin-stability-check");
       }
       const metrics = `${latestInitialSettleSignatureRef.current}:${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
       if (metrics !== lastMetrics) {
@@ -2142,7 +2142,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         markChatScrollWrite();
       }
     };
-    safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "own-message-send-pin");
     pin();
     const r = requestAnimationFrame(() => requestAnimationFrame(pin));
     // Trailing passes absorb composer collapse (reply pill clears, textarea
