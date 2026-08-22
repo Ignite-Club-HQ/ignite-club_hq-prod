@@ -253,34 +253,26 @@ export default function NotificationsPage() {
   const { data: notifications, isLoading } = useQuery({
     queryKey: ["notifications", user?.id, activeClubFilter ?? "all"],
     queryFn: async () => {
-      let q = supabase
+      const { data, error } = await supabase
         .from("notifications")
         .select("id, user_id, type, message, related_id, is_read, created_at, club_id")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(500); // Cap at 500 for performance
 
-      // When the user has filtered the app to a specific club, only show
-      // notifications tagged to that club. Truly cross-club / user-global
-      // types (DMs, streaks, rewards) are always shown so they aren't lost,
-      // but null-club notifications belonging to other clubs (chat replies,
-      // reactions, photo-prompt nudges, club-admin messages, etc.) are
-      // hidden when scoped to a single club.
-      if (activeClubFilter) {
-        // Only DMs are genuinely cross-club. Rewards/streaks are generated
-        // per-club and must stay scoped to the club they belong to.
-        const CROSS_CLUB_TYPES = [
-          "direct_message",
-        ];
-        q = q.or(
-          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
-        );
-      }
-
-      const { data, error } = await q;
-
       if (error) throw error;
-      return (data || []).map(n => ({ ...n, read: n.is_read })) as Notification[];
+      let rows = (data || []) as any[];
+
+      // Scope to the active club using the SAME resolver as the bell dropdown
+      // (filterClubScopedNotifications). A raw SQL `club_id.eq` filter would
+      // silently drop legacy null-club rows that the bell can still attribute
+      // via related_id lookups (e.g. reward_claimed -> reward_redemptions),
+      // which made "View all notifications" show fewer items than the
+      // dropdown. Filtering here keeps both surfaces consistent.
+      if (activeClubFilter) {
+        rows = await filterClubScopedNotifications(rows, user!.id, activeClubFilter);
+      }
+      return rows.map(n => ({ ...n, read: n.is_read })) as Notification[];
     },
     enabled: !!user,
     staleTime: 30000, // Consider data fresh for 30 seconds
