@@ -1935,10 +1935,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let cancelled = false;
     const startedAt = performance.now();
     // Cold post-login opens hydrate more slowly than normal re-opens (auth,
-    // profiles, avatars, link previews). Keep the first-open bottom guard
-    // alive long enough to absorb that settling without affecting a user who
-    // has intentionally scrolled away.
-    const STAY_PINNED_MS = 2400;
+    // profiles, avatars, link previews, READ RECEIPTS / read frontier). Keep
+    // the first-open bottom guard alive long enough to absorb that settling
+    // without affecting a user who has intentionally scrolled away. Matches
+    // the open-pin window (6s) so late-hydrating "Seen by" rows on own
+    // messages — which can land 2-4s after reveal on a cold start — are
+    // compensated before this observer retires.
+    const STAY_PINNED_MS = 6000;
     let lastScrollHeight = viewport.scrollHeight;
     let lastClientHeight = viewport.clientHeight;
 
@@ -1955,27 +1958,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (cancelled) return;
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
-      // Hard guard: if the user is clearly mid-history (>200px from bottom),
-      // never re-pin from a ResizeObserver callback. The 600ms cooldown on
-      // `isViewportUserActive` can let a settled fast-fling slip through and
-      // the synchronous scrollTop write here would race Virtuoso's own
-      // paddingTop patch in the same paint frame, producing the classic
-      // "jitter then snap" symptom users see on fast scroll-up.
-      const distanceFromBottom =
-        viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
-      // Pure pixel-distance check. atBottomRef is unreliable here because
-      // Virtuoso's 120px atBottomThreshold keeps it `true` for the first
-      // ~120px of an upward fling — using it as the gate let a fast scroll-up
-      // from LAST trigger a synchronous scrollTop=maxTop write inside this
-      // RO, visibly snapping the user back to the bottom (DM symptom).
-      if (distanceFromBottom > 4) return;
-      if (userHasScrolledAfterPinRef.current && distanceFromBottom > 4) return;
 
-      // Coordinate with sibling writers (openPinWindow timers, parent
-      // keyboard-pin). If one of them just wrote scrollTop, skip this pass
-      // so we don't apply an opposing micro-correction in the same frame.
-      if (isRecentChatScrollWrite(200)) return;
-
+      // Parked-at-bottom must be judged against the PRE-RESIZE geometry.
+      // By the time this callback runs, the growth has already landed:
+      // measuring `scrollHeight - clientHeight - scrollTop` NOW turns a
+      // parked 0 into the grown delta (e.g. +24px), so the old
+      // `distanceFromBottom > 4 → bail` check defeated the guard's own
+      // purpose — every real row growth while pinned at bottom was ignored
+      // and the tail drifted until an unrelated pin yanked it back (the
+      // visible "moves up and down" after reveal).
+      const prevDistanceFromBottom =
+        lastScrollHeight - lastClientHeight - viewport.scrollTop;
 
       const sh = viewport.scrollHeight;
       const ch = viewport.clientHeight;
@@ -1988,11 +1981,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // ~1.5 s main-thread freeze on first open and a clean reveal.
       if (Math.abs(delta) < 2 && Math.abs(viewportDelta) < 2) return;
 
+      // Hard guards: never re-pin from a ResizeObserver callback when the
+      // user has scrolled away from the pin or was NOT parked at the bottom
+      // before this resize (reading history / mid-fling). Pure pixel-distance
+      // check — atBottomRef is unreliable here because Virtuoso's 120px
+      // atBottomThreshold keeps it `true` for the first ~120px of an upward
+      // fling.
+      if (userHasScrolledAfterPinRef.current) return;
+      if (prevDistanceFromBottom > 4) return;
+
+      // Coordinate with sibling writers (openPinWindow timers, parent
+      // keyboard-pin). If one of them just wrote scrollTop, skip this pass
+      // so we don't apply an opposing micro-correction in the same frame.
+      if (isRecentChatScrollWrite(200)) return;
+
       // Re-pin to the true max scroll position for BOTH growth and shrink.
       // Cold-login row estimates can correct in either direction; only
       // handling positive deltas leaves the browser to clamp negative deltas
       // on the next paint, which reads as the down/up jolt the user reported.
-      const maxTop = sh - viewport.clientHeight;
+      const maxTop = sh - ch;
       const target = Math.max(0, maxTop);
       if (Math.abs(viewport.scrollTop - target) > 0.5) {
         viewport.scrollTop = target;
