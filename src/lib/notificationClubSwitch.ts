@@ -461,14 +461,28 @@ export async function resolveClubIdForChatTarget(
  * slow lookup still stashes (and is drained by `useNotificationClubSwitch`)
  * once it resolves.
  */
+/** Synthesizes the chat url for a known kind + targetId (bell taps). */
+function chatTargetUrlFor(kind: ChatJumpKind, targetId: string | null): string | null {
+  if (!targetId) return null;
+  switch (kind) {
+    case "team": return `/messages/${targetId}`;
+    case "club": return `/messages/club/${targetId}`;
+    case "group": return `/groups/${targetId}`;
+    case "club_admin": return `/messages/club-admin/${targetId}`;
+    default: return null;
+  }
+}
+
 export async function requestClubSwitchForChatTarget(
   kind: ChatJumpKind,
   targetId: string | null,
   timeoutMs = 600,
 ): Promise<void> {
   if (typeof window === "undefined") return;
+  const url = chatTargetUrlFor(kind, targetId);
+  if (url && !isDefinitelyNotClubScoped(undefined, url)) stashRequest(undefined, url);
   const resolving = resolveClubIdForChatTarget(kind, targetId).then((clubId) => {
-    if (clubId) stash(clubId);
+    if (clubId) stash(clubId, undefined, url);
   });
   await Promise.race([
     resolving,
