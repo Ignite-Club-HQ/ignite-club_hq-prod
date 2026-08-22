@@ -1251,6 +1251,51 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   );
 
   /**
+   * CANONICAL bottom pin: park at TRUE max scrollTop (footer included).
+   *
+   * Root cause of the "thread moves up and down after skeleton reveal"
+   * bounce: two different "bottom" targets were being written by competing
+   * pin paths —
+   *   A) `scrollToIndex({ index: "LAST", align: "end" })` parks the last
+   *      ROW flush against the viewport bottom, i.e. scrollTop =
+   *      maxTop - footerHeight (the bottomPadding footer sits below the
+   *      viewport).
+   *   B) direct `scrollTop = scrollHeight - clientHeight` writes (RO
+   *      stay-pinned guard, open-pin window, scrollToBottom's rAF
+   *      follow-up) park at maxTop — 32px further.
+   * A reveal that ended with (A) followed by any (B) writer (or the
+   * scrollToIndex-then-rAF-maxTop sequence inside `scrollToBottom`)
+   * visibly jumped the whole thread up/down by the footer height.
+   *
+   * From now on EVERY bottom pin converges on (B) in a single synchronous
+   * write, so there is no intermediate paint at the end-align position and
+   * no disagreement between writers. Virtuoso tolerates direct scrollTop
+   * jumps (same mechanism as scrollbar drags); bottom pins are only ever
+   * issued at/near the bottom where the tail rows are already mounted
+   * (initial mount anchors at LAST, overscan bottom = 600px).
+   */
+  const pinToTrueBottom = useCallback(
+    (reason: string, behavior: "auto" | "smooth" = "auto") => {
+      if (messagesLengthRef.current <= 0) return false;
+      if (isChatJumpActive()) return false;
+      const el = scrollerElRef.current;
+      if (!el) return false;
+      const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (Math.abs(el.scrollTop - maxTop) <= 1) return true;
+      debugLogEvent("pin-to-true-bottom", { reason, from: Math.round(el.scrollTop), to: Math.round(maxTop) });
+      if (behavior === "smooth") {
+        el.scrollTo({ top: maxTop, behavior: "smooth" });
+      } else {
+        el.scrollTop = maxTop;
+      }
+      markChatScrollWrite();
+      return true;
+    },
+    [],
+  );
+
+
+  /**
    * Exact-DOM alignment for a mounted row. Single implementation shared by the
    * imperative `scrollToMessageId` handle and the jump reveal fail-safe, so
    * "one final exact-DOM alignment" is guaranteed to be the same correction
@@ -1573,11 +1618,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return;
       }
       debugLogBottomPin(bottomPinRevision, phase);
-      safeScrollToIndex({
-        index: "LAST",
-        align: "end",
-        behavior: "auto",
-      }, `bottom-pin-${phase}`);
+      pinToTrueBottom(`bottom-pin-${phase}`);
     };
     jump("immediate");
     let revealTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1615,7 +1656,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // last paddingTop adjustment from overscan-row measurement doesn't
       // visually shift the bottom row at the moment opacity flips to 1.
       if (!isChatJumpActive()) {
-        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-reveal-final");
+        pinToTrueBottom("bottom-pin-reveal-final");
       }
       if (!bottomPinReadyRef.current) bottomPinReadyAtRef.current = performance.now();
       bottomPinReadyRef.current = true;
@@ -1633,9 +1674,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           requestAnimationFrame(() => setInitialRevealReady(true));
           return;
         }
-        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-settle");
+        pinToTrueBottom("bottom-pin-settle");
         requestAnimationFrame(() => {
-          safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-settle-raf");
+          pinToTrueBottom("bottom-pin-settle-raf");
           setInitialRevealReady(true);
         });
       });
@@ -1644,7 +1685,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const el = scrollerElRef.current;
       if (!el || cancelled) return;
       if (!isChatJumpActive()) {
-        safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "bottom-pin-stability-check");
+        pinToTrueBottom("bottom-pin-stability-check");
       }
       const metrics = `${latestInitialSettleSignatureRef.current}:${Math.round(el.scrollTop)}:${Math.round(el.scrollHeight)}:${Math.round(el.clientHeight)}`;
       if (metrics !== lastMetrics) {
@@ -1894,10 +1935,13 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     let cancelled = false;
     const startedAt = performance.now();
     // Cold post-login opens hydrate more slowly than normal re-opens (auth,
-    // profiles, avatars, link previews). Keep the first-open bottom guard
-    // alive long enough to absorb that settling without affecting a user who
-    // has intentionally scrolled away.
-    const STAY_PINNED_MS = 2400;
+    // profiles, avatars, link previews, READ RECEIPTS / read frontier). Keep
+    // the first-open bottom guard alive long enough to absorb that settling
+    // without affecting a user who has intentionally scrolled away. Matches
+    // the open-pin window (6s) so late-hydrating "Seen by" rows on own
+    // messages — which can land 2-4s after reveal on a cold start — are
+    // compensated before this observer retires.
+    const STAY_PINNED_MS = 6000;
     let lastScrollHeight = viewport.scrollHeight;
     let lastClientHeight = viewport.clientHeight;
 
@@ -1914,27 +1958,17 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       if (cancelled) return;
       if (isChatJumpActive()) return;
       if (isViewportUserActive(viewport)) return;
-      // Hard guard: if the user is clearly mid-history (>200px from bottom),
-      // never re-pin from a ResizeObserver callback. The 600ms cooldown on
-      // `isViewportUserActive` can let a settled fast-fling slip through and
-      // the synchronous scrollTop write here would race Virtuoso's own
-      // paddingTop patch in the same paint frame, producing the classic
-      // "jitter then snap" symptom users see on fast scroll-up.
-      const distanceFromBottom =
-        viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
-      // Pure pixel-distance check. atBottomRef is unreliable here because
-      // Virtuoso's 120px atBottomThreshold keeps it `true` for the first
-      // ~120px of an upward fling — using it as the gate let a fast scroll-up
-      // from LAST trigger a synchronous scrollTop=maxTop write inside this
-      // RO, visibly snapping the user back to the bottom (DM symptom).
-      if (distanceFromBottom > 4) return;
-      if (userHasScrolledAfterPinRef.current && distanceFromBottom > 4) return;
 
-      // Coordinate with sibling writers (openPinWindow timers, parent
-      // keyboard-pin). If one of them just wrote scrollTop, skip this pass
-      // so we don't apply an opposing micro-correction in the same frame.
-      if (isRecentChatScrollWrite(200)) return;
-
+      // Parked-at-bottom must be judged against the PRE-RESIZE geometry.
+      // By the time this callback runs, the growth has already landed:
+      // measuring `scrollHeight - clientHeight - scrollTop` NOW turns a
+      // parked 0 into the grown delta (e.g. +24px), so the old
+      // `distanceFromBottom > 4 → bail` check defeated the guard's own
+      // purpose — every real row growth while pinned at bottom was ignored
+      // and the tail drifted until an unrelated pin yanked it back (the
+      // visible "moves up and down" after reveal).
+      const prevDistanceFromBottom =
+        lastScrollHeight - lastClientHeight - viewport.scrollTop;
 
       const sh = viewport.scrollHeight;
       const ch = viewport.clientHeight;
@@ -1947,11 +1981,25 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       // ~1.5 s main-thread freeze on first open and a clean reveal.
       if (Math.abs(delta) < 2 && Math.abs(viewportDelta) < 2) return;
 
+      // Hard guards: never re-pin from a ResizeObserver callback when the
+      // user has scrolled away from the pin or was NOT parked at the bottom
+      // before this resize (reading history / mid-fling). Pure pixel-distance
+      // check — atBottomRef is unreliable here because Virtuoso's 120px
+      // atBottomThreshold keeps it `true` for the first ~120px of an upward
+      // fling.
+      if (userHasScrolledAfterPinRef.current) return;
+      if (prevDistanceFromBottom > 4) return;
+
+      // Coordinate with sibling writers (openPinWindow timers, parent
+      // keyboard-pin). If one of them just wrote scrollTop, skip this pass
+      // so we don't apply an opposing micro-correction in the same frame.
+      if (isRecentChatScrollWrite(200)) return;
+
       // Re-pin to the true max scroll position for BOTH growth and shrink.
       // Cold-login row estimates can correct in either direction; only
       // handling positive deltas leaves the browser to clamp negative deltas
       // on the next paint, which reads as the down/up jolt the user reported.
-      const maxTop = sh - viewport.clientHeight;
+      const maxTop = sh - ch;
       const target = Math.max(0, maxTop);
       if (Math.abs(viewport.scrollTop - target) > 0.5) {
         viewport.scrollTop = target;
@@ -2101,7 +2149,6 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         markChatScrollWrite();
       }
     };
-    safeScrollToIndex({ index: "LAST", align: "end", behavior: "auto" }, "own-message-send-pin");
     pin();
     const r = requestAnimationFrame(() => requestAnimationFrame(pin));
     // Trailing passes absorb composer collapse (reply pill clears, textarea
@@ -2154,21 +2201,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           // Passing offset would apply the composer padding twice and push
           // the last message (and the composer's visual baseline) high up
           // the screen.
-          safeScrollToIndex({
-            index: "LAST",
-            align: "end",
-            behavior,
-          }, "imperative-scroll-to-bottom");
-          requestAnimationFrame(() => {
-            const el = scrollerElRef.current;
-            if (!el || isChatJumpActive()) return;
-            if (options?.force ? isViewportTouching(el) : isViewportUserActive(el)) return;
-            const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
-            if (Math.abs(el.scrollTop - maxTop) > 1) {
-              el.scrollTop = maxTop;
-              markChatScrollWrite();
-            }
-          });
+          //
+          // Single synchronous write to TRUE max scrollTop — no
+          // `scrollToIndex(LAST, end)` intermediate frame. The end-align
+          // position parks the last row footer-height (32px) above true
+          // bottom, so a scrollToIndex-then-maxTop sequence painted two
+          // different bottoms a frame apart (the "thread moves up and down
+          // after reveal" bounce). pinToTrueBottom is the single canonical
+          // target shared by every bottom-pin writer.
+          pinToTrueBottom("imperative-scroll-to-bottom", behavior);
         };
         run();
         requestAnimationFrame(() => requestAnimationFrame(run));

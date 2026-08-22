@@ -10,7 +10,7 @@ import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
-import { reconcileFlatReactions } from "@/lib/chatReactionReconciliation";
+import { reconcileFlatReactions, reconcileReactions } from "@/lib/chatReactionReconciliation";
 import {
   recordRealtimeMutation,
   reconcileMessages,
@@ -1153,7 +1153,27 @@ export default function GroupChatPage() {
         return true;
       });
       const mergedIncomingMessages = messages.map((message) => {
-        const incomingReactions = incomingReactionsByMsg.get(message.id) || [];
+        // The flat reactions array is only refreshed by fetch + realtime, but
+        // ChatMessage's optimistic add/remove writes to the EMBEDDED
+        // message.reactions in the query cache. Union both sources so a
+        // tap-to-react survives this merge; recorded realtime deletes are
+        // re-applied to the final list below so a stale in-flight fetch can't
+        // revive a removed row.
+        const flatIncoming = incomingReactionsByMsg.get(message.id) || [];
+        const embeddedIncoming = ((message as any).reactions || []) as MessageReaction[];
+        const flatIds = new Set(flatIncoming.map((r) => r.id));
+        const incomingReactions = [
+          ...flatIncoming,
+          ...embeddedIncoming.filter(
+            (r) =>
+              r &&
+              r.id &&
+              !flatIds.has(r.id) &&
+              // One reaction per user per message: once the flat array holds
+              // the confirmed row, drop the user's leftover temp row.
+              !(r.id.startsWith("temp-") && flatIncoming.some((f) => f.user_id === r.user_id)),
+          ),
+        ];
         const previousMessage = prev?.find((item) => item.id === message.id);
         const previousReactions: MessageReaction[] = (previousMessage as any)?.reactions || [];
 
@@ -1179,11 +1199,14 @@ export default function GroupChatPage() {
           reactions: [...incomingReactions, ...missingFromIncoming],
         };
       });
-      const mergedMessages = (reconcileMessages(
+      const mergedMessages = (reconcileReactions(
         reconcileScope,
-        [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
-        ),
+        (reconcileMessages(
+          reconcileScope,
+          [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+            (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+          ),
+        ) ?? []) as GroupMessage[],
       ) ?? []) as GroupMessage[];
       if (prev && mergedMessages.length < prev.length - 5) {
         debugLogEvent("local-replace", {
