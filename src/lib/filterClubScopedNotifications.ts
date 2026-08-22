@@ -67,16 +67,6 @@ const KNOWN_CLUB_SCOPED_TYPES = new Set<string>([
   "points_awarded",
 ]);
 
-// Gamification types whose `related_id` IS the owning club's id (producer
-// contract in engagementGamification.ts / earlyRsvpPoints.ts /
-// rewardThresholdCheck.ts). Resolved by direct comparison — no lookup needed.
-const CLUB_ID_RELATED_TYPES = new Set<string>([
-  "reward_unlocked",
-  "early_rsvp_points",
-  "streak_progress",
-  "streak_bonus",
-  "leaderboard_update",
-]);
 
 export async function filterClubScopedNotifications<T extends NotifRow>(
   rows: T[],
