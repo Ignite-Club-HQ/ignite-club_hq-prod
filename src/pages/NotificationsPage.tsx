@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
 import { resolveTeamInviteRoute } from "@/lib/resolveNotificationRoute";
+import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
 import { setPendingChatJump, withChatJumpNonce, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import {
@@ -253,34 +254,26 @@ export default function NotificationsPage() {
   const { data: notifications, isLoading } = useQuery({
     queryKey: ["notifications", user?.id, activeClubFilter ?? "all"],
     queryFn: async () => {
-      let q = supabase
+      const { data, error } = await supabase
         .from("notifications")
         .select("id, user_id, type, message, related_id, is_read, created_at, club_id")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(500); // Cap at 500 for performance
 
-      // When the user has filtered the app to a specific club, only show
-      // notifications tagged to that club. Truly cross-club / user-global
-      // types (DMs, streaks, rewards) are always shown so they aren't lost,
-      // but null-club notifications belonging to other clubs (chat replies,
-      // reactions, photo-prompt nudges, club-admin messages, etc.) are
-      // hidden when scoped to a single club.
-      if (activeClubFilter) {
-        // Only DMs are genuinely cross-club. Rewards/streaks are generated
-        // per-club and must stay scoped to the club they belong to.
-        const CROSS_CLUB_TYPES = [
-          "direct_message",
-        ];
-        q = q.or(
-          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
-        );
-      }
-
-      const { data, error } = await q;
-
       if (error) throw error;
-      return (data || []).map(n => ({ ...n, read: n.is_read })) as Notification[];
+      let rows = (data || []) as any[];
+
+      // Scope to the active club using the SAME resolver as the bell dropdown
+      // (filterClubScopedNotifications). A raw SQL `club_id.eq` filter would
+      // silently drop legacy null-club rows that the bell can still attribute
+      // via related_id lookups (e.g. reward_claimed -> reward_redemptions),
+      // which made "View all notifications" show fewer items than the
+      // dropdown. Filtering here keeps both surfaces consistent.
+      if (activeClubFilter) {
+        rows = await filterClubScopedNotifications(rows, user!.id, activeClubFilter);
+      }
+      return rows.map(n => ({ ...n, read: n.is_read })) as Notification[];
     },
     enabled: !!user,
     staleTime: 30000, // Consider data fresh for 30 seconds
@@ -420,25 +413,17 @@ export default function NotificationsPage() {
     },
   });
 
-  // Only DMs are genuinely cross-club. Rewards/streaks are generated
-  // per-club and must stay scoped to the club they belong to.
-  const CROSS_CLUB_TYPES = [
-    "direct_message",
-  ];
-
+  // Mark-all / clear-all operate on the currently VISIBLE (club-filtered)
+  // notifications by id, so legacy null-club rows attributed to this club by
+  // the resolver are included exactly as shown on screen.
   const markAllAsRead = useMutation({
     mutationFn: async () => {
-      let q = supabase
+      const ids = (notifications || []).filter((n) => !n.read).map((n) => n.id);
+      if (ids.length === 0) return;
+      const { error } = await supabase
         .from("notifications")
         .update({ is_read: true })
-        .eq("user_id", user!.id)
-        .eq("is_read", false);
-      if (activeClubFilter) {
-        q = q.or(
-          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
-        );
-      }
-      const { error } = await q;
+        .in("id", ids);
       if (error) throw error;
     },
     onMutate: async () => {
@@ -484,16 +469,12 @@ export default function NotificationsPage() {
 
   const clearAllNotifications = useMutation({
     mutationFn: async () => {
-      let q = supabase
+      const ids = (notifications || []).map((n) => n.id);
+      if (ids.length === 0) return;
+      const { error } = await supabase
         .from("notifications")
         .delete()
-        .eq("user_id", user!.id);
-      if (activeClubFilter) {
-        q = q.or(
-          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
-        );
-      }
-      const { error } = await q;
+        .in("id", ids);
       if (error) throw error;
     },
     onMutate: async () => {
