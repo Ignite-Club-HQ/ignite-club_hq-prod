@@ -11,7 +11,11 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (table: string) => ({
       select: () => ({
         eq: () => ({
-          maybeSingle: async () => ({ data: rows[table] ?? null, error: null }),
+          // Assign an Error to rows[table] to simulate a failed lookup (the
+          // cold-start race: RLS rejects the query before the session restores).
+          maybeSingle: async () => rows[table] instanceof Error
+            ? { data: null, error: rows[table] }
+            : { data: rows[table] ?? null, error: null },
         }),
       }),
     }),
@@ -22,6 +26,9 @@ import {
   resolveNotificationClubId,
   requestClubSwitchForNotification,
   peekPendingNotificationClubSwitch,
+  peekPendingNotificationClubSwitchRequest,
+  consumePendingNotificationClubSwitch,
+  stashResolvedNotificationClubSwitch,
   clearPendingNotificationClubSwitch,
   isNotificationClubSwitchInFlight,
   clearNotificationClubSwitchInFlight,
