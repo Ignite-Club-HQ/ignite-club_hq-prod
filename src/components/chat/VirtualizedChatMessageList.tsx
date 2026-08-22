@@ -1618,11 +1618,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         return;
       }
       debugLogBottomPin(bottomPinRevision, phase);
-      safeScrollToIndex({
-        index: "LAST",
-        align: "end",
-        behavior: "auto",
-      }, `bottom-pin-${phase}`);
+      pinToTrueBottom(`bottom-pin-${phase}`);
     };
     jump("immediate");
     let revealTimer: ReturnType<typeof setTimeout> | null = null;
