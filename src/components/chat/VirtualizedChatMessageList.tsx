@@ -2194,21 +2194,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           // Passing offset would apply the composer padding twice and push
           // the last message (and the composer's visual baseline) high up
           // the screen.
-          safeScrollToIndex({
-            index: "LAST",
-            align: "end",
-            behavior,
-          }, "imperative-scroll-to-bottom");
-          requestAnimationFrame(() => {
-            const el = scrollerElRef.current;
-            if (!el || isChatJumpActive()) return;
-            if (options?.force ? isViewportTouching(el) : isViewportUserActive(el)) return;
-            const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
-            if (Math.abs(el.scrollTop - maxTop) > 1) {
-              el.scrollTop = maxTop;
-              markChatScrollWrite();
-            }
-          });
+          //
+          // Single synchronous write to TRUE max scrollTop — no
+          // `scrollToIndex(LAST, end)` intermediate frame. The end-align
+          // position parks the last row footer-height (32px) above true
+          // bottom, so a scrollToIndex-then-maxTop sequence painted two
+          // different bottoms a frame apart (the "thread moves up and down
+          // after reveal" bounce). pinToTrueBottom is the single canonical
+          // target shared by every bottom-pin writer.
+          pinToTrueBottom("imperative-scroll-to-bottom", behavior);
         };
         run();
         requestAnimationFrame(() => requestAnimationFrame(run));
