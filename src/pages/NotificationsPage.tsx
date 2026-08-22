@@ -413,25 +413,17 @@ export default function NotificationsPage() {
     },
   });
 
-  // Only DMs are genuinely cross-club. Rewards/streaks are generated
-  // per-club and must stay scoped to the club they belong to.
-  const CROSS_CLUB_TYPES = [
-    "direct_message",
-  ];
-
+  // Mark-all / clear-all operate on the currently VISIBLE (club-filtered)
+  // notifications by id, so legacy null-club rows attributed to this club by
+  // the resolver are included exactly as shown on screen.
   const markAllAsRead = useMutation({
     mutationFn: async () => {
-      let q = supabase
+      const ids = (notifications || []).filter((n) => !n.read).map((n) => n.id);
+      if (ids.length === 0) return;
+      const { error } = await supabase
         .from("notifications")
         .update({ is_read: true })
-        .eq("user_id", user!.id)
-        .eq("is_read", false);
-      if (activeClubFilter) {
-        q = q.or(
-          `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
-        );
-      }
-      const { error } = await q;
+        .in("id", ids);
       if (error) throw error;
     },
     onMutate: async () => {
