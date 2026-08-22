@@ -505,6 +505,7 @@ export default function RewardRedemptionCard() {
             type: "reward_claimed",
             message: `${claimerName} marked their "${redemption.reward_name}" reward as claimed`,
             related_id: redemption.id,
+            club_id: redemption.club_id,
           }));
 
         if (notifications.length > 0) {

@@ -267,10 +267,10 @@ export default function NotificationsPage() {
       // reactions, photo-prompt nudges, club-admin messages, etc.) are
       // hidden when scoped to a single club.
       if (activeClubFilter) {
+        // Only DMs are genuinely cross-club. Rewards/streaks are generated
+        // per-club and must stay scoped to the club they belong to.
         const CROSS_CLUB_TYPES = [
           "direct_message",
-          "streak_progress",
-          "reward_unlocked",
         ];
         q = q.or(
           `club_id.eq.${activeClubFilter},type.in.(${CROSS_CLUB_TYPES.join(",")})`,
@@ -420,10 +420,10 @@ export default function NotificationsPage() {
     },
   });
 
+  // Only DMs are genuinely cross-club. Rewards/streaks are generated
+  // per-club and must stay scoped to the club they belong to.
   const CROSS_CLUB_TYPES = [
     "direct_message",
-    "streak_progress",
-    "reward_unlocked",
   ];
 
   const markAllAsRead = useMutation({

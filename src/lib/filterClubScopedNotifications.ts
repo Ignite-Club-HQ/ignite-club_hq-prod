@@ -29,9 +29,6 @@ const GLOBAL_PASSTHROUGH = new Set<string>([
   "role_request_approved",
   "role_request_denied",
   "child_added",
-  "streak_progress",
-  "reward_proximity",
-  "reward_unlocked",
   "join_request",
 ]);
 
@@ -58,7 +55,18 @@ const KNOWN_CLUB_SCOPED_TYPES = new Set<string>([
   "comment_reaction",
   "comment_reply",
   "photo_comment",
+  // Reward / gamification family — every one of these is generated per-club
+  // and must never surface while the app is filtered to a different club.
+  "reward_claimed",
+  "reward_proximity",
+  "reward_unlocked",
+  "early_rsvp_points",
+  "streak_progress",
+  "streak_bonus",
+  "leaderboard_update",
+  "points_awarded",
 ]);
+
 
 export async function filterClubScopedNotifications<T extends NotifRow>(
   rows: T[],
@@ -143,6 +151,7 @@ export async function filterClubScopedNotifications<T extends NotifRow>(
   const eventTypes = [
     "event_invite", "event_note", "event_updated", "rsvp_updated",
     "pending_sub", "formation_change", "half_time", "game_finished",
+    "points_awarded",
   ];
   const eventRows = eventTypes.flatMap((t) => byType[t] || []);
   const eventClubByEvent = new Map<string, { club_id: string | null; team_id: string | null }>();
@@ -189,6 +198,28 @@ export async function filterClubScopedNotifications<T extends NotifRow>(
       const other = c.participant_1 === recipientUserId ? c.participant_2 : c.participant_1;
       otherByConversation.set(c.id, other);
     });
+  }
+
+  // --- reward_claimed (redemption → club) ---
+  const rewardClaimedRows = byType["reward_claimed"] || [];
+  const clubByRedemption = new Map<string, string>();
+  if (rewardClaimedRows.length) {
+    const { data } = await supabase
+      .from("reward_redemptions")
+      .select("id, club_id")
+      .in("id", rewardClaimedRows.map((n) => n.related_id as string));
+    (data || []).forEach((r: any) => r.club_id && clubByRedemption.set(r.id, r.club_id));
+  }
+
+  // --- reward_proximity (club_rewards → club) ---
+  const proximityRows = byType["reward_proximity"] || [];
+  const clubByReward = new Map<string, string>();
+  if (proximityRows.length) {
+    const { data } = await supabase
+      .from("club_rewards")
+      .select("id, club_id")
+      .in("id", proximityRows.map((n) => n.related_id as string));
+    (data || []).forEach((r: any) => r.club_id && clubByReward.set(r.id, r.club_id));
   }
 
   // ---- Batch second-level resolutions ----
@@ -296,7 +327,8 @@ export async function filterClubScopedNotifications<T extends NotifRow>(
       case "pending_sub":
       case "formation_change":
       case "half_time":
-      case "game_finished": {
+      case "game_finished":
+      case "points_awarded": {
         const ev = eventClubByEvent.get(rid);
         if (ev) {
           const club = ev.club_id ?? (ev.team_id ? clubByTeam.get(ev.team_id) ?? null : null);
@@ -314,6 +346,24 @@ export async function filterClubScopedNotifications<T extends NotifRow>(
       case "photo_comment": {
         const photoId = photoIdByComment.get(rid);
         if (photoId) setDecisionByOwningClub(n, clubByPhoto.get(photoId) ?? null);
+        break;
+      }
+      case "reward_claimed": {
+        setDecisionByOwningClub(n, clubByRedemption.get(rid));
+        break;
+      }
+      case "reward_proximity": {
+        setDecisionByOwningClub(n, clubByReward.get(rid));
+        break;
+      }
+      case "reward_unlocked":
+      case "early_rsvp_points":
+      case "streak_progress":
+      case "streak_bonus":
+      case "leaderboard_update": {
+        // Producer contract: related_id IS the owning club's id. Anything
+        // else (or a missing related_id) stays unresolved → fail closed.
+        if (rid) decision.set(n.id, rid === activeClubFilter ? "keep" : "drop");
         break;
       }
       default:
