@@ -1093,7 +1093,13 @@ export default function JoinTeamPage() {
         autoJoinAttempted.current = true;
         safeSessionRemove("autoJoinAfterAuth");
         toast({ title: `You're already a member of ${inviteEntityName}!` });
-        setJoined(true);
+        // Parents reopening a parent link may still need to link a child
+        // (e.g. a sibling, or a child added to the roster after they joined).
+        if (inviteRole === "parent") {
+          setShowChildStep(true);
+        } else {
+          setJoined(true);
+        }
         return;
       }
       
@@ -1350,7 +1356,7 @@ export default function JoinTeamPage() {
   const availableRoles = selectableRoles.filter(role => !existingRoles.includes(role));
   const allRolesAssigned = !!invite?.role && existingRoles.includes(invite.role as AppRole);
 
-  if (allRolesAssigned) {
+  if (allRolesAssigned && !showChildStep) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
@@ -1360,7 +1366,21 @@ export default function JoinTeamPage() {
             <p className="text-muted-foreground mb-4">
               You already have all available roles in {inviteEntityName}.
             </p>
-            <Button onClick={() => navigate(inviteDestination)}>View {inviteEntityLabel}</Button>
+            <div className="space-y-2">
+              {invite?.role === "parent" && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowChildStep(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Link a child to {inviteEntityName}
+                </Button>
+              )}
+              <Button className="w-full" onClick={() => navigate(inviteDestination)}>
+                View {inviteEntityLabel}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
