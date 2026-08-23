@@ -55,6 +55,7 @@ import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
+import { findLocalReplyMessage } from "@/lib/chatRealtimeReply";
 import {
   recordRealtimeMutation,
   reconcileMessages,
@@ -1070,6 +1071,11 @@ export default function ClubChatPage() {
           // Get cached profile synchronously (instant, non-blocking)
           const { cached: cachedProfiles } = getProfilesFromCache([newMsg.author_id]);
           const cachedProfile = cachedProfiles.get(newMsg.author_id);
+          const currentMessages = queryClient.getQueryData<{ messages: Message[] }>(["club-messages", clubId])?.messages;
+          const localReplyMessage = findLocalReplyMessage(currentMessages, newMsg.reply_to_id);
+          const localReply = localReplyMessage
+            ? { text: localReplyMessage.text, profiles: localReplyMessage.profiles }
+            : null;
           
           // IMMEDIATELY update cache with message (don't wait for profile fetch)
           queryClient.setQueryData(["club-messages", clubId], (old: any) => {
@@ -1089,7 +1095,7 @@ export default function ClubChatPage() {
                 ? { display_name: cachedProfile.display_name, avatar_url: cachedProfile.avatar_url }
                 : null,
               reactions: [],
-              reply_to: null,
+              reply_to: localReply,
             };
             
             if (tempIndex !== -1) {
@@ -1114,7 +1120,7 @@ export default function ClubChatPage() {
           
           // Asynchronously fetch profile and reply_to data if needed, then update
           const needsProfileFetch = !cachedProfile;
-          const needsReplyFetch = !!newMsg.reply_to_id;
+          const needsReplyFetch = !!newMsg.reply_to_id && !localReplyMessage;
           
           if (needsProfileFetch || needsReplyFetch) {
             Promise.all([

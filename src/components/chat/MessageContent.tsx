@@ -120,6 +120,14 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       setImageLoaded(true);
       if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
       if (imageUrl) decodedImageUrls.add(imageUrl);
+      const naturalW = imgRef.current.naturalWidth;
+      const naturalH = imgRef.current.naturalHeight;
+      if (naturalW > 0 && naturalH > 0) {
+        setCachedImageAspectRatio(
+          [effectiveImageUrl, imageUrl],
+          clampAspectRatio(naturalW / naturalH),
+        );
+      }
     }
   }, [effectiveImageUrl, imageUrl]);
   
@@ -266,7 +274,11 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
     if (naturalW > 0 && naturalH > 0) {
       const ratio = clampAspectRatio(naturalW / naturalH);
       setCachedImageAspectRatio([effectiveImageUrl, imageUrl], ratio);
-      setAspectRatio(ratio);
+      // Do not resize an already-painted chat row after decode. Novel/legacy
+      // images keep their reserved 4:3 box for this mount (object-cover crops
+      // safely); the measured ratio is cached so future mounts and Virtuoso's
+      // estimator agree before the row paints. Updating state here was the
+      // remaining image-only source of post-skeleton row movement.
     }
   }, [effectiveImageUrl, imageUrl]);
 
@@ -400,6 +412,7 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         <div
           className="w-full"
           style={{ width: 300, maxWidth: '100%', touchAction: 'pan-y', overflowAnchor: 'none' }}
+            data-media-pending={!imageLoaded || isLoadingSignedUrl ? "true" : undefined}
           onTouchStart={stopMediaGesture}
           onPointerDown={stopMediaGesture}
         >

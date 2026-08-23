@@ -4,6 +4,7 @@ import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePend
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
+import { findLocalReplyMessage } from "@/lib/chatRealtimeReply";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
@@ -1210,6 +1211,11 @@ export default function DirectMessagePage() {
         },
         (payload) => {
           const newMsg = payload.new as any;
+          const currentMessages = queryClient.getQueryData<{ messages: DirectMessage[] }>(["dm-messages", conversationId])?.messages;
+          const localReplyMessage = findLocalReplyMessage(currentMessages, newMsg.reply_to_id);
+          const localReply = localReplyMessage
+            ? { text: localReplyMessage.text, author: localReplyMessage.author }
+            : null;
           // Skip if it's our own optimistic message already in cache
           queryClient.setQueryData(
             ["dm-messages", conversationId],
@@ -1222,7 +1228,7 @@ export default function DirectMessagePage() {
                 ...newMsg,
                 author: null,
                 reactions: [],
-                reply_to: null,
+                reply_to: localReply,
               };
               return {
                 ...old,
@@ -1236,7 +1242,7 @@ export default function DirectMessagePage() {
           const fetchExtra = async () => {
             const [profileResult, replyResult] = await Promise.all([
               selectCachedProfileById(newMsg.author_id),
-              newMsg.reply_to_id
+              newMsg.reply_to_id && !localReplyMessage
                 ? supabase.from("direct_messages").select("text, author_id").eq("id", newMsg.reply_to_id).maybeSingle()
                 : Promise.resolve({ data: null }),
             ]);

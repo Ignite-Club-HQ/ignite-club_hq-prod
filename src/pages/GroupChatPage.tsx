@@ -9,6 +9,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
+import { findLocalReplyMessage } from "@/lib/chatRealtimeReply";
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import { reconcileFlatReactions, reconcileReactions } from "@/lib/chatReactionReconciliation";
 import {
@@ -1624,6 +1625,11 @@ export default function GroupChatPage() {
           // Get cached profile synchronously (instant, non-blocking)
           const { cached: cachedProfiles } = getProfilesFromCache([newMsg.author_id]);
           const cachedProfile = cachedProfiles.get(newMsg.author_id);
+          const currentMessages = queryClient.getQueryData<{ messages: GroupMessage[] }>(["group-messages", groupId])?.messages;
+          const localReplyMessage = findLocalReplyMessage(currentMessages, newMsg.reply_to_id);
+          const localReply = localReplyMessage
+            ? { text: localReplyMessage.text, author: localReplyMessage.author ?? undefined }
+            : null;
           
           // IMMEDIATELY update cache with message (don't wait for profile fetch)
           queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
@@ -1632,7 +1638,7 @@ export default function GroupChatPage() {
               author: cachedProfile 
                 ? { display_name: cachedProfile.display_name, avatar_url: cachedProfile.avatar_url }
                 : null,
-              reply_to: null,
+              reply_to: localReply,
             }], reactions: [] };
             
             // Check if message already exists with real ID
@@ -1673,7 +1679,7 @@ export default function GroupChatPage() {
           
           // Asynchronously fetch profile and reply_to data if needed, then update
           const needsProfileFetch = !cachedProfile;
-          const needsReplyFetch = !!newMsg.reply_to_id;
+          const needsReplyFetch = !!newMsg.reply_to_id && !localReplyMessage;
           
           if (needsProfileFetch || needsReplyFetch) {
             Promise.all([
