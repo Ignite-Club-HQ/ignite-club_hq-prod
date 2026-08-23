@@ -324,8 +324,6 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
     }
   };
 
-  const roleWarning = ROLE_WARNINGS[activeRole];
-  const isAdminRole = activeRole === "team_admin";
 
   return (
     <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
@@ -382,18 +380,6 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
         <p className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[activeRole]}</p>
       </div>
 
-      {roleWarning && (
-        <div
-          className={
-            isAdminRole
-              ? "flex items-start gap-2 rounded-md border-2 border-destructive/50 bg-destructive/10 px-2.5 py-2 text-xs font-medium text-destructive"
-              : "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-400"
-          }
-        >
-          <AlertTriangle className={`shrink-0 mt-0.5 ${isAdminRole ? "h-4 w-4" : "h-3.5 w-3.5"}`} />
-          <span>{roleWarning}</span>
-        </div>
-      )}
 
       {isLoading && !links ? (
         <div className="flex items-center justify-center py-4">
