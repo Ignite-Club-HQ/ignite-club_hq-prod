@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Loader2, Copy, Check, ChevronLeft, Link2, QrCode, Share2, AlertTriangle, Download } from "lucide-react";
+import { Loader2, Copy, Check, ChevronLeft, Link2, QrCode, Share2, Download } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
@@ -44,10 +44,6 @@ const ROLE_DESCRIPTIONS: Record<RoleVariant, string> = {
   team_admin: "Has full team administration access.",
 };
 
-const ROLE_WARNINGS: Partial<Record<RoleVariant, string>> = {
-  coach: "Coach links give people team management access. Only share with people you trust.",
-  team_admin: "Admin links provide full team administration access. Only share with trusted administrators.",
-};
 
 const SENSITIVE_ROLES: RoleVariant[] = ["coach", "team_admin"];
 
@@ -328,8 +324,6 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
     }
   };
 
-  const roleWarning = ROLE_WARNINGS[activeRole];
-  const isAdminRole = activeRole === "team_admin";
 
   return (
     <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
@@ -386,18 +380,6 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
         <p className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[activeRole]}</p>
       </div>
 
-      {roleWarning && (
-        <div
-          className={
-            isAdminRole
-              ? "flex items-start gap-2 rounded-md border-2 border-destructive/50 bg-destructive/10 px-2.5 py-2 text-xs font-medium text-destructive"
-              : "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-400"
-          }
-        >
-          <AlertTriangle className={`shrink-0 mt-0.5 ${isAdminRole ? "h-4 w-4" : "h-3.5 w-3.5"}`} />
-          <span>{roleWarning}</span>
-        </div>
-      )}
 
       {isLoading && !links ? (
         <div className="flex items-center justify-center py-4">
@@ -547,7 +529,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Create a {activeRoleLabel.toLowerCase()} link?</AlertDialogTitle>
-            <AlertDialogDescription>{roleWarning}</AlertDialogDescription>
+            <AlertDialogDescription>This will create a shareable join link for this role.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
