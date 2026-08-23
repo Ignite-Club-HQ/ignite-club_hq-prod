@@ -1572,12 +1572,22 @@ export default function JoinTeamPage() {
       return;
     }
     if (!leagueLinkMiniLeagueId) {
-      // Team flow: nudge admins to link the parent's child manually
-      await notifyAdminsOfUnlinkedParent();
-      toast({
-        title: "Team admins notified",
-        description: "They'll help link your child to the team.",
-      });
+      // Team flow: nudge admins to link the parent's child manually — but only
+      // when the parent genuinely has no child on this team yet. Existing
+      // members reopening a parent link usually already do.
+      const alreadyLinked = await parentHasChildOnTeam();
+      if (alreadyLinked) {
+        toast({
+          title: "You're all set",
+          description: "Your child is already linked to this team.",
+        });
+      } else {
+        await notifyAdminsOfUnlinkedParent();
+        toast({
+          title: "Team admins notified",
+          description: "They'll help link your child to the team.",
+        });
+      }
     } else {
       toast({
         title: "You can add your child anytime",
