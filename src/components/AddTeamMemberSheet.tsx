@@ -8,7 +8,6 @@ import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/re
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 const MemberCSVImportDialog = lazy(() => import("@/components/MemberCSVImportDialog").then(m => ({ default: m.MemberCSVImportDialog })));
-import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
