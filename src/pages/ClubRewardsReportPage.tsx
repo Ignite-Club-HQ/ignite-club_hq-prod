@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { downloadTextReport } from "@/lib/reportExport";
 
 export default function ClubRewardsReportPage() {
   const { clubId } = useParams<{ clubId: string }>();
