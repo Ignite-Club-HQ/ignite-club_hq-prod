@@ -58,6 +58,17 @@ Fix (two parts):
    flash a skeleton over the empty state. Missing/zero-sized scroller
    defaults to masking (an unmeasurable layout can't prove pins are no-ops).
 
+Symptom (2026-08-23, movement limited to newly arrived images/replies):
+6. Image ratios must be clamped identically in the upload/cache, estimator,
+   and rendered media box. A novel image must not change its mounted row's
+   aspect ratio after decode; cache the measured ratio for future mounts.
+7. Realtime reply messages must resolve `reply_to_id` synchronously from the
+   already-loaded message window before rendering. Only fetch the reply target
+   when it is genuinely absent locally; never paint null then patch it later.
+8. `ChatMessagesScroller` must seed its last-message tracking ref from the
+   current tail. Initial populated render is a baseline, not an append, and
+   must not schedule the post-append timer pin sequence after reveal.
+
 Regression test: `VirtualizedChatMessageList.emptyMount.test.tsx` —
 "cold-open: an empty-state reveal must NOT disarm re-masking when messages
 land".
