@@ -1093,7 +1093,13 @@ export default function JoinTeamPage() {
         autoJoinAttempted.current = true;
         safeSessionRemove("autoJoinAfterAuth");
         toast({ title: `You're already a member of ${inviteEntityName}!` });
-        setJoined(true);
+        // Parents reopening a parent link may still need to link a child
+        // (e.g. a sibling, or a child added to the roster after they joined).
+        if (inviteRole === "parent") {
+          setShowChildStep(true);
+        } else {
+          setJoined(true);
+        }
         return;
       }
       
@@ -1350,7 +1356,7 @@ export default function JoinTeamPage() {
   const availableRoles = selectableRoles.filter(role => !existingRoles.includes(role));
   const allRolesAssigned = !!invite?.role && existingRoles.includes(invite.role as AppRole);
 
-  if (allRolesAssigned) {
+  if (allRolesAssigned && !showChildStep) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
@@ -1360,7 +1366,21 @@ export default function JoinTeamPage() {
             <p className="text-muted-foreground mb-4">
               You already have all available roles in {inviteEntityName}.
             </p>
-            <Button onClick={() => navigate(inviteDestination)}>View {inviteEntityLabel}</Button>
+            <div className="space-y-2">
+              {invite?.role === "parent" && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowChildStep(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Link a child to {inviteEntityName}
+                </Button>
+              )}
+              <Button className="w-full" onClick={() => navigate(inviteDestination)}>
+                View {inviteEntityLabel}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -1407,6 +1427,32 @@ export default function JoinTeamPage() {
       await supabase.from("notifications").insert(rows);
     } catch (err) {
       console.error("[JoinTeam] Failed to notify admins of unlinked parent:", err);
+    }
+  };
+
+  // True when this parent already has a child (owned or guardian-linked) on
+  // the team — used to avoid nagging admins when an existing member reopens
+  // a parent join link and skips the child step.
+  const parentHasChildOnTeam = async (): Promise<boolean> => {
+    if (!user || !invite?.team_id) return false;
+    try {
+      const [{ data: own }, { data: guarded }] = await Promise.all([
+        supabase.from("children").select("id").eq("parent_id", user.id),
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user.id),
+      ]);
+      const ids = [
+        ...(own || []).map((c: any) => c.id),
+        ...(guarded || []).map((g: any) => g.child_id),
+      ];
+      if (ids.length === 0) return false;
+      const { data: assignments } = await supabase
+        .from("child_team_assignments")
+        .select("child_id")
+        .eq("team_id", invite.team_id)
+        .in("child_id", ids);
+      return (assignments || []).length > 0;
+    } catch {
+      return false;
     }
   };
 
@@ -1526,12 +1572,22 @@ export default function JoinTeamPage() {
       return;
     }
     if (!leagueLinkMiniLeagueId) {
-      // Team flow: nudge admins to link the parent's child manually
-      await notifyAdminsOfUnlinkedParent();
-      toast({
-        title: "Team admins notified",
-        description: "They'll help link your child to the team.",
-      });
+      // Team flow: nudge admins to link the parent's child manually — but only
+      // when the parent genuinely has no child on this team yet. Existing
+      // members reopening a parent link usually already do.
+      const alreadyLinked = await parentHasChildOnTeam();
+      if (alreadyLinked) {
+        toast({
+          title: "You're all set",
+          description: "Your child is already linked to this team.",
+        });
+      } else {
+        await notifyAdminsOfUnlinkedParent();
+        toast({
+          title: "Team admins notified",
+          description: "They'll help link your child to the team.",
+        });
+      }
     } else {
       toast({
         title: "You can add your child anytime",
