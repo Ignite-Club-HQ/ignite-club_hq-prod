@@ -120,6 +120,14 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
       setImageLoaded(true);
       if (effectiveImageUrl) decodedImageUrls.add(effectiveImageUrl);
       if (imageUrl) decodedImageUrls.add(imageUrl);
+      const naturalW = imgRef.current.naturalWidth;
+      const naturalH = imgRef.current.naturalHeight;
+      if (naturalW > 0 && naturalH > 0) {
+        setCachedImageAspectRatio(
+          [effectiveImageUrl, imageUrl],
+          clampAspectRatio(naturalW / naturalH),
+        );
+      }
     }
   }, [effectiveImageUrl, imageUrl]);
   
