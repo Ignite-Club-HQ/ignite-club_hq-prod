@@ -529,7 +529,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Create a {activeRoleLabel.toLowerCase()} link?</AlertDialogTitle>
-            <AlertDialogDescription>{roleWarning}</AlertDialogDescription>
+            <AlertDialogDescription>This will create a shareable join link for this role.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
