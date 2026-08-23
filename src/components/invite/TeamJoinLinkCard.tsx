@@ -95,7 +95,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
   const defaultRole: RoleVariant = teamType === "junior" ? "parent" : "player";
   const [activeRole, setActiveRole] = useState<RoleVariant>(defaultRole);
   const [copied, setCopied] = useState(false);
-  const [showQR, setShowQR] = useState(false);
+  const [showQR, setShowQR] = useState(true);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [confirmGenerate, setConfirmGenerate] = useState(false);
   const [autoSelected, setAutoSelected] = useState(false);
