@@ -745,7 +745,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         .not("club_id", "is", null);
 
       if (rolesError) throw rolesError;
-      const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))];
+      const clubIds = [...new Set((userRoles || []).map(r => r.club_id).filter(Boolean))];
 
       // Also get clubs from teams
       const { data: teamRoles, error: teamRolesError } = await supabase
