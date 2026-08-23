@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown, ChevronUp, Link2 } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 const MemberCSVImportDialog = lazy(() => import("@/components/MemberCSVImportDialog").then(m => ({ default: m.MemberCSVImportDialog })));
-import { ClubAdminConfirmBanner } from "@/components/ClubAdminConfirmBanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -269,106 +268,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
-  // Single-invite wizard step: 1 = Person, 2 = Role (+ children/guardian for parents), 3 = Delivery
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
-  // Whether the "invite by name" section is expanded. Defaults to collapsed so
-  // the first screen is a simple two-way choice: share a link, or invite one person.
-  const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
-  // Progressive disclosure: the join-link role selector only appears after the
-  // user chooses "Create link" on the first screen.
-  const [linkFlowOpen, setLinkFlowOpen] = useState(false);
-  // When the user can't share the bulk join link (non-admins/coaches), the
-  // invite-by-name form is the only available flow, so it must be visible by
-  // default — otherwise the sheet renders an empty body.
-  const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
-
-  // Derived list of named children for the single-invite parent flow
-  const validSingleChildren = singleChildren.filter((c) => c.name.trim());
-
-  // Review summary helper shared by the new-member and existing-user parent flows
-  interface ParentReviewSummaryProps {
-    parentName: string;
-    roleLabel: string;
-    teamName: string;
-    children: BulkChild[];
-    secondParent?:
-      | { display_name?: string | null; name?: string; email?: string }
-      | null;
-  }
-
-  function ParentReviewSummary({
-    parentName,
-    roleLabel,
-    teamName,
-    children,
-    secondParent,
-  }: ParentReviewSummaryProps) {
-    const namedChildren = children.filter((c) => c.name.trim());
-    return (
-      <div className="space-y-3">
-        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">{parentName}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Badge variant="outline" className="text-xs">
-              {roleLabel}
-            </Badge>
-            <span>• {teamName}</span>
-          </div>
-        </div>
-
-        {namedChildren.length > 0 && (
-          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <Baby className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">
-                {namedChildren.length === 1 ? "Child" : "Children"}
-              </span>
-            </div>
-            <div className="space-y-1">
-              {namedChildren.map((child) => (
-                <div
-                  key={child.id}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <span className="text-sm">{child.name.trim()}</span>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-                    {child.yearOfBirth && <span>Born {child.yearOfBirth}</span>}
-                    {child.jerseyNumber && (
-                      <span>Jersey #{child.jerseyNumber}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {secondParent && (
-          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Second Parent / Guardian</span>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {secondParent.display_name || secondParent.name || "Second parent / guardian"}
-              {secondParent.email ? ` · ${secondParent.email}` : null}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Reset to the chooser each time the sheet is opened.
-  useEffect(() => {
-    if (open) {
-      setInviteByNameExpanded(false);
-      setLinkFlowOpen(false);
-    }
-  }, [open]);
+  // Single-screen invite form: the share link is visible immediately on open
+  // (auto-created for the default role), with the person / role / children /
+  // delivery form below it on one scrolling screen — no chooser step.
+  const inviteByNameOpen = true;
+  // Person is "ready" once an existing user is picked or any name is typed —
+  // role / children / delivery sections disclose progressively below the name.
+  const personReady = !!selectedUser || nameInput.trim().length > 0;
 
   // When the name is confirmed (or an existing user is selected), the role
   // selector becomes the active step. Dismiss the soft keyboard and scroll
@@ -388,7 +294,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
   useEffect(() => {
-    const nameReady = selectedUser || nameConfirmed;
+    const nameReady = selectedUser || nameConfirmed || nameInput.trim().length > 0;
     if (selectedRole === "parent" && nameReady && singleChildren.length === 0 && !autoChildTriggered.current) {
       autoChildTriggered.current = true;
       setSingleChildren([{ id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
@@ -396,7 +302,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     if (selectedRole !== "parent") {
       autoChildTriggered.current = false;
     }
-  }, [selectedRole, selectedUser, nameConfirmed, singleChildren.length]);
+  }, [selectedRole, selectedUser, nameConfirmed, nameInput, singleChildren.length]);
 
   // Fetch existing members (separate key from TeamDetail members query to avoid cache shape collisions)
   const { data: existingMembers } = useQuery({
@@ -2229,9 +2135,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setInviteShareLink(null);
     setInviteSent(false);
     setMode("single");
-    setWizardStep(1);
     setNameConfirmed(false);
-    setInviteByNameExpanded(false);
     setSingleChildren([]);
     autoChildTriggered.current = false;
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [], selectedUser: null }]);
@@ -2654,184 +2558,35 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           </SheetClose>
         </SheetHeader>
 
-        {/* Club admin confirmation banner */}
-        {isClubAdminOnly && (
-          <div className="mb-3 shrink-0">
-            <ClubAdminConfirmBanner teamName={teamName} action="add members" />
-          </div>
-        )}
-
         <div data-allow-scroll className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6 pb-4 overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
         <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "bulk")} className="w-full">
           {/* Multiple/bulk tab removed — join link + single invite cover all cases */}
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
-            {/* STEP 0 — the only decision on first open: one link, or one person. */}
-            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && !linkFlowOpen && (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Link2 className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">Share a team link</p>
-                      <p className="text-xs text-muted-foreground">Invite several people at once.</p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    className="w-full h-11 text-sm font-semibold"
-                    onClick={() => setLinkFlowOpen(true)}
-                  >
-                    <Link2 className="h-4 w-4 mr-2" />
-                    Create link
-                  </Button>
+            {/* Share link — visible the moment the sheet opens; auto-created
+                for the default role so Copy/Share need zero extra taps. */}
+            {canBulkInvite && !nameInput.trim() && !selectedUser && (
+              <>
+                <TeamJoinLinkCard
+                  teamId={teamId}
+                  teamName={teamName}
+                  teamType={teamType}
+                  autoCreateLink
+                />
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="h-px flex-1 bg-border" />
+                  <p className="text-xs font-medium text-muted-foreground">Or invite a specific person</p>
+                  <div className="h-px flex-1 bg-border" />
                 </div>
-
-                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <UserPlus className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">Invite someone directly</p>
-                      <p className="text-xs text-muted-foreground">Send an individual invitation by email or SMS.</p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-11 text-sm font-semibold bg-background"
-                    onClick={() => setInviteByNameExpanded(true)}
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Invite person
-                  </Button>
-                </div>
-              </div>
+              </>
             )}
 
-            {/* Join-link flow — role choice + link actions, shown after "Create link". */}
-            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && linkFlowOpen && !inviteByNameExpanded && (
-              <TeamJoinLinkCard
-                teamId={teamId}
-                teamName={teamName}
-                teamType={teamType}
-                onBack={() => setLinkFlowOpen(false)}
-              />
-            )}
-
-            {/* Invite-by-name body (form + wizard) — only when expanded */}
+            {/* Invite-by-name body — always visible below the share link */}
             {inviteByNameOpen && (
               <>
-            {canBulkInvite && wizardStep === 1 && !nameInput.trim() && !selectedUser && (
-              <div className="flex items-start justify-between gap-2 pt-1">
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-semibold">Invite by name</h3>
-                  <p className="text-xs text-muted-foreground">Send a personal invite to one specific person.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setInviteByNameExpanded(false)}
-                  className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors min-h-[32px]"
-                  aria-label="Collapse invite by name"
-                >
-                  <ChevronUp className="h-4 w-4" />
-                  Hide
-                </button>
-              </div>
-            )}
 
-            {/* Step recap chips — show selections from earlier steps so the
-                user has context on steps 2/3 without tapping Back. Tappable
-                to jump straight back to that step for a quick edit. */}
-            {wizardStep > 1 && (selectedUser || nameInput.trim()) && (
-              <div className="flex flex-wrap items-center gap-1.5 px-1">
-                <button
-                  type="button"
-                  onClick={() => setWizardStep(1)}
-                  className="inline-flex items-center gap-1.5 max-w-full rounded-full border border-border bg-muted/50 hover:bg-muted px-2 py-1 text-xs transition-colors"
-                  aria-label="Edit selected person"
-                >
-                  <User className="h-3 w-3 text-muted-foreground shrink-0" />
-                  <span className="font-medium truncate">
-                    {selectedUser?.display_name || nameInput.trim()}
-                  </span>
-                  {!selectedUser && (
-                    <span className="text-[10px] uppercase tracking-wide text-primary/80 font-semibold shrink-0">
-                      New
-                    </span>
-                  )}
-                  <Pencil className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
-                </button>
-                {wizardStep > 2 && selectedRole && (
-                  <button
-                    type="button"
-                    onClick={() => setWizardStep(2)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 hover:bg-primary/15 px-2 py-1 text-xs text-primary transition-colors"
-                    aria-label="Edit selected role"
-                  >
-                    <span className="font-medium">
-                      {roleOptions.find((r) => r.value === selectedRole)?.label || selectedRole}
-                    </span>
-                    <Pencil className="h-2.5 w-2.5 shrink-0" />
-                  </button>
-                )}
-                {wizardStep === 3 && selectedRole === "parent" && validSingleChildren.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setWizardStep(2)}
-                    className="inline-flex items-center gap-1.5 max-w-full rounded-full border border-border bg-muted/50 hover:bg-muted px-2 py-1 text-xs transition-colors"
-                    aria-label="Edit children"
-                  >
-                    <Baby className="h-3 w-3 text-muted-foreground shrink-0" />
-                    <span className="font-medium truncate">
-                      {validSingleChildren.map((c) => c.name.trim()).join(", ")}
-                    </span>
-                    <Pencil className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* STEP 2: Role selection (parent fields rendered below when applicable) */}
-            {wizardStep === 2 && (
-              <div className="space-y-2 scroll-mt-4" ref={roleSectionRef}>
-                <Label className="text-sm font-medium">Select role</Label>
-                <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                  {roleOptions.map((opt) => (
-                    <button
-                      key={`top-${opt.value}`}
-                      type="button"
-                      role="radio"
-                      aria-checked={selectedRole === opt.value}
-                      aria-pressed={selectedRole === opt.value}
-                      aria-label={`Role: ${opt.label}`}
-                      onClick={() => setSelectedRole(opt.value)}
-                      className={`p-3 rounded-xl text-center transition-all border ${
-                        selectedRole === opt.value
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                          : "border-border bg-muted/40 hover:bg-muted text-foreground"
-                      }`}
-                    >
-                      <p className="text-sm font-medium">
-                        {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
-                      </p>
-                      {opt.value === "parent" && (
-                        <p className={`text-[11px] mt-0.5 ${selectedRole === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                          adds child player
-                        </p>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* STEP 1: Person — name input, search, existing user / new member chip */}
-            {wizardStep === 1 && (
+            {/* Person — name input, search, existing user / new member chip */}
               <>
             {/* 2. NAME INPUT */}
             {!selectedUser && !nameConfirmed ? (
@@ -3031,11 +2786,43 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </div>
             )}
               </>
+
+            {/* Role selection — disclosed as soon as a person is chosen/typed */}
+            {personReady && (
+              <div className="space-y-2 scroll-mt-4" ref={roleSectionRef}>
+                <Label className="text-sm font-medium">Select role</Label>
+                <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {roleOptions.map((opt) => (
+                    <button
+                      key={`top-${opt.value}`}
+                      type="button"
+                      role="radio"
+                      aria-checked={selectedRole === opt.value}
+                      aria-pressed={selectedRole === opt.value}
+                      aria-label={`Role: ${opt.label}`}
+                      onClick={() => setSelectedRole(opt.value)}
+                      className={`p-3 rounded-xl text-center transition-all border ${
+                        selectedRole === opt.value
+                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                          : "border-border bg-muted/40 hover:bg-muted text-foreground"
+                      }`}
+                    >
+                      <p className="text-sm font-medium">
+                        {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
+                      </p>
+                      {opt.value === "parent" && (
+                        <p className={`text-[11px] mt-0.5 ${selectedRole === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                          adds child player
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
-
-            {/* STEP 3 (existing user): optional email for non-parent roles */}
-            {wizardStep === 3 && selectedUser && selectedRole !== "parent" && (
+            {/* Existing user, non-parent: optional email to send invite email */}
+            {selectedUser && selectedRole !== "parent" && (
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5" />
@@ -3054,40 +2841,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </div>
             )}
 
-            {/* STEP 3 (existing user, parent role): review children before adding */}
-            {wizardStep === 3 && selectedUser && selectedRole === "parent" && (
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Review</h3>
-
-                <ParentReviewSummary
-                  parentName={selectedUser.display_name || "Unknown"}
-                  roleLabel={
-                    roleOptions.find((r) => r.value === selectedRole)?.label || selectedRole
-                  }
-                  teamName={teamName}
-                  children={singleChildren}
-                  secondParent={
-                    selectedSecondParent ||
-                    (secondParentName.trim() || secondParentEmail.trim()
-                      ? { name: secondParentName, email: secondParentEmail }
-                      : null)
-                  }
-                />
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-11"
-                  onClick={() => setWizardStep(2)}
-                >
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit children
-                </Button>
-              </div>
-            )}
-
-            {/* STEP 2 (existing user, parent role): child fields + second guardian */}
-            {wizardStep === 2 && selectedUser && selectedRole === "parent" && (
+            {/* Existing user, parent role: child fields + second guardian (inline) */}
+            {selectedUser && selectedRole === "parent" && (
               <>
                 {/* Child fields for existing user with parent role */}
                 <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
@@ -3352,8 +3107,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </>
             )}
 
-            {/* STEP 2 (new member, parent role): child fields + second guardian */}
-            {wizardStep === 2 && !selectedUser && nameConfirmed && nameInput.trim() && selectedRole === "parent" && (
+            {/* New member, parent role: child fields + second guardian (inline) */}
+            {!selectedUser && personReady && selectedRole === "parent" && (
               <>
                 {/* Child fields for parent role (new member) */}
                 <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
@@ -3618,8 +3373,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </>
             )}
 
-            {/* STEP 3: Delivery method + custom message (new members only) */}
-            {wizardStep === 3 && !selectedUser && nameConfirmed && nameInput.trim() && (
+            {/* Delivery method + custom message (new members only) */}
+            {!selectedUser && personReady && (
               <>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">How to deliver invite?</Label>
@@ -4200,18 +3955,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             // CTA shouldn't render at all — the join-link card is the
             // primary action and has its own buttons.
             if (!inviteByNameOpen) return null;
-            // Wizard navigation for single-invite flow
-            const canAdvanceFromStep1 = !!selectedUser || (nameInput.trim().length > 0);
-            const canAdvanceFromStep2 = selectedRole !== "parent"
-              || singleChildren.some(c => c.name.trim().length > 0);
-            const isFinalStep = wizardStep === 3 || (wizardStep === 2 && selectedUser && selectedRole !== "parent");
+            // Single-screen flow: one primary action, validated as a whole.
             const isPending = addExistingUserMutation.isPending || addPendingMemberMutation.isPending;
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             const emailTrimmed = customEmail.trim();
+            const parentNeedsChild =
+              selectedRole === "parent" && !singleChildren.some((c) => c.name.trim().length > 0);
             const submitNeedsEmail =
-              isFinalStep && deliveryMethod === "email" && !selectedUser && !emailTrimmed;
+              !selectedUser && deliveryMethod === "email" && !emailTrimmed;
             const submitInvalidEmail =
-              isFinalStep && deliveryMethod === "email" && !selectedUser && !!emailTrimmed && !emailRegex.test(emailTrimmed);
+              !selectedUser && deliveryMethod === "email" && !!emailTrimmed && !emailRegex.test(emailTrimmed);
             // A second-parent name without a valid email must block submission —
             // it must never be silently discarded.
             const secondParentBlocked = secondParentValidationError({
@@ -4223,13 +3976,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
             // Guardrail: human-readable reason explaining why the primary
             // action is currently blocked. Surfaced inline above the footer
-            // buttons so users aren't left guessing why "Next" is greyed out.
+            // button so users aren't left guessing why it's greyed out.
             let blockedReason: string | null = null;
-            if (wizardStep === 1 && !canAdvanceFromStep1) {
+            if (!personReady) {
               // Don't show a yellow warning on the empty initial state —
               // the disabled CTA below already communicates what's needed.
               blockedReason = null;
-            } else if (wizardStep === 2 && !canAdvanceFromStep2) {
+            } else if (parentNeedsChild) {
               blockedReason = "Add at least one child's name to continue.";
             } else if (submitNeedsEmail) {
               blockedReason = "Enter an email address to send the invite.";
@@ -4239,44 +3992,27 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               blockedReason = secondParentBlocked;
             }
 
-            const handleNext = () => {
-              if (wizardStep === 1) {
-                // Confirm new-member name on the way out of step 1
-                if (!selectedUser && !nameConfirmed && nameInput.trim()) {
-                  setNameConfirmed(true);
-                }
-                setWizardStep(2);
-                return;
-              }
-              if (wizardStep === 2) {
-                // Auto-add a child row for parent role if missing
-                if (selectedRole === "parent" && singleChildren.length === 0 && (selectedUser || nameInput.trim())) {
-                  setSingleChildren([{ id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
-                  return;
-                }
-                // Existing user with non-parent role can submit directly from step 2 → step 3 for delivery email
-                setWizardStep(3);
-                return;
-              }
-            };
+            const submitBlocked =
+              !personReady || parentNeedsChild || submitNeedsEmail || submitInvalidEmail || !!secondParentBlocked;
 
             const handleSubmit = () => {
-              if (submitNeedsEmail || submitInvalidEmail || secondParentBlocked) return;
-              if (selectedRole === "parent" && !singleChildren.some((c) => c.name.trim())) {
-                toast({
-                  title: "Add at least one child before adding this parent.",
-                  variant: "destructive",
-                });
-                return;
-              }
+              if (submitBlocked || isPending) return;
+              // Stamp the name as confirmed so the chip view stays consistent
+              // if the mutation errors and the sheet remains open.
+              if (!selectedUser && !nameConfirmed) setNameConfirmed(true);
               if (selectedUser) addExistingUserMutation.mutate();
               else addPendingMemberMutation.mutate();
             };
 
-            const nextDisabled =
-              (wizardStep === 1 && !canAdvanceFromStep1) ||
-              (wizardStep === 2 && !canAdvanceFromStep2) ||
-              !!secondParentBlocked;
+            const ctaLabel = !personReady
+              ? "Enter a name to continue"
+              : parentNeedsChild
+                ? "Add a child to continue"
+                : selectedUser
+                  ? "Add to Team"
+                  : deliveryMethod === "email"
+                    ? "Send Invite"
+                    : "Create Invite";
 
             return (
               <div className="space-y-2">
@@ -4290,49 +4026,19 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <span>{blockedReason}</span>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  {wizardStep > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-12 px-4"
-                      disabled={isPending}
-                      onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s))}
-                    >
-                      Back
-                    </Button>
-                  )}
-                  {isFinalStep ? (
-                    <Button
-                      className="flex-1 h-12 text-base font-semibold"
-                      onClick={handleSubmit}
-                      disabled={isPending || submitNeedsEmail || submitInvalidEmail || !!secondParentBlocked}
-                      variant={submitNeedsEmail || submitInvalidEmail || secondParentBlocked ? "outline" : "default"}
-                    >
-                      {isPending ? (
-                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      ) : (
-                        <UserPlus className="h-5 w-5 mr-2" />
-                      )}
-                      {selectedUser ? "Add to Team" : "Create Invite"}
-                    </Button>
+                <Button
+                  className="w-full h-12 text-base font-semibold"
+                  onClick={handleSubmit}
+                  disabled={isPending || submitBlocked}
+                  variant={submitBlocked ? "outline" : "default"}
+                >
+                  {isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
                   ) : (
-                    <Button
-                      className="flex-1 h-12 text-base font-semibold"
-                      onClick={handleNext}
-                      disabled={nextDisabled}
-                      variant={nextDisabled ? "outline" : "default"}
-                    >
-                      {wizardStep === 1
-                        ? (canAdvanceFromStep1 ? "Next: Choose role" : "Enter a name to continue")
-                        : wizardStep === 2 && selectedRole === "parent" && !canAdvanceFromStep2
-                          ? "Add a child to continue"
-                          : selectedUser && selectedRole === "parent"
-                            ? "Next: Add Children"
-                            : "Next: Send"}
-                    </Button>
+                    <UserPlus className="h-5 w-5 mr-2" />
                   )}
-                </div>
+                  {ctaLabel}
+                </Button>
               </div>
             );
           })() : (

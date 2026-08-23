@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { Loader2, Copy, Check, ChevronLeft, Link2, QrCode, Share2, AlertTriangle, Download } from "lucide-react";
+import { Loader2, Copy, Check, ChevronLeft, Link2, QrCode, Share2, Download } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
@@ -44,10 +44,6 @@ const ROLE_DESCRIPTIONS: Record<RoleVariant, string> = {
   team_admin: "Has full team administration access.",
 };
 
-const ROLE_WARNINGS: Partial<Record<RoleVariant, string>> = {
-  coach: "Coach links give people team management access. Only share with people you trust.",
-  team_admin: "Admin links provide full team administration access. Only share with trusted administrators.",
-};
 
 const SENSITIVE_ROLES: RoleVariant[] = ["coach", "team_admin"];
 
@@ -57,6 +53,13 @@ interface TeamJoinLinkCardProps {
   teamType?: TeamType;
   /** Optional back affordance rendered in the card header (used by the invite sheet). */
   onBack?: () => void;
+  /**
+   * When true, a link for the default (non-sensitive) role is created
+   * automatically on mount if none exists yet — so the share/copy buttons are
+   * visible the moment the card renders, with zero taps. Sensitive roles
+   * (coach/admin) still always require an explicit create.
+   */
+  autoCreateLink?: boolean;
 }
 
 interface JoinLinkRow {
@@ -78,7 +81,7 @@ function generateShortToken(): string {
     .replace(/=/g, "");
 }
 
-export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed", onBack }: TeamJoinLinkCardProps) {
+export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed", onBack, autoCreateLink = false }: TeamJoinLinkCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -92,7 +95,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
   const defaultRole: RoleVariant = teamType === "junior" ? "parent" : "player";
   const [activeRole, setActiveRole] = useState<RoleVariant>(defaultRole);
   const [copied, setCopied] = useState(false);
-  const [showQR, setShowQR] = useState(false);
+  const [showQR, setShowQR] = useState(true);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [confirmGenerate, setConfirmGenerate] = useState(false);
   const [autoSelected, setAutoSelected] = useState(false);
@@ -197,6 +200,21 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
       toast({ title: "Couldn't create link", description: err?.message ?? "Try again", variant: "destructive" });
     },
   });
+
+  // Zero-tap share link: when enabled, silently create a link for the active
+  // role as soon as we know none exists, so Copy/Share are ready on first
+  // paint — for every role, including coach/admin. Only tries once per role
+  // per mount so a manual revoke doesn't instantly regenerate.
+  const autoCreateTriedRef = useRef<RoleVariant | null>(null);
+  useEffect(() => {
+    if (!autoCreateLink || isLoading || !links || !isAdmin) return;
+    if (links[activeRole]) return;
+    if (createOrRotate.isPending) return;
+    if (autoCreateTriedRef.current === activeRole) return;
+    autoCreateTriedRef.current = activeRole;
+    createOrRotate.mutate({ rotate: false, role: activeRole });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCreateLink, isLoading, links, isAdmin, activeRole, createOrRotate.isPending]);
 
   const revoke = useMutation({
     mutationFn: async (role: RoleVariant) => {
@@ -306,8 +324,6 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
     }
   };
 
-  const roleWarning = ROLE_WARNINGS[activeRole];
-  const isAdminRole = activeRole === "team_admin";
 
   return (
     <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
@@ -364,18 +380,6 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
         <p className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS[activeRole]}</p>
       </div>
 
-      {roleWarning && (
-        <div
-          className={
-            isAdminRole
-              ? "flex items-start gap-2 rounded-md border-2 border-destructive/50 bg-destructive/10 px-2.5 py-2 text-xs font-medium text-destructive"
-              : "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-400"
-          }
-        >
-          <AlertTriangle className={`shrink-0 mt-0.5 ${isAdminRole ? "h-4 w-4" : "h-3.5 w-3.5"}`} />
-          <span>{roleWarning}</span>
-        </div>
-      )}
 
       {isLoading && !links ? (
         <div className="flex items-center justify-center py-4">
@@ -525,7 +529,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Create a {activeRoleLabel.toLowerCase()} link?</AlertDialogTitle>
-            <AlertDialogDescription>{roleWarning}</AlertDialogDescription>
+            <AlertDialogDescription>This will create a shareable join link for this role.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

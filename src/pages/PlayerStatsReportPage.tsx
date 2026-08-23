@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Capacitor } from "@capacitor/core";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Calendar, FileText, Users, Loader2, Check, Lock } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
+import { openHtmlReport } from "@/lib/reportExport";
 import PlayerStatsReportView from "@/components/reports/PlayerStatsReportView";
 
 interface Team {
@@ -244,16 +245,19 @@ export default function PlayerStatsReportPage() {
     `;
   };
 
-  const handleDownloadSampleReport = (type: 'game' | 'season') => {
-    if (Capacitor.isNativePlatform()) return;
-    
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
-    printWindow.document.write(generateSampleReportHtml(type));
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => printWindow.print(), 500);
+  const handleDownloadSampleReport = async (type: 'game' | 'season') => {
+    try {
+      const result = await openHtmlReport(
+        generateSampleReportHtml(type),
+        `ignite-sample-${type}-report.html`,
+      );
+      if (result === "popup_blocked") {
+        toast.error("Popup blocked — please allow popups to view the sample report.");
+      }
+    } catch (error) {
+      console.error("Failed to generate sample report:", error);
+      toast.error("Failed to generate sample report. Please try again.");
+    }
   };
 
   // Fetch teams the user can report on, strictly scoped to the active club filter.

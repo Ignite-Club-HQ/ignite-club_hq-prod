@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { downloadTextReport } from "@/lib/reportExport";
 
 export default function ClubRewardsReportPage() {
   const { clubId } = useParams<{ clubId: string }>();
@@ -238,7 +239,7 @@ export default function ClubRewardsReportPage() {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     // Create CSV content
     const headers = ["Reward Name", "Type", "Pending", "Fulfilled", "Total", "Points Spent"];
     const rows = aggregatedArray.map(row => [
@@ -249,7 +250,7 @@ export default function ClubRewardsReportPage() {
       row.total,
       row.totalPoints,
     ]);
-    
+
     const csvContent = [
       headers.join(","),
       ...rows.map(row => row.join(",")),
@@ -260,13 +261,12 @@ export default function ClubRewardsReportPage() {
       `Total Points Spent,${totalPointsSpent}`,
     ].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `rewards-report-${format(startDate, "yyyy-MM-dd")}-to-${format(endDate, "yyyy-MM-dd")}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    const fileName = `rewards-report-${format(startDate, "yyyy-MM-dd")}-to-${format(endDate, "yyyy-MM-dd")}.csv`;
+    try {
+      await downloadTextReport(csvContent, fileName, "text/csv");
+    } catch (error) {
+      console.error("Failed to export rewards report:", error);
+    }
   };
 
   if (!clubId) return null;

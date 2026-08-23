@@ -1,5 +1,4 @@
 import { useRef } from "react";
-import { Capacitor } from "@capacitor/core";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Loader2, Flame } from "lucide-react";
 import { format } from "date-fns";
@@ -9,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { openHtmlReport } from "@/lib/reportExport";
 
 interface PlayerStatsReportViewProps {
   teamId: string;
@@ -175,34 +175,13 @@ export default function PlayerStatsReportView({
   const handleDownload = async () => {
     if (!reportRef.current) return;
 
-    // Print-to-PDF is not available on native platforms
-    if (Capacitor.isNativePlatform()) {
-      toast({
-        title: "Not available",
-        description: "Report downloads are available on the web version.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
-      // Create a printable version
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) {
-        toast({
-          title: "Popup blocked",
-          description: "Please allow popups to download the report.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       const logoUrl = teamLogoUrl || clubLogoUrl;
       const reportTitle = eventId && event
         ? `${teamName} vs ${event.opponent || "Unknown"} - ${format(new Date(event.event_date), "MMM d, yyyy")}`
         : `${teamName} Stats - ${format(dateRange!.from, "MMM d")} to ${format(dateRange!.to, "MMM d, yyyy")}`;
 
-      printWindow.document.write(`
+      const html = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -304,7 +283,7 @@ export default function PlayerStatsReportView({
                         .map(([pos, secs]) => `<span class="position-badge">${pos}: ${formatMinutes(secs as number)}</span>`)
                         .join("")
                     : stat.positions_played.map((p) => `<span class="position-badge">${p}</span>`).join("");
-                  
+
                   return `
                     <tr>
                       <td class="jersey">${stat.jersey_number || "-"}</td>
@@ -327,15 +306,16 @@ export default function PlayerStatsReportView({
           </div>
         </body>
         </html>
-      `);
+      `;
 
-      printWindow.document.close();
-      printWindow.focus();
-
-      // Wait for images to load
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
+      const result = await openHtmlReport(html, `${reportTitle}.html`);
+      if (result === "popup_blocked") {
+        toast({
+          title: "Popup blocked",
+          description: "Please allow popups to download the report.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Failed to generate report:", error);
       toast({
