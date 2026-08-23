@@ -1430,6 +1430,32 @@ export default function JoinTeamPage() {
     }
   };
 
+  // True when this parent already has a child (owned or guardian-linked) on
+  // the team — used to avoid nagging admins when an existing member reopens
+  // a parent join link and skips the child step.
+  const parentHasChildOnTeam = async (): Promise<boolean> => {
+    if (!user || !invite?.team_id) return false;
+    try {
+      const [{ data: own }, { data: guarded }] = await Promise.all([
+        supabase.from("children").select("id").eq("parent_id", user.id),
+        supabase.from("child_guardians").select("child_id").eq("guardian_id", user.id),
+      ]);
+      const ids = [
+        ...(own || []).map((c: any) => c.id),
+        ...(guarded || []).map((g: any) => g.child_id),
+      ];
+      if (ids.length === 0) return false;
+      const { data: assignments } = await supabase
+        .from("child_team_assignments")
+        .select("child_id")
+        .eq("team_id", invite.team_id)
+        .in("child_id", ids);
+      return (assignments || []).length > 0;
+    } catch {
+      return false;
+    }
+  };
+
   // Detect mini-league parent shareable join link (no team_id, child assigns to mini league)
   const leagueLinkMiniLeagueId =
     isPendingInvite &&
