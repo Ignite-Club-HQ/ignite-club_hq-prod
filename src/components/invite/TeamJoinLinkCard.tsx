@@ -44,10 +44,6 @@ const ROLE_DESCRIPTIONS: Record<RoleVariant, string> = {
   team_admin: "Has full team administration access.",
 };
 
-const ROLE_WARNINGS: Partial<Record<RoleVariant, string>> = {
-  coach: "Coach links give people team management access. Only share with people you trust.",
-  team_admin: "Admin links provide full team administration access. Only share with trusted administrators.",
-};
 
 const SENSITIVE_ROLES: RoleVariant[] = ["coach", "team_admin"];
 
