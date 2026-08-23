@@ -205,6 +205,22 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
     },
   });
 
+  // Zero-tap share link: when enabled, silently create a link for the default
+  // role as soon as we know none exists, so Copy/Share are ready on first
+  // paint. Never auto-creates sensitive (coach/admin) links, and only tries
+  // once per role per mount so a manual revoke doesn't instantly regenerate.
+  const autoCreateTriedRef = useRef<RoleVariant | null>(null);
+  useEffect(() => {
+    if (!autoCreateLink || isLoading || !links || !isAdmin) return;
+    if (links[activeRole]) return;
+    if (SENSITIVE_ROLES.includes(activeRole)) return;
+    if (createOrRotate.isPending) return;
+    if (autoCreateTriedRef.current === activeRole) return;
+    autoCreateTriedRef.current = activeRole;
+    createOrRotate.mutate({ rotate: false, role: activeRole });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCreateLink, isLoading, links, isAdmin, activeRole, createOrRotate.isPending]);
+
   const revoke = useMutation({
     mutationFn: async (role: RoleVariant) => {
       const existing = links?.[role];
