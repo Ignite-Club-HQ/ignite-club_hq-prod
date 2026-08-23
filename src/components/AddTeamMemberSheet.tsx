@@ -4035,18 +4035,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             // CTA shouldn't render at all — the join-link card is the
             // primary action and has its own buttons.
             if (!inviteByNameOpen) return null;
-            // Wizard navigation for single-invite flow
-            const canAdvanceFromStep1 = !!selectedUser || (nameInput.trim().length > 0);
-            const canAdvanceFromStep2 = selectedRole !== "parent"
-              || singleChildren.some(c => c.name.trim().length > 0);
-            const isFinalStep = wizardStep === 3 || (wizardStep === 2 && selectedUser && selectedRole !== "parent");
+            // Single-screen flow: one primary action, validated as a whole.
             const isPending = addExistingUserMutation.isPending || addPendingMemberMutation.isPending;
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             const emailTrimmed = customEmail.trim();
+            const parentNeedsChild =
+              selectedRole === "parent" && !singleChildren.some((c) => c.name.trim().length > 0);
             const submitNeedsEmail =
-              isFinalStep && deliveryMethod === "email" && !selectedUser && !emailTrimmed;
+              !selectedUser && deliveryMethod === "email" && !emailTrimmed;
             const submitInvalidEmail =
-              isFinalStep && deliveryMethod === "email" && !selectedUser && !!emailTrimmed && !emailRegex.test(emailTrimmed);
+              !selectedUser && deliveryMethod === "email" && !!emailTrimmed && !emailRegex.test(emailTrimmed);
             // A second-parent name without a valid email must block submission —
             // it must never be silently discarded.
             const secondParentBlocked = secondParentValidationError({
@@ -4058,13 +4056,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
             // Guardrail: human-readable reason explaining why the primary
             // action is currently blocked. Surfaced inline above the footer
-            // buttons so users aren't left guessing why "Next" is greyed out.
+            // button so users aren't left guessing why it's greyed out.
             let blockedReason: string | null = null;
-            if (wizardStep === 1 && !canAdvanceFromStep1) {
+            if (!personReady) {
               // Don't show a yellow warning on the empty initial state —
               // the disabled CTA below already communicates what's needed.
               blockedReason = null;
-            } else if (wizardStep === 2 && !canAdvanceFromStep2) {
+            } else if (parentNeedsChild) {
               blockedReason = "Add at least one child's name to continue.";
             } else if (submitNeedsEmail) {
               blockedReason = "Enter an email address to send the invite.";
@@ -4074,44 +4072,27 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               blockedReason = secondParentBlocked;
             }
 
-            const handleNext = () => {
-              if (wizardStep === 1) {
-                // Confirm new-member name on the way out of step 1
-                if (!selectedUser && !nameConfirmed && nameInput.trim()) {
-                  setNameConfirmed(true);
-                }
-                setWizardStep(2);
-                return;
-              }
-              if (wizardStep === 2) {
-                // Auto-add a child row for parent role if missing
-                if (selectedRole === "parent" && singleChildren.length === 0 && (selectedUser || nameInput.trim())) {
-                  setSingleChildren([{ id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
-                  return;
-                }
-                // Existing user with non-parent role can submit directly from step 2 → step 3 for delivery email
-                setWizardStep(3);
-                return;
-              }
-            };
+            const submitBlocked =
+              !personReady || parentNeedsChild || submitNeedsEmail || submitInvalidEmail || !!secondParentBlocked;
 
             const handleSubmit = () => {
-              if (submitNeedsEmail || submitInvalidEmail || secondParentBlocked) return;
-              if (selectedRole === "parent" && !singleChildren.some((c) => c.name.trim())) {
-                toast({
-                  title: "Add at least one child before adding this parent.",
-                  variant: "destructive",
-                });
-                return;
-              }
+              if (submitBlocked || isPending) return;
+              // Stamp the name as confirmed so the chip view stays consistent
+              // if the mutation errors and the sheet remains open.
+              if (!selectedUser && !nameConfirmed) setNameConfirmed(true);
               if (selectedUser) addExistingUserMutation.mutate();
               else addPendingMemberMutation.mutate();
             };
 
-            const nextDisabled =
-              (wizardStep === 1 && !canAdvanceFromStep1) ||
-              (wizardStep === 2 && !canAdvanceFromStep2) ||
-              !!secondParentBlocked;
+            const ctaLabel = !personReady
+              ? "Enter a name to continue"
+              : parentNeedsChild
+                ? "Add a child to continue"
+                : selectedUser
+                  ? "Add to Team"
+                  : deliveryMethod === "email"
+                    ? "Send Invite"
+                    : "Create Invite";
 
             return (
               <div className="space-y-2">
@@ -4125,49 +4106,19 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <span>{blockedReason}</span>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  {wizardStep > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-12 px-4"
-                      disabled={isPending}
-                      onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s))}
-                    >
-                      Back
-                    </Button>
-                  )}
-                  {isFinalStep ? (
-                    <Button
-                      className="flex-1 h-12 text-base font-semibold"
-                      onClick={handleSubmit}
-                      disabled={isPending || submitNeedsEmail || submitInvalidEmail || !!secondParentBlocked}
-                      variant={submitNeedsEmail || submitInvalidEmail || secondParentBlocked ? "outline" : "default"}
-                    >
-                      {isPending ? (
-                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      ) : (
-                        <UserPlus className="h-5 w-5 mr-2" />
-                      )}
-                      {selectedUser ? "Add to Team" : "Create Invite"}
-                    </Button>
+                <Button
+                  className="w-full h-12 text-base font-semibold"
+                  onClick={handleSubmit}
+                  disabled={isPending || submitBlocked}
+                  variant={submitBlocked ? "outline" : "default"}
+                >
+                  {isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
                   ) : (
-                    <Button
-                      className="flex-1 h-12 text-base font-semibold"
-                      onClick={handleNext}
-                      disabled={nextDisabled}
-                      variant={nextDisabled ? "outline" : "default"}
-                    >
-                      {wizardStep === 1
-                        ? (canAdvanceFromStep1 ? "Next: Choose role" : "Enter a name to continue")
-                        : wizardStep === 2 && selectedRole === "parent" && !canAdvanceFromStep2
-                          ? "Add a child to continue"
-                          : selectedUser && selectedRole === "parent"
-                            ? "Next: Add Children"
-                            : "Next: Send"}
-                    </Button>
+                    <UserPlus className="h-5 w-5 mr-2" />
                   )}
-                </div>
+                  {ctaLabel}
+                </Button>
               </div>
             );
           })() : (
