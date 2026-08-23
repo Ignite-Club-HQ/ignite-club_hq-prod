@@ -59,6 +59,25 @@ describe("provider must not clobber a pinned switch", () => {
     expect(src).toContain("clearAppliedNotificationClubSwitch");
     expect(src).toMatch(/const setActiveClubTheme = \([\s\S]{0,600}setActiveClubThemeStateRaw\(clubId\)/);
   });
+
+  it("keeps rendered theme data identity aligned with the active club", () => {
+    expect(src).toContain("cachedThemeData?.clubId === activeClubTheme");
+    expect(src).toContain("notificationPinnedClub");
+    expect(src).toMatch(/notificationPinnedClub[\s\S]{0,300}active_club_theme_id: notificationPinnedClub/);
+  });
+
+  it("does not discard team-only clubs before team roles are loaded", () => {
+    expect(src).not.toContain("if (!userRoles?.length) return []");
+  });
+});
+
+describe("web push payload compatibility", () => {
+  const src = readFileSync("src/lib/webNotificationLaunchHandler.ts", "utf8");
+
+  it("accepts nested and legacy url field variants like the native handler", () => {
+    expect(src).toContain("payload.url || payload.link || payload.path");
+    expect(src).toContain("data?.url || data?.link || data?.path");
+  });
 });
 
 describe("native cold-start tap stashes the switch directly", () => {

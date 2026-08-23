@@ -554,6 +554,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           }
 
           if (!error && data) {
+            // A notification tap is a newer, explicit user action than this
+            // async profile read. If the read started before the tap, resolve
+            // the remainder of this load against the pinned club instead of
+            // restoring the old profile club's cache, CSS and localStorage.
+            const notificationPinnedClub = getAppliedNotificationClubSwitch();
+            if (notificationPinnedClub && data.active_club_theme_id !== notificationPinnedClub) {
+              data = { active_club_theme_id: notificationPinnedClub };
+            }
             const storedPreference = localStorage.getItem(getStorageKey(user.id));
 
             if (isNoClubThemePreference(storedPreference)) {
@@ -737,8 +745,6 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         .not("club_id", "is", null);
 
       if (rolesError) throw rolesError;
-      if (!userRoles?.length) return [];
-
       const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))];
 
       // Also get clubs from teams
@@ -1106,8 +1112,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   const serverThemeMatch = activeClubTheme
     ? availableClubThemes.find(t => t.clubId === activeClubTheme) ?? null
     : null;
+  const matchingCachedTheme = cachedThemeData?.clubId === activeClubTheme
+    ? cachedThemeData
+    : null;
   const activeThemeData = activeClubTheme
-    ? serverThemeMatch ?? cachedThemeData ?? null
+    ? serverThemeMatch ?? matchingCachedTheme
     : null;
 
   // Free club data: when a club is selected but has no theme (Pro + theme required)
