@@ -269,29 +269,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
-  // Single-screen invite form: person, role, children (parents) and delivery
-  // all live on one scrolling screen with progressive disclosure — no wizard.
-  // Whether the "invite by name" section is expanded. Defaults to collapsed so
-  // the first screen is a simple two-way choice: share a link, or invite one person.
-  const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
-  // Progressive disclosure: the join-link role selector only appears after the
-  // user chooses "Create link" on the first screen.
-  const [linkFlowOpen, setLinkFlowOpen] = useState(false);
-  // When the user can't share the bulk join link (non-admins/coaches), the
-  // invite-by-name form is the only available flow, so it must be visible by
-  // default — otherwise the sheet renders an empty body.
-  const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser;
+  // Single-screen invite form: the share link is visible immediately on open
+  // (auto-created for the default role), with the person / role / children /
+  // delivery form below it on one scrolling screen — no chooser step.
+  const inviteByNameOpen = true;
   // Person is "ready" once an existing user is picked or any name is typed —
   // role / children / delivery sections disclose progressively below the name.
   const personReady = !!selectedUser || nameInput.trim().length > 0;
-
-  // Reset to the chooser each time the sheet is opened.
-  useEffect(() => {
-    if (open) {
-      setInviteByNameExpanded(false);
-      setLinkFlowOpen(false);
-    }
-  }, [open]);
 
   // When the name is confirmed (or an existing user is selected), the role
   // selector becomes the active step. Dismiss the soft keyboard and scroll
