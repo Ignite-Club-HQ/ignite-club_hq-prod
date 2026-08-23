@@ -2866,11 +2866,43 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </div>
             )}
               </>
+
+            {/* Role selection — disclosed as soon as a person is chosen/typed */}
+            {personReady && (
+              <div className="space-y-2 scroll-mt-4" ref={roleSectionRef}>
+                <Label className="text-sm font-medium">Select role</Label>
+                <div className={`grid gap-2 ${roleOptions.length <= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {roleOptions.map((opt) => (
+                    <button
+                      key={`top-${opt.value}`}
+                      type="button"
+                      role="radio"
+                      aria-checked={selectedRole === opt.value}
+                      aria-pressed={selectedRole === opt.value}
+                      aria-label={`Role: ${opt.label}`}
+                      onClick={() => setSelectedRole(opt.value)}
+                      className={`p-3 rounded-xl text-center transition-all border ${
+                        selectedRole === opt.value
+                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                          : "border-border bg-muted/40 hover:bg-muted text-foreground"
+                      }`}
+                    >
+                      <p className="text-sm font-medium">
+                        {opt.value === "parent" ? "Parent" : opt.value === "coach" ? "Coach" : opt.value === "team_admin" ? "Admin" : opt.label}
+                      </p>
+                      {opt.value === "parent" && (
+                        <p className={`text-[11px] mt-0.5 ${selectedRole === opt.value ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                          adds child player
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
-
-            {/* STEP 3 (existing user): optional email for non-parent roles */}
-            {wizardStep === 3 && selectedUser && selectedRole !== "parent" && (
+            {/* Existing user, non-parent: optional email to send invite email */}
+            {selectedUser && selectedRole !== "parent" && (
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5" />
