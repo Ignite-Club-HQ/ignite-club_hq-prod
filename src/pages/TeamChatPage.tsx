@@ -6,6 +6,7 @@ import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePend
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
+import { findLocalReplyMessage } from "@/lib/chatRealtimeReply";
 import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
@@ -1371,6 +1372,11 @@ export default function TeamChatPage() {
           // Get cached profile synchronously (instant, non-blocking)
           const { cached: cachedProfiles } = getProfilesFromCache([newMsg.author_id]);
           const cachedProfile = cachedProfiles.get(newMsg.author_id);
+          const currentMessages = queryClient.getQueryData<{ messages: Message[] }>(["team-messages", teamId])?.messages;
+          const localReplyMessage = findLocalReplyMessage(currentMessages, newMsg.reply_to_id);
+          const localReply = localReplyMessage
+            ? { text: localReplyMessage.text, profiles: localReplyMessage.profiles }
+            : null;
           
           // IMMEDIATELY update cache with message (don't wait for profile fetch)
           queryClient.setQueryData(["team-messages", teamId], (old: any) => {
@@ -1391,7 +1397,7 @@ export default function TeamChatPage() {
                 ? { display_name: cachedProfile.display_name, avatar_url: cachedProfile.avatar_url }
                 : null,
               reactions: [],
-              reply_to: null,
+              reply_to: localReply,
             };
             
             if (tempIndex !== -1) {
@@ -1416,7 +1422,7 @@ export default function TeamChatPage() {
           
           // Asynchronously fetch profile and reply_to data if needed, then update
           const needsProfileFetch = !cachedProfile;
-          const needsReplyFetch = !!newMsg.reply_to_id;
+          const needsReplyFetch = !!newMsg.reply_to_id && !localReplyMessage;
           
           if (needsProfileFetch || needsReplyFetch) {
             Promise.all([
