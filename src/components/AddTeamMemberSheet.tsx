@@ -269,8 +269,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
-  // Single-invite wizard step: 1 = Person, 2 = Role (+ children/guardian for parents), 3 = Delivery
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  // Single-screen invite form: person, role, children (parents) and delivery
+  // all live on one scrolling screen with progressive disclosure — no wizard.
   // Whether the "invite by name" section is expanded. Defaults to collapsed so
   // the first screen is a simple two-way choice: share a link, or invite one person.
   const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
@@ -280,87 +280,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // When the user can't share the bulk join link (non-admins/coaches), the
   // invite-by-name form is the only available flow, so it must be visible by
   // default — otherwise the sheet renders an empty body.
-  const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser || wizardStep > 1;
-
-  // Derived list of named children for the single-invite parent flow
-  const validSingleChildren = singleChildren.filter((c) => c.name.trim());
-
-  // Review summary helper shared by the new-member and existing-user parent flows
-  interface ParentReviewSummaryProps {
-    parentName: string;
-    roleLabel: string;
-    teamName: string;
-    children: BulkChild[];
-    secondParent?:
-      | { display_name?: string | null; name?: string; email?: string }
-      | null;
-  }
-
-  function ParentReviewSummary({
-    parentName,
-    roleLabel,
-    teamName,
-    children,
-    secondParent,
-  }: ParentReviewSummaryProps) {
-    const namedChildren = children.filter((c) => c.name.trim());
-    return (
-      <div className="space-y-3">
-        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">{parentName}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Badge variant="outline" className="text-xs">
-              {roleLabel}
-            </Badge>
-            <span>• {teamName}</span>
-          </div>
-        </div>
-
-        {namedChildren.length > 0 && (
-          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <Baby className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">
-                {namedChildren.length === 1 ? "Child" : "Children"}
-              </span>
-            </div>
-            <div className="space-y-1">
-              {namedChildren.map((child) => (
-                <div
-                  key={child.id}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <span className="text-sm">{child.name.trim()}</span>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-                    {child.yearOfBirth && <span>Born {child.yearOfBirth}</span>}
-                    {child.jerseyNumber && (
-                      <span>Jersey #{child.jerseyNumber}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {secondParent && (
-          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Second Parent / Guardian</span>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {secondParent.display_name || secondParent.name || "Second parent / guardian"}
-              {secondParent.email ? ` · ${secondParent.email}` : null}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser;
+  // Person is "ready" once an existing user is picked or any name is typed —
+  // role / children / delivery sections disclose progressively below the name.
+  const personReady = !!selectedUser || nameInput.trim().length > 0;
 
   // Reset to the chooser each time the sheet is opened.
   useEffect(() => {
@@ -388,7 +311,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   // Auto-open first child input when Parent role is selected and name is confirmed (existing user or tick)
   useEffect(() => {
-    const nameReady = selectedUser || nameConfirmed;
+    const nameReady = selectedUser || nameConfirmed || nameInput.trim().length > 0;
     if (selectedRole === "parent" && nameReady && singleChildren.length === 0 && !autoChildTriggered.current) {
       autoChildTriggered.current = true;
       setSingleChildren([{ id: crypto.randomUUID(), name: "", yearOfBirth: "", jerseyNumber: "" }]);
@@ -396,7 +319,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     if (selectedRole !== "parent") {
       autoChildTriggered.current = false;
     }
-  }, [selectedRole, selectedUser, nameConfirmed, singleChildren.length]);
+  }, [selectedRole, selectedUser, nameConfirmed, nameInput, singleChildren.length]);
 
   // Fetch existing members (separate key from TeamDetail members query to avoid cache shape collisions)
   const { data: existingMembers } = useQuery({
@@ -2229,7 +2152,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setInviteShareLink(null);
     setInviteSent(false);
     setMode("single");
-    setWizardStep(1);
     setNameConfirmed(false);
     setInviteByNameExpanded(false);
     setSingleChildren([]);
