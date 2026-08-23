@@ -2921,40 +2921,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </div>
             )}
 
-            {/* STEP 3 (existing user, parent role): review children before adding */}
-            {wizardStep === 3 && selectedUser && selectedRole === "parent" && (
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Review</h3>
-
-                <ParentReviewSummary
-                  parentName={selectedUser.display_name || "Unknown"}
-                  roleLabel={
-                    roleOptions.find((r) => r.value === selectedRole)?.label || selectedRole
-                  }
-                  teamName={teamName}
-                  children={singleChildren}
-                  secondParent={
-                    selectedSecondParent ||
-                    (secondParentName.trim() || secondParentEmail.trim()
-                      ? { name: secondParentName, email: secondParentEmail }
-                      : null)
-                  }
-                />
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-11"
-                  onClick={() => setWizardStep(2)}
-                >
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Edit children
-                </Button>
-              </div>
-            )}
-
-            {/* STEP 2 (existing user, parent role): child fields + second guardian */}
-            {wizardStep === 2 && selectedUser && selectedRole === "parent" && (
+            {/* Existing user, parent role: child fields + second guardian (inline) */}
+            {selectedUser && selectedRole === "parent" && (
               <>
                 {/* Child fields for existing user with parent role */}
                 <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
@@ -3219,8 +3187,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </>
             )}
 
-            {/* STEP 2 (new member, parent role): child fields + second guardian */}
-            {wizardStep === 2 && !selectedUser && nameConfirmed && nameInput.trim() && selectedRole === "parent" && (
+            {/* New member, parent role: child fields + second guardian (inline) */}
+            {!selectedUser && personReady && selectedRole === "parent" && (
               <>
                 {/* Child fields for parent role (new member) */}
                 <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
@@ -3485,8 +3453,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               </>
             )}
 
-            {/* STEP 3: Delivery method + custom message (new members only) */}
-            {wizardStep === 3 && !selectedUser && nameConfirmed && nameInput.trim() && (
+            {/* Delivery method + custom message (new members only) */}
+            {!selectedUser && personReady && (
               <>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">How to deliver invite?</Label>
