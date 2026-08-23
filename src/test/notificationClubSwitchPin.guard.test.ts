@@ -87,6 +87,13 @@ describe("unresolved tap-time requests are re-resolved after auth is ready", () 
     expect(hook).toContain("MAX_RESOLVE_ATTEMPTS");
     expect(hook).toContain("MAX_VERIFY_ATTEMPTS");
   });
+
+  it("does not cancel an in-flight drain when the theme provider rerenders", () => {
+    expect(hook).toContain("activeClubThemeRef.current = activeClubTheme");
+    expect(hook).toContain("setActiveClubThemeRef.current = setActiveClubTheme");
+    expect(hook).toContain("drainRequestedRef.current = true");
+    expect(hook).toMatch(/\}, \[user\?\.id\]\);/);
+  });
 });
 
 describe("membership verification covers team-scoped roles", () => {

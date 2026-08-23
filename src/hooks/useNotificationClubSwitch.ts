@@ -125,6 +125,19 @@ export function useNotificationClubSwitch() {
   const { user } = useAuth();
   const { activeClubTheme, setActiveClubTheme } = useClubTheme();
   const drainingRef = useRef(false);
+  const drainRequestedRef = useRef(false);
+  const activeClubThemeRef = useRef(activeClubTheme);
+  const setActiveClubThemeRef = useRef(setActiveClubTheme);
+
+  // `useClubTheme` currently exposes a setter whose identity changes whenever
+  // the provider renders. Keeping that function in the drain effect's
+  // dependency list cancelled an in-flight membership lookup on every theme
+  // bootstrap render. The replacement effect then saw `drainingRef === true`
+  // and returned, leaving the pending switch stranded until another unrelated
+  // render/event happened. Refs keep the long-running drain alive while still
+  // applying through the latest context values.
+  activeClubThemeRef.current = activeClubTheme;
+  setActiveClubThemeRef.current = setActiveClubTheme;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -142,7 +155,7 @@ export function useNotificationClubSwitch() {
         clearNotificationClubSwitchInFlight();
         return;
       }
-      if (clubId === activeClubTheme) {
+      if (clubId === activeClubThemeRef.current) {
         // Already correct — still mark it so the provider's async bootstrap
         // cannot drag the filter back to a previously stored club.
         markNotificationClubSwitchApplied(clubId);
@@ -169,9 +182,10 @@ export function useNotificationClubSwitch() {
           clearNotificationClubSwitchInFlight();
           return;
         }
-        console.log("[NotificationClubSwitch] switching active club", { from: activeClubTheme, to: clubId });
+        console.log("[NotificationClubSwitch] switching active club", { from: activeClubThemeRef.current, to: clubId });
         markNotificationClubSwitchApplied(clubId);
-        setActiveClubTheme(clubId);
+        activeClubThemeRef.current = clubId;
+        setActiveClubThemeRef.current(clubId);
         clearNotificationClubSwitchInFlight();
       } catch (err) {
         console.warn("[NotificationClubSwitch] switch failed", err);
@@ -179,45 +193,57 @@ export function useNotificationClubSwitch() {
     };
 
     const drain = async (): Promise<void> => {
-      if (cancelled || drainingRef.current) return;
+      if (cancelled) return;
+      if (drainingRef.current) {
+        // A duplicate native event, or the tap-time resolver upgrading a raw
+        // request while this pass is awaiting Supabase, must not be lost.
+        drainRequestedRef.current = true;
+        return;
+      }
       drainingRef.current = true;
       try {
-        const req = peekPendingNotificationClubSwitchRequest();
-        if (!req) return;
-        if (req.clubId) {
-          await apply(req.clubId);
-          return;
-        }
-        // Raw request: the tap-time lookup raced auth/network. Now that
-        // `user?.id` is known the session is ready — resolve here, bounded.
-        if (isDefinitelyNotClubScoped(req.data, req.url)) {
+        do {
+          drainRequestedRef.current = false;
+          const req = peekPendingNotificationClubSwitchRequest();
+          if (!req) continue;
+          if (req.clubId) {
+            await apply(req.clubId);
+            continue;
+          }
+          // Raw request: the tap-time lookup raced auth/network. Now that
+          // `user?.id` is known the session is ready — resolve here, bounded.
+          if (isDefinitelyNotClubScoped(req.data, req.url)) {
+            consumePendingNotificationClubSwitch();
+            clearNotificationClubSwitchInFlight();
+            continue;
+          }
+          let resolved = false;
+          for (let attempt = 0; attempt < MAX_RESOLVE_ATTEMPTS && !cancelled; attempt++) {
+            const clubId = await resolveNotificationClubId(req.data, req.url);
+            if (cancelled) return;
+            if (clubId) {
+              // Upgrade the stash (marks the route in-flight) and apply directly.
+              stashResolvedNotificationClubSwitch(clubId, req.data, req.url);
+              await apply(clubId);
+              resolved = true;
+              break;
+            }
+            if (attempt + 1 < MAX_RESOLVE_ATTEMPTS) await sleep(RESOLVE_RETRY_MS);
+          }
+          if (cancelled) return;
+          if (resolved) continue;
+          // Re-peek: a concurrent tap-time resolution may have landed during
+          // our retries — never consume a freshly resolved switch.
+          const fresh = peekPendingNotificationClubSwitchRequest();
+          if (fresh?.clubId) {
+            await apply(fresh.clubId);
+            continue;
+          }
+          // Genuinely not club-scoped (or unreachable for good) — leave the
+          // current filter untouched.
           consumePendingNotificationClubSwitch();
           clearNotificationClubSwitchInFlight();
-          return;
-        }
-        for (let attempt = 0; attempt < MAX_RESOLVE_ATTEMPTS && !cancelled; attempt++) {
-          const clubId = await resolveNotificationClubId(req.data, req.url);
-          if (cancelled) return;
-          if (clubId) {
-            // Upgrade the stash (marks the route in-flight) and apply directly.
-            stashResolvedNotificationClubSwitch(clubId, req.data, req.url);
-            await apply(clubId);
-            return;
-          }
-          if (attempt + 1 < MAX_RESOLVE_ATTEMPTS) await sleep(RESOLVE_RETRY_MS);
-        }
-        if (cancelled) return;
-        // Re-peek: a concurrent tap-time resolution may have landed during our
-        // retries — never consume a freshly resolved switch.
-        const fresh = peekPendingNotificationClubSwitchRequest();
-        if (fresh?.clubId) {
-          await apply(fresh.clubId);
-          return;
-        }
-        // Genuinely not club-scoped (or unreachable for good) — leave the
-        // current filter untouched.
-        consumePendingNotificationClubSwitch();
-        clearNotificationClubSwitchInFlight();
+        } while (!cancelled && drainRequestedRef.current);
       } finally {
         drainingRef.current = false;
       }
@@ -232,5 +258,5 @@ export function useNotificationClubSwitch() {
       unsubscribe();
       timers.forEach((t) => window.clearTimeout(t));
     };
-  }, [user?.id, activeClubTheme, setActiveClubTheme]);
+  }, [user?.id]);
 }
