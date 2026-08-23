@@ -2137,7 +2137,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setInviteSent(false);
     setMode("single");
     setNameConfirmed(false);
-    setInviteByNameExpanded(false);
     setSingleChildren([]);
     autoChildTriggered.current = false;
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [], selectedUser: null }]);
@@ -2573,82 +2572,27 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
-            {/* STEP 0 — the only decision on first open: one link, or one person. */}
-            {canBulkInvite && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && !linkFlowOpen && (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Link2 className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">Share a team link</p>
-                      <p className="text-xs text-muted-foreground">Invite several people at once.</p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    className="w-full h-11 text-sm font-semibold"
-                    onClick={() => setLinkFlowOpen(true)}
-                  >
-                    <Link2 className="h-4 w-4 mr-2" />
-                    Create link
-                  </Button>
+            {/* Share link — visible the moment the sheet opens; auto-created
+                for the default role so Copy/Share need zero extra taps. */}
+            {canBulkInvite && !nameInput.trim() && !selectedUser && (
+              <>
+                <TeamJoinLinkCard
+                  teamId={teamId}
+                  teamName={teamName}
+                  teamType={teamType}
+                  autoCreateLink
+                />
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="h-px flex-1 bg-border" />
+                  <p className="text-xs font-medium text-muted-foreground">Or invite a specific person</p>
+                  <div className="h-px flex-1 bg-border" />
                 </div>
-
-                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <UserPlus className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">Invite someone directly</p>
-                      <p className="text-xs text-muted-foreground">Send an individual invitation by email or SMS.</p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-11 text-sm font-semibold bg-background"
-                    onClick={() => setInviteByNameExpanded(true)}
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Invite person
-                  </Button>
-                </div>
-              </div>
+              </>
             )}
 
-            {/* Join-link flow — role choice + link actions, shown after "Create link". */}
-            {canBulkInvite && !nameInput.trim() && !selectedUser && linkFlowOpen && !inviteByNameExpanded && (
-              <TeamJoinLinkCard
-                teamId={teamId}
-                teamName={teamName}
-                teamType={teamType}
-                onBack={() => setLinkFlowOpen(false)}
-              />
-            )}
-
-            {/* Invite-by-name body (form + wizard) — only when expanded */}
+            {/* Invite-by-name body — always visible below the share link */}
             {inviteByNameOpen && (
               <>
-            {canBulkInvite && !nameInput.trim() && !selectedUser && (
-              <div className="flex items-start justify-between gap-2 pt-1">
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-semibold">Invite by name</h3>
-                  <p className="text-xs text-muted-foreground">Send a personal invite to one specific person.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setInviteByNameExpanded(false)}
-                  className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors min-h-[32px]"
-                  aria-label="Collapse invite by name"
-                >
-                  <ChevronUp className="h-4 w-4" />
-                  Hide
-                </button>
-              </div>
-            )}
 
             {/* Person — name input, search, existing user / new member chip */}
               <>
