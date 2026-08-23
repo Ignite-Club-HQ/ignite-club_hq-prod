@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import { Loader2, Copy, Check, ChevronLeft, Link2, QrCode, Share2, AlertTriangle, Download } from "lucide-react";
@@ -57,6 +57,13 @@ interface TeamJoinLinkCardProps {
   teamType?: TeamType;
   /** Optional back affordance rendered in the card header (used by the invite sheet). */
   onBack?: () => void;
+  /**
+   * When true, a link for the default (non-sensitive) role is created
+   * automatically on mount if none exists yet — so the share/copy buttons are
+   * visible the moment the card renders, with zero taps. Sensitive roles
+   * (coach/admin) still always require an explicit create.
+   */
+  autoCreateLink?: boolean;
 }
 
 interface JoinLinkRow {
@@ -78,7 +85,7 @@ function generateShortToken(): string {
     .replace(/=/g, "");
 }
 
-export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed", onBack }: TeamJoinLinkCardProps) {
+export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed", onBack, autoCreateLink = false }: TeamJoinLinkCardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -197,6 +204,22 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
       toast({ title: "Couldn't create link", description: err?.message ?? "Try again", variant: "destructive" });
     },
   });
+
+  // Zero-tap share link: when enabled, silently create a link for the default
+  // role as soon as we know none exists, so Copy/Share are ready on first
+  // paint. Never auto-creates sensitive (coach/admin) links, and only tries
+  // once per role per mount so a manual revoke doesn't instantly regenerate.
+  const autoCreateTriedRef = useRef<RoleVariant | null>(null);
+  useEffect(() => {
+    if (!autoCreateLink || isLoading || !links || !isAdmin) return;
+    if (links[activeRole]) return;
+    if (SENSITIVE_ROLES.includes(activeRole)) return;
+    if (createOrRotate.isPending) return;
+    if (autoCreateTriedRef.current === activeRole) return;
+    autoCreateTriedRef.current = activeRole;
+    createOrRotate.mutate({ rotate: false, role: activeRole });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCreateLink, isLoading, links, isAdmin, activeRole, createOrRotate.isPending]);
 
   const revoke = useMutation({
     mutationFn: async (role: RoleVariant) => {

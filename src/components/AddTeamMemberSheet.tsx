@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
-import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown, ChevronUp, Link2 } from "lucide-react";
+import { UserPlus, Search, Loader2, Mail, X, CheckCircle2, Check, Send, Users, Plus, Trash2, Upload, Baby, User, Calendar, MessageSquare, Copy, AlertTriangle, Share2, Pencil, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
@@ -269,29 +269,13 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const autoChildTriggered = useRef(false);
   const [nameConfirmed, setNameConfirmed] = useState(false);
   const roleSectionRef = useRef<HTMLDivElement | null>(null);
-  // Single-screen invite form: person, role, children (parents) and delivery
-  // all live on one scrolling screen with progressive disclosure — no wizard.
-  // Whether the "invite by name" section is expanded. Defaults to collapsed so
-  // the first screen is a simple two-way choice: share a link, or invite one person.
-  const [inviteByNameExpanded, setInviteByNameExpanded] = useState(false);
-  // Progressive disclosure: the join-link role selector only appears after the
-  // user chooses "Create link" on the first screen.
-  const [linkFlowOpen, setLinkFlowOpen] = useState(false);
-  // When the user can't share the bulk join link (non-admins/coaches), the
-  // invite-by-name form is the only available flow, so it must be visible by
-  // default — otherwise the sheet renders an empty body.
-  const inviteByNameOpen = !canBulkInvite || inviteByNameExpanded || !!nameInput.trim() || !!selectedUser;
+  // Single-screen invite form: the share link is visible immediately on open
+  // (auto-created for the default role), with the person / role / children /
+  // delivery form below it on one scrolling screen — no chooser step.
+  const inviteByNameOpen = true;
   // Person is "ready" once an existing user is picked or any name is typed —
   // role / children / delivery sections disclose progressively below the name.
   const personReady = !!selectedUser || nameInput.trim().length > 0;
-
-  // Reset to the chooser each time the sheet is opened.
-  useEffect(() => {
-    if (open) {
-      setInviteByNameExpanded(false);
-      setLinkFlowOpen(false);
-    }
-  }, [open]);
 
   // When the name is confirmed (or an existing user is selected), the role
   // selector becomes the active step. Dismiss the soft keyboard and scroll
@@ -2153,7 +2137,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     setInviteSent(false);
     setMode("single");
     setNameConfirmed(false);
-    setInviteByNameExpanded(false);
     setSingleChildren([]);
     autoChildTriggered.current = false;
     setBulkMembers([{ id: crypto.randomUUID(), name: "", email: "", role: getDefaultRole(), children: [], selectedUser: null }]);
@@ -2589,82 +2572,27 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
           <TabsContent value="single" className="space-y-4 mt-0">
 
-            {/* STEP 0 — the only decision on first open: one link, or one person. */}
-            {canBulkInvite && !nameInput.trim() && !selectedUser && !inviteByNameExpanded && !linkFlowOpen && (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Link2 className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">Share a team link</p>
-                      <p className="text-xs text-muted-foreground">Invite several people at once.</p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    className="w-full h-11 text-sm font-semibold"
-                    onClick={() => setLinkFlowOpen(true)}
-                  >
-                    <Link2 className="h-4 w-4 mr-2" />
-                    Create link
-                  </Button>
+            {/* Share link — visible the moment the sheet opens; auto-created
+                for the default role so Copy/Share need zero extra taps. */}
+            {canBulkInvite && !nameInput.trim() && !selectedUser && (
+              <>
+                <TeamJoinLinkCard
+                  teamId={teamId}
+                  teamName={teamName}
+                  teamType={teamType}
+                  autoCreateLink
+                />
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="h-px flex-1 bg-border" />
+                  <p className="text-xs font-medium text-muted-foreground">Or invite a specific person</p>
+                  <div className="h-px flex-1 bg-border" />
                 </div>
-
-                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <UserPlus className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">Invite someone directly</p>
-                      <p className="text-xs text-muted-foreground">Send an individual invitation by email or SMS.</p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-11 text-sm font-semibold bg-background"
-                    onClick={() => setInviteByNameExpanded(true)}
-                  >
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    Invite person
-                  </Button>
-                </div>
-              </div>
+              </>
             )}
 
-            {/* Join-link flow — role choice + link actions, shown after "Create link". */}
-            {canBulkInvite && !nameInput.trim() && !selectedUser && linkFlowOpen && !inviteByNameExpanded && (
-              <TeamJoinLinkCard
-                teamId={teamId}
-                teamName={teamName}
-                teamType={teamType}
-                onBack={() => setLinkFlowOpen(false)}
-              />
-            )}
-
-            {/* Invite-by-name body (form + wizard) — only when expanded */}
+            {/* Invite-by-name body — always visible below the share link */}
             {inviteByNameOpen && (
               <>
-            {canBulkInvite && !nameInput.trim() && !selectedUser && (
-              <div className="flex items-start justify-between gap-2 pt-1">
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-semibold">Invite by name</h3>
-                  <p className="text-xs text-muted-foreground">Send a personal invite to one specific person.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setInviteByNameExpanded(false)}
-                  className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors min-h-[32px]"
-                  aria-label="Collapse invite by name"
-                >
-                  <ChevronUp className="h-4 w-4" />
-                  Hide
-                </button>
-              </div>
-            )}
 
             {/* Person — name input, search, existing user / new member chip */}
               <>
