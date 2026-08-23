@@ -10,6 +10,7 @@ const LOADING_SELECTOR = [
   "[data-skeleton]",
   "[data-state='loading']",
   "[aria-busy='true']",
+  "[data-media-pending='true']",
 ].join(",");
 
 function isImageLoaded(img: HTMLImageElement) {

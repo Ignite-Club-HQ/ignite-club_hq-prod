@@ -543,7 +543,12 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   // the case where the main pin effect updated its prev-refs during the
   // mount-quiet window and no re-pin ever fires — the report symptom being
   // the newest incoming bubble body sitting behind the composer after tap.
-  const lastKnownLastIdRef = useRef<string | null>(null);
+  // Seed with the current tail. The first populated render establishes the
+  // baseline; it is not a newly-arrived message and must not schedule the
+  // 120/280/520/900ms post-reveal pin sequence.
+  const lastKnownLastIdRef = useRef<string | null>(
+    messages.length > 0 ? messages[messages.length - 1]?.id ?? null : null,
+  );
   const lastKnownKbRef = useRef(isKeyboardOpen);
   useEffect(() => {
     if (!virtualReady) return;
