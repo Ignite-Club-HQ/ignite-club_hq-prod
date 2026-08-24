@@ -757,59 +757,16 @@ export default function JoinTeamPage() {
 
         return ["parent" as AppRole];
       }
-      if (metadata?.child_id && metadata?.mini_league_id && pendingInviteData.role === "parent") {
-        console.log("[JoinTeam] Mini-league invite: claiming child via RPC:", metadata.child_id);
-        const { error: claimErr } = await supabase.rpc("claim_mini_league_invite", {
-          _token: token!,
-        });
-        if (claimErr) {
-          console.error("[JoinTeam] claim_mini_league_invite failed:", claimErr);
-          throw new Error(`Couldn't link you to your child: ${claimErr.message}`);
-        }
-      } else if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
-        // Transactional acceptance: children, guardian links, team assignment,
-        // the parent role and the invite status all commit together. On failure
-        // nothing is written and the invite stays pending for a retry.
-        console.log("[JoinTeam] Accepting parent invite via transactional RPC");
-        try {
-          if (pendingInviteData.status === "pending") {
-            const result = await acceptParentTeamInvite({ inviteId: pendingInviteData.id });
-            console.log("[JoinTeam] Parent invite accepted:", {
-              children: result.childIds.length,
-              alreadyAccepted: result.alreadyAccepted,
-            });
-          }
-
-          const childIds = await provisionInviteChildren({
-            inviteId: pendingInviteData.id,
-            guardianId: user.id,
-          });
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ["children"] }),
-            queryClient.invalidateQueries({ queryKey: ["user-roles"] }),
-            queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
-          ]);
-          console.log("[JoinTeam] Parent invite children provisioned:", childIds.length);
-        } catch (rpcError) {
-          throw new Error(getParentInviteErrorMessage(rpcError));
-        }
-      } else if (pendingInviteData.role === "parent" && metadata?.child_id) {
-
-        // Link existing child to this parent (child was pre-created by admin)
-        console.log("[JoinTeam] Linking existing child to parent:", metadata.child_id);
-        await supabase
-          .from("children")
-          .update({ parent_id: user.id })
-          .eq("id", metadata.child_id);
-        
-        // Update legacy mini_league_players record
-        if (metadata.player_id) {
-          await supabase
-            .from("mini_league_players")
-            .update({ parent_user_id: user.id })
-            .eq("id", metadata.player_id);
-        }
-      }
+      provisionedChildIdsRef.current = await provisionChildrenFromInviteMetadata({
+        inviteId: pendingInviteData.id,
+        inviteStatus: pendingInviteData.status,
+        inviteRole: pendingInviteData.role,
+        metadata,
+        teamId: (pendingInviteData as { team_id?: string | null }).team_id ?? invite.team_id ?? null,
+        clubId: (pendingInviteData as { club_id?: string | null }).club_id ?? inviteClubId ?? null,
+        userId: user.id,
+        claimToken: token ?? null,
+      });
     } else if (!isPendingInvite) {
       // Regular team invite - check expiry and usage limits
       if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
