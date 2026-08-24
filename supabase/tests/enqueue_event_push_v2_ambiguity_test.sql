@@ -130,12 +130,12 @@ BEGIN
        OR elem->>'dedupe_key' LIKE '%000000000010'
        OR elem->>'dedupe_key' LIKE '%000000000011'
        OR elem->>'dedupe_key' LIKE '%000000000012'
-  ) both);
-  SELECT count(*)::bigint,
-         count(*) FILTER (WHERE x.created)::bigint,
-         count(*) FILTER (WHERE x.queued)::bigint
-    INTO r
-    FROM public.enqueue_event_push_v2('/events/' || ev::text, rows) x;
+  ) combined);
+  SELECT count(*)::bigint AS resolved,
+         count(*) FILTER (WHERE x.created)::bigint AS created,
+         count(*) FILTER (WHERE x.queued)::bigint AS queued
+     INTO r
+     FROM public.enqueue_event_push_v2('/events/' || ev::text, rows) x;
   PERFORM pg_temp.assert_eq(r.resolved, 12::bigint, 'mixed batch resolves all 12');
   PERFORM pg_temp.assert_eq(r.created, 4::bigint, 'mixed batch creates only the 4 new');
   PERFORM pg_temp.assert_eq(r.queued, 4::bigint, 'mixed batch queues only the 4 new');
@@ -195,15 +195,15 @@ END $$;
 DO $$
 DECLARE
   ev uuid := gen_random_uuid();
-  r record;
+  n bigint;
 BEGIN
-  SELECT count(*)::bigint INTO r.resolved
+  SELECT count(*)::bigint INTO n
     FROM public.enqueue_event_push_v2(
       '/events/' || ev::text,
       jsonb_build_array(jsonb_build_object(
         'user_id', '00000000-0000-4000-9000-0000000000f1',
         'type', 'event_invite', 'message', 'no key', 'related_id', ev, 'dedupe_key', null)));
-  PERFORM pg_temp.assert_eq(r.resolved, 0::bigint, 'NULL dedupe_key rows are ignored');
+  PERFORM pg_temp.assert_eq(n, 0::bigint, 'NULL dedupe_key rows are ignored');
   PERFORM pg_temp.assert_eq(
     (SELECT count(*) FROM public.notifications WHERE related_id = ev)::bigint,
     0::bigint, 'no notification created for NULL dedupe_key');
