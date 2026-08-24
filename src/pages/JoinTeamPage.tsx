@@ -829,13 +829,16 @@ export default function JoinTeamPage() {
 
       const { data: matchingPendingInvites } = await supabase
         .from("pending_invites")
-        .select("id, invited_label")
+        .select("id, invited_label, role, metadata, team_id, club_id")
         .eq("team_id", invite.team_id)
         .eq("status", "pending")
         .or(orClauses.join(","))
         .order("created_at", { ascending: false });
 
       if (matchingPendingInvites && matchingPendingInvites.length > 0) {
+        // Most recent matching row wins for child provisioning.
+        reconciledInvite = matchingPendingInvites[0] as ReconciledInvite;
+
         // Use the first match's label to prefill display name if needed
         const firstLabel = matchingPendingInvites.find(i => i.invited_label)?.invited_label;
         if (firstLabel) {
@@ -861,7 +864,50 @@ export default function JoinTeamPage() {
           .in("id", matchingIds);
         
         console.log("[JoinTeam] Reconciled", matchingIds.length, "pending invite(s) for user");
+
+        // The reconciled invite may carry child metadata (named parent invite).
+        // Without this the invite is consumed and its child silently discarded.
+        const reconciledMetadata =
+          (reconciledInvite.metadata as InviteChildMetadata | null) ??
+          ((teamInvite?.metadata as InviteChildMetadata | null) ?? null);
+        if (reconciledInvite.role === "parent") {
+          try {
+            const provisioned = await provisionChildrenFromInviteMetadata({
+              inviteId: reconciledInvite.id,
+              // Already flipped to accepted above.
+              inviteStatus: "accepted",
+              inviteRole: reconciledInvite.role,
+              metadata: reconciledMetadata,
+              teamId: reconciledInvite.team_id ?? invite.team_id ?? null,
+              clubId: reconciledInvite.club_id ?? inviteClubId ?? null,
+              userId: user.id,
+              claimToken: null,
+            });
+            provisionedChildIdsRef.current = provisioned;
+            console.log(
+              "[JoinTeam] Reconciled invite provisioned children:",
+              provisioned.length,
+            );
+          } catch (provisionError) {
+            console.error(
+              "[JoinTeam] Reconciled invite child provisioning failed:",
+              provisionError,
+            );
+            provisionedChildIdsRef.current = [];
+            // Never consume the invite when provisioning produced no children —
+            // leave it pending so a retry (or an admin) can finish the job.
+            await supabase
+              .from("pending_invites")
+              .update({ status: "pending", accepted_at: null })
+              .eq("id", reconciledInvite.id);
+            toast({
+              title: "We couldn't link your child automatically",
+              description: "Please add them below.",
+            });
+          }
+        }
       }
+
 
       // Increment uses_count for team invite
       await supabase
