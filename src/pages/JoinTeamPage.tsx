@@ -1747,6 +1747,9 @@ export default function JoinTeamPage() {
                     </button>
                   ))}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Don't see your child? They may already be linked to another parent — ask your coach to add you instead of creating a duplicate.
+                </p>
                 <div className="relative py-2">
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t border-border" />
@@ -1777,17 +1780,22 @@ export default function JoinTeamPage() {
                     value={childYearOfBirth}
                     onChange={(e) => setChildYearOfBirth(e.target.value)}
                     placeholder="e.g. 2015"
-                    min="2000"
+                    min={1940}
                     max={new Date().getFullYear()}
                   />
                 </div>
               </div>
             )}
 
+            {!canAddChild && (
+              <p className="text-sm text-muted-foreground text-center">
+                This invite isn't linked to a team yet — ask your club admin to add your child.
+              </p>
+            )}
             <Button
               className="w-full"
               onClick={handleAddChild}
-              disabled={addingChild || (!childName.trim() && !linkExistingChildId)}
+              disabled={!canAddChild || addingChild || (!childName.trim() && !linkExistingChildId)}
             >
               {addingChild ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
