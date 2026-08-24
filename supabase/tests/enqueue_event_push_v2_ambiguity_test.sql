@@ -131,11 +131,11 @@ BEGIN
        OR elem->>'dedupe_key' LIKE '%000000000011'
        OR elem->>'dedupe_key' LIKE '%000000000012'
   ) combined);
-  SELECT count(*)::bigint,
-         count(*) FILTER (WHERE x.created)::bigint,
-         count(*) FILTER (WHERE x.queued)::bigint
-    INTO r
-    FROM public.enqueue_event_push_v2('/events/' || ev::text, rows) x;
+  SELECT count(*)::bigint AS resolved,
+         count(*) FILTER (WHERE x.created)::bigint AS created,
+         count(*) FILTER (WHERE x.queued)::bigint AS queued
+     INTO r
+     FROM public.enqueue_event_push_v2('/events/' || ev::text, rows) x;
   PERFORM pg_temp.assert_eq(r.resolved, 12::bigint, 'mixed batch resolves all 12');
   PERFORM pg_temp.assert_eq(r.created, 4::bigint, 'mixed batch creates only the 4 new');
   PERFORM pg_temp.assert_eq(r.queued, 4::bigint, 'mixed batch queues only the 4 new');
