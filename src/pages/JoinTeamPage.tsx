@@ -119,6 +119,9 @@ export default function JoinTeamPage() {
   const [addingChild, setAddingChild] = useState(false);
   const [addedChildren, setAddedChildren] = useState<string[]>([]);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  // Children created/linked from invite metadata during this join — when
+  // non-empty the manual "Add your child" step must be skipped.
+  const provisionedChildIdsRef = useRef<string[]>([]);
   // Name of the club we switched the user to after a successful join (shown on the success card).
   const [clubSwitchName, setClubSwitchName] = useState<string | null>(null);
   const [showSkipConfirm, setShowSkipConfirm] = useState(false);
