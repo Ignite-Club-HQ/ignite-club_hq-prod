@@ -195,15 +195,15 @@ END $$;
 DO $$
 DECLARE
   ev uuid := gen_random_uuid();
-  r record;
+  n bigint;
 BEGIN
-  SELECT count(*)::bigint INTO r.resolved
+  SELECT count(*)::bigint INTO n
     FROM public.enqueue_event_push_v2(
       '/events/' || ev::text,
       jsonb_build_array(jsonb_build_object(
         'user_id', '00000000-0000-4000-9000-0000000000f1',
         'type', 'event_invite', 'message', 'no key', 'related_id', ev, 'dedupe_key', null)));
-  PERFORM pg_temp.assert_eq(r.resolved, 0::bigint, 'NULL dedupe_key rows are ignored');
+  PERFORM pg_temp.assert_eq(n, 0::bigint, 'NULL dedupe_key rows are ignored');
   PERFORM pg_temp.assert_eq(
     (SELECT count(*) FROM public.notifications WHERE related_id = ev)::bigint,
     0::bigint, 'no notification created for NULL dedupe_key');
