@@ -1896,6 +1896,7 @@ export default function JoinTeamPage() {
             </Button>
           </CardContent>
         </Card>
+        </div>
       </div>
     );
   }
