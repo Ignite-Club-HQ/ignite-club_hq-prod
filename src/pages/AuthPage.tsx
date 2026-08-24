@@ -15,6 +15,7 @@ import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
+import { resolveKeyboardCssHeight } from "@/lib/keyboardCssHeight";
 
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
@@ -408,16 +409,15 @@ export default function AuthPage() {
 
     Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
       if (!isAuthInputFocused()) return;
-      // Single source of truth: Capacitor's reported `keyboardHeight` (CSS px).
+      // Single source of truth: Capacitor's reported `keyboardHeight`,
+      // normalised to CSS px (Android reports device px — the raw value
+      // over-pads the layout by ~dpr×, leaving a blank gap above the keyboard).
       // Do NOT mix in `visualViewport.height` — the app runs with
       // `Keyboard.resize: 'none'`, so `visualViewport` either doesn't shrink
       // on Android (→ under-report → keyboard covers form) or shrinks
       // partially on some OEM WebViews (→ Math.min collapses to that partial
-      // value → same bug). Just clamp to a sanity ceiling (60% of window).
-      const raw = keyboardHeight || 0;
-      const winH = typeof window !== 'undefined' ? window.innerHeight : raw;
-      const ceiling = Math.floor(winH * 0.6);
-      const safe = Math.max(0, Math.min(raw, ceiling));
+      // value → same bug).
+      const safe = resolveKeyboardCssHeight(keyboardHeight || 0);
       setNativeKeyboardHeight(safe);
       setNativeKeyboardVisible(true);
     }).then(handle => {

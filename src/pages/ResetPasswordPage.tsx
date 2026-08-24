@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
+import { resolveKeyboardCssHeight } from "@/lib/keyboardCssHeight";
 import {
   InputOTP,
   InputOTPGroup,
@@ -195,7 +196,7 @@ export default function ResetPasswordPage() {
     let keyboardHideListener: { remove: () => void } | undefined;
 
     Keyboard.addListener("keyboardDidShow", ({ keyboardHeight }) => {
-      setNativeKeyboardHeight(keyboardHeight || 0);
+      setNativeKeyboardHeight(resolveKeyboardCssHeight(keyboardHeight || 0));
       setNativeKeyboardVisible(true);
     }).then((handle) => {
       keyboardShowListener = handle;

@@ -49,13 +49,15 @@ elif ! command -v psql >/dev/null 2>&1; then
 elif ! psql "$DB_URL" -c 'select 1' >/dev/null 2>&1; then
   skip "no local Supabase stack on 54322 — run 'supabase start' first (see docs/PUSH_DELIVERY_QUEUE.md)"
 else
-  OUT=$(psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/push_delivery_queue_test.sql 2>&1)
-  echo "$OUT" | grep -E '^(NOTICE|ERROR|psql:)' || true
-  if echo "$OUT" | grep -q 'FAIL \|ERROR'; then
-    fail "database integration suite"
-  else
-    printf 'database integration suite passed (%s assertions)\n' "$(echo "$OUT" | grep -c 'ok   ')"
-  fi
+  for SQL_TEST in supabase/tests/push_delivery_queue_test.sql supabase/tests/enqueue_event_push_v2_ambiguity_test.sql; do
+    OUT=$(psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$SQL_TEST" 2>&1)
+    echo "$OUT" | grep -E '^(NOTICE|ERROR|psql:)' || true
+    if echo "$OUT" | grep -q 'FAIL \|ERROR'; then
+      fail "database integration suite ($SQL_TEST)"
+    else
+      printf 'database integration suite passed (%s, %s assertions)\n' "$(basename "$SQL_TEST")" "$(echo "$OUT" | grep -c 'ok   ')"
+    fi
+  done
 fi
 
 printf '\n'

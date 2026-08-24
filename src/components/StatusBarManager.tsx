@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
+import { resolveKeyboardCssHeight } from '@/lib/keyboardCssHeight';
 import { App } from '@capacitor/app';
 import { applyStatusBar, refreshStatusBar } from '@/lib/statusBarControl';
 import { scheduleIOSNativeOverlayRecovery } from '@/lib/iosNativeOverlayRecovery';
@@ -205,7 +206,11 @@ export function StatusBarManager() {
           // scrollable ancestor (or window) so the input clears the keyboard.
           try {
             const rect = activeElement.getBoundingClientRect();
-            const keyboardHeight = (info as { keyboardHeight?: number })?.keyboardHeight ?? 0;
+            // Plugin height is device px on Android — normalise before layout
+            // math or high-DPR devices over-scroll and leave a huge blank gap
+            // between the focused input and the keyboard (e.g. Photos caption).
+            const rawKeyboardHeight = (info as { keyboardHeight?: number })?.keyboardHeight ?? 0;
+            const keyboardHeight = resolveKeyboardCssHeight(rawKeyboardHeight);
             const visibleBottom = window.innerHeight - keyboardHeight;
             const padding = 24;
             const overlap = rect.bottom + padding - visibleBottom;
