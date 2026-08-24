@@ -50,6 +50,27 @@ type AppRole = Database["public"]["Enums"]["app_role"];
  */
 const EMPTY_ROLES: AppRole[] = [];
 
+/** Child-carrying metadata shape stored on `pending_invites.metadata`. */
+type InviteChildMetadata = {
+  children?: { name: string; yearOfBirth: number | null; existingChildId?: string | null }[];
+  mini_league_id?: string;
+  child_id?: string;
+  player_id?: string;
+  second_parent_user_id?: string;
+  linked_invite_token?: string;
+  kind?: string;
+} | null;
+
+/** Named pending invite matched while joining through a shareable team link. */
+type ReconciledInvite = {
+  id: string;
+  invited_label: string | null;
+  role: string | null;
+  metadata: unknown;
+  team_id: string | null;
+  club_id: string | null;
+};
+
 
 
 const roleLabels: Record<AppRole, string> = {
