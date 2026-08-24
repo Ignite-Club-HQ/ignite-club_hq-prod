@@ -10,6 +10,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   safeSessionGet,
   safeSessionSet,
   safeSessionRemove,
@@ -25,7 +35,7 @@ import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { applyInviteClubSwitch } from "@/lib/inviteClubSwitch";
 import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
@@ -88,6 +98,9 @@ export default function JoinTeamPage() {
   const [addingChild, setAddingChild] = useState(false);
   const [addedChildren, setAddedChildren] = useState<string[]>([]);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  // Name of the club we switched the user to after a successful join (shown on the success card).
+  const [clubSwitchName, setClubSwitchName] = useState<string | null>(null);
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
   const autoJoinAttempted = useRef(false);
   
   // Check if we should auto-join (returning from auth after install flow)
@@ -273,6 +286,31 @@ export default function JoinTeamPage() {
       return data?.map(r => r.role as AppRole) || [];
     },
     enabled: !!invite && !!user,
+  });
+
+  // Does the signed-in user already belong to a DIFFERENT club? Used to show a
+  // heads-up that joining adds an additional club rather than replacing one.
+  const { data: otherMembershipClubName } = useQuery({
+    queryKey: ["join-other-club-membership", user?.id, inviteClubId],
+    queryFn: async () => {
+      let query = supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .not("club_id", "is", null);
+      if (inviteClubId) query = query.neq("club_id", inviteClubId);
+      const { data } = await query.limit(10);
+      const otherClubId = (data || []).find((r) => r.club_id)?.club_id;
+      if (!otherClubId) return null;
+      const { data: club } = await supabase
+        .from("clubs")
+        .select("name")
+        .eq("id", otherClubId)
+        .maybeSingle();
+      return (club?.name as string) ?? null;
+    },
+    enabled: !!user && !!invite,
+    staleTime: 60 * 1000,
   });
 
   // Fetch user's profile for name validation and profile completion check
@@ -566,16 +604,27 @@ export default function JoinTeamPage() {
   };
 
   /**
-   * Applies the invited club as the active club filter after a successful join.
-   * Delegates to `seedClubFilterFromInvite` so state, localStorage and
-   * `profiles.active_club_theme_id` stay in sync. Never overrides a real
-   * club preference the user previously chose; applied at most once.
+   * Switches the active club filter to the invited club after a successful
+   * join. Delegates to `applyInviteClubSwitch` (the sanctioned helper for
+   * user-driven invite switches) so state, localStorage and
+   * `profiles.active_club_theme_id` stay in sync. Without this, a user who
+   * already belongs to another club joins successfully but stays filtered on
+   * their old club — the new team appears nowhere and the join looks broken.
+   * Applied at most once per page mount.
    */
-  const applyInviteClubFilter = () => {
-    if (clubFilterSeededRef.current) return false;
-    if (!user?.id || !inviteClubId) return false;
+  const applyInviteClubFilter = async () => {
+    if (clubFilterSeededRef.current) return;
+    if (!user?.id || !inviteClubId) return;
     clubFilterSeededRef.current = true;
-    return seedClubFilterFromInvite(user.id, inviteClubId, setActiveClubTheme);
+    const result = await applyInviteClubSwitch(user.id, inviteClubId, setActiveClubTheme, {
+      source: "join-team",
+      announce: false,
+    });
+    // Only surface the "we've switched you" copy when we actually overrode a
+    // previous club preference — a first-time seed isn't a "switch".
+    if (result.switched && result.previousClubId) {
+      setClubSwitchName(invite?.teams?.clubs?.name ?? null);
+    }
   };
 
   // Execute the actual join mutation
@@ -966,8 +1015,8 @@ export default function JoinTeamPage() {
       }
     }
 
-    // Seed the active club filter from the invited club (idempotent, once only).
-    applyInviteClubFilter();
+    // Switch the active club filter to the invited club (idempotent, once only).
+    await applyInviteClubFilter();
 
     return rolesToAdd;
   };
@@ -1092,6 +1141,9 @@ export default function JoinTeamPage() {
         // User already has this role - just navigate to the relevant destination
         autoJoinAttempted.current = true;
         safeSessionRemove("autoJoinAfterAuth");
+        // Already a member — still make sure the active club filter points at
+        // this invite's club so the team is actually visible afterwards.
+        void applyInviteClubFilter();
         toast({ title: `You're already a member of ${inviteEntityName}!` });
         // Parents reopening a parent link may still need to link a child
         // (e.g. a sibling, or a child added to the roster after they joined).
@@ -1598,10 +1650,32 @@ export default function JoinTeamPage() {
     setJoined(true);
   };
 
+  // Progress step is derived from real component state (not just stored
+  // context) so the child step and success screens show the right position.
+  const getCurrentStep = (): "view" | "install" | "auth" | "profile" | "done" => {
+    if (joined) return "done";
+    if (showChildStep) return "profile";
+    const storedContext = getInviteFlowContext();
+    if (storedContext?.currentStep && storedContext.currentStep !== "view") {
+      return storedContext.currentStep;
+    }
+    return "view";
+  };
+
   if (showChildStep) {
     const hasAdded = addedChildren.length > 0;
+    // handleAddChild early-returns without either of these — never show a
+    // tappable button that would silently do nothing.
+    const canAddChild = !!invite?.team_id || !!leagueLinkMiniLeagueId;
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <>
+      <div className="min-h-screen flex flex-col bg-background">
+        <InviteFlowProgress
+          currentStep={getCurrentStep()}
+          isExistingUser={!!user}
+          className="fixed top-0 left-0 right-0"
+        />
+        <div className="flex-1 flex items-center justify-center p-4 pt-16">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1642,6 +1716,12 @@ export default function JoinTeamPage() {
               </div>
             )}
 
+            {!hasAdded && existingTeamChildren.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Don't see your child? They may already be linked to another parent — ask your coach to add you instead of creating a duplicate.
+              </p>
+            )}
+
             {existingTeamChildren.length > 0 && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Link to existing child on team</Label>
@@ -1667,6 +1747,9 @@ export default function JoinTeamPage() {
                     </button>
                   ))}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Don't see your child? They may already be linked to another parent — ask your coach to add you instead of creating a duplicate.
+                </p>
                 <div className="relative py-2">
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t border-border" />
@@ -1697,17 +1780,22 @@ export default function JoinTeamPage() {
                     value={childYearOfBirth}
                     onChange={(e) => setChildYearOfBirth(e.target.value)}
                     placeholder="e.g. 2015"
-                    min="2000"
+                    min={1940}
                     max={new Date().getFullYear()}
                   />
                 </div>
               </div>
             )}
 
+            {!canAddChild && (
+              <p className="text-sm text-muted-foreground text-center">
+                This invite isn't linked to a team yet — ask your club admin to add your child.
+              </p>
+            )}
             <Button
               className="w-full"
               onClick={handleAddChild}
-              disabled={addingChild || (!childName.trim() && !linkExistingChildId)}
+              disabled={!canAddChild || addingChild || (!childName.trim() && !linkExistingChildId)}
             >
               {addingChild ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -1732,18 +1820,39 @@ export default function JoinTeamPage() {
                 Done
               </Button>
             ) : (
-              <Button
-                variant="ghost"
-                className="w-full"
-                onClick={handleSkipChildStep}
-                disabled={addingChild}
-              >
-                Skip for now
-              </Button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowSkipConfirm(true)}
+                  disabled={addingChild}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
+                >
+                  I'll do this later
+                </button>
+              </div>
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
+
+      <AlertDialog open={showSkipConfirm} onOpenChange={setShowSkipConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Skip linking your child?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Without a linked child you won't see team sheets, RSVPs or match notifications for your player. A team admin will need to link them manually.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleSkipChildStep()}>
+              Skip anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </>
     );
   }
 
@@ -1752,7 +1861,13 @@ export default function JoinTeamPage() {
     const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex flex-col bg-background">
+        <InviteFlowProgress
+          currentStep="done"
+          isExistingUser={!!user}
+          className="fixed top-0 left-0 right-0"
+        />
+        <div className="flex-1 flex items-center justify-center p-4 pt-16">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 space-y-6">
             {/* Success message */}
@@ -1762,6 +1877,11 @@ export default function JoinTeamPage() {
               <p className="text-muted-foreground">
                 You've successfully joined {inviteEntityName}.
               </p>
+              {clubSwitchName && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  We've switched you to {clubSwitchName}.
+                </p>
+              )}
             </div>
 
             {/* App store download - only show if not a native app */}
@@ -1776,20 +1896,10 @@ export default function JoinTeamPage() {
             </Button>
           </CardContent>
         </Card>
+        </div>
       </div>
     );
   }
-
-  // Determine current step for progress indicator
-  const getCurrentStep = (): "view" | "install" | "auth" | "profile" | "done" => {
-    // Check stored context for resume step
-    const storedContext = getInviteFlowContext();
-    if (storedContext?.currentStep && storedContext.currentStep !== "view") {
-      return storedContext.currentStep;
-    }
-    
-    return "view";
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -1850,7 +1960,18 @@ export default function JoinTeamPage() {
             <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
               <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <p className="text-sm text-muted-foreground">
-                This invite was created for “{pendingInviteData?.invited_label}”. It's linked to your email, so you can accept it as {userProfile?.display_name}.
+                This invite was addressed to {pendingInviteData?.invited_label}. You can accept it as {userProfile?.display_name}.
+              </p>
+            </div>
+          )}
+
+          {/* Heads-up for users who already belong to a different club: joining
+              ADDS a club, it doesn't replace the existing one. */}
+          {user && otherMembershipClubName && inviteClubId && (
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground">
+                You're already in <span className="font-medium text-foreground">{otherMembershipClubName}</span>. Joining adds <span className="font-medium text-foreground">{invite?.teams?.clubs?.name || inviteEntityName}</span> to your account — you can switch clubs anytime from the header.
               </p>
             </div>
           )}
@@ -1935,12 +2056,6 @@ export default function JoinTeamPage() {
             Cancel
           </Button>
 
-          {/* App store download instructions - show on join form if not a native app */}
-          {!(window as any).Capacitor?.isNativePlatform?.() && (
-            <div className="border-t border-border pt-4 mt-4">
-              <AppStoreDownloadGuide compact />
-            </div>
-          )}
         </CardContent>
       </Card>
       </div>
