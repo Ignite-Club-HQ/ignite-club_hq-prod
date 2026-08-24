@@ -1071,8 +1071,14 @@ export default function JoinTeamPage() {
       const isLeagueParentLink =
         isPendingInvite &&
         (pendingInviteData?.metadata as any)?.kind === "mini_league_parent_join_link";
+      // A reconciled named invite may have already created/linked children —
+      // don't ask the parent to add a child that now exists.
+      const childrenAlreadyProvisioned = provisionedChildIdsRef.current.length > 0;
       if (
-        (!isPendingInvite && rolesToAdd.includes("parent") && !teamInvite?.metadata) ||
+        (!isPendingInvite &&
+          rolesToAdd.includes("parent") &&
+          !teamInvite?.metadata &&
+          !childrenAlreadyProvisioned) ||
         (isLeagueParentLink && rolesToAdd.includes("parent"))
       ) {
         setShowChildStep(true);
