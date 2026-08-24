@@ -1393,6 +1393,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // deep-link reveal gate is running, the overlay gate must NOT issue its own
   // competing `finalAlign` for the same target.
   const jumpAlignOwnedByContentGateRef = useRef<string | null>(null);
+  // Post-reveal anchor: set by the deep-link content gate the moment it
+  // unmasks, consumed by the anchor watcher below. The two bottom-pin guards
+  // (stay-pinned RO / open-pin window) are gated on `initialBottomPinned`,
+  // which every deep-link page passes as `false` — so without this, rows that
+  // hydrate AFTER a notification-jump reveal (read receipts land 2-4s in on a
+  // cold start, reactions, link previews, image decode) resize in plain sight
+  // and the just-revealed thread visibly shifts.
+  const postJumpAnchorRef = useRef<{ id: string; at: number } | null>(null);
+  const [jumpAnchorNonce, setJumpAnchorNonce] = useState(0);
 
   const jumpOverlayTargetRef = useRef<string | null>(initialTargetMessageId ?? null);
   jumpOverlayTargetRef.current = initialTargetMessageId ?? null;
@@ -1541,6 +1550,16 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         }
         cancelled = true;
         jumpAlignOwnedByContentGateRef.current = null;
+        // Arm the post-reveal anchor BEFORE unmasking so late-hydrating rows
+        // re-align to the target instead of shifting the revealed thread.
+        // Reset the sticky user-scroll flag so a repeat jump in an already-open
+        // chat still gets its full anchor window.
+        userHasScrolledAfterPinRef.current = false;
+        postJumpAnchorRef.current = {
+          id: initialTargetMessageId,
+          at: typeof performance !== "undefined" ? performance.now() : Date.now(),
+        };
+        setJumpAnchorNonce((n) => n + 1);
         reveal();
       };
       const wait = () => {
