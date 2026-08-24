@@ -627,9 +627,98 @@ export default function JoinTeamPage() {
     }
   };
 
+  /**
+   * Single code path for materialising the children carried on a named pending
+   * invite's metadata. Used by both the /join/p/<token> named-invite path and
+   * the shareable /join/<token> path (where a named pending invite for the same
+   * team gets reconciled) — otherwise the shareable link consumes the invite
+   * and silently discards its child metadata.
+   *
+   * Returns the ids of the children it created or linked.
+   */
+  const provisionChildrenFromInviteMetadata = async (params: {
+    inviteId: string;
+    inviteStatus?: string | null;
+    inviteRole?: string | null;
+    metadata: InviteChildMetadata | null;
+    teamId?: string | null;
+    clubId?: string | null;
+    userId: string;
+    /** Pending-invite token; only present on the named-invite path. */
+    claimToken?: string | null;
+  }): Promise<string[]> => {
+    const { inviteId, inviteStatus, inviteRole, metadata, userId, claimToken } = params;
+    if (inviteRole !== "parent" || !metadata) return [];
+
+    if (metadata.child_id && metadata.mini_league_id && claimToken) {
+      console.log("[JoinTeam] Mini-league invite: claiming child via RPC:", metadata.child_id);
+      const { error: claimErr } = await supabase.rpc("claim_mini_league_invite", {
+        _token: claimToken,
+      });
+      if (claimErr) {
+        console.error("[JoinTeam] claim_mini_league_invite failed:", claimErr);
+        throw new Error(`Couldn't link you to your child: ${claimErr.message}`);
+      }
+      return [metadata.child_id];
+    }
+
+    if (metadata.children && metadata.children.length > 0) {
+      // Transactional acceptance: children, guardian links, team assignment,
+      // the parent role and the invite status all commit together. On failure
+      // nothing is written and the invite stays pending for a retry.
+      console.log("[JoinTeam] Accepting parent invite via transactional RPC");
+      try {
+        if (inviteStatus === "pending") {
+          const result = await acceptParentTeamInvite({ inviteId });
+          console.log("[JoinTeam] Parent invite accepted:", {
+            children: result.childIds.length,
+            alreadyAccepted: result.alreadyAccepted,
+          });
+        }
+
+        const childIds = await provisionInviteChildren({
+          inviteId,
+          guardianId: userId,
+        });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["children"] }),
+          queryClient.invalidateQueries({ queryKey: ["user-roles"] }),
+          queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
+        ]);
+        console.log("[JoinTeam] Parent invite children provisioned:", childIds.length);
+        return childIds;
+      } catch (rpcError) {
+        throw new Error(getParentInviteErrorMessage(rpcError));
+      }
+    }
+
+    if (metadata.child_id) {
+      // Link existing child to this parent (child was pre-created by admin)
+      console.log("[JoinTeam] Linking existing child to parent:", metadata.child_id);
+      await supabase
+        .from("children")
+        .update({ parent_id: userId })
+        .eq("id", metadata.child_id);
+
+      // Update legacy mini_league_players record
+      if (metadata.player_id) {
+        await supabase
+          .from("mini_league_players")
+          .update({ parent_user_id: userId })
+          .eq("id", metadata.player_id);
+      }
+      return [metadata.child_id];
+    }
+
+    return [];
+  };
+
   // Execute the actual join mutation
   const executeJoin = async (rolesToAdd: AppRole[]) => {
     if (!invite || !user) throw new Error("Missing data");
+
+    // The most recent named pending invite reconciled by a shareable-link join.
+    let reconciledInvite: ReconciledInvite | null = null;
 
 
     // For pending invites, validate name match
