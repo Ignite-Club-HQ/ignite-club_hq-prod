@@ -1716,6 +1716,12 @@ export default function JoinTeamPage() {
               </div>
             )}
 
+            {!hasAdded && existingTeamChildren.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Don't see your child? They may already be linked to another parent — ask your coach to add you instead of creating a duplicate.
+              </p>
+            )}
+
             {existingTeamChildren.length > 0 && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Link to existing child on team</Label>
@@ -1874,17 +1880,6 @@ export default function JoinTeamPage() {
       </div>
     );
   }
-
-  // Determine current step for progress indicator
-  const getCurrentStep = (): "view" | "install" | "auth" | "profile" | "done" => {
-    // Check stored context for resume step
-    const storedContext = getInviteFlowContext();
-    if (storedContext?.currentStep && storedContext.currentStep !== "view") {
-      return storedContext.currentStep;
-    }
-    
-    return "view";
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
