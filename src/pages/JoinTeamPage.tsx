@@ -288,6 +288,31 @@ export default function JoinTeamPage() {
     enabled: !!invite && !!user,
   });
 
+  // Does the signed-in user already belong to a DIFFERENT club? Used to show a
+  // heads-up that joining adds an additional club rather than replacing one.
+  const { data: otherMembershipClubName } = useQuery({
+    queryKey: ["join-other-club-membership", user?.id, inviteClubId],
+    queryFn: async () => {
+      let query = supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .not("club_id", "is", null);
+      if (inviteClubId) query = query.neq("club_id", inviteClubId);
+      const { data } = await query.limit(10);
+      const otherClubId = (data || []).find((r) => r.club_id)?.club_id;
+      if (!otherClubId) return null;
+      const { data: club } = await supabase
+        .from("clubs")
+        .select("name")
+        .eq("id", otherClubId)
+        .maybeSingle();
+      return (club?.name as string) ?? null;
+    },
+    enabled: !!user && !!invite,
+    staleTime: 60 * 1000,
+  });
+
   // Fetch user's profile for name validation and profile completion check
   // Use staleTime: 0 to ensure fresh data when returning from profile completion
   const { data: userProfile, isLoading: profileLoading } = useQuery({
@@ -579,16 +604,27 @@ export default function JoinTeamPage() {
   };
 
   /**
-   * Applies the invited club as the active club filter after a successful join.
-   * Delegates to `seedClubFilterFromInvite` so state, localStorage and
-   * `profiles.active_club_theme_id` stay in sync. Never overrides a real
-   * club preference the user previously chose; applied at most once.
+   * Switches the active club filter to the invited club after a successful
+   * join. Delegates to `applyInviteClubSwitch` (the sanctioned helper for
+   * user-driven invite switches) so state, localStorage and
+   * `profiles.active_club_theme_id` stay in sync. Without this, a user who
+   * already belongs to another club joins successfully but stays filtered on
+   * their old club — the new team appears nowhere and the join looks broken.
+   * Applied at most once per page mount.
    */
-  const applyInviteClubFilter = () => {
-    if (clubFilterSeededRef.current) return false;
-    if (!user?.id || !inviteClubId) return false;
+  const applyInviteClubFilter = async () => {
+    if (clubFilterSeededRef.current) return;
+    if (!user?.id || !inviteClubId) return;
     clubFilterSeededRef.current = true;
-    return seedClubFilterFromInvite(user.id, inviteClubId, setActiveClubTheme);
+    const result = await applyInviteClubSwitch(user.id, inviteClubId, setActiveClubTheme, {
+      source: "join-team",
+      announce: false,
+    });
+    // Only surface the "we've switched you" copy when we actually overrode a
+    // previous club preference — a first-time seed isn't a "switch".
+    if (result.switched && result.previousClubId) {
+      setClubSwitchName(invite?.teams?.clubs?.name ?? null);
+    }
   };
 
   // Execute the actual join mutation
