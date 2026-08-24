@@ -1806,18 +1806,39 @@ export default function JoinTeamPage() {
                 Done
               </Button>
             ) : (
-              <Button
-                variant="ghost"
-                className="w-full"
-                onClick={handleSkipChildStep}
-                disabled={addingChild}
-              >
-                Skip for now
-              </Button>
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowSkipConfirm(true)}
+                  disabled={addingChild}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
+                >
+                  I'll do this later
+                </button>
+              </div>
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
+
+      <AlertDialog open={showSkipConfirm} onOpenChange={setShowSkipConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Skip linking your child?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Without a linked child you won't see team sheets, RSVPs or match notifications for your player. A team admin will need to link them manually.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleSkipChildStep()}>
+              Skip anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </>
     );
   }
 
