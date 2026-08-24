@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
+import { resolveKeyboardCssHeight } from "@/lib/keyboardCssHeight";
 import {
   InputOTP,
   InputOTPGroup,

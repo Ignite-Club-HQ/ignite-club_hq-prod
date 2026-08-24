@@ -15,6 +15,7 @@ import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
+import { resolveKeyboardCssHeight } from "@/lib/keyboardCssHeight";
 
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
