@@ -130,7 +130,7 @@ BEGIN
        OR elem->>'dedupe_key' LIKE '%000000000010'
        OR elem->>'dedupe_key' LIKE '%000000000011'
        OR elem->>'dedupe_key' LIKE '%000000000012'
-  ) both);
+  ) combined);
   SELECT count(*)::bigint,
          count(*) FILTER (WHERE x.created)::bigint,
          count(*) FILTER (WHERE x.queued)::bigint
