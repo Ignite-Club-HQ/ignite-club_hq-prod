@@ -95,12 +95,11 @@ export function ResponsiveDialogContent({
       <DrawerContent
         className={
           fullScreen
-            // `mt-0` is load-bearing: DrawerContent defaults to `mt-24`, and with
-            // `top`, `bottom-0` AND an explicit height all set the box is
-            // over-constrained — the browser drops `bottom`, so the 96px margin
-            // pushes the sheet (and its anchored footer/primary action) below the
-            // viewport. Symptom: "no button to start chat".
-            ? "top-[env(safe-area-inset-top,0px)] mt-0"
+            // Keep the full-screen drawer bottom-anchored. Setting `top` as well
+            // as `bottom` and an explicit height over-constrains the box; mobile
+            // browsers may then drop `bottom` and place the action footer below
+            // the viewport. `mt-0` also cancels DrawerContent's default offset.
+            ? "mt-0"
             : className
         }
         style={
