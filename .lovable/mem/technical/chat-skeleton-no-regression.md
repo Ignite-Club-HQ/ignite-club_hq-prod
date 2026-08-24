@@ -69,6 +69,20 @@ Symptom (2026-08-23, movement limited to newly arrived images/replies):
    current tail. Initial populated render is a baseline, not an append, and
    must not schedule the post-append timer pin sequence after reveal.
 
-Regression test: `VirtualizedChatMessageList.emptyMount.test.tsx` —
+Symptom (2026-08-24, notification-tap reveal still drifts for seconds):
+9. The stay-pinned RO guard and open-pin window are gated on
+   `initialBottomPinned`, which every deep-link page passes as `false` — so
+   after a jump reveal NOTHING compensated late hydration (read receipts land
+   2-4s on cold start, reactions, link previews). Fix: POST-REVEAL JUMP ANCHOR
+   effect — armed by the content gate in `finish()` via `postJumpAnchorRef` +
+   `jumpAnchorNonce` BEFORE unmask (and resets `userHasScrolledAfterPinRef`
+   so repeat jumps in an open chat get a full window). For 6s it re-runs
+   `alignMessageIdInView(target, "end")` on any geometry change (signature-
+   gated), retiring on the first user scroll gesture. Do NOT fix this class
+   by lengthening the pre-reveal mask — that reintroduces the multi-second
+   blank chat `chatJumpReveal.ts` was built to kill.
+
+Regression tests: `VirtualizedChatMessageList.emptyMount.test.tsx` —
 "cold-open: an empty-state reveal must NOT disarm re-masking when messages
-land".
+land"; `src/test/chatPostRevealAnchor.guard.test.ts` — anchor arming, glue
+alignment, user-scroll retirement, no-mask-extension invariants.
