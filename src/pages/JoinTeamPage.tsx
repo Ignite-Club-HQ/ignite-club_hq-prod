@@ -1960,7 +1960,18 @@ export default function JoinTeamPage() {
             <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
               <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <p className="text-sm text-muted-foreground">
-                This invite was created for “{pendingInviteData?.invited_label}”. It's linked to your email, so you can accept it as {userProfile?.display_name}.
+                This invite was addressed to {pendingInviteData?.invited_label}. You can accept it as {userProfile?.display_name}.
+              </p>
+            </div>
+          )}
+
+          {/* Heads-up for users who already belong to a different club: joining
+              ADDS a club, it doesn't replace the existing one. */}
+          {user && otherMembershipClubName && inviteClubId && (
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground">
+                You're already in <span className="font-medium text-foreground">{otherMembershipClubName}</span>. Joining adds <span className="font-medium text-foreground">{invite?.teams?.clubs?.name || inviteEntityName}</span> to your account — you can switch clubs anytime from the header.
               </p>
             </div>
           )}
@@ -2045,12 +2056,6 @@ export default function JoinTeamPage() {
             Cancel
           </Button>
 
-          {/* App store download instructions - show on join form if not a native app */}
-          {!(window as any).Capacitor?.isNativePlatform?.() && (
-            <div className="border-t border-border pt-4 mt-4">
-              <AppStoreDownloadGuide compact />
-            </div>
-          )}
         </CardContent>
       </Card>
       </div>
