@@ -195,7 +195,7 @@ export default function ResetPasswordPage() {
     let keyboardHideListener: { remove: () => void } | undefined;
 
     Keyboard.addListener("keyboardDidShow", ({ keyboardHeight }) => {
-      setNativeKeyboardHeight(keyboardHeight || 0);
+      setNativeKeyboardHeight(resolveKeyboardCssHeight(keyboardHeight || 0));
       setNativeKeyboardVisible(true);
     }).then((handle) => {
       keyboardShowListener = handle;

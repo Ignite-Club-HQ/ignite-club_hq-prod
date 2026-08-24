@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
+import { resolveKeyboardCssHeight } from '@/lib/keyboardCssHeight';
 import { App } from '@capacitor/app';
 import { applyStatusBar, refreshStatusBar } from '@/lib/statusBarControl';
 import { scheduleIOSNativeOverlayRecovery } from '@/lib/iosNativeOverlayRecovery';
@@ -205,19 +206,11 @@ export function StatusBarManager() {
           // scrollable ancestor (or window) so the input clears the keyboard.
           try {
             const rect = activeElement.getBoundingClientRect();
-            // Capacitor reports keyboardHeight in DEVICE px on Android (points on
-            // iOS). Convert to CSS px before comparing against innerHeight — using
-            // the raw value on a high-DPR device inflates `overlap` by ~dpr×,
-            // over-scrolling the input's container and leaving a huge blank gap
+            // Plugin height is device px on Android — normalise before layout
+            // math or high-DPR devices over-scroll and leave a huge blank gap
             // between the focused input and the keyboard (e.g. Photos caption).
-            // Mirrors the heuristic in useNativeAndroidKeyboardState.computeHeight.
             const rawKeyboardHeight = (info as { keyboardHeight?: number })?.keyboardHeight ?? 0;
-            const dpr = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
-            const looksLikeDevicePx = window.innerHeight > 0 && rawKeyboardHeight > window.innerHeight * 0.6;
-            const keyboardHeight = Math.min(
-              looksLikeDevicePx ? rawKeyboardHeight / dpr : rawKeyboardHeight,
-              window.innerHeight * 0.6,
-            );
+            const keyboardHeight = resolveKeyboardCssHeight(rawKeyboardHeight);
             const visibleBottom = window.innerHeight - keyboardHeight;
             const padding = 24;
             const overlap = rect.bottom + padding - visibleBottom;
