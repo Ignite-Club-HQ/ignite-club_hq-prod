@@ -56,6 +56,15 @@ function injectPreloadLinkTag(src: string) {
   }
 }
 
+// Drop a cached warm-up entry so a later preload/render re-issues the fetch.
+// Called when the visible <img> errors (usually an offline fetch) — otherwise
+// `preloadedImages.has(src)` short-circuits every retry forever.
+export function forgetLogo(src: string | null | undefined) {
+  if (!src) return;
+  preloadedImages.delete(src);
+  decodedLogoUrls.delete(src);
+}
+
 export function preloadLogo(src: string | null | undefined) {
   if (!src) return;
   if (preloadedImages.has(src)) {
