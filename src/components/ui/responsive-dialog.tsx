@@ -93,20 +93,33 @@ export function ResponsiveDialogContent({
   if (isMobile) {
     return (
       <DrawerContent
-        className={fullScreen ? "top-[env(safe-area-inset-top,0px)]" : className}
+        className={
+          fullScreen
+            // `mt-0` is load-bearing: DrawerContent defaults to `mt-24`, and with
+            // `top`, `bottom-0` AND an explicit height all set the box is
+            // over-constrained — the browser drops `bottom`, so the 96px margin
+            // pushes the sheet (and its anchored footer/primary action) below the
+            // viewport. Symptom: "no button to start chat".
+            ? "top-[env(safe-area-inset-top,0px)] mt-0"
+            : className
+        }
         style={
           fullScreen
             ? {
                 // On Android the WebView's dvh shrinks with the soft keyboard and
                 // does not restore reliably, leaving a blank gap under the sheet.
-                // --visual-vh is monotonic-max locked, so it stays stable.
+                // --visual-vh is monotonic-max locked, so it stays stable — but a
+                // stale (too tall) lock would push the anchored footer BELOW the
+                // screen, hiding the primary action. Clamp against 100vh (the
+                // largest stable viewport, unaffected by the keyboard).
                 height:
-                  "calc(var(--visual-vh, 100dvh) - env(safe-area-inset-top,0px))",
+                  "calc(min(var(--visual-vh, 100dvh), 100vh) - env(safe-area-inset-top,0px))",
                 maxHeight:
-                  "calc(var(--visual-vh, 100dvh) - env(safe-area-inset-top,0px))",
+                  "calc(min(var(--visual-vh, 100dvh), 100vh) - env(safe-area-inset-top,0px))",
               }
             : undefined
         }
+
       >
         <div className={fullScreen 
           ? "flex flex-1 min-h-0 flex-col w-full overflow-hidden" 
