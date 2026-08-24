@@ -1650,10 +1650,32 @@ export default function JoinTeamPage() {
     setJoined(true);
   };
 
+  // Progress step is derived from real component state (not just stored
+  // context) so the child step and success screens show the right position.
+  const getCurrentStep = (): "view" | "install" | "auth" | "profile" | "done" => {
+    if (joined) return "done";
+    if (showChildStep) return "profile";
+    const storedContext = getInviteFlowContext();
+    if (storedContext?.currentStep && storedContext.currentStep !== "view") {
+      return storedContext.currentStep;
+    }
+    return "view";
+  };
+
   if (showChildStep) {
     const hasAdded = addedChildren.length > 0;
+    // handleAddChild early-returns without either of these — never show a
+    // tappable button that would silently do nothing.
+    const canAddChild = !!invite?.team_id || !!leagueLinkMiniLeagueId;
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <>
+      <div className="min-h-screen flex flex-col bg-background">
+        <InviteFlowProgress
+          currentStep={getCurrentStep()}
+          isExistingUser={!!user}
+          className="fixed top-0 left-0 right-0"
+        />
+        <div className="flex-1 flex items-center justify-center p-4 pt-16">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
