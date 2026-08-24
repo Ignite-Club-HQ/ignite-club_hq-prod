@@ -704,7 +704,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
       }
     }}>
       <ResponsiveDialogContent className="sm:max-w-md" fullScreen>
-        <ResponsiveDialogHeader>
+        <ResponsiveDialogHeader className="text-left sm:text-left space-y-1">
           <ResponsiveDialogTitle className="flex items-center gap-2">
             {mode === "custom-group" ? "New Custom Group" : "New Message"}
             {!hasProAccess && (
@@ -714,12 +714,13 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
               </Badge>
             )}
           </ResponsiveDialogTitle>
-          <ResponsiveDialogDescription>
+          <ResponsiveDialogDescription className="text-sm text-left">
             {mode === "custom-group"
               ? "Pick people one by one and give your group a name"
               : "Select one or more people"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
+
 
         {/* Compact sticky search + filter toolbar: stays under the header while
             the member list scrolls independently beneath it. */}
