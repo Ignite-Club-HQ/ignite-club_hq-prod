@@ -1015,8 +1015,8 @@ export default function JoinTeamPage() {
       }
     }
 
-    // Seed the active club filter from the invited club (idempotent, once only).
-    applyInviteClubFilter();
+    // Switch the active club filter to the invited club (idempotent, once only).
+    await applyInviteClubFilter();
 
     return rolesToAdd;
   };
@@ -1141,6 +1141,9 @@ export default function JoinTeamPage() {
         // User already has this role - just navigate to the relevant destination
         autoJoinAttempted.current = true;
         safeSessionRemove("autoJoinAfterAuth");
+        // Already a member — still make sure the active club filter points at
+        // this invite's club so the team is actually visible afterwards.
+        void applyInviteClubFilter();
         toast({ title: `You're already a member of ${inviteEntityName}!` });
         // Parents reopening a parent link may still need to link a child
         // (e.g. a sibling, or a child added to the roster after they joined).
