@@ -10,6 +10,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   safeSessionGet,
   safeSessionSet,
   safeSessionRemove,
@@ -25,7 +35,7 @@ import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { applyInviteClubSwitch } from "@/lib/inviteClubSwitch";
 import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
@@ -88,6 +98,9 @@ export default function JoinTeamPage() {
   const [addingChild, setAddingChild] = useState(false);
   const [addedChildren, setAddedChildren] = useState<string[]>([]);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  // Name of the club we switched the user to after a successful join (shown on the success card).
+  const [clubSwitchName, setClubSwitchName] = useState<string | null>(null);
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
   const autoJoinAttempted = useRef(false);
   
   // Check if we should auto-join (returning from auth after install flow)
