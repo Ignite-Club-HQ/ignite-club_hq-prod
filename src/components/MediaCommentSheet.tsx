@@ -77,6 +77,7 @@ export function MediaCommentSheet({
   const capacitorPlatform = Capacitor.getPlatform();
   const isNative = Capacitor.isNativePlatform();
   const isNativeIOS = isNative && capacitorPlatform === "ios";
+  const isNativeAndroid = isNative && capacitorPlatform === "android";
   const isIOS = (() => {
     if (typeof navigator === "undefined") return isNativeIOS;
     const ua = navigator.userAgent;
