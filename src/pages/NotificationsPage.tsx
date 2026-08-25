@@ -279,8 +279,12 @@ export default function NotificationsPage() {
     staleTime: 30000, // Consider data fresh for 30 seconds
   });
 
-  // Paginated display
+  // Paginated display — split into unread (newest first) and earlier/read
+  // (newest first) so the page mirrors the bell dropdown's hierarchy:
+  // unread first, then a clearly separated "Earlier" group.
   const displayedNotifications = notifications?.slice(0, displayCount) || [];
+  const unreadNotifications = displayedNotifications.filter((n) => !n.read);
+  const earlierNotifications = displayedNotifications.filter((n) => n.read);
 
   // Cross-club unread nudge: unread notifications that belong to a DIFFERENT
   // club than the active filter are invisible here by design. Surface a single
