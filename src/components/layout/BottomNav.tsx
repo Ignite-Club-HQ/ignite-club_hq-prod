@@ -126,9 +126,19 @@ export function BottomNav() {
     );
   })();
 
+  // Unfiltered total: prefer the RPC breakdown (authoritative, refetched and
+  // realtime-invalidated) over useAuth's `unreadMessagesCount`, which is only
+  // optimistically incremented on notification INSERT and drifts upward when a
+  // message notification is read/deleted elsewhere (another device, a read
+  // receipt, an orphan-row cleanup). That drift is what produced a phantom
+  // "1" on the Messages tab with zero unread threads in the inbox.
+  const globalFromCounts = counts ? getTotalUnreadMessageCount(counts) : 0;
   const unreadMessagesCount = activeClubFilter
     ? clubMessagesCount
-    : Math.max(0, globalMessagesCount - suppressionDelta);
+    : Math.max(
+        0,
+        (countsAreServerTruth ? globalFromCounts : globalMessagesCount) - suppressionDelta,
+      );
   const location = useLocation();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
