@@ -1261,11 +1261,11 @@ export function AppHeader() {
               </Button>
             </DropdownMenuTrigger>
             <SwipeableDropdownContent 
-              className="w-80 bg-popover" 
+              className="w-80 bg-popover flex flex-col max-h-[80vh]" 
               align="end"
               onSwipeClose={() => setNotificationsOpen(false)}
             >
-              <div className="flex items-center justify-between p-3">
+              <div className="flex items-center justify-between p-3 shrink-0">
                 <p className="text-sm font-semibold">Notifications</p>
                 <div className="flex items-center gap-2">
                   {dropdownUnread.length > 0 && (
@@ -1285,9 +1285,9 @@ export function AppHeader() {
                   )}
                 </div>
               </div>
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator className="shrink-0" />
               <div
-                className="max-h-[350px] overflow-y-auto overscroll-contain"
+                className="flex-1 overflow-y-auto overscroll-contain min-h-0"
                 style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
               >
                 {dropdownUnread.length === 0 ? (
@@ -1322,10 +1322,10 @@ export function AppHeader() {
                 )}
               </div>
 
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator className="shrink-0" />
               <DropdownMenuItem 
                 onSelect={(e) => { e.preventDefault(); setNotificationsOpen(false); navigate("/notifications"); }}
-                className="justify-center text-primary py-3 px-3"
+                className="justify-center text-primary py-3 px-3 shrink-0"
               >
                 <span className="text-sm font-medium">View all notifications</span>
               </DropdownMenuItem>
