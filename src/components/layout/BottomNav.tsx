@@ -189,11 +189,9 @@ export function BottomNav() {
   })();
 
   const unreadMessagesCount = activeClubFilter
-    ? clubMessagesCount
+    ? clubMessagesCount + clubDmUnreadCount
     : Math.max(0, globalMessagesCount - suppressionDelta);
-  // Only surface the standalone DM dot when a club filter is active — the
-  // unfiltered total already includes DMs.
-  const showDmDot = !!activeClubFilter && dmUnreadCount > 0;
+
   const location = useLocation();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
@@ -470,12 +468,6 @@ export function BottomNav() {
                       >
                         {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                       </span>
-                    )}
-                    {label === "Messages" && showDmDot && (
-                      <span
-                        className="absolute -bottom-0.5 -right-0.5 w-[9px] h-[9px] rounded-full ring-2 ring-card bg-[hsl(210_90%_55%)]"
-                        aria-label={`${dmUnreadCount} unread direct message${dmUnreadCount === 1 ? "" : "s"}`}
-                      />
                     )}
                   </div>
                   <span className="text-xs font-medium mt-0.5">{label}</span>
