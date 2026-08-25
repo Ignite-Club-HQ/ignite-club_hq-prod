@@ -97,6 +97,41 @@ export function BottomNav() {
     return delta;
   })();
 
+  // Broadcast notifications are not club-owned on `broadcast_messages`, but the
+  // notification row carries `club_id`. When a club filter is active we must
+  // only count broadcasts belonging to that club — otherwise another club's
+  // announcement inflates a badge with no matching row in the filtered inbox.
+  const { data: clubBroadcastUnread = 0 } = useQuery({
+    queryKey: ["bottomnav-club-broadcast-unread", user?.id, activeClubFilter],
+    enabled: !!user?.id && !!activeClubFilter,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
+        .eq("type", "broadcast")
+        .eq("is_read", false)
+        .eq("club_id", activeClubFilter!);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  // DM unreads are club-agnostic by nature (a DM thread is visible under every
+  // club filter), so they are tracked separately and never folded into the
+  // club-scoped number.
+  const dmUnreadCount = (() => {
+    if (!counts) return 0;
+    const suppressedDms = new Set(
+      suppressedScopes.filter(s => s.kind === "dm" && s.targetId).map(s => s.targetId!)
+    );
+    return Object.entries(counts.dms).reduce(
+      (a, [id, n]) => a + (suppressedDms.has(id) ? 0 : (n || 0)),
+      0
+    );
+  })();
+
   const clubMessagesCount = (() => {
     if (!counts || !activeClubFilter) return 0;
     const clubGroupIds = new Set<string>();
@@ -109,23 +144,24 @@ export function BottomNav() {
     const suppressedTeams = new Set(suppressedScopes.filter(s => s.kind === "team" && s.targetId).map(s => s.targetId!));
     const suppressedClubs = new Set(suppressedScopes.filter(s => s.kind === "club" && s.targetId).map(s => s.targetId!));
     const suppressedGroups = new Set(suppressedScopes.filter(s => s.kind === "group" && s.targetId).map(s => s.targetId!));
-    const suppressedDms = new Set(suppressedScopes.filter(s => s.kind === "dm" && s.targetId).map(s => s.targetId!));
     const suppressBroadcast = suppressedScopes.some(s => s.kind === "broadcast");
 
     const sumRecord = (rec: Record<string, number>, keys: string[], skip: Set<string>) =>
       keys.reduce((acc, k) => acc + (skip.has(k) ? 0 : (rec[k] || 0)), 0);
     return (
-      (suppressBroadcast ? 0 : counts.broadcast) +
+      (suppressBroadcast ? 0 : Math.min(clubBroadcastUnread, counts.broadcast)) +
       (suppressedClubs.has(activeClubFilter) ? 0 : (counts.clubs[activeClubFilter] || 0)) +
       sumRecord(counts.teams, activeClubTeamIds, suppressedTeams) +
-      sumRecord(counts.groups, Array.from(clubGroupIds), suppressedGroups) +
-      Object.entries(counts.dms).reduce((a, [id, n]) => a + (suppressedDms.has(id) ? 0 : (n || 0)), 0)
+      sumRecord(counts.groups, Array.from(clubGroupIds), suppressedGroups)
     );
   })();
 
   const unreadMessagesCount = activeClubFilter
     ? clubMessagesCount
     : Math.max(0, globalMessagesCount - suppressionDelta);
+  // Only surface the standalone DM dot when a club filter is active — the
+  // unfiltered total already includes DMs.
+  const showDmDot = !!activeClubFilter && dmUnreadCount > 0;
   const location = useLocation();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
