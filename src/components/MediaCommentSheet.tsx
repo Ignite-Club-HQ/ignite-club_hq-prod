@@ -77,6 +77,7 @@ export function MediaCommentSheet({
   const capacitorPlatform = Capacitor.getPlatform();
   const isNative = Capacitor.isNativePlatform();
   const isNativeIOS = isNative && capacitorPlatform === "ios";
+  const isNativeAndroid = isNative && capacitorPlatform === "android";
   const isIOS = (() => {
     if (typeof navigator === "undefined") return isNativeIOS;
     const ua = navigator.userAgent;
@@ -145,8 +146,17 @@ export function MediaCommentSheet({
 
   const keyboardInset = isNative ? nativeKeyboardHeight : browserKbInset;
   const isKeyboardActive = keyboardInset > 0;
+  // Native Android: --visual-vh is monotonic-max locked to the full window
+  // height (StatusBarManager), so it never shrinks when an OEM WebView defies
+  // Keyboard.resize:'none' and shrinks innerHeight on IME open. Using
+  // --stable-vh here (which is NOT locked on Android) made the sheet height
+  // drop by the keyboard amount while the composer still added
+  // paddingBottom = keyboardInset — a double subtraction that floated the
+  // input a full keyboard-height above the actual keyboard (big white gap).
+  // iOS keeps --stable-vh (monotonic-locked there) so the fixed sheet extends
+  // under the IME and the single paddingBottom lifts the composer.
   const screenHeight = isNative
-    ? "var(--stable-vh, 100dvh)"
+    ? (isNativeAndroid ? "var(--visual-vh, 100dvh)" : "var(--stable-vh, 100dvh)")
     : webViewportHeight
       ? `${webViewportHeight}px`
       : "var(--visual-vh, 100dvh)";

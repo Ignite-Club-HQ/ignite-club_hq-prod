@@ -643,18 +643,13 @@ export function AppHeader() {
   });
 
   /**
-   * Dropdown ordering: unread first (newest first), then recently read
-   * ("Earlier"), capped at ~8 items total. Full history stays available via
-   * "View all notifications".
+   * Dropdown shows ONLY unread notifications (newest first). Full history
+   * (read + unread) stays available via "View all notifications".
    */
-  const DROPDOWN_MAX_ITEMS = 8;
-  const DROPDOWN_MAX_UNREAD = 6;
+  const DROPDOWN_MAX_UNREAD = 8;
   const dropdownUnread = recentNotifications
     .filter((n) => !n.is_read)
     .slice(0, DROPDOWN_MAX_UNREAD);
-  const dropdownRead = recentNotifications
-    .filter((n) => n.is_read)
-    .slice(0, Math.max(DROPDOWN_MAX_ITEMS - dropdownUnread.length, 2));
 
 
 
@@ -1266,11 +1261,11 @@ export function AppHeader() {
               </Button>
             </DropdownMenuTrigger>
             <SwipeableDropdownContent 
-              className="w-80 bg-popover" 
+              className="w-80 bg-popover flex flex-col max-h-[80vh]" 
               align="end"
               onSwipeClose={() => setNotificationsOpen(false)}
             >
-              <div className="flex items-center justify-between p-3">
+              <div className="flex items-center justify-between p-3 shrink-0">
                 <p className="text-sm font-semibold">Notifications</p>
                 <div className="flex items-center gap-2">
                   {dropdownUnread.length > 0 && (
@@ -1290,86 +1285,47 @@ export function AppHeader() {
                   )}
                 </div>
               </div>
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator className="shrink-0" />
               <div
-                className="max-h-[350px] overflow-y-auto overscroll-contain"
+                className="flex-1 overflow-y-auto overscroll-contain min-h-0"
                 style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
               >
-                {dropdownUnread.length === 0 && dropdownRead.length === 0 ? (
+                {dropdownUnread.length === 0 ? (
                   <div className="py-6 px-4 text-center text-sm text-muted-foreground">
                     You're all caught up
                   </div>
                 ) : (
                   <>
-                    {dropdownUnread.length > 0 && (
-                      <>
-                        <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Unread
-                        </p>
-                        {dropdownUnread.map((notification) => (
-                          <DropdownMenuItem
-                            key={notification.id}
-                            className="flex items-start gap-3 py-3 px-3 cursor-pointer min-h-[60px] bg-primary/5 focus:bg-primary/10"
-                            onSelect={(e) => {
-                              e.preventDefault();
-                              setNotificationsOpen(false);
-                              handleNotificationClick(notification);
-                            }}
-                          >
-                            {renderNotificationIcon(notification.type, notification.message)}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm line-clamp-2 font-medium text-foreground">
-                                {notification.message}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                              </p>
-                            </div>
-                            <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0 mt-1.5" aria-label="Unread" />
-                          </DropdownMenuItem>
-                        ))}
-                      </>
-                    )}
-
-                    {dropdownRead.length > 0 && (
-                      <>
-                        {dropdownUnread.length > 0 && <DropdownMenuSeparator />}
-                        <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Earlier
-                        </p>
-                        {dropdownRead.map((notification) => (
-                          <DropdownMenuItem
-                            key={notification.id}
-                            className="flex items-start gap-3 py-3 px-3 cursor-pointer min-h-[60px]"
-                            onSelect={(e) => {
-                              e.preventDefault();
-                              setNotificationsOpen(false);
-                              handleNotificationClick(notification);
-                            }}
-                          >
-                            <span className="opacity-70">
-                              {renderNotificationIcon(notification.type, notification.message)}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm line-clamp-2 text-muted-foreground">
-                                {notification.message}
-                              </p>
-                              <p className="text-xs text-muted-foreground/80 mt-1">
-                                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                              </p>
-                            </div>
-                          </DropdownMenuItem>
-                        ))}
-                      </>
-                    )}
+                    {dropdownUnread.map((notification) => (
+                      <DropdownMenuItem
+                        key={notification.id}
+                        className="flex items-start gap-3 py-3 px-3 cursor-pointer min-h-[60px] bg-primary/5 focus:bg-primary/10"
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setNotificationsOpen(false);
+                          handleNotificationClick(notification);
+                        }}
+                      >
+                        {renderNotificationIcon(notification.type, notification.message)}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm line-clamp-2 font-medium text-foreground">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                          </p>
+                        </div>
+                        <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0 mt-1.5" aria-label="Unread" />
+                      </DropdownMenuItem>
+                    ))}
                   </>
                 )}
               </div>
 
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator className="shrink-0" />
               <DropdownMenuItem 
                 onSelect={(e) => { e.preventDefault(); setNotificationsOpen(false); navigate("/notifications"); }}
-                className="justify-center text-primary py-3 px-3"
+                className="justify-center text-primary py-3 px-3 shrink-0"
               >
                 <span className="text-sm font-medium">View all notifications</span>
               </DropdownMenuItem>
