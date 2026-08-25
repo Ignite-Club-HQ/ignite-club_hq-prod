@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown, Sparkles, ArrowRight } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown, Sparkles, ArrowRight } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -550,19 +550,17 @@ export function AppHeader() {
 
   const clubNameParts = activeThemeData ? parseClubName(activeThemeData.clubName) : null;
 
-  const clearAllNotifications = useMutation({
+  const markAllAsRead = useMutation({
     mutationFn: async () => {
       if (!user?.id) return;
 
-      // Fetch all candidate notifications in the current scope, then delete by
-      // explicit ID list. This avoids any `.or()` + `.delete()` chaining quirks
-      // (which were silently no-op'ing for club_id IS NULL rows in some cases)
-      // and also lets us apply the same client-side cross-club drop filter the
-      // dropdown uses so "Clear all" wipes exactly what the user can see.
+      // Only ever flips is_read — notifications are never deleted here so the
+      // user keeps their full history and can still open them later.
       let listQ = supabase
         .from("notifications")
         .select("id, type, related_id, club_id")
         .eq("user_id", user.id)
+        .eq("is_read", false)
         .limit(500);
       if (activeClubFilter) {
         listQ = listQ.or(`club_id.eq.${activeClubFilter},club_id.is.null`);
@@ -570,33 +568,27 @@ export function AppHeader() {
       const { data: candidates, error: listErr } = await listQ;
       if (listErr) throw listErr;
 
-      let toDelete = candidates || [];
-      if (activeClubFilter && toDelete.length) {
-        toDelete = await filterClubScopedNotifications(toDelete as any[], user.id, activeClubFilter);
+      let toMark = candidates || [];
+      if (activeClubFilter && toMark.length) {
+        toMark = await filterClubScopedNotifications(toMark as any[], user.id, activeClubFilter);
       }
 
-      const ids = toDelete.map((n: any) => n.id);
+      const ids = toMark.map((n: any) => n.id);
       if (!ids.length) return;
 
-      // Mark read first so unread counters drop even if delete is partially
-      // blocked by RLS for any row.
-      await supabase
+      const { error: updErr } = await supabase
         .from("notifications")
         .update({ is_read: true })
         .in("id", ids)
         .eq("user_id", user.id);
-
-      const { error: delErr } = await supabase
-        .from("notifications")
-        .delete()
-        .in("id", ids)
-        .eq("user_id", user.id);
-      if (delErr) throw delErr;
+      if (updErr) throw updErr;
     },
     onMutate: () => {
-      // Optimistically clear the badge and dropdown immediately
+      // Optimistically clear the badge and flip rows to read (keeping them visible)
       clearUnreadCount();
-      queryClient.setQueriesData<unknown[]>({ queryKey: ["recent-notifications"] }, () => []);
+      queryClient.setQueriesData<any[]>({ queryKey: ["recent-notifications"] }, (old) =>
+        (old || []).map((n) => ({ ...n, is_read: true })),
+      );
       queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, () => 0);
     },
     onSuccess: () => {
@@ -604,18 +596,15 @@ export function AppHeader() {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["unread-count"] });
       queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-      setNotificationsOpen(false);
-      // Force refresh to get accurate count from server
       setTimeout(() => refreshUnreadCount(), 300);
     },
     onError: () => {
-      // Re-fetch so the dropdown reflects true server state instead of the
-      // optimistic empty list.
       queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
       queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
       refreshUnreadCount();
     },
   });
+
 
   const { data: recentNotifications = [], refetch: refetchRecentNotifications } = useQuery({
     queryKey: ["recent-notifications", user?.id, activeClubFilter],
@@ -626,7 +615,7 @@ export function AppHeader() {
         .select("id, message, type, created_at, is_read, related_id, club_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(activeClubFilter ? 20 : 5);
+        .limit(40);
       // Include notifications scoped to the active club AND global ones (club_id IS NULL),
       // since some types like join_request / team_invite / role_request are intentionally
       // stored without a club_id and would otherwise be hidden by an active club filter.
@@ -641,8 +630,8 @@ export function AppHeader() {
       // surfaces DMs from people only associated with Club B.
       if (activeClubFilter && rows.length) {
         rows = await filterClubScopedNotifications(rows, user.id, activeClubFilter);
-        rows = rows.slice(0, 5);
       }
+
 
       return rows;
     },
@@ -652,6 +641,21 @@ export function AppHeader() {
     // fetches during rapid remounts (nav, resume, sheet toggles).
     staleTime: 30_000,
   });
+
+  /**
+   * Dropdown ordering: unread first (newest first), then recently read
+   * ("Earlier"), capped at ~8 items total. Full history stays available via
+   * "View all notifications".
+   */
+  const DROPDOWN_MAX_ITEMS = 8;
+  const DROPDOWN_MAX_UNREAD = 6;
+  const dropdownUnread = recentNotifications
+    .filter((n) => !n.is_read)
+    .slice(0, DROPDOWN_MAX_UNREAD);
+  const dropdownRead = recentNotifications
+    .filter((n) => n.is_read)
+    .slice(0, Math.max(DROPDOWN_MAX_ITEMS - dropdownUnread.length, 2));
+
 
 
   // Per-club unread count (only when a club filter is active)
@@ -1269,19 +1273,19 @@ export function AppHeader() {
               <div className="flex items-center justify-between p-3">
                 <p className="text-sm font-semibold">Notifications</p>
                 <div className="flex items-center gap-2">
-                  {recentNotifications.length > 0 && (
+                  {dropdownUnread.length > 0 && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        clearAllNotifications.mutate();
+                        markAllAsRead.mutate();
                       }}
                     >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Clear all
+                      <Check className="h-3 w-3 mr-1" />
+                      Mark all as read
                     </Button>
                   )}
                 </div>
@@ -1291,37 +1295,77 @@ export function AppHeader() {
                 className="max-h-[350px] overflow-y-auto overscroll-contain"
                 style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
               >
-                {recentNotifications.length === 0 ? (
+                {dropdownUnread.length === 0 && dropdownRead.length === 0 ? (
                   <div className="py-6 px-4 text-center text-sm text-muted-foreground">
-                    No notifications yet
+                    You're all caught up
                   </div>
                 ) : (
-                  recentNotifications.map((notification) => (
-                    <DropdownMenuItem
-                      key={notification.id}
-                      className="flex items-start gap-3 py-3 px-3 cursor-pointer min-h-[60px]"
-                      onSelect={(e) => {
-                        e.preventDefault();
-                        setNotificationsOpen(false);
-                        handleNotificationClick(notification);
-                      }}
-                    >
-                      {renderNotificationIcon(notification.type, notification.message)}
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm line-clamp-2 ${!notification.is_read ? "font-medium" : ""}`}>
-                          {notification.message}
+                  <>
+                    {dropdownUnread.length > 0 && (
+                      <>
+                        <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Unread
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                        {dropdownUnread.map((notification) => (
+                          <DropdownMenuItem
+                            key={notification.id}
+                            className="flex items-start gap-3 py-3 px-3 cursor-pointer min-h-[60px] bg-primary/5 focus:bg-primary/10"
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setNotificationsOpen(false);
+                              handleNotificationClick(notification);
+                            }}
+                          >
+                            {renderNotificationIcon(notification.type, notification.message)}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm line-clamp-2 font-medium text-foreground">
+                                {notification.message}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                              </p>
+                            </div>
+                            <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0 mt-1.5" aria-label="Unread" />
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+
+                    {dropdownRead.length > 0 && (
+                      <>
+                        {dropdownUnread.length > 0 && <DropdownMenuSeparator />}
+                        <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Earlier
                         </p>
-                      </div>
-                      {!notification.is_read && (
-                        <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0 mt-1.5" />
-                      )}
-                    </DropdownMenuItem>
-                  ))
+                        {dropdownRead.map((notification) => (
+                          <DropdownMenuItem
+                            key={notification.id}
+                            className="flex items-start gap-3 py-3 px-3 cursor-pointer min-h-[60px]"
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setNotificationsOpen(false);
+                              handleNotificationClick(notification);
+                            }}
+                          >
+                            <span className="opacity-70">
+                              {renderNotificationIcon(notification.type, notification.message)}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm line-clamp-2 text-muted-foreground">
+                                {notification.message}
+                              </p>
+                              <p className="text-xs text-muted-foreground/80 mt-1">
+                                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                              </p>
+                            </div>
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
+
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onSelect={(e) => { e.preventDefault(); setNotificationsOpen(false); navigate("/notifications"); }}
