@@ -643,18 +643,13 @@ export function AppHeader() {
   });
 
   /**
-   * Dropdown ordering: unread first (newest first), then recently read
-   * ("Earlier"), capped at ~8 items total. Full history stays available via
-   * "View all notifications".
+   * Dropdown shows ONLY unread notifications (newest first). Full history
+   * (read + unread) stays available via "View all notifications".
    */
-  const DROPDOWN_MAX_ITEMS = 8;
-  const DROPDOWN_MAX_UNREAD = 6;
+  const DROPDOWN_MAX_UNREAD = 8;
   const dropdownUnread = recentNotifications
     .filter((n) => !n.is_read)
     .slice(0, DROPDOWN_MAX_UNREAD);
-  const dropdownRead = recentNotifications
-    .filter((n) => n.is_read)
-    .slice(0, Math.max(DROPDOWN_MAX_ITEMS - dropdownUnread.length, 2));
 
 
 
