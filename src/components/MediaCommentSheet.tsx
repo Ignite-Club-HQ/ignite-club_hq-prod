@@ -189,8 +189,7 @@ export function MediaCommentSheet({
       }
 
       if (nextHeight && lockedHeight > 0) {
-        const minUsableHeight = Math.min(lockedHeight, 320);
-        nextHeight = Math.max(minUsableHeight, Math.min(lockedHeight, nextHeight));
+        nextHeight = Math.min(lockedHeight, nextHeight);
       }
 
       const roundedHeight = nextHeight ? Math.round(nextHeight) : null;
