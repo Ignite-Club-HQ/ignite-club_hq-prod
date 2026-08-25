@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
-import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown, Sparkles, ArrowRight } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown, Sparkles, ArrowRight } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
