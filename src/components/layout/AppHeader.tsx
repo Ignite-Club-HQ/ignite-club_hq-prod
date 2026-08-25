@@ -626,7 +626,7 @@ export function AppHeader() {
         .select("id, message, type, created_at, is_read, related_id, club_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(activeClubFilter ? 20 : 5);
+        .limit(40);
       // Include notifications scoped to the active club AND global ones (club_id IS NULL),
       // since some types like join_request / team_invite / role_request are intentionally
       // stored without a club_id and would otherwise be hidden by an active club filter.
@@ -641,8 +641,8 @@ export function AppHeader() {
       // surfaces DMs from people only associated with Club B.
       if (activeClubFilter && rows.length) {
         rows = await filterClubScopedNotifications(rows, user.id, activeClubFilter);
-        rows = rows.slice(0, 5);
       }
+
 
       return rows;
     },
