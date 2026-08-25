@@ -118,19 +118,51 @@ export function BottomNav() {
     },
   });
 
-  // DM unreads are club-agnostic by nature (a DM thread is visible under every
-  // club filter), so they are tracked separately and never folded into the
-  // club-scoped number.
-  const dmUnreadCount = (() => {
-    if (!counts) return 0;
+  // DM unreads are only counted under a club filter when the other participant
+  // holds a role in that club — otherwise the badge shows a number with no
+  // matching thread in the filtered inbox.
+  const unreadDmConversationIds = counts
+    ? Object.entries(counts.dms).filter(([, n]) => (n || 0) > 0).map(([id]) => id)
+    : [];
+  const { data: clubScopedDmIds } = useQuery({
+    queryKey: ["bottomnav-club-scoped-dms", user?.id, activeClubFilter, unreadDmConversationIds.sort().join(",")],
+    enabled: !!user?.id && !!activeClubFilter && unreadDmConversationIds.length > 0,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data: convs } = await supabase
+        .from("direct_conversations")
+        .select("id, participant_1, participant_2")
+        .in("id", unreadDmConversationIds);
+      const peerByConv = new Map<string, string>();
+      (convs || []).forEach((c: any) => {
+        const other = c.participant_1 === user!.id ? c.participant_2 : c.participant_1;
+        if (other) peerByConv.set(c.id, other);
+      });
+      const peerIds = Array.from(new Set(peerByConv.values()));
+      if (peerIds.length === 0) return [] as string[];
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", activeClubFilter!)
+        .in("user_id", peerIds);
+      const inClub = new Set((roles || []).map((r: any) => r.user_id));
+      return Array.from(peerByConv.entries())
+        .filter(([, uid]) => inClub.has(uid))
+        .map(([cid]) => cid);
+    },
+  });
+
+  const clubDmUnreadCount = (() => {
+    if (!counts || !clubScopedDmIds) return 0;
     const suppressedDms = new Set(
       suppressedScopes.filter(s => s.kind === "dm" && s.targetId).map(s => s.targetId!)
     );
-    return Object.entries(counts.dms).reduce(
-      (a, [id, n]) => a + (suppressedDms.has(id) ? 0 : (n || 0)),
+    return clubScopedDmIds.reduce(
+      (a, id) => a + (suppressedDms.has(id) ? 0 : (counts.dms[id] || 0)),
       0
     );
   })();
+
 
   const clubMessagesCount = (() => {
     if (!counts || !activeClubFilter) return 0;
@@ -157,11 +189,9 @@ export function BottomNav() {
   })();
 
   const unreadMessagesCount = activeClubFilter
-    ? clubMessagesCount
+    ? clubMessagesCount + clubDmUnreadCount
     : Math.max(0, globalMessagesCount - suppressionDelta);
-  // Only surface the standalone DM dot when a club filter is active — the
-  // unfiltered total already includes DMs.
-  const showDmDot = !!activeClubFilter && dmUnreadCount > 0;
+
   const location = useLocation();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
@@ -438,12 +468,6 @@ export function BottomNav() {
                       >
                         {unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
                       </span>
-                    )}
-                    {label === "Messages" && showDmDot && (
-                      <span
-                        className="absolute -bottom-0.5 -right-0.5 w-[9px] h-[9px] rounded-full ring-2 ring-card bg-[hsl(210_90%_55%)]"
-                        aria-label={`${dmUnreadCount} unread direct message${dmUnreadCount === 1 ? "" : "s"}`}
-                      />
                     )}
                   </div>
                   <span className="text-xs font-medium mt-0.5">{label}</span>

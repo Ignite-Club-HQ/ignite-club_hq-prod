@@ -2739,10 +2739,12 @@ export default function MessagesPage() {
         const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
         if (stillHidden && !query) return false;
       }
-      // DM conversations are cross-club by nature: they are NOT filtered by the
-      // active club. The Messages tab surfaces DM unreads via a separate,
-      // club-agnostic indicator, so the list must always show the matching
-      // thread regardless of which club filter is selected.
+      // DMs are scoped to the active club: only show threads whose other
+      // participant holds a role in that club, so the list matches the badge.
+      if (effectiveClubFilter && clubScopedUsersInClub) {
+        const otherId = conv.other_user?.id;
+        if (!otherId || !clubScopedUsersInClub.has(otherId)) return false;
+      }
       if (query) {
         return conv.other_user?.display_name?.toLowerCase().includes(query);
       }
@@ -2750,7 +2752,8 @@ export default function MessagesPage() {
       const hasDraft = !!allDrafts[conv.id]?.text?.trim();
       return !!conv.last_message || hasDraft;
     });
-  }, [effectiveDMConversations, hiddenDMMap, query, allDrafts]);
+  }, [effectiveDMConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub]);
+
 
 
   // Check if Ignite Support should show
