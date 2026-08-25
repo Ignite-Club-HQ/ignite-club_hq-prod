@@ -550,19 +550,17 @@ export function AppHeader() {
 
   const clubNameParts = activeThemeData ? parseClubName(activeThemeData.clubName) : null;
 
-  const clearAllNotifications = useMutation({
+  const markAllAsRead = useMutation({
     mutationFn: async () => {
       if (!user?.id) return;
 
-      // Fetch all candidate notifications in the current scope, then delete by
-      // explicit ID list. This avoids any `.or()` + `.delete()` chaining quirks
-      // (which were silently no-op'ing for club_id IS NULL rows in some cases)
-      // and also lets us apply the same client-side cross-club drop filter the
-      // dropdown uses so "Clear all" wipes exactly what the user can see.
+      // Only ever flips is_read — notifications are never deleted here so the
+      // user keeps their full history and can still open them later.
       let listQ = supabase
         .from("notifications")
         .select("id, type, related_id, club_id")
         .eq("user_id", user.id)
+        .eq("is_read", false)
         .limit(500);
       if (activeClubFilter) {
         listQ = listQ.or(`club_id.eq.${activeClubFilter},club_id.is.null`);
@@ -570,33 +568,27 @@ export function AppHeader() {
       const { data: candidates, error: listErr } = await listQ;
       if (listErr) throw listErr;
 
-      let toDelete = candidates || [];
-      if (activeClubFilter && toDelete.length) {
-        toDelete = await filterClubScopedNotifications(toDelete as any[], user.id, activeClubFilter);
+      let toMark = candidates || [];
+      if (activeClubFilter && toMark.length) {
+        toMark = await filterClubScopedNotifications(toMark as any[], user.id, activeClubFilter);
       }
 
-      const ids = toDelete.map((n: any) => n.id);
+      const ids = toMark.map((n: any) => n.id);
       if (!ids.length) return;
 
-      // Mark read first so unread counters drop even if delete is partially
-      // blocked by RLS for any row.
-      await supabase
+      const { error: updErr } = await supabase
         .from("notifications")
         .update({ is_read: true })
         .in("id", ids)
         .eq("user_id", user.id);
-
-      const { error: delErr } = await supabase
-        .from("notifications")
-        .delete()
-        .in("id", ids)
-        .eq("user_id", user.id);
-      if (delErr) throw delErr;
+      if (updErr) throw updErr;
     },
     onMutate: () => {
-      // Optimistically clear the badge and dropdown immediately
+      // Optimistically clear the badge and flip rows to read (keeping them visible)
       clearUnreadCount();
-      queryClient.setQueriesData<unknown[]>({ queryKey: ["recent-notifications"] }, () => []);
+      queryClient.setQueriesData<any[]>({ queryKey: ["recent-notifications"] }, (old) =>
+        (old || []).map((n) => ({ ...n, is_read: true })),
+      );
       queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, () => 0);
     },
     onSuccess: () => {
@@ -604,18 +596,15 @@ export function AppHeader() {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["unread-count"] });
       queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-      setNotificationsOpen(false);
-      // Force refresh to get accurate count from server
       setTimeout(() => refreshUnreadCount(), 300);
     },
     onError: () => {
-      // Re-fetch so the dropdown reflects true server state instead of the
-      // optimistic empty list.
       queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
       queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
       refreshUnreadCount();
     },
   });
+
 
   const { data: recentNotifications = [], refetch: refetchRecentNotifications } = useQuery({
     queryKey: ["recent-notifications", user?.id, activeClubFilter],
