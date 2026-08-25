@@ -54,7 +54,10 @@ export function BottomNav() {
   // Always fetch: the RPC is deduped across consumers, and we need the
   // per-scope breakdown even when no club filter is active so we can subtract
   // suppressed scopes (see useSuppressedChatScopes below) from the total.
-  const { data: counts } = useUnreadMessageCounts(user?.id);
+  const { data: counts, dataUpdatedAt: countsUpdatedAt } = useUnreadMessageCounts(user?.id);
+  // True once the RPC has actually answered at least once (initialData is
+  // seeded with updatedAt 0, so this stays false on cold mount).
+  const countsAreServerTruth = countsUpdatedAt > 0;
 
   // Secondary lookup: which chat groups belong to the active club. Cached
   // separately so it doesn't piggy-back on every unread refetch.
