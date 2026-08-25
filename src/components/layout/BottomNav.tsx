@@ -7,7 +7,6 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
-import { getTotalUnreadMessageCount } from "@/lib/unreadMessageCounts";
 import { useSuppressedChatScopes } from "@/lib/pushTapSuppression";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -55,10 +54,7 @@ export function BottomNav() {
   // Always fetch: the RPC is deduped across consumers, and we need the
   // per-scope breakdown even when no club filter is active so we can subtract
   // suppressed scopes (see useSuppressedChatScopes below) from the total.
-  const { data: counts, dataUpdatedAt: countsUpdatedAt } = useUnreadMessageCounts(user?.id);
-  // True once the RPC has actually answered at least once (initialData is
-  // seeded with updatedAt 0, so this stays false on cold mount).
-  const countsAreServerTruth = countsUpdatedAt > 0;
+  const { data: counts } = useUnreadMessageCounts(user?.id);
 
   // Secondary lookup: which chat groups belong to the active club. Cached
   // separately so it doesn't piggy-back on every unread refetch.
@@ -127,19 +123,9 @@ export function BottomNav() {
     );
   })();
 
-  // Unfiltered total: prefer the RPC breakdown (authoritative, refetched and
-  // realtime-invalidated) over useAuth's `unreadMessagesCount`, which is only
-  // optimistically incremented on notification INSERT and drifts upward when a
-  // message notification is read/deleted elsewhere (another device, a read
-  // receipt, an orphan-row cleanup). That drift is what produced a phantom
-  // "1" on the Messages tab with zero unread threads in the inbox.
-  const globalFromCounts = counts ? getTotalUnreadMessageCount(counts) : 0;
   const unreadMessagesCount = activeClubFilter
     ? clubMessagesCount
-    : Math.max(
-        0,
-        (countsAreServerTruth ? globalFromCounts : globalMessagesCount) - suppressionDelta,
-      );
+    : Math.max(0, globalMessagesCount - suppressionDelta);
   const location = useLocation();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
