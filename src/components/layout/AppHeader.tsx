@@ -120,7 +120,7 @@ function LogoClubThemeDropdown() {
         });
       }
 
-      if (!clubIds.length) return [];
+      if (!clubIds.length) return guardClubListResult(`all-user-clubs:${user.id}`, []);
 
       // Fetch clubs with subscription info (exclude soft-deleted clubs)
       const { data: clubs, error: clubsError } = await supabase
