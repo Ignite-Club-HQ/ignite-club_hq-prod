@@ -806,7 +806,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       if (!clubs) return [];
 
       // Filter to only Pro clubs with theme data that have theme enabled
-      return clubs
+      return guardClubListResult(`club-themes:${user.id}`, clubs
         .filter(club => {
           // Handle both array and single object subscription data
           const subs = club.club_subscriptions as any;
