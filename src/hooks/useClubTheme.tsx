@@ -865,6 +865,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         })));
 
     },
+    retry: 3,
     enabled: !!user?.id,
   });
 
