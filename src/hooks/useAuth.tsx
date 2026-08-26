@@ -852,6 +852,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      unsubscribeOnline();
+
       resumeListener?.remove().catch(() => {});
       window.clearInterval(heartbeat);
     };
