@@ -722,8 +722,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       setActiveClubThemeState(null);
       // Clear CSS variables but DON'T remove localStorage - restore on re-login
       clearAllThemeCSS();
+      // Drop the empty-guard bookkeeping so the next user starts clean.
+      resetClubListEmptyGuard();
     }
   }, [user]);
+
 
   // Fetch all Pro clubs that the user belongs to with custom themes.
   // Resilience: throw on Supabase errors + `keepPreviousData` so a transient
