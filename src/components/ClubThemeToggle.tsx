@@ -14,6 +14,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import igniteIcon from "@/assets/ignite-icon.png";
+import { guardClubListResult } from "@/lib/clubListEmptyGuard";
 
 export function ClubThemeToggle() {
   const { availableClubThemes, activeClubTheme, setActiveClubTheme, isLoading } = useClubTheme();
