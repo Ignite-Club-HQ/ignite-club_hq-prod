@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, onlineManager } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { subscribeToPushNotifications } from "@/lib/pushNotifications";
