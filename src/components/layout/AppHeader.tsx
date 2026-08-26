@@ -190,8 +190,9 @@ function LogoClubThemeDropdown() {
         }
       });
 
-      return Array.from(dedupedClubs.values());
+      return guardClubListResult(`all-user-clubs:${user.id}`, Array.from(dedupedClubs.values()));
     },
+    retry: 3,
     enabled: !!user?.id,
   });
 
