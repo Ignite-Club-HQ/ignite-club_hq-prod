@@ -763,7 +763,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        // CRITICAL: never tear down the local session because the network was
+        // unreachable. Clearing the cache + `setUser(null)` here is what made the
+        // club switcher vanish and the theme fall back to Ignite after a coverage
+        // drop, with no path back until relaunch.
+        if (!tokenMissing && (isTransientAuthFailure(refreshError) || isTransientAuthFailure(retryError))) {
+          console.warn(`[Auth] ${source} - refresh failed for network reasons; keeping session`, refreshError ?? retryError ?? null);
+          return;
+        }
+
         console.warn(`[Auth] ${source} - session unrecoverable`, refreshError ?? currentError ?? retryError ?? null);
+
         queryClient.clear();
         clearProfileCache();
         clearClubTeamCache();
