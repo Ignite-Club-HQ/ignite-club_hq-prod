@@ -887,16 +887,21 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         const cid = r.teams?.club_id;
         if (cid) ids.add(cid);
       });
-      if (!ids.size) return [];
+      if (!ids.size) return guardClubListResult(`user-clubs:${user.id}`, []);
       const { data: clubs, error: clubsError } = await supabase
         .from("clubs")
         .select("id, name, logo_url")
         .in("id", Array.from(ids))
         .is("deleted_at", null);
       if (clubsError) throw clubsError;
-      return (clubs || []).map(c => ({ id: c.id, name: c.name, logo_url: c.logo_url }));
+      return guardClubListResult(
+        `user-clubs:${user.id}`,
+        (clubs || []).map(c => ({ id: c.id, name: c.name, logo_url: c.logo_url })),
+      );
     },
+    retry: 3,
     enabled: !!user?.id,
+
   });
 
   // Establish an explicit default for users who haven't set a preference yet.
