@@ -858,7 +858,8 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             s: club.theme_dark_accent_s!,
             l: club.theme_dark_accent_l!,
           } : null,
-        }));
+        })));
+
     },
     enabled: !!user?.id,
   });
