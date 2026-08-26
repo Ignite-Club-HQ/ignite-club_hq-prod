@@ -810,6 +810,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    // Coverage restored: re-run the health check so a session that could not be
+    // verified while offline recovers without waiting for the next resume.
+    const unsubscribeOnline = onlineManager.subscribe(() => {
+      if (onlineManager.isOnline()) recoverSession('reconnect');
+    });
+
+
     // Native apps: also listen for Capacitor App resume event
     // This fires more reliably than visibilitychange on Android
     let resumeListener: { remove: () => Promise<void> } | null = null;
