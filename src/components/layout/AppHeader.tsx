@@ -16,6 +16,7 @@ import { SwipeableDropdownContent } from "@/components/ui/swipeable-dropdown-con
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { guardClubListResult } from "@/lib/clubListEmptyGuard";
 import { useLogoAccentColor } from "@/hooks/useLogoAccentColor";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ClubThemeToggle } from "@/components/ClubThemeToggle";
@@ -120,7 +121,7 @@ function LogoClubThemeDropdown() {
         });
       }
 
-      if (!clubIds.length) return [];
+      if (!clubIds.length) return guardClubListResult(`all-user-clubs:${user.id}`, []);
 
       // Fetch clubs with subscription info (exclude soft-deleted clubs)
       const { data: clubs, error: clubsError } = await supabase
@@ -189,8 +190,9 @@ function LogoClubThemeDropdown() {
         }
       });
 
-      return Array.from(dedupedClubs.values());
+      return guardClubListResult(`all-user-clubs:${user.id}`, Array.from(dedupedClubs.values()));
     },
+    retry: 3,
     enabled: !!user?.id,
   });
 

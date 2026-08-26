@@ -14,6 +14,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import igniteIcon from "@/assets/ignite-icon.png";
+import { guardClubListResult } from "@/lib/clubListEmptyGuard";
 
 export function ClubThemeToggle() {
   const { availableClubThemes, activeClubTheme, setActiveClubTheme, isLoading } = useClubTheme();
@@ -56,7 +57,7 @@ export function ClubThemeToggle() {
         });
       }
 
-      if (!clubIds.length) return [];
+      if (!clubIds.length) return guardClubListResult(`all-user-clubs:${user.id}`, []);
 
       // Fetch clubs with subscription info
       const { data: clubs, error: clubsError } = await supabase
@@ -133,8 +134,9 @@ export function ClubThemeToggle() {
         }
       });
       
-      return Array.from(dedupedClubs.values());
+      return guardClubListResult(`all-user-clubs:${user.id}`, Array.from(dedupedClubs.values()));
     },
+    retry: 3,
     enabled: !!user?.id,
   });
 

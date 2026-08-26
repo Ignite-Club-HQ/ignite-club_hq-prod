@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useState, useCallback, ReactNode } from "react";
 import { useQuery, keepPreviousData, useQueryClient } from "@tanstack/react-query";
 import { purgeClubScopedQueryCache } from "@/lib/clubScopeCachePurge";
+import { guardClubListResult, resetClubListEmptyGuard } from "@/lib/clubListEmptyGuard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
@@ -721,8 +722,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       setActiveClubThemeState(null);
       // Clear CSS variables but DON'T remove localStorage - restore on re-login
       clearAllThemeCSS();
+      // Drop the empty-guard bookkeeping so the next user starts clean.
+      resetClubListEmptyGuard();
     }
   }, [user]);
+
 
   // Fetch all Pro clubs that the user belongs to with custom themes.
   // Resilience: throw on Supabase errors + `keepPreviousData` so a transient
@@ -764,7 +768,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      if (!clubIds.length) return [];
+      if (!clubIds.length) return guardClubListResult(`club-themes:${user.id}`, []);
 
       // Fetch clubs with theme settings (left join on subscriptions)
       const { data: clubs, error: clubsError } = await supabase
@@ -806,7 +810,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       if (!clubs) return [];
 
       // Filter to only Pro clubs with theme data that have theme enabled
-      return clubs
+      return guardClubListResult(`club-themes:${user.id}`, clubs
         .filter(club => {
           // Handle both array and single object subscription data
           const subs = club.club_subscriptions as any;
@@ -858,8 +862,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             s: club.theme_dark_accent_s!,
             l: club.theme_dark_accent_l!,
           } : null,
-        }));
+        })));
+
     },
+    retry: 3,
     enabled: !!user?.id,
   });
 
@@ -885,16 +891,21 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         const cid = r.teams?.club_id;
         if (cid) ids.add(cid);
       });
-      if (!ids.size) return [];
+      if (!ids.size) return guardClubListResult(`user-clubs:${user.id}`, []);
       const { data: clubs, error: clubsError } = await supabase
         .from("clubs")
         .select("id, name, logo_url")
         .in("id", Array.from(ids))
         .is("deleted_at", null);
       if (clubsError) throw clubsError;
-      return (clubs || []).map(c => ({ id: c.id, name: c.name, logo_url: c.logo_url }));
+      return guardClubListResult(
+        `user-clubs:${user.id}`,
+        (clubs || []).map(c => ({ id: c.id, name: c.name, logo_url: c.logo_url })),
+      );
     },
+    retry: 3,
     enabled: !!user?.id,
+
   });
 
   // Establish an explicit default for users who haven't set a preference yet.
