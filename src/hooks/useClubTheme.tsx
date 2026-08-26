@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useState, useCallback, ReactNode } from "react";
 import { useQuery, keepPreviousData, useQueryClient } from "@tanstack/react-query";
 import { purgeClubScopedQueryCache } from "@/lib/clubScopeCachePurge";
+import { guardClubListResult, resetClubListEmptyGuard } from "@/lib/clubListEmptyGuard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
