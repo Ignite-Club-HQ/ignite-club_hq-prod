@@ -765,7 +765,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      if (!clubIds.length) return [];
+      if (!clubIds.length) return guardClubListResult(`club-themes:${user.id}`, []);
 
       // Fetch clubs with theme settings (left join on subscriptions)
       const { data: clubs, error: clubsError } = await supabase
