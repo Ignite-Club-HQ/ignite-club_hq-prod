@@ -16,7 +16,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
-import { openHtmlReport } from "@/lib/reportExport";
 import PlayerStatsReportView from "@/components/reports/PlayerStatsReportView";
 
 interface Team {
