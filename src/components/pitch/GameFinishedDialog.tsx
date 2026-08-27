@@ -3,10 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trophy, Clock, Users, Loader2, Check, CalendarCheck } from "lucide-react";
+import { Trophy, Clock, Users, Loader2, Check, CalendarCheck, AlertTriangle } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { useGameStats } from "@/hooks/useGameStats";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
+import { EventLinkSelector } from "./EventLinkSelector";
+import { useToast } from "@/hooks/use-toast";
+
 
 interface Player {
   id: string;
