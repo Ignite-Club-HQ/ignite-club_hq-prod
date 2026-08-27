@@ -268,6 +268,9 @@ export function useGameStats() {
       });
       queryClient.invalidateQueries({ queryKey: ["game-stats"] });
       queryClient.invalidateQueries({ queryKey: ["game-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["player-stats-report"] });
+      queryClient.invalidateQueries({ queryKey: ["game-summary-report"] });
+
     },
     onError: (error: Error) => {
       console.error("Failed to save game stats:", error);
