@@ -403,6 +403,82 @@ export default function PlayerStatsReportView({
     }
   };
 
+  const handleDownloadCsv = async () => {
+    const csvCell = (value: unknown) => {
+      const text = value == null ? "" : String(value);
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const rows: string[][] = [];
+
+    if (extras && extras.matches.length > 0) {
+      rows.push(["Matches"]);
+      rows.push([
+        "Date", "Opponent", "Home", "Away", "Result", "Periods",
+        "Captain", "Player of the Match", "Goalkeeper", "Player goals recorded",
+      ]);
+      extras.matches.forEach((m) => {
+        rows.push([
+          m.eventDate ? format(new Date(m.eventDate), "yyyy-MM-dd") : "",
+          m.opponent || m.title || "",
+          m.homeScore == null ? "" : String(m.homeScore),
+          m.awayScore == null ? "" : String(m.awayScore),
+          m.result ?? "",
+          m.periodScores.map((p) => `${p.home}-${p.away}`).join(" | "),
+          m.captainNames.join(" | "),
+          m.pomNames.join(" | "),
+          m.goalkeeperNames.join(" | "),
+          String(m.playerGoals),
+        ]);
+      });
+      rows.push([]);
+      rows.push([
+        "Played", "Won", "Drawn", "Lost", "Goals For", "Goals Against", "Goal Difference",
+      ]);
+      rows.push([
+        String(extras.totals.played), String(extras.totals.won), String(extras.totals.drawn),
+        String(extras.totals.lost), String(extras.totals.goalsFor),
+        String(extras.totals.goalsAgainst), String(extras.totals.goalDifference),
+      ]);
+      rows.push([]);
+    }
+
+    rows.push(["Players"]);
+    rows.push([
+      "#", "Player", "Goals", "Minutes", "Subs", "Captain (n)", "POM (n)",
+      "GK matches (n)", "GK minutes", "Games played", "Starts", "Positions",
+    ]);
+    (playerStats || []).forEach((stat) => {
+      const h = honoursFor(stat);
+      rows.push([
+        stat.jersey_number == null ? "" : String(stat.jersey_number),
+        playerName(stat),
+        String(stat.goals_scored || 0),
+        formatMinutes(stat.minutes_played),
+        String(stat.substitutions_count),
+        String(h.captain),
+        String(h.pom),
+        String(Math.max(h.gkMatches, h.gkAppointed)),
+        formatMinutes(h.gkSeconds),
+        String(stat.games_played ?? 1),
+        String(stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)),
+        stat.positions_played.join(" | "),
+      ]);
+    });
+
+    const csv = rows.map((r) => r.map(csvCell).join(",")).join("\n");
+    const name = `${teamName.replace(/[^a-zA-Z0-9]+/g, "-")}-player-stats.csv`;
+    try {
+      await downloadTextReport(csv, name, "text/csv");
+    } catch (error) {
+      console.error("Failed to export CSV:", error);
+      toast({
+        title: "Failed to export CSV",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -432,10 +508,16 @@ export default function PlayerStatsReportView({
           <Flame className="h-5 w-5 text-primary" />
           Player Statistics
         </CardTitle>
-        <Button onClick={handleDownload} size="sm" className="gap-2">
-          <Download className="h-4 w-4" />
-          Download Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleDownloadCsv} size="sm" variant="outline" className="gap-2">
+            <Download className="h-4 w-4" />
+            CSV
+          </Button>
+          <Button onClick={handleDownload} size="sm" className="gap-2">
+            <Download className="h-4 w-4" />
+            Download Report
+          </Button>
+        </div>
       </CardHeader>
       <CardContent ref={reportRef}>
         {/* Summary Stats */}
