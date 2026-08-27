@@ -39,7 +39,9 @@ interface Goal {
 
 interface SaveGameStatsParams {
   eventId: string;
-  teamId: string;
+  teamId?: string | null;
+  /** Fallback: the pitch board's own team id when pitch_state.teamId is null. */
+  boardTeamId?: string | null;
   players: Player[];
   totalGameTime: number; // in seconds
   halfDuration: number; // in seconds
@@ -52,6 +54,29 @@ interface SaveGameStatsParams {
   eventDate?: string;
   opponent?: string;
 }
+
+/**
+ * Resolve the team the stats belong to. `pitch_state.teamId` is frequently null
+ * on restored sessions, which historically caused the whole save to be skipped
+ * (i.e. "no results" in the Player Stats report). Fall back to the board's own
+ * team id, then to the linked event's `team_id`.
+ */
+export async function resolveGameStatsTeamId(
+  candidates: Array<string | null | undefined>,
+  eventId?: string | null,
+): Promise<string | null> {
+  for (const candidate of candidates) {
+    if (candidate && !candidate.startsWith("event-group-")) return candidate;
+  }
+  if (!eventId) return null;
+  const { data } = await supabase
+    .from("events")
+    .select("team_id")
+    .eq("id", eventId)
+    .maybeSingle();
+  return (data?.team_id as string | null) ?? null;
+}
+
 
 export function useGameStats() {
   const { toast } = useToast();
