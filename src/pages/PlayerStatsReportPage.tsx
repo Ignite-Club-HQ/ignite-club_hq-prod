@@ -486,23 +486,8 @@ export default function PlayerStatsReportPage() {
         </div>
       </div>
 
-      {/* Sample Report Downloads */}
-      <Card>
-        <CardContent className="py-4 space-y-3">
-          <p className="font-medium text-sm">Sample Reports</p>
-          <p className="text-xs text-muted-foreground">See what the reports look like</p>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleDownloadSampleReport('game')} className="gap-2 flex-1">
-              <FileText className="h-4 w-4" />
-              Single Game
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleDownloadSampleReport('season')} className="gap-2 flex-1">
-              <Calendar className="h-4 w-4" />
-              Full Season
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+
+
 
       {/* Team Selection - Card-based for mobile; hidden when locked to a team from the team page */}
       {!isLockedToTeam && (
