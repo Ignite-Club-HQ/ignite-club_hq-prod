@@ -132,30 +132,29 @@ export default function GameFinishedDialog({
     if (finishInProgressRef.current) return;
     finishInProgressRef.current = true;
     setFinishInProgress(true);
+    setSaveError(null);
 
     try {
-    // Auto-save stats if linked to an event and not already saved
-    if (linkedEventId && teamId && !statsSaved) {
-      try {
-        await saveGameStats({
-          eventId: linkedEventId,
-          teamId,
-          players,
-          totalGameTime,
-          halfDuration: halfDuration || Math.floor(totalGameTime / 2),
-          formationUsed,
-          teamSize,
-          executedSubs,
-          goals,
-          eventTitle,
-          eventDate,
-          opponent,
-        });
-        setStatsSaved(true);
-      } catch (error) {
-        console.error("Failed to save game stats:", error);
-        // Continue with cleanup even if save fails
-      }
+    // Save stats when we have an event to key them to and haven't saved yet.
+    // A failure here MUST NOT clear the session — we surface the error and
+    // keep this dialog open so the coach can retry.
+    if (effectiveEventId && !statsSaved) {
+      const resolvedTeamId = await saveGameStats({
+        eventId: effectiveEventId,
+        teamId,
+        boardTeamId,
+        players,
+        totalGameTime,
+        halfDuration: halfDuration || Math.floor(totalGameTime / 2),
+        formationUsed,
+        teamSize,
+        executedSubs,
+        goals,
+        eventTitle,
+        eventDate,
+        opponent,
+      }).then(() => teamId || boardTeamId || undefined);
+      setStatsSaved(true);
 
       // Also persist a soccer match score row (parity with basketball/netball boards),
       // so the score shows on the event card and in History.
@@ -183,24 +182,29 @@ export default function GameFinishedDialog({
           });
         const scorerStats = Array.from(goalsByPlayer.values());
 
-        await saveGameResult(
-          {
-            teamId,
-            eventId: linkedEventId,
-            sport: "soccer",
-            homeLabel: teamName || "Our Team",
-            awayLabel: opponent || "Opponent",
-            homeScore,
-            awayScore,
-            perQuarter: [],
-            players: scorerStats as any,
-          },
-          { silent: true, onlyIfMissing: true }
-        );
+        if (resolvedTeamId) {
+          await saveGameResult(
+            {
+              teamId: resolvedTeamId,
+              eventId: effectiveEventId,
+              sport: "soccer",
+              homeLabel: teamName || "Our Team",
+              awayLabel: opponent || "Opponent",
+              homeScore,
+              awayScore,
+              perQuarter: [],
+              players: scorerStats as any,
+            },
+            { silent: true, onlyIfMissing: true }
+          );
+        }
       } catch (err) {
+        // The score row is secondary — player stats are already persisted.
         console.error("Failed to save soccer game result:", err);
       }
     }
+
+
 
 
     // Preserve the timer state as "finished" with a `gameFinishedAt` stamp
