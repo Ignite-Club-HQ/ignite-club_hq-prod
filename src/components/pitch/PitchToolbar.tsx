@@ -91,6 +91,8 @@ interface PitchToolbarProps {
   onZoomOut: () => void;
   onResetZoom: () => void;
   onOpenStats: () => void;
+  /** Manual finalisation (save stats regardless of timer state). */
+  onEndGameAndSave?: () => void;
   
   // Data
   mockMode: boolean;
@@ -259,6 +261,7 @@ function PitchToolbar({
   onZoomOut,
   onResetZoom,
   onOpenStats,
+  onEndGameAndSave,
   mockMode,
   onMockModeChange,
   onOpenPositionEditor,
@@ -639,6 +642,7 @@ function PitchToolbar({
               onResetGame={onResetGame}
               onResetFormation={onResetFormation}
               onOpenStats={onOpenStats}
+              onEndGameAndSave={onEndGameAndSave}
               onSaveSettings={onSaveSettings}
               isSaving={isSavingSettings}
               showMatchHeader={showMatchHeader}
@@ -1001,6 +1005,7 @@ function PitchToolbar({
             onResetGame={onResetGame}
             onResetFormation={onResetFormation}
             onOpenStats={onOpenStats}
+              onEndGameAndSave={onEndGameAndSave}
             onSaveSettings={onSaveSettings}
             isSaving={isSavingSettings}
             showMatchHeader={showMatchHeader}
