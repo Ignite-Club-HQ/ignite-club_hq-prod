@@ -284,12 +284,24 @@ export default function GameFinishedDialog({
     }
     onClose();
     } catch (err) {
-      // Unexpected failure: allow the user to retry only if the dialog is
-      // still open. Reset the guard so the button becomes actionable again.
+      // Save failed: keep the dialog open, surface the error and let the coach
+      // retry. The session (players, minutes, goals, timer) is untouched.
       console.error('handleFinish failed:', err);
+      const message =
+        (err as any)?.message ||
+        "Something went wrong saving these stats. Please try again.";
+      setSaveError(message);
+      toast({
+        title: "Stats not saved",
+        description: message,
+        variant: "destructive",
+      });
       finishInProgressRef.current = false;
       setFinishInProgress(false);
+      return;
     }
+    finishInProgressRef.current = false;
+    setFinishInProgress(false);
   };
 
   return (
@@ -298,7 +310,7 @@ export default function GameFinishedDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trophy className="h-5 w-5 text-primary" />
-            Game Finished!
+            {manual ? "End game & save stats" : "Game Finished!"}
           </DialogTitle>
         </DialogHeader>
         
@@ -308,12 +320,48 @@ export default function GameFinishedDialog({
           )}
           
           {/* Event linked indicator */}
-          {linkedEventId && (
+          {effectiveEventId ? (
             <div className="flex items-center justify-center gap-2 text-sm text-primary">
               <CalendarCheck className="h-4 w-4" />
-              <span>Stats will be saved to linked game</span>
+              <span>Stats will be saved to the linked game</span>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-3 space-y-2">
+              <div className="flex items-start gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
+                <p className="text-muted-foreground">
+                  This session isn't linked to a fixture. Player stats are stored
+                  against a game, so pick the fixture to save them.
+                </p>
+              </div>
+              {canPickEvent && (
+                <EventLinkSelector
+                  teamId={linkTeamId!}
+                  linkedEventId={retroEventId}
+                  onLinkEvent={(id) => { setRetroEventId(id); setSaveError(null); }}
+                  compact
+                />
+              )}
+              {!unlinkedAcknowledged && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground"
+                  onClick={() => setUnlinkedAcknowledged(true)}
+                >
+                  This was an unlinked practice — don't save stats
+                </Button>
+              )}
             </div>
           )}
+
+          {saveError && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {saveError}
+            </div>
+          )}
+          
+
           
           {/* Summary stats */}
           <div className="grid grid-cols-3 gap-2">
