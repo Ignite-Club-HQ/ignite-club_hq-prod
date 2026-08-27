@@ -169,6 +169,25 @@ export default function PlayerStatsReportView({
     enabled: !!eventId,
   });
 
+  // Match scores + captain / POM / GK honours for the report range.
+  const { data: extras } = useReportExtras(teamId, { eventId, dateRange });
+
+  const honoursFor = (stat: PlayerStat): PlayerHonours => {
+    const key = playerKey(stat.user_id, stat.child_id);
+    return (
+      extras?.honours?.[key] ?? {
+        captain: 0,
+        pom: 0,
+        gkMatches: 0,
+        gkAppointed: 0,
+        gkSeconds: 0,
+      }
+    );
+  };
+
+  const playerName = (stat: PlayerStat) =>
+    stat.fill_in_player_name || stat.profiles?.display_name || "Unknown";
+
   const formatMinutes = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -261,6 +280,53 @@ export default function PlayerStatsReportView({
             </div>
           ` : ""}
 
+          ${extras && extras.totals.played > 0 ? `
+            <div class="summary">
+              <div class="summary-item"><div class="summary-value">${extras.totals.played}</div><div class="summary-label">Played</div></div>
+              <div class="summary-item"><div class="summary-value">${extras.totals.won}-${extras.totals.drawn}-${extras.totals.lost}</div><div class="summary-label">W-D-L</div></div>
+              <div class="summary-item"><div class="summary-value">${extras.totals.goalsFor}</div><div class="summary-label">Goals For</div></div>
+              <div class="summary-item"><div class="summary-value">${extras.totals.goalsAgainst}</div><div class="summary-label">Goals Against</div></div>
+              <div class="summary-item"><div class="summary-value">${extras.totals.goalDifference > 0 ? "+" : ""}${extras.totals.goalDifference}</div><div class="summary-label">Goal Diff</div></div>
+            </div>
+          ` : ""}
+
+          ${extras && extras.matches.length > 0 ? `
+            <div class="report-title">Matches</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Opponent</th>
+                  <th style="width: 90px; text-align: center;">Score</th>
+                  <th style="width: 50px; text-align: center;">Result</th>
+                  <th>Periods</th>
+                  <th>Captain</th>
+                  <th>Player of the Match</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${extras.matches.map((m) => {
+                  const mismatch =
+                    m.homeScore != null && m.playerGoals !== m.homeScore
+                      ? ` <span class="jersey">(player goals: ${m.playerGoals})</span>`
+                      : "";
+                  return `
+                    <tr>
+                      <td>${m.eventDate ? format(new Date(m.eventDate), "d MMM yyyy") : "-"}</td>
+                      <td>${m.opponent || m.title || "-"}</td>
+                      <td style="text-align: center;">${m.homeScore == null || m.awayScore == null ? "-" : `${m.homeScore}–${m.awayScore}`}${mismatch}</td>
+                      <td style="text-align: center;">${m.result ?? "-"}</td>
+                      <td>${m.periodScores.map((p) => `<span class="position-badge">${p.home}-${p.away}</span>`).join("") || "-"}</td>
+                      <td>${m.captainNames.join(", ") || "-"}</td>
+                      <td>${m.pomNames.join(", ") || "-"}</td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+            <div style="height: 24px;"></div>
+          ` : ""}
+
           <table>
             <thead>
               <tr>
@@ -270,6 +336,10 @@ export default function PlayerStatsReportView({
                 <th style="width: 80px;">Total</th>
                 <th>Minutes by Position</th>
                 <th style="width: 60px; text-align: center;">Subs</th>
+                <th style="width: 70px; text-align: center;">Captain (n)</th>
+                <th style="width: 60px; text-align: center;">POM (n)</th>
+                <th style="width: 90px; text-align: center;">GK matches (n)</th>
+                <th style="width: 80px; text-align: center;">GK minutes</th>
                 ${dateRange ? `
                 <th style="width: 60px; text-align: center;">GP</th>
                 <th style="width: 60px; text-align: center;">Starts</th>
@@ -295,6 +365,10 @@ export default function PlayerStatsReportView({
                       <td>${formatMinutes(stat.minutes_played)}</td>
                       <td>${positionMinsHtml}</td>
                       <td style="text-align: center;">${stat.substitutions_count}</td>
+                      <td style="text-align: center;">${honoursFor(stat).captain}</td>
+                      <td style="text-align: center;">${honoursFor(stat).pom}</td>
+                      <td style="text-align: center;">${Math.max(honoursFor(stat).gkMatches, honoursFor(stat).gkAppointed)}</td>
+                      <td style="text-align: center;">${formatMinutes(honoursFor(stat).gkSeconds)}</td>
                       ${dateRange
                         ? `<td style="text-align: center;">${stat.games_played ?? 1}</td><td style="text-align: center;">${stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)}</td>`
                         : `<td style="text-align: center;">${stat.started_on_pitch ? "Yes" : "No"}</td>`}
