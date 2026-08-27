@@ -168,6 +168,8 @@ export function PitchSettingsDialog({
   onUnlinkEvent,
   onResetFormation,
   onOpenStats,
+  onEndGameAndSave,
+
   onSaveSettings,
   isSaving = false,
   showMatchHeader,
