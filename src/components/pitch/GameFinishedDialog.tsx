@@ -425,8 +425,15 @@ export default function GameFinishedDialog({
           )}
         </div>
         
-        <DialogFooter>
-          <Button onClick={handleFinish} className="w-full" disabled={isSaving || finishInProgress}>
+        <DialogFooter className="flex-col gap-2 sm:flex-col">
+          <Button
+            onClick={handleFinish}
+            className="w-full"
+            disabled={
+              isSaving || finishInProgress ||
+              (!effectiveEventId && !unlinkedAcknowledged)
+            }
+          >
             {(isSaving || finishInProgress) ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -437,14 +444,29 @@ export default function GameFinishedDialog({
                 <Check className="h-4 w-4 mr-2" />
                 Done
               </>
+            ) : saveError ? (
+              <>
+                <Trophy className="h-4 w-4 mr-2" />
+                Retry save
+              </>
             ) : (
               <>
                 <Trophy className="h-4 w-4 mr-2" />
-                {linkedEventId ? "Save & Finish" : "Done"}
+                {effectiveEventId ? "Save & Finish" : "Finish without stats"}
               </>
             )}
           </Button>
+          {saveError && (
+            <Button
+              variant="ghost"
+              className="w-full text-xs text-muted-foreground"
+              onClick={onClose}
+            >
+              Keep session and close
+            </Button>
+          )}
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );
