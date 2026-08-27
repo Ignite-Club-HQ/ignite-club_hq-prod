@@ -96,6 +96,10 @@ interface PitchSettingsDialogProps {
   
   // Match stats
   onOpenStats?: () => void;
+
+  // Manual finalisation: save stats regardless of timer state
+  onEndGameAndSave?: () => void;
+
   
   // Save settings
   onSaveSettings?: () => void;
