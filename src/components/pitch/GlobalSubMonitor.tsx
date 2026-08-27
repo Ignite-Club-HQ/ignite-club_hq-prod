@@ -704,6 +704,47 @@ export default function GlobalSubMonitor() {
     return () => window.removeEventListener(END_GAME_REQUEST_EVENT, handler);
   }, [openManualFinish]);
 
+  // Safety net: persist a PARTIAL save when the app goes to the background so a
+  // coach who simply closes the app doesn't lose the session's stats. Rows are
+  // keyed by event and replaced on the next save, so a later full-time or
+  // manual finalisation overwrites this snapshot.
+  const lastPartialSaveRef = useRef(0);
+  useEffect(() => {
+    const savePartial = () => {
+      if (Date.now() - lastPartialSaveRef.current < 60_000) return;
+      const timerState = loadTimerState();
+      const pitchState = loadPitchState(timerState?.teamId);
+      if (!pitchState?.linkedEventId) return;
+      const elapsed = timerState ? getCurrentGameSeconds(timerState) : 0;
+      if (elapsed <= 0) return;
+      const halfDuration = (timerState?.minutesPerHalf ?? 0) * 60;
+      const priorHalf = timerState?.currentHalf === 2 ? halfDuration : 0;
+      lastPartialSaveRef.current = Date.now();
+      void savePartialGameStats({
+        eventId: pitchState.linkedEventId,
+        teamId: pitchState.teamId,
+        players: pitchState.players,
+        totalGameTime: priorHalf + elapsed,
+        halfDuration: halfDuration || Math.max(1, Math.floor((priorHalf + elapsed) / 2)),
+        teamSize: parseInt(pitchState.teamSize) || 7,
+        executedSubs:
+          pitchState.executedSubs || pitchState.autoSubPlan?.filter((s) => s.executed) || [],
+        goals: pitchState.goals || [],
+      }).catch((err) => console.warn('[GAME] partial stats save failed', err));
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') savePartial();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', savePartial);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', savePartial);
+    };
+  }, [savePartialGameStats]);
+
+
+
 
   const checkForPendingSubs = useCallback(() => {
     // Check if pitch board is currently open (it handles its own subs)
