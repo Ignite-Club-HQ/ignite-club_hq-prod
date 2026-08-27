@@ -3,10 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trophy, Clock, Users, Loader2, Check, CalendarCheck } from "lucide-react";
+import { Trophy, Clock, Users, Loader2, Check, CalendarCheck, AlertTriangle } from "lucide-react";
 import { PitchPosition } from "./PositionBadge";
 import { useGameStats } from "@/hooks/useGameStats";
 import { useSaveGameResult } from "@/hooks/useSaveGameResult";
+import { EventLinkSelector } from "./EventLinkSelector";
+import { useToast } from "@/hooks/use-toast";
+
 
 interface Player {
   id: string;
@@ -51,6 +54,8 @@ interface GameFinishedDialogProps {
   // Event linking
   linkedEventId?: string | null;
   teamId?: string;
+  /** Fallback team id (the board's own team) when the saved state has none. */
+  boardTeamId?: string | null;
   formationUsed?: string;
   teamSize?: number;
   executedSubs?: SubstitutionEvent[];
@@ -60,6 +65,8 @@ interface GameFinishedDialogProps {
   eventTitle?: string;
   eventDate?: string;
   opponent?: string;
+  /** Manual "End game & save stats" flow (not triggered by full time). */
+  manual?: boolean;
 }
 
 const PITCH_STATE_KEY = 'ignite-pitch-board-state';
@@ -75,6 +82,7 @@ export default function GameFinishedDialog({
   teamName,
   linkedEventId,
   teamId,
+  boardTeamId,
   formationUsed,
   teamSize = 7,
   executedSubs = [],
@@ -83,12 +91,26 @@ export default function GameFinishedDialog({
   eventTitle,
   eventDate,
   opponent,
+  manual = false,
 }: GameFinishedDialogProps) {
   const { saveGameStats, isSaving } = useGameStats();
   const { save: saveGameResult } = useSaveGameResult();
+  const { toast } = useToast();
   const [statsSaved, setStatsSaved] = useState(false);
   const [finishInProgress, setFinishInProgress] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Retroactive event link chosen inside this dialog when the board session
+  // was never linked to a fixture (stats are event-keyed, so without this the
+  // whole session is unsaveable).
+  const [retroEventId, setRetroEventId] = useState<string | null>(null);
+  const [unlinkedAcknowledged, setUnlinkedAcknowledged] = useState(false);
   const finishInProgressRef = useRef(false);
+
+  const effectiveEventId = linkedEventId || retroEventId;
+  const linkTeamId = teamId || boardTeamId || undefined;
+  const canPickEvent = !linkedEventId && !!linkTeamId && !linkTeamId.startsWith("event-group-");
+  
+
   
   // Sort players by minutes played (descending)
   const sortedPlayers = [...players].sort((a, b) => (b.minutesPlayed || 0) - (a.minutesPlayed || 0));
@@ -110,30 +132,29 @@ export default function GameFinishedDialog({
     if (finishInProgressRef.current) return;
     finishInProgressRef.current = true;
     setFinishInProgress(true);
+    setSaveError(null);
 
     try {
-    // Auto-save stats if linked to an event and not already saved
-    if (linkedEventId && teamId && !statsSaved) {
-      try {
-        await saveGameStats({
-          eventId: linkedEventId,
-          teamId,
-          players,
-          totalGameTime,
-          halfDuration: halfDuration || Math.floor(totalGameTime / 2),
-          formationUsed,
-          teamSize,
-          executedSubs,
-          goals,
-          eventTitle,
-          eventDate,
-          opponent,
-        });
-        setStatsSaved(true);
-      } catch (error) {
-        console.error("Failed to save game stats:", error);
-        // Continue with cleanup even if save fails
-      }
+    // Save stats when we have an event to key them to and haven't saved yet.
+    // A failure here MUST NOT clear the session — we surface the error and
+    // keep this dialog open so the coach can retry.
+    if (effectiveEventId && !statsSaved) {
+      const resolvedTeamId = await saveGameStats({
+        eventId: effectiveEventId,
+        teamId,
+        boardTeamId,
+        players,
+        totalGameTime,
+        halfDuration: halfDuration || Math.floor(totalGameTime / 2),
+        formationUsed,
+        teamSize,
+        executedSubs,
+        goals,
+        eventTitle,
+        eventDate,
+        opponent,
+      }).then(() => teamId || boardTeamId || undefined);
+      setStatsSaved(true);
 
       // Also persist a soccer match score row (parity with basketball/netball boards),
       // so the score shows on the event card and in History.
@@ -161,24 +182,29 @@ export default function GameFinishedDialog({
           });
         const scorerStats = Array.from(goalsByPlayer.values());
 
-        await saveGameResult(
-          {
-            teamId,
-            eventId: linkedEventId,
-            sport: "soccer",
-            homeLabel: teamName || "Our Team",
-            awayLabel: opponent || "Opponent",
-            homeScore,
-            awayScore,
-            perQuarter: [],
-            players: scorerStats as any,
-          },
-          { silent: true, onlyIfMissing: true }
-        );
+        if (resolvedTeamId) {
+          await saveGameResult(
+            {
+              teamId: resolvedTeamId,
+              eventId: effectiveEventId,
+              sport: "soccer",
+              homeLabel: teamName || "Our Team",
+              awayLabel: opponent || "Opponent",
+              homeScore,
+              awayScore,
+              perQuarter: [],
+              players: scorerStats as any,
+            },
+            { silent: true, onlyIfMissing: true }
+          );
+        }
       } catch (err) {
+        // The score row is secondary — player stats are already persisted.
         console.error("Failed to save soccer game result:", err);
       }
     }
+
+
 
 
     // Preserve the timer state as "finished" with a `gameFinishedAt` stamp
@@ -258,12 +284,24 @@ export default function GameFinishedDialog({
     }
     onClose();
     } catch (err) {
-      // Unexpected failure: allow the user to retry only if the dialog is
-      // still open. Reset the guard so the button becomes actionable again.
+      // Save failed: keep the dialog open, surface the error and let the coach
+      // retry. The session (players, minutes, goals, timer) is untouched.
       console.error('handleFinish failed:', err);
+      const message =
+        (err as any)?.message ||
+        "Something went wrong saving these stats. Please try again.";
+      setSaveError(message);
+      toast({
+        title: "Stats not saved",
+        description: message,
+        variant: "destructive",
+      });
       finishInProgressRef.current = false;
       setFinishInProgress(false);
+      return;
     }
+    finishInProgressRef.current = false;
+    setFinishInProgress(false);
   };
 
   return (
@@ -272,7 +310,7 @@ export default function GameFinishedDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trophy className="h-5 w-5 text-primary" />
-            Game Finished!
+            {manual ? "End game & save stats" : "Game Finished!"}
           </DialogTitle>
         </DialogHeader>
         
@@ -282,12 +320,48 @@ export default function GameFinishedDialog({
           )}
           
           {/* Event linked indicator */}
-          {linkedEventId && (
+          {effectiveEventId ? (
             <div className="flex items-center justify-center gap-2 text-sm text-primary">
               <CalendarCheck className="h-4 w-4" />
-              <span>Stats will be saved to linked game</span>
+              <span>Stats will be saved to the linked game</span>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-3 space-y-2">
+              <div className="flex items-start gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
+                <p className="text-muted-foreground">
+                  This session isn't linked to a fixture. Player stats are stored
+                  against a game, so pick the fixture to save them.
+                </p>
+              </div>
+              {canPickEvent && (
+                <EventLinkSelector
+                  teamId={linkTeamId!}
+                  linkedEventId={retroEventId}
+                  onLinkEvent={(id) => { setRetroEventId(id); setSaveError(null); }}
+                  compact
+                />
+              )}
+              {!unlinkedAcknowledged && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground"
+                  onClick={() => setUnlinkedAcknowledged(true)}
+                >
+                  This was an unlinked practice — don't save stats
+                </Button>
+              )}
             </div>
           )}
+
+          {saveError && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {saveError}
+            </div>
+          )}
+          
+
           
           {/* Summary stats */}
           <div className="grid grid-cols-3 gap-2">
@@ -351,8 +425,15 @@ export default function GameFinishedDialog({
           )}
         </div>
         
-        <DialogFooter>
-          <Button onClick={handleFinish} className="w-full" disabled={isSaving || finishInProgress}>
+        <DialogFooter className="flex-col gap-2 sm:flex-col">
+          <Button
+            onClick={handleFinish}
+            className="w-full"
+            disabled={
+              isSaving || finishInProgress ||
+              (!effectiveEventId && !unlinkedAcknowledged)
+            }
+          >
             {(isSaving || finishInProgress) ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -363,14 +444,29 @@ export default function GameFinishedDialog({
                 <Check className="h-4 w-4 mr-2" />
                 Done
               </>
+            ) : saveError ? (
+              <>
+                <Trophy className="h-4 w-4 mr-2" />
+                Retry save
+              </>
             ) : (
               <>
                 <Trophy className="h-4 w-4 mr-2" />
-                {linkedEventId ? "Save & Finish" : "Done"}
+                {effectiveEventId ? "Save & Finish" : "Finish without stats"}
               </>
             )}
           </Button>
+          {saveError && (
+            <Button
+              variant="ghost"
+              className="w-full text-xs text-muted-foreground"
+              onClick={onClose}
+            >
+              Keep session and close
+            </Button>
+          )}
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );

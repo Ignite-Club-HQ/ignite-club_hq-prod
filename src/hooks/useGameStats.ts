@@ -39,7 +39,9 @@ interface Goal {
 
 interface SaveGameStatsParams {
   eventId: string;
-  teamId: string;
+  teamId?: string | null;
+  /** Fallback: the pitch board's own team id when pitch_state.teamId is null. */
+  boardTeamId?: string | null;
   players: Player[];
   totalGameTime: number; // in seconds
   halfDuration: number; // in seconds
@@ -51,7 +53,32 @@ interface SaveGameStatsParams {
   eventTitle?: string;
   eventDate?: string;
   opponent?: string;
+  /** Background/partial save: no toast, no summary email. */
+  silent?: boolean;
 }
+
+/**
+ * Resolve the team the stats belong to. `pitch_state.teamId` is frequently null
+ * on restored sessions, which historically caused the whole save to be skipped
+ * (i.e. "no results" in the Player Stats report). Fall back to the board's own
+ * team id, then to the linked event's `team_id`.
+ */
+export async function resolveGameStatsTeamId(
+  candidates: Array<string | null | undefined>,
+  eventId?: string | null,
+): Promise<string | null> {
+  for (const candidate of candidates) {
+    if (candidate && !candidate.startsWith("event-group-")) return candidate;
+  }
+  if (!eventId) return null;
+  const { data } = await supabase
+    .from("events")
+    .select("team_id")
+    .eq("id", eventId)
+    .maybeSingle();
+  return (data?.team_id as string | null) ?? null;
+}
+
 
 export function useGameStats() {
   const { toast } = useToast();
@@ -60,7 +87,8 @@ export function useGameStats() {
   const saveGameStatsMutation = useMutation({
     mutationFn: async ({
       eventId,
-      teamId,
+      teamId: teamIdParam,
+      boardTeamId,
       players,
       totalGameTime,
       halfDuration,
@@ -71,8 +99,17 @@ export function useGameStats() {
       eventTitle,
       eventDate,
       opponent,
+      silent = false,
     }: SaveGameStatsParams) => {
+      const teamId = await resolveGameStatsTeamId([teamIdParam, boardTeamId], eventId);
+      if (!teamId) {
+        console.error("[useGameStats] No team could be resolved for event", eventId);
+        throw new Error(
+          "Couldn't work out which team this game belongs to, so stats weren't saved. Link the board to a fixture and try again.",
+        );
+      }
       // Calculate positions played per player based on their current position and subs
+
       const playerPositionsMap = new Map<string, Set<string>>();
       const playerSubsCount = new Map<string, number>();
       const playerStartedOnPitch = new Map<string, boolean>();
@@ -211,7 +248,7 @@ export function useGameStats() {
       };
 
       try {
-        await supabase.rpc('send_game_stats_email_rpc', {
+        if (!silent) await supabase.rpc('send_game_stats_email_rpc', {
           _event_id: eventId,
           _team_id: teamId,
           _event_title: eventTitle || 'Game',
@@ -227,16 +264,22 @@ export function useGameStats() {
 
       return { success: true };
     },
-    onSuccess: () => {
-      toast({
-        title: "Game stats saved",
-        description: "Player statistics have been recorded for this game.",
-      });
+    onSuccess: (_data, variables) => {
+      if (!variables?.silent) {
+        toast({
+          title: "Game stats saved",
+          description: "Player statistics have been recorded for this game.",
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["game-stats"] });
       queryClient.invalidateQueries({ queryKey: ["game-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["player-stats-report"] });
+      queryClient.invalidateQueries({ queryKey: ["game-summary-report"] });
+
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
       console.error("Failed to save game stats:", error);
+      if (variables?.silent) return;
       toast({
         title: "Failed to save stats",
         description: error.message,
@@ -252,8 +295,20 @@ export function useGameStats() {
     [saveGameStatsMutation]
   );
 
+  /**
+   * Partial save used when the app is backgrounded mid-game — silent, and safe
+   * to run repeatedly because rows are replaced per event on the next save.
+   */
+  const savePartialGameStats = useCallback(
+    (params: Omit<SaveGameStatsParams, "silent">) => {
+      return saveGameStatsMutation.mutateAsync({ ...params, silent: true });
+    },
+    [saveGameStatsMutation]
+  );
+
   return {
     saveGameStats,
+    savePartialGameStats,
     isSaving: saveGameStatsMutation.isPending,
   };
 }

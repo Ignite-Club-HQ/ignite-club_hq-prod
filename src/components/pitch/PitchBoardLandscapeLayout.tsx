@@ -46,6 +46,7 @@ import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { useDraggableTimer } from "@/hooks/useDraggableTimer";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { requestEndGameAndSave } from "./endGameRequest";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 import { TrainingSettingsDialog } from "./training/TrainingSettingsDialog";
 
@@ -588,6 +589,7 @@ export default function PitchBoardLandscapeLayout() {
                   onUnlinkEvent={handleUnlinkEvent}
                   onResetFormation={handleResetFormation}
                   onOpenStats={() => setStatsOpen(true)}
+                onEndGameAndSave={() => requestEndGameAndSave(teamId)}
                   onSaveSettings={handleSaveSettings}
                   isSaving={isSavingSettings}
                   showMatchHeader={showMatchHeader}

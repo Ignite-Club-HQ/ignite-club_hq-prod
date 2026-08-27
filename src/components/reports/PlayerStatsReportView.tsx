@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { openHtmlReport } from "@/lib/reportExport";
+import { openHtmlReport, downloadTextReport } from "@/lib/reportExport";
+import { useReportExtras, playerKey, type PlayerHonours } from "./playerStatsReportExtras";
 
 interface PlayerStatsReportViewProps {
   teamId: string;
@@ -32,6 +33,7 @@ interface PlayerStatsReportViewProps {
 interface PlayerStat {
   id: string;
   user_id: string | null;
+  child_id: string | null;
   fill_in_player_name: string | null;
   jersey_number: number | null;
   minutes_played: number;
@@ -70,6 +72,7 @@ export default function PlayerStatsReportView({
         .select(`
           id,
           user_id,
+          child_id,
           fill_in_player_name,
           jersey_number,
           minutes_played,
@@ -166,6 +169,25 @@ export default function PlayerStatsReportView({
     enabled: !!eventId,
   });
 
+  // Match scores + captain / POM / GK honours for the report range.
+  const { data: extras } = useReportExtras(teamId, { eventId, dateRange });
+
+  const honoursFor = (stat: PlayerStat): PlayerHonours => {
+    const key = playerKey(stat.user_id, stat.child_id);
+    return (
+      extras?.honours?.[key] ?? {
+        captain: 0,
+        pom: 0,
+        gkMatches: 0,
+        gkAppointed: 0,
+        gkSeconds: 0,
+      }
+    );
+  };
+
+  const playerName = (stat: PlayerStat) =>
+    stat.fill_in_player_name || stat.profiles?.display_name || "Unknown";
+
   const formatMinutes = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -258,6 +280,53 @@ export default function PlayerStatsReportView({
             </div>
           ` : ""}
 
+          ${extras && extras.totals.played > 0 ? `
+            <div class="summary">
+              <div class="summary-item"><div class="summary-value">${extras.totals.played}</div><div class="summary-label">Played</div></div>
+              <div class="summary-item"><div class="summary-value">${extras.totals.won}-${extras.totals.drawn}-${extras.totals.lost}</div><div class="summary-label">W-D-L</div></div>
+              <div class="summary-item"><div class="summary-value">${extras.totals.goalsFor}</div><div class="summary-label">Goals For</div></div>
+              <div class="summary-item"><div class="summary-value">${extras.totals.goalsAgainst}</div><div class="summary-label">Goals Against</div></div>
+              <div class="summary-item"><div class="summary-value">${extras.totals.goalDifference > 0 ? "+" : ""}${extras.totals.goalDifference}</div><div class="summary-label">Goal Diff</div></div>
+            </div>
+          ` : ""}
+
+          ${extras && extras.matches.length > 0 ? `
+            <div class="report-title">Matches</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Opponent</th>
+                  <th style="width: 90px; text-align: center;">Score</th>
+                  <th style="width: 50px; text-align: center;">Result</th>
+                  <th>Periods</th>
+                  <th>Captain</th>
+                  <th>Player of the Match</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${extras.matches.map((m) => {
+                  const mismatch =
+                    m.homeScore != null && m.playerGoals !== m.homeScore
+                      ? ` <span class="jersey">(player goals: ${m.playerGoals})</span>`
+                      : "";
+                  return `
+                    <tr>
+                      <td>${m.eventDate ? format(new Date(m.eventDate), "d MMM yyyy") : "-"}</td>
+                      <td>${m.opponent || m.title || "-"}</td>
+                      <td style="text-align: center;">${m.homeScore == null || m.awayScore == null ? "-" : `${m.homeScore}–${m.awayScore}`}${mismatch}</td>
+                      <td style="text-align: center;">${m.result ?? "-"}</td>
+                      <td>${m.periodScores.map((p) => `<span class="position-badge">${p.home}-${p.away}</span>`).join("") || "-"}</td>
+                      <td>${m.captainNames.join(", ") || "-"}</td>
+                      <td>${m.pomNames.join(", ") || "-"}</td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+            <div style="height: 24px;"></div>
+          ` : ""}
+
           <table>
             <thead>
               <tr>
@@ -267,6 +336,10 @@ export default function PlayerStatsReportView({
                 <th style="width: 80px;">Total</th>
                 <th>Minutes by Position</th>
                 <th style="width: 60px; text-align: center;">Subs</th>
+                <th style="width: 70px; text-align: center;">Captain (n)</th>
+                <th style="width: 60px; text-align: center;">POM (n)</th>
+                <th style="width: 90px; text-align: center;">GK matches (n)</th>
+                <th style="width: 80px; text-align: center;">GK minutes</th>
                 ${dateRange ? `
                 <th style="width: 60px; text-align: center;">GP</th>
                 <th style="width: 60px; text-align: center;">Starts</th>
@@ -292,6 +365,10 @@ export default function PlayerStatsReportView({
                       <td>${formatMinutes(stat.minutes_played)}</td>
                       <td>${positionMinsHtml}</td>
                       <td style="text-align: center;">${stat.substitutions_count}</td>
+                      <td style="text-align: center;">${honoursFor(stat).captain}</td>
+                      <td style="text-align: center;">${honoursFor(stat).pom}</td>
+                      <td style="text-align: center;">${Math.max(honoursFor(stat).gkMatches, honoursFor(stat).gkAppointed)}</td>
+                      <td style="text-align: center;">${formatMinutes(honoursFor(stat).gkSeconds)}</td>
                       ${dateRange
                         ? `<td style="text-align: center;">${stat.games_played ?? 1}</td><td style="text-align: center;">${stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)}</td>`
                         : `<td style="text-align: center;">${stat.started_on_pitch ? "Yes" : "No"}</td>`}
@@ -320,6 +397,82 @@ export default function PlayerStatsReportView({
       console.error("Failed to generate report:", error);
       toast({
         title: "Failed to generate report",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadCsv = async () => {
+    const csvCell = (value: unknown) => {
+      const text = value == null ? "" : String(value);
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const rows: string[][] = [];
+
+    if (extras && extras.matches.length > 0) {
+      rows.push(["Matches"]);
+      rows.push([
+        "Date", "Opponent", "Home", "Away", "Result", "Periods",
+        "Captain", "Player of the Match", "Goalkeeper", "Player goals recorded",
+      ]);
+      extras.matches.forEach((m) => {
+        rows.push([
+          m.eventDate ? format(new Date(m.eventDate), "yyyy-MM-dd") : "",
+          m.opponent || m.title || "",
+          m.homeScore == null ? "" : String(m.homeScore),
+          m.awayScore == null ? "" : String(m.awayScore),
+          m.result ?? "",
+          m.periodScores.map((p) => `${p.home}-${p.away}`).join(" | "),
+          m.captainNames.join(" | "),
+          m.pomNames.join(" | "),
+          m.goalkeeperNames.join(" | "),
+          String(m.playerGoals),
+        ]);
+      });
+      rows.push([]);
+      rows.push([
+        "Played", "Won", "Drawn", "Lost", "Goals For", "Goals Against", "Goal Difference",
+      ]);
+      rows.push([
+        String(extras.totals.played), String(extras.totals.won), String(extras.totals.drawn),
+        String(extras.totals.lost), String(extras.totals.goalsFor),
+        String(extras.totals.goalsAgainst), String(extras.totals.goalDifference),
+      ]);
+      rows.push([]);
+    }
+
+    rows.push(["Players"]);
+    rows.push([
+      "#", "Player", "Goals", "Minutes", "Subs", "Captain (n)", "POM (n)",
+      "GK matches (n)", "GK minutes", "Games played", "Starts", "Positions",
+    ]);
+    (playerStats || []).forEach((stat) => {
+      const h = honoursFor(stat);
+      rows.push([
+        stat.jersey_number == null ? "" : String(stat.jersey_number),
+        playerName(stat),
+        String(stat.goals_scored || 0),
+        formatMinutes(stat.minutes_played),
+        String(stat.substitutions_count),
+        String(h.captain),
+        String(h.pom),
+        String(Math.max(h.gkMatches, h.gkAppointed)),
+        formatMinutes(h.gkSeconds),
+        String(stat.games_played ?? 1),
+        String(stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)),
+        stat.positions_played.join(" | "),
+      ]);
+    });
+
+    const csv = rows.map((r) => r.map(csvCell).join(",")).join("\n");
+    const name = `${teamName.replace(/[^a-zA-Z0-9]+/g, "-")}-player-stats.csv`;
+    try {
+      await downloadTextReport(csv, name, "text/csv");
+    } catch (error) {
+      console.error("Failed to export CSV:", error);
+      toast({
+        title: "Failed to export CSV",
         description: "Please try again.",
         variant: "destructive",
       });
@@ -355,10 +508,16 @@ export default function PlayerStatsReportView({
           <Flame className="h-5 w-5 text-primary" />
           Player Statistics
         </CardTitle>
-        <Button onClick={handleDownload} size="sm" className="gap-2">
-          <Download className="h-4 w-4" />
-          Download Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleDownloadCsv} size="sm" variant="outline" className="gap-2">
+            <Download className="h-4 w-4" />
+            CSV
+          </Button>
+          <Button onClick={handleDownload} size="sm" className="gap-2">
+            <Download className="h-4 w-4" />
+            Download Report
+          </Button>
+        </div>
       </CardHeader>
       <CardContent ref={reportRef}>
         {/* Summary Stats */}
@@ -393,6 +552,70 @@ export default function PlayerStatsReportView({
           </div>
         )}
 
+        {/* Team result summary */}
+        {extras && extras.totals.played > 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
+            {[
+              { label: "Played", value: String(extras.totals.played) },
+              { label: "W-D-L", value: `${extras.totals.won}-${extras.totals.drawn}-${extras.totals.lost}` },
+              { label: "Goals For", value: String(extras.totals.goalsFor) },
+              { label: "Goals Against", value: String(extras.totals.goalsAgainst) },
+              { label: "Goal Diff", value: `${extras.totals.goalDifference > 0 ? "+" : ""}${extras.totals.goalDifference}` },
+            ].map((item) => (
+              <div key={item.label} className="text-center p-3 bg-muted rounded-lg">
+                <div className="text-xl font-bold text-primary">{item.value}</div>
+                <div className="text-xs text-muted-foreground">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Per-match results */}
+        {extras && extras.matches.length > 0 && (
+          <div className="mb-6 overflow-x-auto -mx-6 px-6">
+            <h3 className="text-sm font-semibold mb-2">Matches</h3>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Opponent</TableHead>
+                  <TableHead className="text-center">Score</TableHead>
+                  <TableHead className="text-center">Result</TableHead>
+                  <TableHead className="hidden sm:table-cell">Periods</TableHead>
+                  <TableHead className="hidden sm:table-cell">Captain</TableHead>
+                  <TableHead className="hidden sm:table-cell">POM</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {extras.matches.map((m) => (
+                  <TableRow key={m.eventId}>
+                    <TableCell className="whitespace-nowrap">
+                      {m.eventDate ? format(new Date(m.eventDate), "d MMM yyyy") : "-"}
+                    </TableCell>
+                    <TableCell>{m.opponent || m.title || "-"}</TableCell>
+                    <TableCell className="text-center font-mono">
+                      {m.homeScore == null || m.awayScore == null
+                        ? "-"
+                        : `${m.homeScore}\u2013${m.awayScore}`}
+                      {m.homeScore != null && m.playerGoals !== m.homeScore && (
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          (players: {m.playerGoals})
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center font-medium">{m.result ?? "-"}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
+                      {m.periodScores.map((p) => `${p.home}-${p.away}`).join(" · ") || "-"}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">{m.captainNames.join(", ") || "-"}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{m.pomNames.join(", ") || "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
         {/* Player Stats Table */}
         <div className="overflow-x-auto -mx-6 px-6">
           <Table>
@@ -404,6 +627,10 @@ export default function PlayerStatsReportView({
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="hidden sm:table-cell">Minutes by Position</TableHead>
                 <TableHead className="text-center hidden sm:table-cell">Subs</TableHead>
+                <TableHead className="text-center">Captain</TableHead>
+                <TableHead className="text-center">POM</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">GK matches</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">GK mins</TableHead>
                 {dateRange ? (
                   <>
                     <TableHead className="text-center">GP</TableHead>
@@ -468,6 +695,14 @@ export default function PlayerStatsReportView({
                   </TableCell>
                   <TableCell className="text-center hidden sm:table-cell">
                     {stat.substitutions_count}
+                  </TableCell>
+                  <TableCell className="text-center font-mono">{honoursFor(stat).captain}</TableCell>
+                  <TableCell className="text-center font-mono">{honoursFor(stat).pom}</TableCell>
+                  <TableCell className="text-center font-mono hidden sm:table-cell">
+                    {Math.max(honoursFor(stat).gkMatches, honoursFor(stat).gkAppointed)}
+                  </TableCell>
+                  <TableCell className="text-center font-mono hidden sm:table-cell">
+                    {formatMinutes(honoursFor(stat).gkSeconds)}
                   </TableCell>
                   {dateRange ? (
                     <>
