@@ -54,6 +54,8 @@ interface GameFinishedDialogProps {
   // Event linking
   linkedEventId?: string | null;
   teamId?: string;
+  /** Fallback team id (the board's own team) when the saved state has none. */
+  boardTeamId?: string | null;
   formationUsed?: string;
   teamSize?: number;
   executedSubs?: SubstitutionEvent[];
@@ -63,6 +65,8 @@ interface GameFinishedDialogProps {
   eventTitle?: string;
   eventDate?: string;
   opponent?: string;
+  /** Manual "End game & save stats" flow (not triggered by full time). */
+  manual?: boolean;
 }
 
 const PITCH_STATE_KEY = 'ignite-pitch-board-state';
@@ -78,6 +82,7 @@ export default function GameFinishedDialog({
   teamName,
   linkedEventId,
   teamId,
+  boardTeamId,
   formationUsed,
   teamSize = 7,
   executedSubs = [],
@@ -86,12 +91,26 @@ export default function GameFinishedDialog({
   eventTitle,
   eventDate,
   opponent,
+  manual = false,
 }: GameFinishedDialogProps) {
   const { saveGameStats, isSaving } = useGameStats();
   const { save: saveGameResult } = useSaveGameResult();
+  const { toast } = useToast();
   const [statsSaved, setStatsSaved] = useState(false);
   const [finishInProgress, setFinishInProgress] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Retroactive event link chosen inside this dialog when the board session
+  // was never linked to a fixture (stats are event-keyed, so without this the
+  // whole session is unsaveable).
+  const [retroEventId, setRetroEventId] = useState<string | null>(null);
+  const [unlinkedAcknowledged, setUnlinkedAcknowledged] = useState(false);
   const finishInProgressRef = useRef(false);
+
+  const effectiveEventId = linkedEventId || retroEventId;
+  const linkTeamId = teamId || boardTeamId || undefined;
+  const canPickEvent = !linkedEventId && !!linkTeamId && !linkTeamId.startsWith("event-group-");
+  
+
   
   // Sort players by minutes played (descending)
   const sortedPlayers = [...players].sort((a, b) => (b.minutesPlayed || 0) - (a.minutesPlayed || 0));
