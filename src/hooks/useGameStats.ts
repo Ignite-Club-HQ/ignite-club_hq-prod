@@ -53,6 +53,8 @@ interface SaveGameStatsParams {
   eventTitle?: string;
   eventDate?: string;
   opponent?: string;
+  /** Background/partial save: no toast, no summary email. */
+  silent?: boolean;
 }
 
 /**
@@ -97,6 +99,7 @@ export function useGameStats() {
       eventTitle,
       eventDate,
       opponent,
+      silent = false,
     }: SaveGameStatsParams) => {
       const teamId = await resolveGameStatsTeamId([teamIdParam, boardTeamId], eventId);
       if (!teamId) {
@@ -245,7 +248,7 @@ export function useGameStats() {
       };
 
       try {
-        await supabase.rpc('send_game_stats_email_rpc', {
+        if (!silent) await supabase.rpc('send_game_stats_email_rpc', {
           _event_id: eventId,
           _team_id: teamId,
           _event_title: eventTitle || 'Game',
@@ -261,19 +264,22 @@ export function useGameStats() {
 
       return { success: true };
     },
-    onSuccess: () => {
-      toast({
-        title: "Game stats saved",
-        description: "Player statistics have been recorded for this game.",
-      });
+    onSuccess: (_data, variables) => {
+      if (!variables?.silent) {
+        toast({
+          title: "Game stats saved",
+          description: "Player statistics have been recorded for this game.",
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["game-stats"] });
       queryClient.invalidateQueries({ queryKey: ["game-summary"] });
       queryClient.invalidateQueries({ queryKey: ["player-stats-report"] });
       queryClient.invalidateQueries({ queryKey: ["game-summary-report"] });
 
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
       console.error("Failed to save game stats:", error);
+      if (variables?.silent) return;
       toast({
         title: "Failed to save stats",
         description: error.message,
@@ -289,8 +295,20 @@ export function useGameStats() {
     [saveGameStatsMutation]
   );
 
+  /**
+   * Partial save used when the app is backgrounded mid-game — silent, and safe
+   * to run repeatedly because rows are replaced per event on the next save.
+   */
+  const savePartialGameStats = useCallback(
+    (params: Omit<SaveGameStatsParams, "silent">) => {
+      return saveGameStatsMutation.mutateAsync({ ...params, silent: true });
+    },
+    [saveGameStatsMutation]
+  );
+
   return {
     saveGameStats,
+    savePartialGameStats,
     isSaving: saveGameStatsMutation.isPending,
   };
 }
