@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { playSubAlertBeep, playTimerBeep } from "./GameTimer";
 import SubConfirmDialog from "./SubConfirmDialog";
 import GameFinishedDialog from "./GameFinishedDialog";
+import { END_GAME_REQUEST_EVENT, type EndGameRequestDetail } from "./endGameRequest";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -120,6 +121,7 @@ export default function GlobalSubMonitor() {
   const [subConfirmDialogOpen, setSubConfirmDialogOpen] = useState(false);
   const [currentPlayers, setCurrentPlayers] = useState<Player[]>([]);
   const [gameFinishedOpen, setGameFinishedOpen] = useState(false);
+  const [manualFinish, setManualFinish] = useState(false);
   const [finishedGameData, setFinishedGameData] = useState<{
     players: Player[];
     totalGameTime: number;
@@ -1364,6 +1366,8 @@ export default function GlobalSubMonitor() {
           eventTitle={finishedGameData.eventTitle}
           eventDate={finishedGameData.eventDate}
           opponent={finishedGameData.opponent}
+          manual={manualFinish}
+          boardTeamId={finishedGameData.teamId}
         />
       )}
     </>
