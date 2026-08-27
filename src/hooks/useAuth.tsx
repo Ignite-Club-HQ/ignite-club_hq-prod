@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, onlineManager } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { subscribeToPushNotifications } from "@/lib/pushNotifications";
@@ -19,6 +19,8 @@ import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 import { fetchUnreadMessageCounts, getTotalUnreadMessageCount } from "@/lib/unreadMessageCounts";
 import { markProfileCompleted } from "@/components/InviteFlowProgress";
 import { isNativePlatform, unregisterNativePush } from "@/lib/nativePush";
+import { isTransientAuthFailure } from "@/lib/authRecoveryClassification";
+
 
 interface Profile {
   id: string;
@@ -763,7 +765,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        // CRITICAL: never tear down the local session because the network was
+        // unreachable. Clearing the cache + `setUser(null)` here is what made the
+        // club switcher vanish and the theme fall back to Ignite after a coverage
+        // drop, with no path back until relaunch.
+        if (!tokenMissing && (isTransientAuthFailure(refreshError) || isTransientAuthFailure(retryError))) {
+          console.warn(`[Auth] ${source} - refresh failed for network reasons; keeping session`, refreshError ?? retryError ?? null);
+          return;
+        }
+
         console.warn(`[Auth] ${source} - session unrecoverable`, refreshError ?? currentError ?? retryError ?? null);
+
         queryClient.clear();
         clearProfileCache();
         clearClubTeamCache();
@@ -797,6 +809,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Coverage restored: re-run the health check so a session that could not be
+    // verified while offline recovers without waiting for the next resume.
+    const unsubscribeOnline = onlineManager.subscribe(() => {
+      if (onlineManager.isOnline()) recoverSession('reconnect');
+    });
+
 
     // Native apps: also listen for Capacitor App resume event
     // This fires more reliably than visibilitychange on Android
@@ -833,6 +852,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      unsubscribeOnline();
+
       resumeListener?.remove().catch(() => {});
       window.clearInterval(heartbeat);
     };
