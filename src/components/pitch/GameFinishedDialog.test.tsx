@@ -12,6 +12,10 @@ vi.mock("@/hooks/useGameStats", () => ({
   }),
 }));
 
+vi.mock("./EventLinkSelector", () => ({
+  EventLinkSelector: () => <div data-testid="event-link-selector" />,
+}));
+
 vi.mock("@/hooks/useSaveGameResult", () => ({
   useSaveGameResult: () => ({
     save: saveGameResultMock,
@@ -114,27 +118,32 @@ describe("GameFinishedDialog duplicate submission guard", () => {
     });
   });
 
-  it("unlinked game performs local completion once without remote saves", async () => {
+  it("unlinked game blocks finishing until the coach acknowledges no stats", async () => {
     render(<GameFinishedDialog {...baseProps} linkedEventId={null} />);
-    const button = screen.getByRole("button", { name: /Done/i });
-    fireEvent.click(button);
-    fireEvent.click(button);
-    fireEvent.click(button);
+    const finish = screen.getByRole("button", { name: /Finish without stats/i });
+    expect(finish).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /unlinked practice/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Finish without stats/i }));
     await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
     expect(saveGameStatsMock).not.toHaveBeenCalled();
     expect(saveGameResultMock).not.toHaveBeenCalled();
   });
 
-  it("stats and result failures do not prevent local cleanup or closing", async () => {
+  it("keeps the dialog open and offers retry when the stats save fails", async () => {
     saveGameStatsMock = vi.fn().mockRejectedValue(new Error("stats fail"));
-    saveGameResultMock = vi.fn().mockRejectedValue(new Error("result fail"));
     render(<GameFinishedDialog {...baseProps} />);
-    const button = screen.getByRole("button", { name: /Save & Finish/i });
-    fireEvent.click(button);
-    fireEvent.click(button);
-    await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
-    expect(saveGameStatsMock).toHaveBeenCalledTimes(1);
-    expect(saveGameResultMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /Save & Finish/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Retry save/i })).toBeTruthy(),
+    );
+    expect(baseProps.onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(/stats fail/i)).toBeTruthy();
+    // Session must survive a failed save so the coach can retry.
+    expect(saveGameResultMock).not.toHaveBeenCalled();
   });
 
   it("stamps timer state as finished with gameFinishedAt", async () => {

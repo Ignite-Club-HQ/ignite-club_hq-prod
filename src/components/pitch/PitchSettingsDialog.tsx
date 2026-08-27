@@ -96,6 +96,10 @@ interface PitchSettingsDialogProps {
   
   // Match stats
   onOpenStats?: () => void;
+
+  // Manual finalisation: save stats regardless of timer state
+  onEndGameAndSave?: () => void;
+
   
   // Save settings
   onSaveSettings?: () => void;
@@ -164,6 +168,8 @@ export function PitchSettingsDialog({
   onUnlinkEvent,
   onResetFormation,
   onOpenStats,
+  onEndGameAndSave,
+
   onSaveSettings,
   isSaving = false,
   showMatchHeader,
@@ -615,6 +621,24 @@ export function PitchSettingsDialog({
                 </Button>
               )}
             </div>
+
+            {/* Manual finalisation — works at any timer state so a coach who
+                pauses or closes the app can still persist the session. */}
+            {!readOnly && onEndGameAndSave && (
+              <Button
+                size="sm"
+                className="w-full h-9"
+                onClick={() => {
+                  onEndGameAndSave();
+                  setOpen(false);
+                }}
+              >
+                <ClipboardList className="h-3.5 w-3.5 mr-2" />
+                End game &amp; save stats
+              </Button>
+            )}
+
+
 
             {/* Danger zone - collapsed */}
             {!readOnly && (onResetFormation || onResetGame || (linkedEventId && onUnlinkEvent)) && (
