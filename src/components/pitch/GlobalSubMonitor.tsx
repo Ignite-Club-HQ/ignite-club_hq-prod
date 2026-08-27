@@ -638,8 +638,70 @@ export default function GlobalSubMonitor() {
   const handleGameFinishedClose = useCallback(() => {
     setGameFinishedOpen(false);
     setFinishedGameData(null);
+    setManualFinish(false);
     gameFinishedShownRef.current = false;
   }, []);
+
+  // Manual "End game & save stats" — works while the board is open and at any
+  // timer state, because coaches routinely pause or close the app before full
+  // time and would otherwise never persist the session.
+  const openManualFinish = useCallback(async (requestedTeamId?: string | null) => {
+    const timerState = loadTimerState();
+    const pitchState = loadPitchState(requestedTeamId || timerState?.teamId);
+    if (!pitchState) return;
+
+    const minutesPerHalf = timerState?.minutesPerHalf ?? 0;
+    const halfDuration = minutesPerHalf * 60;
+    const elapsed = timerState ? getCurrentGameSeconds(timerState) : 0;
+    const priorHalf = timerState?.currentHalf === 2 ? halfDuration : 0;
+
+    let eventTitle: string | undefined;
+    let eventDate: string | undefined;
+    let opponent: string | undefined;
+    if (pitchState.linkedEventId) {
+      try {
+        const { data: eventData } = await supabase
+          .from('events')
+          .select('title, event_date, opponent')
+          .eq('id', pitchState.linkedEventId)
+          .maybeSingle();
+        if (eventData) {
+          eventTitle = eventData.title;
+          eventDate = eventData.event_date ? new Date(eventData.event_date).toLocaleDateString() : undefined;
+          opponent = eventData.opponent || undefined;
+        }
+      } catch (err) {
+        console.error('[GAME] Error fetching event details:', err);
+      }
+    }
+
+    setFinishedGameData({
+      players: pitchState.players,
+      totalGameTime: priorHalf + elapsed,
+      teamName: timerState?.teamName,
+      teamId: pitchState.teamId || requestedTeamId || undefined,
+      linkedEventId: pitchState.linkedEventId,
+      teamSize: parseInt(pitchState.teamSize) || 7,
+      executedSubs: pitchState.executedSubs || pitchState.autoSubPlan?.filter(s => s.executed) || [],
+      halfDuration: halfDuration || Math.max(1, Math.floor((priorHalf + elapsed) / 2)),
+      goals: pitchState.goals || [],
+      eventTitle,
+      eventDate,
+      opponent,
+    });
+    setManualFinish(true);
+    setGameFinishedOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<EndGameRequestDetail>).detail;
+      void openManualFinish(detail?.teamId);
+    };
+    window.addEventListener(END_GAME_REQUEST_EVENT, handler);
+    return () => window.removeEventListener(END_GAME_REQUEST_EVENT, handler);
+  }, [openManualFinish]);
+
 
   const checkForPendingSubs = useCallback(() => {
     // Check if pitch board is currently open (it handles its own subs)
