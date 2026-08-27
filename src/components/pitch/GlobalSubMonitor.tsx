@@ -3,6 +3,7 @@ import { playSubAlertBeep, playTimerBeep } from "./GameTimer";
 import SubConfirmDialog from "./SubConfirmDialog";
 import GameFinishedDialog from "./GameFinishedDialog";
 import { END_GAME_REQUEST_EVENT, type EndGameRequestDetail } from "./endGameRequest";
+import { useGameStats } from "@/hooks/useGameStats";
 import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -115,6 +116,7 @@ const toServerAnchoredTimerState = (t: TimerState) => {
 
 export default function GlobalSubMonitor() {
   const { user } = useAuth();
+  const { savePartialGameStats } = useGameStats();
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
   const [pendingAutoSub, setPendingAutoSub] = useState<SubstitutionEvent | null>(null);
   const [pendingBatchSubs, setPendingBatchSubs] = useState<SubstitutionEvent[]>([]);
