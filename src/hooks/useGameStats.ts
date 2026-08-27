@@ -85,7 +85,8 @@ export function useGameStats() {
   const saveGameStatsMutation = useMutation({
     mutationFn: async ({
       eventId,
-      teamId,
+      teamId: teamIdParam,
+      boardTeamId,
       players,
       totalGameTime,
       halfDuration,
@@ -97,7 +98,15 @@ export function useGameStats() {
       eventDate,
       opponent,
     }: SaveGameStatsParams) => {
+      const teamId = await resolveGameStatsTeamId([teamIdParam, boardTeamId], eventId);
+      if (!teamId) {
+        console.error("[useGameStats] No team could be resolved for event", eventId);
+        throw new Error(
+          "Couldn't work out which team this game belongs to, so stats weren't saved. Link the board to a fixture and try again.",
+        );
+      }
       // Calculate positions played per player based on their current position and subs
+
       const playerPositionsMap = new Map<string, Set<string>>();
       const playerSubsCount = new Map<string, number>();
       const playerStartedOnPitch = new Map<string, boolean>();
