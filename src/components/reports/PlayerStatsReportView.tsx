@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { openHtmlReport } from "@/lib/reportExport";
+import { openHtmlReport, downloadTextReport } from "@/lib/reportExport";
+import { useReportExtras, playerKey, type PlayerHonours } from "./playerStatsReportExtras";
 
 interface PlayerStatsReportViewProps {
   teamId: string;
@@ -32,6 +33,7 @@ interface PlayerStatsReportViewProps {
 interface PlayerStat {
   id: string;
   user_id: string | null;
+  child_id: string | null;
   fill_in_player_name: string | null;
   jersey_number: number | null;
   minutes_played: number;
@@ -70,6 +72,7 @@ export default function PlayerStatsReportView({
         .select(`
           id,
           user_id,
+          child_id,
           fill_in_player_name,
           jersey_number,
           minutes_played,
