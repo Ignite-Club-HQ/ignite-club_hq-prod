@@ -552,6 +552,70 @@ export default function PlayerStatsReportView({
           </div>
         )}
 
+        {/* Team result summary */}
+        {extras && extras.totals.played > 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
+            {[
+              { label: "Played", value: String(extras.totals.played) },
+              { label: "W-D-L", value: `${extras.totals.won}-${extras.totals.drawn}-${extras.totals.lost}` },
+              { label: "Goals For", value: String(extras.totals.goalsFor) },
+              { label: "Goals Against", value: String(extras.totals.goalsAgainst) },
+              { label: "Goal Diff", value: `${extras.totals.goalDifference > 0 ? "+" : ""}${extras.totals.goalDifference}` },
+            ].map((item) => (
+              <div key={item.label} className="text-center p-3 bg-muted rounded-lg">
+                <div className="text-xl font-bold text-primary">{item.value}</div>
+                <div className="text-xs text-muted-foreground">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Per-match results */}
+        {extras && extras.matches.length > 0 && (
+          <div className="mb-6 overflow-x-auto -mx-6 px-6">
+            <h3 className="text-sm font-semibold mb-2">Matches</h3>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Opponent</TableHead>
+                  <TableHead className="text-center">Score</TableHead>
+                  <TableHead className="text-center">Result</TableHead>
+                  <TableHead className="hidden sm:table-cell">Periods</TableHead>
+                  <TableHead className="hidden sm:table-cell">Captain</TableHead>
+                  <TableHead className="hidden sm:table-cell">POM</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {extras.matches.map((m) => (
+                  <TableRow key={m.eventId}>
+                    <TableCell className="whitespace-nowrap">
+                      {m.eventDate ? format(new Date(m.eventDate), "d MMM yyyy") : "-"}
+                    </TableCell>
+                    <TableCell>{m.opponent || m.title || "-"}</TableCell>
+                    <TableCell className="text-center font-mono">
+                      {m.homeScore == null || m.awayScore == null
+                        ? "-"
+                        : `${m.homeScore}\u2013${m.awayScore}`}
+                      {m.homeScore != null && m.playerGoals !== m.homeScore && (
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          (players: {m.playerGoals})
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center font-medium">{m.result ?? "-"}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
+                      {m.periodScores.map((p) => `${p.home}-${p.away}`).join(" · ") || "-"}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">{m.captainNames.join(", ") || "-"}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{m.pomNames.join(", ") || "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
         {/* Player Stats Table */}
         <div className="overflow-x-auto -mx-6 px-6">
           <Table>
@@ -563,6 +627,10 @@ export default function PlayerStatsReportView({
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="hidden sm:table-cell">Minutes by Position</TableHead>
                 <TableHead className="text-center hidden sm:table-cell">Subs</TableHead>
+                <TableHead className="text-center">Captain</TableHead>
+                <TableHead className="text-center">POM</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">GK matches</TableHead>
+                <TableHead className="text-center hidden sm:table-cell">GK mins</TableHead>
                 {dateRange ? (
                   <>
                     <TableHead className="text-center">GP</TableHead>
@@ -627,6 +695,14 @@ export default function PlayerStatsReportView({
                   </TableCell>
                   <TableCell className="text-center hidden sm:table-cell">
                     {stat.substitutions_count}
+                  </TableCell>
+                  <TableCell className="text-center font-mono">{honoursFor(stat).captain}</TableCell>
+                  <TableCell className="text-center font-mono">{honoursFor(stat).pom}</TableCell>
+                  <TableCell className="text-center font-mono hidden sm:table-cell">
+                    {Math.max(honoursFor(stat).gkMatches, honoursFor(stat).gkAppointed)}
+                  </TableCell>
+                  <TableCell className="text-center font-mono hidden sm:table-cell">
+                    {formatMinutes(honoursFor(stat).gkSeconds)}
                   </TableCell>
                   {dateRange ? (
                     <>
