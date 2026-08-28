@@ -115,12 +115,125 @@ export interface EnsureSecondParentParams {
   childIds?: string[];
   /** Child metadata carried on the invite (new-invitee flows). */
   childrenMetadata?: SecondParentChildMeta[] | null;
+  /**
+   * True when the form has at least one child for a parent add. Guarantees the
+   * invite row carries `metadata.children` so reminder emails and the
+   * child-provisioning path on accept have something to work with.
+   */
+  expectChildren?: boolean;
   /** Authenticated user performing the add. */
   invitedByUserId: string;
   /** Primary invite token, so the household stays linked. */
   linkedInviteToken?: string | null;
   /** Origin used to build the shareable invite link. */
   origin?: string;
+}
+
+type ChildMetaRow = { name: string; yearOfBirth: number | null; existingChildId: string | null };
+
+function buildChildrenMetadata(
+  childrenMetadata: SecondParentChildMeta[],
+  childIds: string[],
+): ChildMetaRow[] {
+  if (childrenMetadata.length > 0) {
+    return childrenMetadata.map((c) => ({
+      name: c.name.trim(),
+      yearOfBirth: c.yearOfBirth ?? null,
+      existingChildId: c.existingChildId ?? null,
+    }));
+  }
+  return childIds.map((id) => ({ name: "", yearOfBirth: null, existingChildId: id }));
+}
+
+/** Best-effort email lookup for an existing profile (used to make the invite resendable). */
+async function lookupProfileEmail(userId: string): Promise<string | null> {
+  try {
+    const { data } = await supabase.rpc("admin_get_user_emails" as never, {
+      user_ids: [userId],
+    } as never);
+    const row = (data as { id: string; email: string }[] | null)?.find((r) => r.id === userId);
+    return row?.email ? normalizeEmail(row.email) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Creates (or refreshes) the `pending_invites` row for a second parent so every
+ * added parent is visible in PendingInvitesList and reachable by
+ * resend / Resend All / send-invite-reminders. Throws on failure — a link is
+ * never minted for a row that doesn't exist.
+ */
+async function upsertSecondParentInvite(args: {
+  teamId: string;
+  clubId: string;
+  invitedByUserId: string;
+  invitedUserId: string | null;
+  invitedEmail: string | null;
+  invitedLabel: string | null;
+  label: string | null;
+  metadata: Record<string, unknown>;
+}): Promise<{ id: string; token: string }> {
+  const { teamId, clubId, invitedUserId, invitedEmail } = args;
+
+  let existingQuery = supabase
+    .from("pending_invites")
+    .select("id, invite_token")
+    .eq("team_id", teamId)
+    .eq("role", "parent" as never)
+    .eq("status", "pending");
+  existingQuery = invitedUserId
+    ? existingQuery.eq("invited_user_id", invitedUserId)
+    : existingQuery.eq("invited_email", invitedEmail ?? "");
+
+  const { data: existing } = await existingQuery.limit(1).maybeSingle();
+
+  if (existing?.id && existing.invite_token) {
+    const { error: updateError } = await supabase
+      .from("pending_invites")
+      .update({
+        invited_label: args.invitedLabel,
+        invited_email: invitedEmail,
+        metadata: args.metadata,
+      } as never)
+      .eq("id", existing.id);
+    if (updateError) {
+      throw new SecondParentError(
+        `${args.label ?? "The second parent"}'s invitation could not be updated.`,
+        args.label,
+        updateError,
+      );
+    }
+    return { id: existing.id, token: existing.invite_token };
+  }
+
+  const inviteToken = crypto.randomUUID();
+  const { data: created, error: inviteError } = await supabase
+    .from("pending_invites")
+    .insert({
+      team_id: teamId,
+      club_id: clubId,
+      role: "parent" as never,
+      status: "pending",
+      invited_user_id: invitedUserId,
+      invited_by_user_id: args.invitedByUserId,
+      invited_label: args.invitedLabel,
+      invited_email: invitedEmail,
+      invite_token: inviteToken,
+      metadata: args.metadata,
+    } as never)
+    .select("id, invite_token")
+    .single();
+
+  if (inviteError || !created?.id || !created?.invite_token) {
+    throw new SecondParentError(
+      `${args.label ?? "The second parent"}'s invitation could not be created.`,
+      args.label,
+      inviteError ?? new Error("invite_row_not_readable"),
+    );
+  }
+
+  return { id: created.id, token: created.invite_token };
 }
 
 export async function ensureSecondParent(
@@ -142,8 +255,9 @@ export async function ensureSecondParent(
   const email = normalizeEmail(params.email);
   const childIds = (params.childIds ?? []).filter(Boolean);
   const childrenMetadata = (params.childrenMetadata ?? []).filter((c) => !!c?.name);
+  const origin = params.origin ?? (typeof window !== "undefined" ? window.location.origin : "");
 
-  // --- Existing profile: add directly, no invite -----------------------------
+  // --- Existing profile: grant access now, but still create a real invite ----
   if (selectedProfile) {
     const label = selectedProfile.display_name || "Second parent";
 
@@ -175,6 +289,39 @@ export async function ensureSecondParent(
       }
     }
 
+    const metadataChildren = buildChildrenMetadata(childrenMetadata, childIds);
+    if (params.expectChildren && metadataChildren.length === 0) {
+      throw new SecondParentError(
+        `We couldn't attach the children to ${label}'s invitation. Please retry.`,
+        label,
+        new Error("missing_children_metadata"),
+      );
+    }
+
+    const inviteEmail =
+      (params.email ? email : null) || (await lookupProfileEmail(selectedProfile.id));
+
+    const invite = await upsertSecondParentInvite({
+      teamId,
+      clubId,
+      invitedByUserId,
+      invitedUserId: selectedProfile.id,
+      invitedEmail: inviteEmail,
+      invitedLabel: selectedProfile.display_name ?? null,
+      label,
+      metadata: {
+        ...(metadataChildren.length > 0 ? { children: metadataChildren } : {}),
+        ...(childIds.length > 0
+          ? { guardian_child_ids: childIds, guardian_child_id: childIds[0] }
+          : {}),
+        guardian_all_team_ids: [teamId],
+        invited_by_parent: true,
+        second_parent: true,
+        second_parent_of_existing_user: true,
+        ...(linkedInviteToken ? { linked_invite_token: linkedInviteToken } : {}),
+      },
+    });
+
     // Notification is best-effort — the membership is already committed.
     await supabase
       .from("notifications")
@@ -188,7 +335,14 @@ export async function ensureSecondParent(
         if (error) console.error("[secondParent] notification failed", error.message);
       });
 
-    return { status: "added", label: selectedProfile.id ? label : null };
+    return {
+      status: "added",
+      label,
+      inviteId: invite.id,
+      inviteToken: invite.token,
+      inviteLink: `${origin}/join/p/${invite.token}`,
+      email: inviteEmail ?? undefined,
+    };
   }
 
   // --- Nothing entered -------------------------------------------------------
@@ -200,27 +354,24 @@ export async function ensureSecondParent(
   }
 
   const label = name || email;
-  const inviteId = crypto.randomUUID();
-  const inviteToken = crypto.randomUUID();
 
-  const metadataChildren = childrenMetadata.length > 0
-    ? childrenMetadata.map((c) => ({
-        name: c.name.trim(),
-        yearOfBirth: c.yearOfBirth ?? null,
-        existingChildId: c.existingChildId ?? null,
-      }))
-    : childIds.map((id) => ({ name: "", yearOfBirth: null, existingChildId: id }));
+  const metadataChildren = buildChildrenMetadata(childrenMetadata, childIds);
+  if (params.expectChildren && metadataChildren.length === 0) {
+    throw new SecondParentError(
+      `We couldn't attach the children to ${label}'s invitation. Please retry.`,
+      label,
+      new Error("missing_children_metadata"),
+    );
+  }
 
-  const { error: inviteError } = await supabase.from("pending_invites").insert({
-    id: inviteId,
-    team_id: teamId,
-    club_id: clubId,
-    role: "parent" as never,
-    invited_user_id: null,
-    invited_by_user_id: invitedByUserId,
-    invited_label: name || null,
-    invited_email: email,
-    invite_token: inviteToken,
+  const invite = await upsertSecondParentInvite({
+    teamId,
+    clubId,
+    invitedByUserId,
+    invitedUserId: null,
+    invitedEmail: email,
+    invitedLabel: name || null,
+    label,
     metadata: {
       ...(metadataChildren.length > 0 ? { children: metadataChildren } : {}),
       ...(childIds.length > 0 ? { guardian_child_ids: childIds, guardian_child_id: childIds[0] } : {}),
@@ -229,27 +380,18 @@ export async function ensureSecondParent(
       second_parent: true,
       ...(linkedInviteToken ? { linked_invite_token: linkedInviteToken } : {}),
     },
-  } as never);
-
-  if (inviteError) {
-    throw new SecondParentError(
-      `${label}'s invitation could not be created.`,
-      label,
-      inviteError,
-    );
-  }
-
-  const origin = params.origin ?? (typeof window !== "undefined" ? window.location.origin : "");
+  });
 
   return {
     status: "invited",
     label,
-    inviteId,
-    inviteToken,
-    inviteLink: `${origin}/join/p/${inviteToken}`,
+    inviteId: invite.id,
+    inviteToken: invite.token,
+    inviteLink: `${origin}/join/p/${invite.token}`,
     email,
   };
 }
+
 
 /** Partial-success copy shown when the primary add worked but the second parent didn't. */
 export function secondParentPartialFailureMessage(
