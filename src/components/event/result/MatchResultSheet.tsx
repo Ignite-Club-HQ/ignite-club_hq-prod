@@ -511,6 +511,8 @@ export function MatchResultSheet({
       onOpenChange(false);
       queryClient.invalidateQueries({ queryKey: ["match-result", eventId] });
       queryClient.invalidateQueries({ queryKey: ["match-score", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["team-game-events", teamId] });
+      queryClient.invalidateQueries({ queryKey: ["player-stats-report-extras", teamId] });
     } catch (err) {
       const msg = (err as Error).message;
       toast({

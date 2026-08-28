@@ -93,6 +93,7 @@ export default function PlayerStatsReportView({
           .from("events")
           .select("id")
           .eq("team_id", teamId)
+          .eq("type", "game")
           .gte("event_date", dateRange.from.toISOString())
           .lte("event_date", dateRange.to.toISOString());
 
