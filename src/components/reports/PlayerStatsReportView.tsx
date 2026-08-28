@@ -767,6 +767,7 @@ export default function PlayerStatsReportView({
             </TableBody>
           </Table>
         </div>
+        )}
       </CardContent>
     </Card>
   );
