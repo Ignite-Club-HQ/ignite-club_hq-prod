@@ -120,13 +120,9 @@ export async function resolveEventChildRoster({
   if (!event) return [];
   if (childrenAreExcluded(event, teamDefaultAudience)) return [];
 
-  let teamIds: string[] = [];
-  if (event.team_id) teamIds = [event.team_id];
-  else {
-    const targets = (event.target_team_ids ?? []).filter(Boolean) as string[];
-    if (targets.length > 0) teamIds = targets;
-    else if (event.club_id) teamIds = await teamIdsForClub(event.club_id);
-  }
+  const eligible = getEventEligibleTeamIds(event);
+  let teamIds: string[] = eligible ?? [];
+  if (!eligible && event.club_id) teamIds = await teamIdsForClub(event.club_id);
   if (teamIds.length === 0) return [];
 
   const { data, error } = await supabase
