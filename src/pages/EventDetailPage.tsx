@@ -1340,7 +1340,10 @@ export default function EventDetailPage() {
   // nagged (they can still see the event). Team / mini-league / untargeted
   // club-wide events keep the previous behaviour.
   const reminderMembers = useMemo(() => {
-    if (event?.team_id || !targetTeamIdsForFetch) return members;
+    // Parents linked only via a child (no visible role row) still owe a
+    // response, so they must be reachable by reminders too.
+    const roleless = linkedAdultProfiles || [];
+    if (event?.team_id || !targetTeamIdsForFetch) return [...(members ?? []), ...roleless];
     const targetSet = new Set(targetTeamIdsForFetch);
     const linkedAdultIds = new Set<string>();
     (allChildrenOnTeam || []).forEach((c: any) => {
@@ -1349,12 +1352,13 @@ export default function EventDetailPage() {
     (childGuardiansOnTeam || []).forEach((cg: any) => {
       if (cg.guardian_id) linkedAdultIds.add(cg.guardian_id);
     });
-    return (members ?? []).filter((m: any) => {
+    return [...(members ?? []), ...roleless].filter((m: any) => {
       const pairs: { role: string; team_id: string | null }[] = m.role_team_pairs ?? [];
       if (pairs.some((p) => p.team_id && targetSet.has(p.team_id))) return true;
       return linkedAdultIds.has(m.id);
     });
-  }, [members, event?.team_id, targetTeamIdsForFetch, allChildrenOnTeam, childGuardiansOnTeam]);
+  }, [members, event?.team_id, targetTeamIdsForFetch, allChildrenOnTeam, childGuardiansOnTeam, linkedAdultProfiles]);
+
 
   // Get existing RSVPs for children (any guardian's RSVP for the child counts)
   const myChildIds = new Set((childrenOnTeam || []).map((c: any) => c.id));
