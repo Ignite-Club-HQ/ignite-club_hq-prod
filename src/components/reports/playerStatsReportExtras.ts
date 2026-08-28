@@ -69,6 +69,10 @@ export interface PlayerHonours {
 export interface ReportExtras {
   matches: ReportMatch[];
   honours: Record<PlayerKey, PlayerHonours>;
+  /** Goal scorers aggregated across all matches from game_results.player_stats.
+   *  Keyed by player id (user_id or child_id) so the report can show goals
+   *  even when no pitch-board session was tracked. */
+  scorersByPlayer: Record<string, ScorerAgg>;
   totals: {
     played: number;
     won: number;
