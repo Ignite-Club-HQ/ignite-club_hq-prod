@@ -869,15 +869,22 @@ export default function EventDetailPage() {
       const query = supabase
         .from("user_roles")
         .select("user_id, role, team_id, profiles:user_id (id, display_name, avatar_url)");
-      
+
       if (event?.team_id) {
         query.eq("team_id", event.team_id);
       } else {
         query.eq("club_id", event!.club_id);
       }
-      
-      const { data, error } = await query;
+
+      // The club bot holds roles so it can post in chats, but it is not a
+      // real member — never surface it in attendance lists.
+      const [{ data, error }, { data: clubRow }] = await Promise.all([
+        query,
+        supabase.from("clubs").select("bot_user_id").eq("id", event!.club_id).maybeSingle(),
+      ]);
       if (error) throw error;
+      const botUserId = clubRow?.bot_user_id ?? null;
+
       
       // Group roles by user_id, keeping track of every team_id we've seen for them.
       // `role_team_pairs` preserves WHICH team each role was held on, so targeted
@@ -886,7 +893,7 @@ export default function EventDetailPage() {
         string,
         { profile: any; roles: string[]; teamIds: Set<string>; pairs: { role: string; team_id: string | null }[] }
       >();
-      data.filter(m => m.profiles).forEach(m => {
+      data.filter(m => m.profiles && m.user_id !== botUserId).forEach(m => {
         const existing = userRolesMap.get(m.user_id);
         if (existing) {
           if (!existing.roles.includes(m.role)) existing.roles.push(m.role);
@@ -3522,6 +3529,14 @@ export default function EventDetailPage() {
         // Get player user IDs for filtering
         const playerUserIds = new Set(playerMembers?.map((m: any) => m.id) || []);
 
+        // When the audience prompts parents (players_and_parents / parents_only),
+        // parent self-RSVPs are real responses and must appear in the buckets —
+        // many parents hold no "player" role, so gating on playerUserIds hides them.
+        const attendanceAudience = resolveRsvpAudience(
+          (event as any)?.rsvp_audience,
+          (event as any)?.teams?.default_rsvp_audience,
+        );
+        const parentsPrompted = shouldPromptParent(attendanceAudience);
 
         const filterRsvp = (rsvp: any) => {
           if (effectiveShowAll) return true;
@@ -3531,6 +3546,7 @@ export default function EventDetailPage() {
           }
           if (rsvp.mini_league_player_id) return true;
           if (rsvp.child_id) return true;
+          if (parentsPrompted) return true;
           return playerUserIds.has(rsvp.user_id);
         };
 
