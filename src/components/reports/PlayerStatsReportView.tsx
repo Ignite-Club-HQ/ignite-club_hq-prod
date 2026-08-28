@@ -617,6 +617,7 @@ export default function PlayerStatsReportView({
                   <TableHead className="hidden sm:table-cell">Periods</TableHead>
                   <TableHead className="hidden sm:table-cell">Captain</TableHead>
                   <TableHead className="hidden sm:table-cell">POM</TableHead>
+                  <TableHead className="hidden sm:table-cell">Scorers</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
