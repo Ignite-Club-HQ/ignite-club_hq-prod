@@ -516,7 +516,12 @@ export default function PlayerStatsReportView({
     );
   }
 
-  if (!playerStats || playerStats.length === 0) {
+  // No pitch-board stats AND no match scores — nothing to show at all.
+  const hasAnyData =
+    reportStats.length > 0 ||
+    (extras && extras.totals.played > 0) ||
+    (extras && extras.matches.length > 0);
+  if (!hasAnyData) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -526,7 +531,8 @@ export default function PlayerStatsReportView({
     );
   }
 
-  const sortedStats = [...playerStats].sort((a, b) => b.minutes_played - a.minutes_played);
+  const sortedStats = [...reportStats].sort((a, b) => b.minutes_played - a.minutes_played);
+  const isScorerOnly = !hasTrackedStats && scorerRows.length > 0;
 
   return (
     <Card>
