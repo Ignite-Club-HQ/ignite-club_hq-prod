@@ -153,7 +153,7 @@ export default function GameFinishedDialog({
         eventTitle,
         eventDate,
         opponent,
-      }).then(() => teamId || boardTeamId || undefined);
+      }).then((res) => res?.teamId ?? teamId ?? boardTeamId ?? undefined);
       setStatsSaved(true);
 
       // Also persist a soccer match score row (parity with basketball/netball boards),
