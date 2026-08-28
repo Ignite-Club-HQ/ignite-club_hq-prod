@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { openHtmlReport, downloadTextReport } from "@/lib/reportExport";
-import { useReportExtras, playerKey, type PlayerHonours } from "./playerStatsReportExtras";
+import { useReportExtras, playerKey, type PlayerHonours, type ReportScorer } from "./playerStatsReportExtras";
 
 interface PlayerStatsReportViewProps {
   teamId: string;
