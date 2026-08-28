@@ -3630,7 +3630,19 @@ export default function EventDetailPage() {
             );
           }
         } else {
-          const membersToShow = effectiveShowAll ? attendanceMembers : attendancePlayerMembers;
+          // "Show all roles" on a targeted event must include parents/guardians
+          // of in-scope children even if they hold no team-scoped role.
+          const baseMembersToShow = effectiveShowAll ? attendanceMembers : attendancePlayerMembers;
+          const membersToShow = effectiveShowAll
+            ? [
+                ...(baseMembersToShow || []),
+                ...((members || []).filter(
+                  (m: any) =>
+                    scopedAdultIds.has(m.id) &&
+                    !(baseMembersToShow || []).some((b: any) => b.id === m.id),
+                )),
+              ]
+            : baseMembersToShow;
           const parentIdsWithRespondedChildren = new Set<string>();
           (allChildrenOnTeam || []).forEach((child: any) => {
             if (child.parent_id && respondedChildIds.has(child.id)) {
