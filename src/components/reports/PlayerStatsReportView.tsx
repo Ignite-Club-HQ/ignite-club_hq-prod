@@ -643,6 +643,9 @@ export default function PlayerStatsReportView({
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">{m.captainNames.join(", ") || "-"}</TableCell>
                     <TableCell className="hidden sm:table-cell">{m.pomNames.join(", ") || "-"}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-xs">
+                      {m.scorers.map((s) => `${s.name} (${s.goals})`).join(", ") || "-"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
