@@ -25,6 +25,12 @@ export function isGoalkeeperPosition(position: string): boolean {
   return GK_POSITION.test(position.trim());
 }
 
+export interface ReportScorer {
+  id: string;
+  name: string;
+  goals: number;
+}
+
 export interface ReportMatch {
   eventId: string;
   title: string;
@@ -42,6 +48,14 @@ export interface ReportMatch {
   goalkeeperNames: string[];
   /** Sum of players' recorded goals — used to flag reconciliation gaps. */
   playerGoals: number;
+  /** Goal scorers entered via the Match Result sheet (game_results.player_stats). */
+  scorers: ReportScorer[];
+}
+
+export interface ScorerAgg {
+  name: string;
+  goals: number;
+  games: number;
 }
 
 export interface PlayerHonours {
