@@ -98,10 +98,8 @@ export async function resolveRsvpChildren({
   if (candidates.length === 0) return [];
 
   // Step 3 — team scoping. Never widen.
-  if (event.team_id) return intersectWithTeams(candidates, [event.team_id]);
-
-  const targets = (event.target_team_ids ?? []).filter(Boolean) as string[];
-  if (targets.length > 0) return intersectWithTeams(candidates, targets);
+  const eligible = getEventEligibleTeamIds(event);
+  if (eligible) return intersectWithTeams(candidates, eligible);
 
   if (!event.club_id) return [];
   const clubTeamIds = await teamIdsForClub(event.club_id);
