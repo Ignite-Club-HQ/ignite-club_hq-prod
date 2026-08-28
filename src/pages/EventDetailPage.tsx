@@ -893,7 +893,7 @@ export default function EventDetailPage() {
         string,
         { profile: any; roles: string[]; teamIds: Set<string>; pairs: { role: string; team_id: string | null }[] }
       >();
-      data.filter(m => m.profiles).forEach(m => {
+      data.filter(m => m.profiles && m.user_id !== botUserId).forEach(m => {
         const existing = userRolesMap.get(m.user_id);
         if (existing) {
           if (!existing.roles.includes(m.role)) existing.roles.push(m.role);
