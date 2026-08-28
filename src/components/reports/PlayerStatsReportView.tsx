@@ -291,7 +291,7 @@ export default function PlayerStatsReportView({
                 <div class="summary-label">Total Time</div>
               </div>
               <div class="summary-item">
-                <div class="summary-value">${playerStats?.length || 0}</div>
+                <div class="summary-value">${reportStats.length || 0}</div>
                 <div class="summary-label">Players</div>
               </div>
               <div class="summary-item">
@@ -374,7 +374,7 @@ export default function PlayerStatsReportView({
               </tr>
             </thead>
             <tbody>
-              ${(playerStats || [])
+              ${sortedStats
                 .sort((a, b) => b.minutes_played - a.minutes_played)
                 .map((stat) => {
                   const positionMinsHtml = stat.position_minutes && Object.keys(stat.position_minutes).length > 0
@@ -474,7 +474,7 @@ export default function PlayerStatsReportView({
       "#", "Player", "Goals", "Minutes", "Subs", "Captain (n)", "POM (n)",
       "GK matches (n)", "GK minutes", "Games played", "Starts", "Positions",
     ]);
-    (playerStats || []).forEach((stat) => {
+    sortedStats.forEach((stat) => {
       const h = honoursFor(stat);
       rows.push([
         stat.jersey_number == null ? "" : String(stat.jersey_number),
@@ -564,7 +564,7 @@ export default function PlayerStatsReportView({
             </div>
             <div className="text-center p-3 bg-muted rounded-lg">
               <div className="text-xl font-bold text-primary">
-                {playerStats.length}
+                {reportStats.length}
               </div>
               <div className="text-xs text-muted-foreground">Players</div>
             </div>
