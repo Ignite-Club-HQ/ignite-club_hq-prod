@@ -10823,6 +10823,10 @@ export type Database = {
         Args: { p_email: string }
         Returns: boolean
       }
+      child_is_in_event_audience: {
+        Args: { _child_id: string; _event_id: string }
+        Returns: boolean
+      }
       claim_eoi_by_token: {
         Args: { _token: string }
         Returns: {
