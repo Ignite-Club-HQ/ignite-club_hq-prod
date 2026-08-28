@@ -3671,33 +3671,44 @@ export default function EventDetailPage() {
             );
           }
         } else {
-          // "Show all roles" on a targeted event must include parents/guardians
-          // of in-scope children even if they hold no team-scoped role.
+          // "Show all roles" must include every parent/guardian of an in-scope
+          // child — including those with no role row on this team (they are
+          // fetched separately as `linkedAdultProfiles`).
           const baseMembersToShow = effectiveShowAll ? attendanceMembers : attendancePlayerMembers;
+          const adultPool = [...(members || []), ...(linkedAdultProfiles || [])];
           const membersToShow = effectiveShowAll
             ? [
                 ...(baseMembersToShow || []),
-                ...((members || []).filter(
-                  (m: any) =>
+                ...(adultPool.filter(
+                  (m: any, i: number) =>
                     scopedAdultIds.has(m.id) &&
-                    !(baseMembersToShow || []).some((b: any) => b.id === m.id),
+                    !(baseMembersToShow || []).some((b: any) => b.id === m.id) &&
+                    adultPool.findIndex((a: any) => a.id === m.id) === i,
                 )),
               ]
             : baseMembersToShow;
+          // A child's response only covers the parent when the parent is a pure
+          // proxy (players_only). On `players_and_parents` / `parents_only` the
+          // adult owes their OWN response, so they must stay in "Not responded"
+          // until they answer — otherwise they silently disappear from the list.
+          const parentCoveredByChild = attendanceAudience === "players_only";
           const parentIdsWithRespondedChildren = new Set<string>();
-          (allChildrenOnTeam || []).forEach((child: any) => {
-            if (child.parent_id && respondedChildIds.has(child.id)) {
-              parentIdsWithRespondedChildren.add(child.parent_id);
-            }
-          });
-          (childGuardiansOnTeam || []).forEach((cg: any) => {
-            if (cg.guardian_id && respondedChildIds.has(cg.child_id)) {
-              parentIdsWithRespondedChildren.add(cg.guardian_id);
-            }
-          });
+          if (parentCoveredByChild) {
+            (allChildrenOnTeam || []).forEach((child: any) => {
+              if (child.parent_id && respondedChildIds.has(child.id)) {
+                parentIdsWithRespondedChildren.add(child.parent_id);
+              }
+            });
+            (childGuardiansOnTeam || []).forEach((cg: any) => {
+              if (cg.guardian_id && respondedChildIds.has(cg.child_id)) {
+                parentIdsWithRespondedChildren.add(cg.guardian_id);
+              }
+            });
+          }
           notResponded = membersToShow?.filter((m: any) =>
             !respondedUserIds.has(m.id) && !parentIdsWithRespondedChildren.has(m.id)
           ) || [];
+
           notRespondedChildren = allChildrenOnTeam?.filter((child: any) => !respondedChildIds.has(child.id)) || [];
         }
 
