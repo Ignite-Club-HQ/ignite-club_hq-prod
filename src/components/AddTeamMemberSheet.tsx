@@ -34,6 +34,7 @@ import { computeMemberIdentity, type MemberRole, type MemberIdentity } from "@/l
 import { useDebounce } from "@/hooks/useDebounce";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { isDuplicateChildError } from "@/lib/childDedup";
+import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import {
   ensureSecondParent,
   secondParentValidationError,
@@ -1023,6 +1024,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             yearOfBirth: child.yearOfBirth,
             existingChildId: child.id,
           })),
+          expectChildren: selectedRole === "parent" && singleChildren.some((c) => c.name.trim()),
           invitedByUserId: user!.id,
         });
       } catch (err) {
@@ -1256,14 +1258,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
       }
 
-      handleClose();
+      if (!result?.secondParentFailure) handleClose();
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to add member",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(
+        friendlyMutationError(error, {
+          title: "Failed to add member",
+          description: error.message || "Something went wrong. Please try again.",
+        }),
+      );
     },
   });
 
@@ -1299,7 +1302,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             club_id: clubId,
             role: selectedRole as any,
           });
-          if (roleErr && !roleErr.message?.includes("duplicate")) {
+          if (roleErr && !isDuplicateError(roleErr)) {
             throw roleErr;
           }
           const { error: notifyErr } = await supabase.from("notifications").insert({
@@ -1328,6 +1331,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
                   existingChildId: c.existingChildId || null,
                 })),
+              expectChildren: selectedRole === "parent" && singleChildren.some((c) => c.name.trim()),
               invitedByUserId: user!.id,
             });
           } catch (err) {
@@ -1391,8 +1395,11 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
               ...(selectedSecondParent ? { second_parent_user_id: selectedSecondParent.id } : {}),
             } 
           : null,
-      } as any).select("id, short_code").single();
+      } as any).select("id, invite_token, short_code").single();
       if (inviteError) throw inviteError;
+      if (!primaryInvite?.id || !(primaryInvite as any)?.invite_token) {
+        throw new Error("The invitation could not be created. Please try again.");
+      }
 
       const link = `${window.location.origin}/join/p/${inviteToken}`;
 
@@ -1414,6 +1421,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
             existingChildId: c.existingChildId || null,
           })),
           childIds: validChildren.map((c) => c.existingChildId).filter(Boolean) as string[],
+          expectChildren: validChildren.length > 0,
           invitedByUserId: user!.id,
           linkedInviteToken: inviteToken,
         });
@@ -1692,11 +1700,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       }
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to add member",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(
+        friendlyMutationError(error, {
+          title: "Failed to add member",
+          description: error.message || "Something went wrong. Please try again.",
+        }),
+      );
     },
   });
 
@@ -1740,6 +1749,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 yearOfBirth: c.yearOfBirth ? parseInt(c.yearOfBirth) : null,
                 existingChildId: c.existingChildId || null,
               })),
+            expectChildren: validChildren.filter((c) => c.name.trim()).length > 0,
             invitedByUserId: user!.id,
             linkedInviteToken,
           });
@@ -2080,11 +2090,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
 
     onError: (error: Error) => {
-      toast({
-        title: "Failed to add members",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(
+        friendlyMutationError(error, {
+          title: "Failed to add members",
+          description: error.message || "Something went wrong. Please try again.",
+        }),
+      );
     },
   });
 

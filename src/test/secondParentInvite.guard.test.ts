@@ -75,3 +75,22 @@ describe("second parent invite", () => {
     expect(msg).toContain("could not be created");
   });
 });
+
+const helper = readFileSync("src/features/membership/secondParentInvite.ts", "utf8");
+
+describe("second parent invite rows", () => {
+  it("creates a real pending invite for existing-account second parents", () => {
+    expect(helper).toContain("second_parent_of_existing_user: true");
+    // both branches route through the same upsert
+    expect((helper.match(/upsertSecondParentInvite\(\{/g) ?? []).length).toBe(2);
+  });
+
+  it("never mints a link without reading the row back", () => {
+    expect(helper).toContain('.select("id, invite_token")');
+    expect(helper).toContain("invite_row_not_readable");
+  });
+
+  it("asserts children metadata when the form has children", () => {
+    expect((helper.match(/missing_children_metadata/g) ?? []).length).toBe(2);
+  });
+});
