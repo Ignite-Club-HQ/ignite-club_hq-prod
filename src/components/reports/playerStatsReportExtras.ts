@@ -230,6 +230,20 @@ export async function fetchReportExtras(
     goalsByEvent.set(row.event_id, (goalsByEvent.get(row.event_id) ?? 0) + (row.goals_scored || 0));
   });
 
+  // Extract goal scorers from game_results.player_stats JSON so the report
+  // can show goals even when no pitch-board session was tracked.
+  const scorersByPlayer: Record<string, ScorerAgg> = {};
+  const extractScorers = (raw: unknown): ReportScorer[] => {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((p: any) => ({
+        id: String(p?.id ?? ""),
+        name: String(p?.name ?? "Player"),
+        goals: Number(p?.goals) || 0,
+      }))
+      .filter((s) => s.id && s.id !== "__own__" && s.goals > 0);
+  };
+
   const matches: ReportMatch[] = (events ?? [])
     .map((event: any) => {
       const gr = resultByEvent.get(event.id);
@@ -243,6 +257,17 @@ export async function fetchReportExtras(
             : homeScore < awayScore
               ? "L"
               : "D";
+      const matchScorers = extractScorers(gr?.player_stats);
+      // Aggregate per-player goals across all matches in the range.
+      matchScorers.forEach((s) => {
+        const existing = scorersByPlayer[s.id];
+        if (existing) {
+          existing.goals += s.goals;
+          existing.games += 1;
+        } else {
+          scorersByPlayer[s.id] = { name: s.name, goals: s.goals, games: 1 };
+        }
+      });
       return {
         eventId: event.id,
         title: event.title,
@@ -258,6 +283,7 @@ export async function fetchReportExtras(
         pomNames: poms.filter((c: any) => c.event_id === event.id).map(nameFor),
         goalkeeperNames: gks.filter((c: any) => c.event_id === event.id).map(nameFor),
         playerGoals: goalsByEvent.get(event.id) ?? 0,
+        scorers: matchScorers,
       } satisfies ReportMatch;
     })
     .sort((a, b) => (a.eventDate ?? "").localeCompare(b.eventDate ?? ""));
@@ -274,7 +300,7 @@ export async function fetchReportExtras(
   };
   totals.goalDifference = totals.goalsFor - totals.goalsAgainst;
 
-  return { matches, honours, totals };
+  return { matches, honours, scorersByPlayer, totals };
 }
 
 export function useReportExtras(
