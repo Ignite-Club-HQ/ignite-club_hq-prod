@@ -262,7 +262,7 @@ export function useGameStats() {
         // Don't throw - stats were still saved
       }
 
-      return { success: true };
+      return { success: true, teamId };
     },
     onSuccess: (_data, variables) => {
       if (!variables?.silent) {

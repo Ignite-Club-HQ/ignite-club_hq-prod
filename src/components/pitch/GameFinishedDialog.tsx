@@ -153,7 +153,7 @@ export default function GameFinishedDialog({
         eventTitle,
         eventDate,
         opponent,
-      }).then(() => teamId || boardTeamId || undefined);
+      }).then((res) => res?.teamId ?? teamId ?? boardTeamId ?? undefined);
       setStatsSaved(true);
 
       // Also persist a soccer match score row (parity with basketball/netball boards),
@@ -183,7 +183,7 @@ export default function GameFinishedDialog({
         const scorerStats = Array.from(goalsByPlayer.values());
 
         if (resolvedTeamId) {
-          await saveGameResult(
+          const scoreSaved = await saveGameResult(
             {
               teamId: resolvedTeamId,
               eventId: effectiveEventId,
@@ -197,6 +197,13 @@ export default function GameFinishedDialog({
             },
             { silent: true, onlyIfMissing: true }
           );
+          if (!scoreSaved) {
+            toast({
+              title: "Stats saved, but not the score",
+              description: "Open the fixture and record the result again so it appears in Player Stats.",
+              variant: "destructive",
+            });
+          }
         }
       } catch (err) {
         // The score row is secondary — player stats are already persisted.
