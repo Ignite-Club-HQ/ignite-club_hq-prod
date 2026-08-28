@@ -10758,6 +10758,10 @@ export type Database = {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean
       }
+      can_manage_game_result: {
+        Args: { _event_id: string; _team_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_team_captains: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean

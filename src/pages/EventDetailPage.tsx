@@ -80,7 +80,7 @@ import { AttendanceSection } from "@/components/event/AttendanceSection";
 import { useEventGroupMap } from "@/hooks/useEventGroupMap";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
-import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, shouldPromptSelf, isParentFirstEvent } from "@/lib/rsvpAudience";
+import { resolveRsvpAudience, shouldPromptPlayer, shouldPromptSelf, isParentFirstEvent } from "@/lib/rsvpAudience";
 import { resolveRsvpChildren, resolveEventChildRoster } from "@/lib/resolveEventChildScope";
 
 
@@ -1295,6 +1295,43 @@ export default function EventDetailPage() {
     enabled: childIdsOnTeam.length > 0,
   });
 
+  // Adults linked to an in-scope child are part of the event audience even
+  // when they hold NO `user_roles` row that the members query can see:
+  //  - team events query user_roles by team_id, so a parent whose only role
+  //    row is club-level (team_id IS NULL) or sits on another team is missing;
+  //  - parents added via child linking may hold no role row at all.
+  // Without this fetch those parents can never appear in the roster — which is
+  // exactly the "not all parents showed even with Show all roles" report.
+  const linkedAdultIdsForAttendance = useMemo(() => {
+    const ids = new Set<string>();
+    (allChildrenOnTeam || []).forEach((c: any) => {
+      if (c.parent_id) ids.add(c.parent_id);
+    });
+    (childGuardiansOnTeam || []).forEach((cg: any) => {
+      if (cg.guardian_id) ids.add(cg.guardian_id);
+    });
+    (membersWithRoles || []).forEach((m: any) => ids.delete(m.id));
+    return Array.from(ids).sort();
+  }, [allChildrenOnTeam, childGuardiansOnTeam, membersWithRoles]);
+
+  const { data: linkedAdultProfiles } = useQuery({
+    queryKey: ["event-linked-adult-profiles", event?.id, linkedAdultIdsForAttendance.join(",")],
+    queryFn: async () => {
+      if (linkedAdultIdsForAttendance.length === 0) return [];
+      const { data, error } = await selectCachedProfilesByIds(linkedAdultIdsForAttendance);
+      if (error) throw error;
+      return (data || []).map((p: any) => ({
+        ...p,
+        roles: ["parent"],
+        team_ids: [],
+        role_team_pairs: [],
+      }));
+    },
+    enabled: !!event && linkedAdultIdsForAttendance.length > 0,
+  });
+
+
+
 
   // Recipients for on-demand reminders. For a targeted club-wide event the
   // audience is NOT "everyone in the club": only members holding a role on a
@@ -1303,7 +1340,10 @@ export default function EventDetailPage() {
   // nagged (they can still see the event). Team / mini-league / untargeted
   // club-wide events keep the previous behaviour.
   const reminderMembers = useMemo(() => {
-    if (event?.team_id || !targetTeamIdsForFetch) return members;
+    // Parents linked only via a child (no visible role row) still owe a
+    // response, so they must be reachable by reminders too.
+    const roleless = linkedAdultProfiles || [];
+    if (event?.team_id || !targetTeamIdsForFetch) return [...(members ?? []), ...roleless];
     const targetSet = new Set(targetTeamIdsForFetch);
     const linkedAdultIds = new Set<string>();
     (allChildrenOnTeam || []).forEach((c: any) => {
@@ -1312,12 +1352,13 @@ export default function EventDetailPage() {
     (childGuardiansOnTeam || []).forEach((cg: any) => {
       if (cg.guardian_id) linkedAdultIds.add(cg.guardian_id);
     });
-    return (members ?? []).filter((m: any) => {
+    return [...(members ?? []), ...roleless].filter((m: any) => {
       const pairs: { role: string; team_id: string | null }[] = m.role_team_pairs ?? [];
       if (pairs.some((p) => p.team_id && targetSet.has(p.team_id))) return true;
       return linkedAdultIds.has(m.id);
     });
-  }, [members, event?.team_id, targetTeamIdsForFetch, allChildrenOnTeam, childGuardiansOnTeam]);
+  }, [members, event?.team_id, targetTeamIdsForFetch, allChildrenOnTeam, childGuardiansOnTeam, linkedAdultProfiles]);
+
 
   // Get existing RSVPs for children (any guardian's RSVP for the child counts)
   const myChildIds = new Set((childrenOnTeam || []).map((c: any) => c.id));
@@ -3529,14 +3570,18 @@ export default function EventDetailPage() {
         // Get player user IDs for filtering
         const playerUserIds = new Set(playerMembers?.map((m: any) => m.id) || []);
 
-        // When the audience prompts parents (players_and_parents / parents_only),
-        // parent self-RSVPs are real responses and must appear in the buckets —
-        // many parents hold no "player" role, so gating on playerUserIds hides them.
+        // Audience gate for the DEFAULT (players-only) view.
+        //
+        // `parents_only` events have no player responders at all — the adults
+        // ARE the audience, so their self-RSVPs must show without the toggle.
+        // On every other audience (including `players_and_parents`) the default
+        // list stays players/children only: non-player adults appear only when
+        // "Show all roles" is checked.
         const attendanceAudience = resolveRsvpAudience(
           (event as any)?.rsvp_audience,
           (event as any)?.teams?.default_rsvp_audience,
         );
-        const parentsPrompted = shouldPromptParent(attendanceAudience);
+        const adultsAreTheAudience = attendanceAudience === "parents_only";
 
         const filterRsvp = (rsvp: any) => {
           if (effectiveShowAll) return true;
@@ -3546,7 +3591,7 @@ export default function EventDetailPage() {
           }
           if (rsvp.mini_league_player_id) return true;
           if (rsvp.child_id) return true;
-          if (parentsPrompted) return true;
+          if (adultsAreTheAudience) return true;
           return playerUserIds.has(rsvp.user_id);
         };
 
@@ -3630,33 +3675,44 @@ export default function EventDetailPage() {
             );
           }
         } else {
-          // "Show all roles" on a targeted event must include parents/guardians
-          // of in-scope children even if they hold no team-scoped role.
+          // "Show all roles" must include every parent/guardian of an in-scope
+          // child — including those with no role row on this team (they are
+          // fetched separately as `linkedAdultProfiles`).
           const baseMembersToShow = effectiveShowAll ? attendanceMembers : attendancePlayerMembers;
+          const adultPool = [...(members || []), ...(linkedAdultProfiles || [])];
           const membersToShow = effectiveShowAll
             ? [
                 ...(baseMembersToShow || []),
-                ...((members || []).filter(
-                  (m: any) =>
+                ...(adultPool.filter(
+                  (m: any, i: number) =>
                     scopedAdultIds.has(m.id) &&
-                    !(baseMembersToShow || []).some((b: any) => b.id === m.id),
+                    !(baseMembersToShow || []).some((b: any) => b.id === m.id) &&
+                    adultPool.findIndex((a: any) => a.id === m.id) === i,
                 )),
               ]
             : baseMembersToShow;
+          // A child's response only covers the parent when the parent is a pure
+          // proxy (players_only). On `players_and_parents` / `parents_only` the
+          // adult owes their OWN response, so they must stay in "Not responded"
+          // until they answer — otherwise they silently disappear from the list.
+          const parentCoveredByChild = attendanceAudience === "players_only";
           const parentIdsWithRespondedChildren = new Set<string>();
-          (allChildrenOnTeam || []).forEach((child: any) => {
-            if (child.parent_id && respondedChildIds.has(child.id)) {
-              parentIdsWithRespondedChildren.add(child.parent_id);
-            }
-          });
-          (childGuardiansOnTeam || []).forEach((cg: any) => {
-            if (cg.guardian_id && respondedChildIds.has(cg.child_id)) {
-              parentIdsWithRespondedChildren.add(cg.guardian_id);
-            }
-          });
+          if (parentCoveredByChild) {
+            (allChildrenOnTeam || []).forEach((child: any) => {
+              if (child.parent_id && respondedChildIds.has(child.id)) {
+                parentIdsWithRespondedChildren.add(child.parent_id);
+              }
+            });
+            (childGuardiansOnTeam || []).forEach((cg: any) => {
+              if (cg.guardian_id && respondedChildIds.has(cg.child_id)) {
+                parentIdsWithRespondedChildren.add(cg.guardian_id);
+              }
+            });
+          }
           notResponded = membersToShow?.filter((m: any) =>
             !respondedUserIds.has(m.id) && !parentIdsWithRespondedChildren.has(m.id)
           ) || [];
+
           notRespondedChildren = allChildrenOnTeam?.filter((child: any) => !respondedChildIds.has(child.id)) || [];
         }
 
