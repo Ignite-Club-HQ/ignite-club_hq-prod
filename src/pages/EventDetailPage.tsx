@@ -1295,6 +1295,43 @@ export default function EventDetailPage() {
     enabled: childIdsOnTeam.length > 0,
   });
 
+  // Adults linked to an in-scope child are part of the event audience even
+  // when they hold NO `user_roles` row that the members query can see:
+  //  - team events query user_roles by team_id, so a parent whose only role
+  //    row is club-level (team_id IS NULL) or sits on another team is missing;
+  //  - parents added via child linking may hold no role row at all.
+  // Without this fetch those parents can never appear in the roster — which is
+  // exactly the "not all parents showed even with Show all roles" report.
+  const linkedAdultIdsForAttendance = useMemo(() => {
+    const ids = new Set<string>();
+    (allChildrenOnTeam || []).forEach((c: any) => {
+      if (c.parent_id) ids.add(c.parent_id);
+    });
+    (childGuardiansOnTeam || []).forEach((cg: any) => {
+      if (cg.guardian_id) ids.add(cg.guardian_id);
+    });
+    (membersWithRoles || []).forEach((m: any) => ids.delete(m.id));
+    return Array.from(ids).sort();
+  }, [allChildrenOnTeam, childGuardiansOnTeam, membersWithRoles]);
+
+  const { data: linkedAdultProfiles } = useQuery({
+    queryKey: ["event-linked-adult-profiles", event?.id, linkedAdultIdsForAttendance.join(",")],
+    queryFn: async () => {
+      if (linkedAdultIdsForAttendance.length === 0) return [];
+      const { data, error } = await selectCachedProfilesByIds(linkedAdultIdsForAttendance);
+      if (error) throw error;
+      return (data || []).map((p: any) => ({
+        ...p,
+        roles: ["parent"],
+        team_ids: [],
+        role_team_pairs: [],
+      }));
+    },
+    enabled: !!event && linkedAdultIdsForAttendance.length > 0,
+  });
+
+
+
 
   // Recipients for on-demand reminders. For a targeted club-wide event the
   // audience is NOT "everyone in the club": only members holding a role on a
