@@ -649,7 +649,19 @@ export default function PlayerStatsReportView({
           </div>
         )}
 
+        {/* Scorer-only notice — goals logged via Match Result, no pitch-board tracking */}
+        {isScorerOnly && (
+          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-sm text-amber-700 dark:text-amber-400">
+            Showing goal scorers from match results. Track games on the pitch board to capture minutes, positions, and substitutions.
+          </div>
+        )}
+
         {/* Player Stats Table */}
+        {reportStats.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground text-sm">
+            No per-player tracking data for this selection. Scores and match results are shown above.
+          </div>
+        ) : (
         <div className="overflow-x-auto -mx-6 px-6">
           <Table>
             <TableHeader>
