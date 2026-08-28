@@ -80,7 +80,7 @@ import { AttendanceSection } from "@/components/event/AttendanceSection";
 import { useEventGroupMap } from "@/hooks/useEventGroupMap";
 import { useEventViewTracking } from "@/hooks/useEventViews";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
-import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer, shouldPromptSelf, isParentFirstEvent } from "@/lib/rsvpAudience";
+import { resolveRsvpAudience, shouldPromptPlayer, shouldPromptSelf, isParentFirstEvent } from "@/lib/rsvpAudience";
 import { resolveRsvpChildren, resolveEventChildRoster } from "@/lib/resolveEventChildScope";
 
 
