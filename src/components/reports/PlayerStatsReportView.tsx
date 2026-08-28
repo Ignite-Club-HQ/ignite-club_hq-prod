@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { openHtmlReport, downloadTextReport } from "@/lib/reportExport";
-import { useReportExtras, playerKey, type PlayerHonours } from "./playerStatsReportExtras";
+import { useReportExtras, playerKey, type PlayerHonours, type ReportScorer } from "./playerStatsReportExtras";
 
 interface PlayerStatsReportViewProps {
   teamId: string;
@@ -172,6 +172,33 @@ export default function PlayerStatsReportView({
   // Match scores + captain / POM / GK honours for the report range.
   const { data: extras } = useReportExtras(teamId, { eventId, dateRange });
 
+  // When no pitch-board session was tracked (game_player_stats empty), we can
+  // still show goal scorers entered via the Match Result sheet. Synthesize
+  // lightweight PlayerStat rows from extras.scorersByPlayer so the report is
+  // not a dead-end for teams that only log scores.
+  const trackedStats = playerStats ?? [];
+  const hasTrackedStats = trackedStats.length > 0;
+  const scorerRows: PlayerStat[] = (() => {
+    if (hasTrackedStats || !extras?.scorersByPlayer) return [];
+    return Object.entries(extras.scorersByPlayer).map(([id, agg]) => ({
+      id,
+      user_id: null,
+      child_id: null,
+      fill_in_player_name: agg.name,
+      jersey_number: null,
+      minutes_played: 0,
+      positions_played: [],
+      position_minutes: null,
+      substitutions_count: 0,
+      started_on_pitch: false,
+      goals_scored: agg.goals,
+      games_played: agg.games,
+      starts_count: 0,
+      profiles: null,
+    }));
+  })();
+  const reportStats = hasTrackedStats ? trackedStats : scorerRows;
+
   const honoursFor = (stat: PlayerStat): PlayerHonours => {
     const key = playerKey(stat.user_id, stat.child_id);
     return (
@@ -264,7 +291,7 @@ export default function PlayerStatsReportView({
                 <div class="summary-label">Total Time</div>
               </div>
               <div class="summary-item">
-                <div class="summary-value">${playerStats?.length || 0}</div>
+                <div class="summary-value">${reportStats.length || 0}</div>
                 <div class="summary-label">Players</div>
               </div>
               <div class="summary-item">
@@ -302,6 +329,7 @@ export default function PlayerStatsReportView({
                   <th>Periods</th>
                   <th>Captain</th>
                   <th>Player of the Match</th>
+                  <th>Scorers</th>
                 </tr>
               </thead>
               <tbody>
@@ -319,6 +347,7 @@ export default function PlayerStatsReportView({
                       <td>${m.periodScores.map((p) => `<span class="position-badge">${p.home}-${p.away}</span>`).join("") || "-"}</td>
                       <td>${m.captainNames.join(", ") || "-"}</td>
                       <td>${m.pomNames.join(", ") || "-"}</td>
+                      <td>${m.scorers.map((s) => `${s.name} (${s.goals})`).join(", ") || "-"}</td>
                     </tr>
                   `;
                 }).join("")}
@@ -347,7 +376,7 @@ export default function PlayerStatsReportView({
               </tr>
             </thead>
             <tbody>
-              ${(playerStats || [])
+              ${sortedStats
                 .sort((a, b) => b.minutes_played - a.minutes_played)
                 .map((stat) => {
                   const positionMinsHtml = stat.position_minutes && Object.keys(stat.position_minutes).length > 0
@@ -447,7 +476,7 @@ export default function PlayerStatsReportView({
       "#", "Player", "Goals", "Minutes", "Subs", "Captain (n)", "POM (n)",
       "GK matches (n)", "GK minutes", "Games played", "Starts", "Positions",
     ]);
-    (playerStats || []).forEach((stat) => {
+    sortedStats.forEach((stat) => {
       const h = honoursFor(stat);
       rows.push([
         stat.jersey_number == null ? "" : String(stat.jersey_number),
@@ -489,7 +518,12 @@ export default function PlayerStatsReportView({
     );
   }
 
-  if (!playerStats || playerStats.length === 0) {
+  // No pitch-board stats AND no match scores — nothing to show at all.
+  const hasAnyData =
+    reportStats.length > 0 ||
+    (extras && extras.totals.played > 0) ||
+    (extras && extras.matches.length > 0);
+  if (!hasAnyData) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -499,7 +533,8 @@ export default function PlayerStatsReportView({
     );
   }
 
-  const sortedStats = [...playerStats].sort((a, b) => b.minutes_played - a.minutes_played);
+  const sortedStats = [...reportStats].sort((a, b) => b.minutes_played - a.minutes_played);
+  const isScorerOnly = !hasTrackedStats && scorerRows.length > 0;
 
   return (
     <Card>
@@ -531,7 +566,7 @@ export default function PlayerStatsReportView({
             </div>
             <div className="text-center p-3 bg-muted rounded-lg">
               <div className="text-xl font-bold text-primary">
-                {playerStats.length}
+                {reportStats.length}
               </div>
               <div className="text-xs text-muted-foreground">Players</div>
             </div>
@@ -584,6 +619,7 @@ export default function PlayerStatsReportView({
                   <TableHead className="hidden sm:table-cell">Periods</TableHead>
                   <TableHead className="hidden sm:table-cell">Captain</TableHead>
                   <TableHead className="hidden sm:table-cell">POM</TableHead>
+                  <TableHead className="hidden sm:table-cell">Scorers</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -609,6 +645,9 @@ export default function PlayerStatsReportView({
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">{m.captainNames.join(", ") || "-"}</TableCell>
                     <TableCell className="hidden sm:table-cell">{m.pomNames.join(", ") || "-"}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-xs">
+                      {m.scorers.map((s) => `${s.name} (${s.goals})`).join(", ") || "-"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -616,7 +655,19 @@ export default function PlayerStatsReportView({
           </div>
         )}
 
+        {/* Scorer-only notice — goals logged via Match Result, no pitch-board tracking */}
+        {isScorerOnly && (
+          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-sm text-amber-700 dark:text-amber-400">
+            Showing goal scorers from match results. Track games on the pitch board to capture minutes, positions, and substitutions.
+          </div>
+        )}
+
         {/* Player Stats Table */}
+        {reportStats.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground text-sm">
+            No per-player tracking data for this selection. Scores and match results are shown above.
+          </div>
+        ) : (
         <div className="overflow-x-auto -mx-6 px-6">
           <Table>
             <TableHeader>
@@ -722,6 +773,7 @@ export default function PlayerStatsReportView({
             </TableBody>
           </Table>
         </div>
+        )}
       </CardContent>
     </Card>
   );
