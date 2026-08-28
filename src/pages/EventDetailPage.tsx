@@ -3529,6 +3529,14 @@ export default function EventDetailPage() {
         // Get player user IDs for filtering
         const playerUserIds = new Set(playerMembers?.map((m: any) => m.id) || []);
 
+        // When the audience prompts parents (players_and_parents / parents_only),
+        // parent self-RSVPs are real responses and must appear in the buckets —
+        // many parents hold no "player" role, so gating on playerUserIds hides them.
+        const attendanceAudience = resolveRsvpAudience(
+          (event as any)?.rsvp_audience,
+          (event as any)?.teams?.default_rsvp_audience,
+        );
+        const parentsPrompted = shouldPromptParent(attendanceAudience);
 
         const filterRsvp = (rsvp: any) => {
           if (effectiveShowAll) return true;
@@ -3538,6 +3546,7 @@ export default function EventDetailPage() {
           }
           if (rsvp.mini_league_player_id) return true;
           if (rsvp.child_id) return true;
+          if (parentsPrompted) return true;
           return playerUserIds.has(rsvp.user_id);
         };
 
