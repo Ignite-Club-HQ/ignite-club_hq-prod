@@ -869,15 +869,22 @@ export default function EventDetailPage() {
       const query = supabase
         .from("user_roles")
         .select("user_id, role, team_id, profiles:user_id (id, display_name, avatar_url)");
-      
+
       if (event?.team_id) {
         query.eq("team_id", event.team_id);
       } else {
         query.eq("club_id", event!.club_id);
       }
-      
-      const { data, error } = await query;
+
+      // The club bot holds roles so it can post in chats, but it is not a
+      // real member — never surface it in attendance lists.
+      const [{ data, error }, { data: clubRow }] = await Promise.all([
+        query,
+        supabase.from("clubs").select("bot_user_id").eq("id", event!.club_id).maybeSingle(),
+      ]);
       if (error) throw error;
+      const botUserId = clubRow?.bot_user_id ?? null;
+
       
       // Group roles by user_id, keeping track of every team_id we've seen for them.
       // `role_team_pairs` preserves WHICH team each role was held on, so targeted
