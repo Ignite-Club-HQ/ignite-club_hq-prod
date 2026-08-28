@@ -210,7 +210,10 @@ Deno.test("guardian discovery chunks more than 200 assigned children and dedupli
   const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
   assertEquals(ids.length, 206);
   assertEquals(ids.filter((id) => id === "shared-guardian").length, 1);
-  assertEquals(db.queries.filter((q) => q.table === "child_guardians").length, 2);
+  const guardianRanges = db.queries
+    .filter((q) => q.table === "child_guardians")
+    .map((q) => q.range);
+  assertEquals(guardianRanges, [[0, 199], [0, 199], [200, 399]]);
 });
 
 Deno.test("notification rows: exact shape, one per recipient, skip_push true", () => {
