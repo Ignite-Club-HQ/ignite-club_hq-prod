@@ -3575,6 +3575,15 @@ export default function EventDetailPage() {
         // roster so authorised managers never see "Unknown".
         const scopedChildIds = new Set((allChildrenOnTeam || []).map((c: any) => c.id));
         const scopedAdultIds = new Set((attendanceMembers || []).map((m: any) => m.id));
+        // Parents/guardians of in-scope children are part of the event audience
+        // even when they hold no team-scoped role — without this their RSVPs
+        // vanish from the buckets (only "certain parents" appeared).
+        (allChildrenOnTeam || []).forEach((c: any) => {
+          if (c.parent_id) scopedAdultIds.add(c.parent_id);
+        });
+        (childGuardiansOnTeam || []).forEach((cg: any) => {
+          if (cg.guardian_id) scopedAdultIds.add(cg.guardian_id);
+        });
         const isTargetedScope = !!targetTeamIdsForFetch;
         const inTargetScope = (r: any) => {
           if (!isTargetedScope) return true;
@@ -3621,7 +3630,19 @@ export default function EventDetailPage() {
             );
           }
         } else {
-          const membersToShow = effectiveShowAll ? attendanceMembers : attendancePlayerMembers;
+          // "Show all roles" on a targeted event must include parents/guardians
+          // of in-scope children even if they hold no team-scoped role.
+          const baseMembersToShow = effectiveShowAll ? attendanceMembers : attendancePlayerMembers;
+          const membersToShow = effectiveShowAll
+            ? [
+                ...(baseMembersToShow || []),
+                ...((members || []).filter(
+                  (m: any) =>
+                    scopedAdultIds.has(m.id) &&
+                    !(baseMembersToShow || []).some((b: any) => b.id === m.id),
+                )),
+              ]
+            : baseMembersToShow;
           const parentIdsWithRespondedChildren = new Set<string>();
           (allChildrenOnTeam || []).forEach((child: any) => {
             if (child.parent_id && respondedChildIds.has(child.id)) {
