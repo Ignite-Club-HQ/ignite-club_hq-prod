@@ -146,7 +146,8 @@ export async function fetchReportExtras(
   let eventsQuery = supabase
     .from("events")
     .select("id, title, event_date, opponent, final_score_home, final_score_away")
-    .eq("team_id", teamId);
+    .eq("team_id", teamId)
+    .eq("type", "game");
 
   if (opts.eventId) {
     eventsQuery = eventsQuery.eq("id", opts.eventId);

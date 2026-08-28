@@ -150,7 +150,7 @@ export default function PlayerStatsReportPage() {
       const [summariesRes, statsRes, teamEventsRes] = await Promise.all([
         supabase.from("game_summaries").select("event_id").eq("team_id", selectedTeamId),
         supabase.from("game_player_stats").select("event_id").eq("team_id", selectedTeamId),
-        supabase.from("events").select("id").eq("team_id", selectedTeamId),
+        supabase.from("events").select("id").eq("team_id", selectedTeamId).eq("type", "game"),
       ]);
 
       const eventIdSet = new Set<string>();
@@ -175,6 +175,7 @@ export default function PlayerStatsReportPage() {
         .from("events")
         .select("id, title, event_date, opponent")
         .in("id", eventIds)
+        .eq("type", "game")
         .order("event_date", { ascending: false });
 
       return (events as GameEvent[]) || [];
