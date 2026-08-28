@@ -172,6 +172,33 @@ export default function PlayerStatsReportView({
   // Match scores + captain / POM / GK honours for the report range.
   const { data: extras } = useReportExtras(teamId, { eventId, dateRange });
 
+  // When no pitch-board session was tracked (game_player_stats empty), we can
+  // still show goal scorers entered via the Match Result sheet. Synthesize
+  // lightweight PlayerStat rows from extras.scorersByPlayer so the report is
+  // not a dead-end for teams that only log scores.
+  const trackedStats = playerStats ?? [];
+  const hasTrackedStats = trackedStats.length > 0;
+  const scorerRows: PlayerStat[] = (() => {
+    if (hasTrackedStats || !extras?.scorersByPlayer) return [];
+    return Object.entries(extras.scorersByPlayer).map(([id, agg]) => ({
+      id,
+      user_id: null,
+      child_id: null,
+      fill_in_player_name: agg.name,
+      jersey_number: null,
+      minutes_played: 0,
+      positions_played: [],
+      position_minutes: null,
+      substitutions_count: 0,
+      started_on_pitch: false,
+      goals_scored: agg.goals,
+      games_played: agg.games,
+      starts_count: 0,
+      profiles: null,
+    }));
+  })();
+  const reportStats = hasTrackedStats ? trackedStats : scorerRows;
+
   const honoursFor = (stat: PlayerStat): PlayerHonours => {
     const key = playerKey(stat.user_id, stat.child_id);
     return (
