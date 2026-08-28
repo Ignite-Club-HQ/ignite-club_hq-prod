@@ -139,6 +139,7 @@ export async function fetchReportExtras(
   const empty: ReportExtras = {
     matches: [],
     honours: {},
+    scorersByPlayer: {},
     totals: { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, goalDifference: 0 },
   };
 
@@ -164,7 +165,7 @@ export async function fetchReportExtras(
   const [resultsRes, captainsRes, pomRes, gkRes, statsRes] = await Promise.all([
     supabase
       .from("game_results")
-      .select("event_id, home_label, away_label, home_score, away_score, period_scores")
+      .select("event_id, home_label, away_label, home_score, away_score, period_scores, player_stats")
       .in("event_id", eventIds),
     supabase.from("match_captains").select("event_id, user_id, child_id").in("event_id", eventIds),
     supabase.from("player_of_match").select("event_id, user_id, child_id").in("event_id", eventIds),
