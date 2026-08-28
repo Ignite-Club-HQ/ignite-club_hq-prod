@@ -48,6 +48,7 @@ import {
   type RsvpAudience,
 } from "@/lib/rsvpAudience";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { getEventEligibleTeamIds, eventTargetTeamKey } from "@/lib/eventAudience";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
