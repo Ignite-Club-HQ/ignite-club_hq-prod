@@ -329,6 +329,7 @@ export default function PlayerStatsReportView({
                   <th>Periods</th>
                   <th>Captain</th>
                   <th>Player of the Match</th>
+                  <th>Scorers</th>
                 </tr>
               </thead>
               <tbody>
@@ -346,6 +347,7 @@ export default function PlayerStatsReportView({
                       <td>${m.periodScores.map((p) => `<span class="position-badge">${p.home}-${p.away}</span>`).join("") || "-"}</td>
                       <td>${m.captainNames.join(", ") || "-"}</td>
                       <td>${m.pomNames.join(", ") || "-"}</td>
+                      <td>${m.scorers.map((s) => `${s.name} (${s.goals})`).join(", ") || "-"}</td>
                     </tr>
                   `;
                 }).join("")}
