@@ -12,6 +12,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { resolveRsvpAudience, shouldPromptPlayer } from "@/lib/rsvpAudience";
+import { getEventEligibleTeamIds } from "@/lib/eventAudience";
 
 export type RsvpChild = { id: string; name: string; parent_id?: string | null };
 
