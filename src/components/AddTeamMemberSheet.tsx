@@ -1258,7 +1258,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
       }
 
-      handleClose();
+      if (!result?.secondParentFailure) handleClose();
     },
     onError: (error: Error) => {
       toast(
@@ -2090,11 +2090,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     },
 
     onError: (error: Error) => {
-      toast({
-        title: "Failed to add members",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast(
+        friendlyMutationError(error, {
+          title: "Failed to add members",
+          description: error.message || "Something went wrong. Please try again.",
+        }),
+      );
     },
   });
 
