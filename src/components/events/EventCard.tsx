@@ -232,7 +232,15 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
 
   // Fetch full household children (so we can show "Louie needs RSVP" even when no row exists yet)
   const { data: householdChildren, isLoading: childRsvpsLoading } = useQuery({
-    queryKey: ["card-child-rsvps", event.id, user?.id, event.team_id, event.mini_league_id, (event as any).adults_only],
+    queryKey: [
+      "card-child-rsvps",
+      event.id,
+      user?.id,
+      event.team_id,
+      eventTargetTeamKey(event as any),
+      event.mini_league_id,
+      (event as any).adults_only,
+    ],
     queryFn: async () => {
       if ((event as any).adults_only) return [] as any[];
       const [ownChildren, guardianLinks] = await Promise.all([
