@@ -2569,15 +2569,48 @@ export default function GroupChatPage() {
     miniLeagueId: group?.mini_league_id ?? null,
   });
 
+  // Competition threads: the competition-wide ("all_members") thread can be
+  // configured as organiser-only, in which case members read but cannot post.
+  const groupCompetitionId = (group as any)?.competition_id as string | null | undefined;
+  const groupCompetitionScope = (group as any)?.competition_scope as string | null | undefined;
+  const { data: competitionChatSettings } = useQuery({
+    queryKey: ["competition-chat-posting", groupCompetitionId, user?.id],
+    enabled: !!groupCompetitionId && !!user?.id,
+    queryFn: async () => {
+      const [{ data: comp }, { data: isAdmin }] = await Promise.all([
+        supabase
+          .from("competitions")
+          .select("member_chat_admins_only")
+          .eq("id", groupCompetitionId!)
+          .maybeSingle(),
+        supabase.rpc("is_competition_admin", {
+          _user_id: user!.id,
+          _competition_id: groupCompetitionId!,
+        }),
+      ]);
+      return {
+        adminsOnly: !!comp?.member_chat_admins_only,
+        isCompetitionAdmin: !!isAdmin,
+      };
+    },
+  });
+
+  const canPostInGroup = canPostInCompetitionChat({
+    scope: groupCompetitionScope,
+    adminsOnly: competitionChatSettings?.adminsOnly,
+    isCompetitionAdmin: competitionChatSettings?.isCompetitionAdmin ?? false,
+  });
+
   const groupBaseSublabel = group?.mini_league_id
     ? "Mini-league chat"
-    : (group as any)?.competition_id
-    ? "Competition chat"
+    : groupCompetitionId
+    ? competitionChatSublabel(groupCompetitionScope)
     : group?.team_id
     ? "Team group"
     : group?.club_id
     ? "Club group"
     : "Personal group";
+
 
   const groupHeaderSublabel = groupOnlineCount > 0
     ? `${groupBaseSublabel} · ${groupOnlineCount} online`
