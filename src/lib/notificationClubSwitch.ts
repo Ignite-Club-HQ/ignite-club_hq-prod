@@ -21,6 +21,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getJumpTarget, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { resolveRouteClubScope } from "@/lib/routeClubScope";
+import { lookupRouteClubId } from "@/lib/clubScopeLookup";
+
 
 const SS_KEY = "ignite_pending_notification_club_switch";
 const APPLIED_KEY = "ignite_notification_club_switch_applied";
