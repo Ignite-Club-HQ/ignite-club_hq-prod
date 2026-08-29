@@ -46,6 +46,8 @@ export function useClubScopeGuard() {
       // null and never bounces the user. Team-owned rows (NULL club_id) are
       // resolved through their team so they are not treated as unscoped.
       return await lookupRouteClubId(lookupTable, lookupId);
+    },
+
 
     enabled: needsLookup && !!activeClubFilter,
     staleTime: 5 * 60 * 1000,
