@@ -136,6 +136,57 @@ const rsvpOptions: { value: RsvpStatus; label: string; icon: string }[] = [
 
 const normalizeDutyName = (name: string | null | undefined) => name?.trim().toLowerCase() ?? "";
 
+// Role labels shown on the attendance list must reflect the role the person
+// holds *for this event's audience*. A parent of a junior who also plays in a
+// senior team must not be badged "Player" on a junior fixture.
+const ROLE_LABEL_PRIORITY = [
+  "club_admin",
+  "association_admin",
+  "committee_member",
+  "team_admin",
+  "coach",
+  "league_admin",
+  "competition_admin",
+  "parent",
+  "player",
+  "basic_user",
+];
+
+const pickRoleByPriority = (roles: string[]): string | undefined => {
+  if (roles.length === 0) return undefined;
+  for (const r of ROLE_LABEL_PRIORITY) if (roles.includes(r)) return r;
+  return roles[0];
+};
+
+const resolveAttendeeRoleLabel = (
+  member: { roles?: string[]; role_team_pairs?: { role: string; team_id: string | null }[] } | undefined,
+  event: any,
+): string | undefined => {
+  if (!member) return undefined;
+  const pairs = member.role_team_pairs ?? [];
+  const scopeTeams: string[] | null = event?.team_id
+    ? [event.team_id as string]
+    : Array.isArray(event?.target_team_ids) && event.target_team_ids.length > 0
+      ? (event.target_team_ids as string[])
+      : null;
+
+  if (scopeTeams) {
+    const scoped = pairs.filter((p) => p.team_id && scopeTeams.includes(p.team_id)).map((p) => p.role);
+    const inScope = pickRoleByPriority(scoped);
+    if (inScope) return inScope;
+    // No team-scoped role — fall back to their club-level role only.
+    const clubLevel = pairs.filter((p) => !p.team_id).map((p) => p.role);
+    const clubRole = pickRoleByPriority(clubLevel);
+    if (clubRole) return clubRole;
+    return undefined;
+  }
+
+  // Untargeted club-wide event: no single team scope, so prefer the most
+  // representative role rather than whichever row came back first.
+  return pickRoleByPriority(member.roles ?? pairs.map((p) => p.role));
+};
+
+
 // Helper component for attendee display with payment status and admin RSVP controls
 const AttendeeCard = ({ 
   rsvp, 
