@@ -295,6 +295,10 @@ export default function CompetitionSettingsPage() {
         organizerClubId={(competition as any).organizer_club_id ?? null}
       />
 
+      {/* 6. Competition-wide chat — opt-in thread for all members of entered teams */}
+      <CompetitionMemberChatCard competitionId={id!} />
+
+
 
 
       {/* Sticky save bar — page-level action */}
