@@ -3036,6 +3036,9 @@ export default function GroupChatPage() {
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
         </ChatComposerShell>
+        </>
+        )}
+
         {scheduleTarget && (
           <ScheduleMessageDialog
             open={scheduleDialogOpen}
