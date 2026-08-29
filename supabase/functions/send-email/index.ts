@@ -554,6 +554,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           manageLink: data.manageLink,
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          isPromoGrant: data.isPromoGrant === true,
         })
       );
     
