@@ -21,9 +21,14 @@ interface RenewalReminderEmailProps {
   tierName: string;
   expiryDate: string;
   daysUntilExpiry: number;
-  manageLink: string;
+  manageLink?: string;
   clubLogoUrl?: string;
   primaryColor?: string;
+  /**
+   * Promo/trial-granted subscription variant: no payment instrument exists, so
+   * the email must not mention renewal, cancellation or billing management.
+   */
+  isPromoGrant?: boolean;
 }
 
 // Production domain for all links
@@ -73,8 +78,11 @@ export const RenewalReminderEmail = ({
   manageLink = "https://igniteclubhq.app/settings",
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
+  isPromoGrant = false,
 }: RenewalReminderEmailProps) => {
-  const previewText = `${entityName}'s ${tierName} subscription renews on ${expiryDate}`;
+  const previewText = isPromoGrant
+    ? `${entityName}'s ${tierName} access ends on ${expiryDate}`
+    : `${entityName}'s ${tierName} subscription renews on ${expiryDate}`;
   const entityLabel = entityType === 'club' ? 'club' : 'team';
   const normalizedManageLink = normalizeLink(manageLink);
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
@@ -96,15 +104,15 @@ export const RenewalReminderEmail = ({
                 style={logoStyle}
               />
             ) : (
-              <Text style={headerEmoji}>🔄</Text>
+              <Text style={headerEmoji}>{isPromoGrant ? '⏳' : '🔄'}</Text>
             )}
-            <Heading style={headerTitle}>Subscription Renewal</Heading>
+            <Heading style={headerTitle}>{isPromoGrant ? 'Pro Access Ending' : 'Subscription Renewal'}</Heading>
           </Section>
 
           {/* Countdown Banner */}
           <Section style={countdownBanner}>
             <Text style={countdownNumber}>{daysUntilExpiry}</Text>
-            <Text style={countdownLabel}>days until renewal</Text>
+            <Text style={countdownLabel}>{isPromoGrant ? 'days until Pro access ends' : 'days until renewal'}</Text>
           </Section>
 
           {/* Main Content */}
