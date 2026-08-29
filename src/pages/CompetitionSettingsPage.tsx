@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { CompetitionAdminsCard } from "@/components/competitions/CompetitionAdminsCard";
+import { CompetitionMemberChatCard } from "@/components/competitions/CompetitionMemberChatCard";
+
 
 export default function CompetitionSettingsPage() {
   const { id } = useParams<{ id: string }>();
