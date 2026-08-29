@@ -8,6 +8,8 @@ import {
   isNotificationClubSwitchInFlight,
 } from "@/lib/notificationClubSwitch";
 import { resolveRouteClubScope } from "@/lib/routeClubScope";
+import { lookupRouteClubId } from "@/lib/clubScopeLookup";
+
 import { useAuth } from "@/hooks/useAuth";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 
@@ -42,15 +44,13 @@ export function useClubScopeGuard() {
     queryKey: ["route-club-scope", lookupTable, lookupId],
     queryFn: async () => {
       if (!lookupTable || !lookupId) return null;
-      const { data, error } = await supabase
-        .from(lookupTable)
-        .select("club_id")
-        .eq("id", lookupId)
-        .maybeSingle();
-      // Fail open: an RLS/network error must never bounce the user.
-      if (error) return null;
-      return (data?.club_id as string | null) ?? null;
+      // Fail open inside `lookupRouteClubId`: an RLS/network error resolves to
+      // null and never bounces the user. Team-owned rows (NULL club_id) are
+      // resolved through their team so they are not treated as unscoped.
+      return await lookupRouteClubId(lookupTable, lookupId);
     },
+
+
     enabled: needsLookup && !!activeClubFilter,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
