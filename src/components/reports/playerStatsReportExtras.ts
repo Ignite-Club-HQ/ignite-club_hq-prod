@@ -226,6 +226,30 @@ export async function fetchReportExtras(
   const resultByEvent = new Map<string, any>();
   (resultsRes.data ?? []).forEach((r: any) => resultByEvent.set(r.event_id, r));
 
+  // Recover pitch-board results that were saved without a linked fixture
+  // (event_id IS NULL) by matching them to a game on the same calendar day.
+  const unlinkedDates = (events ?? [])
+    .map((e: any) => (e.event_date ? String(e.event_date).slice(0, 10) : null))
+    .filter(Boolean) as string[];
+  if (unlinkedDates.length > 0) {
+    const { data: orphans } = await supabase
+      .from("game_results")
+      .select("home_label, away_label, home_score, away_score, period_scores, player_stats, created_at")
+      .eq("team_id", teamId)
+      .is("event_id", null);
+    const orphanByDate = new Map<string, any>();
+    (orphans ?? []).forEach((r: any) => {
+      const day = String(r.created_at ?? "").slice(0, 10);
+      if (day && !orphanByDate.has(day)) orphanByDate.set(day, r);
+    });
+    (events ?? []).forEach((e: any) => {
+      if (resultByEvent.has(e.id)) return;
+      const day = e.event_date ? String(e.event_date).slice(0, 10) : null;
+      const match = day ? orphanByDate.get(day) : null;
+      if (match) resultByEvent.set(e.id, match);
+    });
+  }
+
   const goalsByEvent = new Map<string, number>();
   stats.forEach((row: any) => {
     goalsByEvent.set(row.event_id, (goalsByEvent.get(row.event_id) ?? 0) + (row.goals_scored || 0));
