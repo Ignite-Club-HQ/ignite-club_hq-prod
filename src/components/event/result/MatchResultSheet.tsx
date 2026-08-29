@@ -78,6 +78,23 @@ const OWN_ID = "__own__";
 const DRAFT_KEY = (eventId: string) => `ignite_match_draft_${eventId}`;
 const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * True when a non-empty, non-stale unsaved result draft exists for this
+ * fixture. Surfaced on the result card so a typed-but-never-saved score
+ * can't silently disappear from reports.
+ */
+export function hasUnsavedMatchResultDraft(eventId: string): boolean {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY(eventId));
+    if (!raw) return false;
+    const d = JSON.parse(raw) as { savedAt?: number; homeScore?: string; awayScore?: string };
+    if (Date.now() - (d.savedAt || 0) > DRAFT_TTL_MS) return false;
+    return !!(d.homeScore || d.awayScore);
+  } catch {
+    return false;
+  }
+}
+
 interface DraftShape {
   homeScore: string;
   awayScore: string;

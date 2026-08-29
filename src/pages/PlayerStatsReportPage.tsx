@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Calendar, FileText, Users, Loader2, Check, Lock } from "lucide-react";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfYear, subMonths } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,8 +46,10 @@ export default function PlayerStatsReportPage() {
   const isLockedToTeam = !!lockedTeamId;
   const [selectedTeamId, setSelectedTeamId] = useState<string>(lockedTeamId || "");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
+  // Default to the whole current season (calendar year to date) so every
+  // game shows up — a month-only default hid most fixtures.
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
-    from: startOfMonth(new Date()),
+    from: startOfYear(new Date()),
     to: endOfMonth(new Date()),
   });
   const [reportType, setReportType] = useState<"game" | "dateRange">("game");
@@ -433,6 +435,29 @@ export default function PlayerStatsReportPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground">Date Range</CardTitle>
               </CardHeader>
               <CardContent className="pt-0 space-y-3">
+                {/* Quick presets — season is the default so no game is hidden */}
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: "This season", from: startOfYear(new Date()), to: endOfMonth(new Date()) },
+                    { label: "Last 3 months", from: startOfMonth(subMonths(new Date(), 2)), to: endOfMonth(new Date()) },
+                    { label: "This month", from: startOfMonth(new Date()), to: endOfMonth(new Date()) },
+                  ].map((preset) => {
+                    const active =
+                      format(dateRange.from, "yyyy-MM-dd") === format(preset.from, "yyyy-MM-dd") &&
+                      format(dateRange.to, "yyyy-MM-dd") === format(preset.to, "yyyy-MM-dd");
+                    return (
+                      <Button
+                        key={preset.label}
+                        type="button"
+                        size="sm"
+                        variant={active ? "default" : "outline"}
+                        onClick={() => setDateRange({ from: preset.from, to: preset.to })}
+                      >
+                        {preset.label}
+                      </Button>
+                    );
+                  })}
+                </div>
                 <div className="flex flex-col gap-3">
                   {/* From Date */}
                   {isMobile ? (

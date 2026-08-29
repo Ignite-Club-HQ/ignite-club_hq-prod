@@ -36,6 +36,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
+import { canPostInCompetitionChat, competitionChatSublabel } from "@/features/competitions/competitionChatScope";
+
 import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search, UserPlus, ChevronRight, Lock } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
@@ -2569,15 +2571,48 @@ export default function GroupChatPage() {
     miniLeagueId: group?.mini_league_id ?? null,
   });
 
+  // Competition threads: the competition-wide ("all_members") thread can be
+  // configured as organiser-only, in which case members read but cannot post.
+  const groupCompetitionId = (group as any)?.competition_id as string | null | undefined;
+  const groupCompetitionScope = (group as any)?.competition_scope as string | null | undefined;
+  const { data: competitionChatSettings } = useQuery({
+    queryKey: ["competition-chat-posting", groupCompetitionId, user?.id],
+    enabled: !!groupCompetitionId && !!user?.id,
+    queryFn: async () => {
+      const [{ data: comp }, { data: isAdmin }] = await Promise.all([
+        supabase
+          .from("competitions")
+          .select("member_chat_admins_only")
+          .eq("id", groupCompetitionId!)
+          .maybeSingle(),
+        supabase.rpc("is_competition_admin", {
+          _user_id: user!.id,
+          _competition_id: groupCompetitionId!,
+        }),
+      ]);
+      return {
+        adminsOnly: !!comp?.member_chat_admins_only,
+        isCompetitionAdmin: !!isAdmin,
+      };
+    },
+  });
+
+  const canPostInGroup = canPostInCompetitionChat({
+    scope: groupCompetitionScope,
+    adminsOnly: competitionChatSettings?.adminsOnly,
+    isCompetitionAdmin: competitionChatSettings?.isCompetitionAdmin ?? false,
+  });
+
   const groupBaseSublabel = group?.mini_league_id
     ? "Mini-league chat"
-    : (group as any)?.competition_id
-    ? "Competition chat"
+    : groupCompetitionId
+    ? competitionChatSublabel(groupCompetitionScope)
     : group?.team_id
     ? "Team group"
     : group?.club_id
     ? "Club group"
     : "Personal group";
+
 
   const groupHeaderSublabel = groupOnlineCount > 0
     ? `${groupBaseSublabel} · ${groupOnlineCount} online`
@@ -2916,7 +2951,14 @@ export default function GroupChatPage() {
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
         <div ref={composerRef} data-chat-chrome="true" data-chat-composer="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
+        {!canPostInGroup ? (
+          <p className="py-3 text-center text-sm text-muted-foreground">
+            Only competition organisers can post in this chat.
+          </p>
+        ) : (
+        <>
         <TypingIndicator typingUsers={typingUsers} />
+
         {replyTo && (
           <ReplyPreview
             replyingTo={{
@@ -2994,6 +3036,9 @@ export default function GroupChatPage() {
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
         </ChatComposerShell>
+        </>
+        )}
+
         {scheduleTarget && (
           <ScheduleMessageDialog
             open={scheduleDialogOpen}

@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { CompetitionAdminsCard } from "@/components/competitions/CompetitionAdminsCard";
+import { CompetitionMemberChatCard } from "@/components/competitions/CompetitionMemberChatCard";
+
 
 export default function CompetitionSettingsPage() {
   const { id } = useParams<{ id: string }>();
@@ -294,6 +296,10 @@ export default function CompetitionSettingsPage() {
         competitionName={competition.name}
         organizerClubId={(competition as any).organizer_club_id ?? null}
       />
+
+      {/* 6. Competition-wide chat — opt-in thread for all members of entered teams */}
+      <CompetitionMemberChatCard competitionId={id!} />
+
 
 
 

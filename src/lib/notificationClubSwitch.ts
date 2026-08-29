@@ -21,6 +21,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getJumpTarget, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { resolveRouteClubScope } from "@/lib/routeClubScope";
+import { lookupRouteClubId } from "@/lib/clubScopeLookup";
+
 
 const SS_KEY = "ignite_pending_notification_club_switch";
 const APPLIED_KEY = "ignite_notification_club_switch_applied";
@@ -287,26 +289,17 @@ async function resolveClubIdFromUrl(url: string | null | undefined): Promise<str
   if (pathname.startsWith("/media")) {
     const photoId = new URLSearchParams(search).get("photo");
     if (!photoId) return null;
-    const { data, error } = await (supabase as any)
-      .from("photos").select("club_id, team_id").eq("id", photoId).maybeSingle();
-    if (error || !data) return null;
-    if (data.club_id) return data.club_id as string;
-    if (data.team_id) {
-      const { data: team } = await supabase
-        .from("teams").select("club_id").eq("id", data.team_id).maybeSingle();
-      return (team as any)?.club_id ?? null;
-    }
-    return null;
+    return await lookupRouteClubId("photos", photoId);
   }
 
   const scope = resolveRouteClubScope(pathname);
   if (scope.kind === "direct") return scope.clubId;
   if (scope.kind === "lookup") {
-    const { data, error } = await (supabase as any)
-      .from(scope.table).select("club_id").eq("id", scope.id).maybeSingle();
-    if (error) return null;
-    return (data?.club_id as string | null) ?? null;
+    // Team-owned rows (team events, team photos, team groups) carry a NULL
+    // club_id — `lookupRouteClubId` recovers the club via their team.
+    return await lookupRouteClubId(scope.table, scope.id);
   }
+
   return null;
 }
 

@@ -1,5 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { isAuthorizedCronCaller } from "../_shared/cron-auth.ts";
+import {
+  classifyClubSubscription,
+  classifyTeamSubscription,
+  isPromoReminderEnabled,
+} from "./classify.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,9 +42,31 @@ async function isEmailAdminEnabled(supabase: any, userId: string): Promise<boole
     .select("email_admin_enabled")
     .eq("user_id", userId)
     .single();
-  
+
   // Default to true if no preferences set
   return data?.email_admin_enabled ?? true;
+}
+
+/**
+ * Audit log for skipped reminders. Never throws — auditability must not break
+ * the reminder run itself.
+ */
+async function logSkip(
+  supabase: any,
+  entityType: 'team' | 'club',
+  entityId: string,
+  skipReason: string,
+): Promise<void> {
+  try {
+    await supabase.from('notification_dispatch_log').insert({
+      message_type: 'subscription_renewal_reminder',
+      target_function: 'send-renewal-reminders',
+      status_code: 204,
+      error_detail: `skip_reason=${skipReason} entity_type=${entityType} entity_id=${entityId}`,
+    });
+  } catch (e) {
+    console.error(`Failed to write skip audit log for ${entityType} ${entityId}:`, e);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -60,20 +87,26 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    const promoReminderEnabled = isPromoReminderEnabled((k) => Deno.env.get(k));
+
     // Calculate the date range for 7 days from now (with some buffer for daily cron)
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const eightDaysFromNow = new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000);
+    const dedupSince = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
     let teamReminders = 0;
     let clubReminders = 0;
+    let promoTeamReminders = 0;
+    let promoClubReminders = 0;
+    let skippedPromo = 0;
 
     // ==========================================
     // TEAM SUBSCRIPTIONS - Annual reminders
     // ==========================================
     const { data: teamSubs, error: teamError } = await supabase
       .from('team_subscriptions')
-      .select('id, team_id, is_pro, is_pro_football, expires_at')
+      .select('id, team_id, is_pro, is_pro_football, expires_at, stripe_subscription_id')
       .gte('expires_at', sevenDaysFromNow.toISOString())
       .lt('expires_at', eightDaysFromNow.toISOString())
       .or('is_pro.eq.true,is_pro_football.eq.true');
@@ -87,19 +120,43 @@ Deno.serve(async (req) => {
       console.log(`Found ${teamSubs.length} team subscriptions expiring in 7 days`);
 
       for (const sub of teamSubs) {
-        // Check if reminder already sent (avoid duplicate notifications)
+        // Check if reminder already sent (avoid duplicate notifications).
+        // Both the paying and promo variants share this notification type, so
+        // a user can never receive both variants for the same expiry window.
         const { data: existingNotif } = await supabase
           .from('notifications')
           .select('id')
           .eq('related_id', sub.team_id)
           .eq('type', 'subscription_renewal_reminder')
-          .gte('created_at', new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString())
+          .gte('created_at', dedupSince)
           .limit(1);
 
         if (existingNotif && existingNotif.length > 0) {
           console.log(`Reminder already sent for team ${sub.team_id}, skipping`);
           continue;
         }
+
+        // Partition: paying (Stripe or IAP-linked) vs promo/trial-granted.
+        let hasLiveIap = false;
+        if (sub.stripe_subscription_id == null) {
+          const { data: iapRows } = await supabase
+            .from('iap_transactions')
+            .select('id')
+            .eq('entity_type', 'team')
+            .eq('entity_id', sub.team_id)
+            .gt('expires_at', now.toISOString())
+            .limit(1);
+          hasLiveIap = !!(iapRows && iapRows.length > 0);
+        }
+        const renewalClass = classifyTeamSubscription(sub, hasLiveIap);
+
+        if (renewalClass === 'promo_granted' && !promoReminderEnabled) {
+          console.log(`Team ${sub.team_id} is promo/trial-granted with no payment instrument, skipping payment reminder`);
+          skippedPromo++;
+          await logSkip(supabase, 'team', sub.team_id, 'promo_granted');
+          continue;
+        }
+        const isPromo = renewalClass === 'promo_granted';
 
         // Get team admins
         const { data: teamAdmins } = await supabase
@@ -133,12 +190,14 @@ Deno.serve(async (req) => {
           const notifications = teamAdmins.map(admin => ({
             user_id: admin.user_id,
             type: 'subscription_renewal_reminder',
-            message: `${teamName}'s ${tierName} subscription will renew on ${expiryDate}. To cancel, visit the team settings.`,
+            message: isPromo
+              ? `${teamName}'s ${tierName} access, granted via a promotional code, ends on ${expiryDate}. No payment will be taken.`
+              : `${teamName}'s ${tierName} subscription will renew on ${expiryDate}. To cancel, visit the team settings.`,
             related_id: sub.team_id,
           }));
 
           await supabase.from('notifications').insert(notifications);
-          teamReminders++;
+          if (isPromo) promoTeamReminders++; else teamReminders++;
 
           // Send emails to team admins using the new template
           const adminIds = teamAdmins.map(a => a.user_id);
@@ -161,13 +220,13 @@ Deno.serve(async (req) => {
                 console.log(`User ${admin.user_id} has email_admin_enabled=false, skipping renewal email`);
                 continue;
               }
-              
+
               const recipientName = profileMap.get(admin.user_id) || undefined;
-              
+
               await sendTemplateEmail(
                 supabase,
                 admin.email,
-                `Subscription Renewal: ${teamName}`,
+                isPromo ? `Your Pro access ends on ${expiryDate}` : `Subscription Renewal: ${teamName}`,
                 'renewal-reminder',
                 {
                   recipientName,
@@ -176,7 +235,8 @@ Deno.serve(async (req) => {
                   tierName,
                   expiryDate,
                   daysUntilExpiry,
-                  manageLink: `https://igniteclubhq.app/team/${sub.team_id}`,
+                  manageLink: isPromo ? undefined : `https://igniteclubhq.app/team/${sub.team_id}`,
+                  isPromoGrant: isPromo,
                   clubLogoUrl,
                   primaryColor: '#10b981',
                 }
@@ -192,7 +252,7 @@ Deno.serve(async (req) => {
     // ==========================================
     const { data: clubSubs, error: clubError } = await supabase
       .from('club_subscriptions')
-      .select('id, club_id, is_pro, is_pro_football, expires_at')
+      .select('id, club_id, is_pro, is_pro_football, expires_at, stripe_subscription_id, promo_code_id')
       .gte('expires_at', sevenDaysFromNow.toISOString())
       .lt('expires_at', eightDaysFromNow.toISOString())
       .or('is_pro.eq.true,is_pro_football.eq.true');
@@ -206,19 +266,29 @@ Deno.serve(async (req) => {
       console.log(`Found ${clubSubs.length} club subscriptions expiring in 7 days`);
 
       for (const sub of clubSubs) {
-        // Check if reminder already sent
+        // Check if reminder already sent (shared type => no double variant sends)
         const { data: existingNotif } = await supabase
           .from('notifications')
           .select('id')
           .eq('related_id', sub.club_id)
           .eq('type', 'subscription_renewal_reminder')
-          .gte('created_at', new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString())
+          .gte('created_at', dedupSince)
           .limit(1);
 
         if (existingNotif && existingNotif.length > 0) {
           console.log(`Reminder already sent for club ${sub.club_id}, skipping`);
           continue;
         }
+
+        // Partition: promo/trial-granted rows never get the payment reminder.
+        const renewalClass = classifyClubSubscription(sub);
+        if (renewalClass === 'promo_granted' && !promoReminderEnabled) {
+          console.log(`Club ${sub.club_id} is promo/trial-granted with no payment instrument, skipping payment reminder`);
+          skippedPromo++;
+          await logSkip(supabase, 'club', sub.club_id, 'promo_granted');
+          continue;
+        }
+        const isPromo = renewalClass === 'promo_granted';
 
         // Get club admins
         const { data: clubAdmins } = await supabase
@@ -250,12 +320,14 @@ Deno.serve(async (req) => {
           const notifications = clubAdmins.map(admin => ({
             user_id: admin.user_id,
             type: 'subscription_renewal_reminder',
-            message: `${clubName}'s ${tierName} subscription will renew on ${expiryDate}. To cancel, visit the club settings.`,
+            message: isPromo
+              ? `${clubName}'s ${tierName} access, granted via a promotional code, ends on ${expiryDate}. No payment will be taken.`
+              : `${clubName}'s ${tierName} subscription will renew on ${expiryDate}. To cancel, visit the club settings.`,
             related_id: sub.club_id,
           }));
 
           await supabase.from('notifications').insert(notifications);
-          clubReminders++;
+          if (isPromo) promoClubReminders++; else clubReminders++;
 
           // Send emails to club admins using the new template
           const adminIds = clubAdmins.map(a => a.user_id);
@@ -278,13 +350,13 @@ Deno.serve(async (req) => {
                 console.log(`User ${admin.user_id} has email_admin_enabled=false, skipping renewal email`);
                 continue;
               }
-              
+
               const recipientName = profileMap.get(admin.user_id) || undefined;
-              
+
               await sendTemplateEmail(
                 supabase,
                 admin.email,
-                `Subscription Renewal: ${clubName}`,
+                isPromo ? `Your Pro access ends on ${expiryDate}` : `Subscription Renewal: ${clubName}`,
                 'renewal-reminder',
                 {
                   recipientName,
@@ -293,7 +365,8 @@ Deno.serve(async (req) => {
                   tierName,
                   expiryDate,
                   daysUntilExpiry,
-                  manageLink: `https://igniteclubhq.app/club/${sub.club_id}`,
+                  manageLink: isPromo ? undefined : `https://igniteclubhq.app/club/${sub.club_id}`,
+                  isPromoGrant: isPromo,
                   clubLogoUrl,
                   primaryColor: '#10b981',
                 }
@@ -304,14 +377,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Sent ${teamReminders} team reminders and ${clubReminders} club reminders`);
+    console.log(`Sent ${teamReminders} team reminders and ${clubReminders} club reminders (${promoTeamReminders + promoClubReminders} promo variants, ${skippedPromo} promo-granted skipped)`);
 
     return new Response(
       JSON.stringify({
         message: 'Renewal reminders sent',
         teamReminders,
         clubReminders,
-        total: teamReminders + clubReminders
+        promoTeamReminders,
+        promoClubReminders,
+        skippedPromo,
+        total: teamReminders + clubReminders + promoTeamReminders + promoClubReminders
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

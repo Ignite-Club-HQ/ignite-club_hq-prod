@@ -750,6 +750,7 @@ export type Database = {
           category: string | null
           club_id: string | null
           competition_id: string | null
+          competition_scope: string | null
           created_at: string
           created_by: string
           deleted_at: string | null
@@ -775,6 +776,7 @@ export type Database = {
           category?: string | null
           club_id?: string | null
           competition_id?: string | null
+          competition_scope?: string | null
           created_at?: string
           created_by: string
           deleted_at?: string | null
@@ -800,6 +802,7 @@ export type Database = {
           category?: string | null
           club_id?: string | null
           competition_id?: string | null
+          competition_scope?: string | null
           created_at?: string
           created_by?: string
           deleted_at?: string | null
@@ -2930,6 +2933,8 @@ export type Database = {
           join_token_enabled: boolean
           last_synced_at: string | null
           logo_url: string | null
+          member_chat_admins_only: boolean
+          member_chat_enabled: boolean
           name: string
           organizer_club_id: string
           points_draw: number
@@ -2957,6 +2962,8 @@ export type Database = {
           join_token_enabled?: boolean
           last_synced_at?: string | null
           logo_url?: string | null
+          member_chat_admins_only?: boolean
+          member_chat_enabled?: boolean
           name: string
           organizer_club_id: string
           points_draw?: number
@@ -2984,6 +2991,8 @@ export type Database = {
           join_token_enabled?: boolean
           last_synced_at?: string | null
           logo_url?: string | null
+          member_chat_admins_only?: boolean
+          member_chat_enabled?: boolean
           name?: string
           organizer_club_id?: string
           points_draw?: number
@@ -10774,6 +10783,10 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
       }
+      can_post_in_chat_group: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_publish_club_wide_photo: {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
@@ -11273,6 +11286,10 @@ export type Database = {
         Returns: undefined
       }
       ensure_competition_coord_chat: {
+        Args: { _competition_id: string }
+        Returns: string
+      }
+      ensure_competition_member_chat: {
         Args: { _competition_id: string }
         Returns: string
       }
@@ -12535,6 +12552,10 @@ export type Database = {
         Returns: undefined
       }
       sync_competition_coord_chat_members: {
+        Args: { _competition_id: string }
+        Returns: undefined
+      }
+      sync_competition_member_chat_members: {
         Args: { _competition_id: string }
         Returns: undefined
       }
