@@ -41,6 +41,7 @@ export function MatchResultCard({
 }: MatchResultCardProps) {
   const config = useMemo(() => getSportScoreConfig(sport), [sport]);
   const [open, setOpen] = useState(false);
+  const hasDraft = useMemo(() => !open && hasUnsavedMatchResultDraft(eventId), [open, eventId]);
 
   const { data: result, isLoading } = useQuery({
     queryKey: ["match-result", eventId],
@@ -112,6 +113,10 @@ export function MatchResultCard({
                     {outcome === "loss" && <Badge variant="destructive">Loss</Badge>}
                     {outcome === "draw" && <Badge variant="secondary">Draw</Badge>}
                   </div>
+                ) : hasDraft ? (
+                  <p className="text-sm text-amber-600 dark:text-amber-500 mt-0.5">
+                    Unsaved draft — tap Record to save it
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground mt-0.5">No result recorded yet</p>
                 )}
