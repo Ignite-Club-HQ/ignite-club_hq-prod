@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getSportScoreConfig } from "@/lib/sportScoreConfig";
 import { formatScoreLine, outcomeFor } from "@/lib/matchResultFormat";
-import { MatchResultSheet } from "./MatchResultSheet";
+import { MatchResultSheet, hasUnsavedMatchResultDraft } from "./MatchResultSheet";
 
 /**
  * Public-facing result summary card. Renders the saved result + optional
