@@ -8,6 +8,8 @@ import {
   isNotificationClubSwitchInFlight,
 } from "@/lib/notificationClubSwitch";
 import { resolveRouteClubScope } from "@/lib/routeClubScope";
+import { lookupRouteClubId } from "@/lib/clubScopeLookup";
+
 import { useAuth } from "@/hooks/useAuth";
 import { isIgniteSupportUser } from "@/lib/systemUser";
 
