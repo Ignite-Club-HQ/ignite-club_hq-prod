@@ -4,7 +4,7 @@ import { ChevronRight, Newspaper } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { useLatestClubNews } from "@/features/news/useClubNews";
+import { useLatestClubNews, useNewsPublishableClubs } from "@/features/news/useClubNews";
 
 /**
  * Compact Home "Club News" section — surfaces only the latest post and hides
