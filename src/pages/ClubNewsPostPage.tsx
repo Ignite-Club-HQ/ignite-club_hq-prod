@@ -20,10 +20,10 @@ export default function ClubNewsPostPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("display_name")
         .eq("id", post!.author_id!)
         .maybeSingle();
-      return data?.full_name ?? null;
+      return data?.display_name ?? null;
     },
     enabled: !!post?.author_id,
   });
