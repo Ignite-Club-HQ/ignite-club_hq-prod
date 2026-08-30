@@ -3858,13 +3858,12 @@ export default function EventDetailPage() {
             memberRole={!rsvp.child_id && !rsvp.mini_league_player_id
               ? (() => {
                   const member = membersWithRoles?.find((m: any) => m.id === rsvp.user_id);
-                  const roles: string[] = member?.roles ?? [];
-                  // While the roster is filtered to players only, show the role
-                  // that qualified them ("player") rather than their first role.
-                  if (!effectiveShowAll && roles.includes("player")) return "player";
+                  // Always resolve against the event's team scope — a "player"
+                  // role on a different team must never label them here.
                   return resolveAttendeeRoleLabel(member, event);
                 })()
               : undefined}
+
 
             isCaptain={
               isGameEvent && (
