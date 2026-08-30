@@ -14,6 +14,7 @@ import {
   ResponsiveDialogTitle,
 } from "@/components/ui/responsive-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
 
 
 interface Team {
