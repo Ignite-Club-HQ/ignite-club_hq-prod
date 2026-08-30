@@ -223,13 +223,13 @@ export function installSupabaseAuthRetry() {
       // iOS suspension this promise can hang forever, and every queryFn
       // that hit a 401 hangs behind it — the page stays "loading" with no
       // error and the app looks frozen. 10s then fall through.
-      const refreshed = await Promise.race([
-        supabase.auth.refreshSession(),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
-      ]);
-      if (!refreshed) return response;
-      const { data, error } = refreshed;
-      if (error || !data.session) return response;
+      //
+      // Single-flight: concurrent 401s must NOT each fire their own refresh —
+      // refresh tokens are single-use, so the losers would replay a rotated
+      // token and trigger a spurious SIGNED_OUT.
+      const { session, error } = await refreshSessionOnce(10000);
+      if (error || !session) return response;
+      const data = { session };
 
 
       // Rebuild the request with the fresh token. Supabase-js sets the
