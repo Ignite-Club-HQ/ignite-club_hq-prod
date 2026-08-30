@@ -97,6 +97,7 @@ const myTeamsCarouselImport = () =>
 myTeamsCarouselImport();
 const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 const ClubLinksSection = lazy(() => import("@/components/home/ClubLinksSection"));
+const ClubNewsSection = lazy(() => import("@/components/home/ClubNewsSection"));
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
@@ -2150,6 +2151,11 @@ export default function HomePage() {
           {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
           <Suspense fallback={<HomeMyTeamsSkeleton />}>
             <MyTeamsPremiumCarousel onReadyChange={handleMyTeamsReadyChange} />
+          </Suspense>
+
+          {/* Club News - compact latest-post card; renders nothing when the club has no posts */}
+          <Suspense fallback={null}>
+            <ClubNewsSection />
           </Suspense>
 
           {/* Club Info & Links - collapsible tile grid directly below the teams carousel */}

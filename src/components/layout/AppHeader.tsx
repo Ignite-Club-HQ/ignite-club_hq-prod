@@ -1010,6 +1010,9 @@ export function AppHeader() {
             navigate("/notifications");
           }
           return;
+        case "club_news":
+          navigate(relatedId ? `/news/${relatedId}` : "/news");
+          return;
         case "club_join":
           if (relatedId) {
             navigate(`/clubs/${relatedId}`);
