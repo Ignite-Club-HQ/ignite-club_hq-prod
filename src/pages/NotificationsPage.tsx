@@ -277,14 +277,20 @@ export default function NotificationsPage() {
     },
     enabled: !!user,
     staleTime: 30000, // Consider data fresh for 30 seconds
+    // Must be "always" (not `true`) so opening the page after the bell badge
+    // updated elsewhere never renders a stale read/unread split — `true` is a
+    // no-op while staleTime is unmet, which made the page disagree with the bell.
+    refetchOnMount: "always",
   });
 
-  // Paginated display — split into unread (newest first) and earlier/read
-  // (newest first) so the page mirrors the bell dropdown's hierarchy:
-  // unread first, then a clearly separated "Earlier" group.
-  const displayedNotifications = notifications?.slice(0, displayCount) || [];
-  const unreadNotifications = displayedNotifications.filter((n) => !n.read);
-  const earlierNotifications = displayedNotifications.filter((n) => n.read);
+  // Split into unread (newest first) and earlier/read (newest first) BEFORE
+  // paginating, so unread rows are never hidden behind the "load more" cut-off
+  // (which made the bell show unread while the page showed only "Earlier").
+  const allUnread = notifications?.filter((n) => !n.read) || [];
+  const allEarlier = notifications?.filter((n) => n.read) || [];
+  const unreadNotifications = allUnread;
+  const earlierNotifications = allEarlier.slice(0, Math.max(0, displayCount - allUnread.length));
+  const displayedNotifications = [...unreadNotifications, ...earlierNotifications];
 
   // Cross-club unread nudge: unread notifications that belong to a DIFFERENT
   // club than the active filter are invisible here by design. Surface a single
@@ -408,7 +414,7 @@ export default function NotificationsPage() {
     onMutate: async (id) => {
       // Optimistic update
       queryClient.setQueriesData<Notification[]>(
-        { queryKey: ["notifications", user?.id] },
+        { queryKey: ["notifications", user?.id, activeClubFilter ?? "all"] },
         (old) => old?.map(n => n.id === id ? { ...n, read: true } : n) || []
       );
     },
@@ -433,7 +439,7 @@ export default function NotificationsPage() {
     onMutate: async () => {
       // Optimistic update - mark visible notifications as read
       queryClient.setQueriesData<Notification[]>(
-        { queryKey: ["notifications", user?.id] },
+        { queryKey: ["notifications", user?.id, activeClubFilter ?? "all"] },
         (old) => old?.map(n => ({ ...n, read: true })) || []
       );
     },
@@ -462,7 +468,7 @@ export default function NotificationsPage() {
     onMutate: async (id) => {
       // Optimistic update - remove from list
       queryClient.setQueriesData<Notification[]>(
-        { queryKey: ["notifications", user?.id] },
+        { queryKey: ["notifications", user?.id, activeClubFilter ?? "all"] },
         (old) => old?.filter(n => n.id !== id) || []
       );
     },
@@ -487,7 +493,7 @@ export default function NotificationsPage() {
       await queryClient.cancelQueries({ queryKey: ["recent-notifications"] });
       await queryClient.cancelQueries({ queryKey: ["unread-count"] });
       // Optimistic update - clear visible notifications
-      queryClient.setQueriesData<Notification[]>({ queryKey: ["notifications", user?.id] }, []);
+      queryClient.setQueriesData<Notification[]>({ queryKey: ["notifications", user?.id, activeClubFilter ?? "all"] }, []);
     },
     onSuccess: () => {
       if (!activeClubFilter) clearUnreadCount();

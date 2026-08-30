@@ -588,10 +588,14 @@ export function AppHeader() {
     onMutate: () => {
       // Optimistically clear the badge and flip rows to read (keeping them visible)
       clearUnreadCount();
-      queryClient.setQueriesData<any[]>({ queryKey: ["recent-notifications"] }, (old) =>
-        (old || []).map((n) => ({ ...n, is_read: true })),
+      queryClient.setQueriesData<any[]>(
+        { queryKey: ["recent-notifications", user?.id, activeClubFilter] },
+        (old) => (old || []).map((n) => ({ ...n, is_read: true })),
       );
-      queryClient.setQueriesData<number>({ queryKey: ["club-unread-count"] }, () => 0);
+      queryClient.setQueriesData<number>(
+        { queryKey: ["club-unread-count", user?.id, activeClubFilter] },
+        () => 0,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
