@@ -179,8 +179,12 @@ const resolveAttendeeRoleLabel = (
     const clubLevel = pairs.filter((p) => !p.team_id).map((p) => p.role);
     const clubRole = pickRoleByPriority(clubLevel);
     if (clubRole) return clubRole;
+    // Synthetic members (e.g. linked parents with no user_roles rows) carry a
+    // roles array but no pairs — use it rather than showing no badge at all.
+    if (pairs.length === 0) return pickRoleByPriority(member.roles ?? []);
     return undefined;
   }
+
 
   // Untargeted club-wide event: no single team scope, so prefer the most
   // representative role rather than whichever row came back first.
