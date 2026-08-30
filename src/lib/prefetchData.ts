@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { cacheRoles, getCachedRoles } from "@/lib/rolesCache";
 import { cacheClubs, cacheTeams, getCachedClubs, getCachedTeams } from "@/lib/clubTeamCache";
@@ -55,8 +56,8 @@ async function tryEdgePrefetch(
     // race between getSession() and the edge invoke.
     const nowSec = Math.floor(Date.now() / 1000);
     if (session && (session.expires_at ?? 0) - nowSec <= 60) {
-      const { data: refreshed } = await supabase.auth.refreshSession();
-      if (refreshed?.session) session = refreshed.session;
+      const { session: refreshedSession } = await refreshSessionOnce(10000);
+      if (refreshedSession) session = refreshedSession;
     }
 
     const accessToken = session?.access_token;

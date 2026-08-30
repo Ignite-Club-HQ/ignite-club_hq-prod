@@ -33,6 +33,7 @@ const SWEEP_INTERVAL_MS = 5_000;
 
 import { supabase } from "@/integrations/supabase/client";
 import { maybeLogSlowFetch } from "@/lib/clientPerfLog";
+import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
 
 /**
  * Registry of in-flight PostgREST GETs.

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
 
 /**
  * Ensures the Supabase session is valid before performing an authenticated

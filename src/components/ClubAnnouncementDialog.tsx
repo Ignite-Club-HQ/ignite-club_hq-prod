@@ -119,8 +119,8 @@ export function ClubAnnouncementDialog({
       let accessToken = sessionData.session?.access_token ?? null;
       const expiresAt = sessionData.session?.expires_at ?? 0;
       if (!accessToken || expiresAt * 1000 - Date.now() < 60_000) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        accessToken = refreshed.session?.access_token ?? accessToken;
+        const { session: refreshed } = await refreshSessionOnce(10000);
+        accessToken = refreshed?.access_token ?? accessToken;
       }
       if (!accessToken) {
         throw new Error("Your session expired. Please sign in again.");
