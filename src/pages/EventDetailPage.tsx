@@ -3459,23 +3459,19 @@ export default function EventDetailPage() {
               isTraining={event?.type === "training"}
             />
 
-            <Card className="border-dashed">
-              <CardContent className="p-4 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="rsvpNotes" className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Note to organiser (with your RSVP)
-                  </Label>
-                  <Textarea
-                    id="rsvpNotes"
-                    placeholder="Any notes for the organizer (e.g., arriving late, bringing equipment)..."
-                    value={rsvpNotes}
-                    onChange={(e) => setRsvpNotes(e.target.value)}
-                    rows={2}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            {myRsvp && (
+              <button
+                type="button"
+                onClick={() => setNoteTarget({ kind: "self", subjectName: "You" })}
+                className="flex w-full items-start gap-2 rounded-lg border border-dashed border-border/70 px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted/40 touch-manipulation"
+              >
+                <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
+                <span className={(myRsvp as any).notes ? "text-foreground" : undefined}>
+                  {(myRsvp as any).notes || "Add a note…"}
+                </span>
+              </button>
+            )}
+
 
             {showPaymentStatus && myRsvp?.status === "going" && (
               <Card className={userHasPaid ? "border-green-500/30 bg-green-500/5" : "border-warning/30 bg-warning/5"}>
