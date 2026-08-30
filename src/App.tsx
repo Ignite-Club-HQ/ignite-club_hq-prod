@@ -111,6 +111,8 @@ const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
 const CancellationPolicyPage = lazy(() => import("./pages/CancellationPolicyPage"));
 const PlayerStatsReportPage = lazy(() => import("./pages/PlayerStatsReportPage"));
 const ClubRewardsPage = lazy(() => import("./pages/ClubRewardsPage"));
+const ClubNewsPage = lazy(() => import("./pages/ClubNewsPage"));
+const ClubNewsPostPage = lazy(() => import("./pages/ClubNewsPostPage"));
 const ClubRewardsReportPage = lazy(() => import("./pages/ClubRewardsReportPage"));
 const SponsorAnalyticsPage = lazy(() => import("./pages/SponsorAnalyticsPage"));
 const ManageAdsPage = lazy(() => import("./pages/ManageAdsPage"));
@@ -434,6 +436,8 @@ const App = () => {
                   <Route path="/teams/new" element={<StartTeamPage />} />
                   <Route path="/clubs/:id" element={<ClubDetailPage />} />
                   <Route path="/club-link/:linkId" element={<ClubLinkEmbedPage />} />
+                  <Route path="/news" element={<ClubNewsPage />} />
+                  <Route path="/news/:newsId" element={<ClubNewsPostPage />} />
                   <Route path="/clubs/:clubId/setup" element={<ClubSetupWizardPage />} />
                   <Route path="/clubs/:id/edit" element={<EditClubPage />} />
                   <Route path="/clubs/:clubId/teams/new" element={<CreateTeamPage />} />
