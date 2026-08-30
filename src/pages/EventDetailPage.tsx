@@ -3403,6 +3403,21 @@ export default function EventDetailPage() {
                           </Button>
                         ))}
                       </div>
+                      {childRsvp && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNoteTarget({ kind: "child", childId: child.id, subjectName: child.name })
+                          }
+                          className="flex w-full items-start gap-2 rounded-lg border border-dashed border-border/70 px-2.5 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/40 touch-manipulation"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <span className={(childRsvp as any).notes ? "text-foreground" : undefined}>
+                            {(childRsvp as any).notes || "Add a note…"}
+                          </span>
+                        </button>
+                      )}
+
                       <TrainingDefaultControl
                         teamId={event?.team_id ?? null}
                         childId={child.id}
