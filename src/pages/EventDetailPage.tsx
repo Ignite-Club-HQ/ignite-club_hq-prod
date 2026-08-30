@@ -1668,7 +1668,6 @@ export default function EventDetailPage() {
           .from("rsvps")
           .update({
             status,
-            notes: rsvpNotes || null,
             source: "user",
           })
           .eq("id", myRsvp.id);
