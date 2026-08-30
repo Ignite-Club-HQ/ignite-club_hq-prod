@@ -261,6 +261,31 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     }
   };
 
+  // Proof-of-connectivity healing. `recoverErroredQueries` only ran on
+  // foreground resume / reconnect events, so a session that was backgrounded
+  // and then resumed while the OS suppressed both events kept its errored
+  // queries dead. Any query that succeeds proves the network works — use that
+  // as an extra trigger. Still bounded by the same 2s throttle inside
+  // `recoverErroredQueries`, and it self-terminates once nothing is stuck.
+  if (queryClient) {
+    try {
+      const cache = queryClient.getQueryCache();
+      cache.subscribe((event) => {
+        if (event?.type !== 'updated') return;
+        const action = (event as { action?: { type?: string } }).action;
+        if (action?.type !== 'success') return;
+        const hasStuck = cache
+          .getAll()
+          .some((q) => q.state.status === 'error' || q.state.fetchStatus === 'paused');
+        if (!hasStuck) return;
+        if (!onlineManager.isOnline()) onlineManager.setOnline(true);
+        recoverErroredQueries('query-success-proof');
+      });
+    } catch { /* noop */ }
+  }
+
+
+
 
   const scheduleProbeIfOffline = () => {
     if (onlineManager.isOnline()) {
