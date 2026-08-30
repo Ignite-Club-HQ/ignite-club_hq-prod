@@ -414,7 +414,7 @@ export default function NotificationsPage() {
     onMutate: async (id) => {
       // Optimistic update
       queryClient.setQueriesData<Notification[]>(
-        { queryKey: ["notifications", user?.id] },
+        { queryKey: ["notifications", user?.id, activeClubFilter ?? "all"] },
         (old) => old?.map(n => n.id === id ? { ...n, read: true } : n) || []
       );
     },
@@ -439,7 +439,7 @@ export default function NotificationsPage() {
     onMutate: async () => {
       // Optimistic update - mark visible notifications as read
       queryClient.setQueriesData<Notification[]>(
-        { queryKey: ["notifications", user?.id] },
+        { queryKey: ["notifications", user?.id, activeClubFilter ?? "all"] },
         (old) => old?.map(n => ({ ...n, read: true })) || []
       );
     },
@@ -468,7 +468,7 @@ export default function NotificationsPage() {
     onMutate: async (id) => {
       // Optimistic update - remove from list
       queryClient.setQueriesData<Notification[]>(
-        { queryKey: ["notifications", user?.id] },
+        { queryKey: ["notifications", user?.id, activeClubFilter ?? "all"] },
         (old) => old?.filter(n => n.id !== id) || []
       );
     },
@@ -493,7 +493,7 @@ export default function NotificationsPage() {
       await queryClient.cancelQueries({ queryKey: ["recent-notifications"] });
       await queryClient.cancelQueries({ queryKey: ["unread-count"] });
       // Optimistic update - clear visible notifications
-      queryClient.setQueriesData<Notification[]>({ queryKey: ["notifications", user?.id] }, []);
+      queryClient.setQueriesData<Notification[]>({ queryKey: ["notifications", user?.id, activeClubFilter ?? "all"] }, []);
     },
     onSuccess: () => {
       if (!activeClubFilter) clearUnreadCount();
