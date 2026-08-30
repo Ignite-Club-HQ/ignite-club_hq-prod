@@ -4575,6 +4575,28 @@ export default function EventDetailPage() {
           eventTitle={event.title}
         />
       )}
+
+      {noteTarget && (() => {
+        const targetRsvp = noteTarget.kind === "child"
+          ? childRsvps.find((r) => r.child_id === noteTarget.childId)
+          : myRsvp;
+        const statusLabel = targetRsvp?.status
+          ? rsvpOptions.find((o) => o.value === targetRsvp.status)?.label ?? null
+          : null;
+        return (
+          <RsvpNoteSheet
+            open
+            onOpenChange={(open) => { if (!open) setNoteTarget(null); }}
+            subjectName={noteTarget.subjectName}
+            statusLabel={statusLabel}
+            initialNote={(targetRsvp as any)?.notes ?? null}
+            onSave={async (note) => {
+              await saveRsvpNoteMutation.mutateAsync({ childId: noteTarget.childId, note });
+            }}
+          />
+        );
+      })()}
+
     </div>
   );
 }
