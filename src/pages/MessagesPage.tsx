@@ -3336,9 +3336,17 @@ export default function MessagesPage() {
       </div>
 
       <QueryErrorBanner
-        hasError={!!(teamsError || memberClubsError || chatGroupsError)}
+        // Only alarm the user when there is genuinely nothing to show. A
+        // failed background refresh over a rendered (cached) inbox is not an
+        // error the user needs to act on.
+        hasError={
+          !!(teamsError || memberClubsError || chatGroupsError) &&
+          unifiedConversations.length === 0
+        }
         onRetry={async () => {
-          await queryClient.refetchQueries({ type: "all", stale: false, predicate: (q) => q.state.status === "error" });
+          // No `stale` filter: errored queries that still hold cached data are
+          // stale, so filtering by `stale: false` made retry a silent no-op.
+          await queryClient.refetchQueries({ type: "all", predicate: (q) => q.state.status === "error" });
         }}
         message="Couldn't load chats. Tap to retry."
       />
