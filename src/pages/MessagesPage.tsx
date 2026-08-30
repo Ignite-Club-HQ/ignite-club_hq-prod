@@ -1030,6 +1030,10 @@ export default function MessagesPage() {
       return { groups, latestMessages };
     },
     enabled: !!user && initialized,
+    // Matches the sibling inbox queries. The 25s REST GET timeout in
+    // `supabaseAuthRetry.ts` otherwise surfaces transient RLS-heavy timeouts
+    // as hard errors after a single attempt.
+    retry: 3,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
     refetchInterval: jitteredInboxInterval,
@@ -3332,9 +3336,17 @@ export default function MessagesPage() {
       </div>
 
       <QueryErrorBanner
-        hasError={!!(teamsError || memberClubsError || chatGroupsError)}
+        // Only alarm the user when there is genuinely nothing to show. A
+        // failed background refresh over a rendered (cached) inbox is not an
+        // error the user needs to act on.
+        hasError={
+          !!(teamsError || memberClubsError || chatGroupsError) &&
+          unifiedConversations.length === 0
+        }
         onRetry={async () => {
-          await queryClient.refetchQueries({ type: "all", stale: false, predicate: (q) => q.state.status === "error" });
+          // No `stale` filter: errored queries that still hold cached data are
+          // stale, so filtering by `stale: false` made retry a silent no-op.
+          await queryClient.refetchQueries({ type: "all", predicate: (q) => q.state.status === "error" });
         }}
         message="Couldn't load chats. Tap to retry."
       />

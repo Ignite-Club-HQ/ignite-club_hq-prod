@@ -15,6 +15,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -69,7 +70,7 @@ export function GenerateDemoDataButton() {
     setLoadingUsers(true);
     try {
       // Refresh session to ensure we have a valid token
-      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+      const { session, error: sessionError } = await refreshSessionOnce(10000);
       if (sessionError || !session) {
         console.error("Session error:", sessionError);
         toast.error("Session expired. Please refresh the page.");
@@ -146,7 +147,7 @@ export function GenerateDemoDataButton() {
 
     try {
       // Refresh session to ensure we have a valid token
-      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+      const { session, error: sessionError } = await refreshSessionOnce(10000);
       if (sessionError || !session) {
         toast.error("Session expired. Please refresh the page and try again.");
         return;

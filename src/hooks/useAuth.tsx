@@ -20,6 +20,7 @@ import { fetchUnreadMessageCounts, getTotalUnreadMessageCount } from "@/lib/unre
 import { markProfileCompleted } from "@/components/InviteFlowProgress";
 import { isNativePlatform, unregisterNativePush } from "@/lib/nativePush";
 import { isTransientAuthFailure } from "@/lib/authRecoveryClassification";
+import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
 
 
 interface Profile {
@@ -739,7 +740,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         console.warn(`[Auth] ${source} - no active session found, attempting one-time refresh`);
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        // Single-flight: never race the supabase-js autoRefresh timer or the
+        // 401-retry interceptor — a rotated-token replay would look like a
+        // logout.
+        const { session: refreshedSession, error: refreshError } = await refreshSessionOnce(12000);
+        const refreshData = { session: refreshedSession };
 
         if (!refreshError && refreshData.session) {
           console.log(`[Auth] ${source} - session recovered via refresh`);
@@ -845,7 +850,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const nowSec = Math.floor(Date.now() / 1000);
         // Refresh when <2 min remaining.
         if (expiresAt - nowSec < 120) {
-          supabase.auth.refreshSession().catch(() => { /* ignore — recovery path will pick up */ });
+          refreshSessionOnce(12000).catch(() => { /* ignore — recovery path will pick up */ });
         }
       }).catch(() => {});
     }, 4 * 60 * 1000);
