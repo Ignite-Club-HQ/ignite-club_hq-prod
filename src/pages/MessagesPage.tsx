@@ -1030,6 +1030,10 @@ export default function MessagesPage() {
       return { groups, latestMessages };
     },
     enabled: !!user && initialized,
+    // Matches the sibling inbox queries. The 25s REST GET timeout in
+    // `supabaseAuthRetry.ts` otherwise surfaces transient RLS-heavy timeouts
+    // as hard errors after a single attempt.
+    retry: 3,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
     refetchInterval: jitteredInboxInterval,
@@ -3332,9 +3336,17 @@ export default function MessagesPage() {
       </div>
 
       <QueryErrorBanner
-        hasError={!!(teamsError || memberClubsError || chatGroupsError)}
+        // Only alarm the user when there is genuinely nothing to show. A
+        // failed background refresh over a rendered (cached) inbox is not an
+        // error the user needs to act on.
+        hasError={
+          !!(teamsError || memberClubsError || chatGroupsError) &&
+          unifiedConversations.length === 0
+        }
         onRetry={async () => {
-          await queryClient.refetchQueries({ type: "all", stale: false, predicate: (q) => q.state.status === "error" });
+          // No `stale` filter: errored queries that still hold cached data are
+          // stale, so filtering by `stale: false` made retry a silent no-op.
+          await queryClient.refetchQueries({ type: "all", predicate: (q) => q.state.status === "error" });
         }}
         message="Couldn't load chats. Tap to retry."
       />
@@ -3466,9 +3478,11 @@ export default function MessagesPage() {
 
       {/* Lightweight type filter chips. Only chips for types the user actually
           has appear, keeping the inbox uncluttered for simple users. Gated on
-          ALL inbox queries having resolved so chips pop in together instead of
-          Teams → Groups → DMs appearing one-by-one as each query finishes. */}
-      {(!isOnline || ((teamsFetched || teamsError) && (memberClubsFetched || memberClubsError) && (chatGroupsFetched || chatGroupsError) && (dmFetched || dmError))) && (() => {
+          exactly the same reveal latch as the conversation list, so the chips
+          paint in the SAME frame as the rows instead of popping in afterwards
+          and pushing the list down (previously gated on all four inbox queries
+          having individually resolved, which lands later than first reveal). */}
+      {!showSkeletonLoading && (() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
         const unread = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
