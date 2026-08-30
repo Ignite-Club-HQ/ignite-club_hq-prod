@@ -1795,6 +1795,39 @@ export default function EventDetailPage() {
     },
   });
 
+  // Optional RSVP note (Heja-style): the RSVP itself stays one tap; the note is
+  // an optional follow-up written after answering.
+  const [noteTarget, setNoteTarget] = useState<
+    { kind: "self" | "child"; childId?: string; subjectName: string } | null
+  >(null);
+
+  const saveRsvpNoteMutation = useMutation({
+    mutationFn: async ({ childId, note }: { childId?: string; note: string | null }) => {
+      const target = childId
+        ? childRsvps.find((r) => r.child_id === childId)
+        : myRsvp;
+      if (!target) throw new Error("Please choose a response first.");
+      const { error } = await supabase
+        .from("rsvps")
+        .update({ notes: note })
+        .eq("id", target.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Couldn't save note",
+        description: err?.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+
+
   // Admin RSVP mutation for mini-league players (club/league admins can change player RSVPs)
   const adminRsvpMutation = useMutation({
     mutationFn: async ({ 
