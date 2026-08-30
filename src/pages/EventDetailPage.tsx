@@ -4087,10 +4087,10 @@ export default function EventDetailPage() {
                   name={member.display_name || "Unknown"}
                   avatarUrl={member.avatar_url}
                   roleLabel={(() => {
-                    const roles: string[] = member.roles ?? [];
-                    const shown = !effectiveShowAll && roles.includes("player") ? "player" : roles[0];
-                    return shown ? String(shown).replace(/_/g, " ") : null;
+                    const label = resolveAttendeeRoleLabel(member, event);
+                    return label ? String(label).replace(/_/g, " ") : null;
                   })()}
+
                   roleTone="neutral"
                   rightSlot={
                     <>
