@@ -33,22 +33,20 @@ export async function ensureFreshSession(bufferSeconds = 30): Promise<string> {
     // refresh cycle on the retry.
     const REFRESH_TIMEOUT_MS = 12_000;
 
-    const raced = await Promise.race([
-      supabase.auth.refreshSession(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), REFRESH_TIMEOUT_MS)),
-    ]);
+    // Single-flight (see refreshSessionOnce.ts): concurrent refreshes would
+    // replay an already-rotated refresh token and trigger a spurious
+    // SIGNED_OUT.
+    const { session: refreshed, error } = await refreshSessionOnce(REFRESH_TIMEOUT_MS);
 
-    if (raced === null) {
+    if (!refreshed) {
+      if (error) throw error;
       // Timed out — return existing user id. The stale token may still be
       // valid for ~30s of buffer, and if it isn't the caller's request
       // will 401 and be retried after a fresh refresh.
       return session.user.id;
     }
-    const { data: refreshed, error } = raced;
-    if (error || !refreshed.session) {
-      throw error ?? new Error("Session refresh failed");
-    }
-    return refreshed.session.user.id;
+    if (error) throw error;
+    return refreshed.user.id;
   }
 
   return session.user.id;
