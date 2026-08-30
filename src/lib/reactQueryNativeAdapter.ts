@@ -68,7 +68,7 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
   const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
 
   let probeTimer: ReturnType<typeof setTimeout> | null = null;
-  let probeDelay = 1000; // start at ~1s, cap at 60s
+  let probeDelay = 1000; // start at ~1s, cap at 15s
   let isForeground = true;
   let probing = false;
 
@@ -80,11 +80,11 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     probeDelay = 1000;
   };
 
-  const runProbe = async () => {
+  const runProbe = async (opts?: { force?: boolean }) => {
     if (probing) return;
     if (!supabaseUrl) return;
     if (!isForeground) return;
-    if (onlineManager.isOnline()) {
+    if (onlineManager.isOnline() && !opts?.force) {
       clearProbe();
       return;
     }
@@ -100,8 +100,14 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
       }).catch(() => null);
       clearTimeout(timeout);
       if (res) {
+        const wasOnline = onlineManager.isOnline();
         onlineManager.setOnline(true);
         clearProbe();
+        if (wasOnline) {
+          // Already considered online — just heal anything that errored.
+          recoverErroredQueries('probe-ok');
+          return;
+        }
         // Probe succeeded after being offline — a genuine reconnect.
         recoverErroredQueries('probe-recovered', { refetchActive: true });
         return;
@@ -109,8 +115,10 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
     } finally {
       probing = false;
     }
-    // Still offline — schedule next probe with backoff (cap 60s).
-    probeDelay = Math.min(probeDelay * 2, 60000);
+    // Still offline — schedule next probe with backoff (cap 15s). A 60s cap
+    // meant a Doze/Low-Power latched `connected: false` could keep React Query
+    // paused for a full minute after connectivity actually returned.
+    probeDelay = Math.min(probeDelay * 2, 15000);
     if (isForeground) {
       probeTimer = setTimeout(runProbe, probeDelay);
     }
@@ -308,6 +316,13 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
           const wasOnline = onlineManager.isOnline();
           // On resume, re-check connectivity rather than trusting the cached
           // value (Low Power Mode / Doze can have left it stale).
+          // ALWAYS probe on resume, even when the OS reports offline:
+          // @capacitor/network can latch `connected: false` through iOS Low
+          // Power Mode / Android Doze and then never emit an update, which
+          // pauses every query. The probe is the authoritative signal.
+          probeDelay = 1000;
+          clearProbe();
+          void runProbe({ force: true });
           import('@capacitor/network').then(({ Network }) => {
             Network.getStatus().then((status) => {
               if (status.connected) {
@@ -322,9 +337,9 @@ export function setupReactQueryNativeAdapter(queryClient?: QueryClient) {
                 if (hiddenFor > 0) recoverActiveChatQueries(`app-resume:${Math.round(hiddenFor)}ms`);
 
               } else {
-                // OS says offline — but verify with a probe before trusting it.
-                probeDelay = 1000;
-                runProbe();
+                // OS says offline — the forced probe above is already deciding.
+                // Schedule follow-up attempts in case it fails.
+                scheduleProbeIfOffline();
               }
             });
           });
