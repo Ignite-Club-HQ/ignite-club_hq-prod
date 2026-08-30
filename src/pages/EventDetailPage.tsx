@@ -89,6 +89,7 @@ import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
 import { AttendanceRow } from "@/components/event/AttendanceRow";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { RsvpNoteSheet } from "@/components/rsvp/RsvpNoteSheet";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 import { formatMatchArrivalTime, getMatchArrivalMinutes, getMatchArrivalDate } from "@/lib/matchArrivalTime";
 import { formatRelativePast } from "@/lib/formatRelativeTime";
@@ -1667,7 +1668,6 @@ export default function EventDetailPage() {
           .from("rsvps")
           .update({
             status,
-            notes: rsvpNotes || null,
             source: "user",
           })
           .eq("id", myRsvp.id);
@@ -1794,6 +1794,39 @@ export default function EventDetailPage() {
       }, 1500);
     },
   });
+
+  // Optional RSVP note (Heja-style): the RSVP itself stays one tap; the note is
+  // an optional follow-up written after answering.
+  const [noteTarget, setNoteTarget] = useState<
+    { kind: "self" | "child"; childId?: string; subjectName: string } | null
+  >(null);
+
+  const saveRsvpNoteMutation = useMutation({
+    mutationFn: async ({ childId, note }: { childId?: string; note: string | null }) => {
+      const target = childId
+        ? childRsvps.find((r) => r.child_id === childId)
+        : myRsvp;
+      if (!target) throw new Error("Please choose a response first.");
+      const { error } = await supabase
+        .from("rsvps")
+        .update({ notes: note })
+        .eq("id", target.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-rsvps-going", id] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Couldn't save note",
+        description: err?.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+
 
   // Admin RSVP mutation for mini-league players (club/league admins can change player RSVPs)
   const adminRsvpMutation = useMutation({
@@ -3403,6 +3436,21 @@ export default function EventDetailPage() {
                           </Button>
                         ))}
                       </div>
+                      {childRsvp && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNoteTarget({ kind: "child", childId: child.id, subjectName: child.name })
+                          }
+                          className="flex w-full items-start gap-2 rounded-lg border border-dashed border-border/70 px-2.5 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/40 touch-manipulation"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <span className={(childRsvp as any).notes ? "text-foreground" : undefined}>
+                            {(childRsvp as any).notes || "Add a note…"}
+                          </span>
+                        </button>
+                      )}
+
                       <TrainingDefaultControl
                         teamId={event?.team_id ?? null}
                         childId={child.id}
@@ -3459,23 +3507,19 @@ export default function EventDetailPage() {
               isTraining={event?.type === "training"}
             />
 
-            <Card className="border-dashed">
-              <CardContent className="p-4 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="rsvpNotes" className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Note to organiser (with your RSVP)
-                  </Label>
-                  <Textarea
-                    id="rsvpNotes"
-                    placeholder="Any notes for the organizer (e.g., arriving late, bringing equipment)..."
-                    value={rsvpNotes}
-                    onChange={(e) => setRsvpNotes(e.target.value)}
-                    rows={2}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            {myRsvp && (
+              <button
+                type="button"
+                onClick={() => setNoteTarget({ kind: "self", subjectName: "You" })}
+                className="flex w-full items-start gap-2 rounded-lg border border-dashed border-border/70 px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted/40 touch-manipulation"
+              >
+                <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
+                <span className={(myRsvp as any).notes ? "text-foreground" : undefined}>
+                  {(myRsvp as any).notes || "Add a note…"}
+                </span>
+              </button>
+            )}
+
 
             {showPaymentStatus && myRsvp?.status === "going" && (
               <Card className={userHasPaid ? "border-green-500/30 bg-green-500/5" : "border-warning/30 bg-warning/5"}>
@@ -4531,6 +4575,28 @@ export default function EventDetailPage() {
           eventTitle={event.title}
         />
       )}
+
+      {noteTarget && (() => {
+        const targetRsvp = noteTarget.kind === "child"
+          ? childRsvps.find((r) => r.child_id === noteTarget.childId)
+          : myRsvp;
+        const statusLabel = targetRsvp?.status
+          ? rsvpOptions.find((o) => o.value === targetRsvp.status)?.label ?? null
+          : null;
+        return (
+          <RsvpNoteSheet
+            open
+            onOpenChange={(open) => { if (!open) setNoteTarget(null); }}
+            subjectName={noteTarget.subjectName}
+            statusLabel={statusLabel}
+            initialNote={(targetRsvp as any)?.notes ?? null}
+            onSave={async (note) => {
+              await saveRsvpNoteMutation.mutateAsync({ childId: noteTarget.childId, note });
+            }}
+          />
+        );
+      })()}
+
     </div>
   );
 }

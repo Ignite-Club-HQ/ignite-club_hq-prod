@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { hapticImpactLight } from "@/lib/haptics";
+import { RsvpNoteSheet } from "@/components/rsvp/RsvpNoteSheet";
 
 type Status = "going" | "maybe" | "not_going";
 
@@ -48,6 +49,8 @@ export function InlineRsvpActions({ eventId, messageId }: Props) {
   const navigate = useNavigate();
   const [answered, setAnswered] = useState<Status | null>(() => readAnswered(messageId));
   const [submitting, setSubmitting] = useState<Status | null>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
   // Sync if another DM tab updated it.
   useEffect(() => {
@@ -92,11 +95,19 @@ export function InlineRsvpActions({ eventId, messageId }: Props) {
 
   if (answered) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 text-primary text-xs font-medium px-3 py-1.5">
           <Check className="h-3 w-3" />
           You marked {LABELS[answered]}
         </div>
+        <button
+          type="button"
+          onClick={() => setNoteOpen(true)}
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline touch-manipulation"
+        >
+          <MessageSquare className="h-3 w-3" />
+          {note ? "Edit note" : "Add a note"}
+        </button>
         <button
           type="button"
           onClick={() => navigate(`/events/${eventId}`)}
@@ -104,6 +115,34 @@ export function InlineRsvpActions({ eventId, messageId }: Props) {
         >
           Open event
         </button>
+        <RsvpNoteSheet
+          open={noteOpen}
+          onOpenChange={setNoteOpen}
+          subjectName="You"
+          statusLabel={LABELS[answered]}
+          initialNote={note}
+          onSave={async (value) => {
+            const { data: auth } = await supabase.auth.getUser();
+            const userId = auth?.user?.id;
+            if (!userId) return;
+            const { error } = await supabase
+              .from("rsvps")
+              .update({ notes: value })
+              .eq("event_id", eventId)
+              .eq("user_id", userId)
+              .is("child_id", null);
+            if (error) {
+              toast({
+                title: "Couldn't save note",
+                description: error.message,
+                variant: "destructive",
+              });
+              return;
+            }
+            setNote(value);
+            toast({ title: value ? "Note saved" : "Note removed" });
+          }}
+        />
       </div>
     );
   }
