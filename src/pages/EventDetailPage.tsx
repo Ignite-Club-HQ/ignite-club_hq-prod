@@ -89,6 +89,7 @@ import { AdminRsvpChanger } from "@/components/event/AdminRsvpChanger";
 import { AttendanceRow } from "@/components/event/AttendanceRow";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { RsvpNoteSheet } from "@/components/rsvp/RsvpNoteSheet";
 import { PostRsvpNotificationPrompt } from "@/components/PostRsvpNotificationPrompt";
 import { formatMatchArrivalTime, getMatchArrivalMinutes, getMatchArrivalDate } from "@/lib/matchArrivalTime";
 import { formatRelativePast } from "@/lib/formatRelativeTime";
