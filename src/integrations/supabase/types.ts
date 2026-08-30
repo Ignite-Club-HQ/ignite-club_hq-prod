@@ -1916,6 +1916,66 @@ export type Database = {
           },
         ]
       }
+      club_news: {
+        Row: {
+          author_id: string | null
+          club_id: string
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          is_important: boolean
+          is_published: boolean
+          published_at: string
+          target_team_ids: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          club_id: string
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_important?: boolean
+          is_published?: boolean
+          published_at?: string
+          target_team_ids?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          club_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_important?: boolean
+          is_published?: boolean
+          published_at?: string
+          target_team_ids?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_news_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_news_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_players: {
         Row: {
           child_id: string | null
@@ -12160,6 +12220,10 @@ export type Database = {
           _type: string
         }
         Returns: undefined
+      }
+      notify_club_news: {
+        Args: { _news_id: string; _send_push?: boolean }
+        Returns: number
       }
       notify_formation_change: {
         Args: {
