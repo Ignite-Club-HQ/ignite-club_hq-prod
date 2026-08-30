@@ -1030,6 +1030,10 @@ export default function MessagesPage() {
       return { groups, latestMessages };
     },
     enabled: !!user && initialized,
+    // Matches the sibling inbox queries. The 25s REST GET timeout in
+    // `supabaseAuthRetry.ts` otherwise surfaces transient RLS-heavy timeouts
+    // as hard errors after a single attempt.
+    retry: 3,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
     refetchInterval: jitteredInboxInterval,
