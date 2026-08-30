@@ -3478,9 +3478,11 @@ export default function MessagesPage() {
 
       {/* Lightweight type filter chips. Only chips for types the user actually
           has appear, keeping the inbox uncluttered for simple users. Gated on
-          ALL inbox queries having resolved so chips pop in together instead of
-          Teams → Groups → DMs appearing one-by-one as each query finishes. */}
-      {(!isOnline || ((teamsFetched || teamsError) && (memberClubsFetched || memberClubsError) && (chatGroupsFetched || chatGroupsError) && (dmFetched || dmError))) && (() => {
+          exactly the same reveal latch as the conversation list, so the chips
+          paint in the SAME frame as the rows instead of popping in afterwards
+          and pushing the list down (previously gated on all four inbox queries
+          having individually resolved, which lands later than first reveal). */}
+      {!showSkeletonLoading && (() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
         const unread = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {
