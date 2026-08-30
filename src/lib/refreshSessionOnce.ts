@@ -70,9 +70,6 @@ async function performRefresh(): Promise<RefreshOnceResult> {
     if (session && (isStaleRefreshTokenError(error) || !error)) {
       return { session, error: null, shared: false, benign: true };
     }
-    if (session && isStaleRefreshTokenError(error)) {
-      return { session, error: null, shared: false, benign: true };
-    }
     return {
       session,
       error: (error as Error) ?? new Error("Session refresh failed"),
