@@ -15,8 +15,41 @@ export default function ClubNewsSection() {
   const navigate = useNavigate();
   const { activeClubFilter } = useClubTheme();
   const { latest } = useLatestClubNews(activeClubFilter);
+  const { data: publishableClubs = [] } = useNewsPublishableClubs();
+  const canPublish = publishableClubs.length > 0;
 
-  if (!latest) return null;
+  // No posts yet: stay hidden for members, but give club admins a way in.
+  if (!latest) {
+    if (!canPublish) return null;
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 px-1">
+          <Newspaper className="h-4 w-4 text-primary" />
+          <h2 className="text-base font-semibold text-foreground">Club News</h2>
+        </div>
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate("/news")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              navigate("/news");
+            }
+          }}
+          className="flex cursor-pointer items-center gap-3 bg-card p-3 transition-colors hover:bg-accent/50 active:bg-accent"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground">Post your first club news</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Only club admins see this. Members see nothing until you publish.
+            </p>
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Card>
+      </div>
+    );
+  }
 
   const preview = latest.content.replace(/\s+/g, " ").trim();
 
