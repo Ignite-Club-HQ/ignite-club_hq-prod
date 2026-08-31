@@ -42,6 +42,8 @@ import { EditingBanner } from "@/components/chat/EditingBanner";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
+import { NewsAttachmentPreview } from "@/components/chat/NewsAttachmentPreview";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -275,6 +277,8 @@ export default function DirectMessagePage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [dmImageUrl, setDmImageUrl] = useState<string | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [newsPickerOpen, setNewsPickerOpen] = useState(false);
+  const [pendingNewsId, setPendingNewsId] = useState<string | null>(null);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
 
   const profileRef = useRef(profile);
@@ -1172,7 +1176,7 @@ export default function DirectMessagePage() {
       return;
     }
 
-    if (!message.trim() && !dmImageUrl) return;
+    if (!message.trim() && !dmImageUrl && !pendingNewsId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
@@ -1184,14 +1188,19 @@ export default function DirectMessagePage() {
       return;
     }
     stopTyping();
+    const baseText = message.trim();
+    const finalText = pendingNewsId
+      ? (baseText ? `${baseText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`)
+      : baseText;
     sendMessageMutation.mutate({
-      text: message.trim(),
+      text: finalText,
       imageUrl: dmImageUrl,
       replyToId: replyTo?.id || null,
     });
     setMessage("");
     setDmImageUrl(null);
     setReplyTo(null);
+    setPendingNewsId(null);
   };
 
 
@@ -1660,7 +1669,17 @@ export default function DirectMessagePage() {
              )}
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
               {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-                <ChatComposerShell>
+                <ChatComposerShell
+                  preview={
+                    pendingNewsId && !editingMessage ? (
+                      <NewsAttachmentPreview
+                        newsId={pendingNewsId}
+                        onRemove={() => setPendingNewsId(null)}
+                        disabled={sendMessageMutation.isPending}
+                      />
+                    ) : undefined
+                  }
+                >
                 {!isIgniteSupportConversation && !attachmentsDisabled && (
                   <ChatImageInput
                     imageUrl={dmImageUrl}
@@ -1669,6 +1688,8 @@ export default function DirectMessagePage() {
                     clubId={sharedClubId || undefined}
                     showEventPicker={!!sharedClubId}
                     onEventSelect={() => setEventPickerOpen(true)}
+                    showNewsPicker={!!(sharedClubId || undefined)}
+                    onNewsSelect={() => setNewsPickerOpen(true)}
                     showBoardPicker={false}
                     onBoardPick={() => setBoardPickerOpen(true)}
                     showVaultPicker={!!sharedClubId}
@@ -1692,9 +1713,9 @@ export default function DirectMessagePage() {
                 <ChatSendButton
                   onSend={handleSend}
                   onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-                  disabled={!message.trim() && !dmImageUrl}
+                  disabled={!message.trim() && !dmImageUrl && !pendingNewsId}
                   loading={sendMessageMutation.isPending}
-                  canSend={!!message.trim() || !!dmImageUrl}
+                  canSend={!!message.trim() || !!dmImageUrl || !!pendingNewsId}
                 />
               </ChatComposerShell>
               {scheduleTarget && (
@@ -1719,6 +1740,12 @@ export default function DirectMessagePage() {
                       setMessage(message ? `${message} ${token}` : token);
                     }}
                     clubId={sharedClubId || undefined}
+                  />
+                  <NewsPickerSheet
+                    open={newsPickerOpen}
+                    onOpenChange={setNewsPickerOpen}
+                    clubId={sharedClubId || undefined}
+                    onSelectNews={(newsId) => setPendingNewsId(newsId)}
                   />
                   <BoardPickerSheet
                     open={boardPickerOpen}

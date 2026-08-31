@@ -831,6 +831,9 @@ export default function NotificationsPage() {
         }
         break;
       }
+      case "club_news":
+        navigate(relatedId ? `/news/${relatedId}` : "/news");
+        break;
       case "broadcast":
         jumpAndNavigate(navigate, "broadcast", null, relatedId, `/messages/broadcast?message=${relatedId}`);
         break;

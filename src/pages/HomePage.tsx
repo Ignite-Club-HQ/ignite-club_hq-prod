@@ -97,8 +97,9 @@ const myTeamsCarouselImport = () =>
 myTeamsCarouselImport();
 const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 const ClubLinksSection = lazy(() => import("@/components/home/ClubLinksSection"));
+const ClubNewsSection = lazy(() => import("@/components/home/ClubNewsSection"));
 import { NextUpCarousel } from "@/components/NextUpCarousel";
-import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
+import { getCachedNextUp, setCachedNextUp, clearCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
 
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
@@ -448,19 +449,65 @@ export default function HomePage() {
       // — which is exactly the bug where the Next Up cards disappeared after
       // returning to the app. Throwing lets React Query keep the last good
       // data and retry.
-      const rolesRes = await supabase
-        .from("user_roles")
-        .select("club_id, team_id, role")
-        .eq("user_id", user!.id);
+      const fetchRoles = async () => {
+        const res = await supabase
+          .from("user_roles")
+          .select("club_id, team_id, role")
+          .eq("user_id", user!.id);
+        if (res.error) throw res.error;
+        if (!res.data) {
+          // .data is [] (not null) on a successful zero-row response, so reaching
+          // here means something went wrong upstream — throw so we don't poison
+          // the cache with empty events on resume races.
+          throw new Error("user_roles fetch returned null data");
+        }
+        return res.data;
+      };
 
-      if (rolesRes.error) throw rolesRes.error;
-      const roles = rolesRes.data;
+      let roles = await fetchRoles();
 
-      if (!roles) {
-        // .data is [] (not null) on a successful zero-row response, so reaching
-        // here means something went wrong upstream — throw so we don't poison
-        // the cache with empty events on resume races.
-        throw new Error("user_roles fetch returned null data");
+      // RESUME RACE: after a phone unlock / app resume the access token can be
+      // expired-but-not-yet-rotated. RLS then legitimately returns ZERO rows
+      // with NO error, which previously flipped Home into the "set up your
+      // club" new-user empty state and blanked Next Up (a full app kill fixed
+      // it because auth was restored before the first fetch).
+      // An empty result is only trusted when it is *verified*: a live session
+      // must exist, and if the last known snapshot had memberships we force a
+      // single-flight refresh and re-read before believing the user has none.
+      if (roles.length === 0) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session) {
+          throw new Error("empty memberships with no active session (resume race)");
+        }
+
+        const snapshotMemberships = nextUpCachedSnapshot?.memberships as
+          | { clubIds?: string[]; teamIds?: string[] }
+          | undefined;
+        const hadMemberships =
+          (snapshotMemberships?.clubIds?.length ?? 0) > 0 ||
+          (snapshotMemberships?.teamIds?.length ?? 0) > 0;
+
+        if (hadMemberships) {
+          const { refreshSessionOnce } = await import("@/lib/refreshSessionOnce");
+          let refreshed = false;
+          try {
+            await refreshSessionOnce();
+            refreshed = true;
+          } catch {
+            refreshed = false;
+          }
+          if (!refreshed) {
+            // Could not prove the token is current — do NOT accept the empty
+            // read; throw so React Query retries and keeps the last good data.
+            throw new Error("empty memberships and session refresh failed (resume race)");
+          }
+          roles = await fetchRoles();
+          if (roles.length === 0) {
+            // Verified-empty (fresh token): the user really has no memberships.
+            // Drop the stale snapshot so it can't resurrect old cards.
+            clearCachedNextUp(user!.id);
+          }
+        }
       }
 
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
@@ -714,8 +761,22 @@ export default function HomePage() {
 
   // Persist the latest snapshot whenever the query resolves so the next cold
   // open / long-absence return can hydrate instantly via `initialData` above.
+  // NEVER let an empty membership result overwrite a non-empty snapshot: a
+  // resume-race read (expired token, zero RLS rows, no error) would otherwise
+  // poison the cache and make the next open paint the new-user empty state.
+  // The verified-empty path in the queryFn clears the snapshot explicitly, so
+  // genuine "left every club" states still persist.
   useEffect(() => {
     if (!user?.id || !membershipAndEvents) return;
+    const m = membershipAndEvents.memberships as { clubIds?: string[]; teamIds?: string[] } | undefined;
+    const isEmpty = (m?.clubIds?.length ?? 0) === 0 && (m?.teamIds?.length ?? 0) === 0;
+    if (isEmpty) {
+      const stored = getCachedNextUp<{ memberships: { clubIds?: string[]; teamIds?: string[] } }>(user.id);
+      const storedHadMemberships =
+        (stored?.memberships?.clubIds?.length ?? 0) > 0 ||
+        (stored?.memberships?.teamIds?.length ?? 0) > 0;
+      if (storedHadMemberships) return;
+    }
     setCachedNextUp(user.id, {
       memberships: membershipAndEvents.memberships,
       events: membershipAndEvents.events,
@@ -2040,6 +2101,10 @@ export default function HomePage() {
   const isNewUserEmptyState =
     initialized &&
     !isLoading &&
+    // Never claim "new user" while a refetch is still in flight (resume from
+    // phone lock triggers refetchOnWindowFocus; a transient empty read used to
+    // flash the "set up your club" card and blank Next Up).
+    !isFetching &&
     hasResolvedMemberships &&
     membershipClubCount === 0 &&
     membershipTeamCount === 0 &&
@@ -2150,6 +2215,11 @@ export default function HomePage() {
           {/* My Teams & Leagues - keep directly below Next Up so later async widgets cannot push it down. */}
           <Suspense fallback={<HomeMyTeamsSkeleton />}>
             <MyTeamsPremiumCarousel onReadyChange={handleMyTeamsReadyChange} />
+          </Suspense>
+
+          {/* Club News - compact latest-post card; renders nothing when the club has no posts */}
+          <Suspense fallback={null}>
+            <ClubNewsSection />
           </Suspense>
 
           {/* Club Info & Links - collapsible tile grid directly below the teams carousel */}

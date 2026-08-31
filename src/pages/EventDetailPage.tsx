@@ -179,8 +179,12 @@ const resolveAttendeeRoleLabel = (
     const clubLevel = pairs.filter((p) => !p.team_id).map((p) => p.role);
     const clubRole = pickRoleByPriority(clubLevel);
     if (clubRole) return clubRole;
+    // Synthetic members (e.g. linked parents with no user_roles rows) carry a
+    // roles array but no pairs — use it rather than showing no badge at all.
+    if (pairs.length === 0) return pickRoleByPriority(member.roles ?? []);
     return undefined;
   }
+
 
   // Untargeted club-wide event: no single team scope, so prefer the most
   // representative role rather than whichever row came back first.
@@ -3858,13 +3862,12 @@ export default function EventDetailPage() {
             memberRole={!rsvp.child_id && !rsvp.mini_league_player_id
               ? (() => {
                   const member = membersWithRoles?.find((m: any) => m.id === rsvp.user_id);
-                  const roles: string[] = member?.roles ?? [];
-                  // While the roster is filtered to players only, show the role
-                  // that qualified them ("player") rather than their first role.
-                  if (!effectiveShowAll && roles.includes("player")) return "player";
+                  // Always resolve against the event's team scope — a "player"
+                  // role on a different team must never label them here.
                   return resolveAttendeeRoleLabel(member, event);
                 })()
               : undefined}
+
 
             isCaptain={
               isGameEvent && (
@@ -4088,10 +4091,10 @@ export default function EventDetailPage() {
                   name={member.display_name || "Unknown"}
                   avatarUrl={member.avatar_url}
                   roleLabel={(() => {
-                    const roles: string[] = member.roles ?? [];
-                    const shown = !effectiveShowAll && roles.includes("player") ? "player" : roles[0];
-                    return shown ? String(shown).replace(/_/g, " ") : null;
+                    const label = resolveAttendeeRoleLabel(member, event);
+                    return label ? String(label).replace(/_/g, " ") : null;
                   })()}
+
                   roleTone="neutral"
                   rightSlot={
                     <>

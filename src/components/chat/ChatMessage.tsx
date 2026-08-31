@@ -809,6 +809,23 @@ function ChatMessageInner({
   const inlineRsvpMatch = text.match(/\[rsvp:([0-9a-f-]{36})\]/i);
   const displayText = inlineRsvpMatch ? text.replace(inlineRsvpMatch[0], "").trim() : text;
 
+  // Card-only messages (shared news/event/poll/board/vault/gallery with no
+  // typed caption): the token renders as an empty inline span, so a padded,
+  // coloured bubble would show as a weird blank bubble next to the card.
+  // Detect this and strip the bubble chrome — the card renders outside.
+  const CARD_TOKEN_REGEX = /\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt|news):[0-9a-f-]{36}(?::(?:team|club))?\]/i;
+  const visibleCaptionText = displayText
+    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1")
+    .replace(/(?:https?:\/\/[^\s]*)?\/events\/[0-9a-f-]{36}(?:\S*)?/gi, "")
+    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt|news)(:[0-9a-f-]{36}){1,2}\]/gi, "")
+    .trim();
+  const isCardOnlyMessage =
+    !imageUrl &&
+    !visibleCaptionText &&
+    !forwardedFromUserId &&
+    CARD_TOKEN_REGEX.test(displayText);
+
   // NOTE: We intentionally do NOT apply an entrance animation here. When an
   // optimistic `temp-…` row is replaced by the realtime row with the real
   // UUID, React's key changes and the row unmounts/remounts — any entrance
@@ -953,7 +970,9 @@ function ChatMessageInner({
           >
               <div
                 ref={bubbleRef}
-                className={`relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
+                className={isCardOnlyMessage
+                  ? "relative max-w-full select-none"
+                  : `relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
                   : `bg-card border border-border/40 ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`

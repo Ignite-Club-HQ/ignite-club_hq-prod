@@ -1,0 +1,303 @@
+import { useMemo, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ImagePlus, Loader2, X } from "lucide-react";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogFooter,
+} from "@/components/ui/responsive-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { MobileCardSelect } from "@/components/MobileCardSelect";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
+import { useClubTeamsForNews, useNewsPublishableClubs } from "@/features/news/useClubNews";
+
+const TITLE_MAX = 120;
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Preferred club (usually the active club filter). */
+  defaultClubId?: string | null;
+}
+
+type Audience = "club" | "teams";
+
+/**
+ * Club News composer. Reuses the existing club-admin role model for
+ * permissions, the existing `club-logos` public bucket for images, and the
+ * existing notifications pipeline (`notify_club_news`) for the optional push —
+ * no new notification infrastructure.
+ */
+export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: Props) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: clubs = [] } = useNewsPublishableClubs();
+
+  const initialClub = useMemo(() => {
+    if (defaultClubId && clubs.some((c) => c.id === defaultClubId)) return defaultClubId;
+    return clubs[0]?.id ?? "";
+  }, [defaultClubId, clubs]);
+
+  const [clubId, setClubId] = useState(initialClub);
+  const effectiveClubId = clubId || initialClub;
+  const { data: teams = [] } = useClubTeamsForNews(effectiveClubId || null);
+
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [audience, setAudience] = useState<Audience>("club");
+  const [teamIds, setTeamIds] = useState<string[]>([]);
+  const [important, setImportant] = useState(false);
+  const [sendPush, setSendPush] = useState(true);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const reset = () => {
+    setTitle("");
+    setContent("");
+    setAudience("club");
+    setTeamIds([]);
+    setImportant(false);
+    setSendPush(true);
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
+  const pickImage = (file: File | null) => {
+    setImageFile(file);
+    setImagePreview(file ? URL.createObjectURL(file) : null);
+  };
+
+  const publish = useMutation({
+    mutationFn: async () => {
+      if (!effectiveClubId) throw new Error("Select a club");
+      if (!title.trim()) throw new Error("Add a title");
+      if (audience === "teams" && teamIds.length === 0) {
+        throw new Error("Select at least one team");
+      }
+
+      let imageUrl: string | null = null;
+      if (imageFile) {
+        const ext = imageFile.name.split(".").pop() || "jpg";
+        const path = `news/${effectiveClubId}/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("club-logos")
+          .upload(path, imageFile, { upsert: false, contentType: imageFile.type });
+        if (upErr) throw upErr;
+        imageUrl = supabase.storage.from("club-logos").getPublicUrl(path).data.publicUrl;
+      }
+
+      const { data, error } = await supabase
+        .from("club_news")
+        .insert({
+          club_id: effectiveClubId,
+          title: title.trim().slice(0, TITLE_MAX),
+          content: content.trim(),
+          image_url: imageUrl,
+          author_id: user?.id ?? null,
+          target_team_ids: audience === "teams" ? teamIds : null,
+          is_important: important,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+
+      const { error: notifyErr } = await supabase.rpc("notify_club_news", {
+        _news_id: data.id,
+        _send_push: sendPush,
+      });
+      if (notifyErr) {
+        // The post is published; notification failure must not lose the post.
+        console.warn("[ClubNews] notify failed", notifyErr.message);
+      }
+
+      // Share the post in the relevant chat: club chat for whole-club news,
+      // each targeted team's chat for team-specific news. Idempotent server
+      // side, and a failure here must never lose the published post.
+      try {
+        const { error: chatErr } = await supabase.functions.invoke(
+          "auto-post-news-to-chat",
+          { body: { newsId: data.id } },
+        );
+        if (chatErr) console.warn("[ClubNews] chat post failed", chatErr.message);
+      } catch (chatErr) {
+        console.warn("[ClubNews] chat post failed", chatErr);
+      }
+
+      return data.id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["club-news"] });
+      toast({ title: "News published", description: "Members can see it now." });
+      reset();
+      onOpenChange(false);
+    },
+    onError: (e: unknown) => {
+      toast({
+        title: "Couldn't publish",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="sm:max-w-lg">
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>New club news</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
+
+        <div className="space-y-4 overflow-y-auto px-1 pb-2">
+          {clubs.length > 1 && (
+            <MobileCardSelect
+              label="Club"
+              value={effectiveClubId}
+              onValueChange={setClubId}
+              options={clubs.map((c) => ({ value: c.id, label: c.name }))}
+              placeholder="Select club"
+            />
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="news-title">Title</Label>
+            <Input
+              id="news-title"
+              value={title}
+              maxLength={TITLE_MAX}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Wicket Keeping 2026–27"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="news-content">Content</Label>
+            <Textarea
+              id="news-content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={6}
+              placeholder="What do members need to know?"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Image (optional)</Label>
+            {imagePreview ? (
+              <div className="relative w-full overflow-hidden rounded-lg border">
+                <img src={imagePreview} alt="News image preview" className="h-32 w-full object-cover" />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  className="absolute right-2 top-2 h-7 w-7"
+                  onClick={() => pickImage(null)}
+                  aria-label="Remove image"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <ImagePlus className="mr-2 h-4 w-4" /> Add image
+              </Button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Who's this for?</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { key: "club" as Audience, label: "Entire club" },
+                  { key: "teams" as Audience, label: "Selected teams" },
+                ]
+              ).map((o) => (
+                <button
+                  key={o.key}
+                  type="button"
+                  onClick={() => setAudience(o.key)}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    audience === o.key
+                      ? "border-primary bg-primary/5 text-foreground"
+                      : "border-border text-muted-foreground hover:bg-muted/40"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            {audience === "teams" && (
+              <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border p-3">
+                {teams.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No teams in this club.</p>
+                ) : (
+                  teams.map((t) => (
+                    <label key={t.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={teamIds.includes(t.id)}
+                        onCheckedChange={() =>
+                          setTeamIds((prev) =>
+                            prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id],
+                          )
+                        }
+                      />
+                      <span>{t.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div>
+              <p className="text-sm font-medium">Mark as important</p>
+              <p className="text-xs text-muted-foreground">Shows an Important badge</p>
+            </div>
+            <Switch checked={important} onCheckedChange={setImportant} />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div>
+              <p className="text-sm font-medium">Send push notification</p>
+              <p className="text-xs text-muted-foreground">Notify the selected audience</p>
+            </div>
+            <Switch checked={sendPush} onCheckedChange={setSendPush} />
+          </div>
+        </div>
+
+        <ResponsiveDialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={publish.isPending}>
+            Cancel
+          </Button>
+          <Button onClick={() => publish.mutate()} disabled={publish.isPending || !title.trim()}>
+            {publish.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Publish
+          </Button>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
+  );
+}

@@ -49,9 +49,11 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
+import { NewsAttachmentPreview } from "@/components/chat/NewsAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
@@ -183,9 +185,11 @@ export default function ClubChatPage() {
   const [replyingTo, setReplyingTo] = useChatDraftReply<{ id: string; text: string; authorName: string | null }>(clubId);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [newsPickerOpen, setNewsPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
+  const [pendingNewsId, setPendingNewsId] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = clubId
     ? { chat_type: "club", club_id: clubId }
@@ -1362,6 +1366,7 @@ export default function ClubChatPage() {
       setImageUrl(null);
       setReplyingTo(null);
       setPendingPollId(null);
+      setPendingNewsId(null);
       
       // Scroll to bottom — force bypasses touch-guard so the post-send
       // re-pins still fire after composer reflow shrinks bottomPadding.
@@ -1483,16 +1488,19 @@ export default function ClubChatPage() {
       return;
     }
 
-    if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId) return;
     if (!user?.id || !clubId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
     const baseText = message.trim();
-    const finalText = pendingPollId
+    let finalText = pendingPollId
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
       : baseText;
+    if (pendingNewsId) {
+      finalText = finalText ? `${finalText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`;
+    }
     const hadImage = !!imageUrl;
     sendMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
     if (hadImage) nudgeGalleryAfterSend();
@@ -1876,12 +1884,23 @@ export default function ClubChatPage() {
           {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
           <ChatComposerShell
             preview={
-              pendingPollId && !editingMessage ? (
-                <PollAttachmentPreview
-                  pollId={pendingPollId}
-                  onRemove={() => setPendingPollId(null)}
-                  disabled={sendMutation.isPending}
-                />
+              (pendingPollId || pendingNewsId) && !editingMessage ? (
+                <div className="space-y-1.5">
+                  {pendingPollId && (
+                    <PollAttachmentPreview
+                      pollId={pendingPollId}
+                      onRemove={() => setPendingPollId(null)}
+                      disabled={sendMutation.isPending}
+                    />
+                  )}
+                  {pendingNewsId && (
+                    <NewsAttachmentPreview
+                      newsId={pendingNewsId}
+                      onRemove={() => setPendingNewsId(null)}
+                      disabled={sendMutation.isPending}
+                    />
+                  )}
+                </div>
               ) : undefined
             }
           >
@@ -1892,6 +1911,8 @@ export default function ClubChatPage() {
               clubId={clubId}
               showEventPicker={true}
               onEventSelect={() => setEventPickerOpen(true)}
+              showNewsPicker={!!(clubId)}
+              onNewsSelect={() => setNewsPickerOpen(true)}
               showPollCreator={true}
               onPollCreate={() => setPollDialogOpen(true)}
               showBoardPicker={false}
@@ -1920,9 +1941,9 @@ export default function ClubChatPage() {
                 handleSend();
               }}
               onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-              disabled={!message.trim() && !imageUrl && !pendingPollId}
+              disabled={!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId}
               loading={sendMutation.isPending}
-              canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+              canSend={!!message.trim() || !!imageUrl || !!pendingPollId || !!pendingNewsId}
             />
           </ChatComposerShell>
           {scheduleTarget && (
@@ -1947,6 +1968,12 @@ export default function ClubChatPage() {
               setMessage(message ? `${message} ${token}` : token);
             }}
             clubId={clubId}
+          />
+          <NewsPickerSheet
+            open={newsPickerOpen}
+            onOpenChange={setNewsPickerOpen}
+            clubId={clubId}
+            onSelectNews={(newsId) => setPendingNewsId(newsId)}
           />
           <BoardPickerSheet
             open={boardPickerOpen}
