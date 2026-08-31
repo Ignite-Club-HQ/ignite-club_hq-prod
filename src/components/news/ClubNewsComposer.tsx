@@ -20,6 +20,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { useClubTeamsForNews, useNewsPublishableClubs } from "@/features/news/useClubNews";
+import {
+  formatFileSize,
+  NEWS_ATTACHMENT_MAX_BYTES,
+  NEWS_MAX_FILES,
+  NEWS_MAX_IMAGES,
+  type NewsAttachment,
+} from "@/features/news/newsAttachments";
+
 
 const TITLE_MAX = 120;
 
