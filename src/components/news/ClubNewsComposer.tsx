@@ -119,6 +119,20 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
         // The post is published; notification failure must not lose the post.
         console.warn("[ClubNews] notify failed", notifyErr.message);
       }
+
+      // Share the post in the relevant chat: club chat for whole-club news,
+      // each targeted team's chat for team-specific news. Idempotent server
+      // side, and a failure here must never lose the published post.
+      try {
+        const { error: chatErr } = await supabase.functions.invoke(
+          "auto-post-news-to-chat",
+          { body: { newsId: data.id } },
+        );
+        if (chatErr) console.warn("[ClubNews] chat post failed", chatErr.message);
+      } catch (chatErr) {
+        console.warn("[ClubNews] chat post failed", chatErr);
+      }
+
       return data.id;
     },
     onSuccess: () => {
