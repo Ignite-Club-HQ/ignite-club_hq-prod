@@ -2101,6 +2101,10 @@ export default function HomePage() {
   const isNewUserEmptyState =
     initialized &&
     !isLoading &&
+    // Never claim "new user" while a refetch is still in flight (resume from
+    // phone lock triggers refetchOnWindowFocus; a transient empty read used to
+    // flash the "set up your club" card and blank Next Up).
+    !isFetching &&
     hasResolvedMemberships &&
     membershipClubCount === 0 &&
     membershipTeamCount === 0 &&
