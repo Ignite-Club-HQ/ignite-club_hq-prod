@@ -93,12 +93,15 @@ async function ensureBotMembership(
   });
 }
 
-function buildText(news: {
-  id: string;
-  title: string;
-  content: string;
-  is_important: boolean;
-}): string {
+function buildText(
+  news: {
+    id: string;
+    title: string;
+    content: string;
+    is_important: boolean;
+  },
+  teamNames: string[],
+): string {
   const link = `https://igniteclubhq.app/news/${news.id}`;
   const headline = news.is_important
     ? `📢 Important club news: ${news.title}`
@@ -107,12 +110,24 @@ function buildText(news: {
   const excerpt =
     body.length > 280 ? `${body.slice(0, 280).trimEnd()}…` : body;
 
+  let audienceLine = "";
+  if (teamNames.length > 0) {
+    if (teamNames.length === 1) {
+      audienceLine = `Sent to ${teamNames[0]}`;
+    } else {
+      audienceLine = `Sent to ${teamNames.slice(0, -1).join(", ")} and ${teamNames[teamNames.length - 1]}`;
+    }
+  } else {
+    audienceLine = "Sent to the whole club";
+  }
+
   const lines = [headline];
   if (excerpt) {
     lines.push("");
     lines.push(excerpt);
   }
   lines.push("");
+  lines.push(audienceLine);
   lines.push(link);
   return lines.join("\n");
 }
@@ -171,7 +186,6 @@ Deno.serve(async (req) => {
     );
     if (!botUserId) return json({ error: "bot unavailable" }, 500);
 
-    const text = buildText(news as any);
     const teamIds = (news.target_team_ids || []) as string[];
     let posted = 0;
 
@@ -179,16 +193,21 @@ Deno.serve(async (req) => {
       // Only post to teams that still belong to this club.
       const { data: teams } = await admin
         .from("teams")
-        .select("id")
+        .select("id, name")
         .eq("club_id", news.club_id)
         .in("id", teamIds);
-      const validTeamIds = (teams || []).map((t) => t.id as string);
+      const validTeams = (teams || []) as Array<{ id: string; name: string }>;
+      const validTeamIds = validTeams.map((t) => t.id);
 
       for (const teamId of validTeamIds) {
         await ensureBotMembership(botUserId, news.club_id, teamId);
       }
 
       if (validTeamIds.length > 0) {
+        const text = buildText(
+          news as any,
+          validTeams.map((t) => t.name),
+        );
         const { error: insErr } = await admin.from("team_messages").insert(
           validTeamIds.map((teamId) => ({
             team_id: teamId,
@@ -206,6 +225,7 @@ Deno.serve(async (req) => {
       }
     } else {
       await ensureBotMembership(botUserId, news.club_id, null);
+      const text = buildText(news as any, []);
       const { error: insErr } = await admin.from("club_messages").insert({
         club_id: news.club_id,
         author_id: botUserId,

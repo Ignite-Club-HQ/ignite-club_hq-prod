@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { ArrowLeft, ChevronRight, Newspaper, Plus } from "lucide-react";
@@ -7,7 +7,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { useClubNewsFeed, useNewsPublishableClubs } from "@/features/news/useClubNews";
+import {
+  useClubNewsFeed,
+  useClubTeamsForNews,
+  useNewsPublishableClubs,
+} from "@/features/news/useClubNews";
 import ClubNewsComposer from "@/components/news/ClubNewsComposer";
 
 /** Club News archive — newest first. */
@@ -16,6 +20,12 @@ export default function ClubNewsPage() {
   const { activeClubFilter } = useClubTheme();
   const { data: posts = [], isLoading } = useClubNewsFeed(activeClubFilter);
   const { data: publishableClubs = [] } = useNewsPublishableClubs();
+  const { data: teams = [] } = useClubTeamsForNews(activeClubFilter ?? null);
+  const teamNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    teams.forEach((t) => map.set(t.id, t.name));
+    return map;
+  }, [teams]);
   const [composerOpen, setComposerOpen] = useState(false);
 
   const canPublish = publishableClubs.length > 0;
@@ -83,11 +93,24 @@ export default function ClubNewsPage() {
                       Important
                     </Badge>
                   )}
-                  {post.target_team_ids && post.target_team_ids.length > 0 && (
-                    <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
-                      Selected teams
-                    </Badge>
-                  )}
+                  {(() => {
+                    const ids = post.target_team_ids || [];
+                    if (ids.length === 0) return null;
+                    const names = ids
+                      .map((id) => teamNameMap.get(id) || "Unknown team")
+                      .filter(Boolean);
+                    const label =
+                      names.length === 0
+                        ? "Selected teams"
+                        : names.length === 1
+                          ? names[0]
+                          : `${names.length} teams`;
+                    return (
+                      <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                        {label}
+                      </Badge>
+                    );
+                  })()}
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

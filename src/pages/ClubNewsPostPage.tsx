@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -7,13 +8,29 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { useClubNewsPost } from "@/features/news/useClubNews";
+import { useClubNewsPost, useClubTeamsForNews } from "@/features/news/useClubNews";
 
 /** Full Club News article. */
 export default function ClubNewsPostPage() {
   const { newsId } = useParams<{ newsId: string }>();
   const navigate = useNavigate();
   const { data: post, isLoading } = useClubNewsPost(newsId);
+  const { data: teams = [] } = useClubTeamsForNews(post?.club_id ?? null);
+  const teamNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    teams.forEach((t) => map.set(t.id, t.name));
+    return map;
+  }, [teams]);
+
+  const audienceLabel = useMemo(() => {
+    if (!post) return null;
+    const ids = post.target_team_ids || [];
+    if (ids.length === 0) return "Sent to the whole club";
+    const names = ids.map((id) => teamNameMap.get(id) || "Unknown team").filter(Boolean);
+    if (names.length === 0) return "Sent to selected teams";
+    if (names.length === 1) return `Sent to ${names[0]}`;
+    return `Sent to ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  }, [post, teamNameMap]);
 
   const { data: author } = useQuery({
     queryKey: ["club-news-author", post?.author_id],
@@ -69,11 +86,7 @@ export default function ClubNewsPostPage() {
             </div>
             <h2 className="text-xl font-bold leading-tight">{post.title}</h2>
             {author && <p className="text-xs text-muted-foreground">By {author}</p>}
-            <p className="text-xs text-muted-foreground">
-              {post.target_team_ids && post.target_team_ids.length > 0
-                ? "Sent to selected teams"
-                : "Sent to the whole club"}
-            </p>
+            {audienceLabel && <p className="text-xs text-muted-foreground">{audienceLabel}</p>}
           </div>
           {post.content && (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
