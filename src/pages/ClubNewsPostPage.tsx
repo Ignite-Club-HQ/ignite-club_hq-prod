@@ -86,11 +86,7 @@ export default function ClubNewsPostPage() {
             </div>
             <h2 className="text-xl font-bold leading-tight">{post.title}</h2>
             {author && <p className="text-xs text-muted-foreground">By {author}</p>}
-            <p className="text-xs text-muted-foreground">
-              {post.target_team_ids && post.target_team_ids.length > 0
-                ? "Sent to selected teams"
-                : "Sent to the whole club"}
-            </p>
+            {audienceLabel && <p className="text-xs text-muted-foreground">{audienceLabel}</p>}
           </div>
           {post.content && (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
