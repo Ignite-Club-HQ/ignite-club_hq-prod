@@ -17,6 +17,7 @@ import {
   Settings,
   Shield,
   Lock,
+  Newspaper,
 } from "lucide-react";
 import {
   ResponsiveDialog,
