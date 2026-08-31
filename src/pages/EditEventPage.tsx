@@ -1032,20 +1032,6 @@ export default function EditEventPage() {
                     supportsClubWideScope={supportsClubWideScope}
                   />
                 )}
-                {!selectedTeamId && supportsClubWideScope && !(event as any)?.mini_league_id && (
-                  <MobileCardSelect
-                    value={rsvpGrouping || "none"}
-                    onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
-                    options={[
-                      { value: "none", label: "No grouping (flat list)" },
-                      { value: "level", label: "Group by age level (U8, U9…)" },
-                      { value: "team", label: "Group by team (U8 Blue, U8 Red…)" },
-                    ]}
-                    placeholder="No grouping"
-                    label="RSVP grouping"
-                  />
-                )}
-
               </div>
 
               {/* BYE toggle - only for game events */}
