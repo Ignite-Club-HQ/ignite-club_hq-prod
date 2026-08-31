@@ -407,6 +407,11 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               <ImagePlus className="mr-2 h-4 w-4" />
               {extraImages.length >= NEWS_MAX_IMAGES ? "Image limit reached" : "Add more images"}
             </Button>
+            {extraImages.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Uploaded images will show an <span className="font-medium text-foreground">Insert here</span> option.
+              </p>
+            )}
             <input
               ref={extraImagesInputRef}
               type="file"
