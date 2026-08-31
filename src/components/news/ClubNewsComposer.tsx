@@ -21,12 +21,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { useClubTeamsForNews, useNewsPublishableClubs } from "@/features/news/useClubNews";
 import {
+  attachmentToken,
   formatFileSize,
   NEWS_ATTACHMENT_MAX_BYTES,
   NEWS_MAX_FILES,
   NEWS_MAX_IMAGES,
   type NewsAttachment,
 } from "@/features/news/newsAttachments";
+
 
 
 const TITLE_MAX = 120;
@@ -68,11 +70,45 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
   const [sendPush, setSendPush] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [extraImages, setExtraImages] = useState<Array<{ file: File; preview: string }>>([]);
-  const [docFiles, setDocFiles] = useState<File[]>([]);
+  const [extraImages, setExtraImages] = useState<Array<{ id: string; file: File; preview: string }>>(
+    [],
+  );
+  const [docFiles, setDocFiles] = useState<Array<{ id: string; file: File }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const extraImagesInputRef = useRef<HTMLInputElement>(null);
   const docsInputRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  /** Caret position in the body, so "Insert here" lands where the author was typing. */
+  const caretRef = useRef<number | null>(null);
+
+  const rememberCaret = () => {
+    const el = contentRef.current;
+    if (el) caretRef.current = el.selectionStart ?? el.value.length;
+  };
+
+  /**
+   * Places an inline token for this item at the last known caret position.
+   * The token is what makes the image/file render inside that section of the
+   * article body rather than in the trailing list.
+   */
+  const insertAtCaret = (id: string, label: string) => {
+    const token = attachmentToken(id);
+    setContent((prev) => {
+      if (prev.includes(token)) return prev;
+      const at = Math.min(caretRef.current ?? prev.length, prev.length);
+      const before = prev.slice(0, at).replace(/\s+$/, "");
+      const after = prev.slice(at).replace(/^\s+/, "");
+      const next = `${before}${before ? "\n\n" : ""}${token}${after ? `\n\n${after}` : "\n"}`;
+      caretRef.current = next.indexOf(token) + token.length;
+      return next;
+    });
+    toast({ title: "Placed in article", description: `${label} will appear at that point.` });
+  };
+
+  const removeToken = (id: string) =>
+    setContent((prev) =>
+      prev.replace(attachmentToken(id), "").replace(/\n{3,}/g, "\n\n"),
+    );
 
   const reset = () => {
     setTitle("");
@@ -85,6 +121,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
     setImagePreview(null);
     setExtraImages([]);
     setDocFiles([]);
+    caretRef.current = null;
   };
 
   const tooBig = (file: File) => {
@@ -106,17 +143,27 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
   const addExtraImages = (files: File[]) => {
     const accepted = files.filter((f) => !tooBig(f));
     setExtraImages((prev) =>
-      [...prev, ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) }))].slice(
-        0,
-        NEWS_MAX_IMAGES,
-      ),
+      [
+        ...prev,
+        ...accepted.map((file) => ({
+          id: crypto.randomUUID(),
+          file,
+          preview: URL.createObjectURL(file),
+        })),
+      ].slice(0, NEWS_MAX_IMAGES),
     );
   };
 
   const addDocFiles = (files: File[]) => {
     const accepted = files.filter((f) => !tooBig(f));
-    setDocFiles((prev) => [...prev, ...accepted].slice(0, NEWS_MAX_FILES));
+    setDocFiles((prev) =>
+      [...prev, ...accepted.map((file) => ({ id: crypto.randomUUID(), file }))].slice(
+        0,
+        NEWS_MAX_FILES,
+      ),
+    );
   };
+
 
   const uploadToBucket = async (file: File, clubIdForPath: string) => {
     const ext = file.name.split(".").pop() || "bin";
@@ -142,6 +189,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
         imageUrl = await uploadToBucket(imageFile, effectiveClubId);
       }
 
+      const body = content.trim();
       const attachments: NewsAttachment[] = [];
       for (const item of extraImages) {
         attachments.push({
@@ -150,17 +198,20 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
           name: item.file.name,
           size: item.file.size,
           mimeType: item.file.type || null,
+          anchor: body.includes(attachmentToken(item.id)) ? item.id : null,
         });
       }
-      for (const file of docFiles) {
+      for (const item of docFiles) {
         attachments.push({
           kind: "file",
-          url: await uploadToBucket(file, effectiveClubId),
-          name: file.name,
-          size: file.size,
-          mimeType: file.type || null,
+          url: await uploadToBucket(item.file, effectiveClubId),
+          name: item.file.name,
+          size: item.file.size,
+          mimeType: item.file.type || null,
+          anchor: body.includes(attachmentToken(item.id)) ? item.id : null,
         });
       }
+
 
       const { data, error } = await supabase
         .from("club_news")
@@ -250,13 +301,25 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
           <div className="space-y-1.5">
             <Label htmlFor="news-content">Content</Label>
             <Textarea
+              ref={contentRef}
               id="news-content"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) => {
+                setContent(e.target.value);
+                caretRef.current = e.target.selectionStart;
+              }}
+              onSelect={rememberCaret}
+              onKeyUp={rememberCaret}
+              onClick={rememberCaret}
+              onBlur={rememberCaret}
               rows={6}
               placeholder="What do members need to know?"
             />
+            <p className="text-xs text-muted-foreground">
+              Tap where you want an image or file to appear, then use “Insert here” below.
+            </p>
           </div>
+
 
           <div className="space-y-1.5">
             <Label>Header image (optional)</Label>
@@ -297,23 +360,43 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
             <Label>More images (optional)</Label>
             {extraImages.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
-                {extraImages.map((item, i) => (
-                  <div key={`${item.file.name}-${i}`} className="relative overflow-hidden rounded-lg border">
-                    <img src={item.preview} alt="" className="h-20 w-full object-cover" />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="secondary"
-                      className="absolute right-1 top-1 h-6 w-6"
-                      onClick={() => setExtraImages((prev) => prev.filter((_, idx) => idx !== i))}
-                      aria-label={`Remove ${item.file.name}`}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
+                {extraImages.map((item, i) => {
+                  const placed = content.includes(attachmentToken(item.id));
+                  return (
+                    <div key={item.id} className="space-y-1">
+                      <div className="relative overflow-hidden rounded-lg border">
+                        <img src={item.preview} alt="" className="h-20 w-full object-cover" />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          className="absolute right-1 top-1 h-6 w-6"
+                          onClick={() => {
+                            removeToken(item.id);
+                            setExtraImages((prev) => prev.filter((_, idx) => idx !== i));
+                          }}
+                          aria-label={`Remove ${item.file.name}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={placed ? "secondary" : "outline"}
+                        className="h-7 w-full px-1 text-[11px]"
+                        onClick={() =>
+                          placed ? removeToken(item.id) : insertAtCaret(item.id, item.file.name)
+                        }
+                      >
+                        {placed ? "Unplace" : "Insert here"}
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
+
             <Button
               type="button"
               variant="outline"
@@ -341,32 +424,49 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
             <Label>Attachments (optional)</Label>
             {docFiles.length > 0 && (
               <div className="space-y-2">
-                {docFiles.map((file, i) => (
-                  <div
-                    key={`${file.name}-${i}`}
-                    className="flex items-center gap-2 rounded-lg border px-3 py-2"
-                  >
-                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm">{file.name}</p>
-                      {formatFileSize(file.size) && (
-                        <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                      )}
+                {docFiles.map((item, i) => {
+                  const placed = content.includes(attachmentToken(item.id));
+                  return (
+                    <div key={item.id} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{item.file.name}</p>
+                        {formatFileSize(item.file.size) && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatFileSize(item.file.size)}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={placed ? "secondary" : "outline"}
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() =>
+                          placed ? removeToken(item.id) : insertAtCaret(item.id, item.file.name)
+                        }
+                      >
+                        {placed ? "Unplace" : "Insert here"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => {
+                          removeToken(item.id);
+                          setDocFiles((prev) => prev.filter((_, idx) => idx !== i));
+                        }}
+                        aria-label={`Remove ${item.file.name}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => setDocFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                      aria-label={`Remove ${file.name}`}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
+
             <Button
               type="button"
               variant="outline"

@@ -10,7 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useClubNewsPost, useClubTeamsForNews, useTeamNamesByIds } from "@/features/news/useClubNews";
 import { parseNewsAttachments } from "@/features/news/newsAttachments";
-import NewsAttachments from "@/components/news/NewsAttachments";
+import NewsArticleBody from "@/components/news/NewsArticleBody";
+
 
 
 /** Full Club News article. */
@@ -94,12 +95,11 @@ export default function ClubNewsPostPage() {
             {author && <p className="text-xs text-muted-foreground">By {author}</p>}
             {audienceLabel && <p className="text-xs text-muted-foreground">{audienceLabel}</p>}
           </div>
-          {post.content && (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-              {post.content}
-            </p>
-          )}
-          <NewsAttachments attachments={parseNewsAttachments(post.attachments)} />
+          <NewsArticleBody
+            content={post.content || ""}
+            attachments={parseNewsAttachments(post.attachments)}
+          />
+
         </article>
 
       )}

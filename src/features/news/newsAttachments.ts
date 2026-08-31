@@ -12,6 +12,12 @@ export interface NewsAttachment {
   /** Bytes, when known. */
   size?: number | null;
   mimeType?: string | null;
+  /**
+   * Stable key referenced by an inline token in the article body
+   * (`{{attachment:<anchor>}}`). When present the attachment renders at that
+   * exact spot in the content instead of in the trailing gallery/list.
+   */
+  anchor?: string | null;
 }
 
 /** Defensive parse — the column is free-form jsonb. */
@@ -30,10 +36,61 @@ export function parseNewsAttachments(raw: unknown): NewsAttachment[] {
       name: typeof rec.name === "string" && rec.name ? rec.name : kind === "image" ? "Image" : "File",
       size: typeof rec.size === "number" ? rec.size : null,
       mimeType: typeof rec.mimeType === "string" ? rec.mimeType : null,
+      anchor: typeof rec.anchor === "string" && rec.anchor ? rec.anchor : null,
     });
   }
   return out;
 }
+
+/** Inline placement token, e.g. `{{attachment:9f3c...}}`. */
+export const attachmentToken = (anchor: string) => `{{attachment:${anchor}}}`;
+
+const TOKEN_RE = /\{\{attachment:([A-Za-z0-9._-]+)\}\}/g;
+
+export type NewsBodySegment =
+  | { type: "text"; text: string }
+  | { type: "attachment"; attachment: NewsAttachment };
+
+/**
+ * Splits article content into text runs and inline attachments, and reports
+ * which attachments were consumed inline so the caller can render the rest
+ * (unplaced ones) at the end.
+ */
+export function splitNewsBody(
+  content: string,
+  attachments: NewsAttachment[],
+): { segments: NewsBodySegment[]; usedAnchors: Set<string> } {
+  const byAnchor = new Map<string, NewsAttachment>();
+  attachments.forEach((a) => {
+    if (a.anchor) byAnchor.set(a.anchor, a);
+  });
+
+  const segments: NewsBodySegment[] = [];
+  const usedAnchors = new Set<string>();
+  let cursor = 0;
+  TOKEN_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = TOKEN_RE.exec(content))) {
+    const attachment = byAnchor.get(match[1]);
+    const text = content.slice(cursor, match.index);
+    cursor = match.index + match[0].length;
+    if (text) segments.push({ type: "text", text });
+    if (attachment) {
+      segments.push({ type: "attachment", attachment });
+      usedAnchors.add(match[1]);
+    }
+  }
+  const tail = content.slice(cursor);
+  if (tail) segments.push({ type: "text", text: tail });
+  return { segments, usedAnchors };
+
+}
+
+/** Strips inline tokens for plain-text contexts (previews, chat excerpts). */
+export function stripAttachmentTokens(content: string): string {
+  return content.replace(TOKEN_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 
 export function formatFileSize(bytes?: number | null): string | null {
   if (!bytes || bytes <= 0) return null;
