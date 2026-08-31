@@ -49,6 +49,7 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
@@ -183,6 +184,7 @@ export default function ClubChatPage() {
   const [replyingTo, setReplyingTo] = useChatDraftReply<{ id: string; text: string; authorName: string | null }>(clubId);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [newsPickerOpen, setNewsPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
@@ -1892,6 +1894,8 @@ export default function ClubChatPage() {
               clubId={clubId}
               showEventPicker={true}
               onEventSelect={() => setEventPickerOpen(true)}
+              showNewsPicker={!!(clubId)}
+              onNewsSelect={() => setNewsPickerOpen(true)}
               showPollCreator={true}
               onPollCreate={() => setPollDialogOpen(true)}
               showBoardPicker={false}
@@ -1947,6 +1951,15 @@ export default function ClubChatPage() {
               setMessage(message ? `${message} ${token}` : token);
             }}
             clubId={clubId}
+          />
+          <NewsPickerSheet
+            open={newsPickerOpen}
+            onOpenChange={setNewsPickerOpen}
+            clubId={clubId}
+            onSelectNews={(newsId) => {
+              const token = `[news:${newsId}]`;
+              setMessage((prev) => (prev ? `${prev} ${token}` : token));
+            }}
           />
           <BoardPickerSheet
             open={boardPickerOpen}

@@ -71,6 +71,7 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
@@ -234,6 +235,7 @@ export default function TeamChatPage() {
   const [replyingTo, setReplyingTo] = useChatDraftReply<{ id: string; text: string; authorName: string | null }>(teamId);
   const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [newsPickerOpen, setNewsPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
@@ -2237,6 +2239,8 @@ export default function TeamChatPage() {
             teamId={teamId}
             showEventPicker={true}
             onEventSelect={() => setEventPickerOpen(true)}
+            showNewsPicker={!!(team?.club_id)}
+            onNewsSelect={() => setNewsPickerOpen(true)}
             showPollCreator={true}
             onPollCreate={() => setPollDialogOpen(true)}
             showBoardPicker={true}
@@ -2294,6 +2298,15 @@ export default function TeamChatPage() {
           }}
           teamId={teamId}
           clubId={team?.club_id}
+        />
+        <NewsPickerSheet
+          open={newsPickerOpen}
+          onOpenChange={setNewsPickerOpen}
+          clubId={team?.club_id}
+          onSelectNews={(newsId) => {
+            const token = `[news:${newsId}]`;
+            setMessage((prev) => (prev ? `${prev} ${token}` : token));
+          }}
         />
         <BoardPickerSheet
           open={boardPickerOpen}
