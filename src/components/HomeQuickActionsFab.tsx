@@ -17,6 +17,7 @@ import {
   Settings,
   Shield,
   Lock,
+  Newspaper,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -26,6 +27,8 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { Separator } from "@/components/ui/separator";
+import ClubNewsComposer from "@/components/news/ClubNewsComposer";
+import { useNewsPublishableClubs } from "@/features/news/useClubNews";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
@@ -64,7 +67,9 @@ export function HomeQuickActionsFab({
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
+  const [composerOpen, setComposerOpen] = useState(false);
   const navigate = useNavigate();
+  const { data: publishableClubs = [] } = useNewsPublishableClubs();
 
   const close = () => setOpen(false);
   const go = (path: string) => {
@@ -107,6 +112,18 @@ export function HomeQuickActionsFab({
             label: "New Event",
             icon: Calendar,
             onClick: () => go("/events/new"),
+          } as ActionItem,
+        ]
+      : []),
+    ...(publishableClubs.length > 0
+      ? [
+          {
+            label: "Create News Post",
+            icon: Newspaper,
+            onClick: () => {
+              close();
+              setComposerOpen(true);
+            },
           } as ActionItem,
         ]
       : []),
@@ -314,6 +331,17 @@ export function HomeQuickActionsFab({
           )}
         </ResponsiveDialogContent>
       </ResponsiveDialog>
+
+      {composerOpen && (
+        <ClubNewsComposer
+          open={composerOpen}
+          onOpenChange={(isOpen) => {
+            setComposerOpen(isOpen);
+            if (!isOpen) setView("main");
+          }}
+          defaultClubId={activeClubFilter}
+        />
+      )}
     </>
   );
 }
