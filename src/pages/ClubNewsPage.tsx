@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { ArrowLeft, ChevronRight, Newspaper, Plus } from "lucide-react";
@@ -7,7 +7,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { useClubNewsFeed, useNewsPublishableClubs } from "@/features/news/useClubNews";
+import {
+  useClubNewsFeed,
+  useClubTeamsForNews,
+  useNewsPublishableClubs,
+} from "@/features/news/useClubNews";
 import ClubNewsComposer from "@/components/news/ClubNewsComposer";
 
 /** Club News archive — newest first. */
