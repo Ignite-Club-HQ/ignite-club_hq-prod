@@ -316,7 +316,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               placeholder="What do members need to know?"
             />
             <p className="text-xs text-muted-foreground">
-              Tap where you want an image or file to appear, then use “Insert here” below.
+              Add images or files below, then tap their <span className="font-medium text-foreground">Insert here</span> button to place them where your cursor is in the content.
             </p>
           </div>
 
@@ -407,6 +407,11 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               <ImagePlus className="mr-2 h-4 w-4" />
               {extraImages.length >= NEWS_MAX_IMAGES ? "Image limit reached" : "Add more images"}
             </Button>
+            {extraImages.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Uploaded images will show an <span className="font-medium text-foreground">Insert here</span> option.
+              </p>
+            )}
             <input
               ref={extraImagesInputRef}
               type="file"
@@ -480,6 +485,11 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
             <p className="text-xs text-muted-foreground">
               PDFs, documents or spreadsheets up to {formatFileSize(NEWS_ATTACHMENT_MAX_BYTES)} each.
             </p>
+            {docFiles.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Uploaded files will show an <span className="font-medium text-foreground">Insert here</span> option.
+              </p>
+            )}
             <input
               ref={docsInputRef}
               type="file"
