@@ -14,7 +14,6 @@ import {
   SlidersHorizontal,
   ImagePlus,
   Folder,
-  Settings,
   Shield,
   Lock,
   Newspaper,
