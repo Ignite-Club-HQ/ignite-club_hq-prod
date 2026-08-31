@@ -449,19 +449,55 @@ export default function HomePage() {
       // — which is exactly the bug where the Next Up cards disappeared after
       // returning to the app. Throwing lets React Query keep the last good
       // data and retry.
-      const rolesRes = await supabase
-        .from("user_roles")
-        .select("club_id, team_id, role")
-        .eq("user_id", user!.id);
+      const fetchRoles = async () => {
+        const res = await supabase
+          .from("user_roles")
+          .select("club_id, team_id, role")
+          .eq("user_id", user!.id);
+        if (res.error) throw res.error;
+        if (!res.data) {
+          // .data is [] (not null) on a successful zero-row response, so reaching
+          // here means something went wrong upstream — throw so we don't poison
+          // the cache with empty events on resume races.
+          throw new Error("user_roles fetch returned null data");
+        }
+        return res.data;
+      };
 
-      if (rolesRes.error) throw rolesRes.error;
-      const roles = rolesRes.data;
+      let roles = await fetchRoles();
 
-      if (!roles) {
-        // .data is [] (not null) on a successful zero-row response, so reaching
-        // here means something went wrong upstream — throw so we don't poison
-        // the cache with empty events on resume races.
-        throw new Error("user_roles fetch returned null data");
+      // RESUME RACE: after a phone unlock / app resume the access token can be
+      // expired-but-not-yet-rotated. RLS then legitimately returns ZERO rows
+      // with NO error, which previously flipped Home into the "set up your
+      // club" new-user empty state and blanked Next Up (a full app kill fixed
+      // it because auth was restored before the first fetch).
+      // An empty result is only trusted when it is *verified*: a live session
+      // must exist, and if the last known snapshot had memberships we force a
+      // single-flight refresh and re-read before believing the user has none.
+      if (roles.length === 0) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData?.session) {
+          throw new Error("empty memberships with no active session (resume race)");
+        }
+
+        const snapshotMemberships = nextUpCachedSnapshot?.memberships as
+          | { clubIds?: string[]; teamIds?: string[] }
+          | undefined;
+        const hadMemberships =
+          (snapshotMemberships?.clubIds?.length ?? 0) > 0 ||
+          (snapshotMemberships?.teamIds?.length ?? 0) > 0;
+
+        if (hadMemberships) {
+          const { refreshSessionOnce } = await import("@/lib/refreshSessionOnce");
+          try { await refreshSessionOnce(); } catch { /* benign rotation race */ }
+          roles = await fetchRoles();
+          if (roles.length === 0) {
+            // Still empty after a verified refresh — throw once so React Query
+            // retries rather than instantly painting the welcome/empty state
+            // off a single suspicious read.
+            throw new Error("memberships empty after refresh (unverified)");
+          }
+        }
       }
 
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
