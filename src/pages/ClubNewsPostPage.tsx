@@ -99,7 +99,9 @@ export default function ClubNewsPostPage() {
               {post.content}
             </p>
           )}
+          <NewsAttachments attachments={parseNewsAttachments(post.attachments)} />
         </article>
+
       )}
     </div>
   );
