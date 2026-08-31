@@ -11,6 +11,7 @@ import {
   useClubNewsFeed,
   useClubTeamsForNews,
   useNewsPublishableClubs,
+  useTeamNamesByIds,
 } from "@/features/news/useClubNews";
 import ClubNewsComposer from "@/components/news/ClubNewsComposer";
 
@@ -21,11 +22,18 @@ export default function ClubNewsPage() {
   const { data: posts = [], isLoading } = useClubNewsFeed(activeClubFilter);
   const { data: publishableClubs = [] } = useNewsPublishableClubs();
   const { data: teams = [] } = useClubTeamsForNews(activeClubFilter ?? null);
+  const targetIds = useMemo(
+    () => posts.flatMap((p) => p.target_team_ids || []),
+    [posts],
+  );
+  const { data: targetTeams = [] } = useTeamNamesByIds(targetIds);
   const teamNameMap = useMemo(() => {
     const map = new Map<string, string>();
     teams.forEach((t) => map.set(t.id, t.name));
+    targetTeams.forEach((t) => map.set(t.id, t.name));
     return map;
-  }, [teams]);
+  }, [teams, targetTeams]);
+
   const [composerOpen, setComposerOpen] = useState(false);
 
   const canPublish = publishableClubs.length > 0;
