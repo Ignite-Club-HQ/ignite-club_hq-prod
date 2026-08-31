@@ -81,8 +81,9 @@ export function splitNewsBody(
     }
   }
   const tail = content.slice(cursor);
-  if (tail) segments.push({ type: "text", tail } as never);
-  return { segments: segments.map((s) => ("tail" in (s as object) ? { type: "text", text: (s as unknown as { tail: string }).tail } : s)), usedAnchors };
+  if (tail) segments.push({ type: "text", text: tail });
+  return { segments, usedAnchors };
+
 }
 
 /** Strips inline tokens for plain-text contexts (previews, chat excerpts). */
