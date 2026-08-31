@@ -316,7 +316,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               placeholder="What do members need to know?"
             />
             <p className="text-xs text-muted-foreground">
-              Tap where you want an image or file to appear, then use “Insert here” below.
+              Add images or files below, then tap their <span className="font-medium text-foreground">Insert here</span> button to place them where your cursor is in the content.
             </p>
           </div>
 
