@@ -125,3 +125,22 @@ export function useClubTeamsForNews(clubId?: string | null) {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+/**
+ * Resolve team names directly by id. Used by News audience labels so we can
+ * always name the targeted teams, even before/without the club team list
+ * (e.g. an article opened by deep link before `club_id` teams have loaded).
+ */
+export function useTeamNamesByIds(teamIds?: string[] | null) {
+  const ids = Array.from(new Set((teamIds || []).filter(Boolean)));
+  return useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ["news-team-names", ids.slice().sort().join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("teams").select("id, name").in("id", ids);
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+    enabled: ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+}

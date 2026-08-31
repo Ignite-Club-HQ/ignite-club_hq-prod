@@ -11,6 +11,7 @@ import {
   useClubNewsFeed,
   useClubTeamsForNews,
   useNewsPublishableClubs,
+  useTeamNamesByIds,
 } from "@/features/news/useClubNews";
 import ClubNewsComposer from "@/components/news/ClubNewsComposer";
 
@@ -21,11 +22,18 @@ export default function ClubNewsPage() {
   const { data: posts = [], isLoading } = useClubNewsFeed(activeClubFilter);
   const { data: publishableClubs = [] } = useNewsPublishableClubs();
   const { data: teams = [] } = useClubTeamsForNews(activeClubFilter ?? null);
+  const targetIds = useMemo(
+    () => posts.flatMap((p) => p.target_team_ids || []),
+    [posts],
+  );
+  const { data: targetTeams = [] } = useTeamNamesByIds(targetIds);
   const teamNameMap = useMemo(() => {
     const map = new Map<string, string>();
     teams.forEach((t) => map.set(t.id, t.name));
+    targetTeams.forEach((t) => map.set(t.id, t.name));
     return map;
-  }, [teams]);
+  }, [teams, targetTeams]);
+
   const [composerOpen, setComposerOpen] = useState(false);
 
   const canPublish = publishableClubs.length > 0;
@@ -97,20 +105,16 @@ export default function ClubNewsPage() {
                     const ids = post.target_team_ids || [];
                     if (ids.length === 0) return null;
                     const names = ids
-                      .map((id) => teamNameMap.get(id) || "Unknown team")
-                      .filter(Boolean);
-                    const label =
-                      names.length === 0
-                        ? "Selected teams"
-                        : names.length === 1
-                          ? names[0]
-                          : `${names.length} teams`;
+                      .map((id) => teamNameMap.get(id))
+                      .filter(Boolean) as string[];
+                    if (names.length === 0) return null;
                     return (
-                      <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
-                        {label}
+                      <Badge variant="secondary" className="h-4 max-w-[60%] truncate px-1.5 text-[10px]">
+                        {names.join(", ")}
                       </Badge>
                     );
                   })()}
+
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
