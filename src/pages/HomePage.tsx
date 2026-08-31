@@ -96,8 +96,9 @@ const myTeamsCarouselImport = () =>
 // Fire the request immediately (don't await — let it stream alongside other resources).
 myTeamsCarouselImport();
 const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
-const ClubLinksSection = lazy(() => import("@/components/home/ClubLinksSection"));
-const ClubNewsSection = lazy(() => import("@/components/home/ClubNewsSection"));
+// Eagerly imported: these render alongside the rest of the first Home paint —
+// a lazy chunk made them appear noticeably after everything else.
+
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp, clearCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
