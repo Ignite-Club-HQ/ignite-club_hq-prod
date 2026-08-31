@@ -28,8 +28,8 @@ export default function ClubNewsPage() {
         </Button>
         <h1 className="flex-1 text-lg font-bold">Club News</h1>
         {canPublish && (
-          <Button size="sm" onClick={() => setComposerOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" /> New
+          <Button size="icon" variant="ghost" onClick={() => setComposerOpen(true)} aria-label="New post">
+            <Plus className="h-5 w-5" />
           </Button>
         )}
       </div>
