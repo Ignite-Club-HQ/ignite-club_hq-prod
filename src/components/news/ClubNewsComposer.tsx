@@ -176,7 +176,6 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
         })
         .select("id")
 
-        .select("id")
         .single();
       if (error) throw error;
 
