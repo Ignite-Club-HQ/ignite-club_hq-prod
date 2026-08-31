@@ -20,6 +20,12 @@ export default function ClubNewsPage() {
   const { activeClubFilter } = useClubTheme();
   const { data: posts = [], isLoading } = useClubNewsFeed(activeClubFilter);
   const { data: publishableClubs = [] } = useNewsPublishableClubs();
+  const { data: teams = [] } = useClubTeamsForNews(activeClubFilter ?? null);
+  const teamNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    teams.forEach((t) => map.set(t.id, t.name));
+    return map;
+  }, [teams]);
   const [composerOpen, setComposerOpen] = useState(false);
 
   const canPublish = publishableClubs.length > 0;
