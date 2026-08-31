@@ -186,7 +186,6 @@ Deno.serve(async (req) => {
     );
     if (!botUserId) return json({ error: "bot unavailable" }, 500);
 
-    const text = buildText(news as any);
     const teamIds = (news.target_team_ids || []) as string[];
     let posted = 0;
 
