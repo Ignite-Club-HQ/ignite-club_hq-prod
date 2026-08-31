@@ -621,7 +621,16 @@ export default function MediaPage() {
     enabled: !!user && (!cardId || cardPhotoIds !== undefined),
     staleTime: 5 * 60 * 1000,
     gcTime: 300000,
+    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || onlineManager.isOnline()),
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
+
+  // Escape hatch for a zombie photos GET: while a refresh is in flight with
+  // cached/stale content on screen (the "Updating..." pill) for longer than the
+  // watchdog interval, abort in-flight REST reads and re-issue. Without this
+  // the pill sticks forever and the dead socket blocks Schedule's requests too.
+  const photosStuck = isOnline && (loadingPhotos || isFetchingPhotos);
+  useChatStuckWatchdog(photosStuck, [photosQueryKey], "media-photos");
 
   // Eagerly prefetch the next page once the first page is in so the user
   // doesn't see a loading shimmer when they reach the end of the first batch.
