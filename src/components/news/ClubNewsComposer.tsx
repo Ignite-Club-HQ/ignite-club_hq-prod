@@ -70,11 +70,45 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
   const [sendPush, setSendPush] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [extraImages, setExtraImages] = useState<Array<{ file: File; preview: string }>>([]);
-  const [docFiles, setDocFiles] = useState<File[]>([]);
+  const [extraImages, setExtraImages] = useState<Array<{ id: string; file: File; preview: string }>>(
+    [],
+  );
+  const [docFiles, setDocFiles] = useState<Array<{ id: string; file: File }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const extraImagesInputRef = useRef<HTMLInputElement>(null);
   const docsInputRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  /** Caret position in the body, so "Insert here" lands where the author was typing. */
+  const caretRef = useRef<number | null>(null);
+
+  const rememberCaret = () => {
+    const el = contentRef.current;
+    if (el) caretRef.current = el.selectionStart ?? el.value.length;
+  };
+
+  /**
+   * Places an inline token for this item at the last known caret position.
+   * The token is what makes the image/file render inside that section of the
+   * article body rather than in the trailing list.
+   */
+  const insertAtCaret = (id: string, label: string) => {
+    const token = attachmentToken(id);
+    setContent((prev) => {
+      if (prev.includes(token)) return prev;
+      const at = Math.min(caretRef.current ?? prev.length, prev.length);
+      const before = prev.slice(0, at).replace(/\s+$/, "");
+      const after = prev.slice(at).replace(/^\s+/, "");
+      const next = `${before}${before ? "\n\n" : ""}${token}${after ? `\n\n${after}` : "\n"}`;
+      caretRef.current = next.indexOf(token) + token.length;
+      return next;
+    });
+    toast({ title: "Placed in article", description: `${label} will appear at that point.` });
+  };
+
+  const removeToken = (id: string) =>
+    setContent((prev) =>
+      prev.replace(attachmentToken(id), "").replace(/\n{3,}/g, "\n\n"),
+    );
 
   const reset = () => {
     setTitle("");
@@ -87,6 +121,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
     setImagePreview(null);
     setExtraImages([]);
     setDocFiles([]);
+    caretRef.current = null;
   };
 
   const tooBig = (file: File) => {
@@ -108,17 +143,27 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
   const addExtraImages = (files: File[]) => {
     const accepted = files.filter((f) => !tooBig(f));
     setExtraImages((prev) =>
-      [...prev, ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) }))].slice(
-        0,
-        NEWS_MAX_IMAGES,
-      ),
+      [
+        ...prev,
+        ...accepted.map((file) => ({
+          id: crypto.randomUUID(),
+          file,
+          preview: URL.createObjectURL(file),
+        })),
+      ].slice(0, NEWS_MAX_IMAGES),
     );
   };
 
   const addDocFiles = (files: File[]) => {
     const accepted = files.filter((f) => !tooBig(f));
-    setDocFiles((prev) => [...prev, ...accepted].slice(0, NEWS_MAX_FILES));
+    setDocFiles((prev) =>
+      [...prev, ...accepted.map((file) => ({ id: crypto.randomUUID(), file }))].slice(
+        0,
+        NEWS_MAX_FILES,
+      ),
+    );
   };
+
 
   const uploadToBucket = async (file: File, clubIdForPath: string) => {
     const ext = file.name.split(".").pop() || "bin";
