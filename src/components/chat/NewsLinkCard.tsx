@@ -38,7 +38,7 @@ export const NewsLinkCard = memo(function NewsLinkCard({ newsId }: NewsLinkCardP
     );
   }
 
-  const excerpt = (post.content || "").replace(/\s+/g, " ").trim();
+  const excerpt = stripAttachmentTokens(post.content || "").replace(/\s+/g, " ").trim();
 
   return (
     <button

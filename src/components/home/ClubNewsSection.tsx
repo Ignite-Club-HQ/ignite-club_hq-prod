@@ -51,7 +51,7 @@ export default function ClubNewsSection() {
     );
   }
 
-  const preview = latest.content.replace(/\s+/g, " ").trim();
+  const preview = stripAttachmentTokens(latest.content).replace(/\s+/g, " ").trim();
 
   return (
     <div className="space-y-2">
