@@ -4,6 +4,14 @@ interface LogoImageProps {
   src: string;
   alt?: string;
   className?: string;
+  /**
+   * Classes for the inner <img> (replaces the default object-cover fit).
+   * Kept separate from `className` (the wrapper span) so callers can give the
+   * wrapper a FIXED footprint (e.g. "h-8 w-8") — a w-auto wrapper collapses to
+   * zero width while the bitmap is still loading, then shoves surrounding
+   * header content sideways when the image paints.
+   */
+  imgClassName?: string;
   fallback?: React.ReactNode;
 }
 
