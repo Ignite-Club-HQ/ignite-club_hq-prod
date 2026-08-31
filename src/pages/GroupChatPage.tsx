@@ -80,6 +80,7 @@ import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
+import { NewsAttachmentPreview } from "@/components/chat/NewsAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { useRecentMatchWindow } from "@/hooks/useRecentMatchWindow";
@@ -310,6 +311,7 @@ export default function GroupChatPage() {
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
+  const [pendingNewsId, setPendingNewsId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   // Persists the search text after the user taps a result so highlights
   // remain visible on the jumped-to message. Cleared when the highlight
@@ -1903,6 +1905,7 @@ export default function GroupChatPage() {
       setImageUrl(null);
       setReplyTo(null);
       setPendingPollId(null);
+      setPendingNewsId(null);
       
       // Scroll to bottom — force bypasses the touch-guard so the deferred
       // re-pins still fire after composer reflow shrinks bottomPadding.
@@ -2339,14 +2342,17 @@ export default function GroupChatPage() {
       return;
     }
 
-    if ((!message.trim() && !imageUrl && !pendingPollId) || !user) return;
+    if ((!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId) || !user) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
     } else {
       const baseText = message.trim();
-      const finalText = pendingPollId
+      let finalText = pendingPollId
         ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
         : baseText;
+      if (pendingNewsId) {
+        finalText = finalText ? `${finalText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`;
+      }
       sendMessageMutation.mutate({
         text: finalText,
         image_url: imageUrl,
@@ -2982,12 +2988,23 @@ export default function GroupChatPage() {
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <ChatComposerShell
           preview={
-            pendingPollId && !editingMessage ? (
-              <PollAttachmentPreview
-                pollId={pendingPollId}
-                onRemove={() => setPendingPollId(null)}
-                disabled={sendMessageMutation.isPending}
-              />
+            (pendingPollId || pendingNewsId) && !editingMessage ? (
+              <div className="space-y-1.5">
+                {pendingPollId && (
+                  <PollAttachmentPreview
+                    pollId={pendingPollId}
+                    onRemove={() => setPendingPollId(null)}
+                    disabled={sendMessageMutation.isPending}
+                  />
+                )}
+                {pendingNewsId && (
+                  <NewsAttachmentPreview
+                    newsId={pendingNewsId}
+                    onRemove={() => setPendingNewsId(null)}
+                    disabled={sendMessageMutation.isPending}
+                  />
+                )}
+              </div>
             ) : undefined
           }
         >

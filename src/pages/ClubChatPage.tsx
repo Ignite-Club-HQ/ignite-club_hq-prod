@@ -1366,6 +1366,7 @@ export default function ClubChatPage() {
       setImageUrl(null);
       setReplyingTo(null);
       setPendingPollId(null);
+      setPendingNewsId(null);
       
       // Scroll to bottom — force bypasses touch-guard so the post-send
       // re-pins still fire after composer reflow shrinks bottomPadding.
