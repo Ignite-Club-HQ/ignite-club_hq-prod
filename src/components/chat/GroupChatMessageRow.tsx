@@ -386,6 +386,21 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
 
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
 
+  // Card-only messages (shared news/event/poll/etc. with no typed caption):
+  // the token renders as an empty inline span, so suppress the padded,
+  // coloured bubble chrome to avoid a weird blank bubble beside the card.
+  const visibleCaptionText = (msg.text || "")
+    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1")
+    .replace(/(?:https?:\/\/[^\s]*)?\/events\/[0-9a-f-]{36}(?:\S*)?/gi, "")
+    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt|news)(:[0-9a-f-]{36}){1,2}\]/gi, "")
+    .trim();
+  const isCardOnlyMessage =
+    !msg.image_url &&
+    !visibleCaptionText &&
+    !msg.forwarded_from_user_id &&
+    /\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt|news):[0-9a-f-]{36}(?::(?:team|club))?\]/i.test(msg.text || "");
+
   // System messages (e.g. "Alex joined as Coach") render as a centered grey pill,
   // WhatsApp-style: no avatar, no actions, no reactions.
   if (msg.is_system_message || isMembershipSystemText(msg.text)) {
@@ -510,10 +525,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
+                className={isCardOnlyMessage
+                  ? "relative max-w-full select-none"
+                  : `relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
                   isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
                 } ${tapFlash ? "ring-2 ring-primary/40" : ""} ${isInteracting ? "ring-1 ring-primary/40 border border-transparent transition-shadow duration-150 ease-out" : "border border-transparent"}`}
-                style={isInteracting ? {
+                style={isInteracting && !isCardOnlyMessage ? {
                   boxShadow: '0 24px 48px -18px rgba(0,0,0,0.52), 0 6px 14px -4px rgba(0,0,0,0.20)',
                 } : undefined}
 
