@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { readHomeSectionSnapshot, writeHomeSectionSnapshot } from "@/lib/homeSectionSnapshot";
 
 /**
  * Club News data access.
@@ -27,6 +28,7 @@ const NEWS_COLUMNS =
   "id, club_id, title, content, image_url, author_id, target_team_ids, is_important, published_at";
 
 export function useClubNewsFeed(clubId?: string | null, limit = 50) {
+  const snapshotScope = `${clubId ?? "all"}_${limit}`;
   return useQuery<ClubNewsRow[]>({
     queryKey: ["club-news", clubId ?? "all", limit],
     queryFn: async () => {
@@ -41,11 +43,18 @@ export function useClubNewsFeed(clubId?: string | null, limit = 50) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as ClubNewsRow[];
+      const rows = (data || []) as ClubNewsRow[];
+      writeHomeSectionSnapshot("club-news", snapshotScope, rows);
+      return rows;
     },
+    // Paint the last known posts immediately on cold open so the Home section
+    // doesn't pop in after everything else.
+    placeholderData: () =>
+      readHomeSectionSnapshot<ClubNewsRow[]>("club-news", snapshotScope) ?? undefined,
     staleTime: 2 * 60 * 1000,
   });
 }
+
 
 /** Latest single post — powers the compact Home section. */
 export function useLatestClubNews(clubId?: string | null) {
