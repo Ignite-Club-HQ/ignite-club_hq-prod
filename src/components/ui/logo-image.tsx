@@ -134,7 +134,7 @@ if (typeof window !== "undefined") {
  * `online`, and on tab/app resume, and each retry re-issues a real request via
  * a cache-busting attempt token.
  */
-export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps) {
+export function LogoImage({ src, alt = "", className, imgClassName, fallback }: LogoImageProps) {
   const [failed, setFailed] = useState(false);
   // Bumped on every retry so React remounts the <img> and the browser
   // re-requests the (previously failed) URL instead of reusing its error cache.
