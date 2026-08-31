@@ -970,7 +970,9 @@ function ChatMessageInner({
           >
               <div
                 ref={bubbleRef}
-                className={`relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
+                className={isCardOnlyMessage
+                  ? "relative max-w-full select-none"
+                  : `relative max-w-full rounded-2xl ${imageUrl ? "p-0" : "px-4 py-2"} select-none overflow-hidden chat-bubble-stable ${
                 isOwn && !isClubAnnouncement
                   ? `bg-chat-bubble-own text-chat-bubble-own-foreground ${groupedWithPrev ? "rounded-tr-sm" : ""} ${groupedWithNext ? "rounded-br-2xl" : "rounded-br-sm"}`
                   : `bg-card border border-border/40 ${groupedWithPrev ? "rounded-tl-sm" : ""} ${groupedWithNext ? "rounded-bl-2xl" : "rounded-bl-sm"}`
