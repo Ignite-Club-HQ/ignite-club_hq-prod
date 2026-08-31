@@ -17,7 +17,6 @@ import {
   Settings,
   Shield,
   Lock,
-  Sparkles,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -27,7 +26,6 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { Separator } from "@/components/ui/separator";
-import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
@@ -63,7 +61,6 @@ export function HomeQuickActionsFab({
   hasProContext = false,
 }: HomeQuickActionsFabProps) {
   const proLocked = !hasProContext && !isAppAdmin;
-  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub(activeClubFilter ?? null);
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
@@ -134,16 +131,6 @@ export function HomeQuickActionsFab({
         onJoinTeam();
       },
     },
-    ...(hasAICatchUpClub
-      ? [
-          {
-            label: "Chat Recap",
-            description: "Catch up on unread threads with AI",
-            icon: Sparkles,
-            onClick: () => go("/messages?recap=1"),
-          } as ActionItem,
-        ]
-      : []),
   ];
 
   // More — low-frequency administrative actions
