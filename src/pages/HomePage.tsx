@@ -489,13 +489,23 @@ export default function HomePage() {
 
         if (hadMemberships) {
           const { refreshSessionOnce } = await import("@/lib/refreshSessionOnce");
-          try { await refreshSessionOnce(); } catch { /* benign rotation race */ }
+          let refreshed = false;
+          try {
+            await refreshSessionOnce();
+            refreshed = true;
+          } catch {
+            refreshed = false;
+          }
+          if (!refreshed) {
+            // Could not prove the token is current — do NOT accept the empty
+            // read; throw so React Query retries and keeps the last good data.
+            throw new Error("empty memberships and session refresh failed (resume race)");
+          }
           roles = await fetchRoles();
           if (roles.length === 0) {
-            // Still empty after a verified refresh — throw once so React Query
-            // retries rather than instantly painting the welcome/empty state
-            // off a single suspicious read.
-            throw new Error("memberships empty after refresh (unverified)");
+            // Verified-empty (fresh token): the user really has no memberships.
+            // Drop the stale snapshot so it can't resurrect old cards.
+            clearCachedNextUp(user!.id);
           }
         }
       }
