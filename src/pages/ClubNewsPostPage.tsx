@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useClubNewsPost, useClubTeamsForNews, useTeamNamesByIds } from "@/features/news/useClubNews";
+import { parseNewsAttachments } from "@/features/news/newsAttachments";
+import NewsAttachments from "@/components/news/NewsAttachments";
+
 
 /** Full Club News article. */
 export default function ClubNewsPostPage() {
