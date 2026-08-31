@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { readHomeSectionSnapshot, writeHomeSectionSnapshot } from "@/lib/homeSectionSnapshot";
 
 export interface ClubLinkRow {
   id: string;
@@ -43,8 +44,14 @@ export function useClubQuickLinks(clubId?: string | null) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as ClubLinkRow[];
+      const rows = (data || []) as ClubLinkRow[];
+      writeHomeSectionSnapshot("club-links", clubId, rows);
+      return rows;
     },
+    // Paint last known links immediately so the Home tile grid appears with
+    // the rest of the page rather than seconds later.
+    placeholderData: () =>
+      readHomeSectionSnapshot<ClubLinkRow[]>("club-links", clubId) ?? undefined,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -80,7 +87,10 @@ export function useClubPolicyDocs(clubId?: string | null) {
         })
         .map((f) => f.id);
 
-      if (policyFolderIds.length === 0) return [];
+      if (policyFolderIds.length === 0) {
+        writeHomeSectionSnapshot("club-policy-docs", clubId, []);
+        return [];
+      }
 
       const { data: files, error: fileError } = await supabase
         .from("vault_files")
@@ -90,8 +100,12 @@ export function useClubPolicyDocs(clubId?: string | null) {
         .order("name", { ascending: true });
 
       if (fileError) throw fileError;
-      return (files || []) as ClubPolicyDoc[];
+      const rows = (files || []) as ClubPolicyDoc[];
+      writeHomeSectionSnapshot("club-policy-docs", clubId, rows);
+      return rows;
     },
+    placeholderData: () =>
+      readHomeSectionSnapshot<ClubPolicyDoc[]>("club-policy-docs", clubId) ?? undefined,
     staleTime: 5 * 60 * 1000,
   });
 }
