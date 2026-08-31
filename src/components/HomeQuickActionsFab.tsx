@@ -14,7 +14,6 @@ import {
   SlidersHorizontal,
   ImagePlus,
   Folder,
-  Settings,
   Shield,
   Lock,
   Newspaper,
@@ -182,15 +181,6 @@ export function HomeQuickActionsFab({
             proLocked,
           } as ActionItem,
 
-        ]
-      : []),
-    ...(activeClubFilter && canCreateTeam
-      ? [
-          {
-            label: "Club Settings",
-            icon: Settings,
-            onClick: () => go(`/clubs/${activeClubFilter}/edit`),
-          } as ActionItem,
         ]
       : []),
     ...(canAccessVault
