@@ -105,20 +105,16 @@ export default function ClubNewsPage() {
                     const ids = post.target_team_ids || [];
                     if (ids.length === 0) return null;
                     const names = ids
-                      .map((id) => teamNameMap.get(id) || "Unknown team")
-                      .filter(Boolean);
-                    const label =
-                      names.length === 0
-                        ? "Selected teams"
-                        : names.length === 1
-                          ? names[0]
-                          : `${names.length} teams`;
+                      .map((id) => teamNameMap.get(id))
+                      .filter(Boolean) as string[];
+                    if (names.length === 0) return null;
                     return (
-                      <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
-                        {label}
+                      <Badge variant="secondary" className="h-4 max-w-[60%] truncate px-1.5 text-[10px]">
+                        {names.join(", ")}
                       </Badge>
                     );
                   })()}
+
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
