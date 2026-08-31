@@ -75,6 +75,7 @@ import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
+import { NewsAttachmentPreview } from "@/components/chat/NewsAttachmentPreview";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -239,6 +240,7 @@ export default function TeamChatPage() {
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
+  const [pendingNewsId, setPendingNewsId] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = teamId
     ? { chat_type: "team", team_id: teamId }
@@ -1670,6 +1672,7 @@ export default function TeamChatPage() {
       setImageUrl(null);
       setReplyingTo(null);
       setPendingPollId(null);
+      setPendingNewsId(null);
       
       // Scroll to bottom to show new message — force=true bypasses the
       // "user is touching viewport" guard, which can spuriously cancel the
@@ -1782,16 +1785,19 @@ export default function TeamChatPage() {
       return;
     }
 
-    if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId) return;
     if (!user?.id || !teamId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
     const baseText = message.trim();
-    const finalText = pendingPollId
+    let finalText = pendingPollId
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
       : baseText;
+    if (pendingNewsId) {
+      finalText = finalText ? `${finalText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`;
+    }
     const hadImage = !!imageUrl;
     sendMessageMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
     if (hadImage) nudgeGalleryAfterSend();
@@ -2222,12 +2228,23 @@ export default function TeamChatPage() {
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <ChatComposerShell
           preview={
-            pendingPollId && !editingMessage ? (
-              <PollAttachmentPreview
-                pollId={pendingPollId}
-                onRemove={() => setPendingPollId(null)}
-                disabled={sendMessageMutation.isPending}
-              />
+            (pendingPollId || pendingNewsId) && !editingMessage ? (
+              <div className="space-y-1.5">
+                {pendingPollId && (
+                  <PollAttachmentPreview
+                    pollId={pendingPollId}
+                    onRemove={() => setPendingPollId(null)}
+                    disabled={sendMessageMutation.isPending}
+                  />
+                )}
+                {pendingNewsId && (
+                  <NewsAttachmentPreview
+                    newsId={pendingNewsId}
+                    onRemove={() => setPendingNewsId(null)}
+                    disabled={sendMessageMutation.isPending}
+                  />
+                )}
+              </div>
             ) : undefined
           }
         >
@@ -2270,9 +2287,9 @@ export default function TeamChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !imageUrl && !pendingPollId}
+            disabled={!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+            canSend={!!message.trim() || !!imageUrl || !!pendingPollId || !!pendingNewsId}
           />
         </ChatComposerShell>
         {scheduleTarget && (
@@ -2303,10 +2320,7 @@ export default function TeamChatPage() {
           open={newsPickerOpen}
           onOpenChange={setNewsPickerOpen}
           clubId={team?.club_id}
-          onSelectNews={(newsId) => {
-            const token = `[news:${newsId}]`;
-            setMessage((prev) => (prev ? `${prev} ${token}` : token));
-          }}
+          onSelectNews={(newsId) => setPendingNewsId(newsId)}
         />
         <BoardPickerSheet
           open={boardPickerOpen}
