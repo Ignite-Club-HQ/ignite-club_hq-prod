@@ -4,6 +4,7 @@ import { Newspaper } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useClubNewsPost } from "@/features/news/useClubNews";
+import { stripAttachmentTokens } from "@/features/news/newsAttachments";
 
 interface NewsLinkCardProps {
   newsId: string;

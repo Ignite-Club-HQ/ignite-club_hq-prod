@@ -106,7 +106,10 @@ function buildText(
   const headline = news.is_important
     ? `📢 Important club news: ${news.title}`
     : `📰 Club news: ${news.title}`;
-  const body = (news.content || "").trim();
+  const body = (news.content || "")
+    .replace(/\{\{attachment:[A-Za-z0-9._-]+\}\}/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   const excerpt =
     body.length > 280 ? `${body.slice(0, 280).trimEnd()}…` : body;
 
