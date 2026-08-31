@@ -98,6 +98,9 @@ myTeamsCarouselImport();
 const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
 // Eagerly imported: these render alongside the rest of the first Home paint —
 // a lazy chunk made them appear noticeably after everything else.
+import ClubLinksSection from "@/components/home/ClubLinksSection";
+import ClubNewsSection from "@/components/home/ClubNewsSection";
+
 
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp, clearCachedNextUp } from "@/lib/nextUpEventsCache";
