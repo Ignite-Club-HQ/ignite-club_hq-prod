@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { Separator } from "@/components/ui/separator";
+import ClubNewsComposer from "@/components/news/ClubNewsComposer";
+import { useNewsPublishableClubs } from "@/features/news/useClubNews";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
