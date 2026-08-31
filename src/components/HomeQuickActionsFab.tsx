@@ -183,15 +183,6 @@ export function HomeQuickActionsFab({
 
         ]
       : []),
-    ...(activeClubFilter && canCreateTeam
-      ? [
-          {
-            label: "Club Settings",
-            icon: Settings,
-            onClick: () => go(`/clubs/${activeClubFilter}/edit`),
-          } as ActionItem,
-        ]
-      : []),
     ...(canAccessVault
       ? [
           {
