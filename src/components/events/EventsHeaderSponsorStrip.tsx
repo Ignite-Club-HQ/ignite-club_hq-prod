@@ -252,8 +252,13 @@ export function EventsHeaderSponsorStrip({
   // Read the previous hint on first render to decide whether to reserve
   // height while queries are still in flight. Unknown (first ever visit) →
   // reserve, so the very first cold load is also CLS-free.
+  // When no club filter is active, the resolved club isn't known yet — fall
+  // back to any stored hint for this user/strip so a known "no content"
+  // outcome doesn't reserve-then-collapse (calendar jumping up on cold open).
   const [reserveOnLoad] = useState(() => {
-    const hint = readStripHint(STRIP_KEY, user?.id, activeClubFilter ?? null);
+    const hint = activeClubFilter
+      ? readStripHint(STRIP_KEY, user?.id, activeClubFilter)
+      : readAnyStripHint(STRIP_KEY, user?.id);
     return hint !== false; // reserve when true or unknown
   });
 
