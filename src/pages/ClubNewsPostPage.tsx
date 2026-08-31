@@ -95,12 +95,11 @@ export default function ClubNewsPostPage() {
             {author && <p className="text-xs text-muted-foreground">By {author}</p>}
             {audienceLabel && <p className="text-xs text-muted-foreground">{audienceLabel}</p>}
           </div>
-          {post.content && (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-              {post.content}
-            </p>
-          )}
-          <NewsAttachments attachments={parseNewsAttachments(post.attachments)} />
+          <NewsArticleBody
+            content={post.content || ""}
+            attachments={parseNewsAttachments(post.attachments)}
+          />
+
         </article>
 
       )}
