@@ -4,6 +4,14 @@ interface LogoImageProps {
   src: string;
   alt?: string;
   className?: string;
+  /**
+   * Classes for the inner <img> (replaces the default object-cover fit).
+   * Kept separate from `className` (the wrapper span) so callers can give the
+   * wrapper a FIXED footprint (e.g. "h-8 w-8") — a w-auto wrapper collapses to
+   * zero width while the bitmap is still loading, then shoves surrounding
+   * header content sideways when the image paints.
+   */
+  imgClassName?: string;
   fallback?: React.ReactNode;
 }
 
@@ -126,7 +134,7 @@ if (typeof window !== "undefined") {
  * `online`, and on tab/app resume, and each retry re-issues a real request via
  * a cache-busting attempt token.
  */
-export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps) {
+export function LogoImage({ src, alt = "", className, imgClassName, fallback }: LogoImageProps) {
   const [failed, setFailed] = useState(false);
   // Bumped on every retry so React remounts the <img> and the browser
   // re-requests the (previously failed) URL instead of reusing its error cache.
@@ -198,7 +206,7 @@ export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps
         key={requestSrc}
         src={requestSrc}
         alt={alt}
-        className={`block h-full w-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`block h-full w-full ${imgClassName ?? "object-cover"} transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
         loading="eager"
         decoding="sync"
         fetchPriority="high"
