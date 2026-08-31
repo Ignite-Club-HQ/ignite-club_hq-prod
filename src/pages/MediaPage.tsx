@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
+import { useChatStuckWatchdog, createChatFetchBudget } from "@/lib/chatStuckWatchdog";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { toast } from "sonner";
