@@ -1132,10 +1132,11 @@ export function AppHeader() {
                 <>
                   {showClubLogo ? (
                     <div className="relative">
-                      <LogoImage 
-                        src={activeThemeData.logoUrl!} 
+                      <LogoImage
+                        src={activeThemeData.logoUrl!}
                         alt={activeThemeData.clubName}
-                        className="h-8 w-auto max-w-[32px] object-contain"
+                        className="h-8 w-8 shrink-0"
+                        imgClassName="object-contain"
                         fallback={
                           <div className="p-1.5 rounded-lg bg-primary">
                             <Flame className="h-5 w-5 text-primary-foreground" />
