@@ -525,10 +525,12 @@ export const GroupChatMessageRow = memo(function GroupChatMessageRow({
             >
               <div
                 ref={bubbleRef}
-                className={`relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
+                className={isCardOnlyMessage
+                  ? "relative max-w-full select-none"
+                  : `relative max-w-full rounded-lg px-3 py-2 select-none overflow-hidden chat-bubble-stable ${
                   isOwnMessage ? "bg-chat-bubble-own text-chat-bubble-own-foreground" : "bg-muted"
                 } ${tapFlash ? "ring-2 ring-primary/40" : ""} ${isInteracting ? "ring-1 ring-primary/40 border border-transparent transition-shadow duration-150 ease-out" : "border border-transparent"}`}
-                style={isInteracting ? {
+                style={isInteracting && !isCardOnlyMessage ? {
                   boxShadow: '0 24px 48px -18px rgba(0,0,0,0.52), 0 6px 14px -4px rgba(0,0,0,0.20)',
                 } : undefined}
 
