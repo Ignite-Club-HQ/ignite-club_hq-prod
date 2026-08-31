@@ -575,9 +575,23 @@ export default function MediaPage() {
       if (dateFromKey) query = query.gte("created_at", dateFromKey);
       if (dateToKey) query = query.lte("created_at", dateToKey);
 
-      const { data, error } = await query
-        .order("created_at", { ascending: false })
-        .range(pageParam, pageParam + PHOTOS_PER_PAGE - 1);
+      // Hard wall-clock budget: a GET that was in flight when the WebView was
+      // frozen never fails on its own, which used to leave the gallery on
+      // "Updating..." forever AND keep a connection slot occupied, starving
+      // other pages (Schedule) of sockets. 15s then abort → error → retry.
+      const budget = createChatFetchBudget(15_000);
+      let data: any[] | null = null;
+      let error: any = null;
+      try {
+        const res = await query
+          .order("created_at", { ascending: false })
+          .range(pageParam, pageParam + PHOTOS_PER_PAGE - 1)
+          .abortSignal(budget.signal);
+        data = res.data as any[] | null;
+        error = res.error;
+      } finally {
+        budget.done();
+      }
       diagLog("photos:end", { pageParam, ms: Math.round(performance.now() - start), rows: data?.length ?? null, error: error?.message });
 
       if (error) throw error;
