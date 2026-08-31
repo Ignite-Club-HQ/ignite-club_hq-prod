@@ -301,13 +301,25 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
           <div className="space-y-1.5">
             <Label htmlFor="news-content">Content</Label>
             <Textarea
+              ref={contentRef}
               id="news-content"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) => {
+                setContent(e.target.value);
+                caretRef.current = e.target.selectionStart;
+              }}
+              onSelect={rememberCaret}
+              onKeyUp={rememberCaret}
+              onClick={rememberCaret}
+              onBlur={rememberCaret}
               rows={6}
               placeholder="What do members need to know?"
             />
+            <p className="text-xs text-muted-foreground">
+              Tap where you want an image or file to appear, then use “Insert here” below.
+            </p>
           </div>
+
 
           <div className="space-y-1.5">
             <Label>Header image (optional)</Label>
