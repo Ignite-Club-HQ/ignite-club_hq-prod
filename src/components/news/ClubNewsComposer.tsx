@@ -259,7 +259,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
           </div>
 
           <div className="space-y-1.5">
-            <Label>Image (optional)</Label>
+            <Label>Header image (optional)</Label>
             {imagePreview ? (
               <div className="relative w-full overflow-hidden rounded-lg border">
                 <img src={imagePreview} alt="News image preview" className="h-32 w-full object-cover" />
@@ -292,6 +292,106 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
             />
           </div>
+
+          <div className="space-y-1.5">
+            <Label>More images (optional)</Label>
+            {extraImages.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {extraImages.map((item, i) => (
+                  <div key={`${item.file.name}-${i}`} className="relative overflow-hidden rounded-lg border">
+                    <img src={item.preview} alt="" className="h-20 w-full object-cover" />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute right-1 top-1 h-6 w-6"
+                      onClick={() => setExtraImages((prev) => prev.filter((_, idx) => idx !== i))}
+                      aria-label={`Remove ${item.file.name}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={extraImages.length >= NEWS_MAX_IMAGES}
+              onClick={() => extraImagesInputRef.current?.click()}
+            >
+              <ImagePlus className="mr-2 h-4 w-4" />
+              {extraImages.length >= NEWS_MAX_IMAGES ? "Image limit reached" : "Add more images"}
+            </Button>
+            <input
+              ref={extraImagesInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                addExtraImages(Array.from(e.target.files ?? []));
+                e.currentTarget.value = "";
+              }}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Attachments (optional)</Label>
+            {docFiles.length > 0 && (
+              <div className="space-y-2">
+                {docFiles.map((file, i) => (
+                  <div
+                    key={`${file.name}-${i}`}
+                    className="flex items-center gap-2 rounded-lg border px-3 py-2"
+                  >
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{file.name}</p>
+                      {formatFileSize(file.size) && (
+                        <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => setDocFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={docFiles.length >= NEWS_MAX_FILES}
+              onClick={() => docsInputRef.current?.click()}
+            >
+              <Paperclip className="mr-2 h-4 w-4" />
+              {docFiles.length >= NEWS_MAX_FILES ? "File limit reached" : "Attach files"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              PDFs, documents or spreadsheets up to {formatFileSize(NEWS_ATTACHMENT_MAX_BYTES)} each.
+            </p>
+            <input
+              ref={docsInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                addDocFiles(Array.from(e.target.files ?? []));
+                e.currentTarget.value = "";
+              }}
+            />
+          </div>
+
 
           <div className="space-y-2">
             <Label>Who's this for?</Label>
