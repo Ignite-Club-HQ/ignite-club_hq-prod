@@ -53,6 +53,7 @@ import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
+import { NewsAttachmentPreview } from "@/components/chat/NewsAttachmentPreview";
 
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
@@ -188,6 +189,7 @@ export default function ClubChatPage() {
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
+  const [pendingNewsId, setPendingNewsId] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const scheduleTarget: ScheduleTarget | null = clubId
     ? { chat_type: "club", club_id: clubId }
@@ -1485,16 +1487,19 @@ export default function ClubChatPage() {
       return;
     }
 
-    if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId) return;
     if (!user?.id || !clubId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
     const baseText = message.trim();
-    const finalText = pendingPollId
+    let finalText = pendingPollId
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
       : baseText;
+    if (pendingNewsId) {
+      finalText = finalText ? `${finalText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`;
+    }
     const hadImage = !!imageUrl;
     sendMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
     if (hadImage) nudgeGalleryAfterSend();
@@ -1878,12 +1883,23 @@ export default function ClubChatPage() {
           {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
           <ChatComposerShell
             preview={
-              pendingPollId && !editingMessage ? (
-                <PollAttachmentPreview
-                  pollId={pendingPollId}
-                  onRemove={() => setPendingPollId(null)}
-                  disabled={sendMutation.isPending}
-                />
+              (pendingPollId || pendingNewsId) && !editingMessage ? (
+                <div className="space-y-1.5">
+                  {pendingPollId && (
+                    <PollAttachmentPreview
+                      pollId={pendingPollId}
+                      onRemove={() => setPendingPollId(null)}
+                      disabled={sendMutation.isPending}
+                    />
+                  )}
+                  {pendingNewsId && (
+                    <NewsAttachmentPreview
+                      newsId={pendingNewsId}
+                      onRemove={() => setPendingNewsId(null)}
+                      disabled={sendMutation.isPending}
+                    />
+                  )}
+                </div>
               ) : undefined
             }
           >
@@ -1924,9 +1940,9 @@ export default function ClubChatPage() {
                 handleSend();
               }}
               onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-              disabled={!message.trim() && !imageUrl && !pendingPollId}
+              disabled={!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId}
               loading={sendMutation.isPending}
-              canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+              canSend={!!message.trim() || !!imageUrl || !!pendingPollId || !!pendingNewsId}
             />
           </ChatComposerShell>
           {scheduleTarget && (
@@ -1956,10 +1972,7 @@ export default function ClubChatPage() {
             open={newsPickerOpen}
             onOpenChange={setNewsPickerOpen}
             clubId={clubId}
-            onSelectNews={(newsId) => {
-              const token = `[news:${newsId}]`;
-              setMessage((prev) => (prev ? `${prev} ${token}` : token));
-            }}
+            onSelectNews={(newsId) => setPendingNewsId(newsId)}
           />
           <BoardPickerSheet
             open={boardPickerOpen}
