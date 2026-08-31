@@ -809,6 +809,23 @@ function ChatMessageInner({
   const inlineRsvpMatch = text.match(/\[rsvp:([0-9a-f-]{36})\]/i);
   const displayText = inlineRsvpMatch ? text.replace(inlineRsvpMatch[0], "").trim() : text;
 
+  // Card-only messages (shared news/event/poll/board/vault/gallery with no
+  // typed caption): the token renders as an empty inline span, so a padded,
+  // coloured bubble would show as a weird blank bubble next to the card.
+  // Detect this and strip the bubble chrome — the card renders outside.
+  const CARD_TOKEN_REGEX = /\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt|news):[0-9a-f-]{36}(?::(?:team|club))?\]/i;
+  const visibleCaptionText = displayText
+    .replace(/@\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1")
+    .replace(/(?:https?:\/\/[^\s]*)?\/events\/[0-9a-f-]{36}(?:\S*)?/gi, "")
+    .replace(/\[(event|poll|board|vault|vaultfolder|vaultroot|gallery|galleryprompt|news)(:[0-9a-f-]{36}){1,2}\]/gi, "")
+    .trim();
+  const isCardOnlyMessage =
+    !imageUrl &&
+    !visibleCaptionText &&
+    !forwardedFromUserId &&
+    CARD_TOKEN_REGEX.test(displayText);
+
   // NOTE: We intentionally do NOT apply an entrance animation here. When an
   // optimistic `temp-…` row is replaced by the realtime row with the real
   // UUID, React's key changes and the row unmounts/remounts — any entrance
