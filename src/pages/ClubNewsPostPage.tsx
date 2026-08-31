@@ -15,6 +15,22 @@ export default function ClubNewsPostPage() {
   const { newsId } = useParams<{ newsId: string }>();
   const navigate = useNavigate();
   const { data: post, isLoading } = useClubNewsPost(newsId);
+  const { data: teams = [] } = useClubTeamsForNews(post?.club_id ?? null);
+  const teamNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    teams.forEach((t) => map.set(t.id, t.name));
+    return map;
+  }, [teams]);
+
+  const audienceLabel = useMemo(() => {
+    if (!post) return null;
+    const ids = post.target_team_ids || [];
+    if (ids.length === 0) return "Sent to the whole club";
+    const names = ids.map((id) => teamNameMap.get(id) || "Unknown team").filter(Boolean);
+    if (names.length === 0) return "Sent to selected teams";
+    if (names.length === 1) return `Sent to ${names[0]}`;
+    return `Sent to ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  }, [post, teamNameMap]);
 
   const { data: author } = useQuery({
     queryKey: ["club-news-author", post?.author_id],
