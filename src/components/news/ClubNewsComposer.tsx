@@ -189,6 +189,7 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
         imageUrl = await uploadToBucket(imageFile, effectiveClubId);
       }
 
+      const body = content.trim();
       const attachments: NewsAttachment[] = [];
       for (const item of extraImages) {
         attachments.push({
@@ -197,17 +198,20 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
           name: item.file.name,
           size: item.file.size,
           mimeType: item.file.type || null,
+          anchor: body.includes(attachmentToken(item.id)) ? item.id : null,
         });
       }
-      for (const file of docFiles) {
+      for (const item of docFiles) {
         attachments.push({
           kind: "file",
-          url: await uploadToBucket(file, effectiveClubId),
-          name: file.name,
-          size: file.size,
-          mimeType: file.type || null,
+          url: await uploadToBucket(item.file, effectiveClubId),
+          name: item.file.name,
+          size: item.file.size,
+          mimeType: item.file.type || null,
+          anchor: body.includes(attachmentToken(item.id)) ? item.id : null,
         });
       }
+
 
       const { data, error } = await supabase
         .from("club_news")
