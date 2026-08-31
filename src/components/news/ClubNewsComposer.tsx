@@ -485,6 +485,11 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
             <p className="text-xs text-muted-foreground">
               PDFs, documents or spreadsheets up to {formatFileSize(NEWS_ATTACHMENT_MAX_BYTES)} each.
             </p>
+            {docFiles.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Uploaded files will show an <span className="font-medium text-foreground">Insert here</span> option.
+              </p>
+            )}
             <input
               ref={docsInputRef}
               type="file"
