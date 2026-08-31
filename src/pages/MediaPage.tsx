@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
+import { useChatStuckWatchdog, createChatFetchBudget } from "@/lib/chatStuckWatchdog";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { toast } from "sonner";
@@ -546,6 +547,7 @@ export default function MediaPage() {
   const { 
     data: photosData, 
     isLoading: loadingPhotos,
+    isFetching: isFetchingPhotos,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -574,9 +576,23 @@ export default function MediaPage() {
       if (dateFromKey) query = query.gte("created_at", dateFromKey);
       if (dateToKey) query = query.lte("created_at", dateToKey);
 
-      const { data, error } = await query
-        .order("created_at", { ascending: false })
-        .range(pageParam, pageParam + PHOTOS_PER_PAGE - 1);
+      // Hard wall-clock budget: a GET that was in flight when the WebView was
+      // frozen never fails on its own, which used to leave the gallery on
+      // "Updating..." forever AND keep a connection slot occupied, starving
+      // other pages (Schedule) of sockets. 15s then abort → error → retry.
+      const budget = createChatFetchBudget(15_000);
+      let data: any[] | null = null;
+      let error: any = null;
+      try {
+        const res = await query
+          .order("created_at", { ascending: false })
+          .range(pageParam, pageParam + PHOTOS_PER_PAGE - 1)
+          .abortSignal(budget.signal);
+        data = res.data as any[] | null;
+        error = res.error;
+      } finally {
+        budget.done();
+      }
       diagLog("photos:end", { pageParam, ms: Math.round(performance.now() - start), rows: data?.length ?? null, error: error?.message });
 
       if (error) throw error;
@@ -606,7 +622,16 @@ export default function MediaPage() {
     enabled: !!user && (!cardId || cardPhotoIds !== undefined),
     staleTime: 5 * 60 * 1000,
     gcTime: 300000,
+    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || onlineManager.isOnline()),
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
+
+  // Escape hatch for a zombie photos GET: while a refresh is in flight with
+  // cached/stale content on screen (the "Updating..." pill) for longer than the
+  // watchdog interval, abort in-flight REST reads and re-issue. Without this
+  // the pill sticks forever and the dead socket blocks Schedule's requests too.
+  const photosStuck = isOnline && (loadingPhotos || isFetchingPhotos);
+  useChatStuckWatchdog(photosStuck, [photosQueryKey], "media-photos");
 
   // Eagerly prefetch the next page once the first page is in so the user
   // doesn't see a loading shimmer when they reach the end of the first batch.
