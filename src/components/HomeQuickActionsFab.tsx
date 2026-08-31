@@ -110,18 +110,6 @@ export function HomeQuickActionsFab({
           } as ActionItem,
         ]
       : []),
-    ...(hasTeams
-      ? [
-          {
-            label: "Invite Members",
-            icon: UserPlus,
-            onClick: () => {
-              close();
-              onInvite();
-            },
-          } as ActionItem,
-        ]
-      : []),
     {
       label: "Join Team / Request Access",
       description: "Request Coach or Admin access",
@@ -141,6 +129,18 @@ export function HomeQuickActionsFab({
       onClick: () => go("/messages?new=picker"),
       proLocked,
     },
+    ...(hasTeams
+      ? [
+          {
+            label: "Invite Members",
+            icon: UserPlus,
+            onClick: () => {
+              close();
+              onInvite();
+            },
+          } as ActionItem,
+        ]
+      : []),
     ...(canCreateTeam
       ? [
           {
