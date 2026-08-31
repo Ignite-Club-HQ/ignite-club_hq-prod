@@ -424,32 +424,49 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
             <Label>Attachments (optional)</Label>
             {docFiles.length > 0 && (
               <div className="space-y-2">
-                {docFiles.map((file, i) => (
-                  <div
-                    key={`${file.name}-${i}`}
-                    className="flex items-center gap-2 rounded-lg border px-3 py-2"
-                  >
-                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm">{file.name}</p>
-                      {formatFileSize(file.size) && (
-                        <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
-                      )}
+                {docFiles.map((item, i) => {
+                  const placed = content.includes(attachmentToken(item.id));
+                  return (
+                    <div key={item.id} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{item.file.name}</p>
+                        {formatFileSize(item.file.size) && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatFileSize(item.file.size)}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={placed ? "secondary" : "outline"}
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() =>
+                          placed ? removeToken(item.id) : insertAtCaret(item.id, item.file.name)
+                        }
+                      >
+                        {placed ? "Unplace" : "Insert here"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => {
+                          removeToken(item.id);
+                          setDocFiles((prev) => prev.filter((_, idx) => idx !== i));
+                        }}
+                        aria-label={`Remove ${item.file.name}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => setDocFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                      aria-label={`Remove ${file.name}`}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
+
             <Button
               type="button"
               variant="outline"
