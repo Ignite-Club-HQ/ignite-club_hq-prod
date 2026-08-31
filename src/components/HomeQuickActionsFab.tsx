@@ -115,6 +115,18 @@ export function HomeQuickActionsFab({
           } as ActionItem,
         ]
       : []),
+    ...(publishableClubs.length > 0
+      ? [
+          {
+            label: "Create News Post",
+            icon: Newspaper,
+            onClick: () => {
+              close();
+              setComposerOpen(true);
+            },
+          } as ActionItem,
+        ]
+      : []),
     {
       label: "Join Team / Request Access",
       description: "Request Coach or Admin access",
