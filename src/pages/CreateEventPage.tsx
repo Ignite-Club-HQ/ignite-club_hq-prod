@@ -38,8 +38,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
-import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
-import { EventRoleAudienceSelect, type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
+import { type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
+import { AdvancedRsvpOptions } from "@/components/event/AdvancedRsvpOptions";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
 import { refreshEventCaches } from "@/lib/eventCacheRefresh";
@@ -1207,20 +1207,7 @@ export default function CreateEventPage() {
                   />
                 )}
 
-                {/* RSVP grouping - only for club-wide events */}
-                {!teamId && supportsClubWideScope && (
-                  <MobileCardSelect
-                    value={rsvpGrouping || "none"}
-                    onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
-                    options={[
-                      { value: "none", label: "No grouping (flat list)" },
-                      { value: "level", label: "Group by age level (U8, U9…)" },
-                      { value: "team", label: "Group by team (U8 Blue, U8 Red…)" },
-                    ]}
-                    placeholder="No grouping"
-                    label="RSVP grouping"
-                  />
-                )}
+                
 
                 
                 {/* Mini League selection - only for mini_league events, hidden when pre-set */}
@@ -1279,30 +1266,20 @@ export default function CreateEventPage() {
                 </div>
               )}
 
-              {(type === "game" || type === "training" || type === "social") && (
-                <RsvpAudienceSelect
-                  value={rsvpAudience}
-                  onChange={setRsvpAudience}
-                  teamDefault={null}
-                />
-              )}
-
-              {/* Adults only - hides child RSVP prompts */}
-              <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="adults-only" className="text-sm font-medium">Adults only</Label>
-                  <p className="text-xs text-muted-foreground">Hide child RSVP prompts. Use for committee meetings, AGMs and adult socials.</p>
-                </div>
-                <Switch id="adults-only" checked={adultsOnly} onCheckedChange={setAdultsOnly} />
-              </div>
-
-              {/* Role restriction - only for club-wide social events */}
-              {type === "social" && !teamId && (
-                <EventRoleAudienceSelect
-                  value={restrictedRoles}
-                  onChange={setRestrictedRoles}
-                />
-              )}
+              <AdvancedRsvpOptions
+                showGrouping={!teamId && supportsClubWideScope}
+                rsvpGrouping={rsvpGrouping}
+                onRsvpGroupingChange={setRsvpGrouping}
+                showAudience={type === "game" || type === "training" || type === "social"}
+                rsvpAudience={rsvpAudience}
+                onRsvpAudienceChange={setRsvpAudience}
+                teamDefaultAudience={null}
+                adultsOnly={adultsOnly}
+                onAdultsOnlyChange={setAdultsOnly}
+                showRoleRestriction={type === "social" && !teamId}
+                restrictedRoles={restrictedRoles}
+                onRestrictedRolesChange={setRestrictedRoles}
+              />
 
 
 
