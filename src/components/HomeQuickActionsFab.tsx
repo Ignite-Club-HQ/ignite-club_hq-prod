@@ -129,6 +129,18 @@ export function HomeQuickActionsFab({
       onClick: () => go("/messages?new=picker"),
       proLocked,
     },
+    ...(hasTeams
+      ? [
+          {
+            label: "Invite Members",
+            icon: UserPlus,
+            onClick: () => {
+              close();
+              onInvite();
+            },
+          } as ActionItem,
+        ]
+      : []),
     ...(canCreateTeam
       ? [
           {
