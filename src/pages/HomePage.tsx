@@ -761,8 +761,22 @@ export default function HomePage() {
 
   // Persist the latest snapshot whenever the query resolves so the next cold
   // open / long-absence return can hydrate instantly via `initialData` above.
+  // NEVER let an empty membership result overwrite a non-empty snapshot: a
+  // resume-race read (expired token, zero RLS rows, no error) would otherwise
+  // poison the cache and make the next open paint the new-user empty state.
+  // The verified-empty path in the queryFn clears the snapshot explicitly, so
+  // genuine "left every club" states still persist.
   useEffect(() => {
     if (!user?.id || !membershipAndEvents) return;
+    const m = membershipAndEvents.memberships as { clubIds?: string[]; teamIds?: string[] } | undefined;
+    const isEmpty = (m?.clubIds?.length ?? 0) === 0 && (m?.teamIds?.length ?? 0) === 0;
+    if (isEmpty) {
+      const stored = getCachedNextUp<{ memberships: { clubIds?: string[]; teamIds?: string[] } }>(user.id);
+      const storedHadMemberships =
+        (stored?.memberships?.clubIds?.length ?? 0) > 0 ||
+        (stored?.memberships?.teamIds?.length ?? 0) > 0;
+      if (storedHadMemberships) return;
+    }
     setCachedNextUp(user.id, {
       memberships: membershipAndEvents.memberships,
       events: membershipAndEvents.events,
