@@ -127,6 +127,24 @@ Deno.serve(async (req) => {
     const newsId = body.newsId as string | undefined;
     if (!newsId) return json({ error: "newsId required" }, 400);
 
+    // Authorisation: the caller must be a club admin for the post's club.
+    // The service-role client below bypasses RLS, so this check is the gate.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const caller = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+    const { data: callerNews, error: callerErr } = await caller
+      .from("club_news")
+      .select("id, club_id")
+      .eq("id", newsId)
+      .maybeSingle();
+    if (callerErr || !callerNews) return json({ error: "not authorised" }, 403);
+    const { data: isAdmin, error: adminErr } = await caller.rpc("is_club_admin_for", {
+      _club_id: callerNews.club_id,
+    });
+    if (adminErr || isAdmin !== true) return json({ error: "not authorised" }, 403);
+
     const { data: news, error: newsErr } = await admin
       .from("club_news")
       .select(
