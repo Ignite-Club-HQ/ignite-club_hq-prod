@@ -139,13 +139,27 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
 
       let imageUrl: string | null = null;
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop() || "jpg";
-        const path = `news/${effectiveClubId}/${crypto.randomUUID()}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("club-logos")
-          .upload(path, imageFile, { upsert: false, contentType: imageFile.type });
-        if (upErr) throw upErr;
-        imageUrl = supabase.storage.from("club-logos").getPublicUrl(path).data.publicUrl;
+        imageUrl = await uploadToBucket(imageFile, effectiveClubId);
+      }
+
+      const attachments: NewsAttachment[] = [];
+      for (const item of extraImages) {
+        attachments.push({
+          kind: "image",
+          url: await uploadToBucket(item.file, effectiveClubId),
+          name: item.file.name,
+          size: item.file.size,
+          mimeType: item.file.type || null,
+        });
+      }
+      for (const file of docFiles) {
+        attachments.push({
+          kind: "file",
+          url: await uploadToBucket(file, effectiveClubId),
+          name: file.name,
+          size: file.size,
+          mimeType: file.type || null,
+        });
       }
 
       const { data, error } = await supabase
@@ -158,7 +172,10 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
           author_id: user?.id ?? null,
           target_team_ids: audience === "teams" ? teamIds : null,
           is_important: important,
+          attachments: attachments as unknown as never,
         })
+        .select("id")
+
         .select("id")
         .single();
       if (error) throw error;
