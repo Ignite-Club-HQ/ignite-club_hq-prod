@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { FileText, ImagePlus, Loader2, Paperclip, X } from "lucide-react";
+
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
