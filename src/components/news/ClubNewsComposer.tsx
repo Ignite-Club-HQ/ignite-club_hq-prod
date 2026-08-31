@@ -68,7 +68,11 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
   const [sendPush, setSendPush] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [extraImages, setExtraImages] = useState<Array<{ file: File; preview: string }>>([]);
+  const [docFiles, setDocFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const extraImagesInputRef = useRef<HTMLInputElement>(null);
+  const docsInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setTitle("");
@@ -79,12 +83,51 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
     setSendPush(true);
     setImageFile(null);
     setImagePreview(null);
+    setExtraImages([]);
+    setDocFiles([]);
+  };
+
+  const tooBig = (file: File) => {
+    if (file.size <= NEWS_ATTACHMENT_MAX_BYTES) return false;
+    toast({
+      title: "File too large",
+      description: `${file.name} is over ${formatFileSize(NEWS_ATTACHMENT_MAX_BYTES)}.`,
+      variant: "destructive",
+    });
+    return true;
   };
 
   const pickImage = (file: File | null) => {
+    if (file && tooBig(file)) return;
     setImageFile(file);
     setImagePreview(file ? URL.createObjectURL(file) : null);
   };
+
+  const addExtraImages = (files: File[]) => {
+    const accepted = files.filter((f) => !tooBig(f));
+    setExtraImages((prev) =>
+      [...prev, ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) }))].slice(
+        0,
+        NEWS_MAX_IMAGES,
+      ),
+    );
+  };
+
+  const addDocFiles = (files: File[]) => {
+    const accepted = files.filter((f) => !tooBig(f));
+    setDocFiles((prev) => [...prev, ...accepted].slice(0, NEWS_MAX_FILES));
+  };
+
+  const uploadToBucket = async (file: File, clubIdForPath: string) => {
+    const ext = file.name.split(".").pop() || "bin";
+    const path = `news/${clubIdForPath}/${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("club-logos")
+      .upload(path, file, { upsert: false, contentType: file.type || undefined });
+    if (upErr) throw upErr;
+    return supabase.storage.from("club-logos").getPublicUrl(path).data.publicUrl;
+  };
+
 
   const publish = useMutation({
     mutationFn: async () => {
