@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -8,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useClubNewsPost, useClubTeamsForNews } from "@/features/news/useClubNews";
-import { useMemo } from "react";
 
 /** Full Club News article. */
 export default function ClubNewsPostPage() {
