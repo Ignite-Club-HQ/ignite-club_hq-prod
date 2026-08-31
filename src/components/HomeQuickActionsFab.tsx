@@ -331,6 +331,17 @@ export function HomeQuickActionsFab({
           )}
         </ResponsiveDialogContent>
       </ResponsiveDialog>
+
+      {composerOpen && (
+        <ClubNewsComposer
+          open={composerOpen}
+          onOpenChange={(isOpen) => {
+            setComposerOpen(isOpen);
+            if (!isOpen) setView("main");
+          }}
+          defaultClubId={activeClubFilter}
+        />
+      )}
     </>
   );
 }
