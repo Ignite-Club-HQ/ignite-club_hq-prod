@@ -67,7 +67,9 @@ export function HomeQuickActionsFab({
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
+  const [composerOpen, setComposerOpen] = useState(false);
   const navigate = useNavigate();
+  const { data: publishableClubs = [] } = useNewsPublishableClubs();
 
   const close = () => setOpen(false);
   const go = (path: string) => {
