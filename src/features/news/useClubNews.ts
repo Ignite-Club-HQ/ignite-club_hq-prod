@@ -22,10 +22,12 @@ export interface ClubNewsRow {
   target_team_ids: string[] | null;
   is_important: boolean;
   published_at: string;
+  attachments?: unknown;
 }
 
 const NEWS_COLUMNS =
-  "id, club_id, title, content, image_url, author_id, target_team_ids, is_important, published_at";
+  "id, club_id, title, content, image_url, author_id, target_team_ids, is_important, published_at, attachments";
+
 
 export function useClubNewsFeed(clubId?: string | null, limit = 50) {
   const snapshotScope = `${clubId ?? "all"}_${limit}`;
