@@ -1919,6 +1919,7 @@ export type Database = {
       club_news: {
         Row: {
           author_id: string | null
+          chat_posted_at: string | null
           club_id: string
           content: string
           created_at: string
@@ -1933,6 +1934,7 @@ export type Database = {
         }
         Insert: {
           author_id?: string | null
+          chat_posted_at?: string | null
           club_id: string
           content?: string
           created_at?: string
@@ -1947,6 +1949,7 @@ export type Database = {
         }
         Update: {
           author_id?: string | null
+          chat_posted_at?: string | null
           club_id?: string
           content?: string
           created_at?: string
