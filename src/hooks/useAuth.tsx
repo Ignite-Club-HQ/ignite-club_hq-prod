@@ -589,16 +589,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } else if (event === 'SIGNED_OUT') {
           console.log('[Auth] SIGNED_OUT event');
-          // Clear ALL cached query data - prevents stale data from being served
-          // after re-login (same userId would match stale queryKeys)
-          queryClient.clear();
-          // Same as the cross-user SIGNED_IN path: wipe per-user caches that
-          // live outside React Query so they can't leak to the next account
-          // signing in on this device.
-          try {
-            clearUserScopedCaches();
-            if (previousUserId) revokeAllForUser(previousUserId);
-          } catch { /* noop */ }
+          // A refresh-token rotation race on app resume can fire a SPURIOUS
+          // SIGNED_OUT immediately followed by SIGNED_IN for the same user.
+          // Wiping React Query + every `ignite_*` localStorage cache in that
+          // window destroys the last-good snapshots (Next Up, My Teams, …) and
+          // the follow-up refetch can race a mid-rotation token, painting the
+          // "set up your club" empty state. So VERIFY the sign-out is real
+          // before doing anything destructive; state resets below are harmless
+          // because a real session immediately re-populates them.
+          setTimeout(() => {
+            void (async () => {
+              try {
+                const { data } = await supabase.auth.getSession();
+                const stillSignedIn = !!data?.session?.user?.id;
+                if (stillSignedIn) {
+                  console.log('[Auth] SIGNED_OUT was spurious (session still valid) — skipping cache wipe');
+                  return;
+                }
+                queryClient.clear();
+                clearUserScopedCaches();
+                if (previousUserId) revokeAllForUser(previousUserId);
+              } catch { /* noop */ }
+            })();
+          }, 400);
+
 
           profileFetched = false;
           setIsFreshLogin(false);
