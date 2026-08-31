@@ -547,6 +547,7 @@ export default function MediaPage() {
   const { 
     data: photosData, 
     isLoading: loadingPhotos,
+    isFetching: isFetchingPhotos,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
