@@ -360,23 +360,43 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
             <Label>More images (optional)</Label>
             {extraImages.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
-                {extraImages.map((item, i) => (
-                  <div key={`${item.file.name}-${i}`} className="relative overflow-hidden rounded-lg border">
-                    <img src={item.preview} alt="" className="h-20 w-full object-cover" />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="secondary"
-                      className="absolute right-1 top-1 h-6 w-6"
-                      onClick={() => setExtraImages((prev) => prev.filter((_, idx) => idx !== i))}
-                      aria-label={`Remove ${item.file.name}`}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
+                {extraImages.map((item, i) => {
+                  const placed = content.includes(attachmentToken(item.id));
+                  return (
+                    <div key={item.id} className="space-y-1">
+                      <div className="relative overflow-hidden rounded-lg border">
+                        <img src={item.preview} alt="" className="h-20 w-full object-cover" />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          className="absolute right-1 top-1 h-6 w-6"
+                          onClick={() => {
+                            removeToken(item.id);
+                            setExtraImages((prev) => prev.filter((_, idx) => idx !== i));
+                          }}
+                          aria-label={`Remove ${item.file.name}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={placed ? "secondary" : "outline"}
+                        className="h-7 w-full px-1 text-[11px]"
+                        onClick={() =>
+                          placed ? removeToken(item.id) : insertAtCaret(item.id, item.file.name)
+                        }
+                      >
+                        {placed ? "Unplace" : "Insert here"}
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
+
             <Button
               type="button"
               variant="outline"
