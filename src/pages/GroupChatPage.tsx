@@ -3052,9 +3052,9 @@ export default function GroupChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !imageUrl && !pendingPollId}
+            disabled={!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+            canSend={!!message.trim() || !!imageUrl || !!pendingPollId || !!pendingNewsId}
           />
         </ChatComposerShell>
         </>
@@ -3091,10 +3091,7 @@ export default function GroupChatPage() {
           open={newsPickerOpen}
           onOpenChange={setNewsPickerOpen}
           clubId={group?.club_id || undefined}
-          onSelectNews={(newsId) => {
-            const token = `[news:${newsId}]`;
-            setMessage((prev) => (prev ? `${prev} ${token}` : token));
-          }}
+          onSelectNews={(newsId) => setPendingNewsId(newsId)}
         />
         <BoardPickerSheet
           open={boardPickerOpen}
