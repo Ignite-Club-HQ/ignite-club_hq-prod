@@ -42,6 +42,7 @@ import { EditingBanner } from "@/components/chat/EditingBanner";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -275,6 +276,7 @@ export default function DirectMessagePage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [dmImageUrl, setDmImageUrl] = useState<string | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [newsPickerOpen, setNewsPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
 
   const profileRef = useRef(profile);
@@ -1669,6 +1671,8 @@ export default function DirectMessagePage() {
                     clubId={sharedClubId || undefined}
                     showEventPicker={!!sharedClubId}
                     onEventSelect={() => setEventPickerOpen(true)}
+                    showNewsPicker={!!(sharedClubId || undefined)}
+                    onNewsSelect={() => setNewsPickerOpen(true)}
                     showBoardPicker={false}
                     onBoardPick={() => setBoardPickerOpen(true)}
                     showVaultPicker={!!sharedClubId}
@@ -1719,6 +1723,15 @@ export default function DirectMessagePage() {
                       setMessage(message ? `${message} ${token}` : token);
                     }}
                     clubId={sharedClubId || undefined}
+                  />
+                  <NewsPickerSheet
+                    open={newsPickerOpen}
+                    onOpenChange={setNewsPickerOpen}
+                    clubId={sharedClubId || undefined}
+                    onSelectNews={(newsId) => {
+                      const token = `[news:${newsId}]`;
+                      setMessage((prev) => (prev ? `${prev} ${token}` : token));
+                    }}
                   />
                   <BoardPickerSheet
                     open={boardPickerOpen}

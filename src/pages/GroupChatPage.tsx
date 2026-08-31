@@ -76,6 +76,7 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
+import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
@@ -305,6 +306,7 @@ export default function GroupChatPage() {
   const [replyTo, setReplyTo] = useChatDraftReply<GroupMessage>(groupId);
   const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
+  const [newsPickerOpen, setNewsPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
@@ -2996,6 +2998,8 @@ export default function GroupChatPage() {
             teamId={group?.team_id || undefined}
             showEventPicker={true}
             onEventSelect={() => setEventPickerOpen(true)}
+            showNewsPicker={!!(group?.club_id || undefined)}
+            onNewsSelect={() => setNewsPickerOpen(true)}
             showPollCreator={true}
             onPollCreate={() => setPollDialogOpen(true)}
             showBoardPicker={false}
@@ -3065,6 +3069,15 @@ export default function GroupChatPage() {
           miniLeagueId={group?.mini_league_id ?? null}
           competitionId={(group as any)?.competition_id ?? null}
 
+        />
+        <NewsPickerSheet
+          open={newsPickerOpen}
+          onOpenChange={setNewsPickerOpen}
+          clubId={group?.club_id || undefined}
+          onSelectNews={(newsId) => {
+            const token = `[news:${newsId}]`;
+            setMessage((prev) => (prev ? `${prev} ${token}` : token));
+          }}
         />
         <BoardPickerSheet
           open={boardPickerOpen}
