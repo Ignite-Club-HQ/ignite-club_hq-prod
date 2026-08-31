@@ -43,6 +43,7 @@ import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
+import { NewsAttachmentPreview } from "@/components/chat/NewsAttachmentPreview";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
