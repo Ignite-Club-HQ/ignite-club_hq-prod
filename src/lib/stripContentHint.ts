@@ -29,6 +29,36 @@ export function readStripHint(
   }
 }
 
+/**
+ * Fallback read used when the caller doesn't know the resolved club yet
+ * (e.g. Schedule page header strip with no active club filter — the strip
+ * resolves the club asynchronously, so a clubId-keyed read would always
+ * miss and force a space reservation that later collapses, causing the
+ * content-below jump). Scans all hints for this (strip, user) pair and
+ * returns the first match. Users effectively have one strip club, so any
+ * hit is the right answer; a `true` hit wins over `false` since reserving
+ * space for content that appears is the safe direction.
+ */
+export function readAnyStripHint(
+  strip: string,
+  userId: string | undefined,
+): boolean | null {
+  try {
+    const prefix = `${PREFIX}${strip}_${userId || "anon"}_`;
+    let sawFalse = false;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(prefix)) continue;
+      const raw = localStorage.getItem(k);
+      if (raw === "1") return true;
+      if (raw === "0") sawFalse = true;
+    }
+    return sawFalse ? false : null;
+  } catch {
+    return null;
+  }
+}
+
 export function writeStripHint(
   strip: string,
   userId: string | undefined,

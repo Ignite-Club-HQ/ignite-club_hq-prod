@@ -9,7 +9,7 @@ import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { safeOpenUrl } from "@/lib/safeOpenUrl";
 import { openAdLink } from "@/lib/adLinkNavigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { readStripHint, writeStripHint } from "@/lib/stripContentHint";
+import { readStripHint, readAnyStripHint, writeStripHint } from "@/lib/stripContentHint";
 
 const STRIP_KEY = "events_header";
 // Height of the rendered strip row (avatar h-6 + py-2 + border) — reserved
@@ -252,8 +252,13 @@ export function EventsHeaderSponsorStrip({
   // Read the previous hint on first render to decide whether to reserve
   // height while queries are still in flight. Unknown (first ever visit) →
   // reserve, so the very first cold load is also CLS-free.
+  // When no club filter is active, the resolved club isn't known yet — fall
+  // back to any stored hint for this user/strip so a known "no content"
+  // outcome doesn't reserve-then-collapse (calendar jumping up on cold open).
   const [reserveOnLoad] = useState(() => {
-    const hint = readStripHint(STRIP_KEY, user?.id, activeClubFilter ?? null);
+    const hint = activeClubFilter
+      ? readStripHint(STRIP_KEY, user?.id, activeClubFilter)
+      : readAnyStripHint(STRIP_KEY, user?.id);
     return hint !== false; // reserve when true or unknown
   });
 
