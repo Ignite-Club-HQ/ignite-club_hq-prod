@@ -93,12 +93,15 @@ async function ensureBotMembership(
   });
 }
 
-function buildText(news: {
-  id: string;
-  title: string;
-  content: string;
-  is_important: boolean;
-}): string {
+function buildText(
+  news: {
+    id: string;
+    title: string;
+    content: string;
+    is_important: boolean;
+  },
+  teamNames: string[],
+): string {
   const link = `https://igniteclubhq.app/news/${news.id}`;
   const headline = news.is_important
     ? `📢 Important club news: ${news.title}`
@@ -107,12 +110,24 @@ function buildText(news: {
   const excerpt =
     body.length > 280 ? `${body.slice(0, 280).trimEnd()}…` : body;
 
+  let audienceLine = "";
+  if (teamNames.length > 0) {
+    if (teamNames.length === 1) {
+      audienceLine = `Sent to ${teamNames[0]}`;
+    } else {
+      audienceLine = `Sent to ${teamNames.slice(0, -1).join(", ")} and ${teamNames[teamNames.length - 1]}`;
+    }
+  } else {
+    audienceLine = "Sent to the whole club";
+  }
+
   const lines = [headline];
   if (excerpt) {
     lines.push("");
     lines.push(excerpt);
   }
   lines.push("");
+  lines.push(audienceLine);
   lines.push(link);
   return lines.join("\n");
 }
