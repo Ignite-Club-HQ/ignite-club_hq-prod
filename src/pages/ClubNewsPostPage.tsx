@@ -7,7 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { useClubNewsPost } from "@/features/news/useClubNews";
+import { useClubNewsPost, useClubTeamsForNews } from "@/features/news/useClubNews";
+import { useMemo } from "react";
 
 /** Full Club News article. */
 export default function ClubNewsPostPage() {
