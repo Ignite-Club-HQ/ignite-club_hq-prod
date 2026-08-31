@@ -17,7 +17,6 @@ import {
   Settings,
   Shield,
   Lock,
-  Sparkles,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -27,7 +26,6 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { Separator } from "@/components/ui/separator";
-import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
