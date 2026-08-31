@@ -194,16 +194,21 @@ Deno.serve(async (req) => {
       // Only post to teams that still belong to this club.
       const { data: teams } = await admin
         .from("teams")
-        .select("id")
+        .select("id, name")
         .eq("club_id", news.club_id)
         .in("id", teamIds);
-      const validTeamIds = (teams || []).map((t) => t.id as string);
+      const validTeams = (teams || []) as Array<{ id: string; name: string }>;
+      const validTeamIds = validTeams.map((t) => t.id);
 
       for (const teamId of validTeamIds) {
         await ensureBotMembership(botUserId, news.club_id, teamId);
       }
 
       if (validTeamIds.length > 0) {
+        const text = buildText(
+          news as any,
+          validTeams.map((t) => t.name),
+        );
         const { error: insErr } = await admin.from("team_messages").insert(
           validTeamIds.map((teamId) => ({
             team_id: teamId,
@@ -221,6 +226,7 @@ Deno.serve(async (req) => {
       }
     } else {
       await ensureBotMembership(botUserId, news.club_id, null);
+      const text = buildText(news as any, []);
       const { error: insErr } = await admin.from("club_messages").insert({
         club_id: news.club_id,
         author_id: botUserId,
