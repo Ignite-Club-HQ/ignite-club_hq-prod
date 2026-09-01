@@ -3,7 +3,6 @@ import { NavLink } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogoImage } from "@/components/ui/logo-image";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import igniteIcon from "@/assets/ignite-icon.png";
@@ -21,17 +20,10 @@ const railItems = [
  * keeps the existing BottomNav untouched.
  */
 export function DesktopNavRail() {
-  const { unreadMessagesCount, profile } = useAuth();
+  const { unreadMessagesCount } = useAuth();
   const { activeThemeData } = useClubTheme();
 
   if (Capacitor.isNativePlatform()) return null;
-
-  const initials = (profile?.display_name || "?")
-    .split(" ")
-    .map((p) => p.charAt(0))
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
 
   return (
     <aside
