@@ -1,25 +1,25 @@
 /**
- * Collapsed-by-default section housing the advanced RSVP / audience controls
- * for event create & edit. Keeps the main event flow short while preserving
- * every existing control and its exact state/validation semantics.
+ * Single collapsed "More event options" row that houses the specialist event
+ * settings so the main create/edit event form stays short.
  *
  * Contains (visibility rules unchanged from before):
  *  - Display RSVPs by (rsvp_grouping)  — club-wide events only
- *  - RSVP audience                     — game / training / social
  *  - Adults only                       — all types
  *  - Restrict to roles                 — club-wide social events only
+ *  - Anything passed as children (e.g. guest settings)
  *
- * When any value differs from its default, a short summary is shown under
- * the collapsed heading so restrictions are visible without expanding.
+ * RSVP audience is intentionally NOT rendered here: events keep inheriting the
+ * team/club default automatically (state is untouched behind the scenes).
+ *
+ * When any value differs from its default, a short summary is shown under the
+ * collapsed heading so restrictions are visible without expanding.
  */
-import { useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
-import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
 import { EventRoleAudienceSelect, type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
-import { RSVP_AUDIENCE_OPTIONS, type RsvpAudience } from "@/lib/rsvpAudience";
 import { cn } from "@/lib/utils";
 
 type RsvpGrouping = "" | "level" | "team";
@@ -42,48 +42,42 @@ interface Props {
   showGrouping: boolean;
   rsvpGrouping: RsvpGrouping;
   onRsvpGroupingChange: (next: RsvpGrouping) => void;
-  /** Show RSVP audience picker (game / training / social). */
-  showAudience: boolean;
-  rsvpAudience: RsvpAudience | null;
-  onRsvpAudienceChange: (next: RsvpAudience | null) => void;
-  /** Team default for RSVP audience; pass undefined to hide the "Use team default" option. */
-  teamDefaultAudience?: RsvpAudience | null;
   adultsOnly: boolean;
   onAdultsOnlyChange: (next: boolean) => void;
   /** Show the role restriction picker (club-wide social events). */
   showRoleRestriction: boolean;
   restrictedRoles: ClubEventRole[];
   onRestrictedRolesChange: (next: ClubEventRole[]) => void;
+  /** Extra advanced settings (e.g. guest settings) rendered inside. */
+  children?: ReactNode;
+  /** Short summary fragments contributed by children (shown when collapsed). */
+  extraSummary?: string[];
 }
 
-export function AdvancedRsvpOptions({
+export function MoreEventOptions({
   showGrouping,
   rsvpGrouping,
   onRsvpGroupingChange,
-  showAudience,
-  rsvpAudience,
-  onRsvpAudienceChange,
-  teamDefaultAudience,
   adultsOnly,
   onAdultsOnlyChange,
   showRoleRestriction,
   restrictedRoles,
   onRestrictedRolesChange,
+  children,
+  extraSummary,
 }: Props) {
   const [open, setOpen] = useState(false);
 
   const summary = useMemo(() => {
     const parts: string[] = [];
     if (showGrouping && rsvpGrouping) parts.push(GROUPING_LABELS[rsvpGrouping] ?? rsvpGrouping);
-    if (showAudience && rsvpAudience) {
-      parts.push(RSVP_AUDIENCE_OPTIONS.find((o) => o.value === rsvpAudience)?.label ?? rsvpAudience);
-    }
     if (adultsOnly) parts.push("Adults only");
     if (showRoleRestriction && restrictedRoles.length > 0) {
       parts.push(restrictedRoles.map((r) => ROLE_LABELS[r] ?? r).join(", "));
     }
+    if (extraSummary?.length) parts.push(...extraSummary);
     return parts.join(" · ");
-  }, [showGrouping, rsvpGrouping, showAudience, rsvpAudience, adultsOnly, showRoleRestriction, restrictedRoles]);
+  }, [showGrouping, rsvpGrouping, adultsOnly, showRoleRestriction, restrictedRoles, extraSummary]);
 
   return (
     <div className="space-y-1">
@@ -93,9 +87,9 @@ export function AdvancedRsvpOptions({
         aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 py-2 text-left"
       >
-        <span className="text-sm font-medium">Advanced RSVP &amp; audience options</span>
-        <ChevronDown
-          className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
+        <span className="text-sm font-medium">More event options</span>
+        <ChevronRight
+          className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
         />
       </button>
       {!open && summary && (
@@ -118,14 +112,6 @@ export function AdvancedRsvpOptions({
             />
           )}
 
-          {showAudience && (
-            <RsvpAudienceSelect
-              value={rsvpAudience}
-              onChange={onRsvpAudienceChange}
-              teamDefault={teamDefaultAudience}
-            />
-          )}
-
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-0.5">
               <Label htmlFor="adults-only" className="text-sm font-medium">Adults only</Label>
@@ -142,6 +128,8 @@ export function AdvancedRsvpOptions({
               onChange={onRestrictedRolesChange}
             />
           )}
+
+          {children}
         </div>
       )}
     </div>
