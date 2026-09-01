@@ -1123,7 +1123,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
-      <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
+      <div className="flex items-center justify-between h-14 px-4 lg:px-8 max-w-lg lg:max-w-none mx-auto">
         <div className="relative">
         <DropdownMenu onOpenChange={(open) => { if (open) dismissClubSwitcherHint(); }}>
           <DropdownMenuTrigger asChild>
