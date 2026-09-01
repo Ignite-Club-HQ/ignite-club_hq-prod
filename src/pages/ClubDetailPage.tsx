@@ -1453,11 +1453,69 @@ export default function ClubDetailPage() {
             )}
           </button>
           {isAdmin && (
-            <Link to={`/clubs/${id}/teams/new`}>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
-              </Button>
-            </Link>
+            <div className="flex items-center gap-1 shrink-0">
+              <Link to={`/clubs/${id}/teams/new`}>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
+                </Button>
+              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-muted-foreground"
+                    aria-label="More admin actions"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setAnnouncementDialogOpen(true);
+                    }}
+                  >
+                    <Megaphone className="h-4 w-4 mr-2 text-primary" />
+                    Broadcast message
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={isExportingRoster}
+                    onSelect={async (e) => {
+                      e.preventDefault();
+                      if (!id) return;
+                      setIsExportingRoster(true);
+                      try {
+                        const count = await exportClubRosterCsv(id, club?.name ?? "club");
+                        toast({
+                          title: count > 0 ? "Player list exported" : "No players to export",
+                          description:
+                            count > 0
+                              ? `${count} player ${count === 1 ? "entry" : "entries"} across your ${club?.class_mode_enabled ? "classes" : "teams"}.`
+                              : "Add players to your teams first.",
+                        });
+                      } catch (err: any) {
+                        toast({
+                          title: "Couldn't export player list",
+                          description: err?.message ?? "Please try again.",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsExportingRoster(false);
+                      }
+                    }}
+                  >
+                    {isExportingRoster ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    )}
+                    Export player list
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
 
