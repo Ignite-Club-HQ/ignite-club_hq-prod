@@ -77,6 +77,7 @@ import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useToast } from "@/hooks/use-toast";
+import { exportClubRosterCsv } from "@/lib/exportClubRoster";
 import AddClubAdminSheet from "@/components/AddClubAdminSheet";
 
 import { getFolderColorClass, FOLDER_COLORS } from "@/components/TeamFoldersManager";
