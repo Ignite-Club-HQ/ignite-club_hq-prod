@@ -81,19 +81,12 @@ export function DesktopNavRail() {
         ))}
       </nav>
 
-      <NavLink
-        to="/account"
-        title="Account"
-        aria-label="Account"
-        className="mt-auto mb-2 block rounded-full ring-2 ring-primary-foreground/20 hover:ring-primary-foreground/40 transition-shadow"
-      >
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.display_name || "Account"} />
-          <AvatarFallback className="bg-primary-foreground/15 text-primary-foreground text-xs font-semibold">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-      </NavLink>
+      {/*
+       * No account avatar here — the single account entry point on desktop is
+       * the avatar in the top header (AppHeader). Duplicating it in the rail
+       * was confusing.
+       */}
+
     </aside>
   );
 }
