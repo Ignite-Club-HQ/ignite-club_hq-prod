@@ -121,6 +121,7 @@ export default function ClubDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [openSections, setOpenSections] = useState<string[]>([]);
+  const [isExportingRoster, setIsExportingRoster] = useState(false);
 
   // Deep-link to accordion section via hash (e.g. #branding)
   useEffect(() => {
