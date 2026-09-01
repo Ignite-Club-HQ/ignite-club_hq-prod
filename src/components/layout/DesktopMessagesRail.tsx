@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Search, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
