@@ -39,7 +39,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
-import { AdvancedRsvpOptions } from "@/components/event/AdvancedRsvpOptions";
+import { MoreEventOptions } from "@/components/event/MoreEventOptions";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
 import { refreshEventCaches } from "@/lib/eventCacheRefresh";
@@ -134,6 +134,7 @@ export default function CreateEventPage() {
   
   // Price for social events
   const [price, setPrice] = useState("");
+  const [paidEvent, setPaidEvent] = useState(false);
 
   // Guest settings for social events
   const [allowGuests, setAllowGuests] = useState(false);
@@ -1266,79 +1267,92 @@ export default function CreateEventPage() {
                 </div>
               )}
 
-              <AdvancedRsvpOptions
+              {/* Paid event - only for social events */}
+              {type === "social" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="paid-event" className="text-sm font-medium">Paid event</Label>
+                      <p className="text-xs text-muted-foreground">Charge attendees to come along.</p>
+                    </div>
+                    <Switch
+                      id="paid-event"
+                      checked={paidEvent}
+                      onCheckedChange={(next) => {
+                        setPaidEvent(next);
+                        if (!next) setPrice("");
+                      }}
+                    />
+                  </div>
+                  {paidEvent && (
+                    <div className="space-y-2">
+                      <Label htmlFor="price">Price per person (AUD)</Label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="price"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={price}
+                          onChange={(e) => setPrice(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <MoreEventOptions
                 showGrouping={!teamId && supportsClubWideScope}
                 rsvpGrouping={rsvpGrouping}
                 onRsvpGroupingChange={setRsvpGrouping}
-                showAudience={type === "game" || type === "training" || type === "social"}
-                rsvpAudience={rsvpAudience}
-                onRsvpAudienceChange={setRsvpAudience}
-                teamDefaultAudience={null}
                 adultsOnly={adultsOnly}
                 onAdultsOnlyChange={setAdultsOnly}
                 showRoleRestriction={type === "social" && !teamId}
                 restrictedRoles={restrictedRoles}
                 onRestrictedRolesChange={setRestrictedRoles}
-              />
-
-
-
-
-              {/* Price - only for social events */}
-              {type === "social" && (
-                <div className="space-y-2">
-                  <Label htmlFor="price">Price (AUD)</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="price"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00 (free)"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Guest settings - only for social events, only for club admins */}
-              {type === "social" && isClubAdminForSelectedClub && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <Label htmlFor="allow-guests" className="flex items-center gap-2">
-                        <UserPlus className="h-4 w-4" />
-                        Allow Guests
-                      </Label>
-                      <span className="text-xs text-muted-foreground">
-                        Members can add non-member guests
-                      </span>
-                    </div>
-                    <Switch
-                      id="allow-guests"
-                      checked={allowGuests}
-                      onCheckedChange={setAllowGuests}
-                    />
-                  </div>
-                  {allowGuests && (
-                    <div className="space-y-2 pl-6">
-                      <Label htmlFor="max-guests">Max guests per member</Label>
-                      <Input
-                        id="max-guests"
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={maxGuestsPerMember}
-                        onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
-                        className="w-24"
+                extraSummary={type === "social" && allowGuests ? ["Guests allowed"] : undefined}
+              >
+                {/* Guest settings - only for social events, only for club admins */}
+                {type === "social" && isClubAdminForSelectedClub && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <Label htmlFor="allow-guests" className="flex items-center gap-2">
+                          <UserPlus className="h-4 w-4" />
+                          Allow Guests
+                        </Label>
+                        <span className="text-xs text-muted-foreground">
+                          Members can add non-member guests
+                        </span>
+                      </div>
+                      <Switch
+                        id="allow-guests"
+                        checked={allowGuests}
+                        onCheckedChange={setAllowGuests}
                       />
                     </div>
-                  )}
-                </div>
-              )}
+                    {allowGuests && (
+                      <div className="space-y-2 pl-6">
+                        <Label htmlFor="max-guests">Max guests per member</Label>
+                        <Input
+                          id="max-guests"
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={maxGuestsPerMember}
+                          onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
+                          className="w-24"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </MoreEventOptions>
+
 
               {/* Description */}
               <div className="space-y-2">
