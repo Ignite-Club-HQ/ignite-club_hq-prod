@@ -109,6 +109,10 @@ export default function AppSettingsPage() {
   const chatVirtRow = settings?.find(s => s.key === "chat_virtualization_enabled");
   const isChatVirtEnabled = chatVirtRow?.value !== false && chatVirtRow?.value !== "false";
 
+  // Default AI Chat Recap to ON when the row is missing or unset.
+  const chatRecapRow = settings?.find(s => s.key === "chat_recap_enabled");
+  const isChatRecapEnabled = chatRecapRow?.value !== false && chatRecapRow?.value !== "false";
+
   // Default notification prefetch to ON when the row is missing or unset.
   const notifPrefetchRow = settings?.find(s => s.key === "notification_prefetch_enabled");
   const isNotifPrefetchEnabled = notifPrefetchRow?.value !== false && notifPrefetchRow?.value !== "false";
