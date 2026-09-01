@@ -109,6 +109,4 @@ export async function downloadTextReport(
   a.click();
   a.remove();
   setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-
-  window.URL.revokeObjectURL(url);
 }
