@@ -1918,6 +1918,7 @@ export type Database = {
       }
       club_news: {
         Row: {
+          attachments: Json
           author_id: string | null
           chat_posted_at: string | null
           club_id: string
@@ -1933,6 +1934,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attachments?: Json
           author_id?: string | null
           chat_posted_at?: string | null
           club_id: string
@@ -1948,6 +1950,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attachments?: Json
           author_id?: string | null
           chat_posted_at?: string | null
           club_id?: string

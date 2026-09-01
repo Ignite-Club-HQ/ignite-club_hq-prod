@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useLatestClubNews, useNewsPublishableClubs } from "@/features/news/useClubNews";
+import { stripAttachmentTokens } from "@/features/news/newsAttachments";
 
 /**
  * Compact Home "Club News" section — surfaces only the latest post and hides
@@ -51,7 +52,7 @@ export default function ClubNewsSection() {
     );
   }
 
-  const preview = latest.content.replace(/\s+/g, " ").trim();
+  const preview = stripAttachmentTokens(latest.content).replace(/\s+/g, " ").trim();
 
   return (
     <div className="space-y-2">

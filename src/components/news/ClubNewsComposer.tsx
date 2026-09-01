@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { FileText, ImagePlus, Loader2, Paperclip, X } from "lucide-react";
+
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -19,6 +20,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { useClubTeamsForNews, useNewsPublishableClubs } from "@/features/news/useClubNews";
+import {
+  attachmentToken,
+  formatFileSize,
+  NEWS_ATTACHMENT_MAX_BYTES,
+  NEWS_MAX_FILES,
+  NEWS_MAX_IMAGES,
+  type NewsAttachment,
+} from "@/features/news/newsAttachments";
+
+
 
 const TITLE_MAX = 120;
 
@@ -59,7 +70,45 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
   const [sendPush, setSendPush] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [extraImages, setExtraImages] = useState<Array<{ id: string; file: File; preview: string }>>(
+    [],
+  );
+  const [docFiles, setDocFiles] = useState<Array<{ id: string; file: File }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const extraImagesInputRef = useRef<HTMLInputElement>(null);
+  const docsInputRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  /** Caret position in the body, so "Insert here" lands where the author was typing. */
+  const caretRef = useRef<number | null>(null);
+
+  const rememberCaret = () => {
+    const el = contentRef.current;
+    if (el) caretRef.current = el.selectionStart ?? el.value.length;
+  };
+
+  /**
+   * Places an inline token for this item at the last known caret position.
+   * The token is what makes the image/file render inside that section of the
+   * article body rather than in the trailing list.
+   */
+  const insertAtCaret = (id: string, label: string) => {
+    const token = attachmentToken(id);
+    setContent((prev) => {
+      if (prev.includes(token)) return prev;
+      const at = Math.min(caretRef.current ?? prev.length, prev.length);
+      const before = prev.slice(0, at).replace(/\s+$/, "");
+      const after = prev.slice(at).replace(/^\s+/, "");
+      const next = `${before}${before ? "\n\n" : ""}${token}${after ? `\n\n${after}` : "\n"}`;
+      caretRef.current = next.indexOf(token) + token.length;
+      return next;
+    });
+    toast({ title: "Placed in article", description: `${label} will appear at that point.` });
+  };
+
+  const removeToken = (id: string) =>
+    setContent((prev) =>
+      prev.replace(attachmentToken(id), "").replace(/\n{3,}/g, "\n\n"),
+    );
 
   const reset = () => {
     setTitle("");
@@ -70,12 +119,62 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
     setSendPush(true);
     setImageFile(null);
     setImagePreview(null);
+    setExtraImages([]);
+    setDocFiles([]);
+    caretRef.current = null;
+  };
+
+  const tooBig = (file: File) => {
+    if (file.size <= NEWS_ATTACHMENT_MAX_BYTES) return false;
+    toast({
+      title: "File too large",
+      description: `${file.name} is over ${formatFileSize(NEWS_ATTACHMENT_MAX_BYTES)}.`,
+      variant: "destructive",
+    });
+    return true;
   };
 
   const pickImage = (file: File | null) => {
+    if (file && tooBig(file)) return;
     setImageFile(file);
     setImagePreview(file ? URL.createObjectURL(file) : null);
   };
+
+  const addExtraImages = (files: File[]) => {
+    const accepted = files.filter((f) => !tooBig(f));
+    setExtraImages((prev) =>
+      [
+        ...prev,
+        ...accepted.map((file) => ({
+          id: crypto.randomUUID(),
+          file,
+          preview: URL.createObjectURL(file),
+        })),
+      ].slice(0, NEWS_MAX_IMAGES),
+    );
+  };
+
+  const addDocFiles = (files: File[]) => {
+    const accepted = files.filter((f) => !tooBig(f));
+    setDocFiles((prev) =>
+      [...prev, ...accepted.map((file) => ({ id: crypto.randomUUID(), file }))].slice(
+        0,
+        NEWS_MAX_FILES,
+      ),
+    );
+  };
+
+
+  const uploadToBucket = async (file: File, clubIdForPath: string) => {
+    const ext = file.name.split(".").pop() || "bin";
+    const path = `news/${clubIdForPath}/${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("club-logos")
+      .upload(path, file, { upsert: false, contentType: file.type || undefined });
+    if (upErr) throw upErr;
+    return supabase.storage.from("club-logos").getPublicUrl(path).data.publicUrl;
+  };
+
 
   const publish = useMutation({
     mutationFn: async () => {
@@ -87,14 +186,32 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
 
       let imageUrl: string | null = null;
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop() || "jpg";
-        const path = `news/${effectiveClubId}/${crypto.randomUUID()}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("club-logos")
-          .upload(path, imageFile, { upsert: false, contentType: imageFile.type });
-        if (upErr) throw upErr;
-        imageUrl = supabase.storage.from("club-logos").getPublicUrl(path).data.publicUrl;
+        imageUrl = await uploadToBucket(imageFile, effectiveClubId);
       }
+
+      const body = content.trim();
+      const attachments: NewsAttachment[] = [];
+      for (const item of extraImages) {
+        attachments.push({
+          kind: "image",
+          url: await uploadToBucket(item.file, effectiveClubId),
+          name: item.file.name,
+          size: item.file.size,
+          mimeType: item.file.type || null,
+          anchor: body.includes(attachmentToken(item.id)) ? item.id : null,
+        });
+      }
+      for (const item of docFiles) {
+        attachments.push({
+          kind: "file",
+          url: await uploadToBucket(item.file, effectiveClubId),
+          name: item.file.name,
+          size: item.file.size,
+          mimeType: item.file.type || null,
+          anchor: body.includes(attachmentToken(item.id)) ? item.id : null,
+        });
+      }
+
 
       const { data, error } = await supabase
         .from("club_news")
@@ -106,8 +223,10 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
           author_id: user?.id ?? null,
           target_team_ids: audience === "teams" ? teamIds : null,
           is_important: important,
+          attachments: attachments as unknown as never,
         })
         .select("id")
+
         .single();
       if (error) throw error;
 
@@ -182,16 +301,28 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
           <div className="space-y-1.5">
             <Label htmlFor="news-content">Content</Label>
             <Textarea
+              ref={contentRef}
               id="news-content"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) => {
+                setContent(e.target.value);
+                caretRef.current = e.target.selectionStart;
+              }}
+              onSelect={rememberCaret}
+              onKeyUp={rememberCaret}
+              onClick={rememberCaret}
+              onBlur={rememberCaret}
               rows={6}
               placeholder="What do members need to know?"
             />
+            <p className="text-xs text-muted-foreground">
+              Add images or files below, then tap their <span className="font-medium text-foreground">Insert here</span> button to place them where your cursor is in the content.
+            </p>
           </div>
 
+
           <div className="space-y-1.5">
-            <Label>Image (optional)</Label>
+            <Label>Header image (optional)</Label>
             {imagePreview ? (
               <div className="relative w-full overflow-hidden rounded-lg border">
                 <img src={imagePreview} alt="News image preview" className="h-32 w-full object-cover" />
@@ -224,6 +355,153 @@ export default function ClubNewsComposer({ open, onOpenChange, defaultClubId }: 
               onChange={(e) => pickImage(e.target.files?.[0] ?? null)}
             />
           </div>
+
+          <div className="space-y-1.5">
+            <Label>More images (optional)</Label>
+            {extraImages.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {extraImages.map((item, i) => {
+                  const placed = content.includes(attachmentToken(item.id));
+                  return (
+                    <div key={item.id} className="space-y-1">
+                      <div className="relative overflow-hidden rounded-lg border">
+                        <img src={item.preview} alt="" className="h-20 w-full object-cover" />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          className="absolute right-1 top-1 h-6 w-6"
+                          onClick={() => {
+                            removeToken(item.id);
+                            setExtraImages((prev) => prev.filter((_, idx) => idx !== i));
+                          }}
+                          aria-label={`Remove ${item.file.name}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={placed ? "secondary" : "outline"}
+                        className="h-7 w-full px-1 text-[11px]"
+                        onClick={() =>
+                          placed ? removeToken(item.id) : insertAtCaret(item.id, item.file.name)
+                        }
+                      >
+                        {placed ? "Unplace" : "Insert here"}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={extraImages.length >= NEWS_MAX_IMAGES}
+              onClick={() => extraImagesInputRef.current?.click()}
+            >
+              <ImagePlus className="mr-2 h-4 w-4" />
+              {extraImages.length >= NEWS_MAX_IMAGES ? "Image limit reached" : "Add more images"}
+            </Button>
+            {extraImages.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Uploaded images will show an <span className="font-medium text-foreground">Insert here</span> option.
+              </p>
+            )}
+            <input
+              ref={extraImagesInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                addExtraImages(Array.from(e.target.files ?? []));
+                e.currentTarget.value = "";
+              }}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Attachments (optional)</Label>
+            {docFiles.length > 0 && (
+              <div className="space-y-2">
+                {docFiles.map((item, i) => {
+                  const placed = content.includes(attachmentToken(item.id));
+                  return (
+                    <div key={item.id} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{item.file.name}</p>
+                        {formatFileSize(item.file.size) && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatFileSize(item.file.size)}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={placed ? "secondary" : "outline"}
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() =>
+                          placed ? removeToken(item.id) : insertAtCaret(item.id, item.file.name)
+                        }
+                      >
+                        {placed ? "Unplace" : "Insert here"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => {
+                          removeToken(item.id);
+                          setDocFiles((prev) => prev.filter((_, idx) => idx !== i));
+                        }}
+                        aria-label={`Remove ${item.file.name}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={docFiles.length >= NEWS_MAX_FILES}
+              onClick={() => docsInputRef.current?.click()}
+            >
+              <Paperclip className="mr-2 h-4 w-4" />
+              {docFiles.length >= NEWS_MAX_FILES ? "File limit reached" : "Attach files"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              PDFs, documents or spreadsheets up to {formatFileSize(NEWS_ATTACHMENT_MAX_BYTES)} each.
+            </p>
+            {docFiles.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Uploaded files will show an <span className="font-medium text-foreground">Insert here</span> option.
+              </p>
+            )}
+            <input
+              ref={docsInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                addDocFiles(Array.from(e.target.files ?? []));
+                e.currentTarget.value = "";
+              }}
+            />
+          </div>
+
 
           <div className="space-y-2">
             <Label>Who's this for?</Label>

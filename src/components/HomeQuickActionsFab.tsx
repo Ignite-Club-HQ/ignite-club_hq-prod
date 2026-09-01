@@ -14,10 +14,9 @@ import {
   SlidersHorizontal,
   ImagePlus,
   Folder,
-  Settings,
   Shield,
   Lock,
-  Sparkles,
+  Newspaper,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -27,7 +26,8 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { Separator } from "@/components/ui/separator";
-import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
+import ClubNewsComposer from "@/components/news/ClubNewsComposer";
+import { useNewsPublishableClubs } from "@/features/news/useClubNews";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
@@ -63,11 +63,12 @@ export function HomeQuickActionsFab({
   hasProContext = false,
 }: HomeQuickActionsFabProps) {
   const proLocked = !hasProContext && !isAppAdmin;
-  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub(activeClubFilter ?? null);
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
+  const [composerOpen, setComposerOpen] = useState(false);
   const navigate = useNavigate();
+  const { data: publishableClubs = [] } = useNewsPublishableClubs();
 
   const close = () => setOpen(false);
   const go = (path: string) => {
@@ -113,14 +114,14 @@ export function HomeQuickActionsFab({
           } as ActionItem,
         ]
       : []),
-    ...(hasTeams
+    ...(publishableClubs.length > 0
       ? [
           {
-            label: "Invite Members",
-            icon: UserPlus,
+            label: "Create News Post",
+            icon: Newspaper,
             onClick: () => {
               close();
-              onInvite();
+              setComposerOpen(true);
             },
           } as ActionItem,
         ]
@@ -134,16 +135,6 @@ export function HomeQuickActionsFab({
         onJoinTeam();
       },
     },
-    ...(hasAICatchUpClub
-      ? [
-          {
-            label: "Chat Recap",
-            description: "Catch up on unread threads with AI",
-            icon: Sparkles,
-            onClick: () => go("/messages?recap=1"),
-          } as ActionItem,
-        ]
-      : []),
   ];
 
   // More — low-frequency administrative actions
@@ -154,6 +145,18 @@ export function HomeQuickActionsFab({
       onClick: () => go("/messages?new=picker"),
       proLocked,
     },
+    ...(hasTeams
+      ? [
+          {
+            label: "Invite Members",
+            icon: UserPlus,
+            onClick: () => {
+              close();
+              onInvite();
+            },
+          } as ActionItem,
+        ]
+      : []),
     ...(canCreateTeam
       ? [
           {
@@ -178,15 +181,6 @@ export function HomeQuickActionsFab({
             proLocked,
           } as ActionItem,
 
-        ]
-      : []),
-    ...(activeClubFilter && canCreateTeam
-      ? [
-          {
-            label: "Club Settings",
-            icon: Settings,
-            onClick: () => go(`/clubs/${activeClubFilter}/edit`),
-          } as ActionItem,
         ]
       : []),
     ...(canAccessVault
@@ -327,6 +321,17 @@ export function HomeQuickActionsFab({
           )}
         </ResponsiveDialogContent>
       </ResponsiveDialog>
+
+      {composerOpen && (
+        <ClubNewsComposer
+          open={composerOpen}
+          onOpenChange={(isOpen) => {
+            setComposerOpen(isOpen);
+            if (!isOpen) setView("main");
+          }}
+          defaultClubId={activeClubFilter}
+        />
+      )}
     </>
   );
 }

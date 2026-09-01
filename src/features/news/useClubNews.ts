@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { readHomeSectionSnapshot, writeHomeSectionSnapshot } from "@/lib/homeSectionSnapshot";
 
 /**
  * Club News data access.
@@ -21,12 +22,15 @@ export interface ClubNewsRow {
   target_team_ids: string[] | null;
   is_important: boolean;
   published_at: string;
+  attachments?: unknown;
 }
 
 const NEWS_COLUMNS =
-  "id, club_id, title, content, image_url, author_id, target_team_ids, is_important, published_at";
+  "id, club_id, title, content, image_url, author_id, target_team_ids, is_important, published_at, attachments";
+
 
 export function useClubNewsFeed(clubId?: string | null, limit = 50) {
+  const snapshotScope = `${clubId ?? "all"}_${limit}`;
   return useQuery<ClubNewsRow[]>({
     queryKey: ["club-news", clubId ?? "all", limit],
     queryFn: async () => {
@@ -41,11 +45,18 @@ export function useClubNewsFeed(clubId?: string | null, limit = 50) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as ClubNewsRow[];
+      const rows = (data || []) as ClubNewsRow[];
+      writeHomeSectionSnapshot("club-news", snapshotScope, rows);
+      return rows;
     },
+    // Paint the last known posts immediately on cold open so the Home section
+    // doesn't pop in after everything else.
+    placeholderData: () =>
+      readHomeSectionSnapshot<ClubNewsRow[]>("club-news", snapshotScope) ?? undefined,
     staleTime: 2 * 60 * 1000,
   });
 }
+
 
 /** Latest single post — powers the compact Home section. */
 export function useLatestClubNews(clubId?: string | null) {
@@ -113,6 +124,25 @@ export function useClubTeamsForNews(clubId?: string | null) {
       return (data || []) as Array<{ id: string; name: string }>;
     },
     enabled: !!clubId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Resolve team names directly by id. Used by News audience labels so we can
+ * always name the targeted teams, even before/without the club team list
+ * (e.g. an article opened by deep link before `club_id` teams have loaded).
+ */
+export function useTeamNamesByIds(teamIds?: string[] | null) {
+  const ids = Array.from(new Set((teamIds || []).filter(Boolean)));
+  return useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ["news-team-names", ids.slice().sort().join(",")],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("teams").select("id, name").in("id", ids);
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+    enabled: ids.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 }
