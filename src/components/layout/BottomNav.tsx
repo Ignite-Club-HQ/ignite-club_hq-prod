@@ -408,7 +408,7 @@ export function BottomNav() {
     <>
       {isNativePlatform && !shouldHideNav && (
         <div
-          className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
+          className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none lg:hidden"
           style={{
             height: `calc(4rem + ${navBottomInset})`,
             transform: "translate3d(0,0,0)",
@@ -419,7 +419,7 @@ export function BottomNav() {
         />
       )}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card transition-transform duration-200 ease-out"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card transition-transform duration-200 ease-out lg:hidden"
         style={{
           paddingBottom: navBottomInset,
           transform: hideTransform,

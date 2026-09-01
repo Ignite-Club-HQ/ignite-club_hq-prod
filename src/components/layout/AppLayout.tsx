@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
+import { DesktopNavRail } from "./DesktopNavRail";
+import { DesktopMessagesRail } from "./DesktopMessagesRail";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useClubScopeGuard } from "@/hooks/useClubScopeGuard";
