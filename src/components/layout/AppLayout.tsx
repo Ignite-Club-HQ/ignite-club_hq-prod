@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
+import { DesktopNavRail } from "./DesktopNavRail";
+import { DesktopMessagesRail } from "./DesktopMessagesRail";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useClubScopeGuard } from "@/hooks/useClubScopeGuard";
@@ -161,13 +163,14 @@ export function AppLayout() {
     // flash chrome to logged-out visitors.
     if (initialized && user) {
       return (
-        <div className={`bg-background flex flex-col overscroll-none min-h-0`} style={appViewportStyle}>
+        <div className={`bg-background flex flex-col overscroll-none min-h-0 lg:pl-20 xl:pr-80`} style={appViewportStyle}>
           <SkipToContent />
+          <DesktopNavRail />
           <AppHeader />
           <main
             id="main-content"
             aria-label="Main content"
-            className="flex-1 pb-28 px-4 max-w-lg mx-auto w-full flex flex-col items-center justify-center gap-3"
+            className="flex-1 pb-28 lg:pb-10 px-4 max-w-lg lg:max-w-4xl mx-auto w-full flex flex-col items-center justify-center gap-3"
             role="status"
             aria-live="polite"
           >
@@ -336,13 +339,17 @@ export function AppLayout() {
   }
 
 
+  // Desktop (web, lg+): offset content for the fixed left nav rail, and at
+  // xl+ for the fixed right messages rail. Content column widens from the
+  // mobile max-w-lg to a comfortable desktop measure. Mobile/native unchanged.
   const mainClassName = isChatThreadRoute
-    ? "flex-1 min-h-0 max-w-lg mx-auto w-full overflow-hidden px-0"
-    : "flex-1 pb-28 px-4 max-w-lg mx-auto w-full";
-  
+    ? "flex-1 min-h-0 max-w-lg lg:max-w-3xl mx-auto w-full overflow-hidden px-0"
+    : "flex-1 pb-28 lg:pb-10 px-4 lg:px-8 max-w-lg lg:max-w-4xl mx-auto w-full";
+
   return (
-    <div className={`bg-background flex flex-col overscroll-none min-h-0`} style={appViewportStyle}>
+    <div className={`bg-background flex flex-col overscroll-none min-h-0 lg:pl-20 xl:pr-80`} style={appViewportStyle}>
       <SkipToContent />
+      <DesktopNavRail />
       <AppHeader />
       <main id="main-content" aria-label="Main content" className={mainClassName}>
         {/*
@@ -367,6 +374,7 @@ export function AppLayout() {
         </Suspense>
       </main>
       <BottomNav />
+      <DesktopMessagesRail />
       <OfflineIndicator />
       <NativeNotificationPrompt userId={user?.id} />
       <Suspense fallback={null}><PendingInviteWelcomeDialog /></Suspense>
