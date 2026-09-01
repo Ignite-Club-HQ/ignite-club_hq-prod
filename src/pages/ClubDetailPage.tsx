@@ -1480,9 +1480,8 @@ export default function ClubDetailPage() {
         )}
 
         {isAdmin && (
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             disabled={isExportingRoster}
             onClick={async () => {
               if (!id) return;
@@ -1507,16 +1506,15 @@ export default function ClubDetailPage() {
               }
             }}
             aria-label="Export player list as a spreadsheet"
-            className="min-h-[44px] w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isExportingRoster ? (
-              <Loader2 className="h-4 w-4 text-primary animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <FileSpreadsheet className="h-4 w-4 text-primary" />
+              <FileSpreadsheet className="h-3.5 w-3.5" />
             )}
-            <span className="font-medium">Export Player List</span>
-            <span className="ml-auto text-xs text-muted-foreground/80 hidden sm:inline">CSV of players &amp; teams</span>
-          </Button>
+            <span>Export player list</span>
+          </button>
         )}
 
         {/* Filter chips */}
