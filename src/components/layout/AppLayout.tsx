@@ -4,6 +4,7 @@ import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
 import { DesktopNavRail } from "./DesktopNavRail";
 import { DesktopMessagesRail } from "./DesktopMessagesRail";
+import { DesktopProGate } from "./DesktopProGate";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useClubScopeGuard } from "@/hooks/useClubScopeGuard";
@@ -375,6 +376,7 @@ export function AppLayout() {
       </main>
       <BottomNav />
       <DesktopMessagesRail />
+      <DesktopProGate />
       <OfflineIndicator />
       <NativeNotificationPrompt userId={user?.id} />
       <Suspense fallback={null}><PendingInviteWelcomeDialog /></Suspense>
