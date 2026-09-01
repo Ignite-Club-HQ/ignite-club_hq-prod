@@ -5,14 +5,11 @@ function sanitizeFileName(name: string): string {
 }
 
 /**
- * Write a text report (HTML/CSV) to the native cache directory and open it
- * with the platform's default handler so the user can view, print, or share
- * it. Used because print windows and blob-anchor downloads do not work
- * inside the native WebView.
+ * Write a text report (HTML/CSV) to the native cache directory, then hand it to
+ * the OS. Downloads via blob anchors do not work inside the native WebView.
  */
-async function openTextFileNative(content: string, fileName: string, mimeType: string): Promise<void> {
+async function writeTextFileNative(content: string, fileName: string): Promise<string> {
   const { Filesystem, Directory, Encoding } = await import("@capacitor/filesystem");
-  const { FileOpener } = await import("@capacitor-community/file-opener");
 
   const safeName = `report-${Date.now()}-${sanitizeFileName(fileName)}`;
   const written = await Filesystem.writeFile({
@@ -26,13 +23,38 @@ async function openTextFileNative(content: string, fileName: string, mimeType: s
     written.uri ||
     (await Filesystem.getUri({ path: safeName, directory: Directory.Cache })).uri;
   if (!uri) throw new Error("Report write produced no local path");
+  return uri;
+}
+
+async function openTextFileNative(content: string, fileName: string, mimeType: string): Promise<void> {
+  const { FileOpener } = await import("@capacitor-community/file-opener");
+  const uri = await writeTextFileNative(content, fileName);
 
   await FileOpener.open({
     filePath: uri,
-    contentType: mimeType,
+    // FileOpener needs a bare MIME type; charset params confuse the Android chooser.
+    contentType: mimeType.split(";")[0].trim(),
     openWithDefault: true,
   });
 }
+
+/**
+ * Share a generated file with the OS share sheet (Save to Files, Drive, email…).
+ * Preferred for spreadsheets: "open with" pickers offer irrelevant apps.
+ */
+async function shareTextFileNative(content: string, fileName: string, mimeType: string): Promise<void> {
+  const { Share } = await import("@capacitor/share");
+  const uri = await writeTextFileNative(content, fileName);
+  try {
+    await Share.share({ title: fileName, files: [uri] });
+  } catch (err) {
+    const message = String((err as Error)?.message ?? err).toLowerCase();
+    // User dismissing the sheet is not a failure.
+    if (message.includes("cancel") || message.includes("abort")) return;
+    await openTextFileNative(content, fileName, mimeType);
+  }
+}
+
 
 /**
  * Open an HTML report.
@@ -65,7 +87,7 @@ export async function openHtmlReport(
 
 /**
  * Download a text report (e.g. CSV).
- * - Native: writes to cache and opens with the default handler.
+ * - Native: writes to cache and offers the OS share sheet (Save to Files/Drive).
  * - Web: blob + anchor download.
  */
 export async function downloadTextReport(
@@ -74,7 +96,7 @@ export async function downloadTextReport(
   mimeType: string,
 ): Promise<void> {
   if (Capacitor.isNativePlatform()) {
-    await openTextFileNative(content, fileName, mimeType);
+    await shareTextFileNative(content, fileName, mimeType);
     return;
   }
   const blob = new Blob([content], { type: mimeType });
@@ -82,6 +104,9 @@ export async function downloadTextReport(
   const a = document.createElement("a");
   a.href = url;
   a.download = fileName;
+  a.rel = "noopener";
+  document.body.appendChild(a);
   a.click();
-  window.URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 }
