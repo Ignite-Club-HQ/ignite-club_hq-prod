@@ -1388,64 +1388,46 @@ export default function EditEventPage() {
           />
           <CollapsibleContent>
             <CardContent className="pt-0 pb-4 px-4 space-y-4">
-              {/* Price - only for social events */}
-              {type === "social" && (
-                <div className="space-y-2">
-                  <Label htmlFor="price" className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" /> Price (AUD)
-                  </Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                    <Input
-                      id="price"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      className="pl-7 h-12"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">Optional - leave empty for free events</p>
-                </div>
-              )}
-
-              {/* Guest settings - only for social events */}
+              {/* Paid event - only for social events */}
               {type === "social" && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <Label htmlFor="allow-guests-edit" className="flex items-center gap-2">
-                        <UserPlus className="h-4 w-4" />
-                        Allow Guests
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="paid-event-edit" className="flex items-center gap-2 text-sm font-medium">
+                        <DollarSign className="h-4 w-4" /> Paid event
                       </Label>
-                      <span className="text-xs text-muted-foreground">
-                        Members can add non-member guests
-                      </span>
+                      <p className="text-xs text-muted-foreground">Charge attendees to come along.</p>
                     </div>
                     <Switch
-                      id="allow-guests-edit"
-                      checked={allowGuests}
-                      onCheckedChange={setAllowGuests}
+                      id="paid-event-edit"
+                      checked={paidEvent}
+                      onCheckedChange={(next) => {
+                        setPaidEvent(next);
+                        if (!next) setPrice("");
+                      }}
                     />
                   </div>
-                  {allowGuests && (
-                    <div className="space-y-2 pl-6">
-                      <Label htmlFor="max-guests-edit">Max guests per member</Label>
-                      <Input
-                        id="max-guests-edit"
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={maxGuestsPerMember}
-                        onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
-                        className="w-24 h-12"
-                      />
+                  {paidEvent && (
+                    <div className="space-y-2">
+                      <Label htmlFor="price">Price per person (AUD)</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                        <Input
+                          id="price"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={price}
+                          onChange={(e) => setPrice(e.target.value)}
+                          className="pl-7 h-12"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
               )}
+
 
               {/* Auto Reminder */}
               <div className="space-y-4">
