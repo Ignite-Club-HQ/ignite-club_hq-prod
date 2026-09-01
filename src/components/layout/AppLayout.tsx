@@ -376,6 +376,7 @@ export function AppLayout() {
       </main>
       <BottomNav />
       <DesktopMessagesRail />
+      <DesktopProGate />
       <OfflineIndicator />
       <NativeNotificationPrompt userId={user?.id} />
       <Suspense fallback={null}><PendingInviteWelcomeDialog /></Suspense>
