@@ -4,6 +4,7 @@ import { AppHeader } from "./AppHeader";
 import { BottomNav } from "./BottomNav";
 import { DesktopNavRail } from "./DesktopNavRail";
 import { DesktopMessagesRail } from "./DesktopMessagesRail";
+import { DesktopProGate } from "./DesktopProGate";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useClubScopeGuard } from "@/hooks/useClubScopeGuard";
