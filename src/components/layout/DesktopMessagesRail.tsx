@@ -94,8 +94,12 @@ export function DesktopMessagesRail() {
           snippet,
           activityAt: last?.created_at || c.updated_at,
           route: `/messages/dm/${c.id}`,
+          clubId: null,
+          teamId: null,
+          otherUserIds: otherId ? [otherId] : [],
         };
       });
+
     },
   });
 
