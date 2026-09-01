@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { isAICatchUpAllowlisted } from "@/lib/aiCatchUpAllowlist";
+import { useChatRecapGloballyEnabled } from "@/hooks/useChatRecapGloballyEnabled";
 
 /**
  * Returns whether the current user belongs to at least one Pro (or Pro Football)
@@ -10,10 +11,11 @@ import { isAICatchUpAllowlisted } from "@/lib/aiCatchUpAllowlist";
  */
 export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
   const { user } = useAuth();
+  const globallyEnabled = useChatRecapGloballyEnabled();
 
   const { data, isLoading, isFetching, isSuccess } = useQuery({
     queryKey: ["user-has-any-ai-catchup-club", user?.id, scopedClubId ?? "all"],
-    enabled: !!user?.id && isAICatchUpAllowlisted(user?.id),
+    enabled: !!user?.id && globallyEnabled && isAICatchUpAllowlisted(user?.id),
     staleTime: 60_000,
     // Retain previous result during refetch (e.g. after resume from inactivity)
     // so the PRO badge next to the AI button doesn't flash for Pro clubs while
@@ -75,5 +77,9 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
   // once. Consumers should hide Pro/upgrade affordances until resolved so the
   // badge doesn't flash for Pro users on resume/cold-render.
   const resolved = isSuccess && data !== undefined;
+  if (!globallyEnabled) {
+    return { hasAICatchUpClub: false, isLoading: false, isFetching: false, resolved: true };
+  }
+
   return { hasAICatchUpClub: !!data, isLoading, isFetching, resolved };
 }
