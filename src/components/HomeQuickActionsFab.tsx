@@ -204,15 +204,13 @@ export function HomeQuickActionsFab({
       : []),
   ];
 
+  const rowClass =
+    "flex items-center gap-3 w-full min-h-[66px] px-3 py-3 rounded-xl hover:bg-accent/50 active:bg-accent active:scale-[0.99] transition-all text-left touch-manipulation select-none";
+
   const PrimaryRow = ({ item }: { item: ActionItem }) => (
-    <button
-      key={item.label}
-      type="button"
-      onClick={item.onClick}
-      className="flex items-center gap-3 w-full min-h-[48px] px-3 py-2 rounded-xl hover:bg-accent/50 active:bg-accent active:scale-[0.98] transition-all text-left touch-manipulation"
-    >
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
-        <item.icon className="h-[18px] w-[18px]" />
+    <button key={item.label} type="button" onClick={item.onClick} className={rowClass}>
+      <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
+        <item.icon className="h-[22px] w-[22px]" />
       </span>
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-1.5 min-w-0">
@@ -233,14 +231,9 @@ export function HomeQuickActionsFab({
   );
 
   const MutedRow = ({ item }: { item: ActionItem }) => (
-    <button
-      key={item.label}
-      type="button"
-      onClick={item.onClick}
-      className="flex items-center gap-3 w-full min-h-[48px] px-3 rounded-xl hover:bg-accent/50 active:bg-accent active:scale-[0.98] transition-all text-left touch-manipulation"
-    >
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
-        <item.icon className="h-[18px] w-[18px]" />
+    <button key={item.label} type="button" onClick={item.onClick} className={rowClass}>
+      <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
+        <item.icon className="h-[22px] w-[22px]" />
       </span>
       <span className="flex-1 min-w-0 flex items-center gap-1.5">
         <span className="text-[15px] font-medium text-foreground/80 truncate">
@@ -252,6 +245,7 @@ export function HomeQuickActionsFab({
       </span>
     </button>
   );
+
 
   return (
     <>
