@@ -19,7 +19,14 @@ interface RailItem {
   snippet: string;
   activityAt: string;
   route: string;
+  /** Club that owns this chat (null for personal groups / DMs) */
+  clubId?: string | null;
+  /** Team that owns this chat (null for club-level or personal groups) */
+  teamId?: string | null;
+  /** Other participant (DMs) or members (personal groups) for club scoping */
+  otherUserIds?: string[];
 }
+
 
 /**
  * Desktop-only right rail (xl+) listing recent conversations with last-message
