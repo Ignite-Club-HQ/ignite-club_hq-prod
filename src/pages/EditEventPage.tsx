@@ -35,7 +35,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
-import { AdvancedRsvpOptions } from "@/components/event/AdvancedRsvpOptions";
+import { MoreEventOptions } from "@/components/event/MoreEventOptions";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
 import { refreshEventCaches } from "@/lib/eventCacheRefresh";
@@ -99,6 +99,7 @@ export default function EditEventPage() {
   
   // Price for social events
   const [price, setPrice] = useState("");
+  const [paidEvent, setPaidEvent] = useState(false);
 
   // Guest settings for social events
   const [allowGuests, setAllowGuests] = useState(false);
@@ -527,6 +528,7 @@ export default function EditEventPage() {
       setReminderEnabled(event.reminder_hours_before !== null);
       setReminderHours(event.reminder_hours_before || 24);
       setPrice(event.amount ? String(event.amount) : "");
+      setPaidEvent(Number(event.amount ?? 0) > 0);
       setSelectedClubId(event.club_id);
       setSelectedTeamId(event.team_id || "");
       setOpponent((event as any).opponent || "");
