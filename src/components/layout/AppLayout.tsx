@@ -163,13 +163,14 @@ export function AppLayout() {
     // flash chrome to logged-out visitors.
     if (initialized && user) {
       return (
-        <div className={`bg-background flex flex-col overscroll-none min-h-0`} style={appViewportStyle}>
+        <div className={`bg-background flex flex-col overscroll-none min-h-0 lg:pl-20 xl:pr-80`} style={appViewportStyle}>
           <SkipToContent />
+          <DesktopNavRail />
           <AppHeader />
           <main
             id="main-content"
             aria-label="Main content"
-            className="flex-1 pb-28 px-4 max-w-lg mx-auto w-full flex flex-col items-center justify-center gap-3"
+            className="flex-1 pb-28 lg:pb-10 px-4 max-w-lg lg:max-w-4xl mx-auto w-full flex flex-col items-center justify-center gap-3"
             role="status"
             aria-live="polite"
           >
