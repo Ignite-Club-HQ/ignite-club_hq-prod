@@ -1465,57 +1465,7 @@ export default function ClubDetailPage() {
 
         {isAdmin && <PendingTeamRequests clubId={id!} />}
 
-        {isAdmin && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setAnnouncementDialogOpen(true)}
-            aria-label="Open broadcast message dialog"
-            className="min-h-[44px] w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent"
-          >
-            <Megaphone className="h-4 w-4 text-primary" />
-            <span className="font-medium">Broadcast Message</span>
-            <span className="ml-auto text-xs text-muted-foreground/80 hidden sm:inline">Announce to team chats</span>
-          </Button>
-        )}
 
-        {isAdmin && (
-          <button
-            type="button"
-            disabled={isExportingRoster}
-            onClick={async () => {
-              if (!id) return;
-              setIsExportingRoster(true);
-              try {
-                const count = await exportClubRosterCsv(id, club?.name ?? "club");
-                toast({
-                  title: count > 0 ? "Player list exported" : "No players to export",
-                  description:
-                    count > 0
-                      ? `${count} player ${count === 1 ? "entry" : "entries"} across your ${club?.class_mode_enabled ? "classes" : "teams"}.`
-                      : "Add players to your teams first.",
-                });
-              } catch (e: any) {
-                toast({
-                  title: "Couldn't export player list",
-                  description: e?.message ?? "Please try again.",
-                  variant: "destructive",
-                });
-              } finally {
-                setIsExportingRoster(false);
-              }
-            }}
-            aria-label="Export player list as a spreadsheet"
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isExportingRoster ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-            )}
-            <span>Export player list</span>
-          </button>
-        )}
 
         {/* Filter chips */}
         {activeTeams && activeTeams.length > 0 && (
