@@ -87,7 +87,7 @@ export async function openHtmlReport(
 
 /**
  * Download a text report (e.g. CSV).
- * - Native: writes to cache and opens with the default handler.
+ * - Native: writes to cache and offers the OS share sheet (Save to Files/Drive).
  * - Web: blob + anchor download.
  */
 export async function downloadTextReport(
@@ -96,7 +96,7 @@ export async function downloadTextReport(
   mimeType: string,
 ): Promise<void> {
   if (Capacitor.isNativePlatform()) {
-    await openTextFileNative(content, fileName, mimeType);
+    await shareTextFileNative(content, fileName, mimeType);
     return;
   }
   const blob = new Blob([content], { type: mimeType });
@@ -104,6 +104,11 @@ export async function downloadTextReport(
   const a = document.createElement("a");
   a.href = url;
   a.download = fileName;
+  a.rel = "noopener";
+  document.body.appendChild(a);
   a.click();
+  a.remove();
+  setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+
   window.URL.revokeObjectURL(url);
 }
