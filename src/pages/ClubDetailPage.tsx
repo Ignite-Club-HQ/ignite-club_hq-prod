@@ -77,6 +77,7 @@ import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useToast } from "@/hooks/use-toast";
+import { exportClubRosterCsv } from "@/lib/exportClubRoster";
 import AddClubAdminSheet from "@/components/AddClubAdminSheet";
 
 import { getFolderColorClass, FOLDER_COLORS } from "@/components/TeamFoldersManager";
@@ -121,6 +122,7 @@ export default function ClubDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [openSections, setOpenSections] = useState<string[]>([]);
+  const [isExportingRoster, setIsExportingRoster] = useState(false);
 
   // Deep-link to accordion section via hash (e.g. #branding)
   useEffect(() => {
@@ -1474,6 +1476,46 @@ export default function ClubDetailPage() {
             <Megaphone className="h-4 w-4 text-primary" />
             <span className="font-medium">Broadcast Message</span>
             <span className="ml-auto text-xs text-muted-foreground/80 hidden sm:inline">Announce to team chats</span>
+          </Button>
+        )}
+
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={isExportingRoster}
+            onClick={async () => {
+              if (!id) return;
+              setIsExportingRoster(true);
+              try {
+                const count = await exportClubRosterCsv(id, club?.name ?? "club");
+                toast({
+                  title: count > 0 ? "Player list exported" : "No players to export",
+                  description:
+                    count > 0
+                      ? `${count} player ${count === 1 ? "entry" : "entries"} across your ${club?.class_mode_enabled ? "classes" : "teams"}.`
+                      : "Add players to your teams first.",
+                });
+              } catch (e: any) {
+                toast({
+                  title: "Couldn't export player list",
+                  description: e?.message ?? "Please try again.",
+                  variant: "destructive",
+                });
+              } finally {
+                setIsExportingRoster(false);
+              }
+            }}
+            aria-label="Export player list as a spreadsheet"
+            className="min-h-[44px] w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent"
+          >
+            {isExportingRoster ? (
+              <Loader2 className="h-4 w-4 text-primary animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4 text-primary" />
+            )}
+            <span className="font-medium">Export Player List</span>
+            <span className="ml-auto text-xs text-muted-foreground/80 hidden sm:inline">CSV of players &amp; teams</span>
           </Button>
         )}
 
