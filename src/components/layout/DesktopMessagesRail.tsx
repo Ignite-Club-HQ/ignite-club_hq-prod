@@ -140,6 +140,24 @@ export function DesktopMessagesRail() {
         // Snippets are best-effort in the rail.
       }
 
+      // Personal groups (no club/team) are scoped by their members' club roles.
+      const personalIds = visible
+        .filter((g: any) => !g.club_id && !g.team_id)
+        .map((g: any) => g.id);
+      const membersByGroup = new Map<string, string[]>();
+      if (personalIds.length > 0) {
+        const { data: members } = await supabase
+          .from("group_members")
+          .select("group_id, user_id")
+          .in("group_id", personalIds);
+        ((members as any[]) || []).forEach((m: any) => {
+          if (!m.user_id || m.user_id === user!.id) return;
+          const list = membersByGroup.get(m.group_id) || [];
+          list.push(m.user_id);
+          membersByGroup.set(m.group_id, list);
+        });
+      }
+
       return visible.map((g: any) => {
         const last = latestMap.get(g.id);
         const contextName = g.teams?.name || g.clubs?.name || null;
@@ -156,15 +174,58 @@ export function DesktopMessagesRail() {
           snippet,
           activityAt: last?.created_at || g.created_at,
           route: `/groups/${g.id}`,
+          clubId: g.club_id ?? null,
+          teamId: g.team_id ?? null,
+          otherUserIds: membersByGroup.get(g.id) || [],
         };
       });
     },
   });
 
+  // Which of the people we share DMs / personal groups with belong to the
+  // active club. Mirrors MessagesPage's club-scope filter so the rail shows the
+  // same set of conversations as the full inbox.
+  const scopeCandidateIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of [...dmItems, ...groupItems]) {
+      if (item.clubId || item.teamId) continue;
+      (item.otherUserIds || []).forEach((id) => set.add(id));
+    }
+    return Array.from(set).sort();
+  }, [dmItems, groupItems]);
+
+  const { data: usersInActiveClub } = useQuery({
+    queryKey: ["desktop-rail-club-scope", activeClubFilter, scopeCandidateIds],
+    enabled:
+      !!user && initialized && !isNative && !!activeClubFilter && scopeCandidateIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Set<string>> => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", activeClubFilter!)
+        .in("user_id", scopeCandidateIds);
+      return new Set(((data as any[]) || []).map((r: any) => r.user_id).filter(Boolean));
+    },
+  });
+
   const items = useMemo(() => {
-    const combined = [...dmItems, ...groupItems].sort(
+    let combined = [...dmItems, ...groupItems].sort(
       (a, b) => new Date(b.activityAt).getTime() - new Date(a.activityAt).getTime()
     );
+
+    if (activeClubFilter) {
+      combined = combined.filter((i) => {
+        if (i.clubId) return i.clubId === activeClubFilter;
+        if (i.teamId) return activeClubTeamIds.includes(i.teamId);
+        // DMs and personal groups: keep when a counterpart is in the active club.
+        const others = i.otherUserIds || [];
+        if (others.length === 0) return true;
+        if (!usersInActiveClub) return true; // fail open while scoping resolves
+        return others.some((uid) => usersInActiveClub.has(uid));
+      });
+    }
+
     const q = query.trim().toLowerCase();
     const filtered = q
       ? combined.filter(
@@ -173,7 +234,8 @@ export function DesktopMessagesRail() {
         )
       : combined;
     return filtered.slice(0, 8);
-  }, [dmItems, groupItems, query]);
+  }, [dmItems, groupItems, query, activeClubFilter, activeClubTeamIds, usersInActiveClub]);
+
 
   if (isNative) return null;
 
