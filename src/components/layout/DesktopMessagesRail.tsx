@@ -118,10 +118,11 @@ export function DesktopMessagesRail() {
 
       const { data: groups, error } = await supabase
         .from("chat_groups")
-        .select("id, name, created_at, teams(name, deleted_at), clubs!club_id(name, deleted_at, purged_at)")
+        .select("id, name, created_at, club_id, team_id, teams(name, deleted_at), clubs!club_id(name, deleted_at, purged_at)")
         .in("id", ids as string[])
         .is("deleted_at", null);
       if (error) throw error;
+
 
       const visible = ((groups || []) as any[]).filter(
         (g) => !g.teams?.deleted_at && !g.clubs?.deleted_at && !g.clubs?.purged_at
