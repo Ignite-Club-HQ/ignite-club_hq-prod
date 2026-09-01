@@ -37,10 +37,12 @@ interface RailItem {
  */
 export function DesktopMessagesRail() {
   const { user, initialized } = useAuth();
+  const { activeClubFilter, activeClubTeamIds } = useClubTheme();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
 
   const isNative = Capacitor.isNativePlatform();
+
 
   // DM conversations (same base query + latest-message RPC as MessagesPage)
   const { data: dmItems = [] } = useQuery({
