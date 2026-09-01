@@ -92,7 +92,7 @@ import { ClubMessagePrivacySettings } from "@/components/ClubMessagePrivacySetti
 import { ClubAICatchUpSettings } from "@/components/ClubAICatchUpSettings";
 import { ClubInviteEmailSettings } from "@/components/ClubInviteEmailSettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
-import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity, Link as LinkIcon } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity, MoreVertical, Link as LinkIcon } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
@@ -1453,11 +1453,69 @@ export default function ClubDetailPage() {
             )}
           </button>
           {isAdmin && (
-            <Link to={`/clubs/${id}/teams/new`}>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
-              </Button>
-            </Link>
+            <div className="flex items-center gap-1 shrink-0">
+              <Link to={`/clubs/${id}/teams/new`}>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
+                </Button>
+              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-muted-foreground"
+                    aria-label="More admin actions"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setAnnouncementDialogOpen(true);
+                    }}
+                  >
+                    <Megaphone className="h-4 w-4 mr-2 text-primary" />
+                    Broadcast message
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={isExportingRoster}
+                    onSelect={async (e) => {
+                      e.preventDefault();
+                      if (!id) return;
+                      setIsExportingRoster(true);
+                      try {
+                        const count = await exportClubRosterCsv(id, club?.name ?? "club");
+                        toast({
+                          title: count > 0 ? "Player list exported" : "No players to export",
+                          description:
+                            count > 0
+                              ? `${count} player ${count === 1 ? "entry" : "entries"} across your ${club?.class_mode_enabled ? "classes" : "teams"}.`
+                              : "Add players to your teams first.",
+                        });
+                      } catch (err: any) {
+                        toast({
+                          title: "Couldn't export player list",
+                          description: err?.message ?? "Please try again.",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsExportingRoster(false);
+                      }
+                    }}
+                  >
+                    {isExportingRoster ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    )}
+                    Export player list
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
 
@@ -1465,57 +1523,7 @@ export default function ClubDetailPage() {
 
         {isAdmin && <PendingTeamRequests clubId={id!} />}
 
-        {isAdmin && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setAnnouncementDialogOpen(true)}
-            aria-label="Open broadcast message dialog"
-            className="min-h-[44px] w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent"
-          >
-            <Megaphone className="h-4 w-4 text-primary" />
-            <span className="font-medium">Broadcast Message</span>
-            <span className="ml-auto text-xs text-muted-foreground/80 hidden sm:inline">Announce to team chats</span>
-          </Button>
-        )}
 
-        {isAdmin && (
-          <button
-            type="button"
-            disabled={isExportingRoster}
-            onClick={async () => {
-              if (!id) return;
-              setIsExportingRoster(true);
-              try {
-                const count = await exportClubRosterCsv(id, club?.name ?? "club");
-                toast({
-                  title: count > 0 ? "Player list exported" : "No players to export",
-                  description:
-                    count > 0
-                      ? `${count} player ${count === 1 ? "entry" : "entries"} across your ${club?.class_mode_enabled ? "classes" : "teams"}.`
-                      : "Add players to your teams first.",
-                });
-              } catch (e: any) {
-                toast({
-                  title: "Couldn't export player list",
-                  description: e?.message ?? "Please try again.",
-                  variant: "destructive",
-                });
-              } finally {
-                setIsExportingRoster(false);
-              }
-            }}
-            aria-label="Export player list as a spreadsheet"
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isExportingRoster ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-            )}
-            <span>Export player list</span>
-          </button>
-        )}
 
         {/* Filter chips */}
         {activeTeams && activeTeams.length > 0 && (
