@@ -6,7 +6,8 @@ import {
   Newspaper,
   Folder,
   ClipboardList,
-} from "lucide-react";
+  Settings,
+
 import { NavLink, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { cn } from "@/lib/utils";
