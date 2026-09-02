@@ -1243,6 +1243,27 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden lg:inline-flex h-9 w-9"
+            disabled={isSavingTheme}
+            onClick={handleThemeToggle}
+            title={effectiveTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={effectiveTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {effectiveTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden lg:inline-flex h-9 gap-2 px-2.5"
+            onClick={() => navigate(activeClubTheme ? `/clubs/${activeClubTheme}` : "/clubs")}
+          >
+            <Building2 className="h-5 w-5" />
+            <span className="text-sm">Clubs &amp; Teams</span>
+          </Button>
+
           <DropdownMenu open={notificationsOpen} onOpenChange={(open) => {
               setNotificationsOpen(open);
               if (open) refetchRecentNotifications();
@@ -1398,7 +1419,7 @@ export function AppHeader() {
                 } else {
                   navigate("/clubs");
                 }
-              }} className="py-3 px-3">
+              }} className="py-3 px-3 lg:hidden">
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
               </DropdownMenuItem>
@@ -1408,7 +1429,7 @@ export function AppHeader() {
                   setProfileOpen(false);
                   handleThemeToggle();
                 }}
-                className="py-3 px-3"
+                className="py-3 px-3 lg:hidden"
                 disabled={isSavingTheme}
               >
                 {effectiveTheme === "dark" ? (
@@ -1418,6 +1439,7 @@ export function AppHeader() {
                 )}
                 <span className="text-sm">{effectiveTheme === "dark" ? "Light Mode" : "Dark Mode"}</span>
               </DropdownMenuItem>
+
               {isAppAdmin && (
                 <>
                   <DropdownMenuSeparator />
