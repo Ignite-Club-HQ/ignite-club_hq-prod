@@ -1245,17 +1245,6 @@ export function AppHeader() {
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
-            size="icon"
-            className="hidden lg:inline-flex h-9 w-9"
-            disabled={isSavingTheme}
-            onClick={handleThemeToggle}
-            title={effectiveTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={effectiveTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {effectiveTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </Button>
-          <Button
-            variant="ghost"
             size="sm"
             className="hidden lg:inline-flex h-9 gap-2 px-2.5"
             onClick={() => navigate(activeClubTheme ? `/clubs/${activeClubTheme}` : "/clubs")}
@@ -1263,49 +1252,7 @@ export function AppHeader() {
             <Building2 className="h-5 w-5" />
             <span className="text-sm">Clubs &amp; Teams</span>
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden lg:inline-flex h-9 w-9"
-            onClick={() => navigate("/settings")}
-            title="Settings"
-            aria-label="Settings"
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden lg:inline-flex h-9 w-9"
-            onClick={async () => {
-              if (isSigningOut) return;
-              setIsSigningOut(true);
-              try {
-                await signOut();
-              } catch (error) {
-                console.error("Error signing out:", error);
-              } finally {
-                setIsSigningOut(false);
-              }
-            }}
-            disabled={isSigningOut}
-            title={isSigningOut ? "Signing out..." : "Sign Out"}
-            aria-label={isSigningOut ? "Signing out..." : "Sign Out"}
-          >
-            {isSigningOut ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}
-          </Button>
-          {isAppAdmin && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden lg:inline-flex h-9 w-9"
-              onClick={() => setDemoLoginOpen(true)}
-              title="Demo Accounts"
-              aria-label="Demo Accounts"
-            >
-              <UserCog className="h-5 w-5" />
-            </Button>
-          )}
+
 
 
           <DropdownMenu open={notificationsOpen} onOpenChange={(open) => {
