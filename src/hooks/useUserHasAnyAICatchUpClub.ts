@@ -23,6 +23,7 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
     placeholderData: (prev) => prev,
     queryFn: async () => {
       if (!isAICatchUpAllowlisted(user?.id)) return false;
+
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role, club_id, team_id")
@@ -30,16 +31,11 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
 
       if (!roles?.length) return false;
 
-      // App admins always see the toggle
-      if (roles.some((r: any) => r.role === "app_admin")) return true;
+
 
       const directClubIds = roles.filter((r) => r.club_id).map((r) => r.club_id!);
-      const adminClubIds = new Set(
-        roles
-          .filter((r: any) => r.club_id && (r.role === "club_admin" || r.role === "committee_member"))
-          .map((r: any) => r.club_id as string)
-      );
       const teamIds = roles.filter((r) => r.team_id).map((r) => r.team_id!);
+
 
       let teamClubIds: string[] = [];
       if (teamIds.length > 0) {
@@ -67,9 +63,26 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
         const isPro = sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override;
         const active = !sub.expires_at || new Date(sub.expires_at) > new Date();
         if (!isPro || !active) return false;
-        if (adminClubIds.has(c.id)) return true;
         return c.ai_catch_up_enabled === true;
+
       });
+    },
+  });
+
+  // Personal opt-out (Settings > AI Chat Recap). Kept separate from club
+  // eligibility so the Settings toggle stays visible after turning it off.
+  const { data: userDisabled } = useQuery({
+    queryKey: ["user-ai-catchup-pref", user?.id],
+    enabled: !!user?.id,
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("ai_catch_up_enabled")
+        .eq("id", user!.id)
+        .maybeSingle();
+      return (data as any)?.ai_catch_up_enabled === false;
     },
   });
 
@@ -78,8 +91,21 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
   // badge doesn't flash for Pro users on resume/cold-render.
   const resolved = isSuccess && data !== undefined;
   if (!globallyEnabled) {
-    return { hasAICatchUpClub: false, isLoading: false, isFetching: false, resolved: true };
+    return {
+      hasAICatchUpClub: false,
+      recapVisible: false,
+      isLoading: false,
+      isFetching: false,
+      resolved: true,
+    };
   }
 
-  return { hasAICatchUpClub: !!data, isLoading, isFetching, resolved };
+  return {
+    hasAICatchUpClub: !!data,
+    recapVisible: !!data && userDisabled !== true,
+    isLoading,
+    isFetching,
+    resolved,
+  };
 }
+

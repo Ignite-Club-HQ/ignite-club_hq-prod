@@ -62,6 +62,8 @@ export function ClubAICatchUpSettings({ clubId }: Props) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["club-ai-catchup", clubId] });
+      queryClient.invalidateQueries({ queryKey: ["user-has-any-ai-catchup-club"] });
+      queryClient.invalidateQueries({ queryKey: ["club-ai-catchup-flag"] });
       toast.success("AI Chat Recap updated");
     },
     onError: (e: Error) => toast.error("Failed to update: " + e.message),

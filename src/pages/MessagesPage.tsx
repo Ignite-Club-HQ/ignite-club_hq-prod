@@ -250,7 +250,7 @@ export default function MessagesPage() {
 
   // Gate Chat Recap to the active club context so a free active club can't
   // borrow Pro access from another club the user belongs to.
-  const { hasAICatchUpClub, resolved: aiCatchUpResolved } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
+  const { hasAICatchUpClub, recapVisible, resolved: aiCatchUpResolved } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
   const location = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -3304,7 +3304,7 @@ export default function MessagesPage() {
             </Button>
           )}
 
-          {aiCatchUpResolved && hasAICatchUpClub && (
+          {aiCatchUpResolved && recapVisible && (
             <Button
               variant="outline"
               size="icon"
