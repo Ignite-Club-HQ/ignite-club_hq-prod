@@ -1560,6 +1560,7 @@ export function AppHeader() {
               </DropdownMenuItem>
             </SwipeableDropdownContent>
           </DropdownMenu>
+          </div>
           {isAppAdmin && (
             <DemoLoginSection open={demoLoginOpen} onOpenChange={setDemoLoginOpen} />
           )}
