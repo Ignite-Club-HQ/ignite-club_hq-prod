@@ -107,6 +107,7 @@ import { getCachedNextUp, setCachedNextUp, clearCachedNextUp } from "@/lib/nextU
 import { ContactClubButton } from "@/components/ContactClubButton";
 
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
+import { DesktopActionBar } from "@/components/home/DesktopActionBar";
 import { HomeWelcomeGetStarted } from "@/components/home/HomeWelcomeGetStarted";
 import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
 
