@@ -89,6 +89,7 @@ import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
+import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
 import { useClubRealtimeMode } from "@/hooks/useClubRealtimeMode";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
@@ -525,8 +526,16 @@ export default function GroupChatPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null, { enabled: chatReady });
+  const { hasPro: clubPro, isLoading: clubProLoading } = useClubProAccess(group?.club_id ?? null, { enabled: chatReady });
+  // Personal groups have no club_id, so the club lookup never resolves and the
+  // menu would show Pro locks to genuine Pro users. Fall back to the user's
+  // Pro access across any of their clubs in that case.
+  const { hasAnyClubPro, isLoading: anyProLoading } = useUserHasAnyClubPro();
+  const hasClubScope = !!group?.club_id;
+  const groupClubHasPro = hasClubScope ? clubPro : hasAnyClubPro;
+  const groupClubProLoading = hasClubScope ? clubProLoading : anyProLoading;
   const pinnedVaultLocked = !groupClubProLoading && !groupClubHasPro;
+
 
   // Sync active club to this group's owning club so push-launched threads
   // don't leave the user inside the wrong club context.

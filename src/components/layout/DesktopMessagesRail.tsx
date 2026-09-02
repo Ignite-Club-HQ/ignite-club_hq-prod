@@ -6,19 +6,27 @@ import { formatDistanceToNow } from "date-fns";
 import { Search, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 interface RailItem {
   id: string;
-  kind: "dm" | "group";
+  kind: "dm" | "group" | "team" | "club";
   title: string;
   avatarUrl: string | null;
   snippet: string;
   activityAt: string;
   route: string;
+  /** Club that owns this chat (null for personal groups / DMs) */
+  clubId?: string | null;
+  /** Team that owns this chat (null for club-level or personal groups) */
+  teamId?: string | null;
+  /** Other participant (DMs) or members (personal groups) for club scoping */
+  otherUserIds?: string[];
 }
+
 
 /**
  * Desktop-only right rail (xl+) listing recent conversations with last-message
@@ -29,10 +37,12 @@ interface RailItem {
  */
 export function DesktopMessagesRail() {
   const { user, initialized } = useAuth();
+  const { activeClubFilter, activeClubTeamIds } = useClubTheme();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
 
   const isNative = Capacitor.isNativePlatform();
+
 
   // DM conversations (same base query + latest-message RPC as MessagesPage)
   const { data: dmItems = [] } = useQuery({
@@ -84,8 +94,12 @@ export function DesktopMessagesRail() {
           snippet,
           activityAt: last?.created_at || c.updated_at,
           route: `/messages/dm/${c.id}`,
+          clubId: null,
+          teamId: null,
+          otherUserIds: otherId ? [otherId] : [],
         };
       });
+
     },
   });
 
@@ -104,10 +118,11 @@ export function DesktopMessagesRail() {
 
       const { data: groups, error } = await supabase
         .from("chat_groups")
-        .select("id, name, created_at, teams(name, deleted_at), clubs!club_id(name, deleted_at, purged_at)")
+        .select("id, name, created_at, club_id, team_id, teams(name, deleted_at), clubs!club_id(name, deleted_at, purged_at)")
         .in("id", ids as string[])
         .is("deleted_at", null);
       if (error) throw error;
+
 
       const visible = ((groups || []) as any[]).filter(
         (g) => !g.teams?.deleted_at && !g.clubs?.deleted_at && !g.clubs?.purged_at
@@ -123,6 +138,24 @@ export function DesktopMessagesRail() {
         latestMap = new Map(((rows as any[]) || []).map((r: any) => [r.group_id, r]));
       } catch {
         // Snippets are best-effort in the rail.
+      }
+
+      // Personal groups (no club/team) are scoped by their members' club roles.
+      const personalIds = visible
+        .filter((g: any) => !g.club_id && !g.team_id)
+        .map((g: any) => g.id);
+      const membersByGroup = new Map<string, string[]>();
+      if (personalIds.length > 0) {
+        const { data: members } = await supabase
+          .from("group_members")
+          .select("group_id, user_id")
+          .in("group_id", personalIds);
+        ((members as any[]) || []).forEach((m: any) => {
+          if (!m.user_id || m.user_id === user!.id) return;
+          const list = membersByGroup.get(m.group_id) || [];
+          list.push(m.user_id);
+          membersByGroup.set(m.group_id, list);
+        });
       }
 
       return visible.map((g: any) => {
@@ -141,15 +174,177 @@ export function DesktopMessagesRail() {
           snippet,
           activityAt: last?.created_at || g.created_at,
           route: `/groups/${g.id}`,
+          clubId: g.club_id ?? null,
+          teamId: g.team_id ?? null,
+          otherUserIds: membersByGroup.get(g.id) || [],
         };
       });
     },
   });
 
+  // Team chats — same source as the inbox "Teams" section.
+  const { data: teamItems = [] } = useQuery({
+    queryKey: ["desktop-rail-teams", user?.id],
+    enabled: !!user && initialized && !isNative,
+    staleTime: 30_000,
+    refetchOnReconnect: "always",
+    queryFn: async (): Promise<RailItem[]> => {
+      const { data: roles, error: rolesErr } = await supabase
+        .from("user_roles")
+        .select("team_id")
+        .eq("user_id", user!.id)
+        .not("team_id", "is", null);
+      if (rolesErr) throw rolesErr;
+      const teamIds = [...new Set((roles || []).map((r: any) => r.team_id).filter(Boolean))];
+      if (teamIds.length === 0) return [];
+
+      const { data: teams, error } = await supabase
+        .from("teams")
+        .select("id, name, logo_url, club_id, created_at, clubs!club_id(name, logo_url, deleted_at, purged_at)")
+        .in("id", teamIds as string[])
+        .is("deleted_at", null);
+      if (error) throw error;
+      const visible = ((teams || []) as any[]).filter(
+        (t) => !t.clubs?.deleted_at && !t.clubs?.purged_at
+      );
+      if (visible.length === 0) return [];
+
+      let latestMap = new Map<string, any>();
+      try {
+        const { data: rows } = await (supabase as any).rpc("get_inbox_latest_team_messages", {
+          _team_ids: visible.map((t: any) => t.id),
+        });
+        latestMap = new Map(((rows as any[]) || []).map((r: any) => [r.team_id, r]));
+      } catch {
+        // Snippets are best-effort in the rail.
+      }
+
+      return visible.map((t: any) => {
+        const last = latestMap.get(t.id);
+        const isAnnouncement = !!(last?.is_club_announcement && last?.club_announcement_name);
+        const author = isAnnouncement ? last.club_announcement_name : last?.author_display_name;
+        const snippet = last
+          ? `${author ? author + ": " : ""}${last.text || (last.image_url ? "📷 Photo" : "")}`
+          : "No messages yet";
+        return {
+          id: t.id,
+          kind: "team" as const,
+          title: t.name || "Team chat",
+          avatarUrl: t.logo_url || t.clubs?.logo_url || null,
+          snippet,
+          activityAt: last?.created_at || t.created_at,
+          route: `/messages/${t.id}`,
+          clubId: t.club_id ?? null,
+          teamId: t.id,
+        };
+      });
+    },
+  });
+
+  // Club chats — same source as the inbox "Clubs" section.
+  const { data: clubItems = [] } = useQuery({
+    queryKey: ["desktop-rail-clubs", user?.id],
+    enabled: !!user && initialized && !isNative,
+    staleTime: 30_000,
+    refetchOnReconnect: "always",
+    queryFn: async (): Promise<RailItem[]> => {
+      const { data: roles, error: rolesErr } = await supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .not("club_id", "is", null);
+      if (rolesErr) throw rolesErr;
+      const clubIds = [...new Set((roles || []).map((r: any) => r.club_id).filter(Boolean))];
+      if (clubIds.length === 0) return [];
+
+      const { data: clubs, error } = await supabase
+        .from("clubs")
+        .select("id, name, logo_url, created_at")
+        .in("id", clubIds as string[])
+        .is("deleted_at", null)
+        .neq("kind", "shell");
+      if (error) throw error;
+      const visible = (clubs || []) as any[];
+      if (visible.length === 0) return [];
+
+      let latestMap = new Map<string, any>();
+      try {
+        const { data: rows } = await (supabase as any).rpc("get_inbox_latest_club_messages", {
+          _club_ids: visible.map((c: any) => c.id),
+        });
+        latestMap = new Map(((rows as any[]) || []).map((r: any) => [r.club_id, r]));
+      } catch {
+        // Snippets are best-effort in the rail.
+      }
+
+      return visible.map((c: any) => {
+        const last = latestMap.get(c.id);
+        const snippet = last
+          ? `${last.author_display_name ? last.author_display_name + ": " : ""}${
+              last.text || (last.image_url ? "📷 Photo" : "")
+            }`
+          : "No messages yet";
+        return {
+          id: c.id,
+          kind: "club" as const,
+          title: c.name || "Club chat",
+          avatarUrl: c.logo_url ?? null,
+          snippet,
+          activityAt: last?.created_at || c.created_at,
+          route: `/messages/club/${c.id}`,
+          clubId: c.id,
+          teamId: null,
+        };
+      });
+    },
+  });
+
+
+
+  // Which of the people we share DMs / personal groups with belong to the
+  // active club. Mirrors MessagesPage's club-scope filter so the rail shows the
+  // same set of conversations as the full inbox.
+  const scopeCandidateIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of [...dmItems, ...groupItems]) {
+      if (item.clubId || item.teamId) continue;
+      (item.otherUserIds || []).forEach((id) => set.add(id));
+    }
+    return Array.from(set).sort();
+  }, [dmItems, groupItems]);
+
+  const { data: usersInActiveClub } = useQuery({
+    queryKey: ["desktop-rail-club-scope", activeClubFilter, scopeCandidateIds],
+    enabled:
+      !!user && initialized && !isNative && !!activeClubFilter && scopeCandidateIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Set<string>> => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", activeClubFilter!)
+        .in("user_id", scopeCandidateIds);
+      return new Set(((data as any[]) || []).map((r: any) => r.user_id).filter(Boolean));
+    },
+  });
+
   const items = useMemo(() => {
-    const combined = [...dmItems, ...groupItems].sort(
+    let combined = [...dmItems, ...groupItems, ...teamItems, ...clubItems].sort(
       (a, b) => new Date(b.activityAt).getTime() - new Date(a.activityAt).getTime()
     );
+
+    if (activeClubFilter) {
+      combined = combined.filter((i) => {
+        if (i.clubId) return i.clubId === activeClubFilter;
+        if (i.teamId) return activeClubTeamIds.includes(i.teamId);
+        // DMs and personal groups: keep when a counterpart is in the active club.
+        const others = i.otherUserIds || [];
+        if (others.length === 0) return true;
+        if (!usersInActiveClub) return true; // fail open while scoping resolves
+        return others.some((uid) => usersInActiveClub.has(uid));
+      });
+    }
+
     const q = query.trim().toLowerCase();
     const filtered = q
       ? combined.filter(
@@ -158,7 +353,8 @@ export function DesktopMessagesRail() {
         )
       : combined;
     return filtered.slice(0, 8);
-  }, [dmItems, groupItems, query]);
+  }, [dmItems, groupItems, teamItems, clubItems, query, activeClubFilter, activeClubTeamIds, usersInActiveClub]);
+
 
   if (isNative) return null;
 

@@ -1243,6 +1243,71 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden lg:inline-flex h-9 w-9"
+            disabled={isSavingTheme}
+            onClick={handleThemeToggle}
+            title={effectiveTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={effectiveTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {effectiveTheme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hidden lg:inline-flex h-9 gap-2 px-2.5"
+            onClick={() => navigate(activeClubTheme ? `/clubs/${activeClubTheme}` : "/clubs")}
+          >
+            <Building2 className="h-5 w-5" />
+            <span className="text-sm">Clubs &amp; Teams</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden lg:inline-flex h-9 w-9"
+            onClick={() => navigate("/settings")}
+            title="Settings"
+            aria-label="Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden lg:inline-flex h-9 w-9"
+            onClick={async () => {
+              if (isSigningOut) return;
+              setIsSigningOut(true);
+              try {
+                await signOut();
+              } catch (error) {
+                console.error("Error signing out:", error);
+              } finally {
+                setIsSigningOut(false);
+              }
+            }}
+            disabled={isSigningOut}
+            title={isSigningOut ? "Signing out..." : "Sign Out"}
+            aria-label={isSigningOut ? "Signing out..." : "Sign Out"}
+          >
+            {isSigningOut ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}
+          </Button>
+          {isAppAdmin && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden lg:inline-flex h-9 w-9"
+              onClick={() => setDemoLoginOpen(true)}
+              title="Demo Accounts"
+              aria-label="Demo Accounts"
+            >
+              <UserCog className="h-5 w-5" />
+            </Button>
+          )}
+
+
           <DropdownMenu open={notificationsOpen} onOpenChange={(open) => {
               setNotificationsOpen(open);
               if (open) refetchRecentNotifications();
@@ -1342,28 +1407,61 @@ export function AppHeader() {
             </SwipeableDropdownContent>
           </DropdownMenu>
 
-          <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
-                <Avatar 
-                  className="h-8 w-8 border-2" 
-                  style={{ 
-                    borderColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)'
-                  }}
+          {/* Desktop: avatar is the profile shortcut */}
+          <Button
+            variant="ghost"
+            className="hidden lg:flex relative h-8 w-8 rounded-full p-0"
+            onClick={() => navigate("/profile")}
+            title="My Profile"
+            aria-label="My Profile"
+          >
+            <Avatar 
+              className="h-8 w-8 border-2" 
+              style={{ 
+                borderColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)'
+              }}
+            >
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback 
+                className="text-xs"
+                style={{
+                  backgroundColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)',
+                  color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
+                }}
+              >
+                {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+          </Button>
+
+          {/* Mobile: account actions stay in the dropdown */}
+          <div className="lg:hidden">
+            <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="relative h-8 w-8 rounded-full p-0"
+                  aria-label="Account menu"
                 >
-                  <AvatarImage src={profile?.avatar_url || undefined} />
-                  <AvatarFallback 
-                    className="text-xs"
-                    style={{
-                      backgroundColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)',
-                      color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
+                  <Avatar 
+                    className="h-8 w-8 border-2" 
+                    style={{ 
+                      borderColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)'
                     }}
                   >
-                    {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
+                    <AvatarImage src={profile?.avatar_url || undefined} />
+                    <AvatarFallback 
+                      className="text-xs"
+                      style={{
+                        backgroundColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)',
+                        color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
+                      }}
+                    >
+                      {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
             <SwipeableDropdownContent 
               className="w-64 bg-popover" 
               align="end"
@@ -1398,7 +1496,7 @@ export function AppHeader() {
                 } else {
                   navigate("/clubs");
                 }
-              }} className="py-3 px-3">
+              }} className="py-3 px-3 lg:hidden">
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
               </DropdownMenuItem>
@@ -1408,7 +1506,7 @@ export function AppHeader() {
                   setProfileOpen(false);
                   handleThemeToggle();
                 }}
-                className="py-3 px-3"
+                className="py-3 px-3 lg:hidden"
                 disabled={isSavingTheme}
               >
                 {effectiveTheme === "dark" ? (
@@ -1418,6 +1516,7 @@ export function AppHeader() {
                 )}
                 <span className="text-sm">{effectiveTheme === "dark" ? "Light Mode" : "Dark Mode"}</span>
               </DropdownMenuItem>
+
               {isAppAdmin && (
                 <>
                   <DropdownMenuSeparator />
@@ -1461,6 +1560,7 @@ export function AppHeader() {
               </DropdownMenuItem>
             </SwipeableDropdownContent>
           </DropdownMenu>
+          </div>
           {isAppAdmin && (
             <DemoLoginSection open={demoLoginOpen} onOpenChange={setDemoLoginOpen} />
           )}

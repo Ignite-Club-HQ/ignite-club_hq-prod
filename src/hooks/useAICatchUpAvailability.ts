@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ChatScopeType } from "@/hooks/useChatCatchUp";
+import { useChatRecapGloballyEnabled } from "@/hooks/useChatRecapGloballyEnabled";
 
 /**
  * Resolves whether the AI Chat Recap feature has been turned off either at
@@ -11,6 +12,7 @@ export function useAICatchUpAvailability(
   scope_type: ChatScopeType,
   scope_id: string | null | undefined,
 ) {
+  const globallyEnabled = useChatRecapGloballyEnabled();
   const { data: clubDisabled } = useQuery({
     queryKey: ["club-ai-catchup-flag", scope_type, scope_id],
     enabled: !!scope_id && scope_type !== "direct",
@@ -73,6 +75,7 @@ export function useAICatchUpAvailability(
   return {
     clubDisabled: clubDisabled === true,
     userDisabled: userDisabled === true,
-    featureDisabled: clubDisabled === true || userDisabled === true,
+    // App-admin master switch wins over club/user settings.
+    featureDisabled: !globallyEnabled || clubDisabled === true || userDisabled === true,
   };
 }

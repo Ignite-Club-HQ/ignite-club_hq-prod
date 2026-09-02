@@ -3,7 +3,6 @@ import { NavLink } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogoImage } from "@/components/ui/logo-image";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import igniteIcon from "@/assets/ignite-icon.png";
@@ -21,17 +20,10 @@ const railItems = [
  * keeps the existing BottomNav untouched.
  */
 export function DesktopNavRail() {
-  const { unreadMessagesCount, profile } = useAuth();
+  const { unreadMessagesCount } = useAuth();
   const { activeThemeData } = useClubTheme();
 
   if (Capacitor.isNativePlatform()) return null;
-
-  const initials = (profile?.display_name || "?")
-    .split(" ")
-    .map((p) => p.charAt(0))
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
 
   return (
     <aside
@@ -81,19 +73,12 @@ export function DesktopNavRail() {
         ))}
       </nav>
 
-      <NavLink
-        to="/account"
-        title="Account"
-        aria-label="Account"
-        className="mt-auto mb-2 block rounded-full ring-2 ring-primary-foreground/20 hover:ring-primary-foreground/40 transition-shadow"
-      >
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.display_name || "Account"} />
-          <AvatarFallback className="bg-primary-foreground/15 text-primary-foreground text-xs font-semibold">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-      </NavLink>
+      {/*
+       * No account avatar here — the single account entry point on desktop is
+       * the avatar in the top header (AppHeader). Duplicating it in the rail
+       * was confusing.
+       */}
+
     </aside>
   );
 }
