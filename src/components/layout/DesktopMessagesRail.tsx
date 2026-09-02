@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 interface RailItem {
   id: string;
-  kind: "dm" | "group";
+  kind: "dm" | "group" | "team" | "club";
   title: string;
   avatarUrl: string | null;
   snippet: string;
