@@ -3194,7 +3194,7 @@ export default function EventDetailPage() {
               Admins & coaches can open it for any upcoming game (not just on
               game day) so they can pre-set the lineup and auto-sub plan
               ahead of time. Past games (>3h after kickoff) stay hidden. */}
-          {(isPitchBoardAccessLoading || (canAccessPitchBoard && isTeamMembersForPitchLoading)) && event.type === "game" && !!event.team_id && (isSoccerClub || isNetballClub || isBasketballClub) && (
+          {(isPitchBoardAccessLoading || (canAccessPitchBoard && isTeamMembersForPitchLoading)) && event.type === "game" && !!event.team_id && isSoccerClub && (
             <Button variant="outline" className="w-full mt-2" disabled>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Checking match access…

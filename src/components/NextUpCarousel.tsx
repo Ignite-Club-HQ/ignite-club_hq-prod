@@ -22,7 +22,7 @@ import { getEventDisplay } from "@/lib/eventDisplay";
 import { TeamChip, getTeamRailColor } from "@/components/events/TeamChip";
 import { getEventTypeIcon, getEventTypeAccent, getEventTypeAccentClasses } from "@/lib/eventTypeIcon";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
-import { detectGameBoardKind } from "@/lib/sportDetection";
+import { hasGameBoardSupport } from "@/lib/sportDetection";
 
 import { useEventMembership } from "@/hooks/useEventMembership";
 import { isParentFirstEvent } from "@/lib/rsvpAudience";
@@ -57,9 +57,9 @@ interface NextUpCarouselProps {
 function StartGameCta({ event }: { event: EventItem }) {
   const navigate = useNavigate();
   const { canStart, phase } = useCanStartGame(event);
-  // Gate by sport — pitch/court board only supports soccer, netball, basketball.
-  // Cricket, AFL, hockey, etc. have no game board, so hide the CTA entirely.
-  const boardKind = detectGameBoardKind(event.clubs?.sport);
+  // Gate by sport — the game board only supports football/soccer in this build.
+  // Cricket, AFL, netball, basketball etc. have no board, so hide the CTA.
+  const boardKind = hasGameBoardSupport(event.clubs?.sport);
   if (!canStart || !boardKind) return null;
   const label = phase === "live" ? "Open Match" : "Start Game";
   return (
@@ -97,7 +97,7 @@ function WatchLiveCta({ event }: { event: EventItem }) {
     return now >= kickoff - 30 * 60 * 1000 && now <= kickoff + 3 * 60 * 60 * 1000;
   })();
 
-  const boardKind = detectGameBoardKind(event.clubs?.sport);
+  const boardKind = hasGameBoardSupport(event.clubs?.sport);
   const eligible =
     event.type === "game" &&
     !event.is_cancelled &&
