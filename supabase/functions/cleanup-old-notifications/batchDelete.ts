@@ -21,6 +21,15 @@
 export const BATCH_SIZE = 500;
 export const MAX_BATCHES_PER_TARGET = 200; // 200 * 500 = 100k rows per target per run
 export const MAX_RUNTIME_MS = 55_000;
+/**
+ * `.in('id', ids)` is serialised into the request URL, so a large id list makes
+ * the request line exceed the gateway limit and PostgREST answers 400 "Bad
+ * Request" (observed live in DEV with the previous 2000-id deletes). Each batch
+ * is therefore deleted in sub-chunks small enough to keep the URL well inside
+ * that limit: 100 uuids is roughly 4 KB.
+ */
+export const DELETE_CHUNK_SIZE = 100;
+
 
 export type CleanupResult = {
   deleted: number;
