@@ -40,10 +40,12 @@ export type CleanupResult = {
 
 export type BatchDeleteOptions = {
   batchSize?: number;
+  deleteChunkSize?: number;
   maxBatches?: number;
   maxRuntimeMs?: number;
   now?: () => number;
 };
+
 
 export async function batchDeleteByDate(
   supabase: any,
