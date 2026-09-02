@@ -23,6 +23,15 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
     placeholderData: (prev) => prev,
     queryFn: async () => {
       if (!isAICatchUpAllowlisted(user?.id)) return false;
+
+      // Personal opt-out wins over everything else.
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("ai_catch_up_enabled")
+        .eq("id", user!.id)
+        .maybeSingle();
+      if ((profile as any)?.ai_catch_up_enabled === false) return false;
+
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role, club_id, team_id")
@@ -30,16 +39,9 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
 
       if (!roles?.length) return false;
 
-      // App admins always see the toggle
-      if (roles.some((r: any) => r.role === "app_admin")) return true;
-
       const directClubIds = roles.filter((r) => r.club_id).map((r) => r.club_id!);
-      const adminClubIds = new Set(
-        roles
-          .filter((r: any) => r.club_id && (r.role === "club_admin" || r.role === "committee_member"))
-          .map((r: any) => r.club_id as string)
-      );
       const teamIds = roles.filter((r) => r.team_id).map((r) => r.team_id!);
+
 
       let teamClubIds: string[] = [];
       if (teamIds.length > 0) {
