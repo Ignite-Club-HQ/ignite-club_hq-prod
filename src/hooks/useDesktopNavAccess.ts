@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { detectGameBoardKind } from "@/lib/sportDetection";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { hasGameBoardSupport } from "@/lib/sportDetection";
+
 
 
 const VAULT_ROLES = [
