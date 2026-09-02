@@ -98,15 +98,29 @@ export async function batchDeleteByDate(
     if (!rows || rows.length === 0) break;
 
     const ids = rows.map((r: { id: string }) => r.id);
-    const { error: deleteError, count } = await supabase
-      .from(table)
-      .delete({ count: 'exact' })
-      .in('id', ids);
+    const chunkSize = options.deleteChunkSize ?? DELETE_CHUNK_SIZE;
+    let removed = 0;
 
-    if (deleteError) {
-      console.error(`[CLEANUP] Delete error (${label}):`, deleteError);
-      return { deleted: totalDeleted, batches, truncated: true, error: deleteError.message };
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const { error: deleteError, count } = await supabase
+        .from(table)
+        .delete({ count: 'exact' })
+        .in('id', chunk);
+
+      if (deleteError) {
+        console.error(`[CLEANUP] Delete error (${label}):`, deleteError);
+        return {
+          deleted: totalDeleted + removed,
+          batches,
+          truncated: true,
+          error: deleteError.message,
+        };
+      }
+
+      removed += count ?? chunk.length;
     }
+
 
     const removed = count ?? ids.length;
     batches += 1;
