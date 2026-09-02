@@ -1457,7 +1457,7 @@ export function AppHeader() {
                 <User className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Profile</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/settings"); }} className="py-3 px-3">
+              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/settings"); }} className="py-3 px-3 lg:hidden">
                 <Settings className="mr-3 h-5 w-5" />
                 <span className="text-sm">Settings</span>
               </DropdownMenuItem>
@@ -1480,9 +1480,10 @@ export function AppHeader() {
                   setProfileOpen(false);
                   handleThemeToggle();
                 }}
-                className="py-3 px-3 lg:hidden"
+                className="py-3 px-3"
                 disabled={isSavingTheme}
               >
+
                 {effectiveTheme === "dark" ? (
                   <Sun className="mr-3 h-5 w-5" />
                 ) : (
