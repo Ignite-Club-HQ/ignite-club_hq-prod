@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { hasGameBoardSupport } from "@/lib/sportDetection";
 import { AddDutySheet } from "@/components/AddDutySheet";
 import { AssignDutySheet } from "@/components/AssignDutySheet";
 
@@ -122,11 +123,11 @@ export default function EventGroupPitchPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("minutes_per_half, club_id")
+        .select("minutes_per_half, club_id, clubs:clubs!mini_leagues_club_id_fkey(sport)")
         .eq("id", group!.event!.mini_league_id!)
         .single();
       if (error) throw error;
-      return data as { minutes_per_half: number; club_id: string };
+      return data as unknown as { minutes_per_half: number; club_id: string; clubs: { sport: string | null } | null };
     },
     enabled: !!group?.event?.mini_league_id,
   });
@@ -297,6 +298,22 @@ export default function EventGroupPitchPage() {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // The pitch board is football-only in this build — block the route outright
+  // for clubs playing any other sport.
+  if (leagueSettings && !hasGameBoardSupport(leagueSettings.clubs?.sport)) {
+    return (
+      <div className="container max-w-4xl py-6 text-center space-y-4">
+        <h2 className="text-xl font-semibold">Not available for this sport</h2>
+        <p className="text-muted-foreground">
+          The pitch board is only available for football/soccer clubs.
+        </p>
+        <Button variant="outline" onClick={() => navigate(-1)}>
+          Go Back
+        </Button>
       </div>
     );
   }
