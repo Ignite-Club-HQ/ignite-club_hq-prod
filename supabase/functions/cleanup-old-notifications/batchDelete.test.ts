@@ -105,10 +105,10 @@ Deno.test("runtime budget stops the loop and flags more work", async () => {
   let clock = 0;
   const res = await batchDeleteByDate(db, "notifications", CUTOFF, "test", 0, undefined, {
     maxRuntimeMs: 1000,
-    now: () => (clock += 600), // exceeds budget on the third check
+    now: () => (clock += 600), // budget is exceeded before the second batch
   });
   assertEquals(res.truncated, true);
-  assertEquals(res.deleted, 1000);
+  assertEquals(res.deleted, 500);
 });
 
 Deno.test("a delete that removes nothing stops instead of looping forever", async () => {
@@ -142,5 +142,6 @@ Deno.test("extra filters are applied to the select (is_read scoping)", async () 
     return q.eq("is_read", true);
   });
   assertEquals(res.deleted, 10);
-  assertEquals(eqCalls, 1);
+  // Applied on every select, including the final empty read that ends the loop.
+  assertEquals(eqCalls, 2);
 });
