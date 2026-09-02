@@ -69,8 +69,8 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
         const isPro = sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override;
         const active = !sub.expires_at || new Date(sub.expires_at) > new Date();
         if (!isPro || !active) return false;
-        if (adminClubIds.has(c.id)) return true;
         return c.ai_catch_up_enabled === true;
+
       });
     },
   });
