@@ -5,7 +5,6 @@ import {
   Image as ImageIcon,
   Newspaper,
   Folder,
-  Users2,
   ClipboardList,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
