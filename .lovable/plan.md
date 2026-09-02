@@ -1,39 +1,34 @@
-# RSVP comments (Heja-style)
+# Desktop header: surface actions out of the avatar dropdown
 
-## What exists today
-- `rsvps.notes` already exists in the database and is shown under a person's name in attendance lists.
-- On the event page there is a "Note to organiser" textarea, but it only saves as a side-effect of tapping a status button. If you type a note *after* answering, nothing is saved — it looks like it worked but doesn't.
-- Children have no note field at all, and the quick RSVP buttons in chat/DMs have no way to add a reason.
+Desktop (lg and up) has plenty of horizontal room, so the account dropdown shouldn't hide everyday actions. Mobile stays exactly as it is today.
 
-## What we'll build
-1. **A single RSVP sheet with a comment box**
-   - Tapping Going / Maybe / Can't opens a compact bottom sheet: the chosen status at the top, a comment box ("Add a reason or note — optional"), and Save.
-   - Save writes status + comment together. Quick answer stays fast: Save is enabled immediately, comment is optional.
-   - Re-tapping the current status opens the same sheet so a member can add or edit a comment without changing their answer.
+## Proposed desktop header (right side)
 
-2. **Comments for children**
-   - Same sheet for each child row, so a parent can explain per child ("Ella is away at a wedding").
+```text
+[ Dark/Light toggle ]  [ Clubs & Teams ]  [ Bell ]  [ Avatar ▾ ]
+```
 
-3. **Comments from chat / DM quick RSVP**
-   - After the one-tap answer in chat, show a small "Add a note" link that opens the same sheet, so nobody has to open the event just to explain.
+- **Dark/Light toggle** — icon-only ghost button (sun/moon), instant, with tooltip. Most-used, least "account-like" item.
+- **My Clubs and Teams** — icon+label button (Building2 + "Clubs & Teams"), navigates to the active club detail page or /clubs. Frequent navigation, deserves one click.
+- **Bell** — unchanged.
+- **Avatar dropdown** — slims down to identity + rarely used items:
+  - Header row: avatar + name (+ active club name as subtext)
+  - My Profile
+  - Settings
+  - Demo Accounts (app admin only)
+  - Sign Out
 
-4. **Where comments show**
-   - Attendance rows keep showing the comment under the name (already supported), with a small comment icon so it reads as a member's note.
-   - Admin RSVP changes made on someone's behalf keep the existing "set by admin" behaviour and can optionally carry an admin note.
-   - Comments included in the event's attendance CSV/report export.
+Result: 4 items in the dropdown instead of 6, and the two most-tapped actions become one click.
 
-5. **Notifications**
-   - When a member answers with a comment, the existing admin RSVP notification includes the comment text (truncated), so organisers see the reason without opening the event.
+## Behaviour rules
 
-## Rules
-- Comment length capped (500 chars) with a live counter near the limit.
-- Comments are optional everywhere; never block an RSVP.
-- Clearing the box removes the comment.
-- Offline: queued RSVPs carry the comment and sync with it (the offline queue already has a notes field).
+- Extracted buttons render only at `lg:` and above and only on non-native platforms; below `lg` the dropdown keeps all current items so mobile is unchanged.
+- Duplicates are avoided: when a dropdown item is promoted to the header, it is hidden from the dropdown at that breakpoint (`hidden lg:flex` on the button, `lg:hidden` on the menu item).
+- Theme toggle keeps the existing `handleThemeToggle` + `isSavingTheme` disabled state and aria-label announcing the target mode.
+- Clubs button reuses the existing navigate logic (active club detail page when a club theme is active, otherwise `/clubs`).
 
 ## Technical notes
-- No schema change needed for members: reuse `rsvps.notes`.
-- New shared `RsvpCommentSheet` component; `EventDetailPage` self + child RSVP mutations, `InlineRsvpActions`, and `AdminRsvpChanger` all route through it.
-- Child mutation (`childRsvpMutation`) and `admin_upsert_rsvp` / `admin_update_rsvp_status` calls extended to pass notes.
-- Remove the standalone "Note to organiser" card once the sheet is in, so there is one place to write a comment.
-- Guard test: a status change that includes a comment persists both in one write; a comment-only edit does not change status.
+
+- Single file: `src/components/layout/AppHeader.tsx`.
+- New buttons inserted before the notifications `DropdownMenu` in the right-hand action row, using existing `Button variant="ghost"` and semantic tokens — no new colors.
+- Tooltip via existing shadcn `Tooltip` for the icon-only theme toggle; the clubs button carries a visible label so no tooltip needed.
