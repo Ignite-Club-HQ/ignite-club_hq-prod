@@ -24,20 +24,14 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
     queryFn: async () => {
       if (!isAICatchUpAllowlisted(user?.id)) return false;
 
-      // Personal opt-out wins over everything else.
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("ai_catch_up_enabled")
-        .eq("id", user!.id)
-        .maybeSingle();
-      if ((profile as any)?.ai_catch_up_enabled === false) return false;
-
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role, club_id, team_id")
         .eq("user_id", user!.id);
 
       if (!roles?.length) return false;
+
+
 
       const directClubIds = roles.filter((r) => r.club_id).map((r) => r.club_id!);
       const teamIds = roles.filter((r) => r.team_id).map((r) => r.team_id!);
