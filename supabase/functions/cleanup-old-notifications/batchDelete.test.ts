@@ -8,11 +8,14 @@ function makeFakeSupabase(opts: {
   selectError?: string;
   deleteError?: string;
   deleteNothing?: boolean; // simulate RLS silently blocking deletes
+  urlLimitIds?: number;    // gateway rejects deletes with more ids than this
 }) {
   let remaining = opts.eligible;
   const serverCap = opts.serverCap ?? 1000;
   let selects = 0;
   let deletes = 0;
+  const deleteChunkSizes: number[] = [];
+  const urlLimitIds = opts.urlLimitIds ?? Infinity;
 
   const api = {
     from() {
@@ -38,6 +41,10 @@ function makeFakeSupabase(opts: {
           const q: any = {
             in: (_col: string, ids: string[]) => {
               deletes++;
+              deleteChunkSizes.push(ids.length);
+              if (ids.length > urlLimitIds) {
+                return Promise.resolve({ error: { message: "Bad Request" }, count: null });
+              }
               if (opts.deleteError) return Promise.resolve({ error: { message: opts.deleteError }, count: null });
               if (opts.deleteNothing) return Promise.resolve({ error: null, count: 0 });
               const removed = Math.min(ids.length, remaining);
@@ -49,7 +56,7 @@ function makeFakeSupabase(opts: {
         },
       };
     },
-    stats: () => ({ selects, deletes, remaining }),
+    stats: () => ({ selects, deletes, remaining, deleteChunkSizes }),
   };
   return api;
 }
@@ -144,4 +151,30 @@ Deno.test("extra filters are applied to the select (is_read scoping)", async () 
   assertEquals(res.deleted, 10);
   // Applied on every select, including the final empty read that ends the loop.
   assertEquals(eqCalls, 2);
+});
+
+Deno.test("regression: deletes are chunked so the request URL stays small", async () => {
+  // The gateway rejected the old 2000-id deletes with 400 "Bad Request" (seen
+  // live in DEV). Anything above 100 ids per delete must never be attempted.
+  const db = makeFakeSupabase({ eligible: 1750, urlLimitIds: 100 });
+  const res = await batchDeleteByDate(db, "push_notification_logs", CUTOFF, "test", Date.now());
+  assertEquals(res.error, undefined);
+  assertEquals(res.deleted, 1750);
+  assertEquals(Math.max(...db.stats().deleteChunkSizes), 100);
+});
+
+Deno.test("a 500-row batch is deleted as five 100-id chunks", async () => {
+  const db = makeFakeSupabase({ eligible: 500 });
+  const res = await batchDeleteByDate(db, "notifications", CUTOFF, "test", Date.now());
+  assertEquals(res.deleted, 500);
+  assertEquals(res.batches, 1);
+  assertEquals(db.stats().deleteChunkSizes.slice(0, 5), [100, 100, 100, 100, 100]);
+});
+
+Deno.test("a failing chunk reports the rows already deleted in that batch", async () => {
+  const db = makeFakeSupabase({ eligible: 500, urlLimitIds: 50 });
+  const res = await batchDeleteByDate(db, "notifications", CUTOFF, "test", Date.now());
+  assertEquals(res.error, "Bad Request");
+  assertEquals(res.truncated, true);
+  assertEquals(res.deleted, 0);
 });
