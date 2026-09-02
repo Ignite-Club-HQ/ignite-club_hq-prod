@@ -1419,7 +1419,7 @@ export function AppHeader() {
                 } else {
                   navigate("/clubs");
                 }
-              }} className="py-3 px-3">
+              }} className="py-3 px-3 lg:hidden">
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
               </DropdownMenuItem>
@@ -1429,7 +1429,7 @@ export function AppHeader() {
                   setProfileOpen(false);
                   handleThemeToggle();
                 }}
-                className="py-3 px-3"
+                className="py-3 px-3 lg:hidden"
                 disabled={isSavingTheme}
               >
                 {effectiveTheme === "dark" ? (
@@ -1439,6 +1439,7 @@ export function AppHeader() {
                 )}
                 <span className="text-sm">{effectiveTheme === "dark" ? "Light Mode" : "Dark Mode"}</span>
               </DropdownMenuItem>
+
               {isAppAdmin && (
                 <>
                   <DropdownMenuSeparator />
