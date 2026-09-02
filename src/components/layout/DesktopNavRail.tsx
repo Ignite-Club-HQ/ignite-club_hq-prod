@@ -7,6 +7,7 @@ import {
   Folder,
   ClipboardList,
   Settings,
+} from "lucide-react";
 
 import { NavLink, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
