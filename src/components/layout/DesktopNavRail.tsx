@@ -126,7 +126,16 @@ export function DesktopNavRail() {
             </button>
           </>
         )}
+
+        <div className="mt-auto flex flex-col items-center pt-4">
+          <div className="mb-2 h-px w-12 bg-primary-foreground/20" role="presentation" />
+          <NavLink to="/settings" aria-label="Settings" className={itemClass}>
+            <Settings className="h-6 w-6" aria-hidden="true" />
+            <span className="text-[10px] font-medium leading-none">Settings</span>
+          </NavLink>
+        </div>
       </nav>
+
     </aside>
   );
 }
