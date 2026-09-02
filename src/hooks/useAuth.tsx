@@ -955,19 +955,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
           
-          // Only show browser notification if push notifications are NOT active.
-          // Push (web SW or native FCM) already displays the notification —
-          // firing showBrowserNotification here too causes duplicates.
-          const pushActive = isNativePlatform() ||
-            (typeof Notification !== 'undefined' && Notification.permission === 'granted' &&
-             'serviceWorker' in navigator && navigator.serviceWorker.controller);
-          
-          if (!pushActive) {
-            const message = (payload.new as any)?.message || 'You have a new notification';
-            showBrowserNotification('Ignite', message, () => {
-              window.location.href = '/notifications';
-            });
-          }
+          // Browser-level notifications are intentionally NOT fired here.
+          // Push delivery is native-only (FCM/APNs via the Capacitor app); web
+          // push is disabled. Firing showBrowserNotification from an open tab
+          // produced Chrome-branded "igniteclubhq.app" alerts duplicating the
+          // native app's notifications. In-app UI (bell + toasts) covers the
+          // browser case.
         }
       )
       .on(
