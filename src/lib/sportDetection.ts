@@ -33,3 +33,13 @@ export const detectGameBoardKind = (sport: string | null | undefined): GameBoard
   if (isSoccerSport(sport)) return "soccer";
   return null;
 };
+
+/**
+ * Whether a club's sport has a supported game board in this build.
+ * Netball/basketball boards were archived (see archive/sports/), so the pitch
+ * board is football/soccer-only. Every pitch-board entry point must gate on
+ * this helper — never on `detectGameBoardKind() !== null`, which still matches
+ * archived sports.
+ */
+export const hasGameBoardSupport = (sport: string | null | undefined): boolean =>
+  isSoccerSport(sport);

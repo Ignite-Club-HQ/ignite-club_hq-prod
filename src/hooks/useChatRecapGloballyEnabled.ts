@@ -34,8 +34,11 @@ export function useChatRecapGloballyEnabled(): boolean {
   });
 
   useEffect(() => {
+    // Unique channel name per hook instance: multiple components mount this
+    // hook, and reusing one channel name makes the second `.on()` land after
+    // the shared channel already subscribed, which throws.
     const channel = supabase
-      .channel("app-settings-chat-recap")
+      .channel(`app-settings-chat-recap-${Math.random().toString(36).slice(2)}`)
       .on(
         "postgres_changes",
         {
@@ -58,6 +61,7 @@ export function useChatRecapGloballyEnabled(): boolean {
       }
     };
   }, [queryClient]);
+
 
   return data !== false;
 }

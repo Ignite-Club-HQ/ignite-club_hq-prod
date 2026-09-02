@@ -113,7 +113,7 @@ const closePitchBoardWithFlag = (setShow: (v: boolean) => void) => () => {
   setShow(false);
   clearPitchBoardOpenFlag();
 };
-import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
+import { hasGameBoardSupport } from "@/lib/sportDetection";
 import { resolveEventRecipients, eventRecipientContext } from "@/features/events/eventRecipientPolicy";
 import { resolveReminderRecipients, applyReminderCooldown, normalizeRecipientIds } from "@/features/events/reminderRecipients";
 
@@ -739,10 +739,7 @@ export default function EventDetailPage() {
 
 
   // Check if club is soccer/football for pitch board
-  const isSoccerClub = event?.clubs?.sport?.toLowerCase().includes('soccer') || 
-                       event?.clubs?.sport?.toLowerCase().includes('football');
-  const isNetballClub = isNetballSport(event?.clubs?.sport);
-  const isBasketballClub = isBasketballSport(event?.clubs?.sport);
+  const isSoccerClub = hasGameBoardSupport(event?.clubs?.sport);
 
   const localSubsManagerForEvent = !!duties?.some(
     (d: any) => normalizeDutyName(d.name) === "subs manager" && d.assigned_to === user?.id
@@ -3194,7 +3191,7 @@ export default function EventDetailPage() {
               Admins & coaches can open it for any upcoming game (not just on
               game day) so they can pre-set the lineup and auto-sub plan
               ahead of time. Past games (>3h after kickoff) stay hidden. */}
-          {(isPitchBoardAccessLoading || (canAccessPitchBoard && isTeamMembersForPitchLoading)) && event.type === "game" && !!event.team_id && (isSoccerClub || isNetballClub || isBasketballClub) && (
+          {(isPitchBoardAccessLoading || (canAccessPitchBoard && isTeamMembersForPitchLoading)) && event.type === "game" && !!event.team_id && isSoccerClub && (
             <Button variant="outline" className="w-full mt-2" disabled>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Checking match access…

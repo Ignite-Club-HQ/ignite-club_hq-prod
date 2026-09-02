@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Users, PlayCircle, Wand2, Loader2, X, Copy, Shirt, RefreshCw, Flame, MoreHorizontal, ChevronDown, ArrowRightLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { hasGameBoardSupport } from "@/lib/sportDetection";
+
 import type { Json } from "@/integrations/supabase/types";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { Button } from "@/components/ui/button";
@@ -185,14 +187,20 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors, show_matches_to_members")
+        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors, show_matches_to_members, club_id, clubs:clubs!mini_leagues_club_id_fkey(sport)")
         .eq("id", miniLeagueId)
         .single();
       if (error) throw error;
-      return data as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null; show_matches_to_members: boolean };
+      return data as unknown as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null; show_matches_to_members: boolean; club_id: string | null; clubs: { sport: string | null } | null };
     },
     enabled: !!miniLeagueId,
   });
+
+  // The pitch board is football-only in this build — never offer it to clubs
+  // playing other sports.
+  const boardSupported = hasGameBoardSupport(miniLeague?.clubs?.sport);
+
+
 
   // Fetch mini league players
   const { data: allPlayers } = useQuery({
@@ -1157,17 +1165,20 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     );
                   })()}
 
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setActivePitchBoardGroup(group)}
-                    >
-                      <PlayCircle className="h-4 w-4 mr-1" />
-                      Pitch Board
-                    </Button>
-                  </div>
+                  {boardSupported && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setActivePitchBoardGroup(group)}
+                      >
+                        <PlayCircle className="h-4 w-4 mr-1" />
+                        Pitch Board
+                      </Button>
+                    </div>
+                  )}
+
                 </CardContent>
               </Card>
             );
@@ -1413,7 +1424,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       />
 
       {/* Pitch Board Portal */}
-      {activePitchBoardGroup && activePitchBoardGroup.players.length > 0 && createPortal(
+      {boardSupported && activePitchBoardGroup && activePitchBoardGroup.players.length > 0 && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
             <div className="flex flex-col items-center gap-4">

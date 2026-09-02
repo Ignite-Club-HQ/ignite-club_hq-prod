@@ -404,23 +404,45 @@ Deno.serve(async (req) => {
       notificationType = 'broadcast';
       contextName = 'Ignite Support';
 
+      // Club-targeted announcements must not push to users outside those
+      // clubs — the SELECT policy hides the row from them, so a push would
+      // route into an empty thread.
+      const { data: broadcastRow } = await supabase
+        .from('broadcast_messages')
+        .select('target_club_ids')
+        .eq('id', messageId)
+        .maybeSingle();
+      const targetClubIds: string[] = Array.isArray(broadcastRow?.target_club_ids)
+        ? broadcastRow!.target_club_ids as string[]
+        : [];
+
       const PAGE_SIZE = 1000;
       let offset = 0;
       let hasMore = true;
       while (hasMore) {
-        const { data: page } = await supabase
-          .from('profiles')
-          .select('id')
-          .neq('id', authorId)
-          .range(offset, offset + PAGE_SIZE - 1);
-        
+        const { data: page } = targetClubIds.length > 0
+          ? await supabase
+              .from('user_roles')
+              .select('user_id')
+              .in('club_id', targetClubIds)
+              .neq('user_id', authorId)
+              .range(offset, offset + PAGE_SIZE - 1)
+          : await supabase
+              .from('profiles')
+              .select('id')
+              .neq('id', authorId)
+              .range(offset, offset + PAGE_SIZE - 1);
+
         if (page && page.length > 0) {
-          recipientUserIds.push(...page.map(p => p.id));
+          recipientUserIds.push(...page.map((p: any) => p.id ?? p.user_id));
           offset += PAGE_SIZE;
           hasMore = page.length === PAGE_SIZE;
         } else {
           hasMore = false;
         }
+      }
+      if (targetClubIds.length > 0) {
+        recipientUserIds = Array.from(new Set(recipientUserIds.filter(Boolean)));
       }
     }
 

@@ -48,6 +48,7 @@ import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
+import { BroadcastAudienceSelector } from "@/components/chat/BroadcastAudienceSelector";
 
 const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -141,6 +142,8 @@ export default function BroadcastChatPage() {
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
   const [pendingPollId, setPendingPollId] = useState<string | null>(null);
+  // Empty = global announcement (stored as NULL target_club_ids).
+  const [targetClubIds, setTargetClubIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -859,6 +862,7 @@ export default function BroadcastChatPage() {
         author_id: user!.id,
         image_url,
         reply_to_id,
+        target_club_ids: targetClubIds.length > 0 ? targetClubIds : null,
       });
       if (error) throw error;
     },
@@ -1222,6 +1226,13 @@ export default function BroadcastChatPage() {
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
           <ScheduledMessagesBanner target={scheduleTarget} />
+          {!editingMessage && (
+            <BroadcastAudienceSelector
+              value={targetClubIds}
+              onChange={setTargetClubIds}
+              disabled={sendMutation.isPending}
+            />
+          )}
           <ChatComposerShell
             preview={
               pendingPollId && !editingMessage ? (
