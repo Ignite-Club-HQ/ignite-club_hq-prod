@@ -1424,7 +1424,7 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
       />
 
       {/* Pitch Board Portal */}
-      {activePitchBoardGroup && activePitchBoardGroup.players.length > 0 && createPortal(
+      {boardSupported && activePitchBoardGroup && activePitchBoardGroup.players.length > 0 && createPortal(
         <Suspense fallback={
           <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ backgroundColor: '#2d5a27' }}>
             <div className="flex flex-col items-center gap-4">
