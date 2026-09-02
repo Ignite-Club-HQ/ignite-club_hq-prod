@@ -429,6 +429,7 @@ export type Database = {
           id: string
           image_url: string | null
           reply_to_id: string | null
+          target_club_ids: string[] | null
           text: string
         }
         Insert: {
@@ -439,6 +440,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
+          target_club_ids?: string[] | null
           text: string
         }
         Update: {
@@ -449,6 +451,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
+          target_club_ids?: string[] | null
           text?: string
         }
         Relationships: [
@@ -10785,6 +10788,10 @@ export type Database = {
       bootstrap_dispatch_credentials: {
         Args: { _base_url: string }
         Returns: number
+      }
+      broadcast_targets_user: {
+        Args: { _club_ids: string[]; _user_id: string }
+        Returns: boolean
       }
       can_access_chat: {
         Args: { _chat_id: string; _chat_type: string }
