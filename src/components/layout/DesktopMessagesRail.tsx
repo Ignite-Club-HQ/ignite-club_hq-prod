@@ -329,7 +329,7 @@ export function DesktopMessagesRail() {
   });
 
   const items = useMemo(() => {
-    let combined = [...dmItems, ...groupItems].sort(
+    let combined = [...dmItems, ...groupItems, ...teamItems, ...clubItems].sort(
       (a, b) => new Date(b.activityAt).getTime() - new Date(a.activityAt).getTime()
     );
 
@@ -353,7 +353,7 @@ export function DesktopMessagesRail() {
         )
       : combined;
     return filtered.slice(0, 8);
-  }, [dmItems, groupItems, query, activeClubFilter, activeClubTeamIds, usersInActiveClub]);
+  }, [dmItems, groupItems, teamItems, clubItems, query, activeClubFilter, activeClubTeamIds, usersInActiveClub]);
 
 
   if (isNative) return null;
