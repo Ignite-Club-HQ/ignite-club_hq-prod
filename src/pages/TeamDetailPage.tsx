@@ -1502,12 +1502,11 @@ export default function TeamDetailPage() {
         const showVault = (isAdmin || isCoachOrAdmin || isClubAdmin);
         const vaultLocked = showVault && !(isSubscriptionLoading || isTeamPro);
         const mediaLocked = !(isSubscriptionLoading || isTeamPro);
-        const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty) && (
-          (isSoccerClub && (hasProFootball || isAppAdmin)) ||
-          // Netball / basketball game boards are still in beta — hidden from
-          // all users except app admins until they're ready for general use.
-          ((isNetballClub || isBasketballClub) && isAppAdmin)
-        );
+        // Football/soccer only: the netball & basketball boards are archived
+        // (see archive/sports/), so they must never be offered — not even to
+        // app admins, who would otherwise open an empty modal.
+        const showPitch = (isAdmin || isCoachOrAdmin || isClubAdmin || hasNearbySubsManagerDuty)
+          && isSoccerClub && (hasProFootball || isAppAdmin);
         const launchPitchBoard = async () => {
           const [membersResult, childrenResult, nearbyEventId] = await Promise.all([
             refetchMembers(),
@@ -1571,9 +1570,8 @@ export default function TeamDetailPage() {
           tiles.push({
             key: "pitch",
             icon: LayoutGrid,
-            label: (isNetballClub || isBasketballClub) ? "Game Board" : "Pitch Board",
+            label: "Pitch Board",
             onClick: launchPitchBoard,
-            beta: (isNetballClub || isBasketballClub),
           });
         }
 
