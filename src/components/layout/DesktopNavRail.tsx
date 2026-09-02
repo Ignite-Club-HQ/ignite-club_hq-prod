@@ -6,7 +6,9 @@ import {
   Newspaper,
   Folder,
   ClipboardList,
+  Settings,
 } from "lucide-react";
+
 import { NavLink, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { cn } from "@/lib/utils";
@@ -73,7 +75,7 @@ export function DesktopNavRail() {
         />
       </NavLink>
 
-      <nav className="flex flex-col items-center gap-1" aria-label="Main">
+      <nav className="flex flex-1 flex-col items-center gap-1" aria-label="Main">
         {coreItems.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} end={to === "/"} aria-label={label} className={itemClass}>
             <span className="relative">
@@ -126,7 +128,16 @@ export function DesktopNavRail() {
             </button>
           </>
         )}
+
+        <div className="mt-auto flex flex-col items-center pt-4">
+          <div className="mb-2 h-px w-12 bg-primary-foreground/20" role="presentation" />
+          <NavLink to="/settings" aria-label="Settings" className={itemClass}>
+            <Settings className="h-6 w-6" aria-hidden="true" />
+            <span className="text-[10px] font-medium leading-none">Settings</span>
+          </NavLink>
+        </div>
       </nav>
+
     </aside>
   );
 }
