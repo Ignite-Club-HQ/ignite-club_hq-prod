@@ -107,6 +107,7 @@ import { getCachedNextUp, setCachedNextUp, clearCachedNextUp } from "@/lib/nextU
 import { ContactClubButton } from "@/components/ContactClubButton";
 
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
+import { DesktopActionBar } from "@/components/home/DesktopActionBar";
 import { HomeWelcomeGetStarted } from "@/components/home/HomeWelcomeGetStarted";
 import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
 
@@ -2178,21 +2179,36 @@ export default function HomePage() {
           </p>
         </div>
         {!isNewUserEmptyState && (
-          <HomeQuickActionsFab
-            onInvite={() => setMemberInviteOpen(true)}
-            onJoinTeam={() => setTeamDialogOpen(true)}
-            hasTeams={!!userRoles?.some(r => r.team_id)}
-            canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
-            canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-            canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-            isAppAdmin={isAppAdmin}
-            activeClubFilter={activeClubFilter}
-            activeClubName={activeClubName}
-            hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
-          />
+          <div className="lg:hidden">
+            <HomeQuickActionsFab
+              onInvite={() => setMemberInviteOpen(true)}
+              onJoinTeam={() => setTeamDialogOpen(true)}
+              hasTeams={!!userRoles?.some(r => r.team_id)}
+              canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
+              canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+              canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+              isAppAdmin={isAppAdmin}
+              activeClubFilter={activeClubFilter}
+              activeClubName={activeClubName}
+              hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
+            />
+          </div>
         )}
 
       </div>
+
+      {/* Desktop-only action bar — surfaces the quick actions as real buttons */}
+      {!isNewUserEmptyState && (
+        <DesktopActionBar
+          onInvite={() => setMemberInviteOpen(true)}
+          onJoinTeam={() => setTeamDialogOpen(true)}
+          hasTeams={!!userRoles?.some(r => r.team_id)}
+          canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
+          canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+          isAppAdmin={isAppAdmin}
+          activeClubFilter={activeClubFilter}
+        />
+      )}
 
       {/* New-user empty state — no clubs, no team memberships yet */}
       {isNewUserEmptyState && (
