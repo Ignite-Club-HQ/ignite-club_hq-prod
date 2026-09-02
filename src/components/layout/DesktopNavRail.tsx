@@ -5,7 +5,6 @@ import {
   Image as ImageIcon,
   Newspaper,
   Folder,
-  Users2,
   ClipboardList,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -47,11 +46,14 @@ export function DesktopNavRail() {
 
   if (Capacitor.isNativePlatform()) return null;
 
+  // "Clubs" intentionally lives in the top header ("Clubs & Teams"), and
+  // Settings/account actions stay in the header too — the rail is content
+  // destinations only.
   const secondaryItems = [
     ...(hasClubs ? [{ to: "/news", icon: Newspaper, label: "News" }] : []),
     ...(canAccessVault ? [{ to: "/vault", icon: Folder, label: "Vault" }] : []),
-    { to: "/clubs", icon: Users2, label: "Clubs" },
   ];
+
 
   return (
     <aside
