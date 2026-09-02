@@ -185,14 +185,20 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("mini_leagues")
-        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors, show_matches_to_members")
+        .select("id, name, team_size, min_players_per_side, minutes_per_half, bib_colors, show_matches_to_members, club_id, clubs:clubs!mini_leagues_club_id_fkey(sport)")
         .eq("id", miniLeagueId)
         .single();
       if (error) throw error;
-      return data as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null; show_matches_to_members: boolean };
+      return data as unknown as { id: string; name: string; team_size: number; min_players_per_side: number; minutes_per_half: number; bib_colors: string[] | null; show_matches_to_members: boolean; club_id: string | null; clubs: { sport: string | null } | null };
     },
     enabled: !!miniLeagueId,
   });
+
+  // The pitch board is football-only in this build — never offer it to clubs
+  // playing other sports.
+  const boardSupported = hasGameBoardSupport(miniLeague?.clubs?.sport);
+
+
 
   // Fetch mini league players
   const { data: allPlayers } = useQuery({
