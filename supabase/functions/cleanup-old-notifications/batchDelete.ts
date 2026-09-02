@@ -122,7 +122,6 @@ export async function batchDeleteByDate(
     }
 
 
-    const removed = count ?? ids.length;
     batches += 1;
     totalDeleted += removed;
     console.log(`[CLEANUP] ${label}: batch ${batches} removed ${removed} (total: ${totalDeleted})`);
