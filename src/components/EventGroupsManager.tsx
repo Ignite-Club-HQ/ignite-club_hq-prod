@@ -1165,17 +1165,20 @@ export function EventGroupsManager({ eventId, miniLeagueId, isAdmin, playerOverr
                     );
                   })()}
 
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setActivePitchBoardGroup(group)}
-                    >
-                      <PlayCircle className="h-4 w-4 mr-1" />
-                      Pitch Board
-                    </Button>
-                  </div>
+                  {boardSupported && (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setActivePitchBoardGroup(group)}
+                      >
+                        <PlayCircle className="h-4 w-4 mr-1" />
+                        Pitch Board
+                      </Button>
+                    </div>
+                  )}
+
                 </CardContent>
               </Card>
             );
