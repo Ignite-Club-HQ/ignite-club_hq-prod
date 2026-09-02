@@ -1407,28 +1407,61 @@ export function AppHeader() {
             </SwipeableDropdownContent>
           </DropdownMenu>
 
-          <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
-                <Avatar 
-                  className="h-8 w-8 border-2" 
-                  style={{ 
-                    borderColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)'
-                  }}
+          {/* Desktop: avatar is the profile shortcut */}
+          <Button
+            variant="ghost"
+            className="hidden lg:flex relative h-8 w-8 rounded-full p-0"
+            onClick={() => navigate("/profile")}
+            title="My Profile"
+            aria-label="My Profile"
+          >
+            <Avatar 
+              className="h-8 w-8 border-2" 
+              style={{ 
+                borderColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)'
+              }}
+            >
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback 
+                className="text-xs"
+                style={{
+                  backgroundColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)',
+                  color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
+                }}
+              >
+                {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+          </Button>
+
+          {/* Mobile: account actions stay in the dropdown */}
+          <div className="lg:hidden">
+            <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="relative h-8 w-8 rounded-full p-0"
+                  aria-label="Account menu"
                 >
-                  <AvatarImage src={profile?.avatar_url || undefined} />
-                  <AvatarFallback 
-                    className="text-xs"
-                    style={{
-                      backgroundColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)',
-                      color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
+                  <Avatar 
+                    className="h-8 w-8 border-2" 
+                    style={{ 
+                      borderColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)'
                     }}
                   >
-                    {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
+                    <AvatarImage src={profile?.avatar_url || undefined} />
+                    <AvatarFallback 
+                      className="text-xs"
+                      style={{
+                        backgroundColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)',
+                        color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
+                      }}
+                    >
+                      {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
             <SwipeableDropdownContent 
               className="w-64 bg-popover" 
               align="end"
