@@ -69,13 +69,43 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
     },
   });
 
+  // Personal opt-out (Settings > AI Chat Recap). Kept separate from club
+  // eligibility so the Settings toggle stays visible after turning it off.
+  const { data: userDisabled } = useQuery({
+    queryKey: ["user-ai-catchup-pref", user?.id],
+    enabled: !!user?.id,
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("ai_catch_up_enabled")
+        .eq("id", user!.id)
+        .maybeSingle();
+      return (data as any)?.ai_catch_up_enabled === false;
+    },
+  });
+
   // `resolved` is true only once the query has actually returned data at least
   // once. Consumers should hide Pro/upgrade affordances until resolved so the
   // badge doesn't flash for Pro users on resume/cold-render.
   const resolved = isSuccess && data !== undefined;
   if (!globallyEnabled) {
-    return { hasAICatchUpClub: false, isLoading: false, isFetching: false, resolved: true };
+    return {
+      hasAICatchUpClub: false,
+      recapVisible: false,
+      isLoading: false,
+      isFetching: false,
+      resolved: true,
+    };
   }
 
-  return { hasAICatchUpClub: !!data, isLoading, isFetching, resolved };
+  return {
+    hasAICatchUpClub: !!data,
+    recapVisible: !!data && userDisabled !== true,
+    isLoading,
+    isFetching,
+    resolved,
+  };
 }
+
