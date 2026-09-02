@@ -22,9 +22,10 @@ const PITCH_ROLES = ["app_admin", "club_admin", "team_admin", "coach"];
  */
 export function useDesktopNavAccess() {
   const { user } = useAuth();
+  const { activeClubFilter } = useClubTheme();
 
   const { data } = useQuery({
-    queryKey: ["desktop-nav-access", user?.id],
+    queryKey: ["desktop-nav-access", user?.id, activeClubFilter],
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -35,27 +36,61 @@ export function useDesktopNavAccess() {
       if (error) throw error;
       const rows = (roles || []) as Array<{ role: string; club_id: string | null; team_id: string | null }>;
 
-      // Pitch/court board only exists for supported sports (soccer, netball,
-      // basketball) — never surface it for other clubs.
-      const clubIds = Array.from(new Set(rows.map((r) => r.club_id).filter(Boolean) as string[]));
-      let hasBoardSport = false;
-      if (clubIds.length > 0) {
-        const { data: clubs } = await supabase.from("clubs").select("sport").in("id", clubIds);
-        hasBoardSport = (clubs || []).some((c) => detectGameBoardKind(c.sport) !== null);
+      const teamIds = Array.from(new Set(rows.map((r) => r.team_id).filter(Boolean) as string[]));
+
+      // Resolve the club behind every team role so a football club membership
+      // can never light up the board for a non-football club (or vice versa).
+      let teamClubMap = new Map<string, string>();
+      if (teamIds.length > 0) {
+        const { data: teams } = await supabase.from("teams").select("id, club_id").in("id", teamIds);
+        teamClubMap = new Map(
+          (teams || []).filter((t) => !!t.club_id).map((t) => [t.id as string, t.club_id as string]),
+        );
       }
+
+      const clubIds = Array.from(
+        new Set([
+          ...(rows.map((r) => r.club_id).filter(Boolean) as string[]),
+          ...Array.from(teamClubMap.values()),
+        ]),
+      );
+
+      // The pitch board only exists for football/soccer in this build — never
+      // surface it for other sports.
+      const boardClubIds = new Set<string>();
+      if (clubIds.length > 0) {
+        const { data: clubs } = await supabase.from("clubs").select("id, sport").in("id", clubIds);
+        (clubs || []).forEach((c) => {
+          if (hasGameBoardSupport(c.sport)) boardClubIds.add(c.id as string);
+        });
+      }
+
+      // Respect the active club filter: the rail reflects the club the user is
+      // currently looking at, not the union of every club they belong to.
+      const inScope = (clubId: string | null | undefined) =>
+        !!clubId && boardClubIds.has(clubId) && (!activeClubFilter || clubId === activeClubFilter);
+
+      const boardRoleRows = rows.filter((r) => {
+        if (!PITCH_ROLES.includes(r.role)) return false;
+        const clubId = r.club_id ?? (r.team_id ? teamClubMap.get(r.team_id) ?? null : null);
+        return inScope(clubId);
+      });
+
+      const boardTeamIds = teamIds.filter((id) => inScope(teamClubMap.get(id)));
 
       return {
         hasTeams: rows.some((r) => !!r.team_id),
         hasClubs: rows.some((r) => !!r.club_id),
         canAccessVault: rows.some((r) => VAULT_ROLES.includes(r.role)),
-        canPitchBoard: hasBoardSport && rows.some((r) => PITCH_ROLES.includes(r.role)),
+        canPitchBoard: boardRoleRows.length > 0 && boardTeamIds.length > 0,
         canCreateEvent: rows.some((r) =>
           ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role),
         ),
         canCreateTeam: rows.some((r) => r.role === "club_admin" || r.role === "app_admin"),
-        teamIds: Array.from(new Set(rows.map((r) => r.team_id).filter(Boolean) as string[])),
+        teamIds: boardTeamIds,
       };
     },
+
   });
 
 
