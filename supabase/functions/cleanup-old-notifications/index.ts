@@ -1,5 +1,6 @@
 import { requireServiceRoleAuth } from "../_shared/callerAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { batchDeleteByDate } from "./batchDelete.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,65 +9,16 @@ const corsHeaders = {
 
 /**
  * Daily cleanup to prevent unbounded table growth.
- * 
+ *
  * Targets:
  * 1. notifications — read >30d, unread >90d
  * 2. push_notification_logs — all >60d
  * 3. sponsor_analytics — all >90d
- * 
- * Deletes in batches of 500 to avoid row limits and long transactions.
- * Runs daily via pg_cron at 3am UTC.
+ *
+ * The bounded batching loop lives in ./batchDelete.ts (unit tested).
  */
 
-async function batchDeleteByDate(
-  supabase: any,
-  table: string,
-  cutoffDate: string,
-  label: string,
-  extraFilters?: (query: any) => any,
-): Promise<number> {
-  const BATCH_SIZE = 2000;
-  let totalDeleted = 0;
 
-  while (true) {
-    let selectQuery = supabase
-      .from(table)
-      .select('id')
-      .lt('created_at', cutoffDate)
-      .limit(BATCH_SIZE);
-
-    if (extraFilters) {
-      selectQuery = extraFilters(selectQuery);
-    }
-
-    const { data: rows, error: selectError } = await selectQuery;
-
-    if (selectError) {
-      console.error(`[CLEANUP] Select error (${label}):`, selectError);
-      break;
-    }
-
-    if (!rows || rows.length === 0) break;
-
-    const ids = rows.map((r: { id: string }) => r.id);
-    const { error: deleteError, count } = await supabase
-      .from(table)
-      .delete({ count: 'exact' })
-      .in('id', ids);
-
-    if (deleteError) {
-      console.error(`[CLEANUP] Delete error (${label}):`, deleteError);
-      break;
-    }
-
-    totalDeleted += count || ids.length;
-    console.log(`[CLEANUP] ${label}: batch ${count || ids.length} (total: ${totalDeleted})`);
-
-    if (rows.length < BATCH_SIZE) break;
-  }
-
-  return totalDeleted;
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -94,48 +46,67 @@ Deno.serve(async (req) => {
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    // 1. Notifications: read >30d
+    // 1. Notifications: read >30d  (column is `is_read`, NOT `read`)
     const readDeleted = await batchDeleteByDate(
       supabase, 'notifications', thirtyDaysAgo.toISOString(),
-      'notifications read >30d',
-      (q) => q.eq('read', true),
+      'notifications read >30d', startTime,
+      (q) => q.eq('is_read', true),
     );
 
     // 2. Notifications: unread >90d
     const unreadDeleted = await batchDeleteByDate(
       supabase, 'notifications', ninetyDaysAgo.toISOString(),
-      'notifications unread >90d',
-      (q) => q.eq('read', false),
+      'notifications unread >90d', startTime,
+      (q) => q.eq('is_read', false),
     );
 
     // 3. Push notification logs >60d
     const pushLogsDeleted = await batchDeleteByDate(
       supabase, 'push_notification_logs', sixtyDaysAgo.toISOString(),
-      'push_notification_logs >60d',
+      'push_notification_logs >60d', startTime,
     );
 
     // 4. Sponsor analytics >90d
     const sponsorAnalyticsDeleted = await batchDeleteByDate(
       supabase, 'sponsor_analytics', ninetyDaysAgo.toISOString(),
-      'sponsor_analytics >90d',
+      'sponsor_analytics >90d', startTime,
     );
 
-    const totalDeleted = readDeleted + unreadDeleted + pushLogsDeleted + sponsorAnalyticsDeleted;
+    const results = {
+      notifications_read: readDeleted,
+      notifications_unread: unreadDeleted,
+      push_notification_logs: pushLogsDeleted,
+      sponsor_analytics: sponsorAnalyticsDeleted,
+    };
+    const totalDeleted = Object.values(results).reduce((sum, r) => sum + r.deleted, 0);
+    const totalBatches = Object.values(results).reduce((sum, r) => sum + r.batches, 0);
+    const moreWorkPending = Object.values(results).some((r) => r.truncated);
+    const errors = Object.entries(results)
+      .filter(([, r]) => r.error)
+      .map(([k, r]) => `${k}: ${r.error}`);
     const elapsed = Date.now() - startTime;
-    console.log(`[CLEANUP] Done: ${totalDeleted} total removed in ${elapsed}ms`);
+    console.log(
+      `[CLEANUP] Done: ${totalDeleted} rows in ${totalBatches} batches, ${elapsed}ms` +
+        (moreWorkPending ? ' (more work pending — next run continues)' : ''),
+    );
 
     return new Response(
       JSON.stringify({
         message: 'Daily cleanup complete',
-        notifications_read_deleted: readDeleted,
-        notifications_unread_deleted: unreadDeleted,
-        push_logs_deleted: pushLogsDeleted,
-        sponsor_analytics_deleted: sponsorAnalyticsDeleted,
+        notifications_read_deleted: readDeleted.deleted,
+        notifications_unread_deleted: unreadDeleted.deleted,
+        push_logs_deleted: pushLogsDeleted.deleted,
+        sponsor_analytics_deleted: sponsorAnalyticsDeleted.deleted,
         total_deleted: totalDeleted,
+        total_batches: totalBatches,
+        more_work_pending: moreWorkPending,
+        per_target: results,
+        errors,
         elapsed_ms: elapsed,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error) {
     console.error('[CLEANUP] Error:', error);
     return new Response(
