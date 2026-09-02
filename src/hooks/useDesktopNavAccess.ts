@@ -32,11 +32,21 @@ export function useDesktopNavAccess() {
         .eq("user_id", user!.id);
       if (error) throw error;
       const rows = (roles || []) as Array<{ role: string; club_id: string | null; team_id: string | null }>;
+
+      // Pitch/court board only exists for supported sports (soccer, netball,
+      // basketball) — never surface it for other clubs.
+      const clubIds = Array.from(new Set(rows.map((r) => r.club_id).filter(Boolean) as string[]));
+      let hasBoardSport = false;
+      if (clubIds.length > 0) {
+        const { data: clubs } = await supabase.from("clubs").select("sport").in("id", clubIds);
+        hasBoardSport = (clubs || []).some((c) => detectGameBoardKind(c.sport) !== null);
+      }
+
       return {
         hasTeams: rows.some((r) => !!r.team_id),
         hasClubs: rows.some((r) => !!r.club_id),
         canAccessVault: rows.some((r) => VAULT_ROLES.includes(r.role)),
-        canPitchBoard: rows.some((r) => PITCH_ROLES.includes(r.role)),
+        canPitchBoard: hasBoardSport && rows.some((r) => PITCH_ROLES.includes(r.role)),
         canCreateEvent: rows.some((r) =>
           ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role),
         ),
@@ -45,6 +55,7 @@ export function useDesktopNavAccess() {
       };
     },
   });
+
 
   return {
     hasTeams: !!data?.hasTeams,
