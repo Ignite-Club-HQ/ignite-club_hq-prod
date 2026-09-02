@@ -113,7 +113,7 @@ const closePitchBoardWithFlag = (setShow: (v: boolean) => void) => () => {
   setShow(false);
   clearPitchBoardOpenFlag();
 };
-import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
+import { hasGameBoardSupport } from "@/lib/sportDetection";
 import { resolveEventRecipients, eventRecipientContext } from "@/features/events/eventRecipientPolicy";
 import { resolveReminderRecipients, applyReminderCooldown, normalizeRecipientIds } from "@/features/events/reminderRecipients";
 
@@ -739,10 +739,7 @@ export default function EventDetailPage() {
 
 
   // Check if club is soccer/football for pitch board
-  const isSoccerClub = event?.clubs?.sport?.toLowerCase().includes('soccer') || 
-                       event?.clubs?.sport?.toLowerCase().includes('football');
-  const isNetballClub = isNetballSport(event?.clubs?.sport);
-  const isBasketballClub = isBasketballSport(event?.clubs?.sport);
+  const isSoccerClub = hasGameBoardSupport(event?.clubs?.sport);
 
   const localSubsManagerForEvent = !!duties?.some(
     (d: any) => normalizeDutyName(d.name) === "subs manager" && d.assigned_to === user?.id
