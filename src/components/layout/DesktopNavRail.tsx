@@ -73,7 +73,7 @@ export function DesktopNavRail() {
         />
       </NavLink>
 
-      <nav className="flex flex-col items-center gap-1" aria-label="Main">
+      <nav className="flex flex-1 flex-col items-center gap-1" aria-label="Main">
         {coreItems.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} end={to === "/"} aria-label={label} className={itemClass}>
             <span className="relative">
