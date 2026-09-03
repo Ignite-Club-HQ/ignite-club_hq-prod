@@ -1081,7 +1081,7 @@ export default function EventsPage() {
       {viewMode === "calendar" ? (
 
         <div className="space-y-2">
-          <Card>
+          <Card className="lg:max-w-3xl lg:mx-auto">
             <CardContent className="p-4">
               <Calendar
                 mode="single"

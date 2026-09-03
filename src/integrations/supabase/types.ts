@@ -12215,6 +12215,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      my_chat_group_ids: { Args: never; Returns: string[] }
       notify_all_users: {
         Args: {
           _exclude_user_id: string
