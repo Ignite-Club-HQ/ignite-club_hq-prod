@@ -88,6 +88,8 @@ export default function UpgradeProPage() {
   const [isAnnualPro, setIsAnnualPro] = useState(false);
   const [isAnnualProFootball, setIsAnnualProFootball] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const { showIfDesktop, dialog: desktopUpgradeDialog } = useDesktopUpgradeGate();
+
 
   // Handle payment success/cancelled from URL params
   useEffect(() => {

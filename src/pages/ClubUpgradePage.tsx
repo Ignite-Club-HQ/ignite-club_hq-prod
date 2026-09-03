@@ -108,6 +108,8 @@ export default function ClubUpgradePage() {
   const [isAnnualProFootball, setIsAnnualProFootball] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [teamSelectOpen, setTeamSelectOpen] = useState(false);
+  const { showIfDesktop, dialog: desktopUpgradeDialog } = useDesktopUpgradeGate();
+
 
   useEffect(() => {
     if (!activeClubFilter || !clubId || activeClubFilter === clubId) return;
