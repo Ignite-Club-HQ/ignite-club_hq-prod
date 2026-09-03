@@ -1384,8 +1384,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   alignMessageIdInViewRef.current = alignMessageIdInView;
   const bottomPaddingRef = useRef(bottomPadding);
   const bottomPaddingChangedAtRef = useRef(0);
+  // Set during render (BEFORE the new footer height hits the DOM) when the
+  // viewport was sitting at the bottom. The layout effect below then re-pins
+  // in the same commit, so a shrinking/growing composer footer can never paint
+  // a frame where the thread has slid up (or down) and then snapped back —
+  // that pair of frames is the post-send "jump".
+  const repinAfterPaddingRef = useRef(false);
   if (bottomPaddingRef.current !== bottomPadding) {
     bottomPaddingRef.current = bottomPadding;
+    const el = scrollerElRef.current;
+    if (el) {
+      const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      repinAfterPaddingRef.current = maxTop - el.scrollTop <= 24;
+    }
     // The composer inset is measured in staggered passes (80/180/360/700ms) and
     // is rendered as an in-flow Virtuoso footer, so every change physically
     // moves the message column. Revealing between those passes is exactly the
