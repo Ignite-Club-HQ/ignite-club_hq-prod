@@ -2735,6 +2735,14 @@ export default function MessagesPage() {
   // sending anything. They'd otherwise float to the top via `updated_at`.
   const filteredDMs = useMemo(() => {
     if (!effectiveDMConversations.length) return [];
+    // Fail CLOSED while the club-scope lookup for the *current* club filter is
+    // still resolving. Otherwise, immediately after switching clubs, the DM
+    // rows of the previous club render for a beat before the scope data lands
+    // and filters them out. (`clubScopeFilterData` is keyed by the filter, so
+    // undefined here means "not yet known for this club".)
+    if (effectiveClubFilter && !clubScopeFilterData && dmOtherUserIds.length > 0 && isOnline) {
+      return [];
+    }
     return effectiveDMConversations.filter((conv: any) => {
 
       const hiddenAt = hiddenDMMap?.get(conv.id);
@@ -2756,7 +2764,8 @@ export default function MessagesPage() {
       const hasDraft = !!allDrafts[conv.id]?.text?.trim();
       return !!conv.last_message || hasDraft;
     });
-  }, [effectiveDMConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub]);
+  }, [effectiveDMConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub, clubScopeFilterData, dmOtherUserIds.length, isOnline]);
+
 
 
 
