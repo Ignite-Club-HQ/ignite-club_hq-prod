@@ -51,6 +51,6 @@ export function useClubProAccess(
     // True while the first successful resolution for this clubId hasn't landed.
     // Callers should treat "loading" as "don't show locked yet" to avoid a
     // brief PRO badge flash on resume/reconnect.
-    isLoading: isLoading || (enabled && !isFetched && !data?.resolved),
+    isLoading: isLoading || isStaleClub || (enabled && !isFetched && !data?.resolved),
   };
 }
