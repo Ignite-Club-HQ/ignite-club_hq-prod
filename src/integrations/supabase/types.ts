@@ -12215,6 +12215,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      my_chat_group_ids: { Args: never; Returns: string[] }
       notify_all_users: {
         Args: {
           _exclude_user_id: string
@@ -12321,6 +12322,15 @@ export type Database = {
           activity_logs_deleted: number
           push_logs_deleted: number
         }[]
+      }
+      prune_telemetry_tables: {
+        Args: {
+          p_analytics_retain_days?: number
+          p_batch_size?: number
+          p_max_batches?: number
+          p_perf_retain_days?: number
+        }
+        Returns: Json
       }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       purge_old_client_perf_log: { Args: never; Returns: undefined }
