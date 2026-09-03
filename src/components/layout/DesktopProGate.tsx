@@ -80,19 +80,24 @@ function useUserProClubs(enabled: boolean) {
  * we render nothing (no lock).
  */
 export function DesktopProGate() {
-  const { activeThemeData, activeClubFilter } = useClubTheme();
+  const { activeThemeData, activeClubFilter, setActiveClubTheme } = useClubTheme();
   const activeClubId = activeClubFilter ?? null;
 
   const anyClub = useUserHasAnyClubPro();
   const activeClub = useClubProAccess(activeClubId, { enabled: !!activeClubId });
 
-  if (Capacitor.isNativePlatform()) return null;
+  const locked = Capacitor.isNativePlatform()
+    ? false
+    : activeClubId
+      ? !activeClub.isLoading && !activeClub.hasPro
+      : !anyClub.isLoading && !anyClub.hasAnyClubPro;
 
-  if (activeClubId) {
-    if (activeClub.isLoading || activeClub.hasPro) return null;
-  } else {
-    if (anyClub.isLoading || anyClub.hasAnyClubPro) return null;
-  }
+  // Hook order must stay stable — always call, gate with `enabled`.
+  const proClubs = useUserProClubs(locked);
+  const switchable = (proClubs.data ?? []).filter((c) => c.id !== activeClubId);
+
+  if (!locked) return null;
+
 
   return (
     <div
