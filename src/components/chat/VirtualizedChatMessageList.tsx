@@ -1296,16 +1296,26 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
    * issued at/near the bottom where the tail rows are already mounted
    * (initial mount anchors at LAST, overscan bottom = 600px).
    */
+  const prefersReducedMotion = () =>
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+
   const pinToTrueBottom = useCallback(
-    (reason: string, behavior: "auto" | "smooth" = "auto") => {
+    (reason: string, behavior: "auto" | "smooth" | "gentle" = "auto") => {
       if (messagesLengthRef.current <= 0) return false;
       if (isChatJumpActive()) return false;
       const el = scrollerElRef.current;
       if (!el) return false;
       const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
-      if (Math.abs(el.scrollTop - maxTop) <= 1) return true;
+      const delta = Math.abs(el.scrollTop - maxTop);
+      if (delta <= 1) return true;
       debugLogEvent("pin-to-true-bottom", { reason, from: Math.round(el.scrollTop), to: Math.round(maxTop) });
-      if (behavior === "smooth") {
+      // "gentle": used for the first pin after a locally-sent message. A short
+      // smooth glide over a small distance reads far calmer than an instant
+      // snap, without risking a long animated travel (>120px falls back to an
+      // instant write so cold jumps and catch-ups stay immediate).
+      const useSmooth = behavior === "smooth" || (behavior === "gentle" && delta <= 120);
+      if (useSmooth && !prefersReducedMotion()) {
         el.scrollTo({ top: maxTop, behavior: "smooth" });
       } else {
         el.scrollTop = maxTop;
@@ -1374,8 +1384,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   alignMessageIdInViewRef.current = alignMessageIdInView;
   const bottomPaddingRef = useRef(bottomPadding);
   const bottomPaddingChangedAtRef = useRef(0);
+  // Set during render (BEFORE the new footer height hits the DOM) when the
+  // viewport was sitting at the bottom. The layout effect below then re-pins
+  // in the same commit, so a shrinking/growing composer footer can never paint
+  // a frame where the thread has slid up (or down) and then snapped back —
+  // that pair of frames is the post-send "jump".
+  const repinAfterPaddingRef = useRef(false);
   if (bottomPaddingRef.current !== bottomPadding) {
     bottomPaddingRef.current = bottomPadding;
+    const el = scrollerElRef.current;
+    if (el) {
+      const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      repinAfterPaddingRef.current = maxTop - el.scrollTop <= 24;
+    }
     // The composer inset is measured in staggered passes (80/180/360/700ms) and
     // is rendered as an in-flow Virtuoso footer, so every change physically
     // moves the message column. Revealing between those passes is exactly the
@@ -1389,6 +1410,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const now = typeof performance !== "undefined" ? performance.now() : Date.now();
     return now - bottomPaddingChangedAtRef.current >= quietMs;
   }, []);
+  // Same-commit re-pin for composer-footer height changes. Runs before paint,
+  // so the shrink/grow of the footer and the corrected scrollTop land in ONE
+  // frame instead of "slide + snap back".
+  useLayoutEffect(() => {
+    if (!repinAfterPaddingRef.current) return;
+    repinAfterPaddingRef.current = false;
+    if (messagesLengthRef.current <= 0) return;
+    if (isChatJumpActive()) return;
+    const el = scrollerElRef.current;
+    if (!el) return;
+    const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+    if (Math.abs(el.scrollTop - maxTop) <= 1) return;
+    el.scrollTop = maxTop;
+    markChatScrollWrite();
+  }, [bottomPadding]);
   // Single-owner guard for the exact-DOM correction: while the initial
   // deep-link reveal gate is running, the overlay gate must NOT issue its own
   // competing `finalAlign` for the same target.
@@ -2352,15 +2388,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           // different bottoms a frame apart (the "thread moves up and down
           // after reveal" bounce). pinToTrueBottom is the single canonical
           // target shared by every bottom-pin writer.
-          pinToTrueBottom("imperative-scroll-to-bottom", behavior);
+          // First pin after a local send glides ("gentle"); the trailing
+          // correction pins stay instant so they never animate against the
+          // glide or against composer reflow.
+          pinToTrueBottom(
+            "imperative-scroll-to-bottom",
+            behavior === "auto" && !settled ? "gentle" : behavior,
+          );
+          settled = true;
         };
+        let settled = false;
         run();
         requestAnimationFrame(() => requestAnimationFrame(run));
         // Trailing re-pins. Each is independently guarded so an active
         // user gesture (finger drag / momentum) cancels them.
-        window.setTimeout(run, 120);
-        window.setTimeout(run, 280);
-        window.setTimeout(run, 500);
+        window.setTimeout(run, 200);
+        window.setTimeout(run, 400);
+        window.setTimeout(run, 650);
       },
 
       scrollToIndex: (index, align = "center") => {
