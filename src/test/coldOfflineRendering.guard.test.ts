@@ -46,3 +46,22 @@ describe("cold-offline rendering guards", () => {
     expect(media).toMatch(/You're offline and no saved photos are available yet/);
   });
 });
+
+/**
+ * Guard: Media cold-open must not "shake". The free-plan usage meter paints
+ * from its persisted snapshot on first frame, and the skeleton branch mirrors
+ * the sponsor strip + meter so the skeleton→content swap never reflows.
+ */
+describe("media cold-open layout stability guards", () => {
+  it("usage meter paints from the persisted snapshot before the RPC resolves", () => {
+    expect(media).toMatch(/readClubFreeUsageSnapshot\(clubId\)/);
+    expect(media).toMatch(/usage\s*\?[\s\S]{0,400}: snapshot\s*\?/);
+  });
+
+  it("skeleton branch mirrors the sponsor strip and usage meter", () => {
+    const skeletonBranch = media.slice(media.indexOf("if (showSkeletons) {"), media.indexOf("if (showSkeletons) {") + 1800);
+    expect(skeletonBranch).toMatch(/<MediaHeaderSponsorStrip/);
+    expect(skeletonBranch).toMatch(/<FreeMediaUsageMeter/);
+    expect(skeletonBranch).toMatch(/min-h-10/);
+  });
+});
