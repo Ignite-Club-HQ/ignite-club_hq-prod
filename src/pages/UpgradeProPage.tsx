@@ -812,6 +812,7 @@ export default function UpgradeProPage() {
                 className={`w-full ${!isPro ? "bg-emerald-600 hover:bg-emerald-700" : ""}`} 
                 size="lg" 
                 onClick={() => {
+                  if (showIfDesktop()) return;
                   if (isNativePlatform()) {
                     handleNativeIAP(tier);
                     return;
@@ -826,6 +827,7 @@ export default function UpgradeProPage() {
                   }
                   handleStripeCheckout(tier, true);
                 }}
+
                 disabled={isCheckingOut}
               >
                 {isCheckingOut ? (
