@@ -64,7 +64,10 @@ function useDebouncedNumber(value: number, delayMs: number) {
     return () => window.clearTimeout(timeout);
   }, [debounced, delayMs, value]);
 
-  return debounced;
+  // With no delay, derive directly: routing through state + a passive effect
+  // lags the composer height by a render (and potentially a paint), which is
+  // exactly the footer/composer disagreement that steps the thread on send.
+  return delayMs <= 0 ? value : debounced;
 }
 
 function useSettledChatMountBox(quietMs: number = 240) {

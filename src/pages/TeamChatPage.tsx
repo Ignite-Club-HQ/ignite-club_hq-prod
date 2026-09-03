@@ -1667,6 +1667,14 @@ export default function TeamChatPage() {
         };
       });
 
+      // Append to local render state in the SAME batch as the composer clear
+      // below. React Query notifies subscribers on a setTimeout(0), so relying
+      // on the cache→localMessages sync alone lands the new row a task AFTER
+      // the composer has collapsed: frame 1 the thread drops with the
+      // composer, frame 2 it rises for the row — the post-send "shake". The
+      // later cache sync dedupes by id, so this never double-renders.
+      setLocalMessages((prev) => (prev && !prev.some((m) => m.id === tempId) ? [...prev, optimisticMessage] : prev));
+
       // Clear input immediately
       setMessage("");
       setImageUrl(null);
