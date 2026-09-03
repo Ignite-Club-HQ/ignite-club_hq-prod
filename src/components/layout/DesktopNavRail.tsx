@@ -114,8 +114,7 @@ export function DesktopNavRail() {
                 if (pitchTarget) {
                   navigate(pitchTarget);
                 } else {
-                  toast.info("No upcoming game yet — pick a game from your schedule.");
-                  navigate("/events");
+                  toast.info("Pitch Board is still loading. Please try again.");
                 }
               }}
               className={cn(
