@@ -30,19 +30,24 @@ export function useClubProAccess(
       // Propagate transient errors so react-query keeps previous data rather
       // than treating a network/RLS hiccup as "no Pro".
       if (error) throw error;
-      if (!sub) return { hasPro: false, hasProFootball: false, resolved: true };
+      if (!sub) return { hasPro: false, hasProFootball: false, resolved: true, clubId: clubId! };
 
       const notExpired = !sub.expires_at || new Date(sub.expires_at) > new Date();
       const hasPro = notExpired && !!(sub.is_pro || sub.admin_pro_override);
       const hasProFootball = notExpired && !!(sub.is_pro_football || sub.admin_pro_football_override);
 
-      return { hasPro: hasPro || hasProFootball, hasProFootball, resolved: true };
+      return { hasPro: hasPro || hasProFootball, hasProFootball, resolved: true, clubId: clubId! };
     },
   });
 
+  // With `keepPreviousData`, `data` can belong to a previously requested club
+  // while the new club's fetch is in flight. Treat that as "not resolved yet"
+  // so callers never render a lock/upgrade state based on the old club.
+  const isStaleClub = !!data && !!clubId && data.clubId !== clubId;
+
   return {
-    hasPro: !!data?.hasPro,
-    hasProFootball: !!data?.hasProFootball,
+    hasPro: !isStaleClub && !!data?.hasPro,
+    hasProFootball: !isStaleClub && !!data?.hasProFootball,
     // True while the first successful resolution for this clubId hasn't landed.
     // Callers should treat "loading" as "don't show locked yet" to avoid a
     // brief PRO badge flash on resume/reconnect.
