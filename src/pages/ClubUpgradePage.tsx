@@ -1130,6 +1130,7 @@ export default function ClubUpgradePage() {
                 className={`w-full ${!isPro ? "bg-emerald-600 hover:bg-emerald-700" : ""}`} 
                 size="lg" 
                 onClick={() => {
+                  if (showIfDesktop()) return;
                   if (isNativePlatform()) {
                     handleNativeIAP(tier);
                     return;
@@ -1144,6 +1145,7 @@ export default function ClubUpgradePage() {
                   }
                   handleStripeCheckout(tier, true);
                 }}
+
                 disabled={isCheckingOut}
               >
                 {isCheckingOut ? (
@@ -1242,8 +1244,12 @@ export default function ClubUpgradePage() {
               className="w-full"
               size="lg"
               disabled={isCheckingOut}
-              onClick={() => handleStripeCheckout("pro", true)}
+              onClick={() => {
+                if (showIfDesktop()) return;
+                handleStripeCheckout("pro", true);
+              }}
             >
+
               {isCheckingOut ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Starting trial…</>
               ) : (
