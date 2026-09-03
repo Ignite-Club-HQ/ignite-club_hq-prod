@@ -1204,6 +1204,7 @@ export default function ClubUpgradePage() {
 
   return (
     <div className="py-6 space-y-6">
+      {desktopUpgradeDialog}
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -1215,6 +1216,7 @@ export default function ClubUpgradePage() {
         </div>
         <Building2 className="h-8 w-8 text-primary" />
       </div>
+
 
       {/* Team Limit Warning */}
       {renderTeamCountBanner()}

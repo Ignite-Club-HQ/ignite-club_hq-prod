@@ -882,6 +882,7 @@ export default function UpgradeProPage() {
 
   return (
     <div className="py-6 space-y-6">
+      {desktopUpgradeDialog}
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -893,6 +894,7 @@ export default function UpgradeProPage() {
         </div>
         <Crown className="h-8 w-8 text-yellow-500" />
       </div>
+
 
       {/* Club Pro Banner */}
       {(hasClubProAccess || hasClubProFootballAccess) && (
