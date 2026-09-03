@@ -139,6 +139,12 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
       const pollUsed = Number(row.polls_this_cycle ?? 0);
       const isPro = !!row.is_pro;
 
+      writeClubFreeUsageSnapshot(clubId!, {
+        isPro,
+        photoUsed,
+        cycleEnd: row.cycle_end ? String(row.cycle_end) : null,
+      });
+
       return {
         isPro,
         cycleStart: row.cycle_start ? new Date(row.cycle_start) : null,
