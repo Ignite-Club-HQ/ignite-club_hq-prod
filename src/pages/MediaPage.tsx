@@ -1970,18 +1970,41 @@ export default function MediaPage() {
 
 function FreeMediaUsageMeter({ clubId }: { clubId: string | null }) {
   const { usage } = useClubFreeUsage(clubId);
-  if (!clubId || !usage || usage.isPro) return null;
+  // Cold-start: paint from the last-known snapshot so the meter occupies its
+  // final height on first frame. Values refresh in place (text only) once the
+  // RPC returns — no vertical reflow of the feed below.
+  const snapshot = useMemo(() => readClubFreeUsageSnapshot(clubId), [clubId]);
+
+  if (!clubId) return null;
+
+  const view = usage
+    ? {
+        isPro: usage.isPro,
+        used: usage.photo.used,
+        limit: usage.photo.limit,
+        cycleEnd: usage.cycleEnd,
+        atCap: usage.photo.atCountCap,
+      }
+    : snapshot
+      ? {
+          isPro: snapshot.isPro,
+          used: snapshot.photoUsed,
+          limit: FREE_PHOTO_UPLOADS_PER_CYCLE,
+          cycleEnd: snapshot.cycleEnd ? new Date(snapshot.cycleEnd) : null,
+          atCap: !snapshot.isPro && snapshot.photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
+        }
+      : null;
+
+  if (!view || view.isPro) return null;
   return (
     <div className="max-w-lg mx-auto px-4 pb-2">
       <UsageMeter
         label="Free plan — photos this cycle"
-        used={usage.photo.used}
-        limit={usage.photo.limit}
+        used={view.used}
+        limit={view.limit}
         clubId={clubId}
-        resetAt={usage.cycleEnd}
-        capMessage={
-          usage.photo.atCountCap ? FREE_UPGRADE_MESSAGES.photoCount : undefined
-        }
+        resetAt={view.cycleEnd}
+        capMessage={view.atCap ? FREE_UPGRADE_MESSAGES.photoCount : undefined}
       />
     </div>
   );
