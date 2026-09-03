@@ -28,6 +28,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { invalidateProAccessQueries } from "@/lib/invalidateProAccess";
+import { useDesktopUpgradeGate } from "@/hooks/useDesktopUpgradeGate";
+
 
 const PRO_FEATURES = [
   "Team & club chat (club-wide messaging)",
@@ -86,6 +88,8 @@ export default function UpgradeProPage() {
   const [isAnnualPro, setIsAnnualPro] = useState(false);
   const [isAnnualProFootball, setIsAnnualProFootball] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const { showIfDesktop, dialog: desktopUpgradeDialog } = useDesktopUpgradeGate();
+
 
   // Handle payment success/cancelled from URL params
   useEffect(() => {
@@ -808,6 +812,7 @@ export default function UpgradeProPage() {
                 className={`w-full ${!isPro ? "bg-emerald-600 hover:bg-emerald-700" : ""}`} 
                 size="lg" 
                 onClick={() => {
+                  if (showIfDesktop()) return;
                   if (isNativePlatform()) {
                     handleNativeIAP(tier);
                     return;
@@ -822,6 +827,7 @@ export default function UpgradeProPage() {
                   }
                   handleStripeCheckout(tier, true);
                 }}
+
                 disabled={isCheckingOut}
               >
                 {isCheckingOut ? (
@@ -876,6 +882,7 @@ export default function UpgradeProPage() {
 
   return (
     <div className="py-6 space-y-6">
+      {desktopUpgradeDialog}
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -887,6 +894,7 @@ export default function UpgradeProPage() {
         </div>
         <Crown className="h-8 w-8 text-yellow-500" />
       </div>
+
 
       {/* Club Pro Banner */}
       {(hasClubProAccess || hasClubProFootballAccess) && (

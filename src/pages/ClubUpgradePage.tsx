@@ -39,6 +39,8 @@ import { useToast } from "@/hooks/use-toast";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { invalidateProAccessQueries } from "@/lib/invalidateProAccess";
+import { useDesktopUpgradeGate } from "@/hooks/useDesktopUpgradeGate";
+
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
@@ -106,6 +108,8 @@ export default function ClubUpgradePage() {
   const [isAnnualProFootball, setIsAnnualProFootball] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [teamSelectOpen, setTeamSelectOpen] = useState(false);
+  const { showIfDesktop, dialog: desktopUpgradeDialog } = useDesktopUpgradeGate();
+
 
   useEffect(() => {
     if (!activeClubFilter || !clubId || activeClubFilter === clubId) return;
@@ -1126,6 +1130,7 @@ export default function ClubUpgradePage() {
                 className={`w-full ${!isPro ? "bg-emerald-600 hover:bg-emerald-700" : ""}`} 
                 size="lg" 
                 onClick={() => {
+                  if (showIfDesktop()) return;
                   if (isNativePlatform()) {
                     handleNativeIAP(tier);
                     return;
@@ -1140,6 +1145,7 @@ export default function ClubUpgradePage() {
                   }
                   handleStripeCheckout(tier, true);
                 }}
+
                 disabled={isCheckingOut}
               >
                 {isCheckingOut ? (
@@ -1198,6 +1204,7 @@ export default function ClubUpgradePage() {
 
   return (
     <div className="py-6 space-y-6">
+      {desktopUpgradeDialog}
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -1209,6 +1216,7 @@ export default function ClubUpgradePage() {
         </div>
         <Building2 className="h-8 w-8 text-primary" />
       </div>
+
 
       {/* Team Limit Warning */}
       {renderTeamCountBanner()}
@@ -1238,8 +1246,12 @@ export default function ClubUpgradePage() {
               className="w-full"
               size="lg"
               disabled={isCheckingOut}
-              onClick={() => handleStripeCheckout("pro", true)}
+              onClick={() => {
+                if (showIfDesktop()) return;
+                handleStripeCheckout("pro", true);
+              }}
             >
+
               {isCheckingOut ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Starting trial…</>
               ) : (
