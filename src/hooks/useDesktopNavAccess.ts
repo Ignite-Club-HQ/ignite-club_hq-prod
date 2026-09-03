@@ -106,10 +106,11 @@ export function useDesktopNavAccess() {
 }
 
 /**
- * Resolves the route for the desktop rail's "Pitch Board" item. The pitch board
- * has no standalone route — it lives under an event group — so we resolve the
- * user's next upcoming game and, when it has groups, deep-link to the first one.
- * Falls back to the event page, then to the schedule.
+ * Resolves the team whose Pitch Board should open from the desktop rail.
+ * Prefer the team with the next upcoming game, but always fall back to the
+ * first in-scope football team. The team page owns the canonical standalone
+ * board modal; event/group routes add extra event-day and roster gates and are
+ * therefore not suitable as the desktop navigation destination.
  */
 export function useNextPitchBoardTarget(teamIds: string[], enabled: boolean) {
   const { data } = useQuery({
@@ -119,7 +120,7 @@ export function useNextPitchBoardTarget(teamIds: string[], enabled: boolean) {
     queryFn: async (): Promise<string | null> => {
       const { data: events, error } = await supabase
         .from("events")
-        .select("id, event_date")
+        .select("team_id, event_date")
         .in("team_id", teamIds)
         .eq("type", "game")
         .eq("is_cancelled", false)
@@ -127,21 +128,14 @@ export function useNextPitchBoardTarget(teamIds: string[], enabled: boolean) {
         .order("event_date", { ascending: true })
         .limit(1);
       if (error) throw error;
-      const eventId = events?.[0]?.id;
-      if (!eventId) return null;
-
-      const { data: groups } = await supabase
-        .from("event_groups")
-        .select("id")
-        .eq("event_id", eventId)
-        .order("display_order")
-        .limit(1);
-      const groupId = groups?.[0]?.id;
-      return groupId
-        ? `/events/${eventId}/groups/${groupId}/pitch`
-        : `/events/${eventId}?openPitchBoard=1`;
+      const preferredTeamId = events?.[0]?.team_id ?? teamIds[0];
+      return preferredTeamId ? `/teams/${preferredTeamId}?openPitchBoard=1` : null;
     },
   });
 
-  return data ?? null;
+  // The access query has already scoped these IDs to the active football club.
+  // Supplying this synchronously removes the second-query race where a quick
+  // click previously saw `null` and navigated to the Schedule page.
+  const fallbackTeamId = enabled ? teamIds[0] : undefined;
+  return data ?? (fallbackTeamId ? `/teams/${fallbackTeamId}?openPitchBoard=1` : null);
 }

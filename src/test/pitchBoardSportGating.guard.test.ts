@@ -31,6 +31,15 @@ describe("pitch board entry points gate on football only", () => {
     expect(src).toMatch(/activeClubFilter/);
   });
 
+  it("desktop nav opens the canonical team board without an event-route race", () => {
+    const access = read("src/hooks/useDesktopNavAccess.ts");
+    const rail = read("src/components/layout/DesktopNavRail.tsx");
+    expect(access).toContain("`/teams/${preferredTeamId}?openPitchBoard=1`");
+    expect(access).toContain("fallbackTeamId");
+    expect(access).not.toContain("`/events/${eventId}/groups/${groupId}/pitch`");
+    expect(rail).not.toContain('navigate("/events")');
+  });
+
   it("home Next Up CTAs use the football-only helper", () => {
     const src = read("src/components/NextUpCarousel.tsx");
     expect(src).toMatch(/hasGameBoardSupport\(event\.clubs\?\.sport\)/);
