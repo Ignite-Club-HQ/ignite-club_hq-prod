@@ -1303,9 +1303,20 @@ export default function MediaPage() {
   if (showSkeletons) {
     return (
       <div className="py-6 pb-32 space-y-6 [overflow-anchor:none]">
-        <div className="flex items-center justify-between gap-2">
+        {/* Header row keeps the same height as the real header (icon buttons
+            are h-10) so the title doesn't hop when actions mount. */}
+        <div className="flex items-center justify-between gap-2 min-h-10">
           <h1 className="text-2xl font-bold">Media</h1>
         </div>
+        {/* Mirror the real page structure exactly — sponsor strip + free-plan
+            usage meter live above the feed in the content branch, so they
+            must occupy the same space here or the swap reflows the feed. */}
+        <div className="max-w-lg mx-auto">
+          <MediaHeaderSponsorStrip
+            clubId={activeClubFilter ?? (userRoles?.find(r => r.club_id)?.club_id as string | undefined) ?? null}
+          />
+        </div>
+        <FreeMediaUsageMeter clubId={scopedClubFilterId ?? null} />
         {/* Mirror the real feed layout (single centred column) so the swap to
             content is a fade, not a re-flow from a 3-column grid. */}
         <div className="max-w-lg mx-auto space-y-6">
