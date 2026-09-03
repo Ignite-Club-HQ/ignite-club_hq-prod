@@ -2223,12 +2223,13 @@ export default function HomePage() {
           a club exists (per product decision). */}
 
 
-      <div className="relative">
+      <div className="relative [overflow-anchor:none]">
         {!showContent && <HomeInitialSkeleton />}
         <div
-          className={showContent ? "space-y-5" : "absolute inset-x-0 top-0 space-y-5 opacity-0 pointer-events-none"}
+          className={showContent ? "space-y-5 soft-reveal" : "absolute inset-x-0 top-0 space-y-5 opacity-0 pointer-events-none"}
           aria-hidden={!showContent}
         >
+
           {/* Next Up Carousel - unified event section */}
           <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} onReadyChange={handleNextUpReadyChange} />
 
