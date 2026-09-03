@@ -1296,6 +1296,10 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
    * issued at/near the bottom where the tail rows are already mounted
    * (initial mount anchors at LAST, overscan bottom = 600px).
    */
+  const prefersReducedMotion = () =>
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+
   const pinToTrueBottom = useCallback(
     (reason: string, behavior: "auto" | "smooth" | "gentle" = "auto") => {
       if (messagesLengthRef.current <= 0) return false;
