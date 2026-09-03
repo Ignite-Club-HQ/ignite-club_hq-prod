@@ -12322,6 +12322,15 @@ export type Database = {
           push_logs_deleted: number
         }[]
       }
+      prune_telemetry_tables: {
+        Args: {
+          p_analytics_retain_days?: number
+          p_batch_size?: number
+          p_max_batches?: number
+          p_perf_retain_days?: number
+        }
+        Returns: Json
+      }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       purge_old_client_perf_log: { Args: never; Returns: undefined }
       push_delivery_cron_failures: {
