@@ -1312,9 +1312,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogEvent("pin-to-true-bottom", { reason, from: Math.round(el.scrollTop), to: Math.round(maxTop) });
       // "gentle": used for the first pin after a locally-sent message. A short
       // smooth glide over a small distance reads far calmer than an instant
-      // snap, without risking a long animated travel (>320px falls back to an
+      // snap, without risking a long animated travel (>120px falls back to an
       // instant write so cold jumps and catch-ups stay immediate).
-      const useSmooth = behavior === "smooth" || (behavior === "gentle" && delta <= 320);
+      const useSmooth = behavior === "smooth" || (behavior === "gentle" && delta <= 120);
       if (useSmooth && !prefersReducedMotion()) {
         el.scrollTo({ top: maxTop, behavior: "smooth" });
       } else {
@@ -1384,8 +1384,19 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   alignMessageIdInViewRef.current = alignMessageIdInView;
   const bottomPaddingRef = useRef(bottomPadding);
   const bottomPaddingChangedAtRef = useRef(0);
+  // Set during render (BEFORE the new footer height hits the DOM) when the
+  // viewport was sitting at the bottom. The layout effect below then re-pins
+  // in the same commit, so a shrinking/growing composer footer can never paint
+  // a frame where the thread has slid up (or down) and then snapped back —
+  // that pair of frames is the post-send "jump".
+  const repinAfterPaddingRef = useRef(false);
   if (bottomPaddingRef.current !== bottomPadding) {
     bottomPaddingRef.current = bottomPadding;
+    const el = scrollerElRef.current;
+    if (el) {
+      const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+      repinAfterPaddingRef.current = maxTop - el.scrollTop <= 24;
+    }
     // The composer inset is measured in staggered passes (80/180/360/700ms) and
     // is rendered as an in-flow Virtuoso footer, so every change physically
     // moves the message column. Revealing between those passes is exactly the
@@ -1399,6 +1410,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const now = typeof performance !== "undefined" ? performance.now() : Date.now();
     return now - bottomPaddingChangedAtRef.current >= quietMs;
   }, []);
+  // Same-commit re-pin for composer-footer height changes. Runs before paint,
+  // so the shrink/grow of the footer and the corrected scrollTop land in ONE
+  // frame instead of "slide + snap back".
+  useLayoutEffect(() => {
+    if (!repinAfterPaddingRef.current) return;
+    repinAfterPaddingRef.current = false;
+    if (messagesLengthRef.current <= 0) return;
+    if (isChatJumpActive()) return;
+    const el = scrollerElRef.current;
+    if (!el) return;
+    const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+    if (Math.abs(el.scrollTop - maxTop) <= 1) return;
+    el.scrollTop = maxTop;
+    markChatScrollWrite();
+  }, [bottomPadding]);
   // Single-owner guard for the exact-DOM correction: while the initial
   // deep-link reveal gate is running, the overlay gate must NOT issue its own
   // competing `finalAlign` for the same target.
