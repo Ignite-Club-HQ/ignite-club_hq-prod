@@ -65,6 +65,48 @@ export interface ClubFreeUsage {
 }
 
 /**
+ * Last-known meter snapshot persisted per club so cold-start pages (Media)
+ * can paint the usage meter at its final size immediately instead of popping
+ * it in ~130px tall once the RPC returns (which reads as a page "shake").
+ * Display-only — never used for cap enforcement. `ignite_` prefix so
+ * `clearUserScopedCaches()` sweeps it on sign-out / account switch.
+ */
+export interface ClubFreeUsageSnapshot {
+  isPro: boolean;
+  photoUsed: number;
+  cycleEnd: string | null;
+}
+
+const SNAPSHOT_PREFIX = "ignite_free_usage_snapshot_";
+
+export function readClubFreeUsageSnapshot(
+  clubId: string | null | undefined,
+): ClubFreeUsageSnapshot | null {
+  if (!clubId) return null;
+  try {
+    const raw = localStorage.getItem(`${SNAPSHOT_PREFIX}${clubId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ClubFreeUsageSnapshot>;
+    if (typeof parsed.isPro !== "boolean") return null;
+    return {
+      isPro: parsed.isPro,
+      photoUsed: Number(parsed.photoUsed ?? 0),
+      cycleEnd: typeof parsed.cycleEnd === "string" ? parsed.cycleEnd : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeClubFreeUsageSnapshot(clubId: string, snap: ClubFreeUsageSnapshot) {
+  try {
+    localStorage.setItem(`${SNAPSHOT_PREFIX}${clubId}`, JSON.stringify(snap));
+  } catch {
+    // storage full / unavailable — purely cosmetic, ignore
+  }
+}
+
+/**
  * Read Free-tier usage counters for a club. Used to render usage meters and
  * gate uploads/polls at the call site. Returns isPro=true for clubs with
  * active Pro access — callers should skip caps in that case.
@@ -96,6 +138,12 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
       const chatFileBytes = Number((row as any).chat_file_storage_bytes ?? 0);
       const pollUsed = Number(row.polls_this_cycle ?? 0);
       const isPro = !!row.is_pro;
+
+      writeClubFreeUsageSnapshot(clubId!, {
+        isPro,
+        photoUsed,
+        cycleEnd: row.cycle_end ? String(row.cycle_end) : null,
+      });
 
       return {
         isPro,

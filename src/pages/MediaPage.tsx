@@ -53,7 +53,7 @@ import { UploadPhotoSheet } from "@/components/UploadPhotoSheet";
 import { SharePhotoButton } from "@/components/SharePhotoButton";
 import { ClubTeamFilter } from "@/components/ClubTeamFilter";
 import { MediaSponsorTile } from "@/components/media/MediaSponsorTile";
-import { useClubFreeUsage } from "@/hooks/useClubFreeUsage";
+import { useClubFreeUsage, readClubFreeUsageSnapshot, FREE_PHOTO_UPLOADS_PER_CYCLE } from "@/hooks/useClubFreeUsage";
 import { UsageMeter } from "@/components/subscription/UsageMeter";
 import { FREE_UPGRADE_MESSAGES } from "@/lib/freeUpgradeMessages";
 import { MediaHeaderSponsorStrip } from "@/components/media/MediaHeaderSponsorStrip";
@@ -1303,9 +1303,20 @@ export default function MediaPage() {
   if (showSkeletons) {
     return (
       <div className="py-6 pb-32 space-y-6 [overflow-anchor:none]">
-        <div className="flex items-center justify-between gap-2">
+        {/* Header row keeps the same height as the real header (icon buttons
+            are h-10) so the title doesn't hop when actions mount. */}
+        <div className="flex items-center justify-between gap-2 min-h-10">
           <h1 className="text-2xl font-bold">Media</h1>
         </div>
+        {/* Mirror the real page structure exactly — sponsor strip + free-plan
+            usage meter live above the feed in the content branch, so they
+            must occupy the same space here or the swap reflows the feed. */}
+        <div className="max-w-lg mx-auto">
+          <MediaHeaderSponsorStrip
+            clubId={activeClubFilter ?? (userRoles?.find(r => r.club_id)?.club_id as string | undefined) ?? null}
+          />
+        </div>
+        <FreeMediaUsageMeter clubId={scopedClubFilterId ?? null} />
         {/* Mirror the real feed layout (single centred column) so the swap to
             content is a fade, not a re-flow from a 3-column grid. */}
         <div className="max-w-lg mx-auto space-y-6">
@@ -1970,18 +1981,41 @@ export default function MediaPage() {
 
 function FreeMediaUsageMeter({ clubId }: { clubId: string | null }) {
   const { usage } = useClubFreeUsage(clubId);
-  if (!clubId || !usage || usage.isPro) return null;
+  // Cold-start: paint from the last-known snapshot so the meter occupies its
+  // final height on first frame. Values refresh in place (text only) once the
+  // RPC returns — no vertical reflow of the feed below.
+  const snapshot = useMemo(() => readClubFreeUsageSnapshot(clubId), [clubId]);
+
+  if (!clubId) return null;
+
+  const view = usage
+    ? {
+        isPro: usage.isPro,
+        used: usage.photo.used,
+        limit: usage.photo.limit,
+        cycleEnd: usage.cycleEnd,
+        atCap: usage.photo.atCountCap,
+      }
+    : snapshot
+      ? {
+          isPro: snapshot.isPro,
+          used: snapshot.photoUsed,
+          limit: FREE_PHOTO_UPLOADS_PER_CYCLE,
+          cycleEnd: snapshot.cycleEnd ? new Date(snapshot.cycleEnd) : null,
+          atCap: !snapshot.isPro && snapshot.photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
+        }
+      : null;
+
+  if (!view || view.isPro) return null;
   return (
     <div className="max-w-lg mx-auto px-4 pb-2">
       <UsageMeter
         label="Free plan — photos this cycle"
-        used={usage.photo.used}
-        limit={usage.photo.limit}
+        used={view.used}
+        limit={view.limit}
         clubId={clubId}
-        resetAt={usage.cycleEnd}
-        capMessage={
-          usage.photo.atCountCap ? FREE_UPGRADE_MESSAGES.photoCount : undefined
-        }
+        resetAt={view.cycleEnd}
+        capMessage={view.atCap ? FREE_UPGRADE_MESSAGES.photoCount : undefined}
       />
     </div>
   );
