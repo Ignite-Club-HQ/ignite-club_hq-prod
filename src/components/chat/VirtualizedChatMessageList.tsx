@@ -1410,6 +1410,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
     const now = typeof performance !== "undefined" ? performance.now() : Date.now();
     return now - bottomPaddingChangedAtRef.current >= quietMs;
   }, []);
+  // Same-commit re-pin for composer-footer height changes. Runs before paint,
+  // so the shrink/grow of the footer and the corrected scrollTop land in ONE
+  // frame instead of "slide + snap back".
+  useLayoutEffect(() => {
+    if (!repinAfterPaddingRef.current) return;
+    repinAfterPaddingRef.current = false;
+    if (messagesLengthRef.current <= 0) return;
+    if (isChatJumpActive()) return;
+    const el = scrollerElRef.current;
+    if (!el) return;
+    const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+    if (Math.abs(el.scrollTop - maxTop) <= 1) return;
+    el.scrollTop = maxTop;
+    markChatScrollWrite();
+  }, [bottomPadding]);
   // Single-owner guard for the exact-DOM correction: while the initial
   // deep-link reveal gate is running, the overlay gate must NOT issue its own
   // competing `finalAlign` for the same target.
