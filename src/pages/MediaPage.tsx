@@ -1302,12 +1302,14 @@ export default function MediaPage() {
   // Don't block on loading if we have cached data to show
   if (showSkeletons) {
     return (
-      <div className="py-6 pb-32 space-y-6">
+      <div className="py-6 pb-32 space-y-6 [overflow-anchor:none]">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl font-bold">Media</h1>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
+        {/* Mirror the real feed layout (single centred column) so the swap to
+            content is a fade, not a re-flow from a 3-column grid. */}
+        <div className="max-w-lg mx-auto space-y-6">
+          {Array.from({ length: 3 }).map((_, i) => (
             <PhotoSkeleton key={i} />
           ))}
         </div>
@@ -1316,7 +1318,8 @@ export default function MediaPage() {
   }
 
   return (
-    <div className="py-6 pb-32 space-y-6">
+    <div className="py-6 pb-32 space-y-6 soft-reveal">
+
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">Media</h1>
