@@ -28,6 +28,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { invalidateProAccessQueries } from "@/lib/invalidateProAccess";
+import { useDesktopUpgradeGate } from "@/hooks/useDesktopUpgradeGate";
+
 
 const PRO_FEATURES = [
   "Team & club chat (club-wide messaging)",

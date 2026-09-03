@@ -39,6 +39,8 @@ import { useToast } from "@/hooks/use-toast";
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { invalidateProAccessQueries } from "@/lib/invalidateProAccess";
+import { useDesktopUpgradeGate } from "@/hooks/useDesktopUpgradeGate";
+
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
