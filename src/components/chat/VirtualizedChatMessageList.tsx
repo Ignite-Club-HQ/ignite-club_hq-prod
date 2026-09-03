@@ -1312,9 +1312,9 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       debugLogEvent("pin-to-true-bottom", { reason, from: Math.round(el.scrollTop), to: Math.round(maxTop) });
       // "gentle": used for the first pin after a locally-sent message. A short
       // smooth glide over a small distance reads far calmer than an instant
-      // snap, without risking a long animated travel (>320px falls back to an
+      // snap, without risking a long animated travel (>120px falls back to an
       // instant write so cold jumps and catch-ups stay immediate).
-      const useSmooth = behavior === "smooth" || (behavior === "gentle" && delta <= 320);
+      const useSmooth = behavior === "smooth" || (behavior === "gentle" && delta <= 120);
       if (useSmooth && !prefersReducedMotion()) {
         el.scrollTo({ top: maxTop, behavior: "smooth" });
       } else {
