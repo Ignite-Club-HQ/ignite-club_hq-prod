@@ -127,6 +127,35 @@ export function DesktopProGate() {
         your phone or tablet — Pro can be purchased from the club upgrade screen in the mobile app.
       </p>
 
+      {switchable.length > 0 && (
+        <div className="mt-8 w-full max-w-md">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Switch to a Pro club
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            {switchable.map((club) => (
+              <Button
+                key={club.id}
+                variant="outline"
+                className="h-12 w-full justify-start gap-3"
+                onClick={() => setActiveClubTheme(club.id)}
+              >
+                <LogoImage
+                  src={club.logoUrl || igniteIcon}
+                  alt=""
+                  className="h-7 w-7 rounded-md"
+                  imgClassName="object-cover"
+                />
+                <span className="truncate text-sm font-medium">{club.name}</span>
+                <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  Pro
+                </span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="mt-8 flex items-center gap-2 text-xs text-muted-foreground">
         <Smartphone className="h-3.5 w-3.5" aria-hidden="true" />
         Everything still works as normal on mobile.
