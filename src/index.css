@@ -442,3 +442,22 @@ html.rm *::after {
     --bottom-nav-offset: 0px !important;
   }
 }
+
+/* Cold-start reveal: content should ease in, not snap/shake into place.
+   Pure opacity (no translate) so nothing appears to jump vertically, and
+   scroll-anchoring is disabled on the revealing containers so late-arriving
+   async sections cannot yank the viewport. */
+@keyframes soft-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.soft-reveal {
+  animation: soft-reveal 260ms ease-out both;
+  overflow-anchor: none;
+}
+.soft-reveal * {
+  overflow-anchor: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .soft-reveal { animation: none; }
+}
