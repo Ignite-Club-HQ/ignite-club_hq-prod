@@ -2,26 +2,42 @@ import { Capacitor } from "@capacitor/core";
 import { Smartphone, Sparkles } from "lucide-react";
 import { LogoImage } from "@/components/ui/logo-image";
 import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
+import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import igniteIcon from "@/assets/ignite-icon.png";
 
 /**
- * Desktop access is a Pro feature.
+ * Desktop access is a Pro feature, scoped to the ACTIVE club.
  *
  * Renders a full-screen blocking overlay on desktop web (lg+ breakpoint only)
- * when the signed-in user has no active Pro access on any of their clubs.
+ * when the club currently selected in the club switcher has no active Pro
+ * access. This matches every other Pro gate in the app: being a member of a
+ * different Pro club no longer unlocks desktop while viewing a free club.
+ *
+ * When no club is selected (personal / no-club context) we fall back to the
+ * user-level "any club Pro" lookup so users without a club filter aren't
+ * locked out unexpectedly.
+ *
  * Mobile/tablet widths and native (Capacitor) builds are never affected —
  * the overlay itself is `hidden lg:flex`, so below lg it doesn't exist visually.
  *
- * Entitlement is unknown-safe: while the Pro lookup is loading or errored,
- * `useUserHasAnyClubPro` reports `isLoading`, and we render nothing (no lock).
+ * Entitlement is unknown-safe: while either Pro lookup is loading or errored,
+ * we render nothing (no lock).
  */
 export function DesktopProGate() {
-  const { hasAnyClubPro, isLoading } = useUserHasAnyClubPro();
-  const { activeThemeData } = useClubTheme();
+  const { activeThemeData, activeClubFilter } = useClubTheme();
+  const activeClubId = activeClubFilter ?? null;
+
+  const anyClub = useUserHasAnyClubPro();
+  const activeClub = useClubProAccess(activeClubId, { enabled: !!activeClubId });
 
   if (Capacitor.isNativePlatform()) return null;
-  if (isLoading || hasAnyClubPro) return null;
+
+  if (activeClubId) {
+    if (activeClub.isLoading || activeClub.hasPro) return null;
+  } else {
+    if (anyClub.isLoading || anyClub.hasAnyClubPro) return null;
+  }
 
   return (
     <div
