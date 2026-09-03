@@ -137,7 +137,9 @@ export function useNextPitchBoardTarget(teamIds: string[], enabled: boolean) {
         .order("display_order")
         .limit(1);
       const groupId = groups?.[0]?.id;
-      return groupId ? `/events/${eventId}/groups/${groupId}/pitch` : `/events/${eventId}`;
+      return groupId
+        ? `/events/${eventId}/groups/${groupId}/pitch`
+        : `/events/${eventId}?openPitchBoard=1`;
     },
   });
 
