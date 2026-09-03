@@ -2362,15 +2362,23 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           // different bottoms a frame apart (the "thread moves up and down
           // after reveal" bounce). pinToTrueBottom is the single canonical
           // target shared by every bottom-pin writer.
-          pinToTrueBottom("imperative-scroll-to-bottom", behavior);
+          // First pin after a local send glides ("gentle"); the trailing
+          // correction pins stay instant so they never animate against the
+          // glide or against composer reflow.
+          pinToTrueBottom(
+            "imperative-scroll-to-bottom",
+            behavior === "auto" && !settled ? "gentle" : behavior,
+          );
+          settled = true;
         };
+        let settled = false;
         run();
         requestAnimationFrame(() => requestAnimationFrame(run));
         // Trailing re-pins. Each is independently guarded so an active
         // user gesture (finger drag / momentum) cancels them.
-        window.setTimeout(run, 120);
-        window.setTimeout(run, 280);
-        window.setTimeout(run, 500);
+        window.setTimeout(run, 200);
+        window.setTimeout(run, 400);
+        window.setTimeout(run, 650);
       },
 
       scrollToIndex: (index, align = "center") => {
