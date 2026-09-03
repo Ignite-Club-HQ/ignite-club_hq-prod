@@ -1297,15 +1297,21 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
    * (initial mount anchors at LAST, overscan bottom = 600px).
    */
   const pinToTrueBottom = useCallback(
-    (reason: string, behavior: "auto" | "smooth" = "auto") => {
+    (reason: string, behavior: "auto" | "smooth" | "gentle" = "auto") => {
       if (messagesLengthRef.current <= 0) return false;
       if (isChatJumpActive()) return false;
       const el = scrollerElRef.current;
       if (!el) return false;
       const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
-      if (Math.abs(el.scrollTop - maxTop) <= 1) return true;
+      const delta = Math.abs(el.scrollTop - maxTop);
+      if (delta <= 1) return true;
       debugLogEvent("pin-to-true-bottom", { reason, from: Math.round(el.scrollTop), to: Math.round(maxTop) });
-      if (behavior === "smooth") {
+      // "gentle": used for the first pin after a locally-sent message. A short
+      // smooth glide over a small distance reads far calmer than an instant
+      // snap, without risking a long animated travel (>320px falls back to an
+      // instant write so cold jumps and catch-ups stay immediate).
+      const useSmooth = behavior === "smooth" || (behavior === "gentle" && delta <= 320);
+      if (useSmooth && !prefersReducedMotion()) {
         el.scrollTo({ top: maxTop, behavior: "smooth" });
       } else {
         el.scrollTop = maxTop;
