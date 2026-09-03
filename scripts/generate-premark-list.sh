@@ -5,7 +5,7 @@
 # can paste into .github/workflows/promote-to-prod.yml.
 #
 # Usage:
-#   export PROD_DB_URL='postgresql://postgres.<ref>:<pw>@<host>:5432/postgres?sslmode=require'
+#   export PROD_DB_URL='postgresql://postgres.<ref>:<pw>@<pooler-host>:6543/postgres?sslmode=require'  # transaction pooler
 #   bash scripts/generate-premark-list.sh
 #
 # Requires: psql, awk, grep. Read-only: only runs SELECTs against prod.
