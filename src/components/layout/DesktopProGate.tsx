@@ -1,10 +1,65 @@
 import { Capacitor } from "@capacitor/core";
 import { Smartphone, Sparkles } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { LogoImage } from "@/components/ui/logo-image";
+import { Button } from "@/components/ui/button";
 import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import igniteIcon from "@/assets/ignite-icon.png";
+
+/**
+ * Clubs the user belongs to that currently have Pro access. Used so a user
+ * stuck on a free club can switch back to a Pro club from the lock screen.
+ */
+function useUserProClubs(enabled: boolean) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["desktop-gate-pro-clubs", user?.id],
+    enabled: enabled && !!user?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const [direct, viaTeam] = await Promise.all([
+        supabase.from("user_roles").select("club_id").eq("user_id", user!.id).not("club_id", "is", null),
+        supabase.from("user_roles").select("teams!inner(club_id)").eq("user_id", user!.id).not("team_id", "is", null),
+      ]);
+      if (direct.error) throw direct.error;
+      if (viaTeam.error) throw viaTeam.error;
+
+      const ids = new Set<string>();
+      (direct.data ?? []).forEach((r: any) => r.club_id && ids.add(r.club_id));
+      (viaTeam.data ?? []).forEach((r: any) => r.teams?.club_id && ids.add(r.teams.club_id));
+      if (ids.size === 0) return [];
+
+      const clubIds = Array.from(ids);
+      const [subs, clubs] = await Promise.all([
+        supabase
+          .from("club_subscriptions")
+          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
+          .in("club_id", clubIds),
+        supabase.from("clubs").select("id, name, logo_url").in("id", clubIds),
+      ]);
+      if (subs.error) throw subs.error;
+      if (clubs.error) throw clubs.error;
+
+      const proIds = new Set(
+        (subs.data ?? [])
+          .filter(
+            (s: any) =>
+              (s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override) &&
+              (!s.expires_at || new Date(s.expires_at) > new Date()),
+          )
+          .map((s: any) => s.club_id),
+      );
+
+      return (clubs.data ?? [])
+        .filter((c: any) => proIds.has(c.id))
+        .map((c: any) => ({ id: c.id as string, name: c.name as string, logoUrl: (c.logo_url as string) ?? null }));
+    },
+  });
+}
 
 /**
  * Desktop access is a Pro feature, scoped to the ACTIVE club.
