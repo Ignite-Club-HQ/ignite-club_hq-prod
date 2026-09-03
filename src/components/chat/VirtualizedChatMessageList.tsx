@@ -1296,12 +1296,14 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
    * issued at/near the bottom where the tail rows are already mounted
    * (initial mount anchors at LAST, overscan bottom = 600px).
    */
-  const prefersReducedMotion = () =>
-    typeof window !== "undefined" &&
-    (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
-
+  // NEVER animate this write. A `behavior: "smooth"` glide is cancelled by the
+  // next synchronous `scrollTop =` write (own-message pin, bottom-padding
+  // re-pin, stay-pinned guard) and the truncated glide + instant jump is the
+  // post-send "shake". Every bottom pin is a single instant write; calmness
+  // comes from landing the row, composer collapse and footer in ONE frame,
+  // not from animating between them.
   const pinToTrueBottom = useCallback(
-    (reason: string, behavior: "auto" | "smooth" | "gentle" = "auto") => {
+    (reason: string, _behavior: "auto" | "smooth" = "auto") => {
       if (messagesLengthRef.current <= 0) return false;
       if (isChatJumpActive()) return false;
       const el = scrollerElRef.current;
@@ -1310,16 +1312,7 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       const delta = Math.abs(el.scrollTop - maxTop);
       if (delta <= 1) return true;
       debugLogEvent("pin-to-true-bottom", { reason, from: Math.round(el.scrollTop), to: Math.round(maxTop) });
-      // "gentle": used for the first pin after a locally-sent message. A short
-      // smooth glide over a small distance reads far calmer than an instant
-      // snap, without risking a long animated travel (>120px falls back to an
-      // instant write so cold jumps and catch-ups stay immediate).
-      const useSmooth = behavior === "smooth" || (behavior === "gentle" && delta <= 120);
-      if (useSmooth && !prefersReducedMotion()) {
-        el.scrollTo({ top: maxTop, behavior: "smooth" });
-      } else {
-        el.scrollTop = maxTop;
-      }
+      el.scrollTop = maxTop;
       markChatScrollWrite();
       return true;
     },
@@ -2388,16 +2381,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
           // different bottoms a frame apart (the "thread moves up and down
           // after reveal" bounce). pinToTrueBottom is the single canonical
           // target shared by every bottom-pin writer.
-          // First pin after a local send glides ("gentle"); the trailing
-          // correction pins stay instant so they never animate against the
-          // glide or against composer reflow.
-          pinToTrueBottom(
-            "imperative-scroll-to-bottom",
-            behavior === "auto" && !settled ? "gentle" : behavior,
-          );
-          settled = true;
+          pinToTrueBottom("imperative-scroll-to-bottom", behavior);
         };
-        let settled = false;
         run();
         requestAnimationFrame(() => requestAnimationFrame(run));
         // Trailing re-pins. Each is independently guarded so an active

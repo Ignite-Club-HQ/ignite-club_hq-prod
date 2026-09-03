@@ -362,10 +362,14 @@ export function MentionInput({
     }
   }, []);
 
-  useEffect(() => {
+  // Resize synchronously in the SAME commit that changes `value`. Deferring
+  // this to a rAF meant the textarea collapsed one frame after the send
+  // commit (and after the message row had already been pinned), so the
+  // composer height — and therefore the list footer — moved a frame late and
+  // the thread visibly stepped. The IME guard lives inside `adjustHeight`.
+  useLayoutEffect(() => {
     if (isComposingRef.current) return;
-    const frame = requestAnimationFrame(adjustHeight);
-    return () => cancelAnimationFrame(frame);
+    adjustHeight();
   }, [value, adjustHeight]);
 
   useEffect(() => {
