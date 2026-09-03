@@ -1361,6 +1361,10 @@ export default function ClubChatPage() {
         };
       });
 
+      // Same batch as the composer clear (cache→local sync is a task later and
+      // would step the thread down-then-up). Later sync dedupes by id.
+      setLocalMessages((prev) => (prev && !prev.some((m) => m.id === tempId) ? [...prev, optimisticMessage] : prev));
+
       // Clear input immediately
       setMessage("");
       setImageUrl(null);
