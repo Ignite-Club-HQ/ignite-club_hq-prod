@@ -248,6 +248,7 @@ export function useNativeAndroidKeyboardState(): number {
       document.removeEventListener("focusout", handleFocusOut, true);
       document.removeEventListener("visibilitychange", handleVisibility);
       window.clearTimeout(focusoutTimer);
+      window.clearTimeout(hideTimer);
       cancelAnimationFrame(rafRef.current);
     };
 
