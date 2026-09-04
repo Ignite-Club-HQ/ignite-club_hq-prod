@@ -41,11 +41,13 @@ export function useDesktopNavAccess() {
       // Resolve the club behind every team role so a football club membership
       // can never light up the board for a non-football club (or vice versa).
       let teamClubMap = new Map<string, string>();
+      let teamNameMap = new Map<string, string>();
       if (teamIds.length > 0) {
-        const { data: teams } = await supabase.from("teams").select("id, club_id").in("id", teamIds);
+        const { data: teams } = await supabase.from("teams").select("id, name, club_id").in("id", teamIds);
         teamClubMap = new Map(
           (teams || []).filter((t) => !!t.club_id).map((t) => [t.id as string, t.club_id as string]),
         );
+        teamNameMap = new Map((teams || []).map((t) => [t.id as string, (t.name as string) ?? "Team"]));
       }
 
       const clubIds = Array.from(
@@ -76,7 +78,18 @@ export function useDesktopNavAccess() {
         return inScope(clubId);
       });
 
-      const boardTeamIds = teamIds.filter((id) => inScope(teamClubMap.get(id)));
+      const allBoardTeamIds = teamIds.filter((id) => inScope(teamClubMap.get(id)));
+
+      // Club-level coach/admin roles cover every team in that club; otherwise
+      // only offer the teams the user actually coaches/admins.
+      const hasClubWideBoardRole = boardRoleRows.some((r) => !r.team_id && !!r.club_id);
+      const directBoardTeamIds = boardRoleRows
+        .map((r) => r.team_id)
+        .filter((id): id is string => !!id && allBoardTeamIds.includes(id));
+
+      const boardTeamIds = hasClubWideBoardRole
+        ? allBoardTeamIds
+        : Array.from(new Set(directBoardTeamIds));
 
       return {
         hasTeams: rows.some((r) => !!r.team_id),
@@ -88,6 +101,7 @@ export function useDesktopNavAccess() {
         ),
         canCreateTeam: rows.some((r) => r.role === "club_admin" || r.role === "app_admin"),
         teamIds: boardTeamIds,
+        boardTeams: boardTeamIds.map((id) => ({ id, name: teamNameMap.get(id) ?? "Team" })),
       };
     },
 
@@ -102,6 +116,7 @@ export function useDesktopNavAccess() {
     canCreateEvent: !!data?.canCreateEvent,
     canCreateTeam: !!data?.canCreateTeam,
     teamIds: data?.teamIds ?? [],
+    boardTeams: data?.boardTeams ?? [],
   };
 }
 
