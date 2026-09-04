@@ -106,6 +106,13 @@ export function ChatSendButton({
   };
 
   const startLongPress = (e: React.PointerEvent) => {
+    // Never let the send button take focus away from the composer textarea.
+    // Chrome/Android focuses <button> on tap; the resulting textarea blur
+    // reaches the IME as a real keyboard hide, and our keyboard-height hooks
+    // then collapse and restore the chat viewport — the post-send "thread
+    // jumps up and back". Cancelling pointerdown (and the compat mousedown)
+    // suppresses the focus change while click/pointerup still fire.
+    e.preventDefault();
     longPressedRef.current = false;
     firedThisGestureRef.current = false;
     pointerDownOnUsRef.current = true;
@@ -119,6 +126,12 @@ export function ChatSendButton({
       dismissHint();
       onSchedule();
     }, LONG_PRESS_MS);
+  };
+
+  // Fallback for browsers that still dispatch mousedown (focus happens on
+  // mousedown's default action).
+  const preventFocusSteal = (e: React.MouseEvent) => {
+    e.preventDefault();
   };
 
   const endLongPress = (e?: React.PointerEvent) => {
