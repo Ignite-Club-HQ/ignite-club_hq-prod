@@ -10,6 +10,7 @@ import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
+import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1159,22 +1160,16 @@ export default function DirectMessagePage() {
     profile?.display_name || user?.email || "Someone"
   );
 
-  const handleSend = (imeFlushed = false) => {
-    if (!imeFlushed) {
-      try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
-    }
-    // Flush IME composition before reading composer state (see TeamChatPage).
-    // Re-focus on next tick so the keyboard stays open and the thread does
-    // not jump upward after sending.
-    const ae = document.activeElement as HTMLElement | null;
-    if (!imeFlushed && ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
-      ae.blur();
-      setTimeout(() => {
-        handleSend(true);
-        try { ae.focus({ preventScroll: true } as FocusOptions); } catch { /* noop */ }
-      }, 0);
-      return;
-    }
+  const handleSend = () => {
+    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
+    // Keep the composer focused through the tap. NEVER blur-to-flush the IME
+    // here: on Android a blur → refocus round-trip fires a real
+    // keyboardWillHide/keyboardWillShow pair, which collapses and restores
+    // the chat viewport (composer drops to the bottom nav, thread grows,
+    // then snaps back) — the post-send "thread jumps up and back". Composer
+    // state already mirrors every IME composition update, so reading it
+    // directly sends exactly what the user sees. See src/lib/chatComposerFocus.ts.
+    keepComposerFocusedThroughSend(composerRef.current);
 
     if (!message.trim() && !dmImageUrl && !pendingNewsId) return;
     if (editingMessage) {

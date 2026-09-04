@@ -31,3 +31,29 @@ different frames":
 
 Do not re-add animated pins or rAF-deferred composer measurement to make
 sends "feel smoother" — it recreates the shake.
+
+## Android: the real culprit was a keyboard hide/show blip (2026-09)
+
+The five non-broadcast send handlers still `blur()`-ed the textarea to flush
+the IME and re-`focus()`-ed it on a `setTimeout(0)`. Android's WebView reports
+that round-trip to the InputMethodManager as a real hide + show, so Capacitor
+fires `keyboardWillHide` → `keyboardWillShow`. `useNativeAndroidKeyboardState`
+applied 0px, `useChatViewportHeight` grew the chat shell to full height and the
+`position: fixed` composer (`bottom: nativeKbHeight`) dropped to the bottom
+nav; a few frames later everything snapped back. That is the "thread jumps up
+and back" after each send — independent of every Virtuoso/pin fix above.
+
+Fix (guarded by `src/test/chatSendKeepsKeyboardStable.guard.test.ts`):
+- `handleSend` never blurs. Composer state already mirrors IME composition
+  (see the composition gate note), so no flush is needed.
+- `ChatSendButton` calls `preventDefault()` on pointerdown + mousedown so the
+  `<button>` cannot take focus from the textarea (Chrome/Android focuses
+  buttons on tap). Click/pointerup still fire.
+- `keepComposerFocusedThroughSend(composerRef.current)` (`src/lib/chatComposerFocus.ts`)
+  hands focus straight back in the same task if the send control still
+  somehow took it; it does nothing when focus is anywhere else.
+- `useNativeAndroidKeyboardState` holds `keyboardWillHide` for a 100ms grace;
+  a `keyboardWillShow` inside it cancels the 0px collapse.
+
+Never reintroduce blur-to-flush in a send path; never let a composer control
+steal textarea focus.

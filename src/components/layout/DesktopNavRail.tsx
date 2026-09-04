@@ -9,6 +9,7 @@ import {
   Settings,
 } from "lucide-react";
 
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,13 @@ import { LogoImage } from "@/components/ui/logo-image";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useDesktopNavAccess, useNextPitchBoardTarget } from "@/hooks/useDesktopNavAccess";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import igniteIcon from "@/assets/ignite-icon.png";
 
 const coreItems = [
@@ -43,8 +51,9 @@ export function DesktopNavRail() {
   const { unreadMessagesCount } = useAuth();
   const { activeThemeData } = useClubTheme();
   const navigate = useNavigate();
-  const { hasClubs, canAccessVault, canPitchBoard, teamIds } = useDesktopNavAccess();
+  const { hasClubs, canAccessVault, canPitchBoard, teamIds, boardTeams } = useDesktopNavAccess();
   const pitchTarget = useNextPitchBoardTarget(teamIds, canPitchBoard);
+  const [teamPickerOpen, setTeamPickerOpen] = useState(false);
 
   if (Capacitor.isNativePlatform()) return null;
 
@@ -111,7 +120,9 @@ export function DesktopNavRail() {
               type="button"
               aria-label="Pitch Board"
               onClick={() => {
-                if (pitchTarget) {
+                if (boardTeams.length > 1) {
+                  setTeamPickerOpen(true);
+                } else if (pitchTarget) {
                   navigate(pitchTarget);
                 } else {
                   toast.info("Pitch Board is still loading. Please try again.");
@@ -137,6 +148,30 @@ export function DesktopNavRail() {
         </div>
       </nav>
 
+      <Dialog open={teamPickerOpen} onOpenChange={setTeamPickerOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Open Pitch Board</DialogTitle>
+            <DialogDescription>Choose which team's board to open.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {boardTeams.map((team) => (
+              <button
+                key={team.id}
+                type="button"
+                onClick={() => {
+                  setTeamPickerOpen(false);
+                  navigate(`/teams/${team.id}?openPitchBoard=1`);
+                }}
+                className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-3 text-left text-sm font-medium hover:bg-accent transition-colors"
+              >
+                <ClipboardList className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                {team.name}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }
