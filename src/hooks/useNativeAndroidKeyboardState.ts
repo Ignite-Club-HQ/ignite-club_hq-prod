@@ -115,7 +115,19 @@ export function useNativeAndroidKeyboardState(): number {
       });
     };
 
+    // Hide → show blips: a focus hand-off between two editable controls (or a
+    // WebView-internal IME restart) can surface as keyboardWillHide followed
+    // by keyboardWillShow a few frames later, even though the keyboard never
+    // visibly leaves. Applying the 0px inset immediately collapses the chat
+    // viewport for those frames and the thread visibly bounces. Hold the hide
+    // for a short grace window; a show inside it cancels the collapse. A real
+    // dismissal still lands well within the IME's own ~200ms slide-out.
+    const HIDE_GRACE_MS = 100;
+    let hideTimer = 0;
+
     const handleShow = ({ keyboardHeight: h }: { keyboardHeight: number }) => {
+      window.clearTimeout(hideTimer);
+      hideTimer = 0;
       pluginHeight = h || 0;
       keyboardOpen = true;
       cancelAnimationFrame(rafRef.current);
@@ -128,9 +140,12 @@ export function useNativeAndroidKeyboardState(): number {
       pluginHeight = 0;
       keyboardOpen = false;
       cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
+      window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(() => {
+        hideTimer = 0;
+        if (keyboardOpen) return;
         applyHeight(0);
-      });
+      }, HIDE_GRACE_MS);
     };
 
     Keyboard.addListener("keyboardWillShow", handleShow)
@@ -233,6 +248,7 @@ export function useNativeAndroidKeyboardState(): number {
       document.removeEventListener("focusout", handleFocusOut, true);
       document.removeEventListener("visibilitychange", handleVisibility);
       window.clearTimeout(focusoutTimer);
+      window.clearTimeout(hideTimer);
       cancelAnimationFrame(rafRef.current);
     };
 
