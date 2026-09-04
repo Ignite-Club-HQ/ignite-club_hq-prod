@@ -177,7 +177,7 @@ export function ChatSendButton({
       <button
         type="button"
         data-chat-send-button="true"
-        tabIndex={-1}
+        
         onClick={handleClick}
         onMouseDown={preventFocusSteal}
         onPointerDown={startLongPress}
