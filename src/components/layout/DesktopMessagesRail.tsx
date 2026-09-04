@@ -10,6 +10,7 @@ import { useClubTheme } from "@/hooks/useClubTheme";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { getMessagePreviewText } from "@/lib/messagePreview";
 
 interface RailItem {
   id: string;
@@ -83,7 +84,7 @@ export function DesktopMessagesRail() {
         const last = latestMap.get(c.id);
         const snippet = last
           ? `${last.author_id === user!.id ? "You" : other?.display_name || ""}: ${
-              last.text || (last.image_url ? "📷 Photo" : "")
+              getMessagePreviewText(last.text, last.image_url) || "📷 Photo"
             }`
           : "No messages yet";
         return {
@@ -163,7 +164,7 @@ export function DesktopMessagesRail() {
         const contextName = g.teams?.name || g.clubs?.name || null;
         const snippet = last
           ? `${last.author_display_name ? last.author_display_name + ": " : ""}${
-              last.text || (last.image_url ? "📷 Photo" : "")
+              getMessagePreviewText(last.text, last.image_url) || "📷 Photo"
             }`
           : contextName || "No messages yet";
         return {
@@ -224,7 +225,7 @@ export function DesktopMessagesRail() {
         const isAnnouncement = !!(last?.is_club_announcement && last?.club_announcement_name);
         const author = isAnnouncement ? last.club_announcement_name : last?.author_display_name;
         const snippet = last
-          ? `${author ? author + ": " : ""}${last.text || (last.image_url ? "📷 Photo" : "")}`
+          ? `${author ? author + ": " : ""}${getMessagePreviewText(last.text, last.image_url) || "📷 Photo"}`
           : "No messages yet";
         return {
           id: t.id,
@@ -281,7 +282,7 @@ export function DesktopMessagesRail() {
         const last = latestMap.get(c.id);
         const snippet = last
           ? `${last.author_display_name ? last.author_display_name + ": " : ""}${
-              last.text || (last.image_url ? "📷 Photo" : "")
+              getMessagePreviewText(last.text, last.image_url) || "📷 Photo"
             }`
           : "No messages yet";
         return {
