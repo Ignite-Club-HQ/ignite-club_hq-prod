@@ -11,6 +11,7 @@ import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { ChatThreadSponsorStrip } from "@/components/chat/ChatThreadSponsorStrip";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
+import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -1472,25 +1473,16 @@ export default function ClubChatPage() {
     clubId: clubId ?? null,
   });
 
-  const handleSend = (imeFlushed = false) => {
-    if (!imeFlushed) {
-      try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
-    }
-    // Flush any in-flight IME composition (Gboard swipe-type / iOS QuickType)
-    // BEFORE reading message state. Without this, a tap on Send mid-word
-    // sends the partial/garbled composing fragment ("wothpur" → "without").
-    // We re-focus the same element on the next tick so the on-screen keyboard
-    // never actually dismisses — otherwise the viewport grows and the whole
-    // thread visibly jumps up after each send.
-    const ae = document.activeElement as HTMLElement | null;
-    if (!imeFlushed && ae && (ae.tagName === "TEXTAREA" || ae.tagName === "INPUT")) {
-      ae.blur();
-      setTimeout(() => {
-        handleSend(true);
-        try { ae.focus({ preventScroll: true } as FocusOptions); } catch { /* noop */ }
-      }, 0);
-      return;
-    }
+  const handleSend = () => {
+    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
+    // Keep the composer focused through the tap. NEVER blur-to-flush the IME
+    // here: on Android a blur → refocus round-trip fires a real
+    // keyboardWillHide/keyboardWillShow pair, which collapses and restores
+    // the chat viewport (composer drops to the bottom nav, thread grows,
+    // then snaps back) — the post-send "thread jumps up and back". Composer
+    // state already mirrors every IME composition update, so reading it
+    // directly sends exactly what the user sees. See src/lib/chatComposerFocus.ts.
+    keepComposerFocusedThroughSend(composerRef.current);
 
     if (!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId) return;
     if (!user?.id || !clubId) return;
