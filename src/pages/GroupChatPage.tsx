@@ -3153,14 +3153,14 @@ export default function GroupChatPage() {
             <AlertDialogDescription>
               This will remove the chat from everyone's inbox. Messages stay archived
               and an app admin can restore the chat within 30 days. To continue, type
-              the group name below.
+              <strong>delete</strong> below.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <input
             type="text"
             value={deleteConfirmText}
             onChange={(e) => setDeleteConfirmText(e.target.value)}
-            placeholder={group.name}
+            placeholder="delete"
             autoCapitalize="none"
             autoCorrect="off"
             className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -3169,15 +3169,15 @@ export default function GroupChatPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
-                if (deleteConfirmText.trim() !== group.name.trim()) {
+                if (deleteConfirmText.trim().toLowerCase() !== "delete") {
                   e.preventDefault();
-                  toast.error("Group name does not match");
+                  toast.error("Type delete to confirm");
                   return;
                 }
                 deleteGroupMutation.mutate();
               }}
               disabled={
-                deleteConfirmText.trim() !== group.name.trim() ||
+                deleteConfirmText.trim().toLowerCase() !== "delete" ||
                 deleteGroupMutation.isPending
               }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
