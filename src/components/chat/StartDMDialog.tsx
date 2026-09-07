@@ -905,8 +905,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
             </div>
           ) : (
             <>
-              {/* Selected count + chips header */}
-              {isCustomGroup && (
+              {/* Selected count + chips header (step 1 of group flow) */}
+              {isCustomGroup && groupStep === 1 && (
                 <div className="flex items-center justify-between gap-2 px-0.5">
                   <p className="text-xs font-medium text-muted-foreground">
                     {selectedUsers.length === 0
@@ -943,7 +943,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
-              {(isCustomGroup || selectedUsers.length > 1) && (
+              {((isCustomGroup && groupStep === 2) || (!isCustomGroup && selectedUsers.length > 1)) && (
                 <div className="space-y-2">
                   <Input
                     placeholder={isCustomGroup ? "Group name" : "Group name (optional)"}
@@ -1027,7 +1027,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
               )}
 
               {/* Club picker only when the user really belongs to several clubs */}
-              {showClubFilter && (
+              {showClubFilter && !(isCustomGroup && groupStep === 2) && (
                 <Select value={selectedClubId} onValueChange={handleClubChange}>
                   <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue placeholder="All Clubs" />
