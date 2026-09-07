@@ -76,6 +76,7 @@ export function NewMessageSheet({
   open,
   onOpenChange,
   canCreateGroups,
+  canCreateCustomGroup,
   hasAdminRoleForGroups,
   hasPro,
   isAppAdmin,
