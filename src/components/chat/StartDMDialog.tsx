@@ -945,7 +945,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                       }
                       setGroupCategory(value);
                     };
-                    if (!showCategoryPicker && groupCategory === "Custom Groups") {
+                    if (!showCategoryPicker && !groupCategory) {
                       return (
                         <button
                           type="button"
@@ -974,7 +974,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                         <button
                           type="button"
                           onClick={() => {
-                            setGroupCategory("Custom Groups");
+                            setGroupCategory("");
                             setShowCategoryPicker(false);
                           }}
                           className="text-xs text-muted-foreground hover:text-foreground shrink-0"
