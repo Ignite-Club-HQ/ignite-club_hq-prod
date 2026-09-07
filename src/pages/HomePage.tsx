@@ -10,11 +10,11 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 // Lazy-loaded to keep them out of the HomePage critical path. Each is only
 // mounted when the user opens a specific dialog / lands on a banner-eligible
 // state, so the chunk fetch happens on demand.
-const RewardClaimQRDialog = lazy(() => import("@/components/RewardClaimQRDialog").then(m => ({ default: m.RewardClaimQRDialog })));
-const AccountRecoveryBanner = lazy(() => import("@/components/AccountRecoveryBanner").then(m => ({ default: m.AccountRecoveryBanner })));
-const NativeAppDownloadBanner = lazy(() => import("@/components/NativeAppDownloadBanner").then(m => ({ default: m.NativeAppDownloadBanner })));
-const HomeInviteFlow = lazy(() => import("@/components/HomeInviteFlow"));
-const QuickRSVPDialog = lazy(() => import("@/components/QuickRSVPDialog").then(m => ({ default: m.QuickRSVPDialog })));
+const RewardClaimQRDialog = lazyWithRetry(() => import("@/components/RewardClaimQRDialog").then(m => ({ default: m.RewardClaimQRDialog })));
+const AccountRecoveryBanner = lazyWithRetry(() => import("@/components/AccountRecoveryBanner").then(m => ({ default: m.AccountRecoveryBanner })));
+const NativeAppDownloadBanner = lazyWithRetry(() => import("@/components/NativeAppDownloadBanner").then(m => ({ default: m.NativeAppDownloadBanner })));
+const HomeInviteFlow = lazyWithRetry(() => import("@/components/HomeInviteFlow"));
+const QuickRSVPDialog = lazyWithRetry(() => import("@/components/QuickRSVPDialog").then(m => ({ default: m.QuickRSVPDialog })));
 
 // Warm the dialog chunks after first paint so opening them feels instant.
 // idle callback keeps this off the critical path.
@@ -44,8 +44,8 @@ import {
 import { PageLoading } from "@/components/ui/page-loading";
 
 // Lazy load PitchBoard - it's a heavy 4k+ line component with Fabric.js
-const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
-const GameTimerWidget = lazy(() => import("@/components/pitch/GameTimerWidget"));
+const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
+const GameTimerWidget = lazyWithRetry(() => import("@/components/pitch/GameTimerWidget"));
 import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 // CourtBoardResumeCard archived (basketball/netball only) — soccer resume handled by GameTimerWidget
 
@@ -113,6 +113,7 @@ import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
 
 import { LazyMount } from "@/components/LazyMount";
 import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";

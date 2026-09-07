@@ -25,11 +25,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { SPORT_EMOJIS, getSportEmoji } from "@/lib/sportEmojis";
-const FindOrCreateClubWizard = lazy(() => import("@/components/FindOrCreateClubWizard"));
+const FindOrCreateClubWizard = lazyWithRetry(() => import("@/components/FindOrCreateClubWizard"));
 import { SubscriptionLegalLinks } from "@/components/SubscriptionLegalLinks";
 import { isNativePlatform } from "@/lib/nativePush";
 import { z } from "zod";
 import { addMonths, addYears, isPast, parseISO } from "date-fns";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
 

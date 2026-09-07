@@ -65,9 +65,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
 // NetballBoard / BasketballBoard archived — football-only build (see archive/sports/)
-const TeamGameHistoryTab = lazy(() => import("@/components/history/TeamGameHistoryTab"));
+const TeamGameHistoryTab = lazyWithRetry(() => import("@/components/history/TeamGameHistoryTab"));
 import { isNetballSport, isBasketballSport } from "@/lib/sportDetection";
 import {
   clearPitchBoardOpenFlag,
@@ -76,7 +76,7 @@ import {
 import { DefaultPitchSettings } from "@/components/pitch/DefaultPitchSettings";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import ChatGroupsList from "@/components/chat/ChatGroupsList";
-const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
+const AddTeamMemberSheet = lazyWithRetry(() => import("@/components/AddTeamMemberSheet"));
 import AddPlayerToParentSheet from "@/components/team/AddPlayerToParentSheet";
 import LinkChildToParentSheet from "@/components/LinkChildToParentSheet";
 import { TeamAdminInviteDialog } from "@/components/TeamAdminInviteDialog";
@@ -103,6 +103,7 @@ import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import TeamCompetitionsSection from "@/components/competitions/TeamCompetitionsSection";
 import { PlayHQTeamLinkCard } from "@/components/PlayHQTeamLinkCard";
 import { friendlyQueryError, friendlyQueryErrorMessage } from "@/lib/friendlyQueryError";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";

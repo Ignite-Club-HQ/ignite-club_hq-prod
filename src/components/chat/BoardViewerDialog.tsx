@@ -3,9 +3,10 @@ import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfilesByIds } from "@/lib/profileCache";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 // Football-only build: netball / basketball boards archived (see archive/sports/).
-const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
 
 interface BoardViewerDialogProps {
   open: boolean;

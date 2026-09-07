@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import {
   PITCH_STATE_KEY,
   PITCH_STATE_KEY_BASE,
@@ -8,7 +9,7 @@ import {
 } from "./types";
 
 // Lazy-load the heavy monitor so anonymous/idle users never download or mount it.
-const GlobalSubMonitor = lazy(() => import("./GlobalSubMonitor"));
+const GlobalSubMonitor = lazyWithRetry(() => import("./GlobalSubMonitor"));
 
 const POLL_INTERVAL_MS = 8000;
 

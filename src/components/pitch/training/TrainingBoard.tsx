@@ -37,8 +37,9 @@ import { useTrainingSettings } from "@/hooks/useTrainingSettings";
 import { DrillStepOverlay } from "./DrillStepOverlay";
 import { TrainingSettingsDialog } from "./TrainingSettingsDialog";
 import { useEventGoingAttendees } from "@/hooks/useEventGoingAttendees";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
-const PresentationMode = lazy(() => import("./PresentationMode"));
+const PresentationMode = lazyWithRetry(() => import("./PresentationMode"));
 
 interface TrainingBoardProps {
   /** Optional: focus the toolbar in landscape (board fills full screen) */

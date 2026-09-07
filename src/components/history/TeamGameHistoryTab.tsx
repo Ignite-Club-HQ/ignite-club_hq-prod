@@ -20,8 +20,9 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { SummaryPlayerStat, PerQuarterScore } from "@/components/scoreboard/GameSummaryDialog";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
-const GameSummaryDialog = lazy(() => import("@/components/scoreboard/GameSummaryDialog"));
+const GameSummaryDialog = lazyWithRetry(() => import("@/components/scoreboard/GameSummaryDialog"));
 
 interface TeamGameHistoryTabProps {
   teamId: string;
