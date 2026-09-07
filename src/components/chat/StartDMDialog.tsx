@@ -719,7 +719,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
             ? "Parents"
             : roleFilter === "player"
               ? "Players"
-              : "All teams";
+              : "Everyone";
   const filterActive = selectedTeamId !== "all" || roleFilter !== "all";
 
   return (
