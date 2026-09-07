@@ -614,13 +614,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
     if (selectedUsers.length === 0) return;
 
-    if (selectedUsers.length === 1) {
-      // Single user - start regular DM
-      startDMMutation.mutate(selectedUsers[0].id);
-    } else {
-      // Multiple users - create group chat
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: null });
-    }
+    // DM mode is single-recipient only.
+    startDMMutation.mutate(selectedUsers[0].id);
+
   };
 
   // Filter users by search query, club, and team
