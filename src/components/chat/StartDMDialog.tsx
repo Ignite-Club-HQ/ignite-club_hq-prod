@@ -1042,6 +1042,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
               )}
 
 
+              {!(isCustomGroup && groupStep === 2) && (
               <div>
                 <div className="space-y-1">
                   {loadingUsers && filteredUsers.length === 0 ? (
