@@ -78,9 +78,10 @@ export async function safeOpenFile(
 
     await FileOpener.open({
       filePath: localPath,
-      contentType: opts.mimeType || guessMimeFromName(guessedName),
+      contentType: normalizeMimeType(opts.mimeType) || guessMimeFromName(displayName),
       openWithDefault: true,
     });
+
   } catch (err) {
     // Fall back to browser using the RESOLVED URL only — never the raw
     // private URL. For successfully signed private URLs this passes the
