@@ -134,8 +134,16 @@ async function downloadToCache(
     if (!uri) {
       uri = (await Filesystem.getUri({ path: relativePath, directory: Directory.Cache })).uri;
     }
-    if (uri && (await fileExists(Filesystem, relativePath, Directory.Cache))) {
-      return { uri, serverContentType: null };
+    if (uri) {
+      // Confirm bytes actually landed — some builds resolve with a path but
+      // write nothing (e.g. HTTP errors swallowed by the native downloader).
+      let size = -1;
+      try {
+        size = (await Filesystem.stat({ path: relativePath, directory: Directory.Cache })).size ?? -1;
+      } catch {
+        size = -1; // stat unsupported here; trust the downloader
+      }
+      if (size !== 0) return { uri, serverContentType: null };
     }
     console.warn("[safeOpenFile] native download produced no readable file; trying fetch");
   } catch (err) {
@@ -172,21 +180,6 @@ async function downloadToCache(
   const uri = await writeAt(`ignite-${Date.now()}-${displayName}`);
   if (!uri) throw new Error("Cache write produced no local path");
   return { uri, serverContentType };
-}
-
-async function fileExists(
-  Filesystem: { stat: (o: { path: string; directory: unknown }) => Promise<unknown> },
-  path: string,
-  directory: unknown,
-): Promise<boolean> {
-  try {
-    await Filesystem.stat({ path, directory });
-    return true;
-  } catch {
-    // Older plugin builds may not expose stat for this location; assume the
-    // downloader's own success report is trustworthy.
-    return true;
-  }
 }
 
 /** Try the OS viewer with the specific type, then generically. */
