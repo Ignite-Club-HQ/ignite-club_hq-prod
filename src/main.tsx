@@ -243,4 +243,20 @@ window.__swReady = registerServiceWorker();
 // Start Web Vitals reporting (samples 25% of page loads)
 initWebVitalsReporter();
 
+// After a new version is deployed, old hashed chunks disappear from the CDN and
+// any preload/dynamic import fails. Reload once (guarded) so the browser picks
+// up the fresh manifest instead of showing an error screen.
+window.addEventListener("vite:preloadError", (event) => {
+  try {
+    event.preventDefault();
+    const key = "ignite_chunk_reload_at";
+    const last = Number(sessionStorage.getItem(key) ?? 0);
+    if (Number.isFinite(last) && Date.now() - last < 30_000) return;
+    sessionStorage.setItem(key, String(Date.now()));
+    window.location.reload();
+  } catch {
+    /* ignore */
+  }
+});
+
 createRoot(document.getElementById("root")!).render(<App />);
