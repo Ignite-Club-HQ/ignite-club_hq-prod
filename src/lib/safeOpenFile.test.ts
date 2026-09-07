@@ -6,9 +6,13 @@ const capacitorMock = vi.hoisted(() => ({
 }));
 const filesystemMock = vi.hoisted(() => ({
   downloadFile: vi.fn(),
+  writeFile: vi.fn(async () => ({ uri: "file:///cache/written" })),
+  stat: vi.fn(async () => ({ size: 1234 })),
   getUri: vi.fn(async () => ({ uri: "file:///cache/x" })),
 }));
 const fileOpenerMock = vi.hoisted(() => ({ open: vi.fn() }));
+const shareMock = vi.hoisted(() => ({ share: vi.fn() }));
+const fetchMock = vi.hoisted(() => vi.fn());
 const safeOpenUrlMock = vi.hoisted(() => vi.fn(async () => {}));
 const resolveSignedUrlMock = vi.hoisted(() => vi.fn());
 
@@ -24,6 +28,7 @@ vi.mock("@capacitor/filesystem", () => ({
 vi.mock("@capacitor-community/file-opener", () => ({
   FileOpener: fileOpenerMock,
 }));
+vi.mock("@capacitor/share", () => ({ Share: shareMock }));
 vi.mock("./safeOpenUrl", () => ({ safeOpenUrl: safeOpenUrlMock }));
 vi.mock("@/hooks/useSignedPhotoUrl", () => ({
   resolveSignedUrl: resolveSignedUrlMock,
@@ -40,8 +45,24 @@ beforeEach(() => {
   vi.clearAllMocks();
   capacitorMock.isNativePlatform.mockReturnValue(true);
   filesystemMock.downloadFile.mockResolvedValue({ path: "file:///cache/x" });
+  filesystemMock.writeFile.mockResolvedValue({ uri: "file:///cache/written" });
+  filesystemMock.stat.mockResolvedValue({ size: 1234 });
   fileOpenerMock.open.mockResolvedValue(undefined);
+  shareMock.share.mockRejectedValue(new Error("Share not available"));
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
+  // jsdom FileReader works on real Blobs; keep it.
 });
+
+function okResponse(type = "application/pdf") {
+  const blob = new Blob(["%PDF-1.4 test"], { type });
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: (k: string) => (k.toLowerCase() === "content-type" ? type : null) },
+    blob: async () => blob,
+  } as unknown as Response;
+}
 
 describe("safeOpenFile — private URL fail-closed", () => {
   it("must not download or expose a raw private URL when signing fails", async () => {
@@ -114,15 +135,40 @@ describe("safeOpenFile — successful signing", () => {
     expect(safeOpenUrlMock).not.toHaveBeenCalled();
   });
 
-  it("only falls back to the browser with the signed URL when the viewer fails twice", async () => {
+  it("only falls back to the browser with the signed URL when viewer AND share both fail", async () => {
     resolveSignedUrlMock.mockResolvedValue(SIGNED);
     fileOpenerMock.open.mockRejectedValue(new Error("no viewer"));
+    shareMock.share.mockRejectedValue(new Error("no share"));
 
     await safeOpenFile(RAW_PRIVATE);
 
+    expect(shareMock.share).toHaveBeenCalledTimes(1);
     expect(safeOpenUrlMock).toHaveBeenCalledTimes(1);
     expect(safeOpenUrlMock).toHaveBeenCalledWith(SIGNED);
     expect(safeOpenUrlMock).not.toHaveBeenCalledWith(RAW_PRIVATE);
+  });
+
+  it("offers the share sheet (real file name) instead of the browser when no viewer accepts the file", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    fileOpenerMock.open.mockRejectedValue(new Error("no viewer"));
+    shareMock.share.mockResolvedValue({ activityType: "x" });
+
+    await safeOpenFile(RAW_PRIVATE, { fileName: "Club policy.pdf" });
+
+    expect(shareMock.share).toHaveBeenCalledTimes(1);
+    expect(shareMock.share.mock.calls[0][0].title).toBe("Club_policy.pdf");
+    expect(shareMock.share.mock.calls[0][0].files[0]).toBe("file:///cache/x");
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+  });
+
+  it("treats a dismissed share sheet as handled (no browser tab)", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    fileOpenerMock.open.mockRejectedValue(new Error("no viewer"));
+    shareMock.share.mockRejectedValue(new Error("Share canceled"));
+
+    await safeOpenFile(RAW_PRIVATE);
+
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
   });
 
   it("passes a bare extension file_type through the MIME guesser", async () => {
@@ -131,12 +177,88 @@ describe("safeOpenFile — successful signing", () => {
     expect(fileOpenerMock.open.mock.calls[0][0].contentType).toBe("application/pdf");
   });
 
+  it("keeps the real file name as the last path segment so the viewer title is the document name", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    await safeOpenFile(RAW_PRIVATE, { fileName: "Club policy.pdf" });
+    const path: string = filesystemMock.downloadFile.mock.calls[0][0].path;
+    expect(path.endsWith("/Club_policy.pdf")).toBe(true);
+    expect(path).not.toContain("secret.pdf");
+  });
+});
+
+describe("safeOpenFile — download resilience (native)", () => {
+  it("falls back to fetch + writeFile when Filesystem.downloadFile throws, then opens the viewer", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    filesystemMock.downloadFile.mockRejectedValue(new Error("downloadFile not implemented"));
+    fetchMock.mockResolvedValue(okResponse("application/pdf"));
+
+    await safeOpenFile(RAW_PRIVATE, { fileName: "Club policy.pdf" });
+
+    expect(fetchMock).toHaveBeenCalledWith(SIGNED);
+    expect(filesystemMock.writeFile).toHaveBeenCalledTimes(1);
+    expect(filesystemMock.writeFile.mock.calls[0][0].path.endsWith("/Club_policy.pdf")).toBe(true);
+    expect(fileOpenerMock.open).toHaveBeenCalledTimes(1);
+    expect(fileOpenerMock.open.mock.calls[0][0].filePath).toBe("file:///cache/written");
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+  });
+
+  it("re-downloads via fetch when the native downloader leaves an empty file", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    filesystemMock.stat.mockResolvedValue({ size: 0 });
+    fetchMock.mockResolvedValue(okResponse("application/pdf"));
+
+    await safeOpenFile(RAW_PRIVATE, { fileName: "Club policy.pdf" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(filesystemMock.writeFile).toHaveBeenCalledTimes(1);
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the server content type when the record has no usable MIME", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    filesystemMock.downloadFile.mockRejectedValue(new Error("nope"));
+    fetchMock.mockResolvedValue(okResponse("application/msword"));
+
+    await safeOpenFile(RAW_PRIVATE, { fileName: "letter" });
+
+    expect(fileOpenerMock.open.mock.calls[0][0].contentType).toBe("application/msword");
+  });
+
+  it("retries with a flat cache path when the nested write fails", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    filesystemMock.downloadFile.mockRejectedValue(new Error("nope"));
+    fetchMock.mockResolvedValue(okResponse());
+    filesystemMock.writeFile
+      .mockRejectedValueOnce(new Error("ENOENT nested"))
+      .mockResolvedValueOnce({ uri: "file:///cache/flat" });
+
+    await safeOpenFile(RAW_PRIVATE, { fileName: "Club policy.pdf" });
+
+    expect(filesystemMock.writeFile).toHaveBeenCalledTimes(2);
+    expect(filesystemMock.writeFile.mock.calls[1][0].path).not.toContain("/");
+    expect(filesystemMock.writeFile.mock.calls[1][0].path.endsWith("-Club_policy.pdf")).toBe(true);
+    expect(fileOpenerMock.open.mock.calls[0][0].filePath).toBe("file:///cache/flat");
+  });
+
+  it("only opens the browser when no local copy could be produced at all", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    filesystemMock.downloadFile.mockRejectedValue(new Error("nope"));
+    fetchMock.mockResolvedValue({ ok: false, status: 403 } as unknown as Response);
+
+    await safeOpenFile(RAW_PRIVATE);
+
+    expect(fileOpenerMock.open).not.toHaveBeenCalled();
+    expect(shareMock.share).not.toHaveBeenCalled();
+    expect(safeOpenUrlMock).toHaveBeenCalledWith(SIGNED);
+  });
+
 });
 
 describe("safeOpenFile — external / public non-storage URLs", () => {
   it("does not call the signer for external URLs and retains browser fallback", async () => {
     const externalUrl = "https://example.com/some/file.pdf";
     filesystemMock.downloadFile.mockRejectedValueOnce(new Error("download failed"));
+    fetchMock.mockRejectedValue(new Error("network"));
 
     await safeOpenFile(externalUrl);
 
