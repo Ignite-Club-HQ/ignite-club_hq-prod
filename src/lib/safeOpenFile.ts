@@ -135,3 +135,14 @@ function guessMimeFromName(name: string): string {
       return "application/octet-stream";
   }
 }
+
+/**
+ * Ensure the local file keeps a sensible extension so the OS picks the right
+ * viewer — falls back to the extension from the remote URL path.
+ */
+function withExtension(name: string, url: string): string {
+  if (/\.[a-zA-Z0-9]{1,8}$/.test(name)) return name;
+  const fromUrl = guessFileNameFromUrl(url);
+  const m = fromUrl.match(/\.[a-zA-Z0-9]{1,8}$/);
+  return m ? `${name}${m[0]}` : name;
+}
