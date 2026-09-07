@@ -6,7 +6,7 @@ const capacitorMock = vi.hoisted(() => ({
 }));
 const filesystemMock = vi.hoisted(() => ({
   downloadFile: vi.fn(),
-  writeFile: vi.fn(async () => ({ uri: "file:///cache/written" })),
+  writeFile: vi.fn(async (_options: { path: string; data: string; directory?: unknown; recursive?: boolean }) => ({ uri: "file:///cache/written" })),
   stat: vi.fn(async () => ({ size: 1234 })),
   getUri: vi.fn(async () => ({ uri: "file:///cache/x" })),
 }));
