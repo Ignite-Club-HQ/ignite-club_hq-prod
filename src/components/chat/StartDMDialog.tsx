@@ -457,11 +457,27 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   const availableClubs = dmData?.clubs || [];
   const availableTeams = dmData?.teams || [];
 
-  // Filter teams based on selected club
+  // Filter teams based on selected club, then sort them in a predictable order:
+  // age-group teams (U6, U7 Blue, U8...) ascending first, then any other team
+  // names alphabetically.
   const filteredTeams = useMemo(() => {
-    if (selectedClubId === "all") return availableTeams;
-    return availableTeams.filter(t => t.club_id === selectedClubId);
+    const scoped = selectedClubId === "all"
+      ? availableTeams
+      : availableTeams.filter(t => t.club_id === selectedClubId);
+    const ageOf = (name: string) => {
+      const m = /^u\s*(\d{1,2})\b/i.exec((name || "").trim());
+      return m ? parseInt(m[1], 10) : null;
+    };
+    return [...scoped].sort((a, b) => {
+      const aa = ageOf(a.name);
+      const ba = ageOf(b.name);
+      if (aa !== null && ba !== null && aa !== ba) return aa - ba;
+      if (aa !== null && ba === null) return -1;
+      if (aa === null && ba !== null) return 1;
+      return (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" });
+    });
   }, [availableTeams, selectedClubId]);
+
 
   // Start single DM mutation
   const startDMMutation = useMutation({
@@ -703,7 +719,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
             ? "Parents"
             : roleFilter === "player"
               ? "Players"
-              : "All teams";
+              : "Everyone";
   const filterActive = selectedTeamId !== "all" || roleFilter !== "all";
 
   return (
@@ -774,24 +790,35 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
               </PopoverTrigger>
               <PopoverContent align="end" className="z-[1000020] w-56 p-1">
                 <div className="max-h-[60vh] overflow-y-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTeamId("all");
+                      setRoleFilter("all");
+                      setFilterOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-accent"
+                  >
+                    <span className="truncate">Everyone</span>
+                    {!filterActive && <Check className="h-4 w-4 text-primary shrink-0" />}
+                  </button>
+                  <p className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Roles
+                  </p>
                   {[
-                    { key: "all", label: "All teams" },
                     { key: "role:coach", label: "Coaches" },
                     { key: "role:committee", label: "Committee & admins" },
                     { key: "role:parent", label: "Parents" },
                     { key: "role:player", label: "Players" },
                   ].map((opt) => {
-                    const selected =
-                      opt.key === "all"
-                        ? !filterActive
-                        : selectedTeamId === "all" && `role:${roleFilter}` === opt.key;
+                    const selected = selectedTeamId === "all" && `role:${roleFilter}` === opt.key;
                     return (
                       <button
                         key={opt.key}
                         type="button"
                         onClick={() => {
                           setSelectedTeamId("all");
-                          setRoleFilter(opt.key === "all" ? "all" : opt.key.split(":")[1]);
+                          setRoleFilter(opt.key.split(":")[1]);
                           setFilterOpen(false);
                         }}
                         className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-accent"
@@ -801,6 +828,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                       </button>
                     );
                   })}
+
                   {filteredTeams.length > 0 && (
                     <>
                       <p className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
