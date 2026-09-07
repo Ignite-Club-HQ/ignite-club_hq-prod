@@ -763,7 +763,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
         {/* Compact sticky search + filter toolbar: stays under the header while
             the member list scrolls independently beneath it. */}
-        {canPickPeople && (
+        {canPickPeople && !(isCustomGroup && groupStep === 2) && (
           <div className="shrink-0 flex items-center gap-2 pt-2 pb-2 px-1 bg-background border-b border-border">
             <div className="relative flex-1 min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
