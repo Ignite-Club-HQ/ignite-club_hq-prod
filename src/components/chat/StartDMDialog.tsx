@@ -709,9 +709,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   const showClubFilter = !isClubFilterLocked && availableClubs.length > 1;
   const CREATE_CATEGORY_VALUE = "__create_new__";
   const selectedPrimaryName = selectedUsers[0]?.display_name?.trim() || "selected member";
-  const dmActionLabel = selectedUsers.length === 1
-    ? `Message ${selectedPrimaryName.split(" ")[0] || selectedPrimaryName}`
-    : `Start group chat · ${selectedUsers.length}`;
+  const dmActionLabel = `Message ${selectedPrimaryName.split(" ")[0] || selectedPrimaryName}`;
+
   const canPickPeople = !!hasProAccess && !!canSendDMs?.canSend;
   const activeFilterLabel =
     selectedTeamId !== "all"
