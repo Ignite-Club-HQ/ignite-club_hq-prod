@@ -757,7 +757,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
               ? groupStep === 1
                 ? "Choose who's in the group"
                 : `${selectedUsers.length} ${selectedUsers.length === 1 ? "member" : "members"} selected`
-              : "Select one or more people"}
+              : "Select one person"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
