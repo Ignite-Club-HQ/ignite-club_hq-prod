@@ -126,7 +126,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
       return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
     } catch { return []; }
   });
-  const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
+  const [groupCategory, setGroupCategory] = useState<string>("");
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
   // Role-group filter used by the compact "Filter" chip (coaches / committee).
@@ -150,6 +151,14 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
       setSelectedClubId(activeClubFilter);
     }
   }, [activeClubFilter, isOpen]);
+
+  // Keep category picker collapsed unless a non-default category is already chosen.
+  useEffect(() => {
+    if (!isOpen) {
+      setShowCategoryPicker(false);
+      setGroupCategory("");
+    }
+  }, [isOpen]);
 
   // Check if user has Pro access for DMs
   const { data: hasProAccess, isLoading: checkingPro } = useQuery({
@@ -573,7 +582,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
         toast.error("Give your group a name");
         return;
       }
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: allowCategory ? groupCategory : null });
+      const category = allowCategory && groupCategory.trim() ? groupCategory.trim() : null;
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category });
       return;
     }
 
@@ -936,20 +946,43 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                       }
                       setGroupCategory(value);
                     };
+                    if (!showCategoryPicker && !groupCategory) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setShowCategoryPicker(true)}
+                          className="text-xs text-muted-foreground hover:text-foreground underline decoration-muted-foreground/40 underline-offset-2 text-left"
+                        >
+                          Make this an operations group (links to Club Vault)
+                        </button>
+                      );
+                    }
                     return (
-                      <Select value={groupCategory} onValueChange={handleCategoryChange}>
-                        <SelectTrigger className="h-11 rounded-xl">
-                          <SelectValue placeholder="Category" />
-                        </SelectTrigger>
-                        <SelectContent className="z-[1000020]">
-                          {allCategories.map((c) => (
-                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                          ))}
-                          <SelectItem value={CREATE_CATEGORY_VALUE} className="text-primary">
-                            + Create new category…
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <Select value={groupCategory} onValueChange={handleCategoryChange}>
+                          <SelectTrigger className="h-9 rounded-xl text-xs flex-1">
+                            <SelectValue placeholder="Category" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[1000020]">
+                            {allCategories.map((c) => (
+                              <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                            <SelectItem value={CREATE_CATEGORY_VALUE} className="text-primary">
+                              + Create new category…
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGroupCategory("");
+                            setShowCategoryPicker(false);
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground shrink-0"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     );
                   })()}
                   {!isCustomGroup && (
