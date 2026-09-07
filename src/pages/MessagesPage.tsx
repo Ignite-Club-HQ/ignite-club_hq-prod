@@ -3390,7 +3390,7 @@ export default function MessagesPage() {
 
 
 
-      {/* New message + group-type bottom sheets */}
+      {/* New message bottom sheet (flat: DM + group types) */}
       <NewMessageSheet
         open={showNewMessageSheet}
         onOpenChange={setShowNewMessageSheet}
@@ -3400,23 +3400,17 @@ export default function MessagesPage() {
         isAppAdmin={!!isAppAdmin}
         upgradeClubId={upgradeClubId}
         onPickDM={() => setShowDMDialog(true)}
-        onPickGroup={() => setShowGroupTypeSheet(true)}
+        onPickCustom={() => setShowCustomGroupDialog(true)}
+        onPickTeam={() => {
+          setGroupDialogType("team");
+          setShowGroupDialog(true);
+        }}
+        onPickRole={() => {
+          setGroupDialogType("role");
+          setShowGroupDialog(true);
+        }}
       />
-      {canCreateGroups && (
-        <NewGroupTypeSheet
-          open={showGroupTypeSheet}
-          onOpenChange={setShowGroupTypeSheet}
-          onPickRole={() => {
-            setGroupDialogType("role");
-            setShowGroupDialog(true);
-          }}
-          onPickTeam={() => {
-            setGroupDialogType("team");
-            setShowGroupDialog(true);
-          }}
-          onPickCustom={() => setShowCustomGroupDialog(true)}
-        />
-      )}
+
 
       {/* DM and Group dialogs — DM creation is Pro-gated */}
       {(!!hasAnyProAccess || !!isAppAdmin) && (
