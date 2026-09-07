@@ -945,12 +945,11 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                       }
                       setGroupCategory(value);
                     };
-                    const [showCategory, setShowCategory] = useState(groupCategory !== DEFAULT_CATEGORY);
-                    if (!showCategory && groupCategory === DEFAULT_CATEGORY) {
+                    if (!showCategoryPicker && groupCategory === "Custom Groups") {
                       return (
                         <button
                           type="button"
-                          onClick={() => setShowCategory(true)}
+                          onClick={() => setShowCategoryPicker(true)}
                           className="text-xs text-muted-foreground hover:text-foreground underline decoration-muted-foreground/40 underline-offset-2 text-left"
                         >
                           Make this an operations group (links to Club Vault)
@@ -975,8 +974,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                         <button
                           type="button"
                           onClick={() => {
-                            setGroupCategory(DEFAULT_CATEGORY);
-                            setShowCategory(false);
+                            setGroupCategory("Custom Groups");
+                            setShowCategoryPicker(false);
                           }}
                           className="text-xs text-muted-foreground hover:text-foreground shrink-0"
                         >
