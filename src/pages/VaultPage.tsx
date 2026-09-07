@@ -5264,8 +5264,18 @@ function ContentSection({
                 key={file.id} 
                 className="group cursor-pointer"
                 onClick={() => {
-                  // Open external links and uploaded files alike
-                  import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
+                  // External links go to the browser; stored files hand off to
+                  // the native viewer so the real file name is shown.
+                  if (isExternalLink) {
+                    import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url));
+                  } else {
+                    import("@/lib/safeOpenFile").then(({ safeOpenFile }) =>
+                      safeOpenFile(file.file_url, {
+                        fileName: file.name || undefined,
+                        mimeType: file.file_type || undefined,
+                      }),
+                    ).catch(() => {});
+                  }
                 }}
               >
                 <CardContent className="p-3 flex items-center gap-3">
@@ -5385,7 +5395,14 @@ function ContentSection({
                       <Item
                         icon={ExternalLink}
                         label="Open"
-                        onClick={() => import("@/lib/safeOpenUrl").then(({ safeOpenUrl }) => safeOpenUrl(file.file_url))}
+                        onClick={() =>
+                          import("@/lib/safeOpenFile").then(({ safeOpenFile }) =>
+                            safeOpenFile(file.file_url, {
+                              fileName: file.name || undefined,
+                              mimeType: file.file_type || undefined,
+                            }),
+                          ).catch(() => {})
+                        }
                       />
                       <Item
                         icon={Download}
