@@ -3393,7 +3393,7 @@ export default function MessagesPage() {
         open={showNewMessageSheet}
         onOpenChange={setShowNewMessageSheet}
         canCreateGroups={!!canCreateGroups}
-        hasAdminRoleForGroups={!!(adminTeamIds?.length || adminClubs?.length || isAppAdmin || isCommitteeMember)}
+        canCreateCustomGroup={!!(hasAnyProAccess || isAppAdmin)}
         hasPro={effectiveClubFilter ? scopedClubIsPro === true : !!hasAnyProAccess}
         isAppAdmin={!!isAppAdmin}
         upgradeClubId={upgradeClubId}
@@ -3414,11 +3414,12 @@ export default function MessagesPage() {
       {(!!hasAnyProAccess || !!isAppAdmin) && (
         <StartDMDialog open={showDMDialog} onOpenChange={setShowDMDialog} mode="dm" />
       )}
-      {canCreateGroups && (
+      {(!!hasAnyProAccess || !!isAppAdmin) && (
         <StartDMDialog
           open={showCustomGroupDialog}
           onOpenChange={setShowCustomGroupDialog}
           mode="custom-group"
+          allowCategory={!!canCreateGroups}
         />
       )}
       {canCreateGroups && (
