@@ -741,7 +741,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
       <ResponsiveDialogContent className="sm:max-w-md" fullScreen>
         <ResponsiveDialogHeader className="text-left sm:text-left space-y-1">
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            {mode === "custom-group" ? "New Custom Group" : "New Message"}
+            {mode === "custom-group"
+              ? groupStep === 1 ? "New Group Message" : "Name your group"
+              : "New Message"}
             {!hasProAccess && (
               <Badge variant="secondary" className="gap-1">
                 <Crown className="h-3 w-3" />
@@ -751,7 +753,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="text-sm text-left">
             {mode === "custom-group"
-              ? "Pick people one by one and give your group a name"
+              ? groupStep === 1
+                ? "Choose who's in the group"
+                : `${selectedUsers.length} ${selectedUsers.length === 1 ? "member" : "members"} selected`
               : "Select one or more people"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
