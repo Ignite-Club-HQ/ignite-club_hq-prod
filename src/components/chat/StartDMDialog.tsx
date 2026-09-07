@@ -1169,6 +1169,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                   )}
                 </div>
               </div>
+              )}
             </>
           )}
         </div>
