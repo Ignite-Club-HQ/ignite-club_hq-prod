@@ -103,9 +103,20 @@ describe("safeOpenFile — successful signing", () => {
     expect(fileOpenerMock.open).toHaveBeenCalledTimes(1);
   });
 
-  it("native viewer failure falls back using the signed URL, not the raw URL", async () => {
+  it("retries generically when the viewer rejects the content type", async () => {
     resolveSignedUrlMock.mockResolvedValue(SIGNED);
-    fileOpenerMock.open.mockRejectedValueOnce(new Error("no viewer"));
+    fileOpenerMock.open.mockRejectedValueOnce(new Error("bad content type"));
+
+    await safeOpenFile(RAW_PRIVATE);
+
+    expect(fileOpenerMock.open).toHaveBeenCalledTimes(2);
+    expect(fileOpenerMock.open.mock.calls[1][0].contentType).toBe("application/octet-stream");
+    expect(safeOpenUrlMock).not.toHaveBeenCalled();
+  });
+
+  it("only falls back to the browser with the signed URL when the viewer fails twice", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    fileOpenerMock.open.mockRejectedValue(new Error("no viewer"));
 
     await safeOpenFile(RAW_PRIVATE);
 
@@ -113,6 +124,13 @@ describe("safeOpenFile — successful signing", () => {
     expect(safeOpenUrlMock).toHaveBeenCalledWith(SIGNED);
     expect(safeOpenUrlMock).not.toHaveBeenCalledWith(RAW_PRIVATE);
   });
+
+  it("passes a bare extension file_type through the MIME guesser", async () => {
+    resolveSignedUrlMock.mockResolvedValue(SIGNED);
+    await safeOpenFile(RAW_PRIVATE, { fileName: "Club policy.pdf", mimeType: "pdf" });
+    expect(fileOpenerMock.open.mock.calls[0][0].contentType).toBe("application/pdf");
+  });
+
 });
 
 describe("safeOpenFile — external / public non-storage URLs", () => {
