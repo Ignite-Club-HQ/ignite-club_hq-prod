@@ -944,7 +944,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
-              {((isCustomGroup && groupStep === 2) || (!isCustomGroup && selectedUsers.length > 1)) && (
+              {isCustomGroup && groupStep === 2 && (
                 <div className="space-y-2">
                   <Input
                     placeholder={isCustomGroup ? "Group name" : "Group name (optional)"}
