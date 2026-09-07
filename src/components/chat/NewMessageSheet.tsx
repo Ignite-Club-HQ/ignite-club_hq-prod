@@ -159,16 +159,18 @@ export function NewMessageSheet({
               locked={gated}
               onClick={pick(onPickDM)}
             />
-            {showGroupRows && (
+            {showCustomRow && (
+              <ActionRow
+                icon={UserPlus}
+                title="Group message"
+                subtitle={gated ? "Pro feature — tap to upgrade" : "Choose the members and give it a name"}
+                accent="amber"
+                locked={gated}
+                onClick={pick(onPickCustom)}
+              />
+            )}
+            {showAdminGroupRows && (
               <>
-                <ActionRow
-                  icon={UserPlus}
-                  title="Group message"
-                  subtitle={gated ? "Pro feature — tap to upgrade" : "Choose the members and give it a name"}
-                  accent="amber"
-                  locked={gated}
-                  onClick={pick(onPickCustom)}
-                />
                 <ActionRow
                   icon={Users}
                   title="Team group"
