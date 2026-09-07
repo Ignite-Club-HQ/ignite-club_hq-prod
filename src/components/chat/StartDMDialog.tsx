@@ -583,6 +583,11 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   const toggleUserSelection = (dmUser: DMableUser) => {
     setSelectedUsers(prev => {
       const isSelected = prev.some(u => u.id === dmUser.id);
+      // Direct messages are strictly one-to-one: picking someone replaces the
+      // current selection. Group chats keep multi-select.
+      if (mode !== "custom-group") {
+        return isSelected ? [] : [dmUser];
+      }
       if (isSelected) {
         return prev.filter(u => u.id !== dmUser.id);
       } else {
@@ -590,6 +595,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
       }
     });
   };
+
 
   const removeSelectedUser = (userId: string) => {
     setSelectedUsers(prev => prev.filter(u => u.id !== userId));
