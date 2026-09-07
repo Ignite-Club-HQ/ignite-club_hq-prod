@@ -51,7 +51,6 @@ import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
-import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/components/chat/ClubAdminInboxList";
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
@@ -231,7 +230,6 @@ export default function MessagesPage() {
   const [showCustomGroupDialog, setShowCustomGroupDialog] = useState(false);
   const [groupDialogType, setGroupDialogType] = useState<"role" | "team">("role");
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
-  const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
   const [showGlobalRecap, setShowGlobalRecap] = useState(false);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
@@ -3390,7 +3388,7 @@ export default function MessagesPage() {
 
 
 
-      {/* New message + group-type bottom sheets */}
+      {/* New message bottom sheet (flat: DM + group types) */}
       <NewMessageSheet
         open={showNewMessageSheet}
         onOpenChange={setShowNewMessageSheet}
@@ -3400,23 +3398,17 @@ export default function MessagesPage() {
         isAppAdmin={!!isAppAdmin}
         upgradeClubId={upgradeClubId}
         onPickDM={() => setShowDMDialog(true)}
-        onPickGroup={() => setShowGroupTypeSheet(true)}
+        onPickCustom={() => setShowCustomGroupDialog(true)}
+        onPickTeam={() => {
+          setGroupDialogType("team");
+          setShowGroupDialog(true);
+        }}
+        onPickRole={() => {
+          setGroupDialogType("role");
+          setShowGroupDialog(true);
+        }}
       />
-      {canCreateGroups && (
-        <NewGroupTypeSheet
-          open={showGroupTypeSheet}
-          onOpenChange={setShowGroupTypeSheet}
-          onPickRole={() => {
-            setGroupDialogType("role");
-            setShowGroupDialog(true);
-          }}
-          onPickTeam={() => {
-            setGroupDialogType("team");
-            setShowGroupDialog(true);
-          }}
-          onPickCustom={() => setShowCustomGroupDialog(true)}
-        />
-      )}
+
 
       {/* DM and Group dialogs — DM creation is Pro-gated */}
       {(!!hasAnyProAccess || !!isAppAdmin) && (

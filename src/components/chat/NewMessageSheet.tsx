@@ -1,5 +1,5 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { MessageCircle, Users, ChevronRight, Lock } from "lucide-react";
+import { MessageCircle, Users, ChevronRight, Lock, UserPlus, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 
@@ -12,14 +12,16 @@ interface NewMessageSheetProps {
   isAppAdmin?: boolean;
   upgradeClubId?: string | null;
   onPickDM: () => void;
-  onPickGroup: () => void;
+  onPickCustom: () => void;
+  onPickTeam: () => void;
+  onPickRole: () => void;
 }
 
 interface ActionRowProps {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   subtitle: string;
-  accent: "primary" | "violet";
+  accent: "primary" | "violet" | "amber" | "sky";
   locked?: boolean;
   onClick: () => void;
 }
@@ -40,7 +42,9 @@ function ActionRow({ icon: Icon, title, subtitle, accent, locked, onClick }: Act
         className={cn(
           "h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center relative",
           accent === "primary" && "bg-primary/15 text-primary",
-          accent === "violet" && "bg-violet-500/15 text-violet-400"
+          accent === "violet" && "bg-violet-500/15 text-violet-400",
+          accent === "amber" && "bg-amber-500/15 text-amber-400",
+          accent === "sky" && "bg-sky-500/15 text-sky-400"
         )}
       >
         <Icon className="h-6 w-6" />
@@ -75,7 +79,9 @@ export function NewMessageSheet({
   isAppAdmin,
   upgradeClubId,
   onPickDM,
-  onPickGroup,
+  onPickCustom,
+  onPickTeam,
+  onPickRole,
 }: NewMessageSheetProps) {
   const navigate = useNavigate();
   const gated = !hasPro && !isAppAdmin;
@@ -89,9 +95,18 @@ export function NewMessageSheet({
     }
   };
 
-  // Show the group row if the user could create groups (admin role) OR if
-  // they're locked out — we still want to surface the Pro upsell.
-  const showGroupRow = canCreateGroups || (gated && !!hasAdminRoleForGroups) || gated;
+  const pick = (fn: () => void) => () => {
+    if (gated) {
+      goUpgrade();
+      return;
+    }
+    onOpenChange(false);
+    fn();
+  };
+
+  // Show group rows if the user could create groups (admin role) OR if they're
+  // locked out — we still want to surface the Pro upsell.
+  const showGroupRows = canCreateGroups || (gated && !!hasAdminRoleForGroups) || gated;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -99,13 +114,13 @@ export function NewMessageSheet({
         side="bottom"
         enableDragToClose
         hideCloseButton
-        className="rounded-t-3xl border-t border-border bg-background p-0 max-h-[85vh]"
+        className="rounded-t-3xl border-t border-border bg-background p-0 max-h-[85vh] overflow-y-auto"
       >
         <div className="px-5 pt-1 pb-5">
           <SheetHeader className="text-left pb-4">
             <SheetTitle className="text-xl">New message</SheetTitle>
             <SheetDescription className="text-xs">
-              Pick how you want to start
+              Pick who you want to talk to
             </SheetDescription>
           </SheetHeader>
 
@@ -123,7 +138,7 @@ export function NewMessageSheet({
                   Starting new chats is a Pro feature
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                  Upgrade your club to start direct messages and custom groups. Tap to upgrade.
+                  Upgrade your club to start direct messages and groups. Tap to upgrade.
                 </p>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
@@ -133,44 +148,39 @@ export function NewMessageSheet({
           <div className="space-y-2.5">
             <ActionRow
               icon={MessageCircle}
-              title="New Message"
-              subtitle={
-                gated
-                  ? "Pro feature — tap to upgrade"
-                  : "Select one or more people"
-              }
-
+              title="Direct message"
+              subtitle={gated ? "Pro feature — tap to upgrade" : "One person, or a quick chat with a few"}
               accent="primary"
               locked={gated}
-              onClick={() => {
-                if (gated) {
-                  goUpgrade();
-                  return;
-                }
-                onOpenChange(false);
-                onPickDM();
-              }}
+              onClick={pick(onPickDM)}
             />
-            {showGroupRow && (
-              <ActionRow
-                icon={Users}
-                title="New Group Chat"
-                subtitle={
-                  gated
-                    ? "Pro feature — tap to upgrade"
-                    : "Role, team or custom group"
-                }
-                accent="violet"
-                locked={gated}
-                onClick={() => {
-                  if (gated) {
-                    goUpgrade();
-                    return;
-                  }
-                  onOpenChange(false);
-                  onPickGroup();
-                }}
-              />
+            {showGroupRows && (
+              <>
+                <ActionRow
+                  icon={UserPlus}
+                  title="Hand-picked group"
+                  subtitle={gated ? "Pro feature — tap to upgrade" : "Named group, you choose the members"}
+                  accent="amber"
+                  locked={gated}
+                  onClick={pick(onPickCustom)}
+                />
+                <ActionRow
+                  icon={Users}
+                  title="Team group"
+                  subtitle={gated ? "Pro feature — tap to upgrade" : "Everyone in a team, kept in sync"}
+                  accent="violet"
+                  locked={gated}
+                  onClick={pick(onPickTeam)}
+                />
+                <ActionRow
+                  icon={Shield}
+                  title="Role-based group"
+                  subtitle={gated ? "Pro feature — tap to upgrade" : "Everyone with a role, kept in sync"}
+                  accent="sky"
+                  locked={gated}
+                  onClick={pick(onPickRole)}
+                />
+              </>
             )}
           </div>
         </div>
