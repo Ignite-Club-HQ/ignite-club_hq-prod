@@ -457,11 +457,27 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   const availableClubs = dmData?.clubs || [];
   const availableTeams = dmData?.teams || [];
 
-  // Filter teams based on selected club
+  // Filter teams based on selected club, then sort them in a predictable order:
+  // age-group teams (U6, U7 Blue, U8...) ascending first, then any other team
+  // names alphabetically.
   const filteredTeams = useMemo(() => {
-    if (selectedClubId === "all") return availableTeams;
-    return availableTeams.filter(t => t.club_id === selectedClubId);
+    const scoped = selectedClubId === "all"
+      ? availableTeams
+      : availableTeams.filter(t => t.club_id === selectedClubId);
+    const ageOf = (name: string) => {
+      const m = /^u\s*(\d{1,2})\b/i.exec((name || "").trim());
+      return m ? parseInt(m[1], 10) : null;
+    };
+    return [...scoped].sort((a, b) => {
+      const aa = ageOf(a.name);
+      const ba = ageOf(b.name);
+      if (aa !== null && ba !== null && aa !== ba) return aa - ba;
+      if (aa !== null && ba === null) return -1;
+      if (aa === null && ba !== null) return 1;
+      return (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" });
+    });
   }, [availableTeams, selectedClubId]);
+
 
   // Start single DM mutation
   const startDMMutation = useMutation({
