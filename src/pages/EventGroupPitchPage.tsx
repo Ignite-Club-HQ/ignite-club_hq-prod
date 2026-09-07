@@ -15,9 +15,10 @@ import { toast } from "sonner";
 import { hasGameBoardSupport } from "@/lib/sportDetection";
 import { AddDutySheet } from "@/components/AddDutySheet";
 import { AssignDutySheet } from "@/components/AssignDutySheet";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 // Lazy load PitchBoard for performance
-const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
 
 interface GroupDuty {
   id: string;

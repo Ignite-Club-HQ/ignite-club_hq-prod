@@ -19,6 +19,7 @@ import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
 import { useQueryClient } from "@tanstack/react-query";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 // Check if we're on native platform at module load time
 let isNativePlatform = false;
@@ -32,11 +33,11 @@ const SKIP_WEB_PUSH = isNativePlatform;
 
 // Lazy load push-related components
 const LazyPushDiagnosticsCard = !SKIP_WEB_PUSH 
-  ? lazy(() => import("@/components/PushDiagnosticsCard").then(m => ({ default: m.PushDiagnosticsCard })))
+  ? lazyWithRetry(() => import("@/components/PushDiagnosticsCard").then(m => ({ default: m.PushDiagnosticsCard })))
   : () => null;
 
 const LazyNativePushCard = SKIP_WEB_PUSH
-  ? lazy(() => import("@/components/NativePushCard").then(m => ({ default: m.NativePushCard })))
+  ? lazyWithRetry(() => import("@/components/NativePushCard").then(m => ({ default: m.NativePushCard })))
   : () => null;
 
 interface NotificationPreferences {

@@ -98,7 +98,7 @@ import { EventNoteSection } from "@/components/event/EventNoteSection";
 
 
 // Lazy load PitchBoard for game events
-const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
 // NetballBoard / BasketballBoard archived — football-only build (see archive/sports/)
 import {
   clearPitchBoardOpenFlag,
@@ -116,6 +116,7 @@ const closePitchBoardWithFlag = (setShow: (v: boolean) => void) => () => {
 import { hasGameBoardSupport } from "@/lib/sportDetection";
 import { resolveEventRecipients, eventRecipientContext } from "@/features/events/eventRecipientPolicy";
 import { resolveReminderRecipients, applyReminderCooldown, normalizeRecipientIds } from "@/features/events/reminderRecipients";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";

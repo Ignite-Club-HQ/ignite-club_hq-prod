@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { SkipToContent } from "@/components/SkipToContent";
 import { NativeNotificationPrompt } from "@/components/NativeNotificationPrompt";
-const PendingInviteWelcomeDialog = lazy(() => import("@/components/PendingInviteWelcomeDialog").then(m => ({ default: m.PendingInviteWelcomeDialog })));
+const PendingInviteWelcomeDialog = lazyWithRetry(() => import("@/components/PendingInviteWelcomeDialog").then(m => ({ default: m.PendingInviteWelcomeDialog })));
 import { useAdMobInit } from "@/hooks/useAdMob";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import igniteIcon from "@/assets/ignite-icon.png";
@@ -24,8 +24,9 @@ import { mark as coldMark } from "@/lib/coldStartMarks";
 import { sweepStaleDeletedTeams } from "@/lib/staleDeletedTeamSweep";
 import { useLaunchIntentPending } from "@/hooks/useLaunchIntentPending";
 import { useInviteFlowSweeper } from "@/hooks/useInviteFlowSweeper";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
-const LazyDeepLinkGate = lazy(() => import("@/components/DeepLinkGate"));
+const LazyDeepLinkGate = lazyWithRetry(() => import("@/components/DeepLinkGate"));
 
 export function AppLayout() {
   const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized, profileResolved, sessionRestoration } = useAuth();

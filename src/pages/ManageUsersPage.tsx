@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Shield, Trash2, Search, Loader2, Users, AlertTriangle, UserPlus, UserMinus, X, Filter, History, UserX, UserCheck, Download, Mail, Flame, BarChart3 } from "lucide-react";
 import { lazy, Suspense } from "react";
 
-const UserAnalyticsTab = lazy(() => import("@/components/admin/UserAnalyticsTab"));
+const UserAnalyticsTab = lazyWithRetry(() => import("@/components/admin/UserAnalyticsTab"));
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,6 +56,7 @@ import { Badge } from "@/components/ui/badge";
 import { invalidateRolesCache } from "@/lib/rolesCache";
 import { recordPointsHistory } from "@/lib/pointsHistory";
 import type { Database } from "@/integrations/supabase/types";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
