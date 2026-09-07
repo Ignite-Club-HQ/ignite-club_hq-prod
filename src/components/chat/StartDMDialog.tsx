@@ -1249,11 +1249,10 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                 >
                   {isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : selectedUsers.length > 1 ? (
-                    <Users className="h-4 w-4" />
                   ) : (
                     <MessageCircle className="h-4 w-4" />
                   )}
+
                   {dmActionLabel}
 
                 </Button>
