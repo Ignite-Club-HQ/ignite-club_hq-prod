@@ -107,9 +107,11 @@ export function NewMessageSheet({
     fn();
   };
 
-  // Show group rows if the user could create groups (admin role) OR if they're
-  // locked out — we still want to surface the Pro upsell.
-  const showGroupRows = canCreateGroups || (gated && !!hasAdminRoleForGroups) || gated;
+  // Plain group messages are available to every member of a Pro club.
+  // Team/role auto-synced groups stay admin-only. Locked rows still show as a
+  // Pro upsell when the club isn't on Pro.
+  const showCustomRow = canCreateCustomGroup || gated;
+  const showAdminGroupRows = canCreateGroups || gated;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
