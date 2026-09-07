@@ -100,9 +100,15 @@ interface StartDMDialogProps {
    * the top; submit always creates a group even with one person selected.
    */
   mode?: "dm" | "custom-group";
+  /**
+   * custom-group mode only: when false, the category picker is hidden and the
+   * group is created without a category (plain group message, no club vault
+   * folder). Used for non-admin members — operations groups stay admin-only.
+   */
+  allowCategory?: boolean;
 }
 
-export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" }: StartDMDialogProps) {
+export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm", allowCategory = true }: StartDMDialogProps) {
   const { user } = useAuth();
   const { activeClubFilter } = useClubTheme();
   const navigate = useNavigate();
@@ -567,7 +573,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
         toast.error("Give your group a name");
         return;
       }
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: groupCategory });
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: allowCategory ? groupCategory : null });
       return;
     }
 
@@ -910,7 +916,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm" 
                     autoComplete="off"
                     className="h-11 rounded-xl"
                   />
-                  {isCustomGroup && (() => {
+                  {isCustomGroup && allowCategory && (() => {
                     const allCategories = Array.from(new Set([...BUILTIN_CATEGORIES, ...customCategories]));
                     const handleCategoryChange = (value: string) => {
                       if (value === CREATE_CATEGORY_VALUE) {
