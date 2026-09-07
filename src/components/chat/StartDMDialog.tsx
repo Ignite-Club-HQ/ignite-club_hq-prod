@@ -127,6 +127,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
     } catch { return []; }
   });
   const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
   // Role-group filter used by the compact "Filter" chip (coaches / committee).
