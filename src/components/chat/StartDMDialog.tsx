@@ -1185,7 +1185,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
             }}
           >
             {isCustomGroup ? (
-              <div className="space-y-2">
+              groupStep === 1 ? (
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
@@ -1195,25 +1195,43 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleStartConversation}
-                    disabled={isPending || !groupName.trim()}
+                    onClick={() => setGroupStep(2)}
                     className="flex-1 h-11 rounded-xl font-semibold gap-2"
                   >
-                    {isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Users className="h-4 w-4" />
-                    )}
-                    Create Group
-                    {` (${selectedUsers.length + 1})`}
+                    Next
+                    {selectedUsers.length > 0 && ` · ${selectedUsers.length}`}
                   </Button>
                 </div>
-                {selectedUsers.length === 0 && (
-                  <p className="text-[11px] text-muted-foreground text-center">
-                    You can create a group with just yourself and add members later
-                  </p>
-                )}
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setGroupStep(1)}
+                      className="text-muted-foreground hover:text-foreground px-4"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      onClick={handleStartConversation}
+                      disabled={isPending || !groupName.trim()}
+                      className="flex-1 h-11 rounded-xl font-semibold gap-2"
+                    >
+                      {isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Users className="h-4 w-4" />
+                      )}
+                      Create Group
+                    </Button>
+                  </div>
+                  {selectedUsers.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground text-center">
+                      You can create a group with just yourself and add members later
+                    </p>
+                  )}
+                </div>
+              )
             ) : (
               <div className="flex items-center gap-2">
                 <Button
