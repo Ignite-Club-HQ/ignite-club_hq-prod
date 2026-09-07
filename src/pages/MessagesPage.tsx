@@ -51,7 +51,6 @@ import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
-import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/components/chat/ClubAdminInboxList";
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
@@ -231,7 +230,6 @@ export default function MessagesPage() {
   const [showCustomGroupDialog, setShowCustomGroupDialog] = useState(false);
   const [groupDialogType, setGroupDialogType] = useState<"role" | "team">("role");
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
-  const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
   const [showGlobalRecap, setShowGlobalRecap] = useState(false);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
