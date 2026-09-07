@@ -18,8 +18,26 @@ function isSupabaseStorageUrl(url: string): boolean {
   return PRIVATE_STORAGE_MARKERS.some((m) => clean.includes(m));
 }
 
+type LocalCopy = {
+  /** file:// URI (or native path) of the cached copy. */
+  uri: string;
+  /** Content type reported by the server when we fetched the bytes ourselves. */
+  serverContentType: string | null;
+};
+
 /**
  * Open a remote file (PDF, docx, etc.) in the most user-friendly way.
+ *
+ * Native pipeline (Android / iOS):
+ *   1. Resolve an authorized signed URL for Supabase storage files (fail closed).
+ *   2. Download to the app cache under the file's REAL name so the OS viewer
+ *      shows "Club policy.pdf" rather than a storage host name. We try the
+ *      native downloader first and fall back to fetch + write, because
+ *      Filesystem.downloadFile is known to fail on some devices / signed URLs.
+ *   3. Hand the local copy to the OS viewer (specific MIME, then generic).
+ *   4. If no viewer can take it, offer the OS share sheet (still shows the
+ *      real file name, lets the user pick Drive / Files / another app).
+ *   5. Only as a last resort open the signed URL in the browser.
  *
  * Security: for recognized Supabase storage URLs we resolve to an authorized
  * signed URL BEFORE any download or browser operation. If signing fails we
@@ -53,57 +71,188 @@ export async function safeOpenFile(
     return;
   }
 
+  // Build a safe filename in a unique cache sub-directory so the viewer
+  // shows the real document name (not a timestamped/mangled one).
+  const guessedName = opts.fileName?.trim() || guessFileNameFromUrl(resolvedUrl);
+  const displayName = withExtension(sanitizeFileName(guessedName), resolvedUrl);
+  const relativePath = `ignite-files/${Date.now()}/${displayName}`;
+
+  let local: LocalCopy | null = null;
   try {
-    const { Filesystem, Directory } = await import("@capacitor/filesystem");
-    const { FileOpener } = await import("@capacitor-community/file-opener");
+    local = await downloadToCache(resolvedUrl, relativePath, displayName);
+  } catch (err) {
+    console.warn("[safeOpenFile] could not cache file locally:", describeError(err));
+  }
 
-    // Build a safe filename in a unique cache sub-directory so the viewer
-    // shows the real document name (not a timestamped/mangled one).
-    const guessedName = opts.fileName?.trim() || guessFileNameFromUrl(resolvedUrl);
-    const displayName = withExtension(sanitizeFileName(guessedName), resolvedUrl);
-    const safeName = `ignite-files/${Date.now()}/${displayName}`;
+  if (!local) {
+    // Nothing on disk to hand to a viewer — browser is the only option left.
+    console.warn("[safeOpenFile] no local copy; falling back to browser");
+    await safeOpenUrl(resolvedUrl);
+    return;
+  }
 
-    const dl = await Filesystem.downloadFile({
-      url: resolvedUrl,
-      path: safeName,
+  const primaryType =
+    normalizeMimeType(opts.mimeType) ||
+    normalizeMimeType(local.serverContentType) ||
+    guessMimeFromName(displayName);
+
+  if (await openWithViewer(local.uri, primaryType)) return;
+
+  // No viewer accepted the file. The share sheet still surfaces the real file
+  // name and lets the user pick Files / Drive / another app — far better than
+  // a browser tab showing the storage host name.
+  if (await shareLocalFile(local.uri, displayName)) return;
+
+  // Fall back to browser using the RESOLVED URL only — never the raw
+  // private URL.
+  console.warn("[safeOpenFile] viewer and share unavailable, falling back to browser");
+  await safeOpenUrl(resolvedUrl);
+}
+
+/**
+ * Download the remote file into the app cache. Tries the native downloader
+ * first, then a fetch + write fallback (the same strategy downloadImage uses
+ * because Filesystem.downloadFile is unreliable on some Android builds and
+ * with some signed URLs). Throws only when every strategy fails.
+ */
+async function downloadToCache(
+  url: string,
+  relativePath: string,
+  displayName: string,
+): Promise<LocalCopy> {
+  const { Filesystem, Directory } = await import("@capacitor/filesystem");
+
+  // Strategy 1: native download straight to disk.
+  try {
+    const dl = (await Filesystem.downloadFile({
+      url,
+      path: relativePath,
+      directory: Directory.Cache,
+      recursive: true,
+    })) as { path?: string; uri?: string };
+    let uri = dl?.path || dl?.uri || null;
+    if (!uri) {
+      uri = (await Filesystem.getUri({ path: relativePath, directory: Directory.Cache })).uri;
+    }
+    if (uri) {
+      // Confirm bytes actually landed — some builds resolve with a path but
+      // write nothing (e.g. HTTP errors swallowed by the native downloader).
+      let size = -1;
+      try {
+        size = (await Filesystem.stat({ path: relativePath, directory: Directory.Cache })).size ?? -1;
+      } catch {
+        size = -1; // stat unsupported here; trust the downloader
+      }
+      if (size !== 0) return { uri, serverContentType: null };
+    }
+    console.warn("[safeOpenFile] native download produced no readable file; trying fetch");
+  } catch (err) {
+    console.warn("[safeOpenFile] Filesystem.downloadFile failed, trying fetch:", describeError(err));
+  }
+
+  // Strategy 2: fetch the bytes in the WebView and write them ourselves.
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to fetch file (${response.status})`);
+  const blob = await response.blob();
+  const serverContentType =
+    (blob.type || response.headers.get("content-type") || "").split(";")[0].trim() || null;
+  const base64 = await blobToBase64(blob);
+
+  const writeAt = async (path: string) => {
+    const written = await Filesystem.writeFile({
+      path,
+      data: base64,
       directory: Directory.Cache,
       recursive: true,
     });
+    return written.uri || (await Filesystem.getUri({ path, directory: Directory.Cache })).uri;
+  };
 
-    const localPath =
-      dl.path ||
-      (await Filesystem.getUri({ path: safeName, directory: Directory.Cache })).uri;
-
-    if (!localPath) throw new Error("Download produced no local path");
-
-    const primaryType =
-      normalizeMimeType(opts.mimeType) || guessMimeFromName(displayName);
-
-    try {
-      await FileOpener.open({
-        filePath: localPath,
-        contentType: primaryType,
-        openWithDefault: true,
-      });
-    } catch (openErr) {
-      // Some devices reject a specific content type but happily open the file
-      // when asked generically. Retry before dropping to the browser (which
-      // would show the storage host name instead of the document name).
-      console.warn("[safeOpenFile] viewer rejected content type, retrying generically:", openErr);
-      await FileOpener.open({
-        filePath: localPath,
-        contentType: "application/octet-stream",
-        openWithDefault: true,
-      });
-    }
+  try {
+    const uri = await writeAt(relativePath);
+    if (uri) return { uri, serverContentType };
   } catch (err) {
-    // Fall back to browser using the RESOLVED URL only — never the raw
-    // private URL. For successfully signed private URLs this passes the
-    // signed URL along; for external/public URLs this preserves the
-    // existing behaviour.
-    console.warn("[safeOpenFile] native open failed, falling back to browser:", err);
-    await safeOpenUrl(resolvedUrl);
+    console.warn("[safeOpenFile] nested cache write failed, trying flat path:", describeError(err));
   }
+
+  // Strategy 3: flat cache path (some Filesystem builds mishandle nested
+  // directories). Keep the real name at the end so the viewer still shows it.
+  const uri = await writeAt(`ignite-${Date.now()}-${displayName}`);
+  if (!uri) throw new Error("Cache write produced no local path");
+  return { uri, serverContentType };
+}
+
+/** Try the OS viewer with the specific type, then generically. */
+async function openWithViewer(localPath: string, primaryType: string): Promise<boolean> {
+  let FileOpener: { open: (o: { filePath: string; contentType?: string; openWithDefault?: boolean }) => Promise<void> };
+  try {
+    ({ FileOpener } = await import("@capacitor-community/file-opener"));
+  } catch (err) {
+    console.warn("[safeOpenFile] FileOpener unavailable:", describeError(err));
+    return false;
+  }
+
+  try {
+    await FileOpener.open({ filePath: localPath, contentType: primaryType, openWithDefault: true });
+    return true;
+  } catch (openErr) {
+    // Some devices reject a specific content type but happily open the file
+    // when asked generically.
+    console.warn("[safeOpenFile] viewer rejected content type, retrying generically:", describeError(openErr));
+  }
+
+  try {
+    await FileOpener.open({
+      filePath: localPath,
+      contentType: "application/octet-stream",
+      openWithDefault: true,
+    });
+    return true;
+  } catch (err) {
+    console.warn("[safeOpenFile] generic viewer open failed:", describeError(err));
+    return false;
+  }
+}
+
+/** Offer the OS share sheet for the cached copy (keeps the real file name). */
+async function shareLocalFile(localPath: string, title: string): Promise<boolean> {
+  try {
+    const { Share } = await import("@capacitor/share");
+    await Share.share({ title, files: [localPath] });
+    return true;
+  } catch (err) {
+    // User dismissing the sheet also rejects — that's still "handled".
+    if (isUserCancel(err)) return true;
+    console.warn("[safeOpenFile] share fallback failed:", describeError(err));
+    return false;
+  }
+}
+
+function isUserCancel(err: unknown): boolean {
+  const msg = describeError(err).toLowerCase();
+  return msg.includes("cancel") || msg.includes("dismiss");
+}
+
+function describeError(err: unknown): string {
+  if (!err) return "unknown";
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && "message" in (err as Record<string, unknown>)) {
+    return String((err as Record<string, unknown>).message);
+  }
+  return String(err);
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error("Failed to read file"));
+    reader.onloadend = () => {
+      const result = String(reader.result || "");
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.readAsDataURL(blob);
+  });
 }
 
 /**
@@ -111,11 +260,11 @@ export async function safeOpenFile(
  * bare extensions ("pdf") in file_type, which native viewers reject.
  */
 function normalizeMimeType(value?: string | null): string | null {
-  const v = (value || "").trim().toLowerCase();
-  if (!v || !/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/.test(v)) return null;
+  const v = (value || "").trim().toLowerCase().split(";")[0].trim();
+  if (!v || v === "application/octet-stream") return null;
+  if (!/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/.test(v)) return null;
   return v;
 }
-
 
 function guessFileNameFromUrl(url: string): string {
   try {
@@ -157,6 +306,20 @@ function guessMimeFromName(name: string): string {
     case "jpg":
     case "jpeg":
       return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "heic":
+      return "image/heic";
+    case "mp4":
+      return "video/mp4";
+    case "mov":
+      return "video/quicktime";
+    case "mp3":
+      return "audio/mpeg";
+    case "zip":
+      return "application/zip";
     default:
       return "application/octet-stream";
   }
