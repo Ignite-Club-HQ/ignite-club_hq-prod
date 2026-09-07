@@ -128,6 +128,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   });
   const [groupCategory, setGroupCategory] = useState<string>("");
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  // Custom-group progressive disclosure: step 1 = pick people, step 2 = name/configure.
+  const [groupStep, setGroupStep] = useState<1 | 2>(1);
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
   // Role-group filter used by the compact "Filter" chip (coaches / committee).
@@ -157,6 +159,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
     if (!isOpen) {
       setShowCategoryPicker(false);
       setGroupCategory("");
+      setGroupStep(1);
     }
   }, [isOpen]);
 
@@ -738,7 +741,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
       <ResponsiveDialogContent className="sm:max-w-md" fullScreen>
         <ResponsiveDialogHeader className="text-left sm:text-left space-y-1">
           <ResponsiveDialogTitle className="flex items-center gap-2">
-            {mode === "custom-group" ? "New Custom Group" : "New Message"}
+            {mode === "custom-group"
+              ? groupStep === 1 ? "New Group Message" : "Name your group"
+              : "New Message"}
             {!hasProAccess && (
               <Badge variant="secondary" className="gap-1">
                 <Crown className="h-3 w-3" />
@@ -748,7 +753,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
           </ResponsiveDialogTitle>
           <ResponsiveDialogDescription className="text-sm text-left">
             {mode === "custom-group"
-              ? "Pick people one by one and give your group a name"
+              ? groupStep === 1
+                ? "Choose who's in the group"
+                : `${selectedUsers.length} ${selectedUsers.length === 1 ? "member" : "members"} selected`
               : "Select one or more people"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
@@ -756,7 +763,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
         {/* Compact sticky search + filter toolbar: stays under the header while
             the member list scrolls independently beneath it. */}
-        {canPickPeople && (
+        {canPickPeople && !(isCustomGroup && groupStep === 2) && (
           <div className="shrink-0 flex items-center gap-2 pt-2 pb-2 px-1 bg-background border-b border-border">
             <div className="relative flex-1 min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -898,8 +905,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
             </div>
           ) : (
             <>
-              {/* Selected count + chips header */}
-              {isCustomGroup && (
+              {/* Selected count + chips header (step 1 of group flow) */}
+              {isCustomGroup && groupStep === 1 && (
                 <div className="flex items-center justify-between gap-2 px-0.5">
                   <p className="text-xs font-medium text-muted-foreground">
                     {selectedUsers.length === 0
@@ -936,7 +943,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
-              {(isCustomGroup || selectedUsers.length > 1) && (
+              {((isCustomGroup && groupStep === 2) || (!isCustomGroup && selectedUsers.length > 1)) && (
                 <div className="space-y-2">
                   <Input
                     placeholder={isCustomGroup ? "Group name" : "Group name (optional)"}
@@ -1020,7 +1027,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
               )}
 
               {/* Club picker only when the user really belongs to several clubs */}
-              {showClubFilter && (
+              {showClubFilter && !(isCustomGroup && groupStep === 2) && (
                 <Select value={selectedClubId} onValueChange={handleClubChange}>
                   <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue placeholder="All Clubs" />
@@ -1035,6 +1042,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
               )}
 
 
+              {!(isCustomGroup && groupStep === 2) && (
               <div>
                 <div className="space-y-1">
                   {loadingUsers && filteredUsers.length === 0 ? (
@@ -1161,6 +1169,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                   )}
                 </div>
               </div>
+              )}
             </>
           )}
         </div>
@@ -1176,7 +1185,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
             }}
           >
             {isCustomGroup ? (
-              <div className="space-y-2">
+              groupStep === 1 ? (
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
@@ -1186,25 +1195,43 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                     Cancel
                   </Button>
                   <Button
-                    onClick={handleStartConversation}
-                    disabled={isPending || !groupName.trim()}
+                    onClick={() => setGroupStep(2)}
                     className="flex-1 h-11 rounded-xl font-semibold gap-2"
                   >
-                    {isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Users className="h-4 w-4" />
-                    )}
-                    Create Group
-                    {` (${selectedUsers.length + 1})`}
+                    Next
+                    {selectedUsers.length > 0 && ` · ${selectedUsers.length}`}
                   </Button>
                 </div>
-                {selectedUsers.length === 0 && (
-                  <p className="text-[11px] text-muted-foreground text-center">
-                    You can create a group with just yourself and add members later
-                  </p>
-                )}
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setGroupStep(1)}
+                      className="text-muted-foreground hover:text-foreground px-4"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      onClick={handleStartConversation}
+                      disabled={isPending || !groupName.trim()}
+                      className="flex-1 h-11 rounded-xl font-semibold gap-2"
+                    >
+                      {isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Users className="h-4 w-4" />
+                      )}
+                      Create Group
+                    </Button>
+                  </div>
+                  {selectedUsers.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground text-center">
+                      You can create a group with just yourself and add members later
+                    </p>
+                  )}
+                </div>
+              )
             ) : (
               <div className="flex items-center gap-2">
                 <Button
