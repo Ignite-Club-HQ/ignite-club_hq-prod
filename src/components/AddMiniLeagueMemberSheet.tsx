@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, lazy, Suspense, type CSSProperties } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserPlus, Loader2, X, Send, Plus, Upload, ChevronDown, ChevronUp, Check } from "lucide-react";
-const MiniLeagueMemberCSVImportDialog = lazy(() => import("@/components/MiniLeagueMemberCSVImportDialog").then(m => ({ default: m.MiniLeagueMemberCSVImportDialog })));
+const MiniLeagueMemberCSVImportDialog = lazyWithRetry(() => import("@/components/MiniLeagueMemberCSVImportDialog").then(m => ({ default: m.MiniLeagueMemberCSVImportDialog })));
 import MiniLeagueParentJoinLinkCard from "@/components/mini-league/MiniLeagueParentJoinLinkCard";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useNativeKeyboardHeight } from "@/hooks/useNativeKeyboardHeight";
 import { useToast } from "@/hooks/use-toast";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 interface BulkPlayer {
   id: string;

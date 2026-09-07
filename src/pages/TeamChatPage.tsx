@@ -40,7 +40,7 @@ import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
-const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
+const AddTeamMemberSheet = lazyWithRetry(() => import("@/components/AddTeamMemberSheet"));
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import { Button } from "@/components/ui/button";
@@ -110,6 +110,7 @@ import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemov
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 
 const MESSAGES_PER_PAGE = 30;

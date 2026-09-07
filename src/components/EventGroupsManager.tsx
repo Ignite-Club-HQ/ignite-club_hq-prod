@@ -53,9 +53,10 @@ import { toast } from "sonner";
 import { MatchDutiesDialog } from "@/components/MatchDutiesDialog";
 import { QuickSetupDutyDialog } from "@/components/QuickSetupDutyDialog";
 import { ManualMatchDialog } from "@/components/ManualMatchDialog";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 // Lazy load PitchBoard for performance
-const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
 
 // Default bib color pairs when league has no custom colors
 const DEFAULT_BIB_COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"];

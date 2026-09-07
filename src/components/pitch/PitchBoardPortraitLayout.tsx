@@ -26,21 +26,21 @@ import { LandscapeEventSelector } from "./LandscapeEventSelector";
 import { PitchPosition } from "./PositionBadge";
 
 // Lazy load heavy dialog components for better initial load performance
-const AutoSubPlanDialog = lazy(() => import("./AutoSubPlanDialog"));
-const SubstitutionPreviewDialog = lazy(() => import("./SubstitutionPreviewDialog"));
-const BenchToSubDialog = lazy(() => import("./BenchToSubDialog"));
-const MatchStatsPanel = lazy(() => import("./MatchStatsPanel"));
-const PlayerPositionEditor = lazy(() => import("./PlayerPositionEditor"));
-const PositionSwapDialog = lazy(() => import("./PositionSwapDialog"));
-const PitchSwapConfirmDialog = lazy(() => import("./PitchSwapConfirmDialog"));
-const ManualSubConfirmDialog = lazy(() => import("./ManualSubConfirmDialog"));
-const FormationChangeDialog = lazy(() => import("./FormationChangeDialog"));
-const PitchPlayerActionMenu = lazy(() => import("./PitchPlayerActionMenu"));
-const SubConfirmDialog = lazy(() => import("./SubConfirmDialog"));
-const AddFillInPlayerDialog = lazy(() => import("./AddFillInPlayerDialog"));
-const AutoSubManager = lazy(() => import("./AutoSubManager"));
-const AutoSubControlPanel = lazy(() => import("./AutoSubControlPanel"));
-const PreGameLineupScreen = lazy(() => import("./PreGameLineupScreen"));
+const AutoSubPlanDialog = lazyWithRetry(() => import("./AutoSubPlanDialog"));
+const SubstitutionPreviewDialog = lazyWithRetry(() => import("./SubstitutionPreviewDialog"));
+const BenchToSubDialog = lazyWithRetry(() => import("./BenchToSubDialog"));
+const MatchStatsPanel = lazyWithRetry(() => import("./MatchStatsPanel"));
+const PlayerPositionEditor = lazyWithRetry(() => import("./PlayerPositionEditor"));
+const PositionSwapDialog = lazyWithRetry(() => import("./PositionSwapDialog"));
+const PitchSwapConfirmDialog = lazyWithRetry(() => import("./PitchSwapConfirmDialog"));
+const ManualSubConfirmDialog = lazyWithRetry(() => import("./ManualSubConfirmDialog"));
+const FormationChangeDialog = lazyWithRetry(() => import("./FormationChangeDialog"));
+const PitchPlayerActionMenu = lazyWithRetry(() => import("./PitchPlayerActionMenu"));
+const SubConfirmDialog = lazyWithRetry(() => import("./SubConfirmDialog"));
+const AddFillInPlayerDialog = lazyWithRetry(() => import("./AddFillInPlayerDialog"));
+const AutoSubManager = lazyWithRetry(() => import("./AutoSubManager"));
+const AutoSubControlPanel = lazyWithRetry(() => import("./AutoSubControlPanel"));
+const PreGameLineupScreen = lazyWithRetry(() => import("./PreGameLineupScreen"));
 import TacticalModeSelector from "./TacticalModeSelector";
 import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
@@ -113,10 +113,11 @@ import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_
 import { type PitchBoardMode } from "./ModeSwitch";
 
 import { Download } from "lucide-react";
-const TrainingBoard = lazy(() => import("./training/TrainingBoard"));
+const TrainingBoard = lazyWithRetry(() => import("./training/TrainingBoard"));
 
 import { usePitchBoardLayoutContext } from "./PitchBoardLayoutContext";
 import type { PitchBoardLayoutContextValue } from "./PitchBoardLayoutContext";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 // Loading fallback for lazy-loaded dialogs
 const DialogLoader = () => (

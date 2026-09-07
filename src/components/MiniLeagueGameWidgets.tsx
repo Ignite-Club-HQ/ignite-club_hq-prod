@@ -9,9 +9,10 @@ import { Timer, Play, Pause, ExternalLink, Users, LayoutGrid, ChevronDown, Chevr
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 // Lazy load PitchBoard for performance
-const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
 
 interface TimerState {
   minutesPerHalf: number;
