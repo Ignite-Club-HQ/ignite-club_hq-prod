@@ -102,8 +102,8 @@ interface StartDMDialogProps {
   mode?: "dm" | "custom-group";
   /**
    * custom-group mode only: when false, the category picker is hidden and the
-   * group is created without a category (plain group message, no club vault
-   * folder). Used for non-admin members — operations groups stay admin-only.
+   * group is created without a category (plain group message). Used for
+   * non-admin members — subcommittee groups stay admin-only.
    */
   allowCategory?: boolean;
 }
@@ -508,8 +508,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
         ["basic_user", "parent", "player", "coach", "team_admin", "club_admin"];
       
       // Category-only club scope: when a category is chosen and a real club is
-      // selected (not "all"), stamp the group with club_id so the vault folder
-      // trigger fires (Club Vault → {Category} → {Group}). Use manual membership
+      // selected (not "all"), stamp the group with club_id so the folder trigger
+      // fires. Use manual membership
       // mode + empty allowed_roles so `can_access_chat_group` does NOT expose
       // the group to every member of the club — only explicit invitees + the
       // creator (added by DB trigger) can see it.
@@ -981,7 +981,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                           onClick={() => setShowCategoryPicker(true)}
                           className="text-xs text-muted-foreground hover:text-foreground underline decoration-muted-foreground/40 underline-offset-2 text-left"
                         >
-                          Make this an operations group (links to Club Vault)
+                          Make this a subcommittee group
                         </button>
                       );
                     }
