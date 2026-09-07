@@ -156,7 +156,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   useEffect(() => {
     if (!isOpen) {
       setShowCategoryPicker(false);
-      setGroupCategory("Custom Groups");
+      setGroupCategory("");
     }
   }, [isOpen]);
 
