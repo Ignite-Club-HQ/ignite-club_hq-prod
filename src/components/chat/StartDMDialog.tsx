@@ -790,24 +790,35 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
               </PopoverTrigger>
               <PopoverContent align="end" className="z-[1000020] w-56 p-1">
                 <div className="max-h-[60vh] overflow-y-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTeamId("all");
+                      setRoleFilter("all");
+                      setFilterOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-accent"
+                  >
+                    <span className="truncate">Everyone</span>
+                    {!filterActive && <Check className="h-4 w-4 text-primary shrink-0" />}
+                  </button>
+                  <p className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Roles
+                  </p>
                   {[
-                    { key: "all", label: "All teams" },
                     { key: "role:coach", label: "Coaches" },
                     { key: "role:committee", label: "Committee & admins" },
                     { key: "role:parent", label: "Parents" },
                     { key: "role:player", label: "Players" },
                   ].map((opt) => {
-                    const selected =
-                      opt.key === "all"
-                        ? !filterActive
-                        : selectedTeamId === "all" && `role:${roleFilter}` === opt.key;
+                    const selected = selectedTeamId === "all" && `role:${roleFilter}` === opt.key;
                     return (
                       <button
                         key={opt.key}
                         type="button"
                         onClick={() => {
                           setSelectedTeamId("all");
-                          setRoleFilter(opt.key === "all" ? "all" : opt.key.split(":")[1]);
+                          setRoleFilter(opt.key.split(":")[1]);
                           setFilterOpen(false);
                         }}
                         className="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-accent"
@@ -817,6 +828,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                       </button>
                     );
                   })}
+
                   {filteredTeams.length > 0 && (
                     <>
                       <p className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
