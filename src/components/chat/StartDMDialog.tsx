@@ -152,6 +152,14 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
     }
   }, [activeClubFilter, isOpen]);
 
+  // Keep category picker collapsed unless a non-default category is already chosen.
+  useEffect(() => {
+    if (!isOpen) {
+      setShowCategoryPicker(false);
+      setGroupCategory("Custom Groups");
+    }
+  }, [isOpen]);
+
   // Check if user has Pro access for DMs
   const { data: hasProAccess, isLoading: checkingPro } = useQuery({
     queryKey: ["has-pro-for-dm", user?.id],
