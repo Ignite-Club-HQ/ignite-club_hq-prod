@@ -582,7 +582,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
         toast.error("Give your group a name");
         return;
       }
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: allowCategory ? groupCategory : null });
+      const category = allowCategory && groupCategory.trim() ? groupCategory.trim() : null;
+      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category });
       return;
     }
 
