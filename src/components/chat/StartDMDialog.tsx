@@ -126,7 +126,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
       return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
     } catch { return []; }
   });
-  const [groupCategory, setGroupCategory] = useState<string>("Custom Groups");
+  const [groupCategory, setGroupCategory] = useState<string>("");
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
