@@ -9,7 +9,6 @@ interface NewMessageSheetProps {
   canCreateGroups: boolean;
   /** Any member of a Pro club can start a plain group message (no category). */
   canCreateCustomGroup?: boolean;
-  hasAdminRoleForGroups?: boolean;
   hasPro?: boolean;
   isAppAdmin?: boolean;
   upgradeClubId?: string | null;
@@ -77,7 +76,6 @@ export function NewMessageSheet({
   onOpenChange,
   canCreateGroups,
   canCreateCustomGroup,
-  hasAdminRoleForGroups,
   hasPro,
   isAppAdmin,
   upgradeClubId,
