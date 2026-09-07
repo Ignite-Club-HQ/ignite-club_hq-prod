@@ -57,14 +57,17 @@ export async function safeOpenFile(
     const { Filesystem, Directory } = await import("@capacitor/filesystem");
     const { FileOpener } = await import("@capacitor-community/file-opener");
 
-    // Build a safe-ish filename in the cache directory.
+    // Build a safe filename in a unique cache sub-directory so the viewer
+    // shows the real document name (not a timestamped/mangled one).
     const guessedName = opts.fileName?.trim() || guessFileNameFromUrl(resolvedUrl);
-    const safeName = `vault-${Date.now()}-${sanitizeFileName(guessedName)}`;
+    const displayName = withExtension(sanitizeFileName(guessedName), resolvedUrl);
+    const safeName = `ignite-files/${Date.now()}/${displayName}`;
 
     const dl = await Filesystem.downloadFile({
       url: resolvedUrl,
       path: safeName,
       directory: Directory.Cache,
+      recursive: true,
     });
 
     const localPath =
@@ -131,4 +134,15 @@ function guessMimeFromName(name: string): string {
     default:
       return "application/octet-stream";
   }
+}
+
+/**
+ * Ensure the local file keeps a sensible extension so the OS picks the right
+ * viewer — falls back to the extension from the remote URL path.
+ */
+function withExtension(name: string, url: string): string {
+  if (/\.[a-zA-Z0-9]{1,8}$/.test(name)) return name;
+  const fromUrl = guessFileNameFromUrl(url);
+  const m = fromUrl.match(/\.[a-zA-Z0-9]{1,8}$/);
+  return m ? `${name}${m[0]}` : name;
 }
