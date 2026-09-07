@@ -76,12 +76,26 @@ export async function safeOpenFile(
 
     if (!localPath) throw new Error("Download produced no local path");
 
-    await FileOpener.open({
-      filePath: localPath,
-      contentType: normalizeMimeType(opts.mimeType) || guessMimeFromName(displayName),
-      openWithDefault: true,
-    });
+    const primaryType =
+      normalizeMimeType(opts.mimeType) || guessMimeFromName(displayName);
 
+    try {
+      await FileOpener.open({
+        filePath: localPath,
+        contentType: primaryType,
+        openWithDefault: true,
+      });
+    } catch (openErr) {
+      // Some devices reject a specific content type but happily open the file
+      // when asked generically. Retry before dropping to the browser (which
+      // would show the storage host name instead of the document name).
+      console.warn("[safeOpenFile] viewer rejected content type, retrying generically:", openErr);
+      await FileOpener.open({
+        filePath: localPath,
+        contentType: "application/octet-stream",
+        openWithDefault: true,
+      });
+    }
   } catch (err) {
     // Fall back to browser using the RESOLVED URL only — never the raw
     // private URL. For successfully signed private URLs this passes the
@@ -91,6 +105,17 @@ export async function safeOpenFile(
     await safeOpenUrl(resolvedUrl);
   }
 }
+
+/**
+ * Accept only real MIME types ("type/subtype"). Vault records sometimes store
+ * bare extensions ("pdf") in file_type, which native viewers reject.
+ */
+function normalizeMimeType(value?: string | null): string | null {
+  const v = (value || "").trim().toLowerCase();
+  if (!v || !/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/.test(v)) return null;
+  return v;
+}
+
 
 function guessFileNameFromUrl(url: string): string {
   try {
