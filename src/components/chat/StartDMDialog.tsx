@@ -936,20 +936,44 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                       }
                       setGroupCategory(value);
                     };
+                    const [showCategory, setShowCategory] = useState(groupCategory !== DEFAULT_CATEGORY);
+                    if (!showCategory && groupCategory === DEFAULT_CATEGORY) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setShowCategory(true)}
+                          className="text-xs text-muted-foreground hover:text-foreground underline decoration-muted-foreground/40 underline-offset-2 text-left"
+                        >
+                          Make this an operations group (links to Club Vault)
+                        </button>
+                      );
+                    }
                     return (
-                      <Select value={groupCategory} onValueChange={handleCategoryChange}>
-                        <SelectTrigger className="h-11 rounded-xl">
-                          <SelectValue placeholder="Category" />
-                        </SelectTrigger>
-                        <SelectContent className="z-[1000020]">
-                          {allCategories.map((c) => (
-                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                          ))}
-                          <SelectItem value={CREATE_CATEGORY_VALUE} className="text-primary">
-                            + Create new category…
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <Select value={groupCategory} onValueChange={handleCategoryChange}>
+                          <SelectTrigger className="h-9 rounded-xl text-xs flex-1">
+                            <SelectValue placeholder="Category" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[1000020]">
+                            {allCategories.map((c) => (
+                              <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                            <SelectItem value={CREATE_CATEGORY_VALUE} className="text-primary">
+                              + Create new category…
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGroupCategory(DEFAULT_CATEGORY);
+                            setShowCategory(false);
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground shrink-0"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     );
                   })()}
                   {!isCustomGroup && (
