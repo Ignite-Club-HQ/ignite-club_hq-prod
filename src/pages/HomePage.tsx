@@ -2167,6 +2167,8 @@ export default function HomePage() {
     });
   }, [showContent, isNewUserEmptyState, user?.id, membershipClubCount, membershipTeamCount, events.length, activeClubFilter, nextUpCachedSnapshot]);
 
+  const canAccessVault = !!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role));
+
   return (
     <div className="py-6 space-y-5">
       {/* Welcome Header */}
@@ -2187,7 +2189,7 @@ export default function HomePage() {
               hasTeams={!!userRoles?.some(r => r.team_id)}
               canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
               canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-              canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+              canAccessVault={canAccessVault}
               isAppAdmin={isAppAdmin}
               activeClubFilter={activeClubFilter}
               activeClubName={activeClubName}
@@ -2248,6 +2250,32 @@ export default function HomePage() {
           <Suspense fallback={null}>
             <ClubLinksSection />
           </Suspense>
+
+          {/* Club Files - first-class entry point to the File Vault for permitted roles.
+              Synchronous (role-based only) so it never causes a post-reveal layout shift. */}
+          {canAccessVault && (
+            <Card
+              className="border overflow-hidden cursor-pointer bg-card"
+              role="button"
+              tabIndex={0}
+              aria-label="Open club files"
+              onClick={() => navigate("/vault")}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate("/vault"); } }}
+            >
+              <CardContent className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
+                    <FolderOpen className="h-5 w-5" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-semibold text-foreground">Club Files</p>
+                    <p className="text-[12px] text-muted-foreground truncate">Forms, policies & documents</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
         </div>
       </div>

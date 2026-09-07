@@ -135,6 +135,17 @@ export function HomeQuickActionsFab({
         onJoinTeam();
       },
     },
+    ...(canAccessVault
+      ? [
+          {
+            label: "Club Files",
+            description: "Forms, policies & documents",
+            icon: Folder,
+            onClick: () => go("/vault"),
+            proLocked,
+          } as ActionItem,
+        ]
+      : []),
   ];
 
   // More — low-frequency administrative actions
@@ -181,16 +192,6 @@ export function HomeQuickActionsFab({
             proLocked,
           } as ActionItem,
 
-        ]
-      : []),
-    ...(canAccessVault
-      ? [
-          {
-            label: "File Vault",
-            icon: Folder,
-            onClick: () => go("/vault"),
-            proLocked,
-          } as ActionItem,
         ]
       : []),
     ...(isAppAdmin
