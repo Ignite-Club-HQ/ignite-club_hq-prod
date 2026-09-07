@@ -583,6 +583,11 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   const toggleUserSelection = (dmUser: DMableUser) => {
     setSelectedUsers(prev => {
       const isSelected = prev.some(u => u.id === dmUser.id);
+      // Direct messages are strictly one-to-one: picking someone replaces the
+      // current selection. Group chats keep multi-select.
+      if (mode !== "custom-group") {
+        return isSelected ? [] : [dmUser];
+      }
       if (isSelected) {
         return prev.filter(u => u.id !== dmUser.id);
       } else {
@@ -590,6 +595,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
       }
     });
   };
+
 
   const removeSelectedUser = (userId: string) => {
     setSelectedUsers(prev => prev.filter(u => u.id !== userId));
@@ -608,13 +614,9 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
     if (selectedUsers.length === 0) return;
 
-    if (selectedUsers.length === 1) {
-      // Single user - start regular DM
-      startDMMutation.mutate(selectedUsers[0].id);
-    } else {
-      // Multiple users - create group chat
-      startGroupDMMutation.mutate({ users: selectedUsers, customName: groupName, category: null });
-    }
+    // DM mode is single-recipient only.
+    startDMMutation.mutate(selectedUsers[0].id);
+
   };
 
   // Filter users by search query, club, and team
@@ -707,9 +709,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   const showClubFilter = !isClubFilterLocked && availableClubs.length > 1;
   const CREATE_CATEGORY_VALUE = "__create_new__";
   const selectedPrimaryName = selectedUsers[0]?.display_name?.trim() || "selected member";
-  const dmActionLabel = selectedUsers.length === 1
-    ? `Message ${selectedPrimaryName.split(" ")[0] || selectedPrimaryName}`
-    : `Start group chat · ${selectedUsers.length}`;
+  const dmActionLabel = `Message ${selectedPrimaryName.split(" ")[0] || selectedPrimaryName}`;
+
   const canPickPeople = !!hasProAccess && !!canSendDMs?.canSend;
   const activeFilterLabel =
     selectedTeamId !== "all"
@@ -756,7 +757,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
               ? groupStep === 1
                 ? "Choose who's in the group"
                 : `${selectedUsers.length} ${selectedUsers.length === 1 ? "member" : "members"} selected`
-              : "Select one or more people"}
+              : "Select one person"}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
 
@@ -943,7 +944,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
 
 
               {/* Group name: required + always shown in custom-group mode; optional + shown when 2+ in DM mode */}
-              {((isCustomGroup && groupStep === 2) || (!isCustomGroup && selectedUsers.length > 1)) && (
+              {isCustomGroup && groupStep === 2 && (
                 <div className="space-y-2">
                   <Input
                     placeholder={isCustomGroup ? "Group name" : "Group name (optional)"}
@@ -1248,11 +1249,10 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                 >
                   {isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : selectedUsers.length > 1 ? (
-                    <Users className="h-4 w-4" />
                   ) : (
                     <MessageCircle className="h-4 w-4" />
                   )}
+
                   {dmActionLabel}
 
                 </Button>
