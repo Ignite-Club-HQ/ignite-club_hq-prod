@@ -158,8 +158,8 @@ export function NewMessageSheet({
               <>
                 <ActionRow
                   icon={UserPlus}
-                  title="Hand-picked group"
-                  subtitle={gated ? "Pro feature — tap to upgrade" : "Named group, you choose the members"}
+                  title="Group message"
+                  subtitle={gated ? "Pro feature — tap to upgrade" : "Choose the members and give it a name"}
                   accent="amber"
                   locked={gated}
                   onClick={pick(onPickCustom)}
