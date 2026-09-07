@@ -128,6 +128,8 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
   });
   const [groupCategory, setGroupCategory] = useState<string>("");
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  // Custom-group progressive disclosure: step 1 = pick people, step 2 = name/configure.
+  const [groupStep, setGroupStep] = useState<1 | 2>(1);
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
   // Role-group filter used by the compact "Filter" chip (coaches / committee).
@@ -157,6 +159,7 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
     if (!isOpen) {
       setShowCategoryPicker(false);
       setGroupCategory("");
+      setGroupStep(1);
     }
   }, [isOpen]);
 
