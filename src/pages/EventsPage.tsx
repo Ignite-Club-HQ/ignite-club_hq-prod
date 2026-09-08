@@ -1,18 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useQueryClient, onlineManager } from "@tanstack/react-query";
-import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, FileSpreadsheet, Filter, CalendarPlus, CalendarPlus2, RefreshCw, Crown } from "lucide-react";
-import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
+import { Calendar as CalendarIcon, Plus, List, CalendarDays, Repeat, Filter, CalendarPlus, CalendarPlus2, RefreshCw } from "lucide-react";
 import { exportEventsIcs } from "@/lib/icsExport";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { Button } from "@/components/ui/button";
@@ -92,7 +84,6 @@ interface Event {
 
 export default function EventsPage() {
   const { user, profile, refreshProfile } = useAuth();
-  const { hasAnyClubPro, isLoading: proLoading } = useUserHasAnyClubPro();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -115,7 +106,6 @@ export default function EventsPage() {
   const [listSelectedDate, setListSelectedDate] = useState<Date | null>(null);
   const [stripWeekAnchor, setStripWeekAnchor] = useState<Date>(() => new Date());
   const [showFilters, setShowFilters] = useState(false);
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   // How far back (in days) to include past events. Defaults to 30; user can
   // expand on demand via the "Show older events" button on the Past tab.
   const [pastDaysBack, setPastDaysBack] = useState<number>(30);
@@ -764,7 +754,10 @@ export default function EventsPage() {
 
 
   return (
-    <div className="py-6 space-y-6">
+    <div
+      className="py-6 space-y-6 [overflow-anchor:none]"
+      data-schedule-scroll-anchor="disabled"
+    >
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Schedule</h1>
         <div className="flex items-center gap-2">
@@ -884,7 +877,7 @@ export default function EventsPage() {
                 });
                 return;
               }
-              setCreateMenuOpen(true);
+              navigate("/events/new");
             }}
           />
         </div>
@@ -924,71 +917,6 @@ export default function EventsPage() {
 
 
 
-
-      {/* Action sheet — primary "+" menu */}
-      <Sheet open={createMenuOpen} onOpenChange={setCreateMenuOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl pb-8">
-          <SheetHeader className="text-left">
-            <SheetTitle>Schedule actions</SheetTitle>
-            <SheetDescription>Create or import events, or export to your calendar.</SheetDescription>
-          </SheetHeader>
-          <div className="mt-4 flex flex-col gap-2">
-            <Button
-              variant="default"
-              className="w-full justify-start h-12 gap-3"
-              onClick={() => {
-                setCreateMenuOpen(false);
-                navigate("/events/new");
-              }}
-            >
-              <Plus className="h-5 w-5" />
-              <div className="flex flex-col items-start">
-                <span className="text-sm font-semibold">Create Event</span>
-                <span className="text-[11px] opacity-80">Training, game or social</span>
-              </div>
-            </Button>
-
-            {(isAppAdmin || userRoles?.some(r => ["club_admin", "team_admin", "coach", "committee_member"].includes(r.role))) && (() => {
-              const proGated = !isAppAdmin && !proLoading && !hasAnyClubPro;
-              return (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start h-12 gap-3"
-                  onClick={() => {
-                    setCreateMenuOpen(false);
-                    if (proGated) {
-                      const firstClubId = userRoles?.find(r => r.club_id)?.club_id;
-                      toast({
-                        title: "Pro feature",
-                        description: "Import Fixtures is available on Pro. Contact your club administrator to upgrade.",
-                      });
-                      if (firstClubId) {
-                        navigate(`/clubs/${firstClubId}/upgrade`);
-                      }
-                      return;
-                    }
-                    navigate("/events/import");
-                  }}
-                >
-                  <FileSpreadsheet className="h-5 w-5" />
-                  <div className="flex flex-col items-start flex-1">
-                    <span className="text-sm font-semibold flex items-center gap-1.5">
-                      Import Fixtures
-                      {proGated && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
-                          <Crown className="h-3 w-3" />
-                          Pro
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">From CSV or Excel</span>
-                  </div>
-                </Button>
-              );
-            })()}
-          </div>
-        </SheetContent>
-      </Sheet>
 
       {/* Filter Drawer */}
       <Drawer open={showFilters} onOpenChange={setShowFilters}>
@@ -1121,7 +1049,7 @@ export default function EventsPage() {
       {viewMode === "calendar" ? (
 
         <div className="space-y-2">
-          <Card>
+          <Card className="lg:max-w-3xl lg:mx-auto">
             <CardContent className="p-4">
               <Calendar
                 mode="single"

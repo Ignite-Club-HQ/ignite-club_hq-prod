@@ -109,6 +109,10 @@ export default function AppSettingsPage() {
   const chatVirtRow = settings?.find(s => s.key === "chat_virtualization_enabled");
   const isChatVirtEnabled = chatVirtRow?.value !== false && chatVirtRow?.value !== "false";
 
+  // Default AI Chat Recap to ON when the row is missing or unset.
+  const chatRecapRow = settings?.find(s => s.key === "chat_recap_enabled");
+  const isChatRecapEnabled = chatRecapRow?.value !== false && chatRecapRow?.value !== "false";
+
   // Default notification prefetch to ON when the row is missing or unset.
   const notifPrefetchRow = settings?.find(s => s.key === "notification_prefetch_enabled");
   const isNotifPrefetchEnabled = notifPrefetchRow?.value !== false && notifPrefetchRow?.value !== "false";
@@ -388,6 +392,40 @@ export default function AppSettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className={`h-5 w-5 ${isChatRecapEnabled ? "text-green-500" : "text-amber-500"}`} />
+              AI Chat Recap availability
+            </CardTitle>
+            <CardDescription>
+              Master kill-switch for the AI Chat Recap feature. When OFF, Chat Recap is hidden and unavailable for every club and every user — club-level and personal settings are ignored. Propagates to active sessions within a few seconds.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="chat-recap-toggle" className="text-base font-medium">
+                  Enable Chat Recap
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {isChatRecapEnabled
+                    ? "Available where clubs and users have it switched on."
+                    : "Disabled everywhere — no club or user can access Chat Recap."}
+                </p>
+              </div>
+              <Switch
+                id="chat-recap-toggle"
+                checked={isChatRecapEnabled}
+                onCheckedChange={() => handleToggle("chat_recap_enabled", isChatRecapEnabled)}
+                disabled={updateSettingMutation.isPending}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+
 
         <Card>
 

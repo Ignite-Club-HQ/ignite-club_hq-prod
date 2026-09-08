@@ -52,6 +52,7 @@ interface PendingInviteCardProps {
     invited_user_id: string | null;
     invited_label: string | null;
     invited_email?: string | null;
+    metadata?: unknown;
     created_at: string;
     status: string;
     email_sent_at?: string | null;
@@ -447,6 +448,11 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
   const displayName = invite.invited_label || invite.profiles?.display_name || "Unknown";
   const avatarUrl = invite.invited_label ? undefined : invite.profiles?.avatar_url;
   const isExistingUser = !invite.invited_label && !!invite.profiles?.id;
+  // Second parents who already have an account get access immediately; the invite
+  // row exists so admins can resend/remind until they acknowledge it.
+  const addedAwaitingAck =
+    !!(invite.metadata as { second_parent_of_existing_user?: boolean } | null)
+      ?.second_parent_of_existing_user;
   const roleColor = roleColors[invite.role] || "bg-muted text-muted-foreground";
   const roleLabel = roleLabels[invite.role] || invite.role.replace("_", " ");
   // If a reminder has been sent (either via cron `last_reminder_sent_at`/`reminder_count`,
@@ -518,6 +524,11 @@ export default function PendingInviteCard({ invite, teamId, clubId, isAdmin = tr
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium truncate">{displayName}</span>
+              {addedAwaitingAck && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                  Added — awaiting acknowledgement
+                </Badge>
+              )}
               {isExistingUser && (
                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">
                   <UserCheck className="h-2.5 w-2.5 mr-0.5" />

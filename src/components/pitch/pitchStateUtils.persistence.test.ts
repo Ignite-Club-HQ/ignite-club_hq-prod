@@ -99,16 +99,20 @@ describe("pitch state persistence boundaries", () => {
     expect(JSON.parse(localStorage.getItem(getPitchStateKey("team-a"))!).teamId).toBe("team-a");
   });
 
-  it("clears pitch and timer state older than 12 hours when no live timer exists", () => {
+  it("keeps the lineup, resets game progress, and clears stale timers after 12 hours", () => {
     const staleAt = Date.now() - 13 * 60 * 60 * 1000;
     localStorage.setItem(getPitchStateKey("team-a"), JSON.stringify(pitchState("team-a", { lastUpdateTime: staleAt })));
     localStorage.setItem(PITCH_STATE_KEY, JSON.stringify(pitchState("team-a", { lastUpdateTime: staleAt })));
     localStorage.setItem(TEAM_TIMER_KEY("team-a"), JSON.stringify(timerState("team-a", { lastUpdateTime: staleAt })));
     localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(timerState("team-a", { lastUpdateTime: staleAt })));
 
-    expect(loadPitchState("team-a")).toBeNull();
-    expect(localStorage.getItem(getPitchStateKey("team-a"))).toBeNull();
-    expect(localStorage.getItem(PITCH_STATE_KEY)).toBeNull();
+    const loaded = loadPitchState("team-a")!;
+    expect(loaded.players).toHaveLength(1);
+    expect(loaded.linkedEventId).toBeNull();
+    expect(loaded.goals).toEqual([]);
+    expect(loaded.autoSubActive).toBe(false);
+    expect(localStorage.getItem(getPitchStateKey("team-a"))).not.toBeNull();
+    expect(localStorage.getItem(PITCH_STATE_KEY)).not.toBeNull();
     expect(localStorage.getItem(TEAM_TIMER_KEY("team-a"))).toBeNull();
     expect(localStorage.getItem(ACTIVE_TIMER_KEY)).toBeNull();
   });

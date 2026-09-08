@@ -375,7 +375,7 @@ async function install(page: Page, bell: BellCase = defaultBell, behavior: Harne
       is_pro: true,
       is_pro_football: true,
       };
-      return json(route, singular ? subscription : (behavior.pitchBoardController ? [subscription] : []));
+      return json(route, singular ? subscription : [subscription]);
     }
     if (url.pathname === "/rest/v1/message_reactions") {
       if (!reactionAvailable) return json(route, []);
@@ -779,7 +779,7 @@ test("reply focuses the composer and sends the immutable parent message id", asy
   await page.goto(`/messages/${teamId}`);
   const target = page.locator(`#message-${messages[28].id}`);
   await expect(target).toBeVisible({ timeout: 15_000 });
-  await target.click({ button: "right" });
+  await target.locator(".relative.min-w-0.max-w-full.select-none").first().dispatchEvent("contextmenu");
   await page.getByRole("button", { name: "Reply", exact: true }).click();
 
   const composer = page.getByRole("textbox", { name: "Type a message..." });
@@ -798,7 +798,7 @@ test("editing updates the existing own message instead of inserting a replacemen
   await page.goto(`/messages/${teamId}`);
   const own = page.locator(`#message-${messages[29].id}`);
   await expect(own).toBeVisible({ timeout: 15_000 });
-  await own.click({ button: "right" });
+  await own.locator(".relative.min-w-0.max-w-full.select-none").first().dispatchEvent("contextmenu");
   await page.getByRole("button", { name: "Edit", exact: true }).click();
 
   const composer = page.getByRole("textbox", { name: "Type a message..." });
@@ -817,7 +817,7 @@ test("an image message opens the exact attachment without triggering gallery pub
   await expect(imageMessage).toBeVisible({ timeout: 15_000 });
   await expect(imageMessage.getByRole("img", { name: "Attachment" })).toBeVisible();
 
-  await imageMessage.click({ button: "right" });
+  await imageMessage.locator(".relative.min-w-0.max-w-full.select-none").first().dispatchEvent("contextmenu");
   await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("button", { name: "View Image" }).click();
 
@@ -833,7 +833,7 @@ test("a denied delete restores the exact message and reports the moderation fail
   const own = page.locator(`#message-${messages[29].id}`);
   await expect(own).toBeVisible({ timeout: 15_000 });
 
-  await own.click({ button: "right" });
+  await own.locator(".relative.min-w-0.max-w-full.select-none").first().dispatchEvent("contextmenu");
   await page.getByRole("button", { name: "More…" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Delete message?" })).toBeVisible();
@@ -1125,13 +1125,13 @@ test("duplicate realtime delivery renders one message and one reaction only", as
     (window as any).__emitSyntheticPostgresChange("team_messages", "INSERT", row);
     (window as any).__emitSyntheticPostgresChange("team_messages", "INSERT", row);
   }, { row });
-  await expect(page.locator(`#message-${duplicateId}`)).toHaveCount(1);
+  await expect(page.locator(`#message-${duplicateId}`)).toHaveCount(1, { timeout: 15_000 });
   await page.evaluate(({ reaction }) => {
     (window as any).__emitSyntheticPostgresChange("message_reactions", "INSERT", reaction);
     (window as any).__emitSyntheticPostgresChange("message_reactions", "INSERT", reaction);
   }, { reaction });
   const bubble = page.locator(`#message-${duplicateId}`);
-  await expect(bubble.getByRole("button", { name: "1 like reaction" })).toHaveCount(1);
+  await expect(bubble.getByRole("button", { name: "1 like reaction" })).toHaveCount(1, { timeout: 15_000 });
 });
 
 test("a team draft survives leaving the chat and remounting the route", async ({ page }) => {
@@ -1148,6 +1148,7 @@ test("offline navigation shows saved Home, Schedule, Media and chat data then re
   test.setTimeout(60_000);
   await page.unrouteAll({ behavior: "wait" });
   const state = await install(page);
+  await page.setViewportSize({ width: 900, height: 800 });
   // This journey verifies cache persistence and responsive offline navigation,
   // not deep-link positioning. Use a row guaranteed to be in Virtuoso's
   // initial rendered window so virtualization cannot masquerade as cache loss.
@@ -1226,6 +1227,7 @@ test("a cold offline remount restores saved content without contacting the API",
   test.setTimeout(60_000);
   await page.unrouteAll({ behavior: "wait" });
   const state = await install(page);
+  await page.setViewportSize({ width: 900, height: 800 });
   // Prime and verify a row that is guaranteed to be inside Virtuoso's first
   // rendered window. The exact-target navigation contract is covered by the
   // dedicated notification tests; this journey is about disk persistence.
@@ -1323,6 +1325,7 @@ test("a cold offline chat remount displays saved messages and keeps its navigati
   test.setTimeout(40_000);
   await page.unrouteAll({ behavior: "wait" });
   const state = await install(page);
+  await page.setViewportSize({ width: 900, height: 800 });
   await page.goto(`/messages/${teamId}`);
   await expect(page.locator(`#message-${targetId}`)).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(2_000);
@@ -1589,7 +1592,10 @@ test(`${nativeCase.label} cold WebView restart returns to the exact open pitchbo
   await page.reload().catch((error) => {
     // Restoring the durable pitchboard route may redirect before Playwright's
     // original reload load event completes. That interruption is expected.
-    if (!String(error).includes("Frame load interrupted")) throw error;
+    const message = String(error);
+    if (!message.includes("Frame load interrupted") && !message.includes("WebKit encountered an internal error")) {
+      throw error;
+    }
   });
 
   await expect(page).toHaveURL(

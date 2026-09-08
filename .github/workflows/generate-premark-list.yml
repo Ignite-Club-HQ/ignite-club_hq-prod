@@ -20,7 +20,7 @@ jobs:
 
       - name: Run scanner against prod
         env:
-          PROD_DB_URL: postgresql://postgres.${{ secrets.SUPABASE_PROD_PROJECT_REF }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require
+          PROD_DB_URL: postgresql://postgres.${{ secrets.SUPABASE_PROD_PROJECT_REF }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres?sslmode=require
         run: |
           chmod +x scripts/generate-premark-list.sh
           bash scripts/generate-premark-list.sh | tee premark-output.txt

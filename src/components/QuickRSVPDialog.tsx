@@ -17,7 +17,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isToday, isTomorrow } from "date-fns";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
-import { resolveRsvpAudience, shouldPromptParent, shouldPromptPlayer } from "@/lib/rsvpAudience";
+import { resolveRsvpAudience, shouldPromptPlayer, shouldPromptSelf } from "@/lib/rsvpAudience";
+import { useViewerIsAdultPlayer } from "@/hooks/useViewerIsAdultPlayer";
 import { resolveRsvpChildren } from "@/lib/resolveEventChildScope";
 
 
@@ -95,7 +96,8 @@ export function QuickRSVPDialog({
     enabled: open && !!eventId,
   });
   const audience = resolveRsvpAudience(eventScope?.event?.rsvp_audience, eventScope?.teamDefault);
-  const promptParent = shouldPromptParent(audience);
+  const { data: viewerIsAdultPlayer } = useViewerIsAdultPlayer(eventScope?.event ?? null);
+  const promptParent = shouldPromptSelf(audience, viewerIsAdultPlayer);
   const promptPlayer = shouldPromptPlayer(audience);
 
   const scopeEvent = eventScope?.event ?? null;

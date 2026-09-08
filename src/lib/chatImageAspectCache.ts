@@ -18,8 +18,14 @@
 const STORAGE_KEY = "ignite_chat_image_ratios_v1";
 const MAX_ENTRIES = 800;
 const WRITE_DEBOUNCE_MS = 1500;
+const MIN_CHAT_ASPECT_RATIO = 3 / 4;
+const MAX_CHAT_ASPECT_RATIO = 16 / 9;
 
 type Ratios = Record<string, number>;
+
+function clampChatAspectRatio(ratio: number): number {
+  return Math.min(MAX_CHAT_ASPECT_RATIO, Math.max(MIN_CHAT_ASPECT_RATIO, ratio));
+}
 
 const memory: Map<string, number> = (globalThis as any).__chatImageAspectRatios
   ?? ((globalThis as any).__chatImageAspectRatios = new Map<string, number>());
@@ -39,7 +45,7 @@ function loadOnce() {
     if (parsed && typeof parsed === "object") {
       for (const [k, v] of Object.entries(parsed)) {
         if (typeof v === "number" && Number.isFinite(v) && v > 0) {
-          memory.set(k, v);
+          memory.set(k, clampChatAspectRatio(v));
         }
       }
     }
@@ -101,7 +107,7 @@ function extractRatioFromUrl(url: string | null | undefined): number | null {
     else if (k === "h") h = parseInt(v, 10) || 0;
     if (w && h) break;
   }
-  if (w > 0 && h > 0) return w / h;
+  if (w > 0 && h > 0) return clampChatAspectRatio(w / h);
   return null;
 }
 
@@ -111,7 +117,7 @@ export function getCachedImageAspectRatio(
   loadOnce();
   for (const u of urls) {
     const k = normalizeKey(u);
-    if (k && memory.has(k)) return memory.get(k)!;
+    if (k && memory.has(k)) return memory.get(k) ?? null;
   }
   // Fallback: dimensions encoded in the URL itself (?w=&h=). Populate the
   // in-memory cache so subsequent lookups are O(1).
@@ -133,12 +139,13 @@ export function setCachedImageAspectRatio(
 ): void {
   loadOnce();
   if (!Number.isFinite(ratio) || ratio <= 0) return;
+  const clampedRatio = clampChatAspectRatio(ratio);
   let changed = false;
   for (const u of urls) {
     const k = normalizeKey(u);
     if (!k) continue;
-    if (memory.get(k) !== ratio) {
-      memory.set(k, ratio);
+    if (memory.get(k) !== clampedRatio) {
+      memory.set(k, clampedRatio);
       changed = true;
     }
   }

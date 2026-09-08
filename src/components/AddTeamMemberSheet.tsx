@@ -74,6 +74,12 @@ import {
 } from "@/features/membership/membershipMutationService";
 import { processBulkInvitationBatch } from "@/features/membership/bulkInvitationWorkflow";
 import { refreshTeamRoleChange } from "@/features/membership/teamMembershipCacheCompletion";
+import {
+  ensureSecondParent,
+  secondParentValidationError,
+  secondParentPartialFailureMessage,
+  SecondParentError,
+} from "@/features/membership/secondParentInvite";
 
 interface BulkChild {
   id: string;
@@ -217,6 +223,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const [secondParentEmail, setSecondParentEmail] = useState("");
   const [secondParentSearch, setSecondParentSearch] = useState("");
   const [selectedSecondParent, setSelectedSecondParent] = useState<{ id: string; display_name: string | null; avatar_url: string | null } | null>(null);
+  const secondParentBlocked = secondParentValidationError({
+    role: selectedRole,
+    name: secondParentName,
+    email: secondParentEmail,
+    selectedProfile: selectedSecondParent,
+  });
   const debouncedSecondParentSearch = useDebounce(secondParentSearch, 300);
 
   const debouncedNameInput = useDebounce(nameInput, 300);
@@ -445,6 +457,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const addExistingUserMutation = useMutation({
     mutationFn: async () => {
       if (!selectedUser) throw new Error("No user selected");
+      if (secondParentBlocked) throw new SecondParentError(secondParentBlocked, secondParentName);
 
       const { roleWasDuplicate } = await assignExistingTeamRole({
         userId: selectedUser.id,
@@ -473,43 +486,26 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       let secondParentInviteLink: string | null = null;
       let secondParentAddedDirectly = false;
       
-      if (selectedSecondParent && selectedRole === "parent") {
-        const secondParentResult = await addExistingSecondParent({
-          userId: selectedSecondParent.id,
+      if ((selectedSecondParent || secondParentName.trim()) && selectedRole === "parent") {
+        const secondParentResult = await ensureSecondParent({
+          role: selectedRole,
           teamId,
           clubId,
-          teamName,
+          name: secondParentName,
+          email: secondParentEmail,
+          selectedProfile: selectedSecondParent,
           childIds: createdChildIds,
+          childrenMetadata: resolvedChildren.map((child) => ({
+            name: child.name,
+            yearOfBirth: child.yearOfBirth,
+            existingChildId: child.id,
+          })),
+          expectChildren: singleChildren.some((child) => child.name.trim()),
+          invitedByUserId: user!.id,
+          origin: window.location.origin,
         });
-        if (secondParentResult.roleError) {
-          console.error("Failed to add second parent role:", secondParentResult.roleError.message);
-        }
-
-        secondParentAddedDirectly = true;
-      } else if (secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") {
-        // Create pending invite for new second parent
-        const secondToken = crypto.randomUUID();
-        const childrenMetadata = resolvedChildren.length > 0 
-          ? resolvedChildren.map(child => ({ 
-              name: child.name,
-              yearOfBirth: child.yearOfBirth,
-              existingChildId: child.id,
-            }))
-          : null;
-
-        await supabase.from("pending_invites").insert({
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent" as any,
-          invited_user_id: null,
-          invited_by_user_id: user!.id,
-          invited_label: secondParentName.trim(),
-          invited_email: secondParentEmail.trim().toLowerCase(),
-          invite_token: secondToken,
-          metadata: childrenMetadata ? { children: childrenMetadata } : null,
-        } as any);
-
-        secondParentInviteLink = `${window.location.origin}/join/p/${secondToken}`;
+        secondParentInviteLink = secondParentResult.inviteLink ?? null;
+        secondParentAddedDirectly = secondParentResult.status === "added";
       }
 
       // Send notification (role is already committed — a failure here is a
@@ -701,6 +697,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const addPendingMemberMutation = useMutation({
     mutationFn: async () => {
       if (!nameInput.trim()) throw new Error("Please enter a name");
+      if (secondParentBlocked) throw new SecondParentError(secondParentBlocked, secondParentName);
 
       // Email dedupe: if the inviter typed an email and it belongs to an
       // existing in-scope user, attach the role directly instead of
@@ -765,8 +762,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         : [];
 
       // Generate second parent token only if NOT selecting an existing user
-      const secondToken = (!selectedSecondParent && secondParentName.trim() && secondParentEmail.trim() && selectedRole === "parent") 
-        ? crypto.randomUUID() : null;
+      const secondToken = null;
 
       const { invite: primaryInvite, childrenMetadata } = await createPendingTeamInvite({
         teamId,
@@ -787,40 +783,22 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       let secondParentLink: string | null = null;
       let secondParentAddedDirectly = false;
 
-      if (selectedSecondParent && selectedRole === "parent") {
-        // Add existing user directly as second parent (ignore duplicate)
-        const { error: roleErr } = await supabase.from("user_roles").insert({
-          user_id: selectedSecondParent.id,
-          team_id: teamId,
-          club_id: clubId,
-          role: "parent",
-        });
-        if (roleErr && !roleErr.message?.includes("duplicate")) {
-          console.error("Failed to add second parent role:", roleErr.message);
-        }
-
-        await supabase.from("notifications").insert({
-          user_id: selectedSecondParent.id,
-          type: "membership",
-          message: `You have been added to ${teamName} as Parent`,
-          related_id: teamId,
-        });
-
-        secondParentAddedDirectly = true;
-      } else if (secondToken) {
-        const { created } = await createPendingSecondParentInvite({
+      if ((selectedSecondParent || secondParentName.trim()) && selectedRole === "parent") {
+        const secondParentResult = await ensureSecondParent({
+          role: selectedRole,
           teamId,
           clubId,
-          inviterUserId: user!.id,
-          invitedName: secondParentName,
-          invitedEmail: secondParentEmail,
-          inviteToken: secondToken,
-          primaryInviteToken: inviteToken,
+          name: secondParentName,
+          email: secondParentEmail,
+          selectedProfile: selectedSecondParent,
           childrenMetadata,
+          expectChildren: validChildren.length > 0,
+          invitedByUserId: user!.id,
+          linkedInviteToken: inviteToken,
+          origin: window.location.origin,
         });
-        if (created) {
-          secondParentLink = `${window.location.origin}/join/p/${secondToken}`;
-        }
+        secondParentLink = secondParentResult.inviteLink ?? null;
+        secondParentAddedDirectly = secondParentResult.status === "added";
       }
 
       const shortCode = (primaryInvite as any)?.short_code || null;
@@ -1032,9 +1010,9 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         console.error("Failed to add bulk member", failure.memberName, failure.error);
       }
 
-      return results;
+      return { results, failures };
     },
-    onSuccess: (results) => {
+    onSuccess: ({ results, failures }) => {
       setBulkResults(results);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId, null] });
       refreshTeamRoleChange(queryClient, teamId);
@@ -1042,7 +1020,16 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
       const sentCount = results.filter(r => r.sent).length;
       const totalCount = results.length;
       
-      void toastInviteSuccess({
+      if (failures.length > 0) {
+        toast({
+          title: "Some invitations need attention",
+          description: secondParentPartialFailureMessage(
+            `${totalCount} member${totalCount === 1 ? " was" : "s were"} added`,
+            failures.map((failure) => failure.memberName).join(", "),
+          ),
+          variant: "destructive",
+        });
+      } else void toastInviteSuccess({
         title: `${totalCount} member${totalCount > 1 ? "s" : ""} added`,
         description: sentCount > 0
           ? `${sentCount} member${sentCount > 1 ? "s were" : " was"} added or emailed successfully`

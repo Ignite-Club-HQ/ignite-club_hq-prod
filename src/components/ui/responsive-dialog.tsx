@@ -93,20 +93,32 @@ export function ResponsiveDialogContent({
   if (isMobile) {
     return (
       <DrawerContent
-        className={fullScreen ? "top-[env(safe-area-inset-top,0px)]" : className}
+        className={
+          fullScreen
+            // Keep the full-screen drawer bottom-anchored. Setting `top` as well
+            // as `bottom` and an explicit height over-constrains the box; mobile
+            // browsers may then drop `bottom` and place the action footer below
+            // the viewport. `mt-0` also cancels DrawerContent's default offset.
+            ? "mt-0"
+            : className
+        }
         style={
           fullScreen
             ? {
                 // On Android the WebView's dvh shrinks with the soft keyboard and
                 // does not restore reliably, leaving a blank gap under the sheet.
-                // --visual-vh is monotonic-max locked, so it stays stable.
+                // --visual-vh is monotonic-max locked, so it stays stable — but a
+                // stale (too tall) lock would push the anchored footer BELOW the
+                // screen, hiding the primary action. Clamp against 100vh (the
+                // largest stable viewport, unaffected by the keyboard).
                 height:
-                  "calc(var(--visual-vh, 100dvh) - env(safe-area-inset-top,0px))",
+                  "calc(min(var(--visual-vh, 100dvh), 100vh) - env(safe-area-inset-top,0px))",
                 maxHeight:
-                  "calc(var(--visual-vh, 100dvh) - env(safe-area-inset-top,0px))",
+                  "calc(min(var(--visual-vh, 100dvh), 100vh) - env(safe-area-inset-top,0px))",
               }
             : undefined
         }
+
       >
         <div className={fullScreen 
           ? "flex flex-1 min-h-0 flex-col w-full overflow-hidden" 

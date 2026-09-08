@@ -1,0 +1,1 @@
+ALTER TABLE public.club_news ADD COLUMN IF NOT EXISTS attachments jsonb NOT NULL DEFAULT '[]'::jsonb;

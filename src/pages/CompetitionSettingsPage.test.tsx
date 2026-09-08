@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   },
   updateResult: { error: null as any },
   lastUpdateQuery: null as any,
+  competitionRoleQuery: null as any,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -60,13 +61,27 @@ vi.mock("@tanstack/react-query", async importOriginal => {
       return { data: mocks.state.isAdmin, isLoading: mocks.state.adminLoading };
     }
     if (key === "competition-divisions") return { data: mocks.state.divisions, isLoading: false };
-    if (key === "competition-coordinators") return { data: mocks.state.coordinators, isLoading: false };
-    if (key === "competition-coordinator-candidates") {
+    if (key === "competition-roles") return { data: mocks.state.coordinators, isLoading: false };
+    if (key === "competition-admin-search") {
       return { data: enabled ? mocks.state.candidates : [], isFetching: false };
     }
     return { data: undefined, isLoading: false };
   },
   useQueryClient: () => ({ invalidateQueries: mocks.invalidateQueries }),
+  useMutation: ({ mutationFn, onSuccess, onError }: any) => ({
+    mutate: (variables: any) => { void mutationFn(variables).then(onSuccess).catch(onError); },
+    mutateAsync: async (variables: any) => {
+      try {
+        const result = await mutationFn(variables);
+        onSuccess?.(result);
+        return result;
+      } catch (error) {
+        onError?.(error);
+        throw error;
+      }
+    },
+    isPending: false,
+  }),
   };
 });
 
@@ -114,7 +129,12 @@ describe("competition settings authorization and saving", () => {
     mocks.state.candidates = [];
     mocks.updateResult.error = null;
     mocks.lastUpdateQuery = null;
-    mocks.from.mockImplementation(() => updateQuery());
+    mocks.competitionRoleQuery = null;
+    mocks.from.mockImplementation((table: string) => {
+      const query = updateQuery();
+      if (table === "competition_roles") mocks.competitionRoleQuery = query;
+      return query;
+    });
   });
 
   it("does not expose settings while competition or permission checks are loading", () => {
@@ -212,7 +232,7 @@ describe("competition settings authorization and saving", () => {
     mocks.state.divisions = [{ id: "division-1", name: "Premier", hide_ladder: false }];
     render(<CompetitionSettingsPage />);
 
-    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getAllByRole("switch")[0]);
 
     await waitFor(() => expect(mocks.from).toHaveBeenCalledWith("competition_divisions"));
     expect(mocks.lastUpdateQuery.update).toHaveBeenCalledWith({ hide_ladder: true });
@@ -230,7 +250,7 @@ describe("competition settings authorization and saving", () => {
     mocks.updateResult.error = { message: "ladder update denied" };
     render(<CompetitionSettingsPage />);
 
-    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getAllByRole("switch")[0]);
 
     await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
       title: "Could not update",
@@ -242,7 +262,8 @@ describe("competition settings authorization and saving", () => {
 
   it("never offers a control to remove the competition owner", () => {
     mocks.state.coordinators = [{
-      user_id: "owner-1", role: "owner", display_name: "Competition Owner", avatar_url: null,
+      id: "role-owner", user_id: "owner-1", role: "owner",
+      profile: { display_name: "Competition Owner", avatar_url: null },
     }];
     render(<CompetitionSettingsPage />);
 
@@ -253,62 +274,62 @@ describe("competition settings authorization and saving", () => {
 
   it("adds only the selected eligible coordinator with an admin role", async () => {
     mocks.state.candidates = [{
-      user_id: "candidate-1",
+      id: "candidate-1",
       display_name: "Casey Coach",
       avatar_url: null,
       source: "club admin",
       masked_email: "c***@example.com",
     }];
     render(<CompetitionSettingsPage />);
-    fireEvent.change(screen.getByLabelText("Add a coordinator"), { target: { value: "Casey" } });
-    fireEvent.click(await screen.findByRole("button", { name: /casey coach/i }));
+    fireEvent.change(screen.getByLabelText("Search members to add as competition admin"), { target: { value: "Casey" } });
+    await screen.findByText("Casey Coach");
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     await waitFor(() => expect(mocks.from).toHaveBeenCalledWith("competition_roles"));
-    expect(mocks.lastUpdateQuery.insert).toHaveBeenCalledWith({
+    expect(mocks.competitionRoleQuery.insert).toHaveBeenCalledWith({
       competition_id: "competition-1",
       user_id: "candidate-1",
       role: "admin",
     });
-    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({ title: "Coordinator added" }));
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Competition admin added" })));
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["competition-coordinators", "competition-1"],
+      queryKey: ["competition-roles", "competition-1"],
     });
   });
 
   it("scopes removal to both competition and coordinator identity", async () => {
     mocks.state.coordinators = [{
-      user_id: "coordinator-1", role: "admin", display_name: "Casey Coach", avatar_url: null,
+      id: "role-coordinator", user_id: "coordinator-1", role: "admin",
+      profile: { display_name: "Casey Coach", avatar_url: null },
     }];
     render(<CompetitionSettingsPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Remove Casey Coach" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove Casey Coach as admin" }));
 
     await waitFor(() => expect(mocks.lastUpdateQuery.delete).toHaveBeenCalledOnce());
-    expect(mocks.lastUpdateQuery.eq).toHaveBeenCalledWith("competition_id", "competition-1");
-    expect(mocks.lastUpdateQuery.eq).toHaveBeenCalledWith("user_id", "coordinator-1");
-    expect(mocks.toast).toHaveBeenCalledWith({ title: "Coordinator removed" });
+    expect(mocks.lastUpdateQuery.eq).toHaveBeenCalledWith("id", "role-coordinator");
+    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Admin removed" }));
   });
 
-  it("does not remove the current coordinator when leave confirmation is cancelled", () => {
+  it("does not offer removal of the current admin", () => {
     mocks.state.coordinators = [{
-      user_id: "admin-1", role: "admin", display_name: "Current Admin", avatar_url: null,
+      id: "role-current", user_id: "admin-1", role: "admin",
+      profile: { display_name: "Current Admin", avatar_url: null },
     }];
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<CompetitionSettingsPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Leave" }));
-
-    expect(mocks.from).not.toHaveBeenCalledWith("competition_roles");
-    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(screen.getByText("Current Admin")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /remove current admin/i })).not.toBeInTheDocument();
   });
 
-  it("navigates away only after the current coordinator successfully leaves", async () => {
+  it("keeps current-admin access separate from removing other admins", () => {
     mocks.state.coordinators = [{
-      user_id: "admin-1", role: "admin", display_name: "Current Admin", avatar_url: null,
+      id: "role-current", user_id: "admin-1", role: "admin",
+      profile: { display_name: "Current Admin", avatar_url: null },
+    }, {
+      id: "role-other", user_id: "other-1", role: "admin",
+      profile: { display_name: "Other Admin", avatar_url: null },
     }];
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<CompetitionSettingsPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Leave" }));
-
-    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith("/competitions"));
-    expect(mocks.toast).toHaveBeenCalledWith({ title: "You've left as coordinator" });
+    expect(screen.queryByRole("button", { name: /remove current admin/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Other Admin as admin" })).toBeInTheDocument();
   });
 });

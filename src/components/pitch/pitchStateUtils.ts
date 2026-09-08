@@ -117,11 +117,12 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
     }
     const state = JSON.parse(saved) as PitchBoardState;
 
-    // Auto-expire whole pitch state after 12 hours of inactivity (no running
-    // timer). Without this, fill-in players, sub plans, on-pitch assignments
-    // and minutes from a game played days/weeks ago would carry into the next
-    // game's Starting Lineup setup. We only clear when the timer isn't
-    // running so a paused / backgrounded live game is never wiped.
+    // Stale-state handling (>12h since last update, no live timer).
+    //
+    // We must NOT delete the whole saved state here: coaches set a lineup the
+    // night before (or days before) a game, and wiping it meant the board came
+    // back auto-placed with defaults. Instead we RESET the game-in-progress
+    // parts and KEEP the planned lineup (positions, formation, team size).
     const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
     const timerState = loadTimerStateForMinutes(teamId);
     // A timer is only "really" running if it claims isRunning AND its own
@@ -136,16 +137,42 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
       !!state.lastUpdateTime &&
       Date.now() - state.lastUpdateTime > TWELVE_HOURS_MS;
     if (!isGameRunning && pitchStateStale) {
-      console.log("[PitchState] Stale pitch state (>12h, no live timer) — clearing for fresh game setup");
-      localStorage.removeItem(getPitchStateKey(teamId));
+      console.log(
+        "[PitchState] Stale pitch state (>12h, no live timer) — keeping lineup, resetting game progress",
+      );
+
+      // Keep fill-in guests too — coaches add them for a specific fixture and
+      // expect them to still be there the next day. Cross-fixture leakage is
+      // already prevented by the `savedStateIsForDifferentEvent` purge in
+      // PitchBoard, which drops fill-ins when opening a DIFFERENT event.
+      // Only game progress (minutes, injuries) is reset; everyone's slot stays.
+      const preservedPlayers = (state.players ?? [])
+        .map((p) => ({ ...p, minutesPlayed: 0, isInjured: false }));
+
+      const refreshed: PitchBoardState = {
+        ...state,
+        players: preservedPlayers,
+        // Game-in-progress data must never carry into the next game.
+        goals: [],
+        autoSubPlan: [],
+        autoSubActive: false,
+        autoSubPaused: false,
+        // The previous game's event link is no longer meaningful.
+        linkedEventId: null,
+        lastUpdateTime: Date.now(),
+        lastTimerSeconds: 0,
+      };
+
+      const serialised = JSON.stringify(refreshed);
+      localStorage.setItem(getPitchStateKey(teamId), serialised);
       const active = localStorage.getItem(PITCH_STATE_KEY);
       if (active) {
         try {
           const activeState = JSON.parse(active) as PitchBoardState;
-          if (activeState.teamId === teamId) localStorage.removeItem(PITCH_STATE_KEY);
+          if (activeState.teamId === teamId) localStorage.setItem(PITCH_STATE_KEY, serialised);
         } catch { /* ignore */ }
       }
-      // Also clear the stale timer so widgets/home don't show a phantom live game.
+      // Clear the stale timer so widgets/home don't show a phantom live game.
       try {
         localStorage.removeItem(getTeamTimerStorageKey(teamId));
         const activeTimer = localStorage.getItem(ACTIVE_TIMER_KEY);
@@ -154,8 +181,9 @@ export const loadPitchState = (teamId: string): PitchBoardState | null => {
           if (t.teamId === teamId) localStorage.removeItem(ACTIVE_TIMER_KEY);
         }
       } catch { /* ignore */ }
-      return null;
+      return refreshed;
     }
+
 
     // Auto-expire stale auto-sub plans after 2 hours of inactivity
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000;

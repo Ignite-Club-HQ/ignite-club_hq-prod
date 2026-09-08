@@ -46,6 +46,7 @@ import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { useDraggableTimer } from "@/hooks/useDraggableTimer";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { requestEndGameAndSave } from "./endGameRequest";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 import { TrainingSettingsDialog } from "./training/TrainingSettingsDialog";
 
@@ -397,7 +398,8 @@ export default function PitchBoardPortraitLayout() {
     trainingSettingsDialogOpen,
     undoHistory,
     user,
-    zoom
+    zoom,
+    pitchZoomScrollRef
   } = ctx;
 
   const isNative = Capacitor.isNativePlatform();
@@ -562,6 +564,7 @@ export default function PitchBoardPortraitLayout() {
                 onUnlinkEvent={handleUnlinkEvent}
                 onResetFormation={handleResetFormation}
                 onOpenStats={() => setStatsOpen(true)}
+                onEndGameAndSave={() => requestEndGameAndSave(teamId)}
                 onSaveSettings={handleSaveSettings}
                 isSaving={isSavingSettings}
                 showMatchHeader={showMatchHeader}
@@ -1323,10 +1326,10 @@ export default function PitchBoardPortraitLayout() {
         )}
 
         {/* The Pitch */}
-        <div 
+        <div
           id="portrait-pitch-area"
+          ref={pitchZoomScrollRef}
           className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
-          onWheel={handleWheel}
           onDrop={handlePitchDrop}
           onDragOver={handleDragOver}
           onDragEnter={handleDragOver}

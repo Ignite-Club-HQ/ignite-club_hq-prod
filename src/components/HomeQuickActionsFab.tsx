@@ -14,10 +14,9 @@ import {
   SlidersHorizontal,
   ImagePlus,
   Folder,
-  Settings,
   Shield,
   Lock,
-  Sparkles,
+  Newspaper,
 } from "lucide-react";
 import {
   ResponsiveDialog,
@@ -27,7 +26,8 @@ import {
 } from "@/components/ui/responsive-dialog";
 import { CreateActionButton } from "@/components/CreateActionButton";
 import { Separator } from "@/components/ui/separator";
-import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
+import ClubNewsComposer from "@/components/news/ClubNewsComposer";
+import { useNewsPublishableClubs } from "@/features/news/useClubNews";
 
 interface HomeQuickActionsFabProps {
   onInvite: () => void;
@@ -63,11 +63,12 @@ export function HomeQuickActionsFab({
   hasProContext = false,
 }: HomeQuickActionsFabProps) {
   const proLocked = !hasProContext && !isAppAdmin;
-  const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub(activeClubFilter ?? null);
 
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"main" | "more">("main");
+  const [composerOpen, setComposerOpen] = useState(false);
   const navigate = useNavigate();
+  const { data: publishableClubs = [] } = useNewsPublishableClubs();
 
   const close = () => setOpen(false);
   const go = (path: string) => {
@@ -113,14 +114,14 @@ export function HomeQuickActionsFab({
           } as ActionItem,
         ]
       : []),
-    ...(hasTeams
+    ...(publishableClubs.length > 0
       ? [
           {
-            label: "Invite Members",
-            icon: UserPlus,
+            label: "Create News Post",
+            icon: Newspaper,
             onClick: () => {
               close();
-              onInvite();
+              setComposerOpen(true);
             },
           } as ActionItem,
         ]
@@ -134,16 +135,6 @@ export function HomeQuickActionsFab({
         onJoinTeam();
       },
     },
-    ...(hasAICatchUpClub
-      ? [
-          {
-            label: "Chat Recap",
-            description: "Catch up on unread threads with AI",
-            icon: Sparkles,
-            onClick: () => go("/messages?recap=1"),
-          } as ActionItem,
-        ]
-      : []),
   ];
 
   // More — low-frequency administrative actions
@@ -154,6 +145,18 @@ export function HomeQuickActionsFab({
       onClick: () => go("/messages?new=picker"),
       proLocked,
     },
+    ...(hasTeams
+      ? [
+          {
+            label: "Invite Members",
+            icon: UserPlus,
+            onClick: () => {
+              close();
+              onInvite();
+            },
+          } as ActionItem,
+        ]
+      : []),
     ...(canCreateTeam
       ? [
           {
@@ -180,15 +183,6 @@ export function HomeQuickActionsFab({
 
         ]
       : []),
-    ...(activeClubFilter && canCreateTeam
-      ? [
-          {
-            label: "Club Settings",
-            icon: Settings,
-            onClick: () => go(`/clubs/${activeClubFilter}/edit`),
-          } as ActionItem,
-        ]
-      : []),
     ...(canAccessVault
       ? [
           {
@@ -210,15 +204,13 @@ export function HomeQuickActionsFab({
       : []),
   ];
 
+  const rowClass =
+    "flex items-center gap-3 w-full min-h-[66px] px-3 py-3 rounded-xl hover:bg-accent/50 active:bg-accent active:scale-[0.99] transition-all text-left touch-manipulation select-none";
+
   const PrimaryRow = ({ item }: { item: ActionItem }) => (
-    <button
-      key={item.label}
-      type="button"
-      onClick={item.onClick}
-      className="flex items-center gap-3 w-full min-h-[48px] px-3 py-2 rounded-xl hover:bg-accent/50 active:bg-accent active:scale-[0.98] transition-all text-left touch-manipulation"
-    >
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
-        <item.icon className="h-[18px] w-[18px]" />
+    <button key={item.label} type="button" onClick={item.onClick} className={rowClass}>
+      <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
+        <item.icon className="h-[22px] w-[22px]" />
       </span>
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-1.5 min-w-0">
@@ -239,14 +231,9 @@ export function HomeQuickActionsFab({
   );
 
   const MutedRow = ({ item }: { item: ActionItem }) => (
-    <button
-      key={item.label}
-      type="button"
-      onClick={item.onClick}
-      className="flex items-center gap-3 w-full min-h-[48px] px-3 rounded-xl hover:bg-accent/50 active:bg-accent active:scale-[0.98] transition-all text-left touch-manipulation"
-    >
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
-        <item.icon className="h-[18px] w-[18px]" />
+    <button key={item.label} type="button" onClick={item.onClick} className={rowClass}>
+      <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
+        <item.icon className="h-[22px] w-[22px]" />
       </span>
       <span className="flex-1 min-w-0 flex items-center gap-1.5">
         <span className="text-[15px] font-medium text-foreground/80 truncate">
@@ -258,6 +245,7 @@ export function HomeQuickActionsFab({
       </span>
     </button>
   );
+
 
   return (
     <>
@@ -290,10 +278,10 @@ export function HomeQuickActionsFab({
                 <button
                   type="button"
                   onClick={() => setView("more")}
-                  className="flex items-center gap-3 w-full min-h-[48px] px-3 rounded-xl hover:bg-accent/50 active:bg-accent active:scale-[0.98] transition-all text-left touch-manipulation"
+                  className={rowClass}
                 >
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
-                    <SlidersHorizontal className="h-[18px] w-[18px]" />
+                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
+                    <SlidersHorizontal className="h-[22px] w-[22px]" />
                   </span>
                   <span className="text-[15px] font-medium text-muted-foreground truncate">
                     More Actions
@@ -304,15 +292,18 @@ export function HomeQuickActionsFab({
             </>
           ) : (
             <>
-              <ResponsiveDialogHeader className="text-left p-4 pb-2 flex flex-row items-center gap-3">
+              <ResponsiveDialogHeader className="text-left p-4 pb-2 flex flex-row items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setView("main")}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-accent active:scale-95 transition-all shrink-0 touch-manipulation"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full -ml-2 shrink-0 touch-manipulation active:scale-95 transition-all"
                   aria-label="Back"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <ChevronLeft className="h-4 w-4" />
+                  </span>
                 </button>
+
                 <ResponsiveDialogTitle className="text-lg font-semibold tracking-tight">
                   More Actions
                 </ResponsiveDialogTitle>
@@ -327,6 +318,17 @@ export function HomeQuickActionsFab({
           )}
         </ResponsiveDialogContent>
       </ResponsiveDialog>
+
+      {composerOpen && (
+        <ClubNewsComposer
+          open={composerOpen}
+          onOpenChange={(isOpen) => {
+            setComposerOpen(isOpen);
+            if (!isOpen) setView("main");
+          }}
+          defaultClubId={activeClubFilter}
+        />
+      )}
     </>
   );
 }

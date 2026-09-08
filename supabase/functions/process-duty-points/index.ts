@@ -150,6 +150,7 @@ Deno.serve(async (req) => {
             user_id: duty.assigned_to,
             type: 'reward_unlocked',
             message: `🎁 Reward unlocked! You've earned: ${reward.name}!`,
+            club_id: club?.id || null,
           });
           console.log(`User ${duty.assigned_to}: Reward "${reward.name}" unlocked!`);
         }
@@ -352,6 +353,7 @@ Deno.serve(async (req) => {
           user_id: rsvp.user_id,
           type: 'reward_unlocked',
           message: `🎁 Reward unlocked! You've earned: ${attendanceRewardName}!`,
+          club_id: club?.id || null,
         });
       }
 
@@ -360,6 +362,7 @@ Deno.serve(async (req) => {
         type: 'points_awarded',
         message: `You earned ${attendancePts} points for attending! 🔥`,
         related_id: event.id,
+        club_id: club?.id || null,
       });
 
       // Send email
@@ -516,6 +519,7 @@ Deno.serve(async (req) => {
             user_id: rsvp.user_id,
             type: 'reward_unlocked',
             message: `🎁 ${childName} unlocked a reward: ${childRewardName}!`,
+            club_id: club?.id || null,
           });
         }
         await supabase.from('notifications').insert({
@@ -523,6 +527,7 @@ Deno.serve(async (req) => {
           type: 'points_awarded',
           message: `${childName} earned ${childAttendancePts} points for attending! 🔥`,
           related_id: event.id,
+          club_id: club?.id || null,
         });
 
         // Send email to parent

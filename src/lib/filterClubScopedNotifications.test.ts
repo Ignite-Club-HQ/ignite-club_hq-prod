@@ -78,11 +78,60 @@ describe("filterClubScopedNotifications", () => {
       { id: "g1", type: "system_update", related_id: null, club_id: null },
       { id: "g2", type: "role_request_approved", related_id: null, club_id: null },
       { id: "g3", type: "child_added", related_id: null, club_id: null },
-      { id: "g4", type: "streak_progress", related_id: null, club_id: null },
-      { id: "g5", type: "reward_unlocked", related_id: null, club_id: null },
     ];
     const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
-    expect(out.map((r) => r.id).sort()).toEqual(["g1", "g2", "g3", "g4", "g5"]);
+    expect(out.map((r) => r.id).sort()).toEqual(["g1", "g2", "g3"]);
+  });
+
+  it("drops reward_claimed from a foreign club (resolves via reward_redemptions)", async () => {
+    tableRows.reward_redemptions = [{ id: "r1", club_id: OTHER }];
+    const rows = [{ id: "n1", type: "reward_claimed", related_id: "r1", club_id: null }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out).toEqual([]);
+  });
+
+  it("keeps reward_claimed from the active club", async () => {
+    tableRows.reward_redemptions = [{ id: "r1", club_id: ACTIVE }];
+    const rows = [{ id: "n1", type: "reward_claimed", related_id: "r1", club_id: null }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out.map((r) => r.id)).toEqual(["n1"]);
+  });
+
+  it("fails closed on reward_claimed when the redemption lookup finds nothing", async () => {
+    tableRows.reward_redemptions = [];
+    const rows = [{ id: "n1", type: "reward_claimed", related_id: "gone", club_id: null }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out).toEqual([]);
+  });
+
+  it("drops reward_proximity from a foreign club (resolves via club_rewards)", async () => {
+    tableRows.club_rewards = [{ id: "rw1", club_id: OTHER }];
+    const rows = [{ id: "n1", type: "reward_proximity", related_id: "rw1", club_id: null }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out).toEqual([]);
+  });
+
+  it("scopes reward/streak types whose related_id is the owning club id", async () => {
+    const rows = [
+      { id: "k1", type: "reward_unlocked", related_id: ACTIVE, club_id: null },
+      { id: "k2", type: "early_rsvp_points", related_id: ACTIVE, club_id: null },
+      { id: "d1", type: "reward_unlocked", related_id: OTHER, club_id: null },
+      { id: "d2", type: "streak_progress", related_id: OTHER, club_id: null },
+      { id: "d3", type: "streak_bonus", related_id: OTHER, club_id: null },
+      { id: "d4", type: "leaderboard_update", related_id: OTHER, club_id: null },
+      // Legacy rows without related_id cannot be resolved → fail closed.
+      { id: "d5", type: "reward_unlocked", related_id: null, club_id: null },
+      { id: "d6", type: "streak_progress", related_id: null, club_id: null },
+    ];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out.map((r) => r.id).sort()).toEqual(["k1", "k2"]);
+  });
+
+  it("resolves points_awarded via event → club and drops foreign-club rows", async () => {
+    tableRows.events = [{ id: "e1", club_id: OTHER, team_id: null }];
+    const rows = [{ id: "n1", type: "points_awarded", related_id: "e1", club_id: null }];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out).toEqual([]);
   });
 
   it("keeps unknown / future notification types when unresolved", async () => {

@@ -21,9 +21,14 @@ interface RenewalReminderEmailProps {
   tierName: string;
   expiryDate: string;
   daysUntilExpiry: number;
-  manageLink: string;
+  manageLink?: string;
   clubLogoUrl?: string;
   primaryColor?: string;
+  /**
+   * Promo/trial-granted subscription variant: no payment instrument exists, so
+   * the email must not mention renewal, cancellation or billing management.
+   */
+  isPromoGrant?: boolean;
 }
 
 // Production domain for all links
@@ -73,8 +78,11 @@ export const RenewalReminderEmail = ({
   manageLink = "https://igniteclubhq.app/settings",
   clubLogoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
+  isPromoGrant = false,
 }: RenewalReminderEmailProps) => {
-  const previewText = `${entityName}'s ${tierName} subscription renews on ${expiryDate}`;
+  const previewText = isPromoGrant
+    ? `${entityName}'s ${tierName} access ends on ${expiryDate}`
+    : `${entityName}'s ${tierName} subscription renews on ${expiryDate}`;
   const entityLabel = entityType === 'club' ? 'club' : 'team';
   const normalizedManageLink = normalizeLink(manageLink);
   const validClubLogoUrl = isValidExternalUrl(clubLogoUrl) ? clubLogoUrl : undefined;
@@ -96,15 +104,15 @@ export const RenewalReminderEmail = ({
                 style={logoStyle}
               />
             ) : (
-              <Text style={headerEmoji}>🔄</Text>
+              <Text style={headerEmoji}>{isPromoGrant ? '⏳' : '🔄'}</Text>
             )}
-            <Heading style={headerTitle}>Subscription Renewal</Heading>
+            <Heading style={headerTitle}>{isPromoGrant ? 'Pro Access Ending' : 'Subscription Renewal'}</Heading>
           </Section>
 
           {/* Countdown Banner */}
           <Section style={countdownBanner}>
             <Text style={countdownNumber}>{daysUntilExpiry}</Text>
-            <Text style={countdownLabel}>days until renewal</Text>
+            <Text style={countdownLabel}>{isPromoGrant ? 'days until Pro access ends' : 'days until renewal'}</Text>
           </Section>
 
           {/* Main Content */}
@@ -113,9 +121,15 @@ export const RenewalReminderEmail = ({
               <Text style={greeting}>Dear {recipientName},</Text>
             )}
             
-            <Text style={paragraph}>
-              Just a quick heads up! Your <strong style={{ color: primaryColor }}>{entityName}</strong> {entityLabel}'s <strong>{tierName}</strong> subscription will automatically renew on:
-            </Text>
+            {isPromoGrant ? (
+              <Text style={paragraph}>
+                Your {entityLabel} <strong style={{ color: primaryColor }}>{entityName}</strong>'s <strong>{tierName}</strong> access, granted via a promotional code, expires on:
+              </Text>
+            ) : (
+              <Text style={paragraph}>
+                Just a quick heads up! Your <strong style={{ color: primaryColor }}>{entityName}</strong> {entityLabel}'s <strong>{tierName}</strong> subscription will automatically renew on:
+              </Text>
+            )}
 
             {/* Date Card */}
             <Section style={dateCard}>
@@ -125,24 +139,32 @@ export const RenewalReminderEmail = ({
             {/* Info Section */}
             <Section style={{ ...infoBox, borderLeftColor: primaryColor }}>
               <Text style={infoTitle}>What happens next?</Text>
-              <Text style={infoText}>
-                Your subscription will automatically renew to keep your {entityLabel}'s premium features active. No action is needed if you want to continue.
-              </Text>
+              {isPromoGrant ? (
+                <Text style={infoText}>
+                  No payment will be taken — this access was free. To keep {tierName} features, subscribe before the expiry date, otherwise your {entityLabel} reverts to the free plan.
+                </Text>
+              ) : (
+                <Text style={infoText}>
+                  Your subscription will automatically renew to keep your {entityLabel}'s premium features active. No action is needed if you want to continue.
+                </Text>
+              )}
             </Section>
 
-            {/* Action Options */}
-            <Section style={actionSection}>
-              <Text style={actionTitle}>Need to make changes?</Text>
-              <Text style={paragraph}>
-                If you'd like to cancel or modify your subscription, please visit your {entityLabel} settings before the renewal date.
-              </Text>
-              
-              <Section style={buttonSection}>
-                <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedManageLink}>
-                  Manage Subscription
-                </Button>
+            {/* Action Options — paying subscriptions only; promo grants have no billing to manage */}
+            {!isPromoGrant && (
+              <Section style={actionSection}>
+                <Text style={actionTitle}>Need to make changes?</Text>
+                <Text style={paragraph}>
+                  If you'd like to cancel or modify your subscription, please visit your {entityLabel} settings before the renewal date.
+                </Text>
+
+                <Section style={buttonSection}>
+                  <Button style={{ ...button, backgroundColor: primaryColor }} href={normalizedManageLink}>
+                    Manage Subscription
+                  </Button>
+                </Section>
               </Section>
-            </Section>
+            )}
 
             {/* Benefits Reminder */}
             <Section style={benefitsSection}>

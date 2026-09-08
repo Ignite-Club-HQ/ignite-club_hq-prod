@@ -429,6 +429,7 @@ export type Database = {
           id: string
           image_url: string | null
           reply_to_id: string | null
+          target_club_ids: string[] | null
           text: string
         }
         Insert: {
@@ -439,6 +440,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
+          target_club_ids?: string[] | null
           text: string
         }
         Update: {
@@ -449,6 +451,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           reply_to_id?: string | null
+          target_club_ids?: string[] | null
           text?: string
         }
         Relationships: [
@@ -750,6 +753,7 @@ export type Database = {
           category: string | null
           club_id: string | null
           competition_id: string | null
+          competition_scope: string | null
           created_at: string
           created_by: string
           deleted_at: string | null
@@ -775,6 +779,7 @@ export type Database = {
           category?: string | null
           club_id?: string | null
           competition_id?: string | null
+          competition_scope?: string | null
           created_at?: string
           created_by: string
           deleted_at?: string | null
@@ -800,6 +805,7 @@ export type Database = {
           category?: string | null
           club_id?: string | null
           competition_id?: string | null
+          competition_scope?: string | null
           created_at?: string
           created_by?: string
           deleted_at?: string | null
@@ -1913,6 +1919,72 @@ export type Database = {
           },
         ]
       }
+      club_news: {
+        Row: {
+          attachments: Json
+          author_id: string | null
+          chat_posted_at: string | null
+          club_id: string
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          is_important: boolean
+          is_published: boolean
+          published_at: string
+          target_team_ids: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json
+          author_id?: string | null
+          chat_posted_at?: string | null
+          club_id: string
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_important?: boolean
+          is_published?: boolean
+          published_at?: string
+          target_team_ids?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json
+          author_id?: string | null
+          chat_posted_at?: string | null
+          club_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_important?: boolean
+          is_published?: boolean
+          published_at?: string
+          target_team_ids?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_news_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_news_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_players: {
         Row: {
           child_id: string | null
@@ -2930,6 +3002,8 @@ export type Database = {
           join_token_enabled: boolean
           last_synced_at: string | null
           logo_url: string | null
+          member_chat_admins_only: boolean
+          member_chat_enabled: boolean
           name: string
           organizer_club_id: string
           points_draw: number
@@ -2957,6 +3031,8 @@ export type Database = {
           join_token_enabled?: boolean
           last_synced_at?: string | null
           logo_url?: string | null
+          member_chat_admins_only?: boolean
+          member_chat_enabled?: boolean
           name: string
           organizer_club_id: string
           points_draw?: number
@@ -2984,6 +3060,8 @@ export type Database = {
           join_token_enabled?: boolean
           last_synced_at?: string | null
           logo_url?: string | null
+          member_chat_admins_only?: boolean
+          member_chat_enabled?: boolean
           name?: string
           organizer_club_id?: string
           points_draw?: number
@@ -4014,6 +4092,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "event_guests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_lineups: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          lineup: Json
+          team_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          lineup?: Json
+          team_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          lineup?: Json
+          team_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_lineups_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
@@ -7528,6 +7644,7 @@ export type Database = {
           ai_catch_up_acknowledged_at: string | null
           ai_catch_up_enabled: boolean
           avatar_url: string | null
+          club_switcher_hint_seen_at: string | null
           created_at: string
           display_name: string | null
           email_hash: string | null
@@ -7552,6 +7669,7 @@ export type Database = {
           ai_catch_up_acknowledged_at?: string | null
           ai_catch_up_enabled?: boolean
           avatar_url?: string | null
+          club_switcher_hint_seen_at?: string | null
           created_at?: string
           display_name?: string | null
           email_hash?: string | null
@@ -7576,6 +7694,7 @@ export type Database = {
           ai_catch_up_acknowledged_at?: string | null
           ai_catch_up_enabled?: boolean
           avatar_url?: string | null
+          club_switcher_hint_seen_at?: string | null
           created_at?: string
           display_name?: string | null
           email_hash?: string | null
@@ -10670,6 +10789,10 @@ export type Database = {
         Args: { _base_url: string }
         Returns: number
       }
+      broadcast_targets_user: {
+        Args: { _club_ids: string[]; _user_id: string }
+        Returns: boolean
+      }
       can_access_chat: {
         Args: { _chat_id: string; _chat_type: string }
         Returns: boolean
@@ -10717,6 +10840,10 @@ export type Database = {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean
       }
+      can_manage_game_result: {
+        Args: { _event_id: string; _team_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_team_captains: {
         Args: { _team_id: string; _user_id: string }
         Returns: boolean
@@ -10727,6 +10854,10 @@ export type Database = {
       }
       can_organise_competition: {
         Args: { _club_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_post_in_chat_group: {
+        Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
       can_publish_club_wide_photo: {
@@ -10780,6 +10911,10 @@ export type Database = {
       }
       check_password_reset_rate_limit: {
         Args: { p_email: string }
+        Returns: boolean
+      }
+      child_is_in_event_audience: {
+        Args: { _child_id: string; _event_id: string }
         Returns: boolean
       }
       claim_eoi_by_token: {
@@ -10986,6 +11121,13 @@ export type Database = {
           rsvps_responded: number
           rsvps_total: number
           team_msgs: number
+        }[]
+      }
+      club_scoped_child_guardians: {
+        Args: { p_child_ids: string[]; p_club_id: string }
+        Returns: {
+          child_id: string
+          guardian_id: string
         }[]
       }
       complete_stripe_webhook_event: {
@@ -11217,6 +11359,10 @@ export type Database = {
         Returns: undefined
       }
       ensure_competition_coord_chat: {
+        Args: { _competition_id: string }
+        Returns: string
+      }
+      ensure_competition_member_chat: {
         Args: { _competition_id: string }
         Returns: string
       }
@@ -11848,6 +11994,10 @@ export type Database = {
           token: string
         }[]
       }
+      invite_token_has_existing_account: {
+        Args: { _token: string }
+        Returns: boolean
+      }
       is_any_mini_league_admin: { Args: { _user_id: string }; Returns: boolean }
       is_association_admin: {
         Args: { _association_id: string; _user_id: string }
@@ -11890,12 +12040,20 @@ export type Database = {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
+      is_eligible_competition_owner: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
       is_guardian_of_child: {
         Args: { _child_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_guardian_visible_in_club: {
+        Args: { _club_id: string; _guardian_id: string }
         Returns: boolean
       }
       is_league_admin: {
@@ -12057,6 +12215,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      my_chat_group_ids: { Args: never; Returns: string[] }
       notify_all_users: {
         Args: {
           _exclude_user_id: string
@@ -12075,6 +12234,10 @@ export type Database = {
           _type: string
         }
         Returns: undefined
+      }
+      notify_club_news: {
+        Args: { _news_id: string; _send_push?: boolean }
+        Returns: number
       }
       notify_formation_change: {
         Args: {
@@ -12145,12 +12308,29 @@ export type Database = {
         | { Args: { _guardian_id: string; _invite_id: string }; Returns: Json }
         | { Args: { p_invite_id: string }; Returns: Json }
       prune_active_games_write_log: { Args: never; Returns: undefined }
+      prune_cron_run_history: {
+        Args: {
+          p_batch_size?: number
+          p_max_batches?: number
+          p_retain_days?: number
+        }
+        Returns: Json
+      }
       prune_old_diagnostic_logs: {
         Args: never
         Returns: {
           activity_logs_deleted: number
           push_logs_deleted: number
         }[]
+      }
+      prune_telemetry_tables: {
+        Args: {
+          p_analytics_retain_days?: number
+          p_batch_size?: number
+          p_max_batches?: number
+          p_perf_retain_days?: number
+        }
+        Returns: Json
       }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
       purge_old_client_perf_log: { Args: never; Returns: undefined }
@@ -12470,6 +12650,10 @@ export type Database = {
         Args: { _competition_id: string }
         Returns: undefined
       }
+      sync_competition_member_chat_members: {
+        Args: { _competition_id: string }
+        Returns: undefined
+      }
       sync_event_duties: {
         Args: { p_delete_ids?: string[]; p_duties?: Json; p_event_id: string }
         Returns: Json
@@ -12700,12 +12884,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -12729,11 +12913,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -12754,11 +12938,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -12779,11 +12963,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -12796,11 +12980,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

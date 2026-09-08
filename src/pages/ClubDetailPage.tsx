@@ -5,7 +5,7 @@ import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
 import ClubLinksManager from "@/components/clubs/ClubLinksManager";
 import { clearClubSetupLocalState } from "@/lib/clubSetupLocalState";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles, RefreshCw } from "lucide-react";
+import { ArrowLeft, Users, Plus, Crown, Settings, Trash2, Pencil, Building2, Shield, Flame, Search, X, Folder, ChevronDown, ChevronRight, GripVertical, CreditCard, FolderPlus, Loader2, Gift, Lock, FolderOpen, MessageCircle, FolderInput, Trophy, Archive, ArchiveRestore, ArrowRightLeft, Sparkles, RefreshCw, FileSpreadsheet } from "lucide-react";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { ArchiveTeamDialog } from "@/components/ArchiveTeamDialog";
@@ -77,6 +77,7 @@ import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { useToast } from "@/hooks/use-toast";
+import { exportClubRosterCsv } from "@/lib/exportClubRoster";
 import AddClubAdminSheet from "@/components/AddClubAdminSheet";
 
 import { getFolderColorClass, FOLDER_COLORS } from "@/components/TeamFoldersManager";
@@ -91,7 +92,7 @@ import { ClubMessagePrivacySettings } from "@/components/ClubMessagePrivacySetti
 import { ClubAICatchUpSettings } from "@/components/ClubAICatchUpSettings";
 import { ClubInviteEmailSettings } from "@/components/ClubInviteEmailSettings";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
-import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity, Link as LinkIcon } from "lucide-react";
+import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity, MoreVertical, Link as LinkIcon } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
 import { TermsManager } from "@/components/TermsManager";
 import { AdminEnrolmentManager } from "@/components/AdminEnrolmentManager";
@@ -121,6 +122,7 @@ export default function ClubDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [openSections, setOpenSections] = useState<string[]>([]);
+  const [isExportingRoster, setIsExportingRoster] = useState(false);
 
   // Deep-link to accordion section via hash (e.g. #branding)
   useEffect(() => {
@@ -620,6 +622,22 @@ export default function ClubDetailPage() {
       return !!data;
     },
     enabled: !!user,
+  });
+
+  const { data: canImportFixtures } = useQuery({
+    queryKey: ["can-import-fixtures", id, user?.id],
+    queryFn: async () => {
+      if (!id || !user) return false;
+      const { data: roles, error } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("club_id", id)
+        .in("role", ["club_admin", "team_admin", "coach", "committee_member"]);
+      if (error) throw error;
+      return (roles?.length ?? 0) > 0;
+    },
+    enabled: !!id && !!user,
   });
 
   const isAdmin = userRole === "club_admin" || isAppAdmin;
@@ -1406,6 +1424,9 @@ export default function ClubDetailPage() {
         );
       })()}
 
+
+
+
       {/* Teams Section - flat filtered list */}
       {(() => {
         const totalTeams = activeTeams?.length ?? 0;
@@ -1432,11 +1453,69 @@ export default function ClubDetailPage() {
             )}
           </button>
           {isAdmin && (
-            <Link to={`/clubs/${id}/teams/new`}>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
-              </Button>
-            </Link>
+            <div className="flex items-center gap-1 shrink-0">
+              <Link to={`/clubs/${id}/teams/new`}>
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" /> {club?.class_mode_enabled ? "Add Class" : "Add Team"}
+                </Button>
+              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-muted-foreground"
+                    aria-label="More admin actions"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setAnnouncementDialogOpen(true);
+                    }}
+                  >
+                    <Megaphone className="h-4 w-4 mr-2 text-primary" />
+                    Broadcast message
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={isExportingRoster}
+                    onSelect={async (e) => {
+                      e.preventDefault();
+                      if (!id) return;
+                      setIsExportingRoster(true);
+                      try {
+                        const count = await exportClubRosterCsv(id, club?.name ?? "club");
+                        toast({
+                          title: count > 0 ? "Player list exported" : "No players to export",
+                          description:
+                            count > 0
+                              ? `${count} player ${count === 1 ? "entry" : "entries"} across your ${club?.class_mode_enabled ? "classes" : "teams"}.`
+                              : "Add players to your teams first.",
+                        });
+                      } catch (err: any) {
+                        toast({
+                          title: "Couldn't export player list",
+                          description: err?.message ?? "Please try again.",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsExportingRoster(false);
+                      }
+                    }}
+                  >
+                    {isExportingRoster ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    )}
+                    Export player list
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
 
@@ -1444,19 +1523,7 @@ export default function ClubDetailPage() {
 
         {isAdmin && <PendingTeamRequests clubId={id!} />}
 
-        {isAdmin && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setAnnouncementDialogOpen(true)}
-            aria-label="Open broadcast message dialog"
-            className="min-h-[44px] w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-accent"
-          >
-            <Megaphone className="h-4 w-4 text-primary" />
-            <span className="font-medium">Broadcast Message</span>
-            <span className="ml-auto text-xs text-muted-foreground/80 hidden sm:inline">Announce to team chats</span>
-          </Button>
-        )}
+
 
         {/* Filter chips */}
         {activeTeams && activeTeams.length > 0 && (
@@ -2513,7 +2580,65 @@ export default function ClubDetailPage() {
         );
       })()}
 
+      {/* Schedule tools — tucked away; bulk fixture import is rarely used */}
+      {canImportFixtures && (
+        <AccordionItem value="schedule-tools" className="border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-muted-foreground" />
+              <span className="text-lg font-semibold">Schedule tools</span>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            {(() => {
+              const hasImportProAccess =
+                isAppAdmin
+                || clubSubscription?.is_pro
+                || clubSubscription?.is_pro_football
+                || clubSubscription?.admin_pro_override
+                || clubSubscription?.admin_pro_football_override;
+              return hasImportProAccess ? (
+                <Link to="/events/import" className="block pb-2">
+                  <div className="flex items-center gap-3 py-2">
+                    <FileSpreadsheet className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium">Import Fixtures</span>
+                      <p className="text-xs text-muted-foreground">From CSV or Excel</p>
+                    </div>
+                  </div>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full text-left pb-2"
+                  onClick={() => {
+                    toast({
+                      title: "Pro feature",
+                      description: "Import Fixtures is available on Pro. Contact your club administrator to upgrade.",
+                    });
+                    navigate(`/clubs/${id}/upgrade`);
+                  }}
+                >
+                  <div className="flex items-center gap-3 py-2">
+                    <FileSpreadsheet className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-muted-foreground">Import Fixtures</span>
+                      <p className="text-xs text-muted-foreground">Available on Pro</p>
+                    </div>
+                    <Badge variant="secondary" className="text-xs gap-1 ml-auto">
+                      <Crown className="h-3 w-3" />
+                      Pro
+                    </Badge>
+                  </div>
+                </button>
+              );
+            })()}
+          </AccordionContent>
+        </AccordionItem>
+      )}
+
       {/* App Admin Section */}
+
       {isAppAdmin && (
         <AccordionItem value="app-admin" className="border rounded-lg px-4 border-red-500/30">
           <AccordionTrigger className="hover:no-underline">

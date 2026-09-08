@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { SummaryPlayerStat, PerQuarterScore } from "@/components/scoreboard/GameSummaryDialog";
@@ -23,6 +24,7 @@ export interface SaveGameResultInput {
 
 export function useSaveGameResult() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const savedKeyRef = useRef<string | null>(null);
   const inFlightRef = useRef(false);
   const [saved, setSaved] = useState(false);
@@ -45,13 +47,13 @@ export function useSaveGameResult() {
         input.mvpPlayerId ?? "no-mvp",
       ].join(":");
       // De-dupe within a session, unless caller explicitly forces.
-      if (!opts?.force && (savedKeyRef.current === key || inFlightRef.current)) return;
+      if (!opts?.force && (savedKeyRef.current === key || inFlightRef.current)) return true;
       inFlightRef.current = true;
 
       try {
         const { data: userData } = await supabase.auth.getUser();
         const uid = userData.user?.id;
-        if (!uid) return;
+        if (!uid) return false;
 
         // Respect manual overrides: if a row already exists for this event,
         // skip the auto-write so user-edited scores/scorers aren't clobbered.
@@ -74,11 +76,11 @@ export function useSaveGameResult() {
                 variant: "destructive",
               });
             }
-            return;
+            return false;
           }
           if (existing?.id) {
             savedKeyRef.current = key;
-            return;
+            return true;
           }
         }
 
@@ -123,22 +125,29 @@ export function useSaveGameResult() {
               variant: "destructive",
             });
           }
-          return;
+          return false;
         }
 
         savedKeyRef.current = key;
         setSaved(true);
+        if (input.eventId) {
+          queryClient.invalidateQueries({ queryKey: ["match-result", input.eventId] });
+          queryClient.invalidateQueries({ queryKey: ["match-score", input.eventId] });
+        }
+        queryClient.invalidateQueries({ queryKey: ["team-game-events", input.teamId] });
+        queryClient.invalidateQueries({ queryKey: ["player-stats-report-extras", input.teamId] });
         if (!opts?.silent) {
           toast({
             title: "Game saved",
             description: "Available in History on the team page.",
           });
         }
+        return true;
       } finally {
         inFlightRef.current = false;
       }
     },
-    [toast]
+    [queryClient, toast]
   );
 
   return { save, saved };

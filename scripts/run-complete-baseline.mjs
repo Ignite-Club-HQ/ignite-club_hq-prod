@@ -10,6 +10,7 @@ import {
   LOCAL_URL,
   LOCAL_VOLUMES,
   assertOnlyAllowedLocalNames,
+  baselineBranchMode,
   expectedMigrationVersions,
   findUnreviewedMirroredMigrations,
   hasExplicitLocalSessionApproval,
@@ -30,7 +31,6 @@ const DB_CONTAINER = `supabase_db_${LOCAL_PROJECT}`;
 const KONG_CONTAINER = `supabase_kong_${LOCAL_PROJECT}`;
 const commandLineSessionApproved = hasExplicitLocalSessionApproval(process.argv.slice(2));
 const isGitHubActions = process.env.GITHUB_ACTIONS === "true";
-const testCurrentBranch = process.argv.includes("--test-current-branch");
 const includeLoad = process.argv.includes("--include-load");
 const loadProfile = process.argv
   .find((arg) => arg.startsWith("--load-profile="))
@@ -138,22 +138,21 @@ async function updateTestBranch() {
   }
   const branch = git(["branch", "--show-current"]);
   const currentBranch = branch.stdout?.trim();
-  if (testCurrentBranch) {
-    if (branch.status !== 0 || !currentBranch) {
-      console.error("Refusing current-branch test: unable to identify the checked-out branch.");
-      return false;
-    }
-    if (isGitHubActions || ["main", "master", TEST_BRANCH].includes(currentBranch)) {
-      console.error(`Refusing current-branch override on protected branch ${currentBranch}.`);
-      return false;
-    }
+  const branchMode = branch.status === 0
+    ? baselineBranchMode(currentBranch, TEST_BRANCH)
+    : "error";
+  if (branchMode === "error") {
+    console.error("Refusing baseline: unable to identify the checked-out branch.");
+    return false;
+  }
+  if (branchMode === "protected") {
+    console.error(`Refusing baseline on protected branch ${currentBranch}. Use a Codespaces review or tranche branch.`);
+    return false;
+  }
+  if (branchMode === "test-current") {
     console.warn(`NOTICE: testing current refactor branch ${currentBranch} without fetch or merge.`);
     console.warn("No files will be staged, committed, stashed, restored or deleted by this workflow.");
     return true;
-  }
-  if (branch.status !== 0 || currentBranch !== TEST_BRANCH) {
-    console.error(`Refusing update: expected branch ${TEST_BRANCH}, found ${currentBranch || "unknown"}.`);
-    return false;
   }
   const status = git(["status", "--porcelain"]);
   const updateMode = worktreeUpdateMode(status.status, status.stdout ?? "");
@@ -338,6 +337,12 @@ try {
   runStage("Production TypeScript", "npm", ["run", "typecheck:production"], frontendEnvironment);
   runStage("Strict feature boundary", "npm", ["run", "typecheck:strict-features"], frontendEnvironment);
   runStage("Frontend Vitest", "npm", ["run", "test:ci"], frontendEnvironment);
+  runStage(
+    "AutoSub matrix",
+    "npx",
+    ["vitest", "run", "--config", "vitest.matrix.config.ts"],
+    frontendEnvironment,
+  );
   const playwrightPort = await reserveAvailableLoopbackPort();
   console.log(`Playwright will use isolated loopback port ${playwrightPort}.`);
   runStage("Isolated Playwright", "npm", ["run", "test:e2e-baseline"], {

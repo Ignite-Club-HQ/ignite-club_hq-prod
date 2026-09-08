@@ -1175,7 +1175,10 @@ export default function ClubAdminChatPage() {
     );
   }
 
-  if (!conversation) return <ChatPageSkeleton />;
+  // Same escape hatch as the metadata gate above: if we already have messages in
+  // hand, a transient `undefined` conversation (refetch / cache eviction) must
+  // not swap the painted thread back to a full-page skeleton.
+  if (!conversation && !(localMessages && localMessages.length > 0)) return <ChatPageSkeleton />;
 
 
 

@@ -110,7 +110,17 @@ async function install(page: Page, options: {
         : (isAppAdminLookup || singular ? { id: "role-1" } : [{ id: "role-1", user_id: userId, role: "app_admin", club_id: clubId, team_id: teamId }])),
       });
     }
-    if (url.pathname === "/rest/v1/club_subscriptions") return json(route, [{ club_id: clubId, status: "active" }]);
+    if (url.pathname === "/rest/v1/club_subscriptions") {
+      return json(route, [{
+        club_id: clubId,
+        status: "active",
+        is_pro: true,
+        is_pro_football: false,
+        admin_pro_override: false,
+        admin_pro_football_override: false,
+        expires_at: null,
+      }]);
+    }
     if (url.pathname === "/rest/v1/message_reactions") {
       if (request.method() === "POST") {
         const body = (request.postDataJSON() ?? {}) as Record<string, unknown>;

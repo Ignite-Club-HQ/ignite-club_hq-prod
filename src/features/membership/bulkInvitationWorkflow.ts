@@ -10,6 +10,10 @@ import {
   type BulkInvitationPlanningMember,
 } from "./bulkInvitationPlanner";
 import type { TeamRole } from "./invitationPolicy";
+import {
+  ensureSecondParent,
+  secondParentValidationError,
+} from "./secondParentInvite";
 
 export interface BulkInvitationWorkflowMember extends BulkInvitationPlanningMember {
   email: string;
@@ -61,6 +65,16 @@ export async function processBulkInvitationBatch<T extends BulkInvitationWorkflo
 
   for (const { member, inviteToken, linkedInviteToken } of plans) {
     const { validChildren, metadata } = buildBulkPendingInviteMetadata(member, linkedInviteToken);
+    const secondParentError = secondParentValidationError({
+      role: member.role,
+      name: member.secondParentName ?? "",
+      email: member.secondParentEmail ?? "",
+      selectedProfile: member.selectedSecondParent ?? null,
+    });
+    if (secondParentError) {
+      failures.push({ memberName: member.name, error: new Error(secondParentError) });
+      continue;
+    }
     if (member.selectedUser) {
       const outcome = await operations.processExisting({
         userId: member.selectedUser.id,
@@ -89,7 +103,31 @@ export async function processBulkInvitationBatch<T extends BulkInvitationWorkflo
         clubContactEmail: context.clubContactEmail,
         inviteEmailStyle: context.inviteEmailStyle,
       });
-      if (outcome.memberResult) results.push(outcome.memberResult);
+      if (outcome.memberResult) {
+        results.push(outcome.memberResult);
+        if (member.selectedSecondParent || member.secondParentName?.trim()) {
+          try {
+            await ensureSecondParent({
+              role: member.role,
+              teamId: context.teamId,
+              clubId: context.clubId,
+              name: member.secondParentName ?? "",
+              email: member.secondParentEmail ?? "",
+              selectedProfile: member.selectedSecondParent ?? null,
+              childrenMetadata: validChildren.map((child) => ({
+                name: child.name,
+                yearOfBirth: child.yearOfBirth ? Number(child.yearOfBirth) : null,
+                existingChildId: child.existingChildId ?? null,
+              })),
+              expectChildren: validChildren.length > 0,
+              invitedByUserId: context.inviterUserId,
+              origin: context.appOrigin,
+            });
+          } catch (error) {
+            failures.push({ memberName: member.secondParentName || member.name, error });
+          }
+        }
+      }
       else failures.push({ memberName: member.name, error: outcome.roleResult.error });
       continue;
     }
@@ -113,7 +151,32 @@ export async function processBulkInvitationBatch<T extends BulkInvitationWorkflo
       clubContactEmail: context.clubContactEmail,
       inviteEmailStyle: context.inviteEmailStyle,
     });
-    if (outcome.memberResult) results.push(outcome.memberResult);
+    if (outcome.memberResult) {
+      results.push(outcome.memberResult);
+      if (member.selectedSecondParent || member.secondParentName?.trim()) {
+        try {
+          await ensureSecondParent({
+            role: member.role,
+            teamId: context.teamId,
+            clubId: context.clubId,
+            name: member.secondParentName ?? "",
+            email: member.secondParentEmail ?? "",
+            selectedProfile: member.selectedSecondParent ?? null,
+            childrenMetadata: validChildren.map((child) => ({
+              name: child.name,
+              yearOfBirth: child.yearOfBirth ? Number(child.yearOfBirth) : null,
+              existingChildId: child.existingChildId ?? null,
+            })),
+            expectChildren: validChildren.length > 0,
+            invitedByUserId: context.inviterUserId,
+            linkedInviteToken: inviteToken,
+            origin: context.appOrigin,
+          });
+        } catch (error) {
+          failures.push({ memberName: member.secondParentName || member.name, error });
+        }
+      }
+    }
     else failures.push({ memberName: member.name, error: outcome.inviteError });
   }
 

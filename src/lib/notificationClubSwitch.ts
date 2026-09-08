@@ -21,6 +21,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getJumpTarget, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { resolveRouteClubScope } from "@/lib/routeClubScope";
+import { lookupRouteClubId } from "@/lib/clubScopeLookup";
+
 
 const SS_KEY = "ignite_pending_notification_club_switch";
 const APPLIED_KEY = "ignite_notification_club_switch_applied";
@@ -38,8 +40,31 @@ const TTL_MS = 120_000;
 const INFLIGHT_TTL_MS = 30_000;
 
 interface PendingSwitch {
-  clubId: string;
+  clubId: string | null;
   ts: number;
+  /**
+   * The raw notification payload + url, kept so an unresolved switch can be
+   * resolved LATER by `useNotificationClubSwitch` once auth is guaranteed
+   * ready. Tap-time resolution races the Supabase session restore on cold
+   * start (RLS denies the `teams` lookup with an anon/refreshing session) and
+   * a null result was previously dropped with no retry — the chat opened via
+   * url navigation while the filter stayed on the old club.
+   */
+  data?: unknown;
+  url?: string | null;
+}
+
+/** Only payload fields resolution depends on — keeps sessionStorage tiny. */
+function trimNotificationData(data: any): Record<string, unknown> | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const KEYS = [
+    "club_id", "clubId", "team_id", "teamId", "message_id", "messageId",
+    "related_id", "relatedId", "group_id", "groupId", "conversation_id",
+    "chat_group_id", "context_id", "contextId", "type", "notificationType",
+  ];
+  const out: Record<string, unknown> = {};
+  for (const k of KEYS) if (data[k] != null) out[k] = data[k];
+  return out;
 }
 
 export function clearPendingNotificationClubSwitch(): void {
@@ -65,14 +90,22 @@ export function isNotificationClubSwitchInFlight(clubId: string | null | undefin
   if (!clubId) return false;
   try {
     const raw = sessionStorage.getItem(INFLIGHT_KEY);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw) as PendingSwitch;
-    if (!parsed?.clubId) return false;
-    if (Date.now() - parsed.ts > INFLIGHT_TTL_MS) {
-      clearNotificationClubSwitchInFlight();
-      return false;
+    if (raw) {
+      const parsed = JSON.parse(raw) as PendingSwitch;
+      if (parsed?.clubId) {
+        if (Date.now() - parsed.ts > INFLIGHT_TTL_MS) {
+          clearNotificationClubSwitchInFlight();
+        } else if (parsed.clubId === clubId) {
+          return true;
+        }
+      }
     }
-    return parsed.clubId === clubId;
+    // Stand down while a RAW switch request is still unresolved: the tap-time
+    // lookup may have raced auth, so we cannot name the club yet — but the
+    // user already tapped into that content and the hook is resolving it.
+    const req = peekPendingNotificationClubSwitchRequest();
+    if (req && !req.clubId && Date.now() - req.ts < INFLIGHT_TTL_MS) return true;
+    return false;
   } catch {
     return false;
   }
@@ -116,31 +149,44 @@ export function clearAppliedNotificationClubSwitch(): void {
   try { sessionStorage.removeItem(APPLIED_KEY); } catch { /* noop */ }
 }
 
-export function peekPendingNotificationClubSwitch(): string | null {
+/**
+ * The full pending switch request, including the raw payload/url when the
+ * club has not been resolved yet. TTL-guarded like the resolved form.
+ */
+export function peekPendingNotificationClubSwitchRequest(): PendingSwitch | null {
   try {
     const raw = sessionStorage.getItem(SS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PendingSwitch;
-    if (!parsed?.clubId) return null;
+    if (!parsed || typeof parsed.ts !== "number") return null;
     if (Date.now() - parsed.ts > TTL_MS) {
       clearPendingNotificationClubSwitch();
       return null;
     }
-    return parsed.clubId;
+    return parsed;
   } catch {
     return null;
   }
 }
 
-/** Reads and clears the pending switch. */
-export function consumePendingNotificationClubSwitch(): string | null {
-  const clubId = peekPendingNotificationClubSwitch();
-  if (clubId) clearPendingNotificationClubSwitch();
-  return clubId;
+export function peekPendingNotificationClubSwitch(): string | null {
+  return peekPendingNotificationClubSwitchRequest()?.clubId ?? null;
 }
 
-function stash(clubId: string) {
-  const payload: PendingSwitch = { clubId, ts: Date.now() };
+/** Reads and clears the pending switch (resolved or still-raw). */
+export function consumePendingNotificationClubSwitch(): string | null {
+  const req = peekPendingNotificationClubSwitchRequest();
+  if (req) clearPendingNotificationClubSwitch();
+  return req?.clubId ?? null;
+}
+
+function stash(clubId: string, data?: unknown, url?: string | null) {
+  const payload: PendingSwitch = {
+    clubId,
+    ts: Date.now(),
+    data: trimNotificationData(data),
+    url: url ?? null,
+  };
   try { sessionStorage.setItem(SS_KEY, JSON.stringify(payload)); } catch { /* noop */ }
   // Guard the route immediately: the club is not active yet (membership check
   // still pending) but the user is already navigating into its content.
@@ -150,12 +196,64 @@ function stash(clubId: string) {
   } catch { /* noop */ }
 }
 
+/**
+ * Stash the RAW tap request before the owning club is known. Synchronous and
+ * synchronous-safe: it must run even when the tap-time DB lookups race auth
+ * restore on a cold start, so `useNotificationClubSwitch` can resolve it once
+ * the session is guaranteed ready.
+ */
+function stashRequest(data?: unknown, url?: string | null): void {
+  if (typeof window === "undefined") return;
+  const payload: PendingSwitch = {
+    clubId: null,
+    ts: Date.now(),
+    data: trimNotificationData(data),
+    url: url ?? null,
+  };
+  try { sessionStorage.setItem(SS_KEY, JSON.stringify(payload)); } catch { /* noop */ }
+  try {
+    window.dispatchEvent(new CustomEvent(EVENT, { detail: payload }));
+  } catch { /* noop */ }
+}
 
-export function subscribeNotificationClubSwitch(handler: (clubId: string) => void): () => void {
+/**
+ * Overwrites a raw pending request with its resolved club. Called by
+ * `useNotificationClubSwitch` after deferred (post-auth) resolution.
+ */
+export function stashResolvedNotificationClubSwitch(
+  clubId: string,
+  data?: unknown,
+  url?: string | null,
+): void {
+  stash(clubId, data, url);
+}
+
+/**
+ * True when the notification can never carry a club (DMs, broadcast) and has
+ * no explicit club/team id on the payload. Those are never stashed — there is
+ * nothing to switch to and nothing to resolve later.
+ */
+export function isDefinitelyNotClubScoped(data: any, url: string | null | undefined): boolean {
+  if (data?.club_id || data?.clubId || data?.team_id || data?.teamId) return false;
+  const type = data?.notificationType || data?.type;
+  if (type === "direct_message" || type === "broadcast_message") return true;
+  const target = url || data ? getJumpTarget(data, url) : null;
+  if (target?.kind === "dm" || target?.kind === "broadcast") return true;
+  if (url) {
+    try {
+      const { pathname } = new URL(url, "https://app.local");
+      if (pathname.startsWith("/messages/dm/") || pathname.startsWith("/messages/broadcast")) return true;
+    } catch { /* noop */ }
+  }
+  return false;
+}
+
+
+export function subscribeNotificationClubSwitch(handler: (clubId: string | null) => void): () => void {
   if (typeof window === "undefined") return () => {};
   const listener = (event: Event) => {
     const detail = (event as CustomEvent<PendingSwitch>).detail;
-    if (detail?.clubId) handler(detail.clubId);
+    if (detail) handler(detail.clubId ?? null);
   };
   window.addEventListener(EVENT, listener);
   return () => window.removeEventListener(EVENT, listener);
@@ -191,26 +289,17 @@ async function resolveClubIdFromUrl(url: string | null | undefined): Promise<str
   if (pathname.startsWith("/media")) {
     const photoId = new URLSearchParams(search).get("photo");
     if (!photoId) return null;
-    const { data, error } = await (supabase as any)
-      .from("photos").select("club_id, team_id").eq("id", photoId).maybeSingle();
-    if (error || !data) return null;
-    if (data.club_id) return data.club_id as string;
-    if (data.team_id) {
-      const { data: team } = await supabase
-        .from("teams").select("club_id").eq("id", data.team_id).maybeSingle();
-      return (team as any)?.club_id ?? null;
-    }
-    return null;
+    return await lookupRouteClubId("photos", photoId);
   }
 
   const scope = resolveRouteClubScope(pathname);
   if (scope.kind === "direct") return scope.clubId;
   if (scope.kind === "lookup") {
-    const { data, error } = await (supabase as any)
-      .from(scope.table).select("club_id").eq("id", scope.id).maybeSingle();
-    if (error) return null;
-    return (data?.club_id as string | null) ?? null;
+    // Team-owned rows (team events, team photos, team groups) carry a NULL
+    // club_id — `lookupRouteClubId` recovers the club via their team.
+    return await lookupRouteClubId(scope.table, scope.id);
   }
+
   return null;
 }
 
@@ -286,13 +375,20 @@ export async function resolveNotificationClubId(
 }
 
 /**
- * Entry point for push handlers: resolve the notification's club and stash it
- * as a pending switch. Fire-and-forget — never blocks navigation.
+ * Entry point for push handlers: stash the raw request SYNCHRONOUSLY (so it
+ * survives cold start), then resolve the notification's club and upgrade the
+ * stash. Fire-and-forget — never blocks navigation.
+ *
+ * The raw stash matters: tap-time resolution races the Supabase session
+ * restore on cold start, and a failed lookup used to silently drop the switch
+ * (chat opened, filter stayed on the old club). `useNotificationClubSwitch`
+ * re-resolves unresolved stashes once auth is guaranteed ready.
  */
 export function requestClubSwitchForNotification(data: any, url: string | null | undefined): void {
   if (typeof window === "undefined") return;
+  if (!isDefinitelyNotClubScoped(data, url)) stashRequest(data, url);
   void resolveNotificationClubId(data, url).then((clubId) => {
-    if (clubId) stash(clubId);
+    if (clubId) stash(clubId, data, url);
   });
 }
 
@@ -308,8 +404,9 @@ export async function requestClubSwitchForNotificationUrl(
   timeoutMs = 600,
 ): Promise<void> {
   if (typeof window === "undefined") return;
+  if (!isDefinitelyNotClubScoped(data, url)) stashRequest(data, url);
   const resolving = resolveNotificationClubId(data, url).then((clubId) => {
-    if (clubId) stash(clubId);
+    if (clubId) stash(clubId, data, url);
   });
   await Promise.race([
     resolving,
@@ -357,14 +454,28 @@ export async function resolveClubIdForChatTarget(
  * slow lookup still stashes (and is drained by `useNotificationClubSwitch`)
  * once it resolves.
  */
+/** Synthesizes the chat url for a known kind + targetId (bell taps). */
+function chatTargetUrlFor(kind: ChatJumpKind, targetId: string | null): string | null {
+  if (!targetId) return null;
+  switch (kind) {
+    case "team": return `/messages/${targetId}`;
+    case "club": return `/messages/club/${targetId}`;
+    case "group": return `/groups/${targetId}`;
+    case "club_admin": return `/messages/club-admin/${targetId}`;
+    default: return null;
+  }
+}
+
 export async function requestClubSwitchForChatTarget(
   kind: ChatJumpKind,
   targetId: string | null,
   timeoutMs = 600,
 ): Promise<void> {
   if (typeof window === "undefined") return;
+  const url = chatTargetUrlFor(kind, targetId);
+  if (url && !isDefinitelyNotClubScoped(undefined, url)) stashRequest(undefined, url);
   const resolving = resolveClubIdForChatTarget(kind, targetId).then((clubId) => {
-    if (clubId) stash(clubId);
+    if (clubId) stash(clubId, undefined, url);
   });
   await Promise.race([
     resolving,

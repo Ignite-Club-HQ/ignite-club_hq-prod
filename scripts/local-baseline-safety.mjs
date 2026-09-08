@@ -49,7 +49,7 @@ export function assertOnlyAllowedLocalNames(names, allowedNames) {
 }
 
 export const LOCAL_PARITY_REVIEWED_THROUGH =
-  "20260809232528_d284eb4c-2205-4a09-80f0-778f37558781.sql";
+  "20260830231119_af1e8914-fdc3-419e-93f6-9fa5330d4943.sql";
 
 const MIRRORED_CONTRACT_PATTERN = new RegExp([
   "can_view_competition",
@@ -89,4 +89,10 @@ export function hasExplicitLocalSessionApproval(args) {
 export function worktreeUpdateMode(statusCode, porcelainOutput) {
   if (statusCode !== 0) return "error";
   return porcelainOutput.trim() ? "test-current" : "update";
+}
+
+export function baselineBranchMode(currentBranch, testBranch = "codespaces-review") {
+  if (!currentBranch) return "error";
+  if (["main", "master"].includes(currentBranch)) return "protected";
+  return currentBranch === testBranch ? "update-test-branch" : "test-current";
 }

@@ -2100,7 +2100,7 @@ export default function EventDetailPage() {
   const pitchBoardActions = resolvePitchBoardActions({
     eventType: event.type,
     hasTeam: !!event.team_id,
-    supportedSport: isSoccerClub || isNetballClub || isBasketballClub,
+    supportedSport: isSoccerClub,
     accessLoading: isPitchBoardAccessLoading,
     canAccess: canAccessPitchBoard,
     membersLoading: isTeamMembersForPitchLoading,

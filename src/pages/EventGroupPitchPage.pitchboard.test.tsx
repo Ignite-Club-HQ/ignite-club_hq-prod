@@ -31,7 +31,7 @@ vi.mock("@tanstack/react-query", () => ({
     } };
     if (key === "event-group-players-with-teams") return { ...base, data: mocks.players };
     if (key === "event-group-duties") return { ...base, data: [] };
-    if (key === "mini-league-pitch-settings") return { ...base, data: { minutes_per_half: 18, max_spread_minutes: 3, club_id: "club-1" } };
+    if (key === "mini-league-pitch-settings") return { ...base, data: { minutes_per_half: 18, max_spread_minutes: 3, club_id: "club-1", clubs: { sport: "football" } } };
     if (key === "club-pro-football") return { ...base, data: mocks.hasPro };
     if (key === "mini-league-edit-permission") return { ...base, data: { canEdit: mocks.canEdit, isSubsManager: mocks.isSubsManager } };
     if (key === "mini-league-duty-assignees") return { ...base, data: [] };

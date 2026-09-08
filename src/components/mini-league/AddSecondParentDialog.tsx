@@ -67,9 +67,20 @@ export function AddSecondParentDialog({
     setParentEmail("");
   };
 
-  // Search existing users (by name, or by email when search includes @)
+  // Search existing users (by name, or by email when search includes @) — club-scoped
+  const searchClubProfiles = async (term: string): Promise<ExistingUser[]> => {
+    const { data } = await supabase.rpc("search_invitable_profiles", {
+      _query: term,
+      _limit: 6,
+      _club_id: clubId ?? null,
+    });
+    return ((data || []) as Array<{ id: string; display_name: string | null; avatar_url: string | null }>)
+      .filter(u => u.id !== user?.id)
+      .map(u => ({ id: u.id, display_name: u.display_name, avatar_url: u.avatar_url })) as ExistingUser[];
+  };
+
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["second-parent-search", debouncedSearch],
+    queryKey: ["second-parent-search", debouncedSearch, clubId],
     queryFn: async (): Promise<ExistingUser[]> => {
       if (debouncedSearch.length < 2) return [];
 
@@ -80,28 +91,22 @@ export function AddSecondParentDialog({
         });
         const userId = Array.isArray(emailRows) ? emailRows[0]?.id : (emailRows as any)?.id;
         if (!userId) {
-          // Fallback: substring match against display_name (handles partial typing)
-          const { data } = await supabase
-            .from("profiles")
-            .select("id, display_name, avatar_url")
-            .ilike("display_name", `%${debouncedSearch}%`)
-            .limit(6);
-          return (data || []).filter(u => u.id !== user?.id);
+          // Fallback: club-scoped substring match against display_name
+          return await searchClubProfiles(debouncedSearch);
         }
+        // Only surface the matched user when they are inside the active club
+        const inClub = await searchClubProfiles(debouncedSearch.trim().toLowerCase());
         const { data: profile } = await selectCachedProfileById(userId);
         if (!profile || profile.id === user?.id) return [];
+        if (!inClub.some(u => u.id === profile.id)) return [];
         return [{ ...profile, email: debouncedSearch.trim().toLowerCase() }];
       }
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedSearch}%`)
-        .limit(6);
-      return (data || []).filter(u => u.id !== user?.id);
+      return await searchClubProfiles(debouncedSearch);
     },
     enabled: open && debouncedSearch.length >= 2 && !selectedUser,
   });
+
 
   const ensureChildId = async (): Promise<string> => {
     if (childId) return childId;

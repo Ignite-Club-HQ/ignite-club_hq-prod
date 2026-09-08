@@ -433,3 +433,12 @@ html.rm *::after {
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
 }
+
+/* Desktop shell (lg+): the bottom nav is replaced by the fixed left rail, so
+   the --bottom-nav-offset that chat pages use for composer placement must
+   collapse to zero. Stylesheet !important beats the inline var BottomNav sets. */
+@media (min-width: 1024px) {
+  :root {
+    --bottom-nav-offset: 0px !important;
+  }
+}

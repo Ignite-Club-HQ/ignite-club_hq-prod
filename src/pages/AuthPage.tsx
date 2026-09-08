@@ -15,8 +15,10 @@ import { usePasskey, isPlatformAuthenticatorAvailable } from "@/hooks/usePasskey
 import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
+import { resolveKeyboardCssHeight } from "@/lib/keyboardCssHeight";
 
 import { z } from "zod";
+import type { Database } from "@/integrations/supabase/types";
 import {
   safeSessionGet,
   safeSessionRemove,
@@ -63,6 +65,58 @@ const signupPasswordSchema = z.string()
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
   .regex(/[a-z]/, "Password must contain at least one lowercase letter")
   .regex(/[0-9]/, "Password must contain at least one number");
+
+// Invite metadata stored by the invite page so the auth page can show a banner
+// and pre-fill the invited email. This lives in sessionStorage, not localStorage,
+// so it is scoped to the current invite hand-off.
+const INVITE_AUTH_CONTEXT_KEY = "inviteAuthContext";
+
+type AppRole = Database["public"]["Enums"]["app_role"];
+
+const roleLabels: Record<AppRole, string> = {
+  basic_user: "Basic User",
+  club_admin: "Club Admin",
+  team_admin: "Team Admin",
+  coach: "Coach",
+  player: "Player",
+  parent: "Parent",
+  app_admin: "App Admin",
+  league_admin: "League Admin",
+  committee_member: "Committee Member",
+  association_admin: "Association Admin",
+  competition_admin: "Competition Admin",
+};
+
+function readInviteAuthContext(): {
+  clubName: string | null;
+  teamName: string | null;
+  invitedEmail: string | null;
+  roleLabel: string | null;
+} | null {
+  const raw = safeSessionGet(INVITE_AUTH_CONTEXT_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      clubName: typeof parsed.clubName === "string" ? parsed.clubName : null,
+      teamName: typeof parsed.teamName === "string" ? parsed.teamName : null,
+      invitedEmail: typeof parsed.invitedEmail === "string" ? parsed.invitedEmail : null,
+      roleLabel: typeof parsed.roleLabel === "string" ? parsed.roleLabel : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildInviteBannerText(context: NonNullable<ReturnType<typeof readInviteAuthContext>>): string {
+  const parts: string[] = [];
+  if (context.clubName) parts.push(context.clubName);
+  if (context.teamName) parts.push(context.teamName);
+  const scope = parts.join(" — ");
+  const role = context.roleLabel || "member";
+  return scope ? `You're joining ${scope} as a ${role}.` : `You're joining as a ${role}.`;
+}
+
 /**
  * Sanitize a stored `redirectAfterAuth` value. Only permit same-origin,
  * single-slash-prefixed paths. Rejects external URLs (`https://…`,
@@ -96,6 +150,15 @@ export default function AuthPage() {
   const signInScrollRef = useRef<HTMLDivElement | null>(null);
   // Synchronous submission lock — guards against double taps in one task.
   const authInFlightRef = useRef(false);
+
+  // Invite metadata persisted by the invite page so the auth page can pre-fill
+  // the email and show a banner.
+  const [inviteAuthContext, setInviteAuthContext] = useState<NonNullable<ReturnType<typeof readInviteAuthContext>> | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
+  const [termsError, setTermsError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const isNativePlatform = Capacitor.isNativePlatform();
   const { isOnline } = useOnlineStatus();
@@ -136,6 +199,18 @@ export default function AuthPage() {
       storedRedirect: safeSessionGet("redirectAfterAuth"),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Read invite metadata from sessionStorage on mount. This pre-fills the email
+  // and drives the invite banner and locked-email UI.
+  useEffect(() => {
+    const context = readInviteAuthContext();
+    if (context) {
+      setInviteAuthContext(context);
+      if (context.invitedEmail) {
+        setEmail(context.invitedEmail);
+      }
+    }
   }, []);
 
   
@@ -237,6 +312,7 @@ export default function AuthPage() {
     const safe = sanitizeRedirectAfterAuth(stored);
     if (safe) {
       safeSessionRemove("redirectAfterAuth");
+      safeSessionRemove(INVITE_AUTH_CONTEXT_KEY);
       console.log("[AuthPage] Authenticated, redirecting to:", safe);
       setPostAuthTarget(safe);
       return;
@@ -259,6 +335,7 @@ export default function AuthPage() {
 
     console.log("[AuthPage] Authenticated, redirecting to home");
     clearInviteFlowContext();
+    safeSessionRemove(INVITE_AUTH_CONTEXT_KEY);
     setPostAuthTarget("/");
   }, [
     user,
@@ -332,16 +409,15 @@ export default function AuthPage() {
 
     Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
       if (!isAuthInputFocused()) return;
-      // Single source of truth: Capacitor's reported `keyboardHeight` (CSS px).
+      // Single source of truth: Capacitor's reported `keyboardHeight`,
+      // normalised to CSS px (Android reports device px — the raw value
+      // over-pads the layout by ~dpr×, leaving a blank gap above the keyboard).
       // Do NOT mix in `visualViewport.height` — the app runs with
       // `Keyboard.resize: 'none'`, so `visualViewport` either doesn't shrink
       // on Android (→ under-report → keyboard covers form) or shrinks
       // partially on some OEM WebViews (→ Math.min collapses to that partial
-      // value → same bug). Just clamp to a sanity ceiling (60% of window).
-      const raw = keyboardHeight || 0;
-      const winH = typeof window !== 'undefined' ? window.innerHeight : raw;
-      const ceiling = Math.floor(winH * 0.6);
-      const safe = Math.max(0, Math.min(raw, ceiling));
+      // value → same bug).
+      const safe = resolveKeyboardCssHeight(keyboardHeight || 0);
       setNativeKeyboardHeight(safe);
       setNativeKeyboardVisible(true);
     }).then(handle => {
@@ -505,13 +581,21 @@ export default function AuthPage() {
 
 
   const handleAuth = async (mode: "signin" | "signup") => {
+    // Clear any previous inline errors.
+    setEmailError(null);
+    setPasswordError(null);
+    setConfirmPasswordError(null);
+    setTermsError(null);
+    setAuthError(null);
+
     // For signin, use basic validation
     if (mode === "signin") {
       const validation = authSchema.safeParse({ email, password });
       if (!validation.success) {
-        toast({
-          title: "Please check your details",
-          description: validation.error.errors[0].message,
+        validation.error.errors.forEach((err) => {
+          const field = err.path[0];
+          if (field === "email") setEmailError(err.message);
+          if (field === "password") setPasswordError(err.message);
         });
         return;
       }
@@ -519,10 +603,7 @@ export default function AuthPage() {
       // For signup, validate email first
       const emailValidation = z.string().email("Please enter a valid email").safeParse(email);
       if (!emailValidation.success) {
-        toast({
-          title: "Please check your email",
-          description: emailValidation.error.errors[0].message,
-        });
+        setEmailError(emailValidation.error.errors[0].message);
         return;
       }
       
@@ -530,26 +611,17 @@ export default function AuthPage() {
       const passwordValidation = signupPasswordSchema.safeParse(password);
       if (!passwordValidation.success) {
         const strengthMessage = getPasswordStrengthMessage(password);
-        toast({
-          title: "Password not strong enough",
-          description: strengthMessage || passwordValidation.error.errors[0].message,
-        });
+        setPasswordError(strengthMessage || passwordValidation.error.errors[0].message);
         return;
       }
       
       if (password !== confirmPassword) {
-        toast({
-          title: "Passwords don't match",
-          description: "Please ensure both passwords are identical.",
-        });
+        setConfirmPasswordError("Please ensure both passwords are identical.");
         return;
       }
       
       if (!acceptedTerms) {
-        toast({
-          title: "Terms & Privacy Policy",
-          description: "You must accept the Terms of Service and Privacy Policy to create an account.",
-        });
+        setTermsError("You must accept the Terms of Service and Privacy Policy to create an account.");
         return;
       }
     }
@@ -582,34 +654,26 @@ export default function AuthPage() {
 
 
     if (error) {
-      let message = error.message;
-      let title = "Something went wrong";
+      const message = error.message;
       if (message.includes("already registered")) {
-        title = "Account already exists";
-        message = "This email is already registered. Please sign in using the form below. If you've forgotten your password, tap 'Forgot password?' to reset it.";
+        setEmailError("This email is already registered. Please sign in.");
         switchToSignIn();
       } else if (message.includes("Invalid login")) {
-        title = "Unable to sign in";
-        message = "Invalid email or password. Please try again.";
+        setEmailError("Invalid email or password. Please try again.");
       } else if (message.includes("Email not confirmed")) {
-        title = "Email not verified";
-        message = "Please check your inbox and verify your email.";
+        setEmailError("Please verify your email before signing in.");
       } else if (
         message.includes("Network") ||
         message.includes("fetch") ||
         /load failed/i.test(message) ||
         /timed? out/i.test(message)
       ) {
-        title = "Connection issue";
-        message = "We couldn't reach the server. Check your connection and try again.";
+        setAuthError("We couldn't reach the server. Check your connection and try again.");
       } else if (message.toLowerCase().includes("weak") || message.toLowerCase().includes("easy to guess") || message.toLowerCase().includes("pwned")) {
-        title = "Password not accepted";
-        message = "This password is too common or has appeared in data breaches. Please choose a more unique password (e.g. add symbols or a random word).";
+        setPasswordError("This password is too common or has appeared in data breaches. Please choose a more unique password.");
+      } else {
+        setAuthError(message);
       }
-      toast({
-        title,
-        description: message,
-      });
     } else if (needsEmailConfirmation) {
       // Signup succeeded but Supabase requires email verification, so no
       // session exists yet and no redirect will happen. Tell the user instead
@@ -640,13 +704,10 @@ export default function AuthPage() {
     }
     } catch (err) {
       // The auth dependency rejected instead of returning `{ error }` (e.g.
-      // TypeError: Load failed on mobile). Surface a friendly toast and allow
+      // TypeError: Load failed on mobile). Surface an inline error and allow
       // a retry rather than leaving the form stuck in a loading state.
       console.error("[SignupFlow] auth call threw", err);
-      toast({
-        title: "Connection issue",
-        description: "We couldn't reach the server. Check your connection and try again.",
-      });
+      setAuthError("We couldn't reach the server. Check your connection and try again.");
     } finally {
       authInFlightRef.current = false;
       setLoading(false);
@@ -772,8 +833,13 @@ export default function AuthPage() {
         <Card className={authCardClassName}>
           {authMode === "signin" ? (
             <>
-              <CardHeader className={isSignInKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'}>
+              <CardHeader className={`${isSignInKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'} gap-1`}>
                 <h2 className={`font-semibold text-center ${isSignInKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Sign In</h2>
+                {inviteAuthContext && (
+                  <CardDescription className="text-center text-primary font-medium">
+                    {buildInviteBannerText(inviteAuthContext)}
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent className={signInCardContentClassName}>
                 {!isSignInKeyboardOpen && (
@@ -781,7 +847,18 @@ export default function AuthPage() {
                     Welcome back! Sign in to your account.
                   </CardDescription>
                 )}
-                <div className={signInFormClassName}>
+                <form
+                  className={signInFormClassName}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAuth("signin");
+                  }}
+                >
+                  {authError && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                      {authError}
+                    </div>
+                  )}
                   <div className={signInFieldClassName}>
                     <Label htmlFor="signin-email">Email</Label>
                     <div className="relative">
@@ -792,9 +869,15 @@ export default function AuthPage() {
                         placeholder="you@example.com"
                         className="pl-10"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={!!inviteAuthContext?.invitedEmail}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setEmailError(null);
+                          setAuthError(null);
+                        }}
                       />
                     </div>
+                    {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
                   </div>
                   <div className={signInFieldClassName}>
                     <div className="flex items-center justify-between">
@@ -815,7 +898,11 @@ export default function AuthPage() {
                         placeholder="••••••••"
                         className="pl-10 pr-10"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setPasswordError(null);
+                          setAuthError(null);
+                        }}
                       />
                       <button
                         type="button"
@@ -826,16 +913,30 @@ export default function AuthPage() {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
                   </div>
-                  
+
                   <Button 
+                    type="submit"
                     className="w-full" 
-                    onClick={() => handleAuth("signin")}
                     disabled={loading || googleLoading}
                   >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : inviteAuthContext ? "Sign in & join" : "Sign In"}
                   </Button>
                   
+                  {inviteAuthContext && (
+                    <div className="text-center text-sm text-muted-foreground">
+                      Need an account?{" "}
+                      <button
+                        type="button"
+                        className="text-primary hover:underline font-medium"
+                        onClick={switchToSignUp}
+                      >
+                        Create one
+                      </button>
+                    </div>
+                  )}
+
                   {!isSignInKeyboardOpen && (
                     <>
                       <div className="relative">
@@ -850,6 +951,7 @@ export default function AuthPage() {
                       {/* Hide Google sign-in on native apps - OAuth redirects outside the app */}
                       {!Capacitor.isNativePlatform() && (
                         <Button 
+                          type="button"
                           variant="outline" 
                           className="w-full gap-2" 
                           onClick={handleGoogleSignIn}
@@ -885,6 +987,7 @@ export default function AuthPage() {
                       
                       {showBiometricButton ? (
                         <Button 
+                          type="button"
                           variant="outline" 
                           className="w-full gap-2" 
                           onClick={handleBiometricSignIn}
@@ -909,7 +1012,7 @@ export default function AuthPage() {
                   )}
 
                   {/* Sign up link */}
-                  {!isSignInKeyboardOpen && (
+                  {!inviteAuthContext && !isSignInKeyboardOpen && (
                     <div className="text-center text-sm text-muted-foreground pt-2">
                       Don't have an account?{" "}
                       <button
@@ -921,13 +1024,18 @@ export default function AuthPage() {
                       </button>
                     </div>
                   )}
-                </div>
+                </form>
               </CardContent>
             </>
           ) : (
             <>
-              <CardHeader className={isSignupKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'}>
+              <CardHeader className={`${isSignupKeyboardOpen ? 'pb-1 pt-5' : 'pb-2'} gap-1`}>
                 <h2 className={`font-semibold text-center ${isSignupKeyboardOpen ? 'text-lg' : 'text-xl'}`}>Create Account</h2>
+                {inviteAuthContext && (
+                  <CardDescription className="text-center text-primary font-medium">
+                    {buildInviteBannerText(inviteAuthContext)}
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent className={signupCardContentClassName}>
                 {!isSignupKeyboardOpen && (
@@ -935,7 +1043,18 @@ export default function AuthPage() {
                     Create an account to get started.
                   </CardDescription>
                 )}
-                <div className={signupFormClassName}>
+                <form
+                  className={signupFormClassName}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAuth("signup");
+                  }}
+                >
+                  {authError && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                      {authError}
+                    </div>
+                  )}
                   <div className={signupFieldClassName}>
                     <Label htmlFor="signup-email">Email</Label>
                     <div className="relative">
@@ -946,9 +1065,15 @@ export default function AuthPage() {
                         placeholder="you@example.com"
                         className="pl-10"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={!!inviteAuthContext?.invitedEmail}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setEmailError(null);
+                          setAuthError(null);
+                        }}
                       />
                     </div>
+                    {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
                   </div>
                   <div className={signupFieldClassName}>
                     <Label htmlFor="signup-password">Password</Label>
@@ -960,7 +1085,11 @@ export default function AuthPage() {
                         placeholder="••••••••"
                         className="pl-10 pr-10"
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setPasswordError(null);
+                          setAuthError(null);
+                        }}
                       />
                       <button
                         type="button"
@@ -971,6 +1100,7 @@ export default function AuthPage() {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
                     {password && (() => {
                       const unmet = passwordRequirements.filter((req) => !req.test(password));
                       const collapseChecklist = unmet.length === 0 && hibpStatus !== 'compromised';
@@ -1030,7 +1160,11 @@ export default function AuthPage() {
                         placeholder="••••••••"
                         className="pl-10 pr-10"
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          setConfirmPasswordError(null);
+                          setAuthError(null);
+                        }}
                         onFocus={(e) => {
                           const el = e.currentTarget;
                           // Keyboard opening reflows the viewport; nudge the field
@@ -1049,13 +1183,18 @@ export default function AuthPage() {
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {confirmPasswordError && <p className="text-xs text-destructive mt-1">{confirmPasswordError}</p>}
                   </div>
                   
                   <div className="flex items-start gap-2 pt-1">
                     <Checkbox
                       id="accept-terms"
                       checked={acceptedTerms}
-                      onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                      onCheckedChange={(checked) => {
+                        setAcceptedTerms(checked === true);
+                        setTermsError(null);
+                        setAuthError(null);
+                      }}
                       className="mt-0.5 shrink-0"
                     />
                     <label htmlFor="accept-terms" className="text-xs text-muted-foreground leading-snug cursor-pointer flex-1">
@@ -1065,14 +1204,28 @@ export default function AuthPage() {
                       <Link to="/privacy" {...(!Capacitor.isNativePlatform() ? { target: "_blank" } : {})} className="text-primary hover:underline">Privacy Policy</Link>
                     </label>
                   </div>
+                  {termsError && <p className="text-xs text-destructive -mt-1">{termsError}</p>}
 
                   <Button 
+                    type="submit"
                     className="w-full" 
-                    onClick={() => handleAuth("signup")}
                     disabled={loading || googleLoading}
                   >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Account"}
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : inviteAuthContext ? "Create account & join" : "Create Account"}
                   </Button>
+
+                  {inviteAuthContext && (
+                    <div className="text-center text-sm text-muted-foreground">
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        className="text-primary hover:underline font-medium"
+                        onClick={switchToSignIn}
+                      >
+                        Sign in
+                      </button>
+                    </div>
+                  )}
                   
                   {/* Hide Google sign-up on native apps - OAuth redirects outside the app */}
                   {!Capacitor.isNativePlatform() && (
@@ -1087,6 +1240,7 @@ export default function AuthPage() {
                       </div>
                       
                       <Button 
+                        type="button"
                         variant="outline" 
                         className="w-full gap-2" 
                         onClick={handleGoogleSignIn}
@@ -1122,7 +1276,7 @@ export default function AuthPage() {
                   )}
 
                   {/* Sign in link - only shown when NOT in invite flow */}
-                  {!isInInviteFlow && !isSignupKeyboardOpen && (
+                  {!inviteAuthContext && !isSignupKeyboardOpen && (
                     <div className="text-center text-sm text-muted-foreground pt-2">
                       Already have an account?{" "}
                       <button
@@ -1134,7 +1288,7 @@ export default function AuthPage() {
                       </button>
                     </div>
                   )}
-                </div>
+                </form>
               </CardContent>
             </>
           )}

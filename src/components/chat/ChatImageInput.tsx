@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown } from "lucide-react";
+import { ImagePlus, X, Loader2, CalendarPlus, BarChart3, Plus, Play, Trophy, Paperclip, Upload, FolderOpen, Crown, Newspaper } from "lucide-react";
 import { useClubFreeUsage, notifyClubFreeUsageChanged, type ClubFreeUsage } from "@/hooks/useClubFreeUsage";
 import { useScheduleProAccess } from "@/hooks/useScheduleProAccess";
 import { VaultPickerSheet } from "./VaultPickerSheet";
@@ -38,6 +38,8 @@ interface ChatImageInputProps {
   /** Open the live-board picker (active games on user's teams). */
   onBoardPick?: () => void;
   showBoardPicker?: boolean;
+  onNewsSelect?: () => void;
+  showNewsPicker?: boolean;
   /** When true, the action icons are hidden and only the image preview (if any) is shown */
   hasText?: boolean;
   /** Append a token to the message (e.g. [vault:uuid]) when user shares from vault. */
@@ -49,7 +51,7 @@ interface ChatImageInputProps {
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const IOS_SAFE_COMPRESSION_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
-export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, hasText = false, onAppendToken, showVaultPicker = false }: ChatImageInputProps) {
+export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, teamId, onEventSelect, showEventPicker = false, onPollCreate, showPollCreator = false, onBoardPick, showBoardPicker = false, onNewsSelect, showNewsPicker = false, hasText = false, onAppendToken, showVaultPicker = false }: ChatImageInputProps) {
   const [uploading, setUploading] = useState(false);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -978,6 +980,21 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
                   onClick: (e) => {
                     setMenuOpen(false);
                     onEventSelect("");
+                  },
+                });
+              }
+
+              if (showNewsPicker && onNewsSelect) {
+                actions.push({
+                  key: "news",
+                  label: "Share News",
+                  hint: "Club news post",
+                  icon: <Newspaper className="h-[17px] w-[17px]" strokeWidth={2} />,
+                  tone: "muted",
+                  disabled,
+                  onClick: () => {
+                    setMenuOpen(false);
+                    onNewsSelect();
                   },
                 });
               }

@@ -4,9 +4,10 @@
  * 1. `CompleteProfilePage` must never let profile submission proceed while
  *    pending email invitations are still loading (a fast signup would
  *    otherwise process an empty invitation list and lose the invited club).
- * 2. `JoinTeamPage` must apply the resolved `inviteClubId` as the active club
- *    filter via `seedClubFilterFromInvite` after a successful join, once only,
- *    and must not write club-filter localStorage keys directly.
+ * 2. `JoinTeamPage` must switch the active club filter to the resolved
+ *    `inviteClubId` via `applyInviteClubSwitch` (the sanctioned helper for
+ *    user-driven invite switches) after a successful join, once only, and
+ *    must not write club-filter localStorage keys directly.
  * 3. The URL-based signup intent fix must remain in place.
  */
 import { describe, it, expect } from "vitest";
@@ -41,25 +42,25 @@ describe("CompleteProfilePage invitation-loading gate", () => {
   });
 });
 
-describe("JoinTeamPage club-filter seeding", () => {
-  it("uses the shared seeding helper and club theme setter", () => {
-    expect(joinTeam).toMatch(/from "@\/lib\/seedClubFilterFromInvite"/);
+describe("JoinTeamPage club-filter switching", () => {
+  it("uses the sanctioned invite-switch helper and club theme setter", () => {
+    expect(joinTeam).toMatch(/from "@\/lib\/inviteClubSwitch"/);
     expect(joinTeam).toMatch(/useClubTheme\(\)/);
-    expect(joinTeam).toMatch(/seedClubFilterFromInvite\(user\.id, inviteClubId, setActiveClubTheme\)/);
+    expect(joinTeam).toMatch(/applyInviteClubSwitch\(user\.id, inviteClubId, setActiveClubTheme/);
   });
 
   it("requires both user id and club id before applying a filter", () => {
-    expect(joinTeam).toMatch(/if \(!user\?\.id \|\| !inviteClubId\) return false;/);
+    expect(joinTeam).toMatch(/if \(!user\?\.id \|\| !inviteClubId\) return;/);
   });
 
   it("applies the filter at most once (no navigation loops / duplicate writes)", () => {
     expect(joinTeam).toMatch(/clubFilterSeededRef/);
-    expect(joinTeam).toMatch(/if \(clubFilterSeededRef\.current\) return false;/);
+    expect(joinTeam).toMatch(/if \(clubFilterSeededRef\.current\) return;/);
     expect(joinTeam.match(/applyInviteClubFilter\(\)/g)?.length).toBeGreaterThanOrEqual(1);
   });
 
   it("applies the filter only after the join work has completed", () => {
-    const seedIdx = joinTeam.indexOf("applyInviteClubFilter();");
+    const seedIdx = joinTeam.indexOf("await applyInviteClubFilter();");
     const returnIdx = joinTeam.indexOf("return rolesToAdd;");
     expect(seedIdx).toBeGreaterThan(-1);
     expect(seedIdx).toBeLessThan(returnIdx);

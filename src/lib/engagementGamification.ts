@@ -89,6 +89,7 @@ export async function checkLeaderboardPosition({
       type: "leaderboard_update",
       message: `${emoji} You're now #${rank}${suffix} on the leaderboard! Keep going!`,
       related_id: clubId,
+      club_id: clubId,
     });
   } catch (error) {
     console.error("Error checking leaderboard position:", error);
@@ -148,6 +149,7 @@ export async function checkEngagementStreak({
             type: "streak_progress",
             message: "🔥 2-day streak! Come back tomorrow for bonus points!",
             related_id: clubId,
+            club_id: clubId,
           });
         }
       }
@@ -189,6 +191,7 @@ export async function checkEngagementStreak({
       type: "streak_bonus",
       message: `🔥 ${streakLabel} streak! +${bonusPoints} bonus reward points!`,
       related_id: clubId,
+      club_id: clubId,
     });
 
     // Check reward thresholds
@@ -255,6 +258,7 @@ export async function checkRewardProximity({
       type: "reward_proximity",
       message: `🎁 Only ${pointsNeeded} points from unlocking "${nextReward.name}"! Keep engaging!`,
       related_id: nextReward.id,
+      club_id: clubId,
     });
   } catch (error) {
     console.error("Error checking reward proximity:", error);

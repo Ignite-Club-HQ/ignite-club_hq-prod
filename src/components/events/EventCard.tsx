@@ -28,6 +28,7 @@ import { RecurringCancelEventDialog } from "@/components/RecurringCancelEventDia
 import { Clock, MapPin, Pencil, Bell, XCircle, Trash2, Eye, CheckCircle2, HelpCircle, X, ChevronRight, Users, MoreVertical, AlertCircle } from "lucide-react";
 import { getEventTypeLabel } from "@/lib/eventTypeLabel";
 import { supabase } from "@/integrations/supabase/client";
+import { useViewerIsAdultPlayer } from "@/hooks/useViewerIsAdultPlayer";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
@@ -42,11 +43,12 @@ import { buildPersonalRsvpLine } from "@/lib/personalRsvpLine";
 import { useEventMembership } from "@/hooks/useEventMembership";
 import {
   resolveRsvpAudience,
-  shouldPromptParent,
   shouldPromptPlayer,
+  shouldPromptSelf,
   type RsvpAudience,
 } from "@/lib/rsvpAudience";
 import { awardEarlyRsvpPoints } from "@/lib/earlyRsvpPoints";
+import { getEventEligibleTeamIds, eventTargetTeamKey } from "@/lib/eventAudience";
 
 type RsvpStatus = "going" | "maybe" | "not_going";
 
@@ -220,12 +222,25 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
     event.rsvp_audience,
     event.teams?.default_rsvp_audience,
   );
-  const promptParent = shouldPromptParent(audience);
+  const { data: viewerIsAdultPlayer } = useViewerIsAdultPlayer({
+    team_id: event.team_id,
+    club_id: event.club_id,
+    target_team_ids: (event as any).target_team_ids ?? null,
+  });
+  const promptParent = shouldPromptSelf(audience, viewerIsAdultPlayer);
   const promptPlayer = shouldPromptPlayer(audience);
 
   // Fetch full household children (so we can show "Louie needs RSVP" even when no row exists yet)
   const { data: householdChildren, isLoading: childRsvpsLoading } = useQuery({
-    queryKey: ["card-child-rsvps", event.id, user?.id, event.team_id, event.mini_league_id, (event as any).adults_only],
+    queryKey: [
+      "card-child-rsvps",
+      event.id,
+      user?.id,
+      event.team_id,
+      eventTargetTeamKey(event as any),
+      event.mini_league_id,
+      (event as any).adults_only,
+    ],
     queryFn: async () => {
       if ((event as any).adults_only) return [] as any[];
       const [ownChildren, guardianLinks] = await Promise.all([
@@ -250,13 +265,17 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
       });
       if (children.length === 0) return [];
 
-      // CRITICAL: only show children actually rostered to this event's team/league.
+      // CRITICAL: only show children actually rostered to this event's
+      // team(s)/league. Multi-team targeted events (team_id NULL +
+      // target_team_ids) must intersect against every targeted team — never
+      // fall through to "no filter".
       const childIds = children.map((c) => c.id);
-      if (event.team_id) {
+      const eligibleTeamIds = getEventEligibleTeamIds(event as any);
+      if (eligibleTeamIds) {
         const { data: assigns } = await supabase
           .from("child_team_assignments")
           .select("child_id")
-          .eq("team_id", event.team_id)
+          .in("team_id", eligibleTeamIds)
           .in("child_id", childIds);
         const allowed = new Set((assigns || []).map((a: any) => a.child_id));
         children = children.filter((c) => allowed.has(c.id));

@@ -90,7 +90,9 @@ async function installClubWideGameHarness(page: Page) {
       const singular = request.headers()["accept"]?.includes("application/vnd.pgrst.object");
       return json(singular ? (rows[0] ?? null) : rows);
     }
-    if (url.pathname === "/rest/v1/club_subscriptions") return json([]);
+    if (url.pathname === "/rest/v1/club_subscriptions") {
+      return json([{ is_pro: true, is_pro_football: false, expires_at: null }]);
+    }
     if (url.pathname === "/rest/v1/rpc/create_event_with_duties") {
       const body = request.postDataJSON();
       const eventBody = body.p_event;

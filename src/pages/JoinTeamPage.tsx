@@ -25,7 +25,7 @@ import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { applyInviteClubSwitch } from "@/lib/inviteClubSwitch";
 import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
@@ -42,6 +42,23 @@ import {
 } from "@/features/membership/inviteAcceptancePolicy";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
+
+type InviteChildMetadata = {
+  children?: { name: string; yearOfBirth: number | null; existingChildId?: string | null }[];
+  mini_league_id?: string;
+  child_id?: string;
+  player_id?: string;
+  kind?: string;
+} | null;
+
+type ReconciledInvite = {
+  id: string;
+  invited_label: string | null;
+  role: string | null;
+  metadata: unknown;
+  team_id: string | null;
+  club_id: string | null;
+};
 
 /**
  * Referentially stable empty fallback. A fresh `[]` default made the
@@ -470,20 +487,66 @@ export default function JoinTeamPage() {
 
   /**
    * Applies the invited club as the active club filter after a successful join.
-   * Delegates to `seedClubFilterFromInvite` so state, localStorage and
-   * `profiles.active_club_theme_id` stay in sync. Never overrides a real
-   * club preference the user previously chose; applied at most once.
+   * Uses the explicit invite-switch helper so a successful join becomes
+   * visible immediately even when the member was viewing another club.
    */
-  const applyInviteClubFilter = () => {
-    if (clubFilterSeededRef.current) return false;
-    if (!user?.id || !inviteClubId) return false;
+  const applyInviteClubFilter = async () => {
+    if (clubFilterSeededRef.current) return;
+    if (!user?.id || !inviteClubId) return;
     clubFilterSeededRef.current = true;
-    return seedClubFilterFromInvite(user.id, inviteClubId, setActiveClubTheme);
+    await applyInviteClubSwitch(user.id, inviteClubId, setActiveClubTheme, {
+      source: "join-team",
+      announce: false,
+    });
+  };
+
+  const provisionChildrenFromInviteMetadata = async (params: {
+    inviteId: string;
+    inviteStatus?: string | null;
+    inviteRole?: string | null;
+    metadata: InviteChildMetadata;
+    userId: string;
+    claimToken?: string | null;
+  }): Promise<string[]> => {
+    const { inviteId, inviteStatus, inviteRole, metadata, userId, claimToken } = params;
+    if (inviteRole !== "parent" || !metadata) return [];
+
+    if (metadata.child_id && metadata.mini_league_id && claimToken) {
+      const { error } = await supabase.rpc("claim_mini_league_invite", { _token: claimToken });
+      if (error) throw new Error(`Couldn't link you to your child: ${error.message}`);
+      return [metadata.child_id];
+    }
+
+    if (metadata.children?.length) {
+      try {
+        if (inviteStatus === "pending") await acceptParentTeamInvite({ inviteId });
+        const childIds = await provisionInviteChildren({ inviteId, guardianId: userId });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["children"] }),
+          queryClient.invalidateQueries({ queryKey: ["user-roles"] }),
+          queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
+        ]);
+        return childIds;
+      } catch (rpcError) {
+        throw new Error(getParentInviteErrorMessage(rpcError));
+      }
+    }
+
+    if (metadata.child_id) {
+      await supabase.from("children").update({ parent_id: userId }).eq("id", metadata.child_id);
+      if (metadata.player_id) {
+        await supabase.from("mini_league_players").update({ parent_user_id: userId }).eq("id", metadata.player_id);
+      }
+      return [metadata.child_id];
+    }
+    return [];
   };
 
   // Execute the actual join mutation
   const executeJoin = async (rolesToAdd: AppRole[]) => {
     if (!invite || !user) throw new Error("Missing data");
+
+    let reconciledInvite: ReconciledInvite | null = null;
 
 
     // For pending invites, validate name match
@@ -675,13 +738,14 @@ export default function JoinTeamPage() {
 
       const { data: matchingPendingInvites } = await supabase
         .from("pending_invites")
-        .select("id, invited_label")
+        .select("id, invited_label, role, metadata, team_id, club_id")
         .eq("team_id", invite.team_id)
         .eq("status", "pending")
         .or(orClauses.join(","))
         .order("created_at", { ascending: false });
 
       if (matchingPendingInvites && matchingPendingInvites.length > 0) {
+        reconciledInvite = matchingPendingInvites[0] as ReconciledInvite;
         // Use the first match's label to prefill display name if needed
         const firstLabel = matchingPendingInvites.find(i => i.invited_label)?.invited_label;
         if (firstLabel) {
@@ -707,6 +771,25 @@ export default function JoinTeamPage() {
           .in("id", matchingIds);
         
         console.log("[JoinTeam] Reconciled", matchingIds.length, "pending invite(s) for user");
+
+        if (reconciledInvite.role === "parent") {
+          try {
+            await provisionChildrenFromInviteMetadata({
+              inviteId: reconciledInvite.id,
+              inviteStatus: "accepted",
+              inviteRole: reconciledInvite.role,
+              metadata: (reconciledInvite.metadata as InviteChildMetadata) ??
+                ((teamInvite?.metadata as InviteChildMetadata) ?? null),
+              userId: user.id,
+            });
+          } catch (error) {
+            await supabase
+              .from("pending_invites")
+              .update({ status: "pending", accepted_at: null })
+              .eq("id", reconciledInvite.id);
+            throw new Error(getParentInviteErrorMessage(error));
+          }
+        }
       }
 
       // Increment uses_count for team invite
@@ -862,7 +945,7 @@ export default function JoinTeamPage() {
     }
 
     // Seed the active club filter from the invited club (idempotent, once only).
-    applyInviteClubFilter();
+    await applyInviteClubFilter();
 
     return rolesToAdd;
   };

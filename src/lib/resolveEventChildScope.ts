@@ -12,6 +12,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { resolveRsvpAudience, shouldPromptPlayer } from "@/lib/rsvpAudience";
+import { getEventEligibleTeamIds } from "@/lib/eventAudience";
 
 export type RsvpChild = { id: string; name: string; parent_id?: string | null };
 
@@ -97,10 +98,8 @@ export async function resolveRsvpChildren({
   if (candidates.length === 0) return [];
 
   // Step 3 — team scoping. Never widen.
-  if (event.team_id) return intersectWithTeams(candidates, [event.team_id]);
-
-  const targets = (event.target_team_ids ?? []).filter(Boolean) as string[];
-  if (targets.length > 0) return intersectWithTeams(candidates, targets);
+  const eligible = getEventEligibleTeamIds(event);
+  if (eligible) return intersectWithTeams(candidates, eligible);
 
   if (!event.club_id) return [];
   const clubTeamIds = await teamIdsForClub(event.club_id);
@@ -121,13 +120,9 @@ export async function resolveEventChildRoster({
   if (!event) return [];
   if (childrenAreExcluded(event, teamDefaultAudience)) return [];
 
-  let teamIds: string[] = [];
-  if (event.team_id) teamIds = [event.team_id];
-  else {
-    const targets = (event.target_team_ids ?? []).filter(Boolean) as string[];
-    if (targets.length > 0) teamIds = targets;
-    else if (event.club_id) teamIds = await teamIdsForClub(event.club_id);
-  }
+  const eligible = getEventEligibleTeamIds(event);
+  let teamIds: string[] = eligible ?? [];
+  if (!eligible && event.club_id) teamIds = await teamIdsForClub(event.club_id);
   if (teamIds.length === 0) return [];
 
   const { data, error } = await supabase

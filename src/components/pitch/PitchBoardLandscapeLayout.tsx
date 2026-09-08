@@ -46,6 +46,7 @@ import { useAutoSubs } from "@/hooks/useAutoSubs";
 import { usePitchSettings } from "@/hooks/usePitchSettings";
 import { useDraggableTimer } from "@/hooks/useDraggableTimer";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { requestEndGameAndSave } from "./endGameRequest";
 import { PitchSettingsDialog } from "./PitchSettingsDialog";
 import { TrainingSettingsDialog } from "./training/TrainingSettingsDialog";
 
@@ -398,7 +399,8 @@ export default function PitchBoardLandscapeLayout() {
     touchIdRef,
     trainingMenuOpen,
     undoHistory,
-    zoom
+    zoom,
+    pitchZoomScrollRef
   } = ctx;
 
     return createPortal(
@@ -587,6 +589,7 @@ export default function PitchBoardLandscapeLayout() {
                   onUnlinkEvent={handleUnlinkEvent}
                   onResetFormation={handleResetFormation}
                   onOpenStats={() => setStatsOpen(true)}
+                onEndGameAndSave={() => requestEndGameAndSave(teamId)}
                   onSaveSettings={handleSaveSettings}
                   isSaving={isSavingSettings}
                   showMatchHeader={showMatchHeader}
@@ -884,11 +887,11 @@ export default function PitchBoardLandscapeLayout() {
             </div>
           )}
 
-          <div 
+          <div
             id="landscape-pitch-area"
+            ref={pitchZoomScrollRef}
             className={cn("w-full h-full", zoom > 1 ? "overflow-auto" : "overflow-hidden")}
             style={{ zIndex: 0 }}
-            onWheel={handleWheel}
             onDrop={handlePitchDrop}
             onDragOver={handleDragOver}
             onDragEnter={handleDragOver}

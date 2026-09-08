@@ -139,6 +139,7 @@ export async function awardEarlyRsvpPoints({
       type: "early_rsvp_points",
       message: `🎯 Early bird bonus! ${childId ? 'Your child' : 'You'} earned +${EARLY_RSVP_POINTS} ${pointsName} for RSVPing ${daysUntilEvent} days before the event. Keep it up!`,
       related_id: clubId,
+      club_id: clubId,
     });
 
     // Check reward threshold

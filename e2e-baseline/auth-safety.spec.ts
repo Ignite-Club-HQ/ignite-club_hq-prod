@@ -113,6 +113,14 @@ test.beforeEach(async ({ page }) => {
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(syntheticClubs) });
         return;
       }
+      if (url.pathname === "/rest/v1/club_subscriptions") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([{ is_pro: true, is_pro_football: false, expires_at: null }]),
+        });
+        return;
+      }
       if (url.pathname.startsWith("/rest/v1/")) {
         await route.fulfill({ status: 200, contentType: "application/json", headers: { "content-range": "0-0/0" }, body: "[]" });
         return;
@@ -214,7 +222,7 @@ test("invalid sign-in input is rejected without an authentication request", asyn
   await page.getByLabel("Password").fill("short");
   await page.getByRole("button", { name: "Sign In" }).click();
 
-  await expect(page.getByText("Please enter a valid email", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Email")).toHaveJSProperty("validity.valid", false);
   expect(tokenRequests).toBe(0);
 });
 

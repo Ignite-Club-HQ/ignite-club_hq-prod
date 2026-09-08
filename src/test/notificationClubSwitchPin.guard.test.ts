@@ -59,6 +59,25 @@ describe("provider must not clobber a pinned switch", () => {
     expect(src).toContain("clearAppliedNotificationClubSwitch");
     expect(src).toMatch(/const setActiveClubTheme = \([\s\S]{0,600}setActiveClubThemeStateRaw\(clubId\)/);
   });
+
+  it("keeps rendered theme data identity aligned with the active club", () => {
+    expect(src).toContain("cachedThemeData?.clubId === activeClubTheme");
+    expect(src).toContain("notificationPinnedClub");
+    expect(src).toMatch(/notificationPinnedClub[\s\S]{0,300}active_club_theme_id: notificationPinnedClub/);
+  });
+
+  it("does not discard team-only clubs before team roles are loaded", () => {
+    expect(src).not.toContain("if (!userRoles?.length) return []");
+  });
+});
+
+describe("web push payload compatibility", () => {
+  const src = readFileSync("src/lib/webNotificationLaunchHandler.ts", "utf8");
+
+  it("accepts nested and legacy url field variants like the native handler", () => {
+    expect(src).toContain("payload.url || payload.link || payload.path");
+    expect(src).toContain("data?.url || data?.link || data?.path");
+  });
 });
 
 describe("native cold-start tap stashes the switch directly", () => {
@@ -68,6 +87,31 @@ describe("native cold-start tap stashes the switch directly", () => {
     expect(src).toContain("requestClubSwitchForNotification");
     // Must be invoked in the handler, not merely imported.
     expect(src).toMatch(/requestClubSwitchForNotification\(data, path\)/);
+  });
+});
+
+describe("unresolved tap-time requests are re-resolved after auth is ready", () => {
+  const lib = readFileSync("src/lib/notificationClubSwitch.ts", "utf8");
+  const hook = readFileSync("src/hooks/useNotificationClubSwitch.ts", "utf8");
+
+  it("stashes the raw request synchronously at tap time", () => {
+    // The tap-time teams lookup can race the Supabase session restore on cold
+    // start; the raw request must be stashed BEFORE any async resolution.
+    expect(lib).toMatch(/export function requestClubSwitchForNotification[\s\S]{0,400}stashRequest\(data, url\)/);
+  });
+
+  it("the hook drains raw requests via deferred resolution with bounded retries", () => {
+    expect(hook).toContain("peekPendingNotificationClubSwitchRequest");
+    expect(hook).toContain("resolveNotificationClubId");
+    expect(hook).toContain("MAX_RESOLVE_ATTEMPTS");
+    expect(hook).toContain("MAX_VERIFY_ATTEMPTS");
+  });
+
+  it("does not cancel an in-flight drain when the theme provider rerenders", () => {
+    expect(hook).toContain("activeClubThemeRef.current = activeClubTheme");
+    expect(hook).toContain("setActiveClubThemeRef.current = setActiveClubTheme");
+    expect(hook).toContain("drainRequestedRef.current = true");
+    expect(hook).toMatch(/\}, \[user\?\.id\]\);/);
   });
 });
 

@@ -64,21 +64,38 @@ export default function InviteOtherParentSheet({
 
   const debouncedName = useDebounce(parentName, 300);
 
-  // Search for existing users as parent types
+  // Resolve the owning club for this child's team so search stays club-scoped
+  const { data: scopeClubId = null } = useQuery({
+    queryKey: ["invite-parent-scope-club", teamIds[0] ?? null],
+    enabled: open && !!teamIds[0],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("teams")
+        .select("club_id")
+        .eq("id", teamIds[0])
+        .maybeSingle();
+      return (data?.club_id as string | null) ?? null;
+    },
+  });
+
+  // Search for existing users as parent types — restricted to the club
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["parent-invite-user-search", debouncedName],
+    queryKey: ["parent-invite-user-search", debouncedName, scopeClubId],
     queryFn: async () => {
       if (debouncedName.length < 2) return [];
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${debouncedName}%`)
-        .limit(6);
-      // Filter out self
-      return (data || []).filter(u => u.id !== user?.id);
+      const { data } = await supabase.rpc("search_invitable_profiles", {
+        _query: debouncedName,
+        _limit: 6,
+        _club_id: scopeClubId ?? null,
+      });
+      return ((data || []) as Array<{ id: string; display_name: string | null; avatar_url: string | null }>)
+        .filter(u => u.id !== user?.id)
+        .map(u => ({ id: u.id, display_name: u.display_name, avatar_url: u.avatar_url }));
     },
-    enabled: open && debouncedName.length >= 2 && !selectedUser,
+    enabled: open && debouncedName.length >= 2 && !selectedUser && (!teamIds[0] || !!scopeClubId),
   });
+
 
   // Direct link existing user as guardian (no invite needed)
   const linkExistingGuardian = useMutation({
@@ -105,9 +122,10 @@ export default function InviteOtherParentSheet({
   });
 
   const sendInvite = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (requestedDelivery?: "email" | "share") => {
+      const effectiveDelivery = requestedDelivery ?? deliveryMethod;
       if (!user || !parentName.trim()) return;
-      if (deliveryMethod === "email" && !parentEmail.trim()) return;
+      if (effectiveDelivery === "email" && !parentEmail.trim()) return;
 
       const inviteToken = crypto.randomUUID();
 
@@ -185,7 +203,7 @@ export default function InviteOtherParentSheet({
 
       // ---- Email delivery (verified-only success) --------------------------
       let delivery: EmailDeliveryState = "not_requested";
-      if (deliveryMethod === "email" && trimmedEmail) {
+      if (effectiveDelivery === "email" && trimmedEmail) {
         delivery = "failed";
         setEmailDelivery("sending");
 
@@ -510,7 +528,14 @@ export default function InviteOtherParentSheet({
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setDeliveryMethod("share"); setParentEmail(""); }}
+                      onClick={() => {
+                        setDeliveryMethod("share");
+                        setParentEmail("");
+                        if (parentName.trim() && !sendInvite.isPending) {
+                          sendInvite.mutate("share");
+                        }
+                      }}
+                      disabled={sendInvite.isPending}
                       className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
                         deliveryMethod === "share"
                           ? "bg-primary/10 border-primary text-primary"
@@ -522,7 +547,7 @@ export default function InviteOtherParentSheet({
                     </button>
                   </div>
 
-                  {deliveryMethod === "email" && (
+                  {deliveryMethod === "email" ? (
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -533,7 +558,8 @@ export default function InviteOtherParentSheet({
                         className="pl-10"
                       />
                     </div>
-                  )}
+                  ) : null}
+
                 </div>
               )}
 
@@ -547,7 +573,7 @@ export default function InviteOtherParentSheet({
             <ResponsiveDialogFooter className="mt-2">
               <Button
                 className="w-full"
-                onClick={() => selectedUser ? linkExistingGuardian.mutate() : sendInvite.mutate()}
+                onClick={() => selectedUser ? linkExistingGuardian.mutate() : sendInvite.mutate(deliveryMethod)}
                 disabled={
                   selectedUser
                     ? linkExistingGuardian.isPending
@@ -567,7 +593,9 @@ export default function InviteOtherParentSheet({
                     ? "Enter name to continue"
                     : deliveryMethod === "email" && !parentEmail.trim()
                       ? "Enter email to continue"
-                      : "Create Invite"}
+                      : deliveryMethod === "share"
+                        ? "Create & Share Link"
+                        : "Create Invite"}
               </Button>
             </ResponsiveDialogFooter>
           </>

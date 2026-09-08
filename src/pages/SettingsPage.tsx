@@ -18,6 +18,7 @@ import { PasskeyManagementDialog } from "@/components/PasskeyManagementDialog";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { useUserHasAnyAICatchUpClub } from "@/hooks/useUserHasAnyAICatchUpClub";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Check if we're on native platform at module load time
 let isNativePlatform = false;
@@ -119,6 +120,7 @@ export default function SettingsPage() {
   const [aiCatchUpEnabled, setAiCatchUpEnabled] = useState(true);
   const [aiCatchUpLoading, setAiCatchUpLoading] = useState(false);
   const { hasAICatchUpClub } = useUserHasAnyAICatchUpClub();
+  const settingsQueryClient = useQueryClient();
   
   const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -186,6 +188,8 @@ export default function SettingsPage() {
     if (error) {
       setAiCatchUpEnabled(prev);
       toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+    } else {
+      settingsQueryClient.invalidateQueries({ queryKey: ["user-ai-catchup-pref"] });
     }
   };
 

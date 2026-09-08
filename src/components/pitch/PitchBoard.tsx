@@ -59,6 +59,7 @@ import { useIsLandscape } from "@/hooks/useIsLandscape";
 import { useEventGroupSync } from "@/hooks/useEventGroupSync";
 
 import { useEventGoingAttendees } from "@/hooks/useEventGoingAttendees";
+import { useEventLineupHydration } from "./hooks/useEventLineupHydration";
 import { hapticImpactMedium, hapticImpactLight } from "@/lib/haptics";
 
 // Import types and utils from extracted files
@@ -176,7 +177,7 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
   </div>
 );
 
-export default function PitchBoard({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams, onUnlinkEvent }: PitchBoardProps) {
+function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams, onUnlinkEvent }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -1251,6 +1252,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     tryPinchStart,
     tryPinchMove,
     tryPinchEnd,
+    pitchZoomScrollRef,
   } = usePitchBoardPinchZoom();
 
   // Ball state + drag/touch handlers live in usePitchBoardBall
@@ -1554,6 +1556,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     forceEventGroupSync,
     touchDragPlayer,
     draggedPlayer,
+    readOnly,
   });
 
 
@@ -2503,76 +2506,72 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     }
   }, [handleResetGame]);
 
-  // Reset formation only - moves players back to formation positions and ball to center
+  // Reset formation only - snaps each player back to THEIR OWN formation slot
+  // (never re-assigns players to different positions) and ball to center.
   const handleResetFormation = useCallback(() => {
     const formation = FORMATIONS[teamSize][selectedFormation];
     if (!formation) return;
 
-    // During a game, only reposition players currently on the pitch (preserve bench/stats)
+    const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      Math.hypot(a.x - b.x, a.y - b.y);
+
+    const slots = formation.positions.map((pos) => ({
+      pos,
+      pitchPos: getPositionFromCoords(pos.y, teamSize),
+      taken: false,
+    }));
+
     const onPitch = players.filter(p => p.position !== null);
     const onBench = players.filter(p => p.position === null);
 
-    if (onPitch.length > 0 && gameInProgress) {
-      // Map on-pitch players back to formation slots using smart matching
-      const slots = formation.positions.map((pos, index) => ({
-        pos,
-        pitchPos: getPositionFromCoords(pos.y, teamSize),
-        assignedPlayer: null as Player | null,
-      }));
+    const result: Player[] = [];
+    const unmatched: Player[] = [];
 
-      const assigned = new Set<string>();
-
-      // Pass 1: specialists
-      for (const player of onPitch) {
-        if (assigned.has(player.id)) continue;
-        if (player.assignedPositions?.length === 1) {
-          const slot = slots.find(s => s.pitchPos === player.assignedPositions![0] && !s.assignedPlayer);
-          if (slot) { slot.assignedPlayer = player; assigned.add(player.id); }
-        }
+    // Pass 1: each player claims the nearest unused slot matching their own
+    // pitch position type (currentPitchPosition, or derived from where they are).
+    for (const player of onPitch) {
+      const type = player.currentPitchPosition
+        ?? getPositionFromCoords(player.position!.y, teamSize);
+      const candidates = slots.filter(s => !s.taken && s.pitchPos === type);
+      if (candidates.length === 0) {
+        unmatched.push(player);
+        continue;
       }
-      // Pass 2: multi-position
-      for (const player of onPitch) {
-        if (assigned.has(player.id)) continue;
-        if (player.assignedPositions?.length) {
-          const slot = slots.find(s => !s.assignedPlayer && player.assignedPositions!.includes(s.pitchPos));
-          if (slot) { slot.assignedPlayer = player; assigned.add(player.id); }
-        }
-      }
-      // Pass 3: flex / remaining
-      for (const player of onPitch) {
-        if (assigned.has(player.id)) continue;
-        const slot = slots.find(s => !s.assignedPlayer);
-        if (slot) { slot.assignedPlayer = player; assigned.add(player.id); }
-      }
-
-      const result: Player[] = [];
-      for (const slot of slots) {
-        if (slot.assignedPlayer) {
-          result.push({ ...slot.assignedPlayer, position: slot.pos, currentPitchPosition: slot.pitchPos });
-        }
-      }
-      // Any on-pitch players that didn't fit stay on bench
-      for (const player of onPitch) {
-        if (!assigned.has(player.id)) {
-          result.push({ ...player, position: null, currentPitchPosition: undefined });
-        }
-      }
-      result.push(...onBench);
-      setPlayers(result);
-    } else {
-      // Pre-game: full re-place
-      const placedPlayers = autoPlacePlayersOnPitch(players, teamSize, selectedFormation);
-      setPlayers(placedPlayers);
+      const slot = candidates.reduce((best, s) =>
+        dist(player.position!, s.pos) < dist(player.position!, best.pos) ? s : best
+      );
+      slot.taken = true;
+      result.push({ ...player, position: slot.pos, currentPitchPosition: slot.pitchPos });
     }
+
+    // Pass 2: players whose slot type isn't available go to the nearest free
+    // slot but KEEP their own position label; if no slots are free they stay
+    // exactly where they are.
+    for (const player of unmatched) {
+      const free = slots.filter(s => !s.taken);
+      if (free.length === 0) {
+        result.push(player);
+        continue;
+      }
+      const slot = free.reduce((best, s) =>
+        dist(player.position!, s.pos) < dist(player.position!, best.pos) ? s : best
+      );
+      slot.taken = true;
+      result.push({ ...player, position: slot.pos });
+    }
+
+    // Bench players stay on the bench.
+    result.push(...onBench);
+    setPlayers(result);
 
     // Reset ball to center
     setBallPosition({ x: 50, y: 50 });
-    
+
     toast({
       title: "Formation Reset",
       description: "Players and ball have been moved back to formation positions.",
     });
-  }, [players, teamSize, selectedFormation, gameInProgress, autoPlacePlayersOnPitch, toast]);
+  }, [players, teamSize, selectedFormation, toast]);
 
   // Handle team size change - preview changes and show confirmation
   const handleTeamSizeChange = useCallback((newSize: TeamSize) => {
@@ -3162,6 +3161,7 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
     mode, movablePitchPlayerIds, nextSubInfo, onClose, onUnlinkEvent, openAutoSubPlanDialog,
     opponentName, pendingAutoSub, pendingBatchSubs, pendingFormationChange, pendingManualSub,
     pendingSubBenchPlayer, pendingSwapBasedSub, pinDrawingToolbar, pitchPlayerActionOpen,
+    pitchZoomScrollRef,
     pitchPlayerActionTarget, pitchSwapConfirmOpen, players, playersOnBench, playersOnPitch,
     portraitSheetDragRef, portraitSheetHeightPct, portraitSheetOpen, portraitTimerPosition,
     portraitTimerScale, positionEditorOpen, positionSwapDialogOpen, preferredSecondHalfGkId,
@@ -3198,4 +3198,25 @@ export default function PitchBoard({ teamId, teamName, members, onClose, disable
       {isLandscape ? <PitchBoardLandscapeLayout /> : <PitchBoardPortraitLayout />}
     </PitchBoardLayoutContext.Provider>
   );
+}
+
+/**
+ * Durable lineup gate: when the board is opened for a specific fixture we first
+ * pull the saved lineup for that event from the database into localStorage, so
+ * a lineup planned on another device (or before a cache clear) is restored.
+ * The inner board reads localStorage synchronously on mount, so it must not
+ * render until hydration has settled.
+ */
+export default function PitchBoard(props: PitchBoardProps) {
+  const { ready } = useEventLineupHydration(
+    props.initialLinkedEventId ?? null,
+    props.teamId,
+    { enabled: !props.readOnly && !props.miniLeagueTeams }
+  );
+
+  if (!ready) {
+    return <PitchBoardLoading message="Restoring lineup..." />;
+  }
+
+  return <PitchBoardInner {...props} />;
 }

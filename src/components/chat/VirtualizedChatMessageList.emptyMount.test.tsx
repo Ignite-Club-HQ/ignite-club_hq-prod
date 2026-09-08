@@ -121,6 +121,64 @@ describe("VirtualizedChatMessageList — empty/cold-start guards", () => {
       ),
     ).not.toThrow();
   });
+  /**
+   * Regression guard for "chat thread moves up and down after skeleton
+   * reveal" (cold open of group/committee chats):
+   *
+   * Root cause: the list mounts EMPTY (React Query cache cold), the empty
+   * branch's 700ms grace reveals the empty state, and that reveal armed the
+   * one-way `hasRevealedOnceRef` latch. When the real messages landed
+   * (>700ms fetch — normal on cold start), `armRevealMask()` was disarmed, so
+   * the whole bottom-pin stabilisation sequence (immediate/raf/stability/
+   * settle pins + Virtuoso's end-align park → true-maxTop correction) played
+   * out VISIBLY for seconds.
+   *
+   * Invariant: an empty-state reveal must NOT disarm re-masking — the latch
+   * may only arm once content (messages.length > 0) has actually painted.
+   */
+  it("cold-open: an empty-state reveal must NOT disarm re-masking when messages land", () => {
+    vi.useFakeTimers();
+    try {
+      const ref = createRef<VirtualizedChatMessageListHandle>();
+      const { rerender, container } = render(
+        withQuery(<VirtualizedChatMessageList ref={ref} messages={[]} {...baseProps} />),
+      );
+
+      // Empty branch: the 700ms grace reveals the EMPTY thread (in the real
+      // app the page-level skeleton is still covering the list at this point).
+      act(() => {
+        vi.advanceTimersByTime(900);
+      });
+
+      // The cold fetch resolves AFTER the grace — the regression window.
+      const messages = Array.from({ length: 30 }, (_, i) => ({
+        id: `m${i}`,
+        text: `msg ${i}`,
+        author_id: "u1",
+        created_at: new Date(Date.now() - (30 - i) * 60_000).toISOString(),
+      }));
+      rerender(
+        withQuery(<VirtualizedChatMessageList ref={ref} messages={messages} {...baseProps} />),
+      );
+
+      // The reveal mask MUST be re-armed (content wrapper back to opacity 0)
+      // so the pin/stabilise sequence runs behind the skeleton.
+      const findMaskedWrapper = () =>
+        Array.from(container.querySelectorAll<HTMLElement>("div")).find(
+          (el) => el.style.opacity === "0" && el.style.position === "relative",
+        );
+      expect(findMaskedWrapper()).toBeTruthy();
+
+      // And the mask must eventually lift on its own (reveal deadline +
+      // settle budget), never leaving the thread permanently hidden.
+      act(() => {
+        vi.advanceTimersByTime(7000);
+      });
+      expect(findMaskedWrapper()).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // Silence noisy Virtuoso ResizeObserver warnings that jsdom can't fulfil.

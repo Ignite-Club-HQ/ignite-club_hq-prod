@@ -59,6 +59,22 @@ export function shouldPromptParent(a: RsvpAudience): boolean {
 }
 
 /**
+ * Should the signed-in adult see their OWN ("Your RSVP") block?
+ *
+ * Parents are prompted whenever the audience includes parents. Adult players
+ * are ALSO prompted under `players_only`, because on that audience *they* are
+ * the player. This is what makes mixed teams (adult players + children on one
+ * roster) work: the parent gets both their own block and their children's.
+ */
+export function shouldPromptSelf(
+  a: RsvpAudience,
+  viewerIsAdultPlayer?: boolean | null,
+): boolean {
+  if (shouldPromptParent(a)) return true;
+  return shouldPromptPlayer(a) && !!viewerIsAdultPlayer;
+}
+
+/**
  * Club-wide social events (no team_id, type === "social") are parent-first:
  * the logged-in adult is the primary RSVP, and any household children are
  * shown as a secondary RSVP block.

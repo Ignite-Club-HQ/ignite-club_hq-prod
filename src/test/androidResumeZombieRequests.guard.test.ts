@@ -21,6 +21,7 @@ const read = (rel: string) =>
 const authRetry = read("../lib/supabaseAuthRetry.ts");
 const adapter = read("../lib/reactQueryNativeAdapter.ts");
 const ensureFresh = read("../lib/ensureFreshSession.ts");
+const refreshOnce = read("../lib/refreshSessionOnce.ts");
 const eventsPage = read("../pages/EventsPage.tsx");
 const mediaPage = read("../pages/MediaPage.tsx");
 const mediaRealtime = read("../features/media/useMediaRealtime.ts");
@@ -71,7 +72,8 @@ describe("native adapter aborts before refetching on resume", () => {
 describe("ensureFreshSession is bounded even when hidden", () => {
   it("does not gate the timeout race on document visibility", () => {
     expect(ensureFresh).not.toMatch(/const isVisible/);
-    expect(ensureFresh).toMatch(/Promise\.race\(\[/);
+    expect(ensureFresh).toMatch(/refreshSessionOnce\(REFRESH_TIMEOUT_MS\)/);
+    expect(refreshOnce).toMatch(/Promise\.race\(\[/);
     expect(ensureFresh).toMatch(/REFRESH_TIMEOUT_MS/);
   });
 });

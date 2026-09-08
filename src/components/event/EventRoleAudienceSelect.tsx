@@ -38,7 +38,7 @@ export function EventRoleAudienceSelect({ value, onChange }: Props) {
   };
 
   return (
-    <div className="space-y-2 rounded-lg border p-3">
+    <div className="space-y-2">
       <div className="flex items-center gap-2">
         <Lock className="h-4 w-4 text-muted-foreground" />
         <Label className="text-sm font-medium">Restrict to roles (optional)</Label>

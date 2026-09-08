@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
@@ -74,9 +74,12 @@ export function MediaCommentSheet({
   const [imgError, setImgError] = useState(false);
   const [browserKbInset, setBrowserKbInset] = useState(0);
   const [webViewportHeight, setWebViewportHeight] = useState<number | null>(null);
+  const [androidVisibleHeight, setAndroidVisibleHeight] = useState<number | null>(null);
+  const [androidKeyboardActive, setAndroidKeyboardActive] = useState(false);
   const capacitorPlatform = Capacitor.getPlatform();
   const isNative = Capacitor.isNativePlatform();
   const isNativeIOS = isNative && capacitorPlatform === "ios";
+  const isNativeAndroid = isNative && capacitorPlatform === "android";
   const isIOS = (() => {
     if (typeof navigator === "undefined") return isNativeIOS;
     const ua = navigator.userAgent;
@@ -143,10 +146,86 @@ export function MediaCommentSheet({
     };
   }, [open, isNative]);
 
-  const keyboardInset = isNative ? nativeKeyboardHeight : browserKbInset;
-  const isKeyboardActive = keyboardInset > 0;
+  // Native Android comment sheets should size to the visible area above the IME
+  // instead of keeping a full-height sheet and pushing the composer with a large
+  // padding value. Some OEM WebViews report a partially/fully resized viewport;
+  // others only report the Capacitor keyboard height. Measuring both keeps the
+  // text input visible without reintroducing the old blank-gap double offset.
+  useLayoutEffect(() => {
+    if (!open || !isNativeAndroid || typeof window === "undefined" || typeof document === "undefined") {
+      setAndroidVisibleHeight(null);
+      setAndroidKeyboardActive(false);
+      return;
+    }
+
+    const readRootPx = (name: string) => {
+      const raw = window.getComputedStyle(document.documentElement).getPropertyValue(name);
+      const parsed = Number.parseFloat(raw);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const sync = () => {
+      const lockedHeight = readRootPx("--visual-vh") || window.innerHeight || 0;
+      const layoutHeight = window.innerHeight || lockedHeight;
+      const visualViewport = window.visualViewport;
+      const visualHeight = visualViewport?.height ? Math.round(visualViewport.height) : 0;
+      const viewportShrank = lockedHeight > 0 && visualHeight > 0 && lockedHeight - visualHeight > 24;
+      const pluginVisibleHeight = nativeKeyboardHeight > 24 && lockedHeight > 0
+        ? lockedHeight - nativeKeyboardHeight
+        : 0;
+
+      let nextHeight = lockedHeight || layoutHeight || visualHeight || null;
+      let keyboardIsActive = false;
+
+      if (viewportShrank) {
+        nextHeight = visualHeight;
+        keyboardIsActive = true;
+      } else if (pluginVisibleHeight > 0) {
+        nextHeight = Math.min(nextHeight || pluginVisibleHeight, pluginVisibleHeight);
+        keyboardIsActive = true;
+      } else if (layoutHeight > 0 && lockedHeight > 0 && lockedHeight - layoutHeight > 24) {
+        nextHeight = layoutHeight;
+        keyboardIsActive = true;
+      }
+
+      if (nextHeight && lockedHeight > 0) {
+        nextHeight = Math.min(lockedHeight, nextHeight);
+      }
+
+      const roundedHeight = nextHeight ? Math.round(nextHeight) : null;
+      setAndroidVisibleHeight((current) => (current === roundedHeight ? current : roundedHeight));
+      setAndroidKeyboardActive((current) => (current === keyboardIsActive ? current : keyboardIsActive));
+    };
+
+    sync();
+    const raf = window.requestAnimationFrame(sync);
+    const t = window.setTimeout(sync, 120);
+    window.addEventListener("resize", sync);
+    window.visualViewport?.addEventListener("resize", sync);
+    window.visualViewport?.addEventListener("scroll", sync);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+      window.removeEventListener("resize", sync);
+      window.visualViewport?.removeEventListener("resize", sync);
+      window.visualViewport?.removeEventListener("scroll", sync);
+    };
+  }, [open, isNativeAndroid, nativeKeyboardHeight]);
+
+  const keyboardInset = isNativeAndroid ? 0 : isNative ? nativeKeyboardHeight : browserKbInset;
+  const isKeyboardActive = isNativeAndroid ? androidKeyboardActive : keyboardInset > 0;
+  // Native Android: --visual-vh is monotonic-max locked to the full window
+  // height (StatusBarManager), so it never shrinks when an OEM WebView defies
+  // Keyboard.resize:'none' and shrinks innerHeight on IME open. Using
+  // --stable-vh here (which is NOT locked on Android) made the sheet height
+  // drop by the keyboard amount while the composer still added
+  // paddingBottom = keyboardInset — a double subtraction that floated the
+  // input a full keyboard-height above the actual keyboard (big white gap).
+  // iOS keeps --stable-vh (monotonic-locked there) so the fixed sheet extends
+  // under the IME and the single paddingBottom lifts the composer.
   const screenHeight = isNative
-    ? "var(--stable-vh, 100dvh)"
+    ? (isNativeAndroid ? (androidVisibleHeight ? `${androidVisibleHeight}px` : "var(--visual-vh, 100dvh)") : "var(--stable-vh, 100dvh)")
     : webViewportHeight
       ? `${webViewportHeight}px`
       : "var(--visual-vh, 100dvh)";
@@ -512,7 +591,9 @@ export function MediaCommentSheet({
       <div
         className="flex-shrink-0 bg-background border-t border-border/60 transition-[padding] duration-150 ease-out"
         style={{
-          paddingBottom: isNative && isKeyboardActive
+          paddingBottom: isNativeAndroid && isKeyboardActive
+            ? "6px"
+            : isNative && isKeyboardActive
             ? `${keyboardInset + 6}px`
             : "calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 8px)",
         }}

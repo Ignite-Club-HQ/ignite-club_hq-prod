@@ -97,6 +97,73 @@ export function BottomNav() {
     return delta;
   })();
 
+  // Broadcast notifications are not club-owned on `broadcast_messages`, but the
+  // notification row carries `club_id`. When a club filter is active we must
+  // only count broadcasts belonging to that club — otherwise another club's
+  // announcement inflates a badge with no matching row in the filtered inbox.
+  const { data: clubBroadcastUnread = 0 } = useQuery({
+    queryKey: ["bottomnav-club-broadcast-unread", user?.id, activeClubFilter],
+    enabled: !!user?.id && !!activeClubFilter,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
+        .eq("type", "broadcast")
+        .eq("is_read", false)
+        .eq("club_id", activeClubFilter!);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  // DM unreads are only counted under a club filter when the other participant
+  // holds a role in that club — otherwise the badge shows a number with no
+  // matching thread in the filtered inbox.
+  const unreadDmConversationIds = counts
+    ? Object.entries(counts.dms).filter(([, n]) => (n || 0) > 0).map(([id]) => id)
+    : [];
+  const { data: clubScopedDmIds } = useQuery({
+    queryKey: ["bottomnav-club-scoped-dms", user?.id, activeClubFilter, unreadDmConversationIds.sort().join(",")],
+    enabled: !!user?.id && !!activeClubFilter && unreadDmConversationIds.length > 0,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data: convs } = await supabase
+        .from("direct_conversations")
+        .select("id, participant_1, participant_2")
+        .in("id", unreadDmConversationIds);
+      const peerByConv = new Map<string, string>();
+      (convs || []).forEach((c: any) => {
+        const other = c.participant_1 === user!.id ? c.participant_2 : c.participant_1;
+        if (other) peerByConv.set(c.id, other);
+      });
+      const peerIds = Array.from(new Set(peerByConv.values()));
+      if (peerIds.length === 0) return [] as string[];
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("club_id", activeClubFilter!)
+        .in("user_id", peerIds);
+      const inClub = new Set((roles || []).map((r: any) => r.user_id));
+      return Array.from(peerByConv.entries())
+        .filter(([, uid]) => inClub.has(uid))
+        .map(([cid]) => cid);
+    },
+  });
+
+  const clubDmUnreadCount = (() => {
+    if (!counts || !clubScopedDmIds) return 0;
+    const suppressedDms = new Set(
+      suppressedScopes.filter(s => s.kind === "dm" && s.targetId).map(s => s.targetId!)
+    );
+    return clubScopedDmIds.reduce(
+      (a, id) => a + (suppressedDms.has(id) ? 0 : (counts.dms[id] || 0)),
+      0
+    );
+  })();
+
+
   const clubMessagesCount = (() => {
     if (!counts || !activeClubFilter) return 0;
     const clubGroupIds = new Set<string>();
@@ -109,23 +176,22 @@ export function BottomNav() {
     const suppressedTeams = new Set(suppressedScopes.filter(s => s.kind === "team" && s.targetId).map(s => s.targetId!));
     const suppressedClubs = new Set(suppressedScopes.filter(s => s.kind === "club" && s.targetId).map(s => s.targetId!));
     const suppressedGroups = new Set(suppressedScopes.filter(s => s.kind === "group" && s.targetId).map(s => s.targetId!));
-    const suppressedDms = new Set(suppressedScopes.filter(s => s.kind === "dm" && s.targetId).map(s => s.targetId!));
     const suppressBroadcast = suppressedScopes.some(s => s.kind === "broadcast");
 
     const sumRecord = (rec: Record<string, number>, keys: string[], skip: Set<string>) =>
       keys.reduce((acc, k) => acc + (skip.has(k) ? 0 : (rec[k] || 0)), 0);
     return (
-      (suppressBroadcast ? 0 : counts.broadcast) +
+      (suppressBroadcast ? 0 : Math.min(clubBroadcastUnread, counts.broadcast)) +
       (suppressedClubs.has(activeClubFilter) ? 0 : (counts.clubs[activeClubFilter] || 0)) +
       sumRecord(counts.teams, activeClubTeamIds, suppressedTeams) +
-      sumRecord(counts.groups, Array.from(clubGroupIds), suppressedGroups) +
-      Object.entries(counts.dms).reduce((a, [id, n]) => a + (suppressedDms.has(id) ? 0 : (n || 0)), 0)
+      sumRecord(counts.groups, Array.from(clubGroupIds), suppressedGroups)
     );
   })();
 
   const unreadMessagesCount = activeClubFilter
-    ? clubMessagesCount
+    ? clubMessagesCount + clubDmUnreadCount
     : Math.max(0, globalMessagesCount - suppressionDelta);
+
   const location = useLocation();
   const isKeyboardOpen = useKeyboardOpen();
   const nativeKbHeight = useNativeKeyboardHeight();
@@ -342,7 +408,7 @@ export function BottomNav() {
     <>
       {isNativePlatform && !shouldHideNav && (
         <div
-          className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none"
+          className="fixed bottom-0 left-0 right-0 z-[49] bg-card pointer-events-none lg:hidden"
           style={{
             height: `calc(4rem + ${navBottomInset})`,
             transform: "translate3d(0,0,0)",
@@ -353,7 +419,7 @@ export function BottomNav() {
         />
       )}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card transition-transform duration-200 ease-out"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card transition-transform duration-200 ease-out lg:hidden"
         style={{
           paddingBottom: navBottomInset,
           transform: hideTransform,

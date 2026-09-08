@@ -67,6 +67,23 @@ describe("waitForChatVisualContentSettle", () => {
     expect(done).toHaveBeenCalledTimes(1);
   });
 
+  it("waits for the explicit media-pending contract", async () => {
+    const root = makeRoot();
+    const media = document.createElement("div");
+    media.dataset.mediaPending = "true";
+    root.appendChild(media);
+
+    const done = vi.fn();
+    waitForChatVisualContentSettle(root, { quietMs: 100, maxMs: 1000 }, done);
+
+    await flushFrame(250);
+    expect(done).not.toHaveBeenCalled();
+
+    delete media.dataset.mediaPending;
+    await flushFrame(140);
+    expect(done).toHaveBeenCalledTimes(1);
+  });
+
   it("does not reveal while scroll position is still changing", async () => {
     const root = makeRoot();
     const row = document.createElement("div");

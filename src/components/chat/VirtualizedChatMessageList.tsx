@@ -449,6 +449,8 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
   // Latest-render mirrors for the mount-once jump overlay effect (deps: []).
   const alignMessageIdInViewRef = useRef(alignMessageIdInView);
   alignMessageIdInViewRef.current = alignMessageIdInView;
+  const postJumpAnchorRef = useRef<{ id: string; at: number } | null>(null);
+  const [jumpAnchorNonce, setJumpAnchorNonce] = useState(0);
 
 
 
@@ -574,7 +576,15 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
         if (cancelled) return;
         cancelled = true;
         cleanup?.();
-        revealFrame = requestAnimationFrame(() => setInitialRevealReady(true));
+        revealFrame = requestAnimationFrame(() => {
+          userHasScrolledAfterPinRef.current = false;
+          postJumpAnchorRef.current = {
+            id: initialTargetMessageId,
+            at: performance.now(),
+          };
+          setJumpAnchorNonce((nonce) => nonce + 1);
+          setInitialRevealReady(true);
+        });
       };
       const wait = () => {
         if (cancelled) return;
@@ -1073,6 +1083,50 @@ function VirtualizedChatMessageListInner<TMessage extends { id: string }>(
       window.clearTimeout(stopTimer);
     };
   }, [initialRevealReady, bottomPinRevision, initialBottomPinned]);
+
+  // POST-REVEAL JUMP ANCHOR: late row hydration must not move a notification
+  // target after the reveal. Retire immediately once the user interacts.
+  useEffect(() => {
+    if (!initialRevealReady) return;
+    const anchor = postJumpAnchorRef.current;
+    const viewport = scrollerElRef.current;
+    const inner = viewport?.firstElementChild as HTMLElement | null;
+    if (!anchor || !viewport || !inner || typeof ResizeObserver === "undefined") return;
+
+    const ANCHOR_WINDOW_MS = 6000;
+    const retireAt = anchor.at + ANCHOR_WINDOW_MS;
+    const remaining = retireAt - performance.now();
+    if (remaining <= 0) return;
+
+    let retired = false;
+    let lastSignature = "";
+    let mutationObserver: MutationObserver | null = null;
+    const resizeObserver = new ResizeObserver(reanchor);
+    const retire = () => {
+      if (retired) return;
+      retired = true;
+      resizeObserver.disconnect();
+      mutationObserver?.disconnect();
+      window.clearTimeout(stopTimer);
+    };
+    function reanchor() {
+      if (retired) return;
+      if (performance.now() > retireAt || isViewportUserActive(viewport) || userHasScrolledAfterPinRef.current) {
+        retire();
+        return;
+      }
+      const signature = `${Math.round(viewport.scrollTop)}:${Math.round(viewport.scrollHeight)}:${Math.round(viewport.clientHeight)}`;
+      if (signature === lastSignature) return;
+      lastSignature = signature;
+      alignMessageIdInViewRef.current?.(anchor.id, "end");
+    }
+    resizeObserver.observe(viewport);
+    resizeObserver.observe(inner);
+    mutationObserver = new MutationObserver(reanchor);
+    mutationObserver.observe(viewport, { childList: true, subtree: true, characterData: true });
+    const stopTimer = window.setTimeout(retire, remaining + 50);
+    return retire;
+  }, [initialRevealReady, jumpAnchorNonce]);
 
 
   // Cold-open data refresh guard. On a fresh login we often render cached

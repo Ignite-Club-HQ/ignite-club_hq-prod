@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useState, useCallback, ReactNode } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, keepPreviousData, useQueryClient } from "@tanstack/react-query";
+import { purgeClubScopedQueryCache } from "@/lib/clubScopeCachePurge";
+import { guardClubListResult, resetClubListEmptyGuard } from "@/lib/clubListEmptyGuard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
@@ -147,6 +149,8 @@ const clearAllThemeCSS = () => {
   root.style.removeProperty("--accent");
   root.style.removeProperty("--accent-foreground");
   root.style.removeProperty("--ring");
+  root.style.removeProperty("--rsvp-selected");
+  root.style.removeProperty("--rsvp-selected-foreground");
   root.style.removeProperty("--background");
   root.style.removeProperty("--card");
   root.style.removeProperty("--card-foreground");
@@ -197,7 +201,16 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
     const fgL = primary.l > 50 ? 10 : 98;
     root.style.setProperty("--primary-foreground", `${primary.h} 10% ${fgL}%`);
     root.style.setProperty("--ring", cssValue);
+
+    // RSVP "selected" state must follow the club identity too — otherwise the
+    // Going / Maybe / Can't go buttons keep the default Ignite blue while the
+    // rest of the card is club-branded.
+    const rsvpL = Math.min(Math.max(primary.l, isDarkMode ? 44 : 34), isDarkMode ? 58 : 50);
+    const rsvpS = Math.max(primary.s, 40);
+    root.style.setProperty("--rsvp-selected", `${primary.h} ${rsvpS}% ${rsvpL}%`);
+    root.style.setProperty("--rsvp-selected-foreground", `${primary.h} 10% ${rsvpL > 55 ? 12 : 98}%`);
   }
+
 
   if (secondary) {
     root.style.setProperty("--secondary", `${secondary.h} ${secondary.s}% ${secondary.l}%`);
@@ -243,6 +256,7 @@ const applyThemeCSS = (theme: ClubTheme | null, isDarkMode: boolean) => {
 };
 
 export function ClubThemeProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   // Safely access auth context - may not be available during HMR or initial render
   let user = null;
   let authLoading = true; // Assume loading until we know for sure
@@ -541,6 +555,14 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
           }
 
           if (!error && data) {
+            // A notification tap is a newer, explicit user action than this
+            // async profile read. If the read started before the tap, resolve
+            // the remainder of this load against the pinned club instead of
+            // restoring the old profile club's cache, CSS and localStorage.
+            const notificationPinnedClub = getAppliedNotificationClubSwitch();
+            if (notificationPinnedClub && data.active_club_theme_id !== notificationPinnedClub) {
+              data = { active_club_theme_id: notificationPinnedClub };
+            }
             const storedPreference = localStorage.getItem(getStorageKey(user.id));
 
             if (isNoClubThemePreference(storedPreference)) {
@@ -700,8 +722,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       setActiveClubThemeState(null);
       // Clear CSS variables but DON'T remove localStorage - restore on re-login
       clearAllThemeCSS();
+      // Drop the empty-guard bookkeeping so the next user starts clean.
+      resetClubListEmptyGuard();
     }
   }, [user]);
+
 
   // Fetch all Pro clubs that the user belongs to with custom themes.
   // Resilience: throw on Supabase errors + `keepPreviousData` so a transient
@@ -724,9 +749,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         .not("club_id", "is", null);
 
       if (rolesError) throw rolesError;
-      if (!userRoles?.length) return [];
-
-      const clubIds = [...new Set(userRoles.map(r => r.club_id).filter(Boolean))];
+      const clubIds = [...new Set((userRoles || []).map(r => r.club_id).filter(Boolean))];
 
       // Also get clubs from teams
       const { data: teamRoles, error: teamRolesError } = await supabase
@@ -745,7 +768,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      if (!clubIds.length) return [];
+      if (!clubIds.length) return guardClubListResult(`club-themes:${user.id}`, []);
 
       // Fetch clubs with theme settings (left join on subscriptions)
       const { data: clubs, error: clubsError } = await supabase
@@ -787,7 +810,7 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
       if (!clubs) return [];
 
       // Filter to only Pro clubs with theme data that have theme enabled
-      return clubs
+      return guardClubListResult(`club-themes:${user.id}`, clubs
         .filter(club => {
           // Handle both array and single object subscription data
           const subs = club.club_subscriptions as any;
@@ -839,8 +862,10 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
             s: club.theme_dark_accent_s!,
             l: club.theme_dark_accent_l!,
           } : null,
-        }));
+        })));
+
     },
+    retry: 3,
     enabled: !!user?.id,
   });
 
@@ -866,16 +891,21 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
         const cid = r.teams?.club_id;
         if (cid) ids.add(cid);
       });
-      if (!ids.size) return [];
+      if (!ids.size) return guardClubListResult(`user-clubs:${user.id}`, []);
       const { data: clubs, error: clubsError } = await supabase
         .from("clubs")
         .select("id, name, logo_url")
         .in("id", Array.from(ids))
         .is("deleted_at", null);
       if (clubsError) throw clubsError;
-      return (clubs || []).map(c => ({ id: c.id, name: c.name, logo_url: c.logo_url }));
+      return guardClubListResult(
+        `user-clubs:${user.id}`,
+        (clubs || []).map(c => ({ id: c.id, name: c.name, logo_url: c.logo_url })),
+      );
     },
+    retry: 3,
     enabled: !!user?.id,
+
   });
 
   // Establish an explicit default for users who haven't set a preference yet.
@@ -905,7 +935,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
     // set state directly rather than through the guarded setter.
     const pinned = getAppliedNotificationClubSwitch();
     if (pinned && pinned !== clubId) clearAppliedNotificationClubSwitch();
+    const changed = clubId !== activeClubTheme;
     setActiveClubThemeStateRaw(clubId);
+    // Drop every club-scoped cache entry so the previous club's teams, chats,
+    // events, media and vault rows cannot paint under the new club's chrome.
+    if (changed) purgeClubScopedQueryCache(queryClient);
     if (user?.id) {
       const key = getStorageKey(user.id);
       const dataKey = getStorageDataKey(user.id);
@@ -1089,8 +1123,11 @@ export function ClubThemeProvider({ children }: { children: ReactNode }) {
   const serverThemeMatch = activeClubTheme
     ? availableClubThemes.find(t => t.clubId === activeClubTheme) ?? null
     : null;
+  const matchingCachedTheme = cachedThemeData?.clubId === activeClubTheme
+    ? cachedThemeData
+    : null;
   const activeThemeData = activeClubTheme
-    ? serverThemeMatch ?? cachedThemeData ?? null
+    ? serverThemeMatch ?? matchingCachedTheme
     : null;
 
   // Free club data: when a club is selected but has no theme (Pro + theme required)

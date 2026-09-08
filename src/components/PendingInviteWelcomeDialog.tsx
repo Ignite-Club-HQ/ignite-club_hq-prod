@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { seedClubFilterFromInvite } from "@/lib/seedClubFilterFromInvite";
+import { applyInviteClubSwitch } from "@/lib/inviteClubSwitch";
 import { seedClubThemeFromAnyInvite } from "@/lib/inviteThemeFallback";
 
 import { createChildForParentOrReuse, resolveCanonicalChildId } from "@/lib/childDedup";
@@ -594,14 +594,14 @@ export function PendingInviteWelcomeDialog() {
       // Refresh roles/membership queries after processing
       refreshAcceptedInviteMembership(queryClient);
 
-      // Apply the inviting club's theme — only seeds when user has no
-      // existing preference (or is still on the post-signup sentinel).
-      // Never overrides an explicit user choice.
+      // Apply the inviting club's theme. Seeds when the user has no existing
+      // preference; when they're an existing member of a DIFFERENT club we
+      // switch anyway (accepting an invite is user-driven) and announce it
+      // with an Undo. Never switches when already on the invited club.
       if (firstInvitedClubId && user) {
-        const seeded = seedClubFilterFromInvite(user.id, firstInvitedClubId, setActiveClubTheme);
-        if (seeded) {
-          console.log("[InviteAutoAccept] Applied club filter from invite:", firstInvitedClubId);
-        }
+        await applyInviteClubSwitch(user.id, firstInvitedClubId, setActiveClubTheme, {
+          source: "InviteAutoAccept",
+        });
       } else if (user) {
         // Defensive: invite may already be accepted, so the pending query was
         // empty — seed from any recent invite for this user instead.

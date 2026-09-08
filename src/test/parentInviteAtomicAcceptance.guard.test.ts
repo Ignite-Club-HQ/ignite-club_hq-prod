@@ -31,13 +31,15 @@ const completeProfilePage = readFileSync("src/pages/CompleteProfilePage.tsx", "u
  */
 describe("parent invite atomic acceptance", () => {
   it("JoinTeamPage accepts child-carrying parent invites through the RPC", () => {
-    expect(joinTeamPage).toContain("acceptParentTeamInvite({ inviteId: pendingInviteData.id })");
+    // Shared helper used by both the named-invite and shareable-link paths.
+    expect(joinTeamPage).toContain("provisionChildrenFromInviteMetadata");
+    expect(joinTeamPage).toContain("acceptParentTeamInvite({ inviteId })");
   });
 
   it("JoinTeamPage surfaces a retryable error instead of continuing on failure", () => {
     const branch = joinTeamPage.slice(
-      joinTeamPage.indexOf("acceptParentTeamInvite({ inviteId: pendingInviteData.id })"),
-      joinTeamPage.indexOf('} else if (pendingInviteData.role === "parent" && metadata?.child_id)')
+      joinTeamPage.indexOf("acceptParentTeamInvite({ inviteId })"),
+      joinTeamPage.indexOf("if (metadata.child_id) {")
     );
     expect(branch).toContain("throw new Error(getParentInviteErrorMessage(rpcError))");
     // The old flow logged child failures and kept going.

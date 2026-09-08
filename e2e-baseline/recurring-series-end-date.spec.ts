@@ -127,6 +127,9 @@ test("club admin extends a recurring series end date from the edit journey", asy
     if (url.pathname === "/rest/v1/clubs") {
       return json([{ id: clubId, name: "Synthetic Riverside FC" }]);
     }
+    if (url.pathname === "/rest/v1/club_subscriptions") {
+      return json([{ is_pro: true, is_pro_football: false, expires_at: null }]);
+    }
     if (url.pathname === "/rest/v1/teams") {
       return json([{ id: teamId, club_id: clubId, name: "Synthetic U10", age_group: "U10" }]);
     }

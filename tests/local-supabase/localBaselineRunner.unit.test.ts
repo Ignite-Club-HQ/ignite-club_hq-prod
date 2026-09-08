@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   assertOnlyAllowedLocalNames,
+  baselineBranchMode,
   expectedMigrationVersions,
   findUnreviewedMirroredMigrations,
   hasExplicitLocalSessionApproval,
@@ -164,5 +165,15 @@ describe("complete baseline local lifecycle safety", () => {
     expect(worktreeUpdateMode(0, "")).toBe("update");
     expect(worktreeUpdateMode(0, " M src/example.test.ts\n")).toBe("test-current");
     expect(worktreeUpdateMode(128, "")).toBe("error");
+  });
+
+  it("makes the one-click command safe on review and tranche branches", () => {
+    expect(baselineBranchMode("codespaces-review")).toBe("update-test-branch");
+    expect(baselineBranchMode("promotion/09b-telemetry-recipient-reconciliation"))
+      .toBe("test-current");
+    expect(baselineBranchMode("feature/example")).toBe("test-current");
+    expect(baselineBranchMode("main")).toBe("protected");
+    expect(baselineBranchMode("master")).toBe("protected");
+    expect(baselineBranchMode("")).toBe("error");
   });
 });

@@ -125,9 +125,9 @@ describe("AuthPage critical journeys", () => {
   it("rejects malformed email before calling password sign-in", () => {
     render(<AuthPage />);
     fillSignIn("not-an-email", "secret12");
-    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
+    fireEvent.submit(screen.getByRole("button", { name: "Sign In" }).closest("form")!);
     expect(mocks.signIn).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ description: "Please enter a valid email" }));
+    expect(screen.getByText("Please enter a valid email")).toBeInTheDocument();
   });
 
   it("rejects a too-short sign-in password before authentication", () => {
@@ -162,9 +162,7 @@ describe("AuthPage critical journeys", () => {
     render(<AuthPage />);
     fillSignIn();
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
-    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
-      title: "Unable to sign in", description: "Invalid email or password. Please try again.",
-    }));
+    await screen.findByText("Invalid email or password. Please try again.");
   });
 
   it("translates network failures into a safe connection message", async () => {
@@ -172,9 +170,7 @@ describe("AuthPage critical journeys", () => {
     render(<AuthPage />);
     fillSignIn();
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
-    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
-      title: "Connection issue", description: "We couldn't reach the server. Check your connection and try again.",
-    }));
+    await screen.findByText("We couldn't reach the server. Check your connection and try again.");
   });
 
   it("shows an offline warning before a user attempts authentication", () => {
@@ -189,7 +185,7 @@ describe("AuthPage critical journeys", () => {
     fillSignup("weakpass", "different");
     fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
     expect(mocks.signUp).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Password not strong enough" }));
+    expect(screen.getByText(/password needs:/i)).toBeInTheDocument();
   });
 
   it("rejects mismatched strong signup passwords", () => {
@@ -198,7 +194,7 @@ describe("AuthPage critical journeys", () => {
     fillSignup("StrongPass1", "StrongPass2");
     fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
     expect(mocks.signUp).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Passwords don't match" }));
+    expect(screen.getByText("Please ensure both passwords are identical.")).toBeInTheDocument();
   });
 
   it("requires explicit terms acceptance before account creation", () => {
@@ -207,7 +203,7 @@ describe("AuthPage critical journeys", () => {
     fillSignup();
     fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
     expect(mocks.signUp).not.toHaveBeenCalled();
-    expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Terms & Privacy Policy" }));
+    expect(screen.getByText(/you must accept the terms of service/i)).toBeInTheDocument();
   });
 
   it("creates an account after all local validation succeeds", async () => {
@@ -289,10 +285,7 @@ describe("AuthPage critical journeys", () => {
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
 
-    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
-      title: "Connection issue",
-      description: "We couldn't reach the server. Check your connection and try again.",
-    }));
+    await screen.findByText("We couldn't reach the server. Check your connection and try again.");
     expect(screen.getByRole("button", { name: "Create Account" })).toBeEnabled();
   });
 

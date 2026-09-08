@@ -64,8 +64,12 @@ function handlePayload(payload: any) {
   coldMark("notif_tap");
   coldRemark("notif_tap");
   try { startLongTaskWindow("notif_to_chat_mount"); } catch {}
-  const rawUrl: string | undefined = payload.url;
   const data = payload.data || payload;
+  // Mirror native payload extraction. FCM/web-push producers have used both
+  // top-level and nested `url`/`link`/`path` fields over time; ignoring those
+  // variants opens no reliable route/switch handoff on a resumed web client.
+  const rawUrl: string | undefined =
+    payload.url || payload.link || payload.path || data?.url || data?.link || data?.path;
   console.log("[WebNotificationLaunch] tap received", {
     notificationId: data?.notificationId ?? data?.id ?? null,
     type: data?.notificationType || data?.type || null,

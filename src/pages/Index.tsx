@@ -24,7 +24,7 @@ const Index = () => {
           Sports club management for teams, coaches, and families.
         </p>
         <span className="mt-4 inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          v1.2.55
+          v1.2.59
         </span>
       </div>
     </div>

@@ -217,7 +217,7 @@ async function openTrash(page: Page) {
 async function openClubVault(page: Page, options: { expectUpload?: boolean } = {}) {
   await page.goto("/vault");
   await expect(page.getByRole("heading", { name: "Vault" })).toBeVisible({ timeout: 12_000 });
-  await page.getByText("Synthetic Vault FC", { exact: true }).click();
+  await page.getByLabel("Main content").getByText("Synthetic Vault FC", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Synthetic Vault FC" })).toBeVisible();
   if (options.expectUpload ?? true) {
     await expect(page.getByRole("button", { name: "Upload", exact: true })).toBeVisible();

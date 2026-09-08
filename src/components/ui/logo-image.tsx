@@ -4,6 +4,14 @@ interface LogoImageProps {
   src: string;
   alt?: string;
   className?: string;
+  /**
+   * Classes for the inner <img> (replaces the default object-cover fit).
+   * Kept separate from `className` (the wrapper span) so callers can give the
+   * wrapper a FIXED footprint (e.g. "h-8 w-8") — a w-auto wrapper collapses to
+   * zero width while the bitmap is still loading, then shoves surrounding
+   * header content sideways when the image paints.
+   */
+  imgClassName?: string;
   fallback?: React.ReactNode;
 }
 
@@ -54,6 +62,15 @@ function injectPreloadLinkTag(src: string) {
   } catch {
     /* ignore — Image() warm-up below still kicks off the fetch */
   }
+}
+
+// Drop a cached warm-up entry so a later preload/render re-issues the fetch.
+// Called when the visible <img> errors (usually an offline fetch) — otherwise
+// `preloadedImages.has(src)` short-circuits every retry forever.
+export function forgetLogo(src: string | null | undefined) {
+  if (!src) return;
+  preloadedImages.delete(src);
+  decodedLogoUrls.delete(src);
 }
 
 export function preloadLogo(src: string | null | undefined) {
@@ -108,16 +125,28 @@ if (typeof window !== "undefined") {
  * logo never appears as a "loading later" element in the top nav after
  * login — the URL is also pushed into a module-level decode cache so a
  * second mount (e.g. route change) paints instantly.
+ *
+ * IMPORTANT: the error fallback must never be a permanent latch. A logo fetch
+ * that fails because the device briefly lost coverage used to stick for the
+ * whole session (and the module-level warm-up cache suppressed every retry),
+ * so the club header silently degraded to the generic Ignite mark until a full
+ * app restart. Failures are therefore transient: they clear on src change, on
+ * `online`, and on tab/app resume, and each retry re-issues a real request via
+ * a cache-busting attempt token.
  */
-export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps) {
+export function LogoImage({ src, alt = "", className, imgClassName, fallback }: LogoImageProps) {
   const [failed, setFailed] = useState(false);
+  // Bumped on every retry so React remounts the <img> and the browser
+  // re-requests the (previously failed) URL instead of reusing its error cache.
+  const [attempt, setAttempt] = useState(0);
   // Already-decoded URLs paint synchronously; otherwise show a soft
   // skeleton in the same footprint until the bitmap is ready.
   const [loaded, setLoaded] = useState(() => decodedLogoUrls.has(src));
 
   // Warm cache on every render so navigation between routes keeps the
-  // decoded entry hot.
+  // decoded entry hot. A new src always clears a prior failure.
   useEffect(() => {
+    setFailed(false);
     preloadLogo(src);
     if (decodedLogoUrls.has(src)) {
       setLoaded(true);
@@ -126,9 +155,44 @@ export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps
     }
   }, [src]);
 
+  // Retry the moment connectivity or foreground state comes back. Without this
+  // the offline failure survives the reconnect and the club logo never returns.
+  useEffect(() => {
+    if (!failed) return;
+    if (typeof window === "undefined") return;
+
+    const retry = () => {
+      if (navigator.onLine === false) return;
+      forgetLogo(src);
+      setFailed(false);
+      setLoaded(false);
+      setAttempt((n) => n + 1);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") retry();
+    };
+
+    window.addEventListener("online", retry);
+    window.addEventListener("focus", retry);
+    document.addEventListener("visibilitychange", onVisible);
+    // Also self-heal while the app stays open on a flaky connection.
+    const timer = window.setTimeout(retry, 5000);
+
+    return () => {
+      window.removeEventListener("online", retry);
+      window.removeEventListener("focus", retry);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearTimeout(timer);
+    };
+  }, [failed, src]);
+
   if (failed) {
     return <>{fallback}</> || null;
   }
+
+  const requestSrc = attempt === 0
+    ? src
+    : `${src}${src.includes("?") ? "&" : "?"}_logoRetry=${attempt}`;
 
   return (
     <span className={`relative inline-block overflow-hidden ${className ?? ""}`}>
@@ -139,9 +203,10 @@ export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps
         />
       )}
       <img
-        src={src}
+        key={requestSrc}
+        src={requestSrc}
         alt={alt}
-        className={`block h-full w-full object-cover transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`block h-full w-full ${imgClassName ?? "object-cover"} transition-opacity duration-150 ${loaded ? "opacity-100" : "opacity-0"}`}
         loading="eager"
         decoding="sync"
         fetchPriority="high"
@@ -149,7 +214,10 @@ export function LogoImage({ src, alt = "", className, fallback }: LogoImageProps
           decodedLogoUrls.add(src);
           setLoaded(true);
         }}
-        onError={() => setFailed(true)}
+        onError={() => {
+          forgetLogo(src);
+          setFailed(true);
+        }}
       />
     </span>
   );

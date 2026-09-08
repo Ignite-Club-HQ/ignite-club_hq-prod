@@ -392,7 +392,7 @@ test("iOS invalid committee signup gives visible validation without sending a re
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create Account" }).tap();
 
-  await expect(page.getByText("Please enter a valid email", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Email")).toHaveJSProperty("validity.valid", false);
   expect(await signupRequestCount(page)).toBe(0);
 });
 

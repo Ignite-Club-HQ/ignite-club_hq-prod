@@ -23,6 +23,7 @@ interface PendingInvite {
   invited_user_id: string | null;
   invited_label: string | null;
   invited_email?: string | null;
+  metadata?: unknown;
   created_at: string;
   status: string;
   profiles?: {

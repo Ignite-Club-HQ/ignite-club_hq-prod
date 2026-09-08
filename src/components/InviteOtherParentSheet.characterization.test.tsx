@@ -121,7 +121,11 @@ async function fillAndSubmit(opts: { email?: string } = {}) {
     await user.click(screen.getByRole("button", { name: /^Email$/i }));
     await user.type(screen.getByPlaceholderText(/parent@example.com/i), opts.email);
   }
-  const submit = await screen.findByRole("button", { name: /create invite/i });
+  // The submit button label is mode-dependent: share mode reads
+  // "Create & Share Link"; email mode (once an address is present) reads "Create Invite".
+  const submit = await screen.findByRole("button", {
+    name: opts.email !== undefined ? /create invite/i : /create & share link/i,
+  });
   await user.click(submit);
   return user;
 }
@@ -292,7 +296,7 @@ describe("email delivery verification", () => {
     renderSheet();
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/search or type parent's name/i), "Jo Parent");
-    const submit = screen.getByRole("button", { name: /create invite/i });
+    const submit = screen.getByRole("button", { name: /create & share link/i });
     await user.click(submit);
     await user.click(submit);
     await waitFor(() => expect(inviteInserts().length).toBeGreaterThan(0));
@@ -308,7 +312,7 @@ describe("email delivery verification", () => {
 
     scenario.teamRow = { id: "team-1", club_id: "club-1" };
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /create invite/i }));
+    await user.click(screen.getByRole("button", { name: /create & share link/i }));
     await waitFor(() => expect(inviteInserts()).toHaveLength(1));
   });
 

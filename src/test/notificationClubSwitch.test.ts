@@ -11,7 +11,11 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (table: string) => ({
       select: () => ({
         eq: () => ({
-          maybeSingle: async () => ({ data: rows[table] ?? null, error: null }),
+          // Assign an Error to rows[table] to simulate a failed lookup (the
+          // cold-start race: RLS rejects the query before the session restores).
+          maybeSingle: async () => rows[table] instanceof Error
+            ? { data: null, error: rows[table] }
+            : { data: rows[table] ?? null, error: null },
         }),
       }),
     }),
@@ -22,6 +26,9 @@ import {
   resolveNotificationClubId,
   requestClubSwitchForNotification,
   peekPendingNotificationClubSwitch,
+  peekPendingNotificationClubSwitchRequest,
+  consumePendingNotificationClubSwitch,
+  stashResolvedNotificationClubSwitch,
   clearPendingNotificationClubSwitch,
   isNotificationClubSwitchInFlight,
   clearNotificationClubSwitchInFlight,
@@ -114,6 +121,58 @@ describe("non-chat notification urls", () => {
 
   it("returns null for routes that are not club-owned", async () => {
     expect(await resolveNotificationClubId({ type: "points_awarded" }, "/profile?section=points-history")).toBeNull();
+  });
+});
+
+describe("raw request survives tap-time lookup failure (cold-start race)", () => {
+  it("keeps the raw request stashed so the hook can resolve it once auth is ready", async () => {
+    rows.teams = new Error("network down");
+    requestClubSwitchForNotification({ type: "team_message", message_id: "m1" }, "/messages/t1?message=m1");
+    await new Promise((r) => setTimeout(r, 0));
+    // No club resolved yet — but the REQUEST must not be dropped.
+    expect(peekPendingNotificationClubSwitch()).toBeNull();
+    const req = peekPendingNotificationClubSwitchRequest();
+    expect(req?.clubId).toBeNull();
+    expect(req?.url).toBe("/messages/t1?message=m1");
+    expect((req?.data as any)?.message_id).toBe("m1");
+  });
+
+  it("a deferred re-resolution upgrades the raw request to a resolved switch", async () => {
+    rows.teams = new Error("network down");
+    requestClubSwitchForNotification({ type: "team_message", message_id: "m1" }, "/messages/t1?message=m1");
+    await new Promise((r) => setTimeout(r, 0));
+    // Auth/network recovers — the hook re-resolves and upgrades the stash.
+    rows.teams = { club_id: "club-B" };
+    const req = peekPendingNotificationClubSwitchRequest();
+    const clubId = await resolveNotificationClubId(req?.data, req?.url);
+    expect(clubId).toBe("club-B");
+    stashResolvedNotificationClubSwitch(clubId!, req?.data, req?.url);
+    expect(peekPendingNotificationClubSwitch()).toBe("club-B");
+    expect(isNotificationClubSwitchInFlight("club-B")).toBe(true);
+  });
+
+  it("stashes no request at all for DMs (nothing club-scoped to resolve)", async () => {
+    requestClubSwitchForNotification({ type: "direct_message", message_id: "m1" }, "/messages/dm/c1?message=m1");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(peekPendingNotificationClubSwitchRequest()).toBeNull();
+    expect(peekPendingNotificationClubSwitch()).toBeNull();
+  });
+
+  it("shields the route from the club scope guard while a raw request is unresolved", async () => {
+    rows.teams = new Error("network down");
+    requestClubSwitchForNotification({ type: "team_message", message_id: "m1" }, "/messages/t1?message=m1");
+    await new Promise((r) => setTimeout(r, 0));
+    // Club unknown yet — the guard must stand down for ANY club, or it would
+    // bounce the tapped chat home while the filter is still on the old club.
+    expect(isNotificationClubSwitchInFlight("any-club")).toBe(true);
+  });
+
+  it("consuming a raw request clears it", async () => {
+    rows.teams = new Error("network down");
+    requestClubSwitchForNotification({ type: "team_message", message_id: "m1" }, "/messages/t1?message=m1");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(consumePendingNotificationClubSwitch()).toBeNull();
+    expect(peekPendingNotificationClubSwitchRequest()).toBeNull();
   });
 });
 
