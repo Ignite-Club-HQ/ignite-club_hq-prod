@@ -1,3 +1,4 @@
+import { filterBroadcastsForClub } from "@/lib/broadcastClubScope";
 import { useStickyList } from "@/hooks/useStickyList";
 import { useStableInboxReadModel } from "@/hooks/useStableInboxReadModel";
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
@@ -240,7 +241,6 @@ export default function MessagesPage() {
   ) as 'all' | 'teams' | 'groups' | 'dms';
   const [showAllOps, setShowAllOps] = useState(false);
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
-import { filterBroadcastsForClub } from "@/lib/broadcastClubScope";
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
 
   // Effective club filter: use theme filter if active, otherwise use local filter
