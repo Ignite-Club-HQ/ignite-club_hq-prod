@@ -254,7 +254,7 @@ async function doPrefetchDirect(queryClient: QueryClient, userId: string) {
         .eq("user_id", userId),
       supabase
         .from("broadcast_messages")
-        .select("id, text, image_url, created_at, author_id, reply_to_id")
+        .select("id, text, image_url, created_at, author_id, reply_to_id, target_club_ids")
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1),
     ]);
