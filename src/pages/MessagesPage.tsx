@@ -552,16 +552,20 @@ export default function MessagesPage() {
 
   // Get latest broadcast message
   const { data: latestBroadcast, isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError } = useQuery({
-    queryKey: ["latest-broadcast"],
+    queryKey: ["latest-broadcast", activeClubFilter],
     refetchOnReconnect: "always",
     queryFn: async () => {
-      const { data } = await supabase
+      // Fetch a small window and pick the newest announcement visible in the
+      // active club — targeted announcements must not preview elsewhere.
+      const { data: rows } = await supabase
         .from("broadcast_messages")
-        .select("text, created_at, image_url, author_id")
+        .select("text, created_at, image_url, author_id, target_club_ids")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
+        .limit(20);
+
+      const data = filterBroadcastsForClub(rows as any[], activeClubFilter)[0];
+
       if (!data) return null;
       
       let authorName = "";
