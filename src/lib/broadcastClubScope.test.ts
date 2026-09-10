@@ -31,6 +31,6 @@ describe("filterBroadcastsForClub", () => {
   });
 
   it("drops legacy rows that have no targeting metadata", () => {
-    expect(filterBroadcastsForClub([{ id: "legacy" }], "club-a")).toEqual([]);
+    expect(filterBroadcastsForClub<{ id: string; target_club_ids?: string[] | null }>([{ id: "legacy" }], "club-a")).toEqual([]);
   });
 });
