@@ -7,6 +7,11 @@ describe("broadcastVisibleInClub", () => {
     expect(broadcastVisibleInClub([], null)).toBe(true);
   });
 
+  it("fails closed when legacy cached targeting metadata is missing", () => {
+    expect(broadcastVisibleInClub(undefined, "club-a")).toBe(false);
+    expect(broadcastVisibleInClub(undefined, null)).toBe(false);
+  });
+
   it("shows targeted announcements only in a targeted club", () => {
     expect(broadcastVisibleInClub(["club-a"], "club-a")).toBe(true);
     expect(broadcastVisibleInClub(["club-a"], "club-b")).toBe(false);

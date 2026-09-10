@@ -9,7 +9,11 @@ export function broadcastVisibleInClub(
   targetClubIds: string[] | null | undefined,
   activeClubId: string | null | undefined,
 ): boolean {
-  if (!targetClubIds || targetClubIds.length === 0) return true;
+  // NULL/empty is the explicit database representation for a global broadcast.
+  // `undefined` means an older cache/optimistic row omitted the targeting field;
+  // fail closed so it can never briefly leak into another club while fresh data loads.
+  if (targetClubIds === undefined) return false;
+  if (targetClubIds === null || targetClubIds.length === 0) return true;
   if (!activeClubId) return false;
   return targetClubIds.includes(activeClubId);
 }
