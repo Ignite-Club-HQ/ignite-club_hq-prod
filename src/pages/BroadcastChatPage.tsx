@@ -118,6 +118,9 @@ const getCachedBroadcastMessages = (): Message[] =>
       reaction_type: reaction.reaction_type,
     })),
     reply_to: cachedMessage.reply_to ? { text: cachedMessage.reply_to.text } : null,
+    target_club_ids: Object.prototype.hasOwnProperty.call(cachedMessage, "target_club_ids")
+      ? (cachedMessage.target_club_ids as string[] | null)
+      : undefined,
   }));
 
 export default function BroadcastChatPage() {
@@ -352,6 +355,7 @@ export default function BroadcastChatPage() {
         created_at: m.created_at,
         image_url: m.image_url,
         reply_to_id: m.reply_to_id,
+         target_club_ids: m.target_club_ids ?? null,
         profiles: null,
         reactions: m.reactions,
         reply_to: m.reply_to,
@@ -511,6 +515,7 @@ export default function BroadcastChatPage() {
         created_at: m.created_at,
         image_url: m.image_url,
         reply_to_id: m.reply_to_id,
+        target_club_ids: m.target_club_ids,
         profiles: null,
         reactions: m.reactions,
         reply_to: m.reply_to,
@@ -895,6 +900,7 @@ export default function BroadcastChatPage() {
         created_at: new Date().toISOString(),
         reactions: [],
         reply_to: replyingTo ? { text: replyingTo.text } : null,
+        target_club_ids: targetClubIds.length > 0 ? [...targetClubIds] : null,
       };
 
       // Update query cache directly (this will sync to localMessages via useEffect)
@@ -1031,7 +1037,7 @@ export default function BroadcastChatPage() {
         scope: {},
         query: q,
         signal,
-        selectColumns: "id, text, image_url, created_at, edited_at, author_id, reply_to_id",
+        selectColumns: "id, text, image_url, created_at, edited_at, author_id, reply_to_id, target_club_ids",
       })) as Message[],
   });
 

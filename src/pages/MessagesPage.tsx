@@ -1446,13 +1446,14 @@ export default function MessagesPage() {
         queryFn: async () => {
           const { data: messagesData } = await supabase
             .from("broadcast_messages")
-            .select("id, text, created_at, author_id, image_url, reply_to_id")
+            .select("id, text, created_at, author_id, image_url, reply_to_id, target_club_ids")
             .order("created_at", { ascending: false })
             .limit(MESSAGES_PER_PAGE + 1);
           
-          if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-          const hasMore = messagesData.length > MESSAGES_PER_PAGE;
-          const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
+          const scopedMessages = filterBroadcastsForClub(messagesData, effectiveClubFilter);
+          if (!scopedMessages.length) return { messages: [], hasOlderMessages: false };
+          const hasMore = scopedMessages.length > MESSAGES_PER_PAGE;
+          const messagesToDisplay = hasMore ? scopedMessages.slice(0, MESSAGES_PER_PAGE) : scopedMessages;
           return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
         },
         staleTime: 1000 * 60,
@@ -1535,7 +1536,7 @@ export default function MessagesPage() {
       }
       if (timeoutHandle !== null) clearTimeout(timeoutHandle);
     };
-  }, [user, teams, memberClubs, chatGroups, queryClient]);
+  }, [user, teams, memberClubs, chatGroups, queryClient, effectiveClubFilter]);
 
   // Realtime: keep inbox previews + ordering fresh as new messages arrive.
   // Without this, latest-message text and the most-recent-at-top sort only
