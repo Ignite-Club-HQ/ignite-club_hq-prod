@@ -80,6 +80,8 @@ import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { broadcastVisibleInClub, filterBroadcastsForClub } from "@/lib/broadcastClubScope";
 
 
 const MESSAGES_PER_PAGE = 30;
@@ -99,6 +101,7 @@ interface Message {
   reply_to?: {
     text: string;
   } | null;
+  target_club_ids?: string[] | null;
 }
 
 const getCachedBroadcastMessages = (): Message[] =>
@@ -115,6 +118,9 @@ const getCachedBroadcastMessages = (): Message[] =>
       reaction_type: reaction.reaction_type,
     })),
     reply_to: cachedMessage.reply_to ? { text: cachedMessage.reply_to.text } : null,
+    target_club_ids: Object.prototype.hasOwnProperty.call(cachedMessage, "target_club_ids")
+      ? (cachedMessage.target_club_ids as string[] | null)
+      : undefined,
   }));
 
 export default function BroadcastChatPage() {
@@ -129,6 +135,8 @@ export default function BroadcastChatPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  // Targeted announcements must only show while viewing a targeted club.
+  const { activeClubFilter } = useClubTheme();
   const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
   const [message, setMessage, clearDraft] = useChatDraft("broadcast");
@@ -267,15 +275,18 @@ export default function BroadcastChatPage() {
         throw new Error("No cached messages available offline");
       }
 
-      const { data: rawMessages, error } = await supabase
+      const { data: rawMessagesAll, error } = await supabase
         .from("broadcast_messages")
-        .select("id, text, image_url, created_at, edited_at, author_id, reply_to_id, deleted_at")
+        .select("id, text, image_url, created_at, edited_at, author_id, reply_to_id, deleted_at, target_club_ids")
         .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1);
 
       if (error) throw error;
-      
+
+      // Drop announcements targeted at other clubs (app admins can read them all).
+      const rawMessages = filterBroadcastsForClub(rawMessagesAll as any[], activeClubFilter);
+
       if (!rawMessages?.length) {
         return { messages: [] as Message[], hasOlderMessages: false };
       }
@@ -332,6 +343,7 @@ export default function BroadcastChatPage() {
             ? cachedReactionsByMessage.get(msg.id) || []
             : reactionsResult.data?.filter((r) => r.broadcast_message_id === msg.id) || [],
           reply_to: replyTo,
+          target_club_ids: msg.target_club_ids ?? null,
         };
       }) as Message[];
 
@@ -343,6 +355,7 @@ export default function BroadcastChatPage() {
         created_at: m.created_at,
         image_url: m.image_url,
         reply_to_id: m.reply_to_id,
+         target_club_ids: m.target_club_ids ?? null,
         profiles: null,
         reactions: m.reactions,
         reply_to: m.reply_to,
@@ -376,13 +389,13 @@ export default function BroadcastChatPage() {
       ? messagesData 
       : (messagesData as any).messages || [];
     // Sort by created_at to ensure proper ordering
-    const sorted = [...msgList].sort((a, b) => 
+    const sorted = filterBroadcastsForClub(msgList as Message[], activeClubFilter).sort((a, b) => 
       (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
     // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
     // restore pre-edit text or resurrect a deleted row.
     return reconcileMessages(reconcileScope, sorted) as Message[];
-  }, [messagesData, reconcileScope]);
+  }, [messagesData, reconcileScope, activeClubFilter]);
 
   // Local copy used for rendering so optimistic updates are instant
   const [localMessages, setLocalMessages] = useState<Message[] | undefined>(
@@ -502,6 +515,7 @@ export default function BroadcastChatPage() {
         created_at: m.created_at,
         image_url: m.image_url,
         reply_to_id: m.reply_to_id,
+        target_club_ids: m.target_club_ids,
         profiles: null,
         reactions: m.reactions,
         reply_to: m.reply_to,
@@ -576,7 +590,7 @@ export default function BroadcastChatPage() {
     try {
       const oldestMessage = currentMessages[0];
       
-      const { data: olderData, error } = await supabase
+      const { data: olderDataAll, error } = await supabase
         .from("broadcast_messages")
         .select("*")
         .is("deleted_at", null)
@@ -588,13 +602,13 @@ export default function BroadcastChatPage() {
       clearTimeout(timeoutId);
 
       if (error) throw error;
-      if (!olderData?.length) {
-        setHasOlderMessages(false);
+      const hasMore = (olderDataAll?.length ?? 0) > MESSAGES_PER_PAGE;
+      const olderData = filterBroadcastsForClub(olderDataAll as any[], activeClubFilter);
+      setHasOlderMessages(hasMore);
+      if (!olderData.length) {
         return;
       }
 
-      const hasMore = olderData.length > MESSAGES_PER_PAGE;
-      setHasOlderMessages(hasMore);
       const dataToUse = hasMore ? olderData.slice(0, MESSAGES_PER_PAGE) : olderData;
 
       // Reverse to get chronological order
@@ -658,7 +672,7 @@ export default function BroadcastChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope]);
+  }, [queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope, activeClubFilter]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -678,7 +692,9 @@ export default function BroadcastChatPage() {
         },
         async (payload) => {
           const newMsg = payload.new as any;
-          
+          // Ignore announcements targeted at other clubs.
+          if (!broadcastVisibleInClub(newMsg?.target_club_ids ?? null, activeClubFilter)) return;
+
           // Fetch reply_to data first if needed
           let replyToData = null;
           if (newMsg.reply_to_id) {
@@ -819,7 +835,7 @@ export default function BroadcastChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved("broadcast-messages-realtime");
     };
-  }, [queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete, activeClubFilter]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -884,6 +900,7 @@ export default function BroadcastChatPage() {
         created_at: new Date().toISOString(),
         reactions: [],
         reply_to: replyingTo ? { text: replyingTo.text } : null,
+        target_club_ids: targetClubIds.length > 0 ? [...targetClubIds] : null,
       };
 
       // Update query cache directly (this will sync to localMessages via useEffect)
@@ -1020,21 +1037,23 @@ export default function BroadcastChatPage() {
         scope: {},
         query: q,
         signal,
-        selectColumns: "id, text, image_url, created_at, edited_at, author_id, reply_to_id",
+        selectColumns: "id, text, image_url, created_at, edited_at, author_id, reply_to_id, target_club_ids",
       })) as Message[],
   });
 
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;
+    // Never render an announcement targeted at another club.
+    const clubScoped = filterBroadcastsForClub(localMessages, activeClubFilter);
     const base = !searchQuery.trim()
-      ? localMessages
-      : localMessages.filter((msg) =>
+      ? clubScoped
+      : clubScoped.filter((msg) =>
           fuzzyMatchesQuery(msg.text, searchQuery)
         );
     return [...base].sort(
       (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
-  }, [localMessages, searchQuery]);
+  }, [localMessages, searchQuery, activeClubFilter]);
 
   const firstMatchId = searchQuery.trim() ? filteredMessages?.[0]?.id ?? null : null;
   const lastCenteredKeyRef = useRef<string | null>(null);

@@ -1,3 +1,4 @@
+import { filterBroadcastsForClub } from "@/lib/broadcastClubScope";
 import { useStickyList } from "@/hooks/useStickyList";
 import { useStableInboxReadModel } from "@/hooks/useStableInboxReadModel";
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
@@ -552,16 +553,20 @@ export default function MessagesPage() {
 
   // Get latest broadcast message
   const { data: latestBroadcast, isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError } = useQuery({
-    queryKey: ["latest-broadcast"],
+    queryKey: ["latest-broadcast", activeClubFilter],
     refetchOnReconnect: "always",
     queryFn: async () => {
-      const { data } = await supabase
+      // Fetch a small window and pick the newest announcement visible in the
+      // active club — targeted announcements must not preview elsewhere.
+      const { data: rows } = await supabase
         .from("broadcast_messages")
-        .select("text, created_at, image_url, author_id")
+        .select("text, created_at, image_url, author_id, target_club_ids")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
+        .limit(20);
+
+      const data = filterBroadcastsForClub(rows as any[], activeClubFilter)[0];
+
       if (!data) return null;
       
       let authorName = "";
@@ -1441,13 +1446,14 @@ export default function MessagesPage() {
         queryFn: async () => {
           const { data: messagesData } = await supabase
             .from("broadcast_messages")
-            .select("id, text, created_at, author_id, image_url, reply_to_id")
+            .select("id, text, created_at, author_id, image_url, reply_to_id, target_club_ids")
             .order("created_at", { ascending: false })
             .limit(MESSAGES_PER_PAGE + 1);
           
-          if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-          const hasMore = messagesData.length > MESSAGES_PER_PAGE;
-          const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
+          const scopedMessages = filterBroadcastsForClub(messagesData, effectiveClubFilter);
+          if (!scopedMessages.length) return { messages: [], hasOlderMessages: false };
+          const hasMore = scopedMessages.length > MESSAGES_PER_PAGE;
+          const messagesToDisplay = hasMore ? scopedMessages.slice(0, MESSAGES_PER_PAGE) : scopedMessages;
           return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
         },
         staleTime: 1000 * 60,
@@ -1530,7 +1536,7 @@ export default function MessagesPage() {
       }
       if (timeoutHandle !== null) clearTimeout(timeoutHandle);
     };
-  }, [user, teams, memberClubs, chatGroups, queryClient]);
+  }, [user, teams, memberClubs, chatGroups, queryClient, effectiveClubFilter]);
 
   // Realtime: keep inbox previews + ordering fresh as new messages arrive.
   // Without this, latest-message text and the most-recent-at-top sort only
