@@ -29,4 +29,8 @@ describe("filterBroadcastsForClub", () => {
     expect(filterBroadcastsForClub(rows, "club-b").map((r) => r.id)).toEqual(["1", "3"]);
     expect(filterBroadcastsForClub(undefined, "club-b")).toEqual([]);
   });
+
+  it("drops legacy rows that have no targeting metadata", () => {
+    expect(filterBroadcastsForClub([{ id: "legacy" }], "club-a")).toEqual([]);
+  });
 });

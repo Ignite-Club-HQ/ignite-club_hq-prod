@@ -23,5 +23,5 @@ export function filterBroadcastsForClub<T extends { target_club_ids?: string[] |
   activeClubId: string | null | undefined,
 ): T[] {
   if (!rows?.length) return [];
-  return rows.filter((row) => broadcastVisibleInClub(row.target_club_ids ?? null, activeClubId));
+  return rows.filter((row) => broadcastVisibleInClub(row.target_club_ids, activeClubId));
 }

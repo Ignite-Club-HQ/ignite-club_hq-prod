@@ -515,6 +515,7 @@ export default function BroadcastChatPage() {
         created_at: m.created_at,
         image_url: m.image_url,
         reply_to_id: m.reply_to_id,
+        target_club_ids: m.target_club_ids,
         profiles: null,
         reactions: m.reactions,
         reply_to: m.reply_to,
@@ -1036,7 +1037,7 @@ export default function BroadcastChatPage() {
         scope: {},
         query: q,
         signal,
-        selectColumns: "id, text, image_url, created_at, edited_at, author_id, reply_to_id",
+        selectColumns: "id, text, image_url, created_at, edited_at, author_id, reply_to_id, target_club_ids",
       })) as Message[],
   });
 
