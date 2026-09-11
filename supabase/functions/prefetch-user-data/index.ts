@@ -36,16 +36,27 @@ Deno.serve(async (req) => {
 
     // Verify JWT via getClaims (lightweight, no auth-server round-trip).
     const token = authHeader.replace(/^[Bb]earer\s+/, "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims?.sub) {
-      console.error("Auth getClaims error:", claimsError?.message);
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let userId: string | null = null;
+
+    try {
+      const { data: claimsData } = await supabase.auth.getClaims(token);
+      if (claimsData?.claims?.sub) userId = claimsData.claims.sub as string;
+    } catch (_e) {
+      // fall through to getUser below
     }
 
-    const userId = claimsData.claims.sub as string;
+    // Fallback: verify against the auth server (covers asymmetric/rotated
+    // signing keys where local claim verification cannot resolve the key).
+    if (!userId) {
+      const { data: userData, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !userData?.user?.id) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      userId = userData.user.id;
+    }
 
     
 
