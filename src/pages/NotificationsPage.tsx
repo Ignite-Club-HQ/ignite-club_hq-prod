@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
 import { resolveTeamInviteRoute } from "@/lib/resolveNotificationRoute";
+import { resolvePointsNotificationClubId } from "@/lib/pointsNotificationClub";
 import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
 import { setPendingChatJump, withChatJumpNonce, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -742,6 +743,20 @@ export default function NotificationsPage() {
       void requestClubSwitchForNotificationUrl(null, to)
         .catch(() => { /* never block navigation */ })
         .finally(() => routerNavigate(to));
+    };
+
+    // Points/rewards views are per club. Resolve the owning club of the tapped
+    // notification and align the active club filter before navigating, so the
+    // user never sees another club's balance or history.
+    const switchToPointsClubThenNavigate = async (
+      n: { type?: string | null; club_id?: string | null; related_id?: string | null },
+      to: string,
+    ) => {
+      try {
+        const clubId = await resolvePointsNotificationClubId(n);
+        if (clubId && clubId !== activeClubFilter) setActiveClubTheme(clubId);
+      } catch { /* never block navigation */ }
+      routerNavigate(to);
     };
 
     // Mark as read first
