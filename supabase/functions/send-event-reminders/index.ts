@@ -317,6 +317,10 @@ serve(async (req) => {
             type: "early_rsvp_points" as const,
             message: `🎯 RSVP to "${event.title}" within the next ${timeText} to earn 3 ${pointsName}!`,
             related_id: event.id,
+            // Keep the notification aligned with the active-club filter. The
+            // related id remains the event id so taps can still resolve the
+            // event, but club ownership must be explicit on the row.
+            club_id: event.club_id,
           }));
 
           const { error: notifError } = await supabase

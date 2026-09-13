@@ -151,7 +151,7 @@ export async function filterClubScopedNotifications<T extends NotifRow>(
   const eventTypes = [
     "event_invite", "event_note", "event_updated", "rsvp_updated",
     "pending_sub", "formation_change", "half_time", "game_finished",
-    "points_awarded",
+    "points_awarded", "early_rsvp_points",
   ];
   const eventRows = eventTypes.flatMap((t) => byType[t] || []);
   const eventClubByEvent = new Map<string, { club_id: string | null; team_id: string | null }>();
@@ -336,6 +336,19 @@ export async function filterClubScopedNotifications<T extends NotifRow>(
         }
         break;
       }
+      case "early_rsvp_points": {
+        // New reminder rows use related_id=event id, while awarded-point rows
+        // use related_id=club id. Resolve an event when one exists; otherwise
+        // retain the established direct-club producer contract.
+        const ev = eventClubByEvent.get(rid);
+        if (ev) {
+          const club = ev.club_id ?? (ev.team_id ? clubByTeam.get(ev.team_id) ?? null : null);
+          setDecisionByOwningClub(n, club);
+        } else {
+          decision.set(n.id, rid === activeClubFilter ? "keep" : "drop");
+        }
+        break;
+      }
       case "team_invite": {
         const teamId = teamByInvite.get(rid);
         if (teamId) setDecisionByOwningClub(n, clubByTeam.get(teamId));
@@ -357,7 +370,6 @@ export async function filterClubScopedNotifications<T extends NotifRow>(
         break;
       }
       case "reward_unlocked":
-      case "early_rsvp_points":
       case "streak_progress":
       case "streak_bonus":
       case "leaderboard_update": {

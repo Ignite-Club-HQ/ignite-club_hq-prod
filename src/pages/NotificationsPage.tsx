@@ -354,10 +354,19 @@ export default function NotificationsPage() {
         (payload) => {
           const raw = payload.new as any;
           const newNotification: Notification = { ...raw, read: raw.is_read };
-          queryClient.setQueriesData<Notification[]>(
-            { queryKey: ["notifications", user.id] },
-            (old) => old ? [newNotification, ...old] : [newNotification]
-          );
+          const currentKey = ["notifications", user.id, activeClubFilter ?? "all"];
+
+          if (!activeClubFilter || raw.club_id === activeClubFilter) {
+            queryClient.setQueryData<Notification[]>(
+              currentKey,
+              (old) => old ? [newNotification, ...old] : [newNotification],
+            );
+          } else if (raw.club_id == null) {
+            // Null-club rows need asynchronous ownership resolution. Never add
+            // them optimistically to a filtered list; refetch through the
+            // canonical resolver instead so another club cannot flash onscreen.
+            void queryClient.invalidateQueries({ queryKey: currentKey });
+          }
           
           refreshUnreadCount();
         }
@@ -400,7 +409,7 @@ export default function NotificationsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, queryClient, refreshUnreadCount]);
+  }, [user, activeClubFilter, queryClient, refreshUnreadCount]);
 
   const markAsRead = useMutation({
     mutationFn: async (id: string) => {
