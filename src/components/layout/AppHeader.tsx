@@ -755,6 +755,19 @@ export function AppHeader() {
 
   const navigateWithFreshJump = (to: string) => navigate(withChatJumpNonce(to));
 
+  // Points/rewards screens read per-club balances. Align the active club with
+  // the club that awarded the points before navigating there.
+  const switchToPointsClubThenNavigate = async (
+    n: { type?: string | null; club_id?: string | null; related_id?: string | null },
+    to: string,
+  ) => {
+    try {
+      const clubId = await resolvePointsNotificationClubId(n);
+      if (clubId && clubId !== activeClubFilter) setActiveClubTheme(clubId);
+    } catch { /* never block navigation */ }
+    navigate(to);
+  };
+
   const handleNotificationClick = async (notification: typeof recentNotifications[0]) => {
     try {
       console.log("[AppHeaderNotifTap] click", {
