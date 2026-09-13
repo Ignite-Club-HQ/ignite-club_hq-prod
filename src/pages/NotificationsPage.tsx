@@ -1082,15 +1082,18 @@ export default function NotificationsPage() {
       case "early_rsvp_points":
       case "reward_redeemed":
       case "player_of_match":
-        navigate("/profile?section=points-history");
+        // Reward points are per club: move the active club to the club that
+        // awarded them so the totals/history shown belong to that club.
+        void switchToPointsClubThenNavigate(notification, "/profile?section=points-history");
         break;
       case "leaderboard_update":
       case "streak_progress":
       case "streak_bonus":
       case "reward_proximity":
       case "reward_unlocked":
-        navigate("/leaderboard");
+        void switchToPointsClubThenNavigate(notification, "/leaderboard");
         break;
+
       case "fee_payment_request":
         if (relatedId) {
           navigate(`/pay-fees/${relatedId}`);

@@ -1093,15 +1093,18 @@ export function AppHeader() {
         case "points_awarded":
         case "reward_redeemed":
         case "player_of_match":
-          navigate("/profile?section=points-history");
+          // Reward points are per club — align the active club with the club
+          // that awarded them before showing the totals.
+          void switchToPointsClubThenNavigate(notification, "/profile?section=points-history");
           return;
         case "leaderboard_update":
         case "streak_progress":
         case "streak_bonus":
         case "reward_proximity":
         case "reward_unlocked":
-          navigate("/leaderboard");
+          void switchToPointsClubThenNavigate(notification, "/leaderboard");
           return;
+
       }
 
       navigate("/notifications");
