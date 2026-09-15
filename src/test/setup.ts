@@ -92,13 +92,26 @@ if (!("ontouchstart" in window)) {
 // which makes any test that schedules a frame after a touchend flaky.
 // ────────────────────────────────────────────────────────────────────────────
 const FRAME_MS = 16;
+const pendingAnimationFrames = new Set<ReturnType<typeof setTimeout>>();
 globalThis.requestAnimationFrame = ((cb: FrameRequestCallback): number => {
-  return setTimeout(() => cb(performance.now()), FRAME_MS) as unknown as number;
+  const timer = setTimeout(() => {
+    pendingAnimationFrames.delete(timer);
+    cb(performance.now());
+  }, FRAME_MS);
+  pendingAnimationFrames.add(timer);
+  return timer as unknown as number;
 }) as typeof requestAnimationFrame;
 
 globalThis.cancelAnimationFrame = ((id: number): void => {
-  clearTimeout(id as unknown as ReturnType<typeof setTimeout>);
+  const timer = id as unknown as ReturnType<typeof setTimeout>;
+  pendingAnimationFrames.delete(timer);
+  clearTimeout(timer);
 }) as typeof cancelAnimationFrame;
+
+afterEach(() => {
+  for (const timer of pendingAnimationFrames) clearTimeout(timer);
+  pendingAnimationFrames.clear();
+});
 
 // ────────────────────────────────────────────────────────────────────────────
 // performance.now() — keep in lockstep with Date.now() so fake-timer advances

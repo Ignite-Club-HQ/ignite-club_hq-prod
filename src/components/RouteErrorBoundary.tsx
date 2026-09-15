@@ -47,6 +47,12 @@ export function isChunkLoadError(error: unknown): boolean {
  */
 export function tryRecoverFromChunkError(): boolean {
   if (typeof window === "undefined") return false;
+  // A failed lazy import while explicitly offline is not evidence of a stale
+  // deployment. Reloading would discard the still-running SPA and cannot
+  // retrieve a fresher asset manifest, leaving web users on a blank browser
+  // error page. Keep the mounted recovery boundary available until network
+  // connectivity returns; online stale-chunk recovery remains unchanged.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
   try {
     const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0);
     if (Date.now() - last < 60_000) return false;

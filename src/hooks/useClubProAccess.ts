@@ -1,5 +1,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveClubProAccess } from "@/lib/proEntitlement";
+
+export { resolveClubProAccess, type ClubSubscriptionEntitlements } from "@/lib/proEntitlement";
 
 /**
  * Returns whether the given club has active Pro or Pro Football access,
@@ -30,13 +33,7 @@ export function useClubProAccess(
       // Propagate transient errors so react-query keeps previous data rather
       // than treating a network/RLS hiccup as "no Pro".
       if (error) throw error;
-      if (!sub) return { hasPro: false, hasProFootball: false, resolved: true, clubId: clubId! };
-
-      const notExpired = !sub.expires_at || new Date(sub.expires_at) > new Date();
-      const hasPro = notExpired && !!(sub.is_pro || sub.admin_pro_override);
-      const hasProFootball = notExpired && !!(sub.is_pro_football || sub.admin_pro_football_override);
-
-      return { hasPro: hasPro || hasProFootball, hasProFootball, resolved: true, clubId: clubId! };
+      return { ...resolveClubProAccess(sub), clubId: clubId! };
     },
   });
 

@@ -8,7 +8,7 @@
 
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 // jsdom polyfills used by Radix / input-otp interactions elsewhere.
@@ -59,6 +59,36 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 vi.mock("@/hooks/usePageTitle", () => ({ usePageTitle: () => {} }));
 
+// `input-otp` owns internal animation/timer state that is unrelated to this
+// page's validation contract and can update after jsdom teardown. Model only
+// its public digit-filtering/onChange behaviour here; URL-code tests below
+// still exercise the page's independent defence-in-depth validation directly.
+vi.mock("@/components/ui/input-otp", () => ({
+  InputOTP: ({
+    value,
+    onChange,
+    maxLength,
+    disabled,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+    maxLength: number;
+    disabled?: boolean;
+  }) => (
+    <input
+      aria-label="6-digit code"
+      autoComplete="one-time-code"
+      disabled={disabled}
+      value={value}
+      onChange={(event) =>
+        onChange(event.currentTarget.value.replace(/\D/g, "").slice(0, maxLength))
+      }
+    />
+  ),
+  InputOTPGroup: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  InputOTPSlot: () => null,
+}));
+
 // Import AFTER mocks.
 import VerifyResetCodePage from "./VerifyResetCodePage";
 
@@ -76,20 +106,14 @@ const getHiddenOtpInput = () =>
     'input[autocomplete="one-time-code"]',
   ) as HTMLInputElement | null;
 
-const typeCode = (value: string) => {
+const typeCode = async (value: string) => {
   const hidden = getHiddenOtpInput();
   if (!hidden) throw new Error("OTP hidden input not found");
-  act(() => {
-    hidden.focus();
-  });
-  act(() => {
-    const setter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value",
-    )?.set;
-    setter?.call(hidden, value);
-    hidden.dispatchEvent(new Event("input", { bubbles: true }));
-    hidden.dispatchEvent(new Event("change", { bubbles: true }));
+  await act(async () => {
+    fireEvent.focus(hidden);
+    fireEvent.change(hidden, { target: { value } });
+    await Promise.resolve();
+    await Promise.resolve();
   });
 };
 
@@ -105,7 +129,7 @@ describe("VerifyResetCodePage — OTP numeric enforcement", () => {
   it("calls verifyOtp for a 6-digit numeric code typed manually", async () => {
     verifyOtp.mockResolvedValue({ error: null });
     renderPage("?email=user@example.com");
-    typeCode("123456");
+    await typeCode("123456");
     await waitFor(() => expect(verifyOtp).toHaveBeenCalledTimes(1));
     expect(verifyOtp).toHaveBeenCalledWith({
       email: "user@example.com",
@@ -121,35 +145,35 @@ describe("VerifyResetCodePage — OTP numeric enforcement", () => {
     renderPage("?email=user@example.com");
     // input-otp filters non-digits via pattern — the hidden input never
     // reaches length 6, so verifyOtp is never invoked.
-    typeCode("ABCDEF");
+    await typeCode("ABCDEF");
     await new Promise((r) => setTimeout(r, 30));
     expect(verifyOtp).not.toHaveBeenCalled();
   });
 
   it("does not call verifyOtp for a mixed alphanumeric code", async () => {
     renderPage("?email=user@example.com");
-    typeCode("ABC123");
+    await typeCode("ABC123");
     await new Promise((r) => setTimeout(r, 30));
     expect(verifyOtp).not.toHaveBeenCalled();
   });
 
   it("does not call verifyOtp for a code with symbols", async () => {
     renderPage("?email=user@example.com");
-    typeCode("12!@#$");
+    await typeCode("12!@#$");
     await new Promise((r) => setTimeout(r, 30));
     expect(verifyOtp).not.toHaveBeenCalled();
   });
 
   it("does not call verifyOtp for incomplete codes (< 6 digits)", async () => {
     renderPage("?email=user@example.com");
-    typeCode("12345");
+    await typeCode("12345");
     await new Promise((r) => setTimeout(r, 30));
     expect(verifyOtp).not.toHaveBeenCalled();
   });
 
   it("does not call verifyOtp for a blank code", async () => {
     renderPage("?email=user@example.com");
-    typeCode("");
+    await typeCode("");
     await new Promise((r) => setTimeout(r, 30));
     expect(verifyOtp).not.toHaveBeenCalled();
   });
@@ -209,7 +233,7 @@ describe("VerifyResetCodePage — URL auto-verify", () => {
 describe("VerifyResetCodePage — email validation & concurrency", () => {
   it("does not call verifyOtp when email is missing", async () => {
     renderPage(""); // no email at all
-    typeCode("123456");
+    await typeCode("123456");
     await new Promise((r) => setTimeout(r, 30));
     expect(verifyOtp).not.toHaveBeenCalled();
     expect(toastSpy).toHaveBeenCalledWith(
@@ -219,7 +243,7 @@ describe("VerifyResetCodePage — email validation & concurrency", () => {
 
   it("does not call verifyOtp when email is malformed", async () => {
     renderPage("?email=not-an-email");
-    typeCode("123456");
+    await typeCode("123456");
     await new Promise((r) => setTimeout(r, 30));
     expect(verifyOtp).not.toHaveBeenCalled();
     expect(toastSpy).toHaveBeenCalledWith(
@@ -230,7 +254,7 @@ describe("VerifyResetCodePage — email validation & concurrency", () => {
   it("shows an 'Invalid or expired code' toast when Supabase rejects the code", async () => {
     verifyOtp.mockResolvedValue({ error: { message: "otp expired" } });
     renderPage("?email=user@example.com");
-    typeCode("111222");
+    await typeCode("111222");
     await waitFor(() => expect(verifyOtp).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(toastSpy).toHaveBeenCalledWith(
@@ -248,10 +272,13 @@ describe("VerifyResetCodePage — email validation & concurrency", () => {
       }),
     );
     renderPage("?email=user@example.com");
-    typeCode("555555");
+    await typeCode("555555");
     // Second identical completion while first is in flight must be ignored.
-    typeCode("555555");
+    await typeCode("555555");
     await waitFor(() => expect(verifyOtp).toHaveBeenCalledTimes(1));
-    resolve({ error: null });
+    await act(async () => {
+      resolve({ error: null });
+      await Promise.resolve();
+    });
   });
 });

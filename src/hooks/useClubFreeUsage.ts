@@ -64,6 +64,28 @@ export interface ClubFreeUsage {
   };
 }
 
+export function resolveClubFreeUsage(row: Record<string, unknown>): ClubFreeUsage {
+  const photoUsed = Number(row.photo_uploads_this_cycle ?? 0);
+  const chatPhotoUsed = Number(row.chat_photo_uploads_this_cycle ?? 0);
+  const fileUsed = Number(row.file_count ?? 0);
+  const fileBytes = Number(row.file_storage_bytes ?? 0);
+  const chatFileUsed = Number(row.chat_file_uploads_this_cycle ?? 0);
+  const chatFileBytes = Number(row.chat_file_storage_bytes ?? 0);
+  const pollUsed = Number(row.polls_this_cycle ?? 0);
+  const isPro = !!row.is_pro;
+
+  return {
+    isPro,
+    cycleStart: row.cycle_start ? new Date(String(row.cycle_start)) : null,
+    cycleEnd: row.cycle_end ? new Date(String(row.cycle_end)) : null,
+    photo: { used: photoUsed, limit: FREE_PHOTO_UPLOADS_PER_CYCLE, atCountCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE, atCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE },
+    chatPhoto: { used: chatPhotoUsed, limit: FREE_CHAT_PHOTOS_PER_CYCLE, atCap: !isPro && chatPhotoUsed >= FREE_CHAT_PHOTOS_PER_CYCLE },
+    file: { used: fileUsed, limit: FREE_FILE_COUNT, storageUsed: fileBytes, storageLimit: FREE_FILE_STORAGE_BYTES, atCountCap: !isPro && fileUsed >= FREE_FILE_COUNT, atStorageCap: !isPro && fileBytes >= FREE_FILE_STORAGE_BYTES, atCap: !isPro && (fileUsed >= FREE_FILE_COUNT || fileBytes >= FREE_FILE_STORAGE_BYTES) },
+    chatFile: { used: chatFileUsed, limit: FREE_CHAT_FILE_COUNT, storageUsed: chatFileBytes, storageLimit: FREE_CHAT_FILE_STORAGE_BYTES, atCountCap: !isPro && chatFileUsed >= FREE_CHAT_FILE_COUNT, atStorageCap: !isPro && chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES, atCap: !isPro && (chatFileUsed >= FREE_CHAT_FILE_COUNT || chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES) },
+    poll: { used: pollUsed, limit: FREE_POLLS_PER_CYCLE, atCap: !isPro && pollUsed >= FREE_POLLS_PER_CYCLE },
+  };
+}
+
 /**
  * Last-known meter snapshot persisted per club so cold-start pages (Media)
  * can paint the usage meter at its final size immediately instead of popping
@@ -130,64 +152,15 @@ export function useClubFreeUsage(clubId: string | null | undefined) {
       const row = Array.isArray(data) ? data[0] : data;
       if (!row) return null;
 
-      const photoUsed = Number(row.photo_uploads_this_cycle ?? 0);
-      const chatPhotoUsed = Number(row.chat_photo_uploads_this_cycle ?? 0);
-      const fileUsed = Number(row.file_count ?? 0);
-      const fileBytes = Number(row.file_storage_bytes ?? 0);
-      const chatFileUsed = Number((row as any).chat_file_uploads_this_cycle ?? 0);
-      const chatFileBytes = Number((row as any).chat_file_storage_bytes ?? 0);
-      const pollUsed = Number(row.polls_this_cycle ?? 0);
-      const isPro = !!row.is_pro;
+      const usage = resolveClubFreeUsage(row as Record<string, unknown>);
 
       writeClubFreeUsageSnapshot(clubId!, {
-        isPro,
-        photoUsed,
+        isPro: usage.isPro,
+        photoUsed: usage.photo.used,
         cycleEnd: row.cycle_end ? String(row.cycle_end) : null,
       });
 
-      return {
-        isPro,
-        cycleStart: row.cycle_start ? new Date(row.cycle_start) : null,
-        cycleEnd: row.cycle_end ? new Date(row.cycle_end) : null,
-        photo: {
-          used: photoUsed,
-          limit: FREE_PHOTO_UPLOADS_PER_CYCLE,
-          atCountCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
-          atCap: !isPro && photoUsed >= FREE_PHOTO_UPLOADS_PER_CYCLE,
-        },
-        chatPhoto: {
-          used: chatPhotoUsed,
-          limit: FREE_CHAT_PHOTOS_PER_CYCLE,
-          atCap: !isPro && chatPhotoUsed >= FREE_CHAT_PHOTOS_PER_CYCLE,
-        },
-        file: {
-          used: fileUsed,
-          limit: FREE_FILE_COUNT,
-          storageUsed: fileBytes,
-          storageLimit: FREE_FILE_STORAGE_BYTES,
-          atCountCap: !isPro && fileUsed >= FREE_FILE_COUNT,
-          atStorageCap: !isPro && fileBytes >= FREE_FILE_STORAGE_BYTES,
-          atCap:
-            !isPro &&
-            (fileUsed >= FREE_FILE_COUNT || fileBytes >= FREE_FILE_STORAGE_BYTES),
-        },
-        chatFile: {
-          used: chatFileUsed,
-          limit: FREE_CHAT_FILE_COUNT,
-          storageUsed: chatFileBytes,
-          storageLimit: FREE_CHAT_FILE_STORAGE_BYTES,
-          atCountCap: !isPro && chatFileUsed >= FREE_CHAT_FILE_COUNT,
-          atStorageCap: !isPro && chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES,
-          atCap:
-            !isPro &&
-            (chatFileUsed >= FREE_CHAT_FILE_COUNT || chatFileBytes >= FREE_CHAT_FILE_STORAGE_BYTES),
-        },
-        poll: {
-          used: pollUsed,
-          limit: FREE_POLLS_PER_CYCLE,
-          atCap: !isPro && pollUsed >= FREE_POLLS_PER_CYCLE,
-        },
-      };
+      return usage;
     },
   });
 

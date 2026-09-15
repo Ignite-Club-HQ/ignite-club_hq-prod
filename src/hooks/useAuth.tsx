@@ -20,7 +20,7 @@ import { markProfileCompleted } from "@/components/InviteFlowProgress";
 import { isNativePlatform, unregisterNativePush } from "@/lib/nativePush";
 import { isTransientAuthFailure } from "@/lib/authRecoveryClassification";
 import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
-
+import { notificationKeys } from "@/features/notifications/queryKeys";
 
 interface Profile {
   id: string;
@@ -64,7 +64,7 @@ interface CachedProfileData {
 }
 
 // Profile cache now includes userId to prevent cross-user cache collisions
-function getCachedProfile(userId?: string): Profile | null {
+export function getCachedProfile(userId?: string): Profile | null {
   try {
     const cached = localStorage.getItem(PROFILE_CACHE_KEY);
     if (cached) {
@@ -140,7 +140,7 @@ function getInitialAuthState(): {
 // Compute initial state once at module load
 const initialAuthState = getInitialAuthState();
 
-function setCachedProfile(profile: Profile | null, userId?: string) {
+export function setCachedProfile(profile: Profile | null, userId?: string) {
   try {
     if (profile && userId) {
       const cacheData: CachedProfileData = {
@@ -937,9 +937,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // channel is reliable. We RAF-dedupe per query so a burst of
             // notifications fires at most one refetch per frame per query.
             scheduleInboxRefresh('unread', () => {
-              queryClient.invalidateQueries({ queryKey: ["unread-message-counts", user.id] });
-              queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-              queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
+              queryClient.invalidateQueries({ queryKey: notificationKeys.messageUnreadFor(user.id) });
+              queryClient.invalidateQueries({ queryKey: notificationKeys.clubUnread });
+              queryClient.invalidateQueries({ queryKey: notificationKeys.clubMessageUnread });
             });
             if (notificationType === 'team_message') {
               scheduleInboxRefresh('team', () => queryClient.invalidateQueries({ queryKey: ["my-teams-with-messages", user.id] }));
@@ -977,10 +977,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // RPC round-trips and stall the badge for hundreds of ms.
             scheduleInboxRefresh('unread', () => {
               fetchUnreadCount(user.id);
-              queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-              queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
-              queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-              queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+              queryClient.invalidateQueries({ queryKey: notificationKeys.clubUnread });
+              queryClient.invalidateQueries({ queryKey: notificationKeys.clubMessageUnread });
+              queryClient.invalidateQueries({ queryKey: notificationKeys.messageUnread });
+              queryClient.invalidateQueries({ queryKey: notificationKeys.recent });
             });
           }
         }
@@ -996,10 +996,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         () => {
           scheduleInboxRefresh('unread', () => {
             fetchUnreadCount(user.id);
-            queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-            queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
-            queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-            queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+            queryClient.invalidateQueries({ queryKey: notificationKeys.clubUnread });
+            queryClient.invalidateQueries({ queryKey: notificationKeys.clubMessageUnread });
+            queryClient.invalidateQueries({ queryKey: notificationKeys.messageUnread });
+            queryClient.invalidateQueries({ queryKey: notificationKeys.recent });
           });
         }
       )
@@ -1014,10 +1014,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resyncTimer = setTimeout(() => {
         resyncTimer = null;
         fetchUnreadCount(user.id);
-        queryClient.invalidateQueries({ queryKey: ["club-unread-count"] });
-        queryClient.invalidateQueries({ queryKey: ["club-messages-unread"] });
-        queryClient.invalidateQueries({ queryKey: ["unread-message-counts"] });
-        queryClient.invalidateQueries({ queryKey: ["recent-notifications"] });
+        queryClient.invalidateQueries({ queryKey: notificationKeys.clubUnread });
+        queryClient.invalidateQueries({ queryKey: notificationKeys.clubMessageUnread });
+        queryClient.invalidateQueries({ queryKey: notificationKeys.messageUnread });
+        queryClient.invalidateQueries({ queryKey: notificationKeys.recent });
       }, 500);
     };
     const handleVisibilityChange = () => {
