@@ -1,0 +1,47 @@
+# Advisory ownership map for Ignite Club HQ.
+#
+# GitHub automatically requests these reviews. They become merge requirements
+# only if a branch ruleset separately enables "Require review from Code Owners".
+# Replace individual ownership with an organisation team when one is created and
+# granted write access to this repository.
+
+# Default repository owner
+* @PaulCranwellsCode
+
+# Release, backup, restore and CI automation
+/.github/workflows/ @PaulCranwellsCode
+/scripts/ @PaulCranwellsCode
+/docs/PROMOTION.md @PaulCranwellsCode
+/docs/PROMOTION_CHECKLIST.md @PaulCranwellsCode
+
+# Database, authorization, generated contracts and Edge Functions
+/supabase/migrations/ @PaulCranwellsCode
+/supabase/functions/ @PaulCranwellsCode
+/supabase/config.toml @PaulCranwellsCode
+/src/integrations/supabase/ @PaulCranwellsCode
+/local-supabase-workspace/ @PaulCranwellsCode
+
+# Authentication, membership and entitlement boundaries
+/src/features/membership/ @PaulCranwellsCode
+/src/hooks/useAuth.tsx @PaulCranwellsCode
+/src/hooks/useClubFreeUsage.ts @PaulCranwellsCode
+/src/hooks/useClubProAccess.ts @PaulCranwellsCode
+/src/pages/AuthPage.tsx @PaulCranwellsCode
+
+# High-impact feature boundaries
+/src/features/messaging/ @PaulCranwellsCode
+/src/features/events/ @PaulCranwellsCode
+/src/features/competitions/ @PaulCranwellsCode
+/src/features/vault/ @PaulCranwellsCode
+/src/components/pitch/ @PaulCranwellsCode
+
+# Payments and subscriptions
+/src/components/subscription/ @PaulCranwellsCode
+/src/hooks/*Subscription* @PaulCranwellsCode
+/src/hooks/*Purchase* @PaulCranwellsCode
+
+# Native application projects and lifecycle configuration
+/android/ @PaulCranwellsCode
+/ios/ @PaulCranwellsCode
+/capacitor.config.ts @PaulCranwellsCode
+/codemagic.yaml @PaulCranwellsCode

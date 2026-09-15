@@ -129,6 +129,11 @@ BEGIN
 END $$;
 
 -- 6. Claiming: bounded, skip-locked, stale reclaim, terminal never ----
+-- Earlier fan-out scenarios intentionally leave queue rows behind within this
+-- transaction. Clear those synthetic fixtures so this scenario measures only
+-- its own 40 jobs and the 30/10 batch split is deterministic.
+TRUNCATE TABLE public.push_delivery_queue, public.notifications CASCADE;
+
 DO $$
 DECLARE ev uuid := gen_random_uuid(); c1 bigint; c2 bigint; jid uuid;
 BEGIN

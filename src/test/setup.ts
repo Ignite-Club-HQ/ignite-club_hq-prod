@@ -1,4 +1,34 @@
 import "@testing-library/jest-dom/vitest";
+import { afterEach } from "vitest";
+
+// Track real timers created through the jsdom global and cancel anything a
+// component/library leaves pending when its test ends. Without this, callbacks
+// from input-otp, navigation scroll settling, or virtualized lists can fire
+// after Vitest destroys `window` and falsely mark an otherwise-green suite red.
+const nativeSetTimeout = globalThis.setTimeout.bind(globalThis);
+const nativeClearTimeout = globalThis.clearTimeout.bind(globalThis);
+const pendingRealTimers = new Set<ReturnType<typeof setTimeout>>();
+
+globalThis.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+  let timerId: ReturnType<typeof setTimeout>;
+  const wrappedHandler = (...callbackArgs: unknown[]) => {
+    pendingRealTimers.delete(timerId);
+    if (typeof handler === "function") handler(...callbackArgs);
+  };
+  timerId = nativeSetTimeout(wrappedHandler, timeout, ...args);
+  pendingRealTimers.add(timerId);
+  return timerId;
+}) as typeof setTimeout;
+
+globalThis.clearTimeout = ((timerId: ReturnType<typeof setTimeout>) => {
+  pendingRealTimers.delete(timerId);
+  nativeClearTimeout(timerId);
+}) as typeof clearTimeout;
+
+afterEach(() => {
+  for (const timerId of pendingRealTimers) nativeClearTimeout(timerId);
+  pendingRealTimers.clear();
+});
 
 // ────────────────────────────────────────────────────────────────────────────
 // React test environment
