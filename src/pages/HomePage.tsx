@@ -4,17 +4,33 @@ import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListen
 import { Capacitor } from "@capacitor/core";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { completeHomeAccountRecovery } from "@/features/home/accountRecoveryCompletion";
+import {
+  fetchHomeMembershipsAndEvents,
+  type HomeEvent,
+} from "@/features/home/homeMembershipEventsRepository";
+import { fetchHomeUserRsvps } from "@/features/home/homeRsvpRepository";
+import {
+  fetchHomeProAccess,
+  fetchHomeRewardClubs,
+} from "@/features/home/homeEntitlementRepository";
+import {
+  fetchAvailableHomeRewards,
+  fetchHomeUserChildren,
+  fetchNextHomeRewardInfo,
+  fetchPendingHomeRedemptions,
+} from "@/features/home/homeRewardsRepository";
 import SoccerBall from "@/components/pitch/SoccerBall";
 import { Calendar, MapPin, Users, Clock, Plus, UserPlus, UserCheck, Download, Smartphone, LayoutGrid, X, CheckCircle2, HelpCircle, Minus, Loader2, Flame, Gift, Lock, FolderOpen, Crown, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 // Lazy-loaded to keep them out of the HomePage critical path. Each is only
 // mounted when the user opens a specific dialog / lands on a banner-eligible
 // state, so the chunk fetch happens on demand.
-const RewardClaimQRDialog = lazyWithRetry(() => import("@/components/RewardClaimQRDialog").then(m => ({ default: m.RewardClaimQRDialog })));
-const AccountRecoveryBanner = lazyWithRetry(() => import("@/components/AccountRecoveryBanner").then(m => ({ default: m.AccountRecoveryBanner })));
-const NativeAppDownloadBanner = lazyWithRetry(() => import("@/components/NativeAppDownloadBanner").then(m => ({ default: m.NativeAppDownloadBanner })));
-const HomeInviteFlow = lazyWithRetry(() => import("@/components/HomeInviteFlow"));
-const QuickRSVPDialog = lazyWithRetry(() => import("@/components/QuickRSVPDialog").then(m => ({ default: m.QuickRSVPDialog })));
+const RewardClaimQRDialog = lazy(() => import("@/components/RewardClaimQRDialog").then(m => ({ default: m.RewardClaimQRDialog })));
+const AccountRecoveryBanner = lazy(() => import("@/components/AccountRecoveryBanner").then(m => ({ default: m.AccountRecoveryBanner })));
+const NativeAppDownloadBanner = lazy(() => import("@/components/NativeAppDownloadBanner").then(m => ({ default: m.NativeAppDownloadBanner })));
+const HomeInviteFlow = lazy(() => import("@/components/HomeInviteFlow"));
+const QuickRSVPDialog = lazy(() => import("@/components/QuickRSVPDialog").then(m => ({ default: m.QuickRSVPDialog })));
 
 // Warm the dialog chunks after first paint so opening them feels instant.
 // idle callback keeps this off the critical path.
@@ -44,8 +60,8 @@ import {
 import { PageLoading } from "@/components/ui/page-loading";
 
 // Lazy load PitchBoard - it's a heavy 4k+ line component with Fabric.js
-const PitchBoard = lazyWithRetry(() => import("@/components/pitch/PitchBoard"));
-const GameTimerWidget = lazyWithRetry(() => import("@/components/pitch/GameTimerWidget"));
+const PitchBoard = lazy(() => import("@/components/pitch/PitchBoard"));
+const GameTimerWidget = lazy(() => import("@/components/pitch/GameTimerWidget"));
 import { clearPitchBoardOpenFlag } from "@/components/pitch/pitchBoardOpenFlag";
 // CourtBoardResumeCard archived (basketball/netball only) — soccer resume handled by GameTimerWidget
 
@@ -96,24 +112,17 @@ const myTeamsCarouselImport = () =>
 // Fire the request immediately (don't await — let it stream alongside other resources).
 myTeamsCarouselImport();
 const MyTeamsPremiumCarousel = lazy(myTeamsCarouselImport);
-// Eagerly imported: these render alongside the rest of the first Home paint —
-// a lazy chunk made them appear noticeably after everything else.
-import ClubLinksSection from "@/components/home/ClubLinksSection";
-import ClubNewsSection from "@/components/home/ClubNewsSection";
-
-
+const ClubLinksSection = lazy(() => import("@/components/home/ClubLinksSection"));
 import { NextUpCarousel } from "@/components/NextUpCarousel";
-import { getCachedNextUp, setCachedNextUp, clearCachedNextUp } from "@/lib/nextUpEventsCache";
+import { getCachedNextUp, setCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
 
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
-import { DesktopActionBar } from "@/components/home/DesktopActionBar";
 import { HomeWelcomeGetStarted } from "@/components/home/HomeWelcomeGetStarted";
 import { ClubSetupProgressCard } from "@/components/club/ClubSetupProgressCard";
 
 import { LazyMount } from "@/components/LazyMount";
 import { readHomeSponsorHint } from "@/lib/homeSponsorHint";
-import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
 type EventType = "game" | "training" | "social";
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
@@ -189,28 +198,7 @@ interface MiniLeague {
   clubs: { name: string; sport: string | null };
 }
 
-interface Event {
-  id: string;
-  title: string;
-  type: EventType;
-  event_date: string;
-  start_time?: string | null;
-  address: string | null;
-  location_name: string | null;
-  suburb: string | null;
-  club_id: string;
-  team_id: string | null;
-  mini_league_id: string | null;
-  is_cancelled: boolean;
-  is_bye?: boolean;
-  is_recurring: boolean;
-  parent_event_id: string | null;
-  amount: number | null;
-  opponent: string | null;
-  arrival_minutes_before: number | null;
-  teams: { name: string; default_match_arrival_minutes: number | null } | null;
-  clubs: { name: string; sport: string | null };
-}
+interface Event extends HomeEvent {}
 
 interface Club {
   id: string;
@@ -327,7 +315,6 @@ export function selectVisibleHomeEvents(
   limit = 10,
 ) {
   if (!allEvents) return [];
-
   const freshEvents = allEvents.filter((event) =>
     isStillUpcomingForNextUp(event, nowMs)
   );
@@ -445,306 +432,11 @@ export default function HomePage() {
   // CONSOLIDATED: Fetch user memberships AND events in a single query to eliminate waterfall
   const { data: membershipAndEvents, isLoading, isFetching, isFetched } = useQuery({
     queryKey: ["user-memberships-and-events", user?.id],
-    queryFn: async () => {
-      // Step 1: Fetch user roles.
-      // CRITICAL: throw on error (do NOT silently return empty). On resume from
-      // background / phone unlock, the access token can be mid-rotation and
-      // this call may transiently fail or return null under RLS. Returning
-      // `{ events: [] }` here would *overwrite* the previously cached events
-      // with an empty list (placeholderData only helps when there is no data)
-      // — which is exactly the bug where the Next Up cards disappeared after
-      // returning to the app. Throwing lets React Query keep the last good
-      // data and retry.
-      const fetchRoles = async () => {
-        const res = await supabase
-          .from("user_roles")
-          .select("club_id, team_id, role")
-          .eq("user_id", user!.id);
-        if (res.error) throw res.error;
-        if (!res.data) {
-          // .data is [] (not null) on a successful zero-row response, so reaching
-          // here means something went wrong upstream — throw so we don't poison
-          // the cache with empty events on resume races.
-          throw new Error("user_roles fetch returned null data");
-        }
-        return res.data;
-      };
-
-      let roles = await fetchRoles();
-
-      // RESUME RACE: after a phone unlock / app resume the access token can be
-      // expired-but-not-yet-rotated. RLS then legitimately returns ZERO rows
-      // with NO error, which previously flipped Home into the "set up your
-      // club" new-user empty state and blanked Next Up (a full app kill fixed
-      // it because auth was restored before the first fetch).
-      // An empty result is only trusted when it is *verified*: a live session
-      // must exist, and if the last known snapshot had memberships we force a
-      // single-flight refresh and re-read before believing the user has none.
-      if (roles.length === 0) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData?.session) {
-          throw new Error("empty memberships with no active session (resume race)");
-        }
-
-        const snapshotMemberships = nextUpCachedSnapshot?.memberships as
-          | { clubIds?: string[]; teamIds?: string[] }
-          | undefined;
-        const hadMemberships =
-          (snapshotMemberships?.clubIds?.length ?? 0) > 0 ||
-          (snapshotMemberships?.teamIds?.length ?? 0) > 0;
-
-        if (hadMemberships) {
-          const { refreshSessionOnce } = await import("@/lib/refreshSessionOnce");
-          let refreshed = false;
-          try {
-            await refreshSessionOnce();
-            refreshed = true;
-          } catch {
-            refreshed = false;
-          }
-          if (!refreshed) {
-            // Could not prove the token is current — do NOT accept the empty
-            // read; throw so React Query retries and keeps the last good data.
-            throw new Error("empty memberships and session refresh failed (resume race)");
-          }
-          roles = await fetchRoles();
-          if (roles.length === 0) {
-            // Verified-empty (fresh token): the user really has no memberships.
-            // Drop the stale snapshot so it can't resurrect old cards.
-            clearCachedNextUp(user!.id);
-          }
-        }
-      }
-
-      const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
-      const clubIds = new Set<string>();
-      const clubAdminClubIds = new Set<string>();
-      const leagueAdminClubIds = new Set<string>();
-
-      roles.forEach(r => {
-        if (r.club_id) {
-          clubIds.add(r.club_id);
-          if (r.role === 'club_admin' || r.role === 'app_admin') {
-            clubAdminClubIds.add(r.club_id);
-          }
-          if (r.role === 'league_admin') {
-            leagueAdminClubIds.add(r.club_id);
-          }
-        }
-      });
-
-      // Step 2: Fetch team clubs, player leagues, admin leagues, AND events in parallel
-      const now = new Date();
-      const todayStr = getLocalDateKey(now);
-      const leagueAdminArr = Array.from(leagueAdminClubIds);
-
-      // Scope the events fetch to clubs/teams the user is already known to
-      // belong to (from `roles`). Without this scope the query pulled the
-      // global next 50 events ordered by date, which on multi-club accounts
-      // (e.g. a user in a high-volume club + a quieter club) was being
-      // saturated by the busy club's training events — silently starving
-      // the quieter club's fixtures out of the Next Up window. RLS already
-      // restricts visibility, but it does NOT cap per-club volume, so the
-      // limit-50 cut-off would land before the quieter club's next event
-      // (manifesting as an empty Next Up after switching club themes).
-      const clubIdsFromRolesArr = Array.from(clubIds);
-
-      // PER-SCOPE FAN-OUT. A single `.or(club_id.in..., team_id.in...)` query
-      // with one global `.limit()` starves quiet clubs: on a multi-club
-      // account the busy club's recurring training consumed all 100 rows and
-      // the quiet club's only fixture (ranked #116) never reached the client,
-      // leaving Next Up empty under that club's theme. Each club (and each
-      // team whose club is not already in scope) now gets its own bounded
-      // query, all issued in the same Promise.all so there is no new
-      // waterfall.
-      // Per-scope caps: clubs carry club-wide events for every team, teams are
-      // narrower. Neither can starve the other because the cap is per query.
-      const CLUB_EVENTS_LIMIT = 30;
-      const TEAM_EVENTS_LIMIT = 20;
-      // Overall bound on the merged carousel payload (applied AFTER merge+sort
-      // so the earliest events across every scope always survive).
-      const MERGED_EVENTS_CAP = 100;
-      // Concurrency cap — a user in many clubs/teams must not fire 30 requests
-      // at once (mobile connection limits + Postgres pool pressure).
-      const EVENTS_QUERY_BATCH_SIZE = 8;
-      // Pass the select string through a plain-string helper so supabase-js
-      // does not re-parse it at the type level for every query in the loop
-      // (that is a known tsc blow-up). Row shape is pinned via .returns<T>().
-      const sel = (s: string): string => s;
-      const EVENT_SELECT =
-        "id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, target_team_ids, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, adults_only, restricted_to_roles, rsvp_audience, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)";
-      // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
-      // today's local-morning fixtures are stored as YESTERDAY's UTC date
-      // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing against
-      // today's local YYYY-MM-DD therefore excludes them at the server, so
-      // morning home-team games disappeared from Next Up while still
-      // appearing on the Schedule page (which uses a wider window). Widen the
-      // lower bound by one day; the client-side `isStillUpcomingForNextUp`
-      // strictly filters past events using local date + start_time, so this
-      // only admits candidates that may belong to today locally.
-      const eventsLowerBound = getLocalDateKey(
-        new Date(now.getTime() - 24 * 60 * 60 * 1000)
-      );
-
-      type HomeEventRow = Event & { mini_league_id: string | null };
-
-      const scopedEventsQuery = (column: "club_id" | "team_id", value: string, rowLimit: number) =>
-        supabase
-          .from("events")
-          .select(sel(EVENT_SELECT))
-          .eq(column, value)
-          .gte("event_date", eventsLowerBound)
-          .order("event_date", { ascending: true })
-          .limit(rowLimit)
-          .returns<HomeEventRow[]>();
-
-      // Builders are lazy (the request only fires when awaited), so we keep
-      // thunks and run them in bounded batches below.
-      const eventQueryThunks: Array<() => PromiseLike<{ data: HomeEventRow[] | null; error: any }>> = [
-        ...clubIdsFromRolesArr.map(
-          (clubId) => () => scopedEventsQuery("club_id", clubId, CLUB_EVENTS_LIMIT),
-        ),
-        // Team events are normally covered by their club's query, but a team can
-        // sit in a club the user has no direct role in — fetch those separately
-        // so they are not lost. De-duplication by event id happens on merge.
-        ...teamIds.map(
-          (teamId) => () => scopedEventsQuery("team_id", teamId, TEAM_EVENTS_LIMIT),
-        ),
-      ];
-
-      const runEventQueries = async () => {
-        const out: { data: HomeEventRow[] | null; error: any }[] = [];
-        for (let i = 0; i < eventQueryThunks.length; i += EVENTS_QUERY_BATCH_SIZE) {
-          const batch = eventQueryThunks.slice(i, i + EVENTS_QUERY_BATCH_SIZE);
-          out.push(...(await Promise.all(batch.map((run) => run()))));
-        }
-        return out;
-      };
-
-      const [
-        teamsResult,
-        playerLeaguesResult,
-        adminLeaguesResult,
-        activeClubsResult,
-        eventResults,
-      ] = await Promise.all([
-        teamIds.length > 0
-          ? supabase.from("teams").select("id, club_id").in("id", teamIds).is("deleted_at", null)
-          : Promise.resolve({ data: [] as { id: string; club_id: string }[], error: null as any }),
-        supabase.from("mini_league_players").select("mini_league_id").eq("parent_user_id", user!.id),
-        leagueAdminArr.length > 0
-          ? supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr)
-          : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
-        // Filter out soft-deleted clubs from role-derived memberships. Without
-        // this, deleting a club leaves orphan user_roles rows that still make
-        // the user look like a member (empty-state welcome hidden, ghost
-        // carousel entries) because user_roles isn't cleared by the soft-
-        // delete trigger.
-        clubIdsFromRolesArr.length > 0
-          ? supabase.from("clubs").select("id").in("id", clubIdsFromRolesArr).is("deleted_at", null)
-          : Promise.resolve({ data: [] as { id: string }[], error: null as any }),
-        runEventQueries(),
-      ]);
-
-      // Same protection as every other leg: if ANY per-scope events query
-      // failed (RLS race on resume, token rotation), throw so React Query
-      // preserves the previous Next Up data instead of caching a partial or
-      // empty list.
-      const mergedEventsById = new Map<string, HomeEventRow>();
-      for (const res of eventResults) {
-        if (res.error) throw res.error;
-        if (!res.data) throw new Error("events fetch returned null data");
-        for (const row of res.data) mergedEventsById.set(row.id, row);
-      }
-      // Merge → sort → cap. Capping only after the global sort guarantees the
-      // soonest events from every scope survive the bound.
-      const mergedEvents = Array.from(mergedEventsById.values())
-        .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
-        .slice(0, MERGED_EVENTS_CAP);
-      const eventsResult = { data: mergedEvents, error: null as any };
-
-
-      // Validate every parallel result before using any of it. A transient
-      // failure (token refresh, RLS race, network blip) must throw so React
-      // Query keeps its last good cache instead of caching an empty/partial
-      // membership snapshot. Legitimate empty arrays stay successful.
-      if ((teamsResult as any).error) throw (teamsResult as any).error;
-      if (!teamsResult.data) throw new Error("teams fetch returned null data");
-      if ((playerLeaguesResult as any).error) throw (playerLeaguesResult as any).error;
-      if (!playerLeaguesResult.data) throw new Error("mini_league_players fetch returned null data");
-      if ((adminLeaguesResult as any).error) throw (adminLeaguesResult as any).error;
-      if (!adminLeaguesResult.data) throw new Error("mini_leagues fetch returned null data");
-      // Same protection on the events fetch — if it failed (RLS race on
-      // resume), throw so React Query preserves the previous Next Up data
-      // instead of replacing it with an empty list.
-      if ((eventsResult as any).error) throw (eventsResult as any).error;
-      if (!eventsResult.data) throw new Error("events fetch returned null data");
-      if ((activeClubsResult as any).error) throw (activeClubsResult as any).error;
-      if (!activeClubsResult.data) throw new Error("clubs fetch returned null data");
-
-      // Drop soft-deleted role-club ids from the membership sets.
-      const activeClubIdSet = new Set(((activeClubsResult as any).data || []).map((c: any) => c.id as string));
-      const filteredClubIds = new Set<string>();
-      clubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredClubIds.add(id); });
-      const filteredClubAdmin = new Set<string>();
-      clubAdminClubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredClubAdmin.add(id); });
-      const filteredLeagueAdmin = new Set<string>();
-      leagueAdminClubIds.forEach((id) => { if (activeClubIdSet.has(id)) filteredLeagueAdmin.add(id); });
-
-      // Team-derived memberships must also be filtered. A deleted club can leave
-      // user_roles rows with team_id populated; counting the raw teamIds keeps
-      // the new-user welcome hidden even after the club itself is filtered out.
-      const filteredTeamIds = new Set<string>();
-      (teamsResult.data || []).forEach((t: any) => {
-        if (!activeClubIdSet.has(t.club_id)) return;
-        filteredTeamIds.add(t.id);
-        filteredClubIds.add(t.club_id);
-      });
-
-      const miniLeagueIds = (playerLeaguesResult.data || []).map((p: any) => p.mini_league_id);
-      (adminLeaguesResult.data || []).forEach((l: any) => {
-        if (!miniLeagueIds.includes(l.id)) miniLeagueIds.push(l.id);
-      });
-
-      // Drop role rows whose club has been soft-deleted so downstream
-      // consumers (userRoles derivation, admin gates) don't grant admin
-      // powers on a ghost club.
-      const activeRoles = roles.filter((r: any) => !r.club_id || activeClubIdSet.has(r.club_id));
-
-      const memberships = {
-        teamIds: Array.from(filteredTeamIds),
-        clubIds: Array.from(filteredClubIds),
-        clubAdminClubIds: Array.from(filteredClubAdmin),
-        leagueAdminClubIds: Array.from(filteredLeagueAdmin),
-        miniLeagueIds,
-        roles: activeRoles as { role: string; club_id: string | null; team_id: string | null }[],
-      };
-
-      // Step 3: Filter events client-side
-      const clubIdsArr = Array.from(filteredClubIds);
-      const nowMs = now.getTime();
-      const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
-        // Defensive client-side past-date filter. The server query already
-        // restricts to event_date >= today, but on iOS the React Query cache
-        // (with placeholderData + no window-focus refetch on WebView resume)
-        // can keep yesterday's data alive into the next day. Re-filter on
-        // render so stale past events never leak into Next Up.
-        if (!isStillUpcomingForNextUp(event, nowMs)) return false;
-        if (event.mini_league_id) {
-          return miniLeagueIds.includes(event.mini_league_id);
-        } else if (event.team_id) {
-          return teamIds.includes(event.team_id);
-        } else {
-          return clubIdsArr.includes(event.club_id);
-        }
-      });
-
-      // Limit recurring series to next 3 upcoming occurrences
-      const { filterRecurringEvents } = await import("@/lib/filterRecurringEvents");
-      const limited = filterRecurringEvents(filtered);
-
-      return { memberships, events: limited as Event[] };
-    },
+    queryFn: () =>
+      fetchHomeMembershipsAndEvents(user!.id, {
+        getLocalDateKey,
+        isStillUpcomingForNextUp,
+      }),
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -767,22 +459,8 @@ export default function HomePage() {
 
   // Persist the latest snapshot whenever the query resolves so the next cold
   // open / long-absence return can hydrate instantly via `initialData` above.
-  // NEVER let an empty membership result overwrite a non-empty snapshot: a
-  // resume-race read (expired token, zero RLS rows, no error) would otherwise
-  // poison the cache and make the next open paint the new-user empty state.
-  // The verified-empty path in the queryFn clears the snapshot explicitly, so
-  // genuine "left every club" states still persist.
   useEffect(() => {
     if (!user?.id || !membershipAndEvents) return;
-    const m = membershipAndEvents.memberships as { clubIds?: string[]; teamIds?: string[] } | undefined;
-    const isEmpty = (m?.clubIds?.length ?? 0) === 0 && (m?.teamIds?.length ?? 0) === 0;
-    if (isEmpty) {
-      const stored = getCachedNextUp<{ memberships: { clubIds?: string[]; teamIds?: string[] } }>(user.id);
-      const storedHadMemberships =
-        (stored?.memberships?.clubIds?.length ?? 0) > 0 ||
-        (stored?.memberships?.teamIds?.length ?? 0) > 0;
-      if (storedHadMemberships) return;
-    }
     setCachedNextUp(user.id, {
       memberships: membershipAndEvents.memberships,
       events: membershipAndEvents.events,
@@ -839,17 +517,7 @@ export default function HomePage() {
   const eventIds = events?.map(e => e.id) || [];
   const { data: userRsvps } = useQuery({
     queryKey: ["user-rsvps-home", user?.id, eventIds],
-    queryFn: async () => {
-      if (eventIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("rsvps")
-        .select("event_id, status")
-        .eq("user_id", user!.id)
-        .is("child_id", null)
-        .in("event_id", eventIds);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchHomeUserRsvps(supabase, user!.id, eventIds),
     enabled: !!user && eventIds.length > 0,
     staleTime: 2 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -888,25 +556,7 @@ export default function HomePage() {
   // Fetch pending reward redemptions
   const { data: pendingRedemptions = [] } = useQuery({
     queryKey: ["pending-redemptions-home", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("reward_redemptions")
-        .select(`
-          id,
-          reward_id,
-          club_id,
-          points_spent,
-          status,
-          redeemed_at,
-          club_rewards (id, name, description, points_required, qr_code_url, show_qr_code),
-          clubs!club_id (name)
-        `)
-        .eq("user_id", user!.id)
-        .eq("status", "pending")
-        .order("redeemed_at", { ascending: false })
-        .limit(1);
-      return data || [];
-    },
+    queryFn: () => fetchPendingHomeRedemptions(supabase, user!.id),
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -963,34 +613,12 @@ export default function HomePage() {
   // Check if user has Pro access - uses memberships data to avoid re-fetching user_roles
   const { data: hasProAccess, isLoading: isLoadingProAccess } = useQuery({
     queryKey: ["user-has-pro-access", user?.id, userMemberships?.clubIds, userMemberships?.teamIds],
-    queryFn: async () => {
-      if (!userMemberships) return false;
-      const { clubIds, teamIds } = userMemberships;
-      if (clubIds.length === 0 && teamIds.length === 0) return false;
-
-      // Check club subs, team subs, and teams table (for trial is_pro) in parallel
-      const [clubSubsResult, teamSubsResult, teamsResult] = await Promise.all([
-        clubIds.length > 0
-          ? supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds)
-          : Promise.resolve({ data: [] }),
-        teamIds.length > 0
-          ? supabase.from("team_subscriptions").select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("team_id", teamIds)
-          : Promise.resolve({ data: [] }),
-        teamIds.length > 0
-          ? supabase.from("teams").select("id, is_pro").in("id", teamIds).is("deleted_at", null)
-          : Promise.resolve({ data: [] }),
-      ]);
-
-      const hasClubPro = (clubSubsResult.data || []).some((s: any) => s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override);
-      if (hasClubPro) return true;
-
-      const hasTeamPro = (teamSubsResult.data || []).some((s: any) => s.is_pro || s.is_pro_football || s.admin_pro_override || s.admin_pro_football_override);
-      if (hasTeamPro) return true;
-
-      // Fallback: check teams.is_pro (set by website trial signup)
-      const hasTeamLegacyPro = (teamsResult.data || []).some((t: any) => t.is_pro);
-      return hasTeamLegacyPro;
-    },
+    queryFn: () =>
+      fetchHomeProAccess(
+        supabase,
+        userMemberships?.clubIds ?? [],
+        userMemberships?.teamIds ?? [],
+      ),
     enabled: !!user && !!userMemberships,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -1001,31 +629,12 @@ export default function HomePage() {
   // Fetch clubs for rewards with Pro status - uses memberships data
   const { data: rewardClubs = [] } = useQuery({
     queryKey: ["reward-clubs-home", user?.id, activeClubFilter, userMemberships?.clubIds],
-    queryFn: async () => {
-      if (activeClubFilter) {
-        const [clubResult, subResult] = await Promise.all([
-          supabase.from("clubs").select("id, name, logo_url").eq("id", activeClubFilter).single(),
-          supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").eq("club_id", activeClubFilter).maybeSingle(),
-        ]);
-        if (!clubResult.data) return [];
-        const hasPro = subResult.data?.is_pro || subResult.data?.is_pro_football || subResult.data?.admin_pro_override || subResult.data?.admin_pro_football_override;
-        return [{ ...clubResult.data, hasPro: !!hasPro }];
-      }
-
-      const clubIds = userMemberships?.clubIds || [];
-      if (clubIds.length === 0) return [];
-
-      const [clubsResult, subsResult] = await Promise.all([
-        supabase.from("clubs").select("id, name, logo_url").in("id", clubIds),
-        supabase.from("club_subscriptions").select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override").in("club_id", clubIds),
-      ]);
-
-      return (clubsResult.data || []).map(club => {
-        const sub = (subsResult.data || []).find((s: any) => s.club_id === club.id);
-        const hasPro = sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override;
-        return { ...club, hasPro: !!hasPro };
-      });
-    },
+    queryFn: () =>
+      fetchHomeRewardClubs(
+        supabase,
+        userMemberships?.clubIds ?? [],
+        activeClubFilter,
+      ),
     enabled: !!user && !!userMemberships,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -1039,16 +648,7 @@ export default function HomePage() {
   // Fetch rewards for selected club
   const { data: availableRewards = [], isLoading: rewardsLoading } = useQuery({
     queryKey: ["home-available-rewards", selectedRewardClubId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("club_rewards")
-        .select("*, sponsors(id, name, logo_url)")
-        .eq("club_id", selectedRewardClubId!)
-        .eq("is_active", true)
-        .neq("reward_type", "player_of_match")
-        .order("points_required", { ascending: true });
-      return data || [];
-    },
+    queryFn: () => fetchAvailableHomeRewards(supabase, selectedRewardClubId!),
     enabled: !!selectedRewardClubId,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -1057,19 +657,7 @@ export default function HomePage() {
   // Fetch the next reward info across user's clubs
   const { data: nextRewardInfo = null } = useQuery<{ points_required: number; name: string } | null>({
     queryKey: ["next-reward-info", rewardClubs.map((c: any) => c.id)],
-    queryFn: async () => {
-      const proClubIds = rewardClubs.filter((c: any) => isAppAdmin || c.hasPro).map((c: any) => c.id);
-      if (proClubIds.length === 0) return null;
-      const { data } = await supabase
-        .from("club_rewards")
-        .select("points_required, name")
-        .in("club_id", proClubIds)
-        .eq("is_active", true)
-        .neq("reward_type", "player_of_match")
-        .order("points_required", { ascending: true })
-        .limit(1);
-      return data?.[0] ? { points_required: data[0].points_required, name: data[0].name } : null;
-    },
+    queryFn: () => fetchNextHomeRewardInfo(supabase, rewardClubs, !!isAppAdmin),
     enabled: rewardClubs.length > 0,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -1078,31 +666,7 @@ export default function HomePage() {
 
   const { data: userChildren = [] } = useQuery({
     queryKey: ["user-children-home", user?.id],
-    queryFn: async () => {
-      const ownedPromise = supabase
-        .from("children")
-        .select("id, name, ignite_points")
-        .eq("parent_id", user!.id);
-
-      const guardianLinksPromise = supabase
-        .from("child_guardians")
-        .select("child_id, children:child_id!inner(id, name, ignite_points)")
-        .eq("guardian_id", user!.id);
-
-      const [{ data: owned }, { data: guardianLinks }] = await Promise.all([
-        ownedPromise,
-        guardianLinksPromise,
-      ]);
-
-      const merged = new Map<string, any>();
-      (owned || []).forEach((child: any) => merged.set(child.id, child));
-      (guardianLinks || []).forEach((row: any) => {
-        const child = row.children;
-        if (child) merged.set(child.id, child);
-      });
-
-      return Array.from(merged.values()).sort((a: any, b: any) => a.name.localeCompare(b.name));
-    },
+    queryFn: () => fetchHomeUserChildren(supabase, user!.id),
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -1316,7 +880,6 @@ export default function HomePage() {
             type: "reward_claimed",
             message: `${claimerName} marked their "${redemption.reward_name}" reward as claimed`,
             related_id: redemption.id,
-            club_id: redemption.club_id,
           }));
 
         if (notifications.length > 0) {
@@ -2107,10 +1670,6 @@ export default function HomePage() {
   const isNewUserEmptyState =
     initialized &&
     !isLoading &&
-    // Never claim "new user" while a refetch is still in flight (resume from
-    // phone lock triggers refetchOnWindowFocus; a transient empty read used to
-    // flash the "set up your club" card and blank Next Up).
-    !isFetching &&
     hasResolvedMemberships &&
     membershipClubCount === 0 &&
     membershipTeamCount === 0 &&
@@ -2167,8 +1726,6 @@ export default function HomePage() {
     });
   }, [showContent, isNewUserEmptyState, user?.id, membershipClubCount, membershipTeamCount, events.length, activeClubFilter, nextUpCachedSnapshot]);
 
-  const canAccessVault = !!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role));
-
   return (
     <div className="py-6 space-y-5">
       {/* Welcome Header */}
@@ -2182,36 +1739,21 @@ export default function HomePage() {
           </p>
         </div>
         {!isNewUserEmptyState && (
-          <div className="lg:hidden">
-            <HomeQuickActionsFab
-              onInvite={() => setMemberInviteOpen(true)}
-              onJoinTeam={() => setTeamDialogOpen(true)}
-              hasTeams={!!userRoles?.some(r => r.team_id)}
-              canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
-              canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-              canAccessVault={canAccessVault}
-              isAppAdmin={isAppAdmin}
-              activeClubFilter={activeClubFilter}
-              activeClubName={activeClubName}
-              hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
-            />
-          </div>
+          <HomeQuickActionsFab
+            onInvite={() => setMemberInviteOpen(true)}
+            onJoinTeam={() => setTeamDialogOpen(true)}
+            hasTeams={!!userRoles?.some(r => r.team_id)}
+            canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
+            canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+            canAccessVault={!!userRoles?.some(r => ["app_admin", "club_admin", "league_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
+            isAppAdmin={isAppAdmin}
+            activeClubFilter={activeClubFilter}
+            activeClubName={activeClubName}
+            hasProContext={activeClubFilter ? !!rewardClubs[0]?.hasPro : !!hasProAccess}
+          />
         )}
 
       </div>
-
-      {/* Desktop-only action bar — surfaces the quick actions as real buttons */}
-      {!isNewUserEmptyState && (
-        <DesktopActionBar
-          onInvite={() => setMemberInviteOpen(true)}
-          onJoinTeam={() => setTeamDialogOpen(true)}
-          hasTeams={!!userRoles?.some(r => r.team_id)}
-          canCreateTeam={!!userRoles?.some(r => (r.role === "club_admin" && (!activeClubFilter || r.club_id === activeClubFilter)) || r.role === "app_admin")}
-          canCreateEvent={!!userRoles?.some(r => ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role))}
-          isAppAdmin={isAppAdmin}
-          activeClubFilter={activeClubFilter}
-        />
-      )}
 
       {/* New-user empty state — no clubs, no team memberships yet */}
       {isNewUserEmptyState && (
@@ -2226,13 +1768,12 @@ export default function HomePage() {
           a club exists (per product decision). */}
 
 
-      <div className="relative [overflow-anchor:none]">
+      <div className="relative">
         {!showContent && <HomeInitialSkeleton />}
         <div
-          className={showContent ? "space-y-5 soft-reveal" : "absolute inset-x-0 top-0 space-y-5 opacity-0 pointer-events-none"}
+          className={showContent ? "space-y-5" : "absolute inset-x-0 top-0 space-y-5 opacity-0 pointer-events-none"}
           aria-hidden={!showContent}
         >
-
           {/* Next Up Carousel - unified event section */}
           <NextUpCarousel events={events || []} isLoading={isLoading || waitingForNextUpResolution} onReadyChange={handleNextUpReadyChange} />
 
@@ -2241,41 +1782,10 @@ export default function HomePage() {
             <MyTeamsPremiumCarousel onReadyChange={handleMyTeamsReadyChange} />
           </Suspense>
 
-          {/* Club News - compact latest-post card; renders nothing when the club has no posts */}
-          <Suspense fallback={null}>
-            <ClubNewsSection />
-          </Suspense>
-
           {/* Club Info & Links - collapsible tile grid directly below the teams carousel */}
           <Suspense fallback={null}>
             <ClubLinksSection />
           </Suspense>
-
-          {/* Club Files - first-class entry point to the File Vault for permitted roles.
-              Synchronous (role-based only) so it never causes a post-reveal layout shift. */}
-          {canAccessVault && (
-            <Card
-              className="border overflow-hidden cursor-pointer bg-card"
-              role="button"
-              tabIndex={0}
-              aria-label="Open club files"
-              onClick={() => navigate("/vault")}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate("/vault"); } }}
-            >
-              <CardContent className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary shrink-0">
-                    <FolderOpen className="h-5 w-5" />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[15px] font-semibold text-foreground">Club Files</p>
-                    <p className="text-[12px] text-muted-foreground truncate">Forms, policies & documents</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
         </div>
       </div>
@@ -2350,7 +1860,7 @@ export default function HomePage() {
         <Suspense fallback={null}>
           <AccountRecoveryBanner
             userId={user.id}
-            onRecovered={() => queryClient.invalidateQueries()}
+            onRecovered={() => completeHomeAccountRecovery(queryClient)}
           />
         </Suspense>
       )}

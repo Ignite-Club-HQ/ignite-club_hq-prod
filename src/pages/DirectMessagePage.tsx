@@ -3,14 +3,12 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
-import { findLocalReplyMessage } from "@/lib/chatRealtimeReply";
+import { useChatComposerController } from "@/hooks/useChatComposerController";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
-import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Send, Loader2, Crown, Lock, Flame, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Crown, Lock, Flame } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
@@ -43,8 +41,6 @@ import { EditingBanner } from "@/components/chat/EditingBanner";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
-import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
-import { NewsAttachmentPreview } from "@/components/chat/NewsAttachmentPreview";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
 import { ScheduledMessagesBanner } from "@/components/chat/ScheduledMessagesBanner";
@@ -58,14 +54,20 @@ import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   isTombstoned,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
+import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
+import { buildChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
+import { createSendTempId, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
+import { ChatPageFrame } from "@/components/chat/ChatPageFrame";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache, selectCachedProfileById } from "@/lib/profileCache";
@@ -77,7 +79,7 @@ import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
 import { queueMessage } from "@/lib/messageQueue";
-import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
+import { ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { IGNITE_SUPPORT_USER_ID, isIgniteSupportUser } from "@/lib/systemUser";
@@ -92,9 +94,17 @@ import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
+import { buildChatScopeFilter, DIRECT_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
+import {
+  orderChatMessagesChronologically,
+  prependStrictlyOlderChatMessages,
+} from "@/features/messaging/thread/chatMessageOrdering";
 
 
 const MESSAGES_PER_PAGE = 15;
+const getDirectMessagesQueryKey = (conversationId?: string) =>
+  [DIRECT_CHAT_SCOPE.cachePrefix, conversationId] as const;
 
 interface DirectMessage {
   id: string;
@@ -261,14 +271,26 @@ export default function DirectMessagePage() {
   );
   const mountTsRef = useRef<number>(Date.now());
   const perfLoggedRef = useRef<boolean>(false);
-  const [message, setMessage, clearDraft] = useChatDraft(conversationId);
+  const {
+    text: message,
+    setText: setMessage,
+    clearDraft,
+    imageUrl: dmImageUrl,
+    setImageUrl: setDmImageUrl,
+    replyingTo: replyTo,
+    setReplyingTo: setReplyTo,
+    editingMessage,
+    canSend,
+    beginEdit,
+    cancelEdit,
+    finishEdit,
+    buildSubmission,
+    resetAfterSend,
+    restoreAfterFailedSend,
+  } = useChatComposerController<DirectMessage>(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget | null = conversationId
-    ? { chat_type: "direct", conversation_id: conversationId }
-    : null;
+  const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("direct", conversationId);
   const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
-  const [replyTo, setReplyTo] = useChatDraftReply<DirectMessage>(conversationId);
-  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [hasOlderMessages, setHasOlderMessages] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -276,10 +298,7 @@ export default function DirectMessagePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [dmImageUrl, setDmImageUrl] = useState<string | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
-  const [newsPickerOpen, setNewsPickerOpen] = useState(false);
-  const [pendingNewsId, setPendingNewsId] = useState<string | null>(null);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
 
   const profileRef = useRef(profile);
@@ -351,7 +370,7 @@ export default function DirectMessagePage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: getDirectMessagesQueryKey(conversationId) }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
@@ -479,7 +498,7 @@ export default function DirectMessagePage() {
   });
 
   // Memoize query key to prevent ChatMessage memo breaks
-  const dmQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
+  const dmQueryKey = useMemo(() => getDirectMessagesQueryKey(conversationId), [conversationId]);
 
   // Force a fresh fetch whenever we land on this conversation. Push notifications
   // and inbox taps can land here while react-query still has stale data from a
@@ -490,7 +509,7 @@ export default function DirectMessagePage() {
   const invalidateGateDm = eagerInvalidateDm ? !!user?.id : authReady;
   useEffect(() => {
     if (!conversationId || !invalidateGateDm) return;
-    const key = ["dm-messages", conversationId];
+    const key = getDirectMessagesQueryKey(conversationId);
     if (shouldSkipChatMountInvalidate(queryClient, key, `dm:${conversationId}`)) return;
     let cancelled = false;
     (async () => {
@@ -527,7 +546,7 @@ export default function DirectMessagePage() {
       const authorIds = [...new Set(dataToDisplay.map((m) => m.author_id))];
 
       // Preserve cached reactions when the reactions query fails transiently
-      const cachedQueryData = queryClient.getQueryData(["dm-messages", conversationId]) as any;
+      const cachedQueryData = queryClient.getQueryData(dmQueryKey) as any;
       const cachedDmMessages: DirectMessage[] = Array.isArray(cachedQueryData)
         ? cachedQueryData
         : cachedQueryData?.messages || [];
@@ -617,8 +636,8 @@ export default function DirectMessagePage() {
   useEffect(() => {
     if (!openedFromNotificationRef.current) return;
     if (!conversationId || !authReady) return;
-    queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
-  }, [conversationId, authReady, queryClient]);
+    queryClient.invalidateQueries({ queryKey: dmQueryKey });
+  }, [conversationId, authReady, queryClient, dmQueryKey]);
 
   // Belt-and-braces: if the first fetch returned zero messages while auth was
   // still settling (notification-tap cold start), retry once after a short
@@ -630,27 +649,24 @@ export default function DirectMessagePage() {
     if (!conversationId || !authReady) return;
     if (messagesLoading) return;
     if (!messagesData) return;
-    const list = Array.isArray(messagesData) ? messagesData : messagesData.messages;
+    const list = extractChatQueryMessages<DirectMessage>(messagesData);
     if (list && list.length === 0) {
       emptyRetriedRef.current = true;
       const t = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+        queryClient.invalidateQueries({ queryKey: dmQueryKey });
       }, 400);
       return () => clearTimeout(t);
     }
-  }, [conversationId, authReady, messagesLoading, messagesData, queryClient]);
+  }, [conversationId, authReady, messagesLoading, messagesData, queryClient, dmQueryKey]);
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `dm:${conversationId ?? "none"}`;
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
-    const msgList = Array.isArray(messagesData) 
-      ? messagesData 
-      : (messagesData as any).messages || [];
-    const sorted = [...msgList].sort((a, b) => 
-      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
-    );
+    const msgList = extractChatQueryMessages<DirectMessage>(messagesData);
+    const sorted = orderChatMessagesChronologically(msgList);
     // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
     // restore pre-edit text or resurrect a deleted row.
     return (reconcileMessages(reconcileScope, sorted) ?? []) as DirectMessage[];
@@ -666,12 +682,11 @@ export default function DirectMessagePage() {
   localMessagesRef.current = localMessages;
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
-  const reactionQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<DirectMessage>({
     scopeKey: reconcileScope,
     // Scope guard: message_reactions realtime events are unfiltered platform-wide.
     getLocalMessages: () => localMessagesRef.current,
-    queryKey: reactionQueryKey,
+    queryKey: dmQueryKey,
     setLocalMessages,
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
@@ -686,7 +701,7 @@ export default function DirectMessagePage() {
     [
       ["dm-conversation", conversationId],
       ["can-dm", otherUserId],
-      ["dm-messages", conversationId],
+      dmQueryKey,
     ],
     "dm-chat",
   );
@@ -749,11 +764,6 @@ export default function DirectMessagePage() {
       );
     }
     setInfiniteScrollEnabled(false);
-
-    return () => {
-      // Tombstones/patches are per-thread; drop them when leaving the thread.
-      clearReconciliationScope(`dm:${conversationId ?? "none"}`);
-    };
   }, [conversationId, messagesData, reconcileScope]);
 
   const isPinned = true;
@@ -764,8 +774,8 @@ export default function DirectMessagePage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
-  }, [queryClient, conversationId]);
+    await queryClient.invalidateQueries({ queryKey: dmQueryKey });
+  }, [queryClient, dmQueryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
@@ -913,7 +923,10 @@ export default function DirectMessagePage() {
         dmQueryKey,
         (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
           const existing = old?.messages || [];
-          const merged = [...reconciledOlder, ...existing];
+          const merged = prependStrictlyOlderChatMessages(
+            reconciledOlder,
+            existing,
+          );
           cacheDirectMessages(conversationId, merged);
           return { ...(old || {}), messages: merged, hasOlderMessages: hasMore };
         },
@@ -937,9 +950,9 @@ export default function DirectMessagePage() {
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("dm", conversationId, fetchedCount)) {
       console.log("[DirectMessage] Messages unexpectedly 0, triggering refetch");
-      queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: dmQueryKey });
     }
-  }, [conversationId, authReady, messages, messagesLoading, queryClient]);
+  }, [conversationId, authReady, messages, messagesLoading, queryClient, dmQueryKey]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
@@ -952,14 +965,14 @@ export default function DirectMessagePage() {
         if (timeSinceLastRefresh > 30000) {
           console.log("[DirectMessage] App became visible, refreshing messages");
           lastRefresh = Date.now();
-          await queryClient.invalidateQueries({ queryKey: ["dm-messages", conversationId] });
+          await queryClient.invalidateQueries({ queryKey: dmQueryKey });
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [conversationId, authReady, queryClient]);
+  }, [conversationId, authReady, queryClient, dmQueryKey]);
 
   // Send message mutation
   const sendMessageMutation = useMutation({
@@ -1037,7 +1050,7 @@ export default function DirectMessagePage() {
       
       // Update the query cache with the new message to replace optimistic one
       queryClient.setQueryData(
-        ["dm-messages", conversationId],
+        dmQueryKey,
         (oldData: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
           if (!oldData) {
             const msg: DirectMessage = {
@@ -1103,7 +1116,7 @@ export default function DirectMessagePage() {
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
 
       // Check if the message actually arrived via realtime before showing error
-      const currentData = queryClient.getQueryData<{ messages: DirectMessage[] }>(["dm-messages", conversationId]);
+      const currentData = queryClient.getQueryData<{ messages: DirectMessage[] }>(dmQueryKey);
       const messageExists =
         authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.imageUrl || null, replyToId: variables.replyToId || null, sentAtMs: context?.sentAtMs }) ||
         authoritativeMessageExists(localMessagesRef.current, { authorId: user?.id, text: variables.text, imageUrl: variables.imageUrl || null, replyToId: variables.replyToId || null, sentAtMs: context?.sentAtMs });
@@ -1112,30 +1125,25 @@ export default function DirectMessagePage() {
         // Remove ONLY this mutation's optimistic row.
         if (context?.tempId) {
           setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
-          queryClient.setQueryData(["dm-messages", conversationId], (old: any) => {
+          queryClient.setQueryData(dmQueryKey, (old: any) => {
             if (!old) return old;
             return { ...old, messages: (old.messages || []).filter((m: DirectMessage) => m.id !== context.tempId) };
           });
         }
-        restoreFailedSendComposer({
-          context,
-          setText: setMessage,
-          setImage: setDmImageUrl,
-          setReply: setReplyTo,
-        });
+        restoreAfterFailedSend(context);
       }
 
     },
   });
   const updateMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!editingMessage) return;
-      const { error } = await supabase.from("direct_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      const edit = buildChatMessageEdit(editingMessage, message);
+      if (!edit) return;
+      const { error } = await supabase.from("direct_messages").update({ text: edit.text }).eq("id", edit.messageId);
       if (error) throw error;
     },
     onSuccess: () => {
-      setMessage("");
-      setEditingMessage(null);
+      finishEdit();
       queryClient.invalidateQueries({ queryKey: dmQueryKey });
       // silent success
     },
@@ -1143,15 +1151,12 @@ export default function DirectMessagePage() {
   });
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
-    setEditingMessage(msg);
-    setMessage(msg.text);
-    setReplyTo(null);
-  }, []);
+    beginEdit(msg);
+  }, [beginEdit]);
 
   const handleCancelEdit = useCallback(() => {
-    setEditingMessage(null);
-    setMessage("");
-  }, []);
+    cancelEdit();
+  }, [cancelEdit]);
 
   // Typing indicator
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
@@ -1161,17 +1166,9 @@ export default function DirectMessagePage() {
   );
 
   const handleSend = () => {
-    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
-    // Keep the composer focused through the tap. NEVER blur-to-flush the IME
-    // here: on Android a blur → refocus round-trip fires a real
-    // keyboardWillHide/keyboardWillShow pair, which collapses and restores
-    // the chat viewport (composer drops to the bottom nav, thread grows,
-    // then snaps back) — the post-send "thread jumps up and back". Composer
-    // state already mirrors every IME composition update, so reading it
-    // directly sends exactly what the user sees. See src/lib/chatComposerFocus.ts.
     keepComposerFocusedThroughSend(composerRef.current);
 
-    if (!message.trim() && !dmImageUrl && !pendingNewsId) return;
+    if (!canSend) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
@@ -1183,19 +1180,13 @@ export default function DirectMessagePage() {
       return;
     }
     stopTyping();
-    const baseText = message.trim();
-    const finalText = pendingNewsId
-      ? (baseText ? `${baseText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`)
-      : baseText;
+    const submission = buildSubmission();
     sendMessageMutation.mutate({
-      text: finalText,
-      imageUrl: dmImageUrl,
-      replyToId: replyTo?.id || null,
+      text: submission.text,
+      imageUrl: submission.imageUrl,
+      replyToId: submission.replyToId,
     });
-    setMessage("");
-    setDmImageUrl(null);
-    setReplyTo(null);
-    setPendingNewsId(null);
+    resetAfterSend();
   };
 
 
@@ -1215,14 +1206,9 @@ export default function DirectMessagePage() {
         },
         (payload) => {
           const newMsg = payload.new as any;
-          const currentMessages = queryClient.getQueryData<{ messages: DirectMessage[] }>(["dm-messages", conversationId])?.messages;
-          const localReplyMessage = findLocalReplyMessage(currentMessages, newMsg.reply_to_id);
-          const localReply = localReplyMessage
-            ? { text: localReplyMessage.text, author: localReplyMessage.author }
-            : null;
           // Skip if it's our own optimistic message already in cache
           queryClient.setQueryData(
-            ["dm-messages", conversationId],
+            dmQueryKey,
             (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
               if (!old) return old;
               if (old.messages.some(m => m.id === newMsg.id)) return old;
@@ -1232,7 +1218,7 @@ export default function DirectMessagePage() {
                 ...newMsg,
                 author: null,
                 reactions: [],
-                reply_to: localReply,
+                reply_to: null,
               };
               return {
                 ...old,
@@ -1246,7 +1232,7 @@ export default function DirectMessagePage() {
           const fetchExtra = async () => {
             const [profileResult, replyResult] = await Promise.all([
               selectCachedProfileById(newMsg.author_id),
-              newMsg.reply_to_id && !localReplyMessage
+              newMsg.reply_to_id
                 ? supabase.from("direct_messages").select("text, author_id").eq("id", newMsg.reply_to_id).maybeSingle()
                 : Promise.resolve({ data: null }),
             ]);
@@ -1256,7 +1242,7 @@ export default function DirectMessagePage() {
               replyAuthor = rp;
             }
             queryClient.setQueryData(
-              ["dm-messages", conversationId],
+              dmQueryKey,
               (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
                 if (!old) return old;
                 return {
@@ -1294,10 +1280,10 @@ export default function DirectMessagePage() {
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
           queryClient.setQueryData(
-            ["dm-messages", conversationId],
+            dmQueryKey,
             (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) => {
               if (!old) return old;
-              return { ...old, messages: removeMessage(old.messages, deletedId) };
+              return removeMessageFromQueryEnvelope<DirectMessage>(old, deletedId);
             }
           );
           setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
@@ -1320,9 +1306,9 @@ export default function DirectMessagePage() {
 
           if (outcome === "deleted") {
             queryClient.setQueryData(
-              ["dm-messages", conversationId],
+              dmQueryKey,
               (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) =>
-                old ? { ...old, messages: removeMessage(old.messages, updated.id) } : old,
+                old ? removeMessageFromQueryEnvelope<DirectMessage>(old, updated.id) : old,
             );
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
@@ -1331,9 +1317,9 @@ export default function DirectMessagePage() {
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
           queryClient.setQueryData(
-            ["dm-messages", conversationId],
+            dmQueryKey,
             (old: { messages: DirectMessage[]; hasOlderMessages: boolean } | undefined) =>
-              old ? { ...old, messages: applyMessageUpdate(old.messages, updated) } : old,
+              old ? applyMessageUpdateToQueryEnvelope<DirectMessage>(old, updated) : old,
           );
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
@@ -1375,7 +1361,7 @@ export default function DirectMessagePage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`dm-${conversationId}`);
     };
-  }, [conversationId, queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [conversationId, queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete, dmQueryKey]);
 
   const { isSearching: isSearchFetching, canShowEmpty: searchCanShowEmpty } = useChatHistorySearch<DirectMessage>({
     searchQuery,
@@ -1385,8 +1371,8 @@ export default function DirectMessagePage() {
     cacheKey: `dm:${conversationId ?? ""}`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "direct_messages",
-        scope: { conversation_id: conversationId! },
+        table: DIRECT_CHAT_SCOPE.messageTable,
+        scope: buildChatScopeFilter(DIRECT_CHAT_SCOPE, conversationId),
         query: q,
         signal,
         selectColumns: "id, text, image_url, created_at, edited_at, author_id, conversation_id, reply_to_id",
@@ -1477,7 +1463,7 @@ export default function DirectMessagePage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" data-lock-keyboard-scroll="true" style={{ height: chatHeight }} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
+    <ChatPageFrame height={chatHeight} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
       <ChatHeaderShell
         type={isIgniteSupportConversation ? "support" : "dm"}
@@ -1486,14 +1472,9 @@ export default function DirectMessagePage() {
         avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
         showOnlineDot={!isIgniteSupportConversation && isOtherUserOnline}
         onOpenDetails={() => setDetailsOpen(true)}
-        leftSlot={
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
-        }
+        search={{ onSearch: setSearchQuery, isOpen: searchOpen, onOpenChange: setSearchOpen, isSearching: isSearchFetching }}
         rightSlot={
           <>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-              <Search className="h-4 w-4" />
-            </Button>
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
@@ -1664,17 +1645,7 @@ export default function DirectMessagePage() {
              )}
               {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
               {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
-                <ChatComposerShell
-                  preview={
-                    pendingNewsId && !editingMessage ? (
-                      <NewsAttachmentPreview
-                        newsId={pendingNewsId}
-                        onRemove={() => setPendingNewsId(null)}
-                        disabled={sendMessageMutation.isPending}
-                      />
-                    ) : undefined
-                  }
-                >
+                <ChatComposerShell>
                 {!isIgniteSupportConversation && !attachmentsDisabled && (
                   <ChatImageInput
                     imageUrl={dmImageUrl}
@@ -1683,8 +1654,6 @@ export default function DirectMessagePage() {
                     clubId={sharedClubId || undefined}
                     showEventPicker={!!sharedClubId}
                     onEventSelect={() => setEventPickerOpen(true)}
-                    showNewsPicker={!!(sharedClubId || undefined)}
-                    onNewsSelect={() => setNewsPickerOpen(true)}
                     showBoardPicker={false}
                     onBoardPick={() => setBoardPickerOpen(true)}
                     showVaultPicker={!!sharedClubId}
@@ -1708,9 +1677,9 @@ export default function DirectMessagePage() {
                 <ChatSendButton
                   onSend={handleSend}
                   onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-                  disabled={!message.trim() && !dmImageUrl && !pendingNewsId}
+                  disabled={!canSend}
                   loading={sendMessageMutation.isPending}
-                  canSend={!!message.trim() || !!dmImageUrl || !!pendingNewsId}
+                  canSend={canSend}
                 />
               </ChatComposerShell>
               {scheduleTarget && (
@@ -1719,10 +1688,10 @@ export default function DirectMessagePage() {
                   onOpenChange={setScheduleDialogOpen}
                   target={scheduleTarget}
                   initialText={message}
-                  onScheduled={() => {
-                    setMessage("");
-                    clearDraft?.();
-                  }}
+                  onScheduled={() => resetChatComposerAfterSchedule({
+                    setComposerText: setMessage,
+                    clearDraft,
+                  })}
                 />
               )}
               {!isIgniteSupportConversation && (
@@ -1735,12 +1704,6 @@ export default function DirectMessagePage() {
                       setMessage(message ? `${message} ${token}` : token);
                     }}
                     clubId={sharedClubId || undefined}
-                  />
-                  <NewsPickerSheet
-                    open={newsPickerOpen}
-                    onOpenChange={setNewsPickerOpen}
-                    clubId={sharedClubId || undefined}
-                    onSelectNews={(newsId) => setPendingNewsId(newsId)}
                   />
                   <BoardPickerSheet
                     open={boardPickerOpen}
@@ -1755,6 +1718,6 @@ export default function DirectMessagePage() {
            </div>
         </>
       )}
-    </div>
+    </ChatPageFrame>
   );
 }

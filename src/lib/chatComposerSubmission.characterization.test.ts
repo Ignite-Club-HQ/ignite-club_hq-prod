@@ -12,9 +12,10 @@ describe("chat composer submission preparation", () => {
     "GroupChatPage.tsx",
     "DirectMessagePage.tsx",
     "ClubAdminChatPage.tsx",
-  ])("%s commits native IME composition through the shared boundary", (name) => {
+  ])("%s keeps focus stable without the legacy IME blur boundary", (name) => {
     const source = page(name);
-    expect(source).toContain("if (prepareChatComposerSubmission(imeFlushed, handleSend)) return");
+    expect(source).toContain("keepComposerFocusedThroughSend(composerRef.current)");
+    expect(source).not.toContain("prepareChatComposerSubmission");
     expect(source).not.toContain('ae.tagName === "TEXTAREA"');
   });
 

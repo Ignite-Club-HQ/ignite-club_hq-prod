@@ -3,12 +3,11 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
+import { useChatComposerController } from "@/hooks/useChatComposerController";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
-import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { ChatThreadSponsorStrip } from "@/components/chat/ChatThreadSponsorStrip";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
@@ -54,14 +53,21 @@ import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
-  clearReconciliationScope,
+  removeMessageFromQueryEnvelope,
 } from "@/lib/chatMessageReconciliation";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
+import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
+import { buildChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
+import { createSendTempId, splitPollMarkup, authoritativeMessageExists, dropSupersededOptimisticRow, type FailedSendContext } from "@/lib/failedSendRestore";
 import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
+import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
+import { ChatPageFrame } from "@/components/chat/ChatPageFrame";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
@@ -86,8 +92,18 @@ import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
+import {
+  buildChatScopeFilter,
+  CLUB_ADMIN_CHAT_SCOPE,
+} from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
+import { orderChatMessagesChronologically } from "@/features/messaging/thread/chatMessageOrdering";
+import { mergeCachedChatMessagesChronologically } from "@/features/messaging/thread/chatThreadCacheHydration";
 
 const MESSAGES_PER_PAGE = 15;
+
+const getClubAdminMessagesQueryKey = (conversationId?: string) =>
+  [CLUB_ADMIN_CHAT_SCOPE.cachePrefix, conversationId] as const;
 
 interface ClubAdminMessage {
   id: string;
@@ -157,19 +173,31 @@ export default function ClubAdminChatPage() {
   const openedFromNotificationRef = useRef<number | null>(
     conversationId ? consumeFromNotificationFlag("club_admin", conversationId) : null,
   );
-  const [message, setMessage, clearDraft] = useChatDraft(conversationId);
+  const {
+    text: message,
+    setText: setMessage,
+    clearDraft,
+    imageUrl,
+    setImageUrl,
+    replyingTo: replyTo,
+    setReplyingTo: setReplyTo,
+    editingMessage,
+    pendingPollId,
+    setPendingPollId,
+    canSend,
+    beginEdit,
+    cancelEdit,
+    finishEdit,
+    buildSubmission,
+    resetAfterSend,
+    restoreAfterFailedSend,
+  } = useChatComposerController<ClubAdminMessage>(conversationId);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget | null = conversationId
-    ? { chat_type: "club_admin", conversation_id: conversationId }
-    : null;
-  const [replyTo, setReplyTo] = useChatDraftReply<ClubAdminMessage>(conversationId);
-  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
+  const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("club_admin", conversationId);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
-  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -320,7 +348,10 @@ export default function ClubAdminChatPage() {
     : `${club?.name || "Club"} admin chat`;
 
   // Memoize query key
-  const queryKey = useMemo(() => ["club-admin-messages", conversationId], [conversationId]);
+  const queryKey = useMemo(
+    () => getClubAdminMessagesQueryKey(conversationId),
+    [conversationId],
+  );
 
   // Fetch messages
   const {
@@ -425,12 +456,9 @@ export default function ClubAdminChatPage() {
       const cached = getCachedClubAdminMessages(conversationId);
       if (openedFromNotificationRef.current && prev) {
         const prevMessages: ClubAdminMessage[] = Array.isArray(prev) ? prev : (prev.messages || []);
-        const merged = [...prevMessages];
-        for (const cachedMessage of cached) {
-          if (!merged.some((message) => message.id === cachedMessage.id)) merged.push(cachedMessage);
-        }
-        merged.sort((a, b) =>
-          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
+        const merged = mergeCachedChatMessagesChronologically(
+          prevMessages,
+          cached,
         );
         return Array.isArray(prev) ? merged : { ...prev, messages: merged, fromCache: true };
       }
@@ -448,8 +476,8 @@ export default function ClubAdminChatPage() {
   useEffect(() => {
     if (!openedFromNotificationRef.current) return;
     if (!conversationId || !user?.id) return;
-    queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] });
-  }, [conversationId, user?.id, queryClient]);
+    queryClient.invalidateQueries({ queryKey });
+  }, [conversationId, user?.id, queryClient, queryKey]);
 
   // Bounded automatic recovery. If the thread fetch returns zero messages (or
   // errors) while auth/RLS/connectivity is still settling after an Android
@@ -533,16 +561,13 @@ export default function ClubAdminChatPage() {
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `club-admin:${conversationId ?? "none"}`;
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
 
   const messages = useMemo(() => {
     if (!messagesData) return [];
-    const msgList = Array.isArray(messagesData)
-      ? messagesData
-      : (messagesData as any).messages || [];
-    const sorted = [...msgList].sort((a, b) =>
-      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
-    );
+    const msgList = extractChatQueryMessages<ClubAdminMessage>(messagesData);
+    const sorted = orderChatMessagesChronologically(msgList);
     // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
     // restore pre-edit text or resurrect a deleted row.
     return (reconcileMessages(reconcileScope, sorted) ?? []) as ClubAdminMessage[];
@@ -601,12 +626,12 @@ export default function ClubAdminChatPage() {
       () => virtualHandleRef.current,
       setHighlightedMessageId,
       {
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId, targetJumpNonce]);
+  }, [targetMessageId, targetParentId, targetJumpNonce, queryClient, queryKey]);
   // A push-preload-only local cache must still show the loading state —
   // otherwise the stranded stub paints for a frame before the real fetch
   // resolves. Everything else routes through the shared classifier, which
@@ -634,7 +659,7 @@ export default function ClubAdminChatPage() {
     (!!conversationId && (conversationLoading || showLoading)),
     [
       ["club-admin-conversation", conversationId],
-      ["club-admin-messages", conversationId],
+      queryKey,
     ],
     "club-admin-chat",
   );
@@ -658,10 +683,6 @@ export default function ClubAdminChatPage() {
         : undefined,
     );
 
-    return () => {
-      // Tombstones/patches are per-thread; drop them when leaving the thread.
-      clearReconciliationScope(`club-admin:${conversationId ?? "none"}`);
-    };
   }, [conversationId, reconcileScope]);
 
   // Sync localMessages with fetched messages
@@ -717,33 +738,20 @@ export default function ClubAdminChatPage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["club-admin-messages", conversationId] });
-  }, [queryClient, conversationId]);
+    await queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
     try { await handleRefresh(); } finally { setIsManualRefreshing(false); }
   }, [handleRefresh]);
 
-  // Vault mirroring runs ONLY for confirmed-delivered messages, always into the
-  // club-admin-restricted folder.
   const clubIdForVault = conversation?.club_id ?? null;
-  const syncSendToVault = useCallback(
-    (vars: { text: string; imageUrl: string | null }) => {
-      if (!user || !clubIdForVault) return;
-      if (!vars.imageUrl && !vars.text) return;
-      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-        syncChatAttachmentToVault({
-          imageUrl: vars.imageUrl ?? null,
-          text: vars.text,
-          userId: user.id,
-          clubId: clubIdForVault,
-          isClubAdminChat: true,
-        }).catch((err) => console.warn("Club admin chat vault sync failed", err));
-      });
-    },
-    [user, clubIdForVault],
-  );
+  const syncSendToVault = useChatVaultDeliverySync({
+    userId: user?.id,
+    scope: clubIdForVault ? { clubId: clubIdForVault, isClubAdminChat: true } : null,
+    surfaceLabel: "Club admin chat",
+  });
 
   // Send message mutation
   const sendMessageMutation = useMutation({
@@ -875,13 +883,7 @@ export default function ClubAdminChatPage() {
         });
       }
 
-      restoreFailedSendComposer({
-        context,
-        setText: setMessage,
-        setImage: setImageUrl,
-        setReply: setReplyTo,
-        setPoll: setPendingPollId,
-      });
+      restoreAfterFailedSend(context);
 
       console.error("Failed to send club admin message", err);
       toast.error("Failed to send message. Please try again.");
@@ -897,8 +899,8 @@ export default function ClubAdminChatPage() {
     cacheKey: `club_admin:${conversationId ?? ""}`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "club_admin_messages",
-        scope: { conversation_id: conversationId! },
+        table: CLUB_ADMIN_CHAT_SCOPE.messageTable,
+        scope: buildChatScopeFilter(CLUB_ADMIN_CHAT_SCOPE, conversationId),
         query: q,
         signal,
         selectColumns: "id, text, image_url, created_at, edited_at, author_id, conversation_id, reply_to_id",
@@ -960,13 +962,13 @@ export default function ClubAdminChatPage() {
 
   const updateMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!editingMessage) return;
-      const { error } = await supabase.from("club_admin_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      const edit = buildChatMessageEdit(editingMessage, message);
+      if (!edit) return;
+      const { error } = await supabase.from("club_admin_messages").update({ text: edit.text }).eq("id", edit.messageId);
       if (error) throw error;
     },
     onSuccess: () => {
-      setMessage("");
-      setEditingMessage(null);
+      finishEdit();
       queryClient.invalidateQueries({ queryKey });
       // silent success
     },
@@ -974,15 +976,12 @@ export default function ClubAdminChatPage() {
   });
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
-    setEditingMessage(msg);
-    setMessage(msg.text);
-    setReplyTo(null);
-  }, []);
+    beginEdit(msg);
+  }, [beginEdit]);
 
   const handleCancelEdit = useCallback(() => {
-    setEditingMessage(null);
-    setMessage("");
-  }, []);
+    cancelEdit();
+  }, [cancelEdit]);
 
   // Typing indicator
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(
@@ -992,35 +991,21 @@ export default function ClubAdminChatPage() {
   );
 
   const handleSend = () => {
-    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
-    // Keep the composer focused through the tap. NEVER blur-to-flush the IME
-    // here: on Android a blur → refocus round-trip fires a real
-    // keyboardWillHide/keyboardWillShow pair, which collapses and restores
-    // the chat viewport (composer drops to the bottom nav, thread grows,
-    // then snaps back) — the post-send "thread jumps up and back". Composer
-    // state already mirrors every IME composition update, so reading it
-    // directly sends exactly what the user sees. See src/lib/chatComposerFocus.ts.
     keepComposerFocusedThroughSend(composerRef.current);
 
-    if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!canSend) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
     stopTyping();
-    const baseText = message.trim();
-    const finalText = pendingPollId
-      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-      : baseText;
+    const submission = buildSubmission();
     sendMessageMutation.mutate({
-      text: finalText,
-      imageUrl,
-      replyToId: replyTo?.id || null,
+      text: submission.text,
+      imageUrl: submission.imageUrl,
+      replyToId: submission.replyToId,
     });
-    setMessage("");
-    setImageUrl(null);
-    setReplyTo(null);
-    setPendingPollId(null);
+    resetAfterSend();
   };
 
 
@@ -1076,7 +1061,7 @@ export default function ClubAdminChatPage() {
 
           if (outcome === "deleted") {
             queryClient.setQueryData(queryKey, (old: any) =>
-              old ? { ...old, messages: removeMessage(old.messages || [], updated.id) } : old,
+              old ? removeMessageFromQueryEnvelope<ClubAdminMessage>(old, updated.id) : old,
             );
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
@@ -1085,7 +1070,7 @@ export default function ClubAdminChatPage() {
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
           queryClient.setQueryData(queryKey, (old: any) =>
-            old ? { ...old, messages: applyMessageUpdate(old.messages || [], updated) } : old,
+            old ? applyMessageUpdateToQueryEnvelope<ClubAdminMessage>(old, updated) : old,
           );
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
@@ -1126,7 +1111,7 @@ export default function ClubAdminChatPage() {
           userId: user.id,
           // Scoped by CLUB id: losing club membership must revoke this channel.
           scope: { kind: "club_admin", id: conversation?.club_id ?? conversationId },
-          cacheKeys: [["club-admin-messages", conversationId]],
+          cacheKeys: [queryKey],
         })
       : null;
 
@@ -1198,7 +1183,7 @@ export default function ClubAdminChatPage() {
 
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
+    <ChatPageFrame height={chatHeight} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-background shrink-0 relative">
         <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
@@ -1398,9 +1383,9 @@ export default function ClubAdminChatPage() {
           <ChatSendButton
             onSend={handleSend}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !imageUrl && !pendingPollId}
+            disabled={!canSend}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+            canSend={canSend}
           />
         </ChatComposerShell>
         {scheduleTarget && (
@@ -1409,10 +1394,10 @@ export default function ClubAdminChatPage() {
             onOpenChange={setScheduleDialogOpen}
             target={scheduleTarget}
             initialText={message}
-            onScheduled={() => {
-              setMessage("");
-              clearDraft?.();
-            }}
+            onScheduled={() => resetChatComposerAfterSchedule({
+              setComposerText: setMessage,
+              clearDraft,
+            })}
           />
         )}
         {conversationId && (
@@ -1483,6 +1468,6 @@ export default function ClubAdminChatPage() {
           </SheetContent>
         </Sheet>
       )}
-    </div>
+    </ChatPageFrame>
   );
 }

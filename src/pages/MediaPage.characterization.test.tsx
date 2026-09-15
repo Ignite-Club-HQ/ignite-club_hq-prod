@@ -115,7 +115,11 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "user-1", emai
 vi.mock("@/hooks/usePageTitle", () => ({ usePageTitle: vi.fn() }));
 vi.mock("@/hooks/useClubTheme", () => ({ useClubTheme: () => ({ activeClubFilter: null }) }));
 vi.mock("@/hooks/useClubProAccess", () => ({ useClubProAccess: () => ({ hasPro: true, isLoading: false }) }));
-vi.mock("@/hooks/useClubFreeUsage", () => ({ useClubFreeUsage: () => ({ current: 0, limit: 50, isLoading: false }) }));
+vi.mock("@/hooks/useClubFreeUsage", () => ({
+  useClubFreeUsage: () => ({ usage: null, isLoading: false, refetch: vi.fn() }),
+  readClubFreeUsageSnapshot: () => null,
+  FREE_PHOTO_UPLOADS_PER_CYCLE: 10,
+}));
 vi.mock("@/hooks/useProfiles", () => ({ useProfiles: () => ({ getProfile: () => ({ display_name: "Synthetic User", avatar_url: null }), isLoading: false }) }));
 vi.mock("@/hooks/usePhotoViews", () => ({
   usePhotoViewCounts: () => ({ data: new Map() }),

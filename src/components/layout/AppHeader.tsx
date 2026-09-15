@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LogoImage } from "@/components/ui/logo-image";
-import { Bell, Flame, User, LogOut, Users, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown, Sparkles, ArrowRight } from "lucide-react";
+import { Bell, Flame, User, LogOut, Users, Trash2, Loader2, Moon, Sun, Check, Building2, Lock, UserCog, Settings, Folder, ChevronDown, Sparkles, ArrowRight } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,8 +16,6 @@ import { SwipeableDropdownContent } from "@/components/ui/swipeable-dropdown-con
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { resolvePointsNotificationClubId } from "@/lib/pointsNotificationClub";
-import { guardClubListResult } from "@/lib/clubListEmptyGuard";
 import { useLogoAccentColor } from "@/hooks/useLogoAccentColor";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ClubThemeToggle } from "@/components/ClubThemeToggle";
@@ -31,12 +29,6 @@ import igniteIcon from "@/assets/ignite-icon.png";
 import { NotificationIcon } from "@/components/NotificationIcon";
 import { setPendingChatJump, withChatJumpNonce } from "@/lib/pendingChatJump";
 import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
-import { resolveTeamInviteRoute } from "@/lib/resolveNotificationRoute";
-import {
-  ClubSwitcherHint,
-  hasSeenClubSwitcherHint,
-  markClubSwitcherHintSeen,
-} from "@/components/layout/ClubSwitcherHint";
 import { notificationKeys } from "@/features/notifications/queryKeys";
 import { invalidateNotificationSurfaces } from "@/features/notifications/cachePolicy";
 
@@ -124,7 +116,7 @@ function LogoClubThemeDropdown() {
         });
       }
 
-      if (!clubIds.length) return guardClubListResult(`all-user-clubs:${user.id}`, []);
+      if (!clubIds.length) return [];
 
       // Fetch clubs with subscription info (exclude soft-deleted clubs)
       const { data: clubs, error: clubsError } = await supabase
@@ -193,9 +185,8 @@ function LogoClubThemeDropdown() {
         }
       });
 
-      return guardClubListResult(`all-user-clubs:${user.id}`, Array.from(dedupedClubs.values()));
+      return Array.from(dedupedClubs.values());
     },
-    retry: 3,
     enabled: !!user?.id,
   });
 
@@ -326,69 +317,13 @@ export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile, unreadCount: globalUnreadCount, user, clearUnreadCount, refreshUnreadCount, signOut } = useAuth();
-  const { activeThemeData, activeClubTheme, activeClubFilter, activeFreeClubData, setActiveClubTheme } = useClubTheme();
+  const { activeThemeData, activeClubTheme, activeClubFilter, activeFreeClubData } = useClubTheme();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [demoLoginOpen, setDemoLoginOpen] = useState(false);
   const [isSavingTheme, setIsSavingTheme] = useState(false);
-  const [hintDismissed, setHintDismissed] = useState(false);
-  const [hintVisible, setHintVisible] = useState(false);
-
-  // Multi-club detection for the one-shot club-switcher coach-mark. Cheap
-  // (id-only reads, 60s staleTime) and skipped entirely once the hint has
-  // already been seen for this user.
-  //
-  // The count MUST union every membership shape, not just `user_roles.club_id`:
-  // parents/players carried in on a roster hold only team-scoped role rows
-  // (club_id NULL), `team_memberships`, or `club_players` rows. Counting only
-  // club-scoped roles reported "1 club" for a genuinely multi-club user, so the
-  // hint never appeared after they joined a second club.
-  const hintAlreadySeen = user?.id ? hasSeenClubSwitcherHint(user.id) : true;
-  const { data: userClubCount = 0 } = useQuery({
-    queryKey: ["user-club-count-for-switcher-hint", user?.id],
-    enabled: !!user?.id && !hintAlreadySeen,
-    staleTime: 60 * 1000,
-    queryFn: async () => {
-      if (!user?.id) return 0;
-      const db = supabase as any;
-      const [clubRoles, teamRoles, teamMemberships, clubPlayers] = await Promise.all([
-        supabase.from("user_roles").select("club_id").eq("user_id", user.id).not("club_id", "is", null),
-        supabase
-          .from("user_roles")
-          .select("team_id, teams!inner(club_id)")
-          .eq("user_id", user.id)
-          .not("team_id", "is", null),
-        db
-          .from("team_memberships")
-          .select("teams!inner(club_id)")
-          .eq("user_id", user.id)
-          .eq("status", "active"),
-        db.from("club_players").select("club_id").eq("user_id", user.id),
-      ]);
-      const ids = new Set<string>();
-      (clubRoles.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
-      (clubPlayers.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
-      [...(teamRoles.data || []), ...(teamMemberships.data || [])].forEach((r: any) => {
-        const clubId = r.teams?.club_id;
-        if (clubId) ids.add(clubId);
-      });
-      return ids.size;
-    },
-  });
-
-  // Only *persist* the "seen" flag when the coach-mark was actually on screen.
-  // Otherwise a routine tap on the club logo (long before the user ever became
-  // multi-club) would permanently burn the one-shot hint.
-  const dismissClubSwitcherHint = () => {
-    if (!hintVisible || hintDismissed) return;
-    setHintDismissed(true);
-    if (user?.id) markClubSwitcherHintSeen(user.id);
-  };
-
-
-  
   
   // Handle theme toggle with save to profile
   const handleThemeToggle = async () => {
@@ -555,17 +490,19 @@ export function AppHeader() {
 
   const clubNameParts = activeThemeData ? parseClubName(activeThemeData.clubName) : null;
 
-  const markAllAsRead = useMutation({
+  const clearAllNotifications = useMutation({
     mutationFn: async () => {
       if (!user?.id) return;
 
-      // Only ever flips is_read — notifications are never deleted here so the
-      // user keeps their full history and can still open them later.
+      // Fetch all candidate notifications in the current scope, then delete by
+      // explicit ID list. This avoids any `.or()` + `.delete()` chaining quirks
+      // (which were silently no-op'ing for club_id IS NULL rows in some cases)
+      // and also lets us apply the same client-side cross-club drop filter the
+      // dropdown uses so "Clear all" wipes exactly what the user can see.
       let listQ = supabase
         .from("notifications")
         .select("id, type, related_id, club_id")
         .eq("user_id", user.id)
-        .eq("is_read", false)
         .limit(500);
       if (activeClubFilter) {
         listQ = listQ.or(`club_id.eq.${activeClubFilter},club_id.is.null`);
@@ -573,44 +510,49 @@ export function AppHeader() {
       const { data: candidates, error: listErr } = await listQ;
       if (listErr) throw listErr;
 
-      let toMark = candidates || [];
-      if (activeClubFilter && toMark.length) {
-        toMark = await filterClubScopedNotifications(toMark as any[], user.id, activeClubFilter);
+      let toDelete = candidates || [];
+      if (activeClubFilter && toDelete.length) {
+        toDelete = await filterClubScopedNotifications(toDelete as any[], user.id, activeClubFilter);
       }
 
-      const ids = toMark.map((n: any) => n.id);
+      const ids = toDelete.map((n: any) => n.id);
       if (!ids.length) return;
 
-      const { error: updErr } = await supabase
+      // Mark read first so unread counters drop even if delete is partially
+      // blocked by RLS for any row.
+      await supabase
         .from("notifications")
         .update({ is_read: true })
         .in("id", ids)
         .eq("user_id", user.id);
-      if (updErr) throw updErr;
+
+      const { error: delErr } = await supabase
+        .from("notifications")
+        .delete()
+        .in("id", ids)
+        .eq("user_id", user.id);
+      if (delErr) throw delErr;
     },
     onMutate: () => {
-      // Optimistically clear the badge and flip rows to read (keeping them visible)
+      // Optimistically clear the badge and dropdown immediately
       clearUnreadCount();
-      queryClient.setQueriesData<any[]>(
-        { queryKey: notificationKeys.recentFor(user?.id, activeClubFilter) },
-        (old) => (old || []).map((n) => ({ ...n, is_read: true })),
-      );
-      queryClient.setQueriesData<number>(
-        { queryKey: notificationKeys.clubUnreadFor(user?.id, activeClubFilter) },
-        () => 0,
-      );
+      queryClient.setQueriesData<unknown[]>({ queryKey: notificationKeys.recent }, () => []);
+      queryClient.setQueriesData<number>({ queryKey: notificationKeys.clubUnread }, () => 0);
     },
     onSuccess: () => {
       invalidateNotificationSurfaces(queryClient);
+      setNotificationsOpen(false);
+      // Force refresh to get accurate count from server
       setTimeout(() => refreshUnreadCount(), 300);
     },
     onError: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.recentFor(user?.id, activeClubFilter) });
-      queryClient.invalidateQueries({ queryKey: notificationKeys.clubUnreadFor(user?.id, activeClubFilter) });
+      // Re-fetch so the dropdown reflects true server state instead of the
+      // optimistic empty list.
+      queryClient.invalidateQueries({ queryKey: notificationKeys.recent });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.clubUnread });
       refreshUnreadCount();
     },
   });
-
 
   const { data: recentNotifications = [], refetch: refetchRecentNotifications } = useQuery({
     queryKey: notificationKeys.recentFor(user?.id, activeClubFilter),
@@ -621,7 +563,7 @@ export function AppHeader() {
         .select("id, message, type, created_at, is_read, related_id, club_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(40);
+        .limit(activeClubFilter ? 20 : 5);
       // Include notifications scoped to the active club AND global ones (club_id IS NULL),
       // since some types like join_request / team_invite / role_request are intentionally
       // stored without a club_id and would otherwise be hidden by an active club filter.
@@ -636,8 +578,8 @@ export function AppHeader() {
       // surfaces DMs from people only associated with Club B.
       if (activeClubFilter && rows.length) {
         rows = await filterClubScopedNotifications(rows, user.id, activeClubFilter);
+        rows = rows.slice(0, 5);
       }
-
 
       return rows;
     },
@@ -647,16 +589,6 @@ export function AppHeader() {
     // fetches during rapid remounts (nav, resume, sheet toggles).
     staleTime: 30_000,
   });
-
-  /**
-   * Dropdown shows ONLY unread notifications (newest first). Full history
-   * (read + unread) stays available via "View all notifications".
-   */
-  const DROPDOWN_MAX_UNREAD = 8;
-  const dropdownUnread = recentNotifications
-    .filter((n) => !n.is_read)
-    .slice(0, DROPDOWN_MAX_UNREAD);
-
 
 
   // Per-club unread count (only when a club filter is active)
@@ -751,19 +683,6 @@ export function AppHeader() {
   };
 
   const navigateWithFreshJump = (to: string) => navigate(withChatJumpNonce(to));
-
-  // Points/rewards screens read per-club balances. Align the active club with
-  // the club that awarded the points before navigating there.
-  const switchToPointsClubThenNavigate = async (
-    n: { type?: string | null; club_id?: string | null; related_id?: string | null },
-    to: string,
-  ) => {
-    try {
-      const clubId = await resolvePointsNotificationClubId(n);
-      if (clubId && clubId !== activeClubFilter) setActiveClubTheme(clubId);
-    } catch { /* never block navigation */ }
-    navigate(to);
-  };
 
   const handleNotificationClick = async (notification: typeof recentNotifications[0]) => {
     try {
@@ -1020,9 +939,6 @@ export function AppHeader() {
             navigate("/notifications");
           }
           return;
-        case "club_news":
-          navigate(relatedId ? `/news/${relatedId}` : "/news");
-          return;
         case "club_join":
           if (relatedId) {
             navigate(`/clubs/${relatedId}`);
@@ -1030,22 +946,31 @@ export function AppHeader() {
             navigate("/notifications");
           }
           return;
-        case "team_invite": {
-          // related_id may point at team_invites OR pending_invites (parent invites)
-          const resolvedInvite = await resolveTeamInviteRoute(relatedId);
-          if (resolvedInvite.kind === "navigate") {
-            navigate(resolvedInvite.to);
-          } else {
-            toast.info("This invite is no longer available");
-          }
-          return;
-        }
         case "role_assigned":
         case "invite_accepted":
         case "team_join":
+        case "team_invite":
           // Navigate to team page if related_id is available
           if (relatedId) {
-            navigate(`/teams/${relatedId}`);
+            if (notification.type === "team_invite") {
+              const { data: inviteData } = await supabase
+                .from("pending_invites")
+                .select("team_id, club_id, status, metadata")
+                .eq("id", relatedId)
+                .maybeSingle();
+              const inviteMeta = inviteData?.metadata as any;
+              if (inviteMeta?.mini_league_id) {
+                navigate(`/mini-leagues/${inviteMeta.mini_league_id}`);
+              } else if (inviteData?.team_id) {
+                navigate(`/teams/${inviteData.team_id}`);
+              } else if (inviteData?.club_id) {
+                navigate(`/clubs/${inviteData.club_id}`);
+              } else {
+                navigate("/notifications");
+              }
+            } else {
+              navigate(`/teams/${relatedId}`);
+            }
           } else {
             navigate("/notifications");
           }
@@ -1103,18 +1028,15 @@ export function AppHeader() {
         case "points_awarded":
         case "reward_redeemed":
         case "player_of_match":
-          // Reward points are per club — align the active club with the club
-          // that awarded them before showing the totals.
-          void switchToPointsClubThenNavigate(notification, "/profile?section=points-history");
+          navigate("/profile?section=points-history");
           return;
         case "leaderboard_update":
         case "streak_progress":
         case "streak_bonus":
         case "reward_proximity":
         case "reward_unlocked":
-          void switchToPointsClubThenNavigate(notification, "/leaderboard");
+          navigate("/leaderboard");
           return;
-
       }
 
       navigate("/notifications");
@@ -1136,20 +1058,18 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background pt-safe">
-      <div className="flex items-center justify-between h-14 px-4 lg:px-8 max-w-lg lg:max-w-none mx-auto">
-        <div className="relative">
-        <DropdownMenu onOpenChange={(open) => { if (open) dismissClubSwitcherHint(); }}>
+      <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button onPointerDown={dismissClubSwitcherHint} className="flex items-center gap-2.5 px-1.5 py-1 -ml-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
+            <button className="flex items-center gap-2.5 px-1.5 py-1 -ml-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg" key={shouldShowClubTheming ? `club-${activeThemeData?.clubId}` : activeFreeClubData ? `free-${activeFreeClubData.id}` : 'ignite'}>
               {shouldShowClubTheming ? (
                 <>
                   {showClubLogo ? (
                     <div className="relative">
-                      <LogoImage
-                        src={activeThemeData.logoUrl!}
+                      <LogoImage 
+                        src={activeThemeData.logoUrl!} 
                         alt={activeThemeData.clubName}
-                        className="h-8 w-8 shrink-0"
-                        imgClassName="object-contain"
+                        className="h-8 w-auto max-w-[32px] object-contain"
                         fallback={
                           <div className="p-1.5 rounded-lg bg-primary">
                             <Flame className="h-5 w-5 text-primary-foreground" />
@@ -1244,30 +1164,8 @@ export function AppHeader() {
           </DropdownMenuTrigger>
           <LogoClubThemeDropdown />
         </DropdownMenu>
-        {user?.id && !hintDismissed && (
-          <ClubSwitcherHint
-            userId={user.id}
-            enabled={userClubCount > 1}
-            onVisibleChange={setHintVisible}
-            onDismiss={() => setHintDismissed(true)}
-          />
-        )}
-
-        </div>
 
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden lg:inline-flex h-9 gap-2 px-2.5"
-            onClick={() => navigate(activeClubTheme ? `/clubs/${activeClubTheme}` : "/clubs")}
-          >
-            <Building2 className="h-5 w-5" />
-            <span className="text-sm">Clubs &amp; Teams</span>
-          </Button>
-
-
-
           <DropdownMenu open={notificationsOpen} onOpenChange={(open) => {
               setNotificationsOpen(open);
               if (open) refetchRecentNotifications();
@@ -1296,106 +1194,98 @@ export function AppHeader() {
               </Button>
             </DropdownMenuTrigger>
             <SwipeableDropdownContent 
-              className="w-80 bg-popover flex flex-col max-h-[80vh]" 
+              className="w-80 bg-popover" 
               align="end"
               onSwipeClose={() => setNotificationsOpen(false)}
             >
-              <div className="flex items-center justify-between p-3 shrink-0">
+              <div className="flex items-center justify-between p-3">
                 <p className="text-sm font-semibold">Notifications</p>
                 <div className="flex items-center gap-2">
-                  {dropdownUnread.length > 0 && (
+                  {recentNotifications.length > 0 && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        markAllAsRead.mutate();
+                        clearAllNotifications.mutate();
                       }}
                     >
-                      <Check className="h-3 w-3 mr-1" />
-                      Mark all as read
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Clear all
                     </Button>
                   )}
                 </div>
               </div>
-              <DropdownMenuSeparator className="shrink-0" />
+              <DropdownMenuSeparator />
               <div
-                className="flex-1 overflow-y-auto overscroll-contain min-h-0"
+                className="max-h-[350px] overflow-y-auto overscroll-contain"
                 style={{ touchAction: "pan-y", WebkitOverflowScrolling: "touch" }}
               >
-                {dropdownUnread.length === 0 ? (
+                {recentNotifications.length === 0 ? (
                   <div className="py-6 px-4 text-center text-sm text-muted-foreground">
-                    You're all caught up
+                    No notifications yet
                   </div>
                 ) : (
-                  <>
-                    {dropdownUnread.map((notification) => (
-                      <DropdownMenuItem
-                        key={notification.id}
-                        className="flex items-start gap-3 py-3 px-3 cursor-pointer min-h-[60px] bg-primary/5 focus:bg-primary/10"
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          setNotificationsOpen(false);
-                          handleNotificationClick(notification);
-                        }}
-                      >
-                        {renderNotificationIcon(notification.type, notification.message)}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm line-clamp-2 font-medium text-foreground">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                          </p>
-                        </div>
-                        <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0 mt-1.5" aria-label="Unread" />
-                      </DropdownMenuItem>
-                    ))}
-                  </>
+                  recentNotifications.map((notification) => (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className="flex items-start gap-3 py-3 px-3 cursor-pointer min-h-[60px]"
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        setNotificationsOpen(false);
+                        handleNotificationClick(notification);
+                      }}
+                    >
+                      {renderNotificationIcon(notification.type, notification.message)}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm line-clamp-2 ${!notification.is_read ? "font-medium" : ""}`}>
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                      {!notification.is_read && (
+                        <span className="h-2.5 w-2.5 rounded-full bg-primary shrink-0 mt-1.5" />
+                      )}
+                    </DropdownMenuItem>
+                  ))
                 )}
               </div>
-
-              <DropdownMenuSeparator className="shrink-0" />
+              <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onSelect={(e) => { e.preventDefault(); setNotificationsOpen(false); navigate("/notifications"); }}
-                className="justify-center text-primary py-3 px-3 shrink-0"
+                className="justify-center text-primary py-3 px-3"
               >
                 <span className="text-sm font-medium">View all notifications</span>
               </DropdownMenuItem>
             </SwipeableDropdownContent>
           </DropdownMenu>
 
-          {/* Account actions live in the avatar menu on all breakpoints */}
-          <div>
-            <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
-
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className="relative h-8 w-8 rounded-full p-0"
-                  aria-label="Account menu"
+          <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
+                <Avatar 
+                  className="h-8 w-8 border-2" 
+                  style={{ 
+                    borderColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)'
+                  }}
                 >
-                  <Avatar 
-                    className="h-8 w-8 border-2" 
-                    style={{ 
-                      borderColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)'
+                  <AvatarImage src={profile?.avatar_url || undefined} />
+                  <AvatarFallback 
+                    className="text-xs"
+                    style={{
+                      backgroundColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)',
+                      color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
                     }}
                   >
-                    <AvatarImage src={profile?.avatar_url || undefined} />
-                    <AvatarFallback 
-                      className="text-xs"
-                      style={{
-                        backgroundColor: effectiveTheme === 'dark' ? 'hsla(160, 5%, 95%, 0.2)' : 'hsla(160, 10%, 10%, 0.2)',
-                        color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
-                      }}
-                    >
-                      {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
+                    {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
             <SwipeableDropdownContent 
               className="w-64 bg-popover" 
               align="end"
@@ -1417,7 +1307,7 @@ export function AppHeader() {
                 <User className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Profile</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/settings"); }} className="py-3 px-3 lg:hidden">
+              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setProfileOpen(false); navigate("/settings"); }} className="py-3 px-3">
                 <Settings className="mr-3 h-5 w-5" />
                 <span className="text-sm">Settings</span>
               </DropdownMenuItem>
@@ -1430,7 +1320,7 @@ export function AppHeader() {
                 } else {
                   navigate("/clubs");
                 }
-              }} className="py-3 px-3 lg:hidden">
+              }} className="py-3 px-3">
                 <Building2 className="mr-3 h-5 w-5" />
                 <span className="text-sm">My Clubs and Teams</span>
               </DropdownMenuItem>
@@ -1443,7 +1333,6 @@ export function AppHeader() {
                 className="py-3 px-3"
                 disabled={isSavingTheme}
               >
-
                 {effectiveTheme === "dark" ? (
                   <Sun className="mr-3 h-5 w-5" />
                 ) : (
@@ -1451,7 +1340,6 @@ export function AppHeader() {
                 )}
                 <span className="text-sm">{effectiveTheme === "dark" ? "Light Mode" : "Dark Mode"}</span>
               </DropdownMenuItem>
-
               {isAppAdmin && (
                 <>
                   <DropdownMenuSeparator />
@@ -1495,7 +1383,6 @@ export function AppHeader() {
               </DropdownMenuItem>
             </SwipeableDropdownContent>
           </DropdownMenu>
-          </div>
           {isAppAdmin && (
             <DemoLoginSection open={demoLoginOpen} onOpenChange={setDemoLoginOpen} />
           )}

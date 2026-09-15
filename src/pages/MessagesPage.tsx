@@ -1,4 +1,3 @@
-import { filterBroadcastsForClub } from "@/lib/broadcastClubScope";
 import { useStickyList } from "@/hooks/useStickyList";
 import { useStableInboxReadModel } from "@/hooks/useStableInboxReadModel";
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
@@ -44,19 +43,89 @@ import {
   type InboxRealtimeEvent,
 } from "@/features/messaging/inbox/inboxRealtimeReconciliation";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
+import { notificationKeys } from "@/features/notifications/queryKeys";
 import { logInboxOpenLatency, resetInboxOpenLog } from "@/lib/inboxOpenLatency";
 
-import { cacheProfiles, fetchProfilesWithCache, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
-import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview, extractEventIds, extractVaultFolderIds, extractVaultFileIds } from "@/lib/messagePreview";
+import { cacheProfiles, getProfileFromCache, selectCachedProfilesByIds } from "@/lib/profileCache";
+import { formatMessagePreview as stripMentionFormatting, getMessagePreviewText as getMessagePreview } from "@/lib/messagePreview";
 import CreateGroupDialog from "@/components/chat/CreateGroupDialog";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
+import { NewGroupTypeSheet } from "@/components/chat/NewGroupTypeSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
 import { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/components/chat/ClubAdminInboxList";
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
 import { ConversationRow } from "@/components/chat/ConversationRow";
+import {
+  filterInboxConversations,
+  normalizeInboxTypeFilter,
+  partitionInboxByReadState,
+  resolveOperationalConversationDisclosure,
+  type InboxConversation as UnifiedConversation,
+} from "@/features/messaging/inbox/inboxReadModel";
+import {
+  fetchInboxAdminTeamIds,
+  fetchInboxAdminClubs,
+  fetchInboxAppAdminStatus,
+  fetchInboxBroadcastPrefetchPage,
+  fetchInboxClubScopeFilter,
+  fetchInboxClubProStatus,
+  fetchInboxClubPrefetchPage,
+  fetchInboxCommitteeMemberStatus,
+  fetchInboxCompetitionClubMap,
+  fetchInboxEventTitleMap,
+  fetchInboxHiddenDirectMessages,
+  fetchInboxHiddenGroups,
+  fetchInboxGroupPrefetchPage,
+  fetchInboxHasAnyProAccess,
+  fetchInboxMutedChats,
+  fetchInboxMemberClubsWithMessages,
+  fetchInboxMemberTeamsWithMessages,
+  fetchInboxChatGroupsWithMessages,
+  fetchInboxLatestBroadcast,
+  fetchInboxLatestDirectMessages,
+  fetchInboxSystemMessage,
+  fetchInboxTeamPrefetchPage,
+  fetchInboxDirectConversationMembership,
+  fetchInboxUserLeagueIds,
+  fetchInboxUserRoles,
+  fetchInboxVaultFileNameMap,
+  fetchInboxVaultFolderNameMap,
+} from "@/features/messaging/inbox/inboxRepositories";
+import {
+  areInboxSortSourcesSettled,
+  resolveInboxRevealPolicy,
+} from "@/features/messaging/inbox/inboxRevealPolicy";
+import { resolveInboxDisplayList } from "@/features/messaging/inbox/inboxDisplaySources";
+import { filterInboxGroupsByVisibility } from "@/features/messaging/inbox/inboxGroupVisibility";
+import {
+  collectDirectMessagePeerIds,
+  collectPersonalGroupIds,
+  filterInboxChatGroups,
+  filterInboxClubs,
+  filterInboxDirectMessages,
+  filterInboxLeagueChats,
+  filterInboxTeams,
+  normalizeInboxSearchQuery,
+  partitionInboxGroups,
+} from "@/features/messaging/inbox/inboxFilterPolicy";
+import {
+  assembleDirectMessageInboxConversations,
+  buildDirectMessageCachePayload,
+  buildPreviousDirectMessagePeerMap,
+  hydrateCachedDirectMessages,
+  loadDirectMessagePeerProfiles,
+  resolveEffectiveDirectMessages,
+} from "@/features/messaging/inbox/inboxDirectMessageSources";
+import { buildUnifiedInboxConversations } from "@/features/messaging/inbox/inboxUnifiedComposition";
+import { collectInboxPreviewReferences } from "@/features/messaging/inbox/inboxPreviewReferences";
+import {
+  resolveInboxEmptyState,
+  resolveInboxGroupCreationCapability,
+  resolveInboxUpgradePresentation,
+} from "@/features/messaging/inbox/inboxPresentationPolicy";
 
 // Session-scoped first-reveal latch (per user id). Survives inbox unmount so
 // warm re-entries paint cached rows immediately instead of re-running the
@@ -185,38 +254,11 @@ const abbreviateClubName = (name: string): string => {
 // MessagePreview lives in its own module so the memoized ConversationRow can
 // share the exact same render path. See: components/chat/MessagePreview.tsx
 
-interface Team {
-  id: string;
-  name: string;
-  logo_url: string | null;
-  deleted_at?: string | null;
-  clubs: { id: string; name: string; logo_url: string | null; sport: string | null; deleted_at?: string | null; purged_at?: string | null };
-}
-
 interface Club {
   id: string;
   name: string;
   logo_url: string | null;
   sport: string | null;
-}
-
-interface UnifiedConversation {
-  type: 'club' | 'team' | 'group' | 'league' | 'dm' | 'broadcast' | 'support' | 'admin_group';
-  id: string;
-  key: string;
-  name: string;
-  avatarUrl?: string | null;
-  link: string;
-  lastActivity: string;
-  lastMessage?: { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean };
-  unreadCount: number;
-  isMuted: boolean;
-  isLocked?: boolean;
-  canManage?: boolean;
-  canHide?: boolean;
-  dmData?: any;
-  draftText?: string;
-  category?: string | null;
 }
 
 export default function MessagesPage() {
@@ -231,14 +273,13 @@ export default function MessagesPage() {
   const [showCustomGroupDialog, setShowCustomGroupDialog] = useState(false);
   const [groupDialogType, setGroupDialogType] = useState<"role" | "team">("role");
   const [showNewMessageSheet, setShowNewMessageSheet] = useState(false);
+  const [showGroupTypeSheet, setShowGroupTypeSheet] = useState(false);
   const [showGlobalRecap, setShowGlobalRecap] = useState(false);
   const [localClubFilter, setLocalClubFilter] = usePersistedFilter("messages.localClubFilter", "all");
   const [typeFilterRaw, setTypeFilter] = usePersistedFilter("messages.typeFilter", "all");
   // Normalize legacy persisted values ('club' / 'league' used to be top-level
   // chips — they now live inside 'groups').
-  const typeFilter = (
-    typeFilterRaw === 'club' || typeFilterRaw === 'league' ? 'groups' : typeFilterRaw
-  ) as 'all' | 'teams' | 'groups' | 'dms';
+  const typeFilter = normalizeInboxTypeFilter(typeFilterRaw);
   const [showAllOps, setShowAllOps] = useState(false);
   const [showClubFilterDrawer, setShowClubFilterDrawer] = useState(false);
   const { activeClubFilter, activeClubTeamIds } = useClubTheme();
@@ -249,7 +290,7 @@ export default function MessagesPage() {
 
   // Gate Chat Recap to the active club context so a free active club can't
   // borrow Pro access from another club the user belongs to.
-  const { hasAICatchUpClub, recapVisible, resolved: aiCatchUpResolved } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
+  const { hasAICatchUpClub, resolved: aiCatchUpResolved } = useUserHasAnyAICatchUpClub(effectiveClubFilter ?? null);
   const location = useLocation();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -388,16 +429,7 @@ export default function MessagesPage() {
   // Check if user is app admin
   const { data: isAppAdmin, isFetching: isAppAdminFetching } = useQuery({
     queryKey: ["is-app-admin", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("role", "app_admin")
-        .maybeSingle();
-      if (error) throw error;
-      return !!data;
-    },
+    queryFn: () => fetchInboxAppAdminStatus(user!.id),
     enabled: !!user && initialized,
     retry: 3,
     staleTime: 5 * 60 * 1000,
@@ -407,26 +439,7 @@ export default function MessagesPage() {
   // Get clubs where user is admin
   const { data: adminClubs } = useQuery({
     queryKey: ["admin-clubs", user?.id],
-    queryFn: async () => {
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .eq("role", "club_admin");
-
-      if (rolesError) throw rolesError;
-      if (!roles || roles.length === 0) return [];
-
-      const clubIds = roles.map((r) => r.club_id).filter(Boolean);
-      const { data } = await supabase
-        .from("clubs")
-        .select("id, name, logo_url, sport")
-        .in("id", clubIds)
-        .is("deleted_at", null)
-        .neq("kind", "shell");
-
-      return data as Club[];
-    },
+    queryFn: () => fetchInboxAdminClubs(user!.id),
     enabled: !!user && initialized,
     retry: 3,
     staleTime: 5 * 60 * 1000,
@@ -448,88 +461,7 @@ export default function MessagesPage() {
     queryKey: ["member-clubs-with-messages", user?.id],
     retry: 3,
     refetchOnReconnect: "always",
-    queryFn: async () => {
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .not("club_id", "is", null);
-
-      if (rolesError) throw rolesError;
-      if (!roles || roles.length === 0) return { clubs: [] as Club[], latestMessages: {} };
-
-      const clubIds = [...new Set(roles.map((r) => r.club_id).filter(Boolean))];
-      const { data } = await supabase
-        .from("clubs")
-        .select("id, name, logo_url, sport")
-        .in("id", clubIds)
-        .is("deleted_at", null)
-        .neq("kind", "shell");
-
-      const clubs = data as Club[];
-      
-      // Fetch latest messages for all clubs in parallel, then batch a single
-      // profiles lookup for all authors. M1 perf: removes the per-club N+1
-      // profile query that previously serialized after each last-message fetch.
-      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-
-      // Fast path: single RPC returning latest message + author display name per club.
-      try {
-        const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
-          "get_inbox_latest_club_messages",
-          { _club_ids: clubIds }
-        );
-        if (rpcErr) throw rpcErr;
-        for (const row of (rpcRows ?? []) as any[]) {
-          latestMessages[row.club_id] = {
-            text: row.text,
-            author: row.author_display_name ?? "",
-            created_at: row.created_at,
-            image_url: row.image_url,
-          };
-        }
-        return { clubs, latestMessages };
-      } catch {
-        // Fall through to legacy per-club fetch.
-      }
-
-      const msgRows = await Promise.all(
-        clubs.map(async (club) => {
-          const { data: msgData } = await supabase
-            .from("club_messages")
-            .select("text, created_at, image_url, author_id")
-            .eq("club_id", club.id)
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          return { clubId: club.id, msg: msgData };
-        })
-      );
-
-      const authorIds = Array.from(new Set(
-        msgRows.map(r => r.msg?.author_id).filter((id): id is string => !!id)
-      ));
-      const authorNameById: Record<string, string> = {};
-      if (authorIds.length > 0) {
-        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
-        for (const p of profiles ?? []) {
-          if (p.display_name) authorNameById[p.id] = p.display_name;
-        }
-      }
-
-      for (const { clubId, msg } of msgRows) {
-        if (!msg) continue;
-        latestMessages[clubId] = {
-          text: msg.text,
-          author: msg.author_id ? (authorNameById[msg.author_id] ?? "") : "",
-          created_at: msg.created_at,
-          image_url: msg.image_url,
-        };
-      }
-      
-      return { clubs, latestMessages };
-    },
+    queryFn: () => fetchInboxMemberClubsWithMessages(user!.id),
     enabled: !!user && initialized,
     // Warm revisits render instantly from cache; realtime + 30s poll keep
     // previews fresh. Forcing refetch on every mount/focus caused 10-25s
@@ -553,38 +485,9 @@ export default function MessagesPage() {
 
   // Get latest broadcast message
   const { data: latestBroadcast, isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError } = useQuery({
-    queryKey: ["latest-broadcast", activeClubFilter],
+    queryKey: ["latest-broadcast"],
     refetchOnReconnect: "always",
-    queryFn: async () => {
-      // Fetch a small window and pick the newest announcement visible in the
-      // active club — targeted announcements must not preview elsewhere.
-      const { data: rows } = await supabase
-        .from("broadcast_messages")
-        .select("text, created_at, image_url, author_id, target_club_ids")
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      const data = filterBroadcastsForClub(rows as any[], activeClubFilter)[0];
-
-      if (!data) return null;
-      
-      let authorName = "";
-      if (data.author_id) {
-        const { data: profile } = await selectCachedProfileById(data.author_id);
-        if (profile?.display_name) {
-          authorName = profile.display_name;
-        }
-      }
-      
-      return {
-        text: data.text,
-        created_at: data.created_at,
-        image_url: data.image_url,
-        author_id: data.author_id,
-        profiles: { display_name: authorName }
-      };
-    },
+    queryFn: () => fetchInboxLatestBroadcast(),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     refetchOnMount: true,
@@ -597,111 +500,7 @@ export default function MessagesPage() {
     queryKey: ["my-teams-with-messages", user?.id],
     retry: 3,
     refetchOnReconnect: "always",
-    queryFn: async () => {
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("team_id")
-        .eq("user_id", user!.id)
-        .not("team_id", "is", null);
-
-      if (rolesError) throw rolesError;
-
-      const teamIds = roles.map((r) => r.team_id).filter(Boolean);
-      if (teamIds.length === 0) return { teams: [] as Team[], latestMessages: {} };
-
-      const { data, error } = await supabase
-        .from("teams")
-        .select(`
-          id,
-          name,
-          logo_url,
-          deleted_at,
-          clubs!club_id (id, name, logo_url, sport, deleted_at, purged_at)
-        `)
-        .in("id", teamIds)
-        .is("deleted_at", null);
-
-      if (error) throw error;
-      const teams = ((data || []) as Team[]).filter((team: any) => {
-        if (team.deleted_at) return false;
-        if (team.clubs?.deleted_at || team.clubs?.purged_at) return false;
-        return true;
-      });
-      const activeTeamIds = teams.map((team) => team.id);
-      if (activeTeamIds.length === 0) return { teams: [] as Team[], latestMessages: {} };
-      
-      // M1 perf: batch profile lookups for all team last-message authors.
-      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null; is_announcement?: boolean }> = {};
-
-      // Fast path: single RPC returning latest message + author display name per team.
-      try {
-        const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
-          "get_inbox_latest_team_messages",
-          { _team_ids: activeTeamIds }
-        );
-        if (rpcErr) throw rpcErr;
-        for (const row of (rpcRows ?? []) as any[]) {
-          const isAnnouncement = !!(row.is_club_announcement && row.club_announcement_name);
-          latestMessages[row.team_id] = {
-            text: row.text,
-            author: isAnnouncement
-              ? row.club_announcement_name
-              : (row.author_display_name ?? ""),
-            created_at: row.created_at,
-            image_url: row.image_url,
-            is_announcement: isAnnouncement,
-          };
-        }
-        return { teams, latestMessages };
-      } catch {
-        // Fall through to legacy per-team fetch path below.
-      }
-
-      const msgRows = await Promise.all(
-        teams.map(async (team) => {
-          const { data: msgData } = await supabase
-            .from("team_messages")
-            .select("text, created_at, image_url, author_id, is_club_announcement, club_announcement_name")
-            .eq("team_id", team.id)
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          return { teamId: team.id, msg: msgData };
-        })
-      );
-
-      const authorIds = Array.from(new Set(
-        msgRows
-          .map(r => r.msg)
-          .filter((m): m is NonNullable<typeof m> => !!m && !(m.is_club_announcement && m.club_announcement_name) && !!m.author_id)
-          .map(m => m.author_id as string)
-      ));
-      const authorNameById: Record<string, string> = {};
-      if (authorIds.length > 0) {
-        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
-        for (const p of profiles ?? []) {
-          if (p.display_name) authorNameById[p.id] = p.display_name;
-        }
-      }
-
-      for (const { teamId, msg } of msgRows) {
-        if (!msg) continue;
-        const isAnnouncement = !!(msg.is_club_announcement && msg.club_announcement_name);
-        const authorName = isAnnouncement
-          ? msg.club_announcement_name!
-          : (msg.author_id ? (authorNameById[msg.author_id] ?? "") : "");
-        latestMessages[teamId] = {
-          text: msg.text,
-          author: authorName,
-          created_at: msg.created_at,
-          image_url: msg.image_url,
-          is_announcement: isAnnouncement,
-        };
-      }
-
-      return { teams, latestMessages };
-    },
+    queryFn: () => fetchInboxMemberTeamsWithMessages(user!.id),
     enabled: !!user && initialized,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
@@ -729,14 +528,7 @@ export default function MessagesPage() {
   // Get admin teams where user can create groups
   const { data: adminTeamIds } = useQuery({
     queryKey: ["admin-team-ids", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("team_id, club_id, role")
-        .eq("user_id", user!.id)
-        .in("role", ["team_admin", "coach", "committee_member"]);
-      return data?.map((r) => r.team_id).filter(Boolean) || [];
-    },
+    queryFn: () => fetchInboxAdminTeamIds(user!.id),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -745,15 +537,7 @@ export default function MessagesPage() {
   // Check if user is a committee member (club-level role)
   const { data: isCommitteeMember, isFetching: isCommitteeMemberFetching } = useQuery({
     queryKey: ["is-committee-member", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user!.id)
-        .eq("role", "committee_member")
-        .maybeSingle();
-      return !!data;
-    },
+    queryFn: () => fetchInboxCommitteeMemberStatus(user!.id),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -762,13 +546,7 @@ export default function MessagesPage() {
   // Fetch all user roles for chat group filtering
   const { data: userAllRoles, isFetching: userAllRolesFetching } = useQuery({
     queryKey: ["user-all-roles", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role, club_id, team_id")
-        .eq("user_id", user!.id);
-      return data || [];
-    },
+    queryFn: () => fetchInboxUserRoles(user!.id),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
   });
@@ -776,50 +554,7 @@ export default function MessagesPage() {
   // Fetch mini league IDs the user's children are assigned to (for league group visibility)
   const { data: userLeagueIds, isFetching: userLeagueIdsFetching } = useQuery({
     queryKey: ["user-child-league-ids", user?.id],
-    queryFn: async () => {
-      // Get user's children
-      const { data: children } = await supabase
-        .from("children")
-        .select("id")
-        .eq("parent_id", user!.id);
-      
-      if (!children?.length) {
-        // Also check child_guardians for non-primary parents
-        const { data: guardianLinks } = await supabase
-          .from("child_guardians")
-          .select("child_id")
-          .eq("guardian_id", user!.id);
-        
-        const guardianChildIds = guardianLinks?.map(g => g.child_id) || [];
-        if (!guardianChildIds.length) return new Set<string>();
-        
-        const { data: assignments } = await supabase
-          .from("child_mini_league_assignments")
-          .select("mini_league_id")
-          .in("child_id", guardianChildIds);
-        
-        return new Set(assignments?.map(a => a.mini_league_id) || []);
-      }
-      
-      const childIds = children.map(c => c.id);
-      
-      // Also include guardian children
-      const { data: guardianLinks } = await supabase
-        .from("child_guardians")
-        .select("child_id")
-        .eq("guardian_id", user!.id);
-      
-      guardianLinks?.forEach(g => {
-        if (!childIds.includes(g.child_id)) childIds.push(g.child_id);
-      });
-      
-      const { data: assignments } = await supabase
-        .from("child_mini_league_assignments")
-        .select("mini_league_id")
-        .in("child_id", childIds);
-      
-      return new Set(assignments?.map(a => a.mini_league_id) || []);
-    },
+    queryFn: () => fetchInboxUserLeagueIds(user!.id),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
   });
@@ -828,63 +563,7 @@ export default function MessagesPage() {
   // Pro Access Logic: Club Pro → all teams inherit; Free club → check team subscription
   const { data: hasAnyProAccess, isLoading: isLoadingProAccess, isFetching: isFetchingProAccess } = useQuery({
     queryKey: ["has-any-pro-access", user?.id],
-    queryFn: async () => {
-      const { data: userTeamRoles } = await supabase
-        .from("user_roles")
-        .select("team_id, club_id")
-        .eq("user_id", user!.id);
-      
-      if (!userTeamRoles?.length) return false;
-      
-      const teamIds = userTeamRoles.map(r => r.team_id).filter(Boolean) as string[];
-      const clubIds = [...new Set(userTeamRoles.map(r => r.club_id).filter(Boolean))] as string[];
-      
-      // Get parent clubs of teams
-      if (teamIds.length > 0) {
-        const { data: teams } = await supabase
-          .from("teams")
-          .select("club_id")
-          .in("id", teamIds);
-        
-        teams?.forEach(t => {
-          if (t.club_id && !clubIds.includes(t.club_id)) {
-            clubIds.push(t.club_id);
-          }
-        });
-      }
-      
-      // First check club subscriptions (if any club has Pro, user has Pro)
-      if (clubIds.length > 0) {
-        const { data: proClubs } = await supabase
-          .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
-          .in("club_id", clubIds);
-        
-        const hasProClub = proClubs?.some(sub => 
-          (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && 
-          (!sub.expires_at || new Date(sub.expires_at) > new Date())
-        );
-        
-        if (hasProClub) return true;
-      }
-      
-      // Check team-level subscriptions (for teams in free clubs)
-      if (teamIds.length > 0) {
-        const { data: proTeams } = await supabase
-          .from("team_subscriptions")
-          .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
-          .in("team_id", teamIds);
-        
-        const hasProTeam = proTeams?.some(sub => 
-          (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && 
-          (!sub.expires_at || new Date(sub.expires_at) > new Date())
-        );
-        
-        if (hasProTeam) return true;
-      }
-      
-      return false;
-    },
+    queryFn: () => fetchInboxHasAnyProAccess(user!.id),
     enabled: !!user && initialized,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -898,29 +577,9 @@ export default function MessagesPage() {
 
   const { data: clubProStatus, isLoading: isLoadingClubProStatus, isFetching: isFetchingClubProStatus } = useQuery({
     queryKey: ["club-pro-status", memberClubIds],
-    queryFn: async () => {
-      if (memberClubIds.length === 0) return {};
-
-      const { data: subs, error } = await supabase
-        .from("club_subscriptions")
-        .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override, expires_at")
-        .in("club_id", memberClubIds);
-
-      // If the query errors transiently (e.g. after returning from phone lock),
-      // throw so React Query keeps the previous (good) data via placeholderData
-      // instead of caching an all-false map that would lock Pro chats.
-      if (error) throw error;
-
-      const statusMap: Record<string, boolean> = {};
-      memberClubIds.forEach(id => {
-        const sub = subs?.find(s => s.club_id === id);
-        statusMap[id] = sub ? 
-          (sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override) && 
-          (!sub.expires_at || new Date(sub.expires_at) > new Date()) : false;
-      });
-      
-      return statusMap;
-    },
+    // Errors remain distinct from an all-false entitlement result so React
+    // Query can retain the previous good value through placeholderData.
+    queryFn: () => fetchInboxClubProStatus(memberClubIds),
     enabled: memberClubIds.length > 0,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -931,112 +590,13 @@ export default function MessagesPage() {
   const { data: chatGroupsWithMessages, isLoading: chatGroupsLoading, isFetched: chatGroupsFetched, isFetching: chatGroupsFetching, isError: chatGroupsError } = useQuery({
     queryKey: ["my-chat-groups-with-messages", user?.id],
     refetchOnReconnect: "always",
-    queryFn: async () => {
-      // Perf: pre-filter via SECURITY DEFINER RPC that returns just the
-      // accessible group ids (scope-table lookup), then do a PK select on
-      // chat_groups. Avoids per-row RLS policy evaluation on inbox cold load.
-      // Kill-switch: localStorage.msg_accessible_ids_rpc = "0" to bypass.
-      let accessibleIds: string[] | null = null;
-      try {
-        if (typeof window === "undefined" || window.localStorage.getItem("msg_accessible_ids_rpc") !== "0") {
-          const { data: ids, error: idsErr } = await (supabase as any).rpc(
-            "get_my_accessible_chat_group_ids",
-            { _user_id: user!.id }
-          );
-          if (!idsErr && Array.isArray(ids)) accessibleIds = ids as string[];
-        }
-      } catch {
-        accessibleIds = null;
-      }
-
-      if (accessibleIds && accessibleIds.length === 0) {
-        return { groups: [], latestMessages: {} };
-      }
-
-      let query = supabase
-        .from("chat_groups")
-        .select("*, teams(name, deleted_at), clubs!club_id(name, logo_url, deleted_at, purged_at), mini_leagues:mini_league_id(name)")
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
-      if (accessibleIds) query = query.in("id", accessibleIds);
-      const { data, error } = await query;
-
-      
-      const groups = ((data || []) as any[]).filter((group: any) => {
-        if (group.deleted_at) return false;
-        if (group.clubs?.deleted_at || group.clubs?.purged_at) return false;
-        if (group.teams?.deleted_at) return false;
-        return true;
-      });
-      
-      // M1 perf: batch profile lookups for all group last-message authors.
-      const latestMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-
-      // Fast path: single RPC returning latest message + author display name per group.
-      const groupIds = groups.map((g: any) => g.id);
-      if (groupIds.length > 0) {
-        try {
-          const { data: rpcRows, error: rpcErr } = await (supabase as any).rpc(
-            "get_inbox_latest_group_messages",
-            { _group_ids: groupIds }
-          );
-          if (rpcErr) throw rpcErr;
-          for (const row of (rpcRows ?? []) as any[]) {
-            latestMessages[row.group_id] = {
-              text: row.text,
-              author: row.author_display_name ?? "",
-              created_at: row.created_at,
-              image_url: row.image_url,
-            };
-          }
-          return { groups, latestMessages };
-        } catch {
-          // Fall through to legacy per-group fetch.
-        }
-      }
-
-      const msgRows = await Promise.all(
-        groups.map(async (group) => {
-          const { data: msgData } = await supabase
-            .from("group_messages")
-            .select("text, created_at, image_url, author_id")
-            .eq("group_id", group.id)
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          return { groupId: group.id, msg: msgData };
-        })
-      );
-
-      const authorIds = Array.from(new Set(
-        msgRows.map(r => r.msg?.author_id).filter((id): id is string => !!id)
-      ));
-      const authorNameById: Record<string, string> = {};
-      if (authorIds.length > 0) {
-        const { data: profiles } = await selectCachedProfilesByIds(authorIds);
-        for (const p of profiles ?? []) {
-          if (p.display_name) authorNameById[p.id] = p.display_name;
-        }
-      }
-
-      for (const { groupId, msg } of msgRows) {
-        if (!msg) continue;
-        latestMessages[groupId] = {
-          text: msg.text,
-          author: msg.author_id ? (authorNameById[msg.author_id] ?? "") : "",
-          created_at: msg.created_at,
-          image_url: msg.image_url,
-        };
-      }
-
-      return { groups, latestMessages };
-    },
+    queryFn: () => fetchInboxChatGroupsWithMessages(user!.id, {
+      // Kill-switch retained for deployments where the optional scope RPC is
+      // unavailable; the repository then relies on the existing RLS query.
+      accessibleIdsRpcEnabled:
+        typeof window === "undefined" || window.localStorage.getItem("msg_accessible_ids_rpc") !== "0",
+    }),
     enabled: !!user && initialized,
-    // Matches the sibling inbox queries. The 25s REST GET timeout in
-    // `supabaseAuthRetry.ts` otherwise surfaces transient RLS-heavy timeouts
-    // as hard errors after a single attempt.
-    retry: 3,
     staleTime: 30_000,
     initialDataUpdatedAt: 0,
     refetchInterval: jitteredInboxInterval,
@@ -1071,59 +631,14 @@ export default function MessagesPage() {
     queryKey: ["competition-entry-clubs", competitionIdsForGroups],
     enabled: competitionIdsForGroups.length > 0,
     staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      // Only ACTIVE participation maps a club into a competition:
-      // - the entry must still be accepted (not invited/declined/withdrawn)
-      // - the entering team must not be soft-deleted
-      // Otherwise stale entries keep a competition's chat groups visible in a
-      // club's inbox forever after its teams leave or are deleted.
-      const { data, error } = await supabase
-        .from("competition_entries")
-        .select("competition_id, status, teams!inner(club_id, deleted_at)")
-        .in("competition_id", competitionIdsForGroups)
-        .eq("status", "accepted")
-        .is("teams.deleted_at", null);
-      if (error) throw error;
-      const map: Record<string, Set<string>> = {};
-      for (const row of (data ?? []) as any[]) {
-        if (row?.status !== "accepted") continue;
-        if (row?.teams?.deleted_at) continue;
-        const clubId = row?.teams?.club_id;
-        if (!clubId) continue;
-        (map[row.competition_id] ||= new Set()).add(clubId);
-      }
-      return map;
-    },
+    queryFn: () => fetchInboxCompetitionClubMap(competitionIdsForGroups),
   });
 
 
   // Fetch all muted chats for the user
   const { data: mutedChats } = useQuery({
     queryKey: ["muted-chats", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("chat_mute_preferences")
-        .select("chat_id, chat_type, muted_until")
-        .eq("user_id", user!.id);
-      
-      const now = new Date();
-      const muted = {
-        teams: new Set<string>(),
-        clubs: new Set<string>(),
-        groups: new Set<string>(),
-      };
-      
-      data?.forEach((pref) => {
-        const isActive = pref.muted_until === null || new Date(pref.muted_until) > now;
-        if (!isActive) return;
-        
-        if (pref.chat_type === "team") muted.teams.add(pref.chat_id);
-        else if (pref.chat_type === "club") muted.clubs.add(pref.chat_id);
-        else if (pref.chat_type === "group") muted.groups.add(pref.chat_id);
-      });
-      
-      return muted;
-    },
+    queryFn: () => fetchInboxMutedChats(user!.id),
     enabled: !!user && initialized,
     staleTime: 60000,
     placeholderData: (prev) => prev,
@@ -1140,53 +655,11 @@ export default function MessagesPage() {
 
 
 
-      const { data: convos, error } = await supabase
-        .from("direct_conversations")
-        .select("*")
-        .or(`participant_1.eq.${user!.id},participant_2.eq.${user!.id}`)
-        .order("updated_at", { ascending: false });
+      const { conversations: convos, otherUserIds } =
+        await fetchInboxDirectConversationMembership(user!.id);
+      if (convos.length === 0) return [];
 
-      if (error) throw error;
-      if (!convos?.length) return [];
-
-      const otherUserIds = convos.map(c => 
-        c.participant_1 === user!.id ? c.participant_2 : c.participant_1
-      );
-
-      // Fast path: single RPC for latest message across all conversations.
-      // Falls back to legacy per-conversation queries on error.
       const conversationIds = convos.map((c) => c.id);
-      const fetchLatestMessages = async (): Promise<Map<string, { text: string; image_url: string | null; created_at: string; author_id: string } | null>> => {
-        try {
-          const { data, error } = await supabase.rpc("get_inbox_latest_dm_messages", { _conversation_ids: conversationIds });
-          if (error) throw error;
-          const map = new Map<string, { text: string; image_url: string | null; created_at: string; author_id: string } | null>();
-          (data || []).forEach((row: any) => {
-            map.set(row.conversation_id, {
-              text: row.text,
-              image_url: row.image_url,
-              created_at: row.created_at,
-              author_id: row.author_id,
-            });
-          });
-          return map;
-        } catch {
-          // Legacy fallback
-          const messagesResult = await Promise.all(
-            convos.map(async (conv) => {
-              const { data } = await supabase
-                .from("direct_messages")
-                .select("text, image_url, created_at, author_id")
-                .eq("conversation_id", conv.id)
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              return { conversationId: conv.id, message: data };
-            })
-          );
-          return new Map(messagesResult.map((m) => [m.conversationId, m.message as any]));
-        }
-      };
 
       const [profilesMap, messageMap] = await Promise.all([
         // Always fetch DM other-user profiles directly from the DB (bypassing
@@ -1194,98 +667,34 @@ export default function MessagesPage() {
         // other participant are reflected in the inbox on the next load.
         // Falls back to whatever the global profile cache has if the network
         // fetch fails or returns empty (handled by the layered fallbacks below).
-        (async () => {
-          try {
-            const { data } = await selectCachedProfilesByIds(otherUserIds);
-            if (data && data.length) {
-              // Refresh the global profile cache so every other surface
-              // (chat rows, member lists, mention chips) picks up the new name.
-              cacheProfiles(data);
-            }
-            const map = new Map<string, { id: string; display_name: string | null; avatar_url: string | null; cached_at: number }>();
-            const now = Date.now();
-            (data ?? []).forEach((p) => map.set(p.id, { ...p, cached_at: now }));
-            return map;
-          } catch {
-            // Network/RLS hiccup — fall back to whatever the cache has.
-            return await fetchProfilesWithCache(otherUserIds, { allowStale: true, timeout: 15000 });
-          }
-        })(),
-        fetchLatestMessages(),
+        loadDirectMessagePeerProfiles(otherUserIds),
+        fetchInboxLatestDirectMessages(conversationIds),
       ]);
 
       // Build a fallback map of previously-known other_user data so that a
       // transient empty profile fetch (RLS / network blip after lock screen)
       // never downgrades a real name back to "Unknown User".
       const previousResult = queryClient.getQueryData<any[]>(["dm-conversations", user?.id]);
-      const previousOtherUserMap = new Map<string, any>();
-      previousResult?.forEach((c: any) => {
-        if (c?.other_user?.id && c.other_user.display_name) {
-          previousOtherUserMap.set(c.other_user.id, c.other_user);
-        }
-      });
-      // Also seed from the persistent cache as a second layer of defence.
-      cachedData?.dmConversations?.forEach((c: any) => {
-        if (c?.other_user?.id && c.other_user.display_name && !previousOtherUserMap.has(c.other_user.id)) {
-          previousOtherUserMap.set(c.other_user.id, c.other_user);
-        }
+      const previousOtherUserMap = buildPreviousDirectMessagePeerMap({
+        live: previousResult,
+        cached: cachedData?.dmConversations,
       });
 
-      const result = convos.map(conv => {
-        const otherUserId = conv.participant_1 === user!.id ? conv.participant_2 : conv.participant_1;
-        const fetchedProfile = profilesMap.get(otherUserId);
-        const fallbackProfile = previousOtherUserMap.get(otherUserId);
-        // Final defence: the global in-memory profile cache (populated by
-        // every other surface in the app — chat rows, member lists, etc).
-        const globalCached = getProfileFromCache(otherUserId);
-        // Prefer freshly fetched data, but never overwrite a known good
-        // profile with null/empty values.
-        const otherUser = (fetchedProfile && fetchedProfile.display_name)
-          ? {
-              id: otherUserId,
-              display_name: fetchedProfile.display_name,
-              avatar_url: fetchedProfile.avatar_url ?? fallbackProfile?.avatar_url ?? globalCached?.avatar_url ?? null,
-            }
-          : (fallbackProfile && fallbackProfile.display_name)
-            ? fallbackProfile
-            : globalCached
-              ? {
-                  id: otherUserId,
-                  display_name: globalCached.display_name,
-                  avatar_url: globalCached.avatar_url ?? null,
-                }
-              : (fetchedProfile
-                  ? { id: otherUserId, display_name: null, avatar_url: fetchedProfile.avatar_url ?? null }
-                  : null);
-        return {
-          ...conv,
-          other_user: otherUser,
-          last_message: messageMap.get(conv.id) || null,
-        };
+      const result = assembleDirectMessageInboxConversations({
+        conversations: convos,
+        currentUserId: user!.id,
+        fetchedProfiles: profilesMap,
+        previousProfiles: previousOtherUserMap,
+        latestMessages: messageMap,
+        getGlobalProfile: getProfileFromCache,
       });
 
       // Cache
-      const dmConversationsForCache = result.map(conv => ({
-        id: conv.id,
-        participant_1: conv.participant_1,
-        participant_2: conv.participant_2,
-        updated_at: conv.updated_at,
-        created_at: (conv as any).created_at,
-        created_by: (conv as any).created_by ?? null,
-        other_user: conv.other_user,
-      }));
-      const latestDMMessages: Record<string, { text: string; author: string; created_at: string; image_url?: string | null }> = {};
-      result.forEach(conv => {
-        if (conv.last_message) {
-          latestDMMessages[conv.id] = {
-            text: conv.last_message.text,
-            author: conv.last_message.author_id === user!.id ? "You" : (conv.other_user?.display_name || ""),
-            created_at: conv.last_message.created_at,
-            image_url: conv.last_message.image_url,
-          };
-        }
+      const cachePayload = buildDirectMessageCachePayload({
+        conversations: result,
+        currentUserId: user!.id,
       });
-      cacheMessagesPageData(user!.id, { dmConversations: dmConversationsForCache, latestDMMessages });
+      cacheMessagesPageData(user!.id, cachePayload);
 
       return result;
     },
@@ -1298,48 +707,26 @@ export default function MessagesPage() {
     initialDataUpdatedAt: 0,
     refetchInterval: jitteredInboxInterval,
     placeholderData: () => {
-      if (!cachedData?.dmConversations?.length) return undefined;
-      return cachedData.dmConversations.map(conv => ({
-        ...conv,
-        created_at: (conv as any).created_at || conv.updated_at,
-        created_by: (conv as any).created_by || null,
-        last_message: cachedData.latestDMMessages?.[conv.id] ? {
-          text: cachedData.latestDMMessages[conv.id].text,
-          image_url: cachedData.latestDMMessages[conv.id].image_url || null,
-          created_at: cachedData.latestDMMessages[conv.id].created_at,
-          author_id: cachedData.latestDMMessages[conv.id].author === "You" ? user?.id || "" : conv.other_user?.id || "",
-        } : null,
-      })) as any;
+      const hydrated = hydrateCachedDirectMessages({
+        conversations: cachedData?.dmConversations,
+        latestMessages: cachedData?.latestDMMessages,
+        currentUserId: user?.id,
+      });
+      return hydrated.length > 0 ? hydrated : undefined;
     },
   });
 
   // Fetch hidden DM conversations (with hidden_at so they can resurface on new messages)
   const { data: hiddenDMMap } = useQuery({
     queryKey: ["hidden-dm-conversations", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("hidden_dm_conversations")
-        .select("conversation_id, hidden_at")
-        .eq("user_id", user!.id);
-      const map = new Map<string, string>();
-      (data || []).forEach((h: any) => map.set(h.conversation_id, h.hidden_at));
-      return map;
-    },
+    queryFn: () => fetchInboxHiddenDirectMessages(user!.id),
     enabled: !!user,
   });
 
   // Fetch hidden custom group chats (with hidden_at)
   const { data: hiddenGroupMap } = useQuery({
     queryKey: ["hidden-chat-groups", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("hidden_chat_groups" as any)
-        .select("group_id, hidden_at")
-        .eq("user_id", user!.id);
-      const map = new Map<string, string>();
-      (data || []).forEach((h: any) => map.set(h.group_id, h.hidden_at));
-      return map;
-    },
+    queryFn: () => fetchInboxHiddenGroups(user!.id),
     enabled: !!user,
   });
 
@@ -1382,18 +769,7 @@ export default function MessagesPage() {
   // Fetch system messages (welcome message from Ignite Support)
   const { data: systemMessage } = useQuery({
     queryKey: ["system-messages", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("system_messages")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("message_type", "welcome")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) return null;
-      return data;
-    },
+    queryFn: () => fetchInboxSystemMessage(user!.id),
     enabled: !!user,
   });
 
@@ -1443,19 +819,7 @@ export default function MessagesPage() {
       if (cancelled) return;
       queryClient.prefetchQuery({
         queryKey: ["broadcast-messages"],
-        queryFn: async () => {
-          const { data: messagesData } = await supabase
-            .from("broadcast_messages")
-            .select("id, text, created_at, author_id, image_url, reply_to_id, target_club_ids")
-            .order("created_at", { ascending: false })
-            .limit(MESSAGES_PER_PAGE + 1);
-          
-          const scopedMessages = filterBroadcastsForClub(messagesData, effectiveClubFilter);
-          if (!scopedMessages.length) return { messages: [], hasOlderMessages: false };
-          const hasMore = scopedMessages.length > MESSAGES_PER_PAGE;
-          const messagesToDisplay = hasMore ? scopedMessages.slice(0, MESSAGES_PER_PAGE) : scopedMessages;
-          return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
-        },
+        queryFn: () => fetchInboxBroadcastPrefetchPage(MESSAGES_PER_PAGE),
         staleTime: 1000 * 60,
       });
 
@@ -1463,19 +827,7 @@ export default function MessagesPage() {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["team-messages", team.id],
-          queryFn: async () => {
-            const { data: messagesData } = await supabase
-              .from("team_messages")
-              .select("id, text, created_at, author_id, image_url, reply_to_id, team_id")
-              .eq("team_id", team.id)
-              .order("created_at", { ascending: false })
-              .limit(MESSAGES_PER_PAGE + 1);
-            
-            if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-            const hasMore = messagesData.length > MESSAGES_PER_PAGE;
-            const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-            return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
-          },
+          queryFn: () => fetchInboxTeamPrefetchPage(team.id, MESSAGES_PER_PAGE),
           staleTime: 1000 * 60,
         });
       });
@@ -1484,19 +836,7 @@ export default function MessagesPage() {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["club-messages", club.id],
-          queryFn: async () => {
-            const { data: messagesData } = await supabase
-              .from("club_messages")
-              .select("id, text, created_at, author_id, image_url, reply_to_id, club_id")
-              .eq("club_id", club.id)
-              .order("created_at", { ascending: false })
-              .limit(MESSAGES_PER_PAGE + 1);
-            
-            if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-            const hasMore = messagesData.length > MESSAGES_PER_PAGE;
-            const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-            return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
-          },
+          queryFn: () => fetchInboxClubPrefetchPage(club.id, MESSAGES_PER_PAGE),
           staleTime: 1000 * 60,
         });
       });
@@ -1505,19 +845,7 @@ export default function MessagesPage() {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: ["group-messages", group.id],
-          queryFn: async () => {
-            const { data: messagesData } = await supabase
-              .from("group_messages")
-              .select("id, text, created_at, author_id, image_url, reply_to_id, group_id")
-              .eq("group_id", group.id)
-              .order("created_at", { ascending: false })
-              .limit(MESSAGES_PER_PAGE + 1);
-            
-            if (!messagesData?.length) return { messages: [], hasOlderMessages: false };
-            const hasMore = messagesData.length > MESSAGES_PER_PAGE;
-            const messagesToDisplay = hasMore ? messagesData.slice(0, MESSAGES_PER_PAGE) : messagesData;
-            return { messages: [...messagesToDisplay].reverse(), hasOlderMessages: hasMore };
-          },
+          queryFn: () => fetchInboxGroupPrefetchPage(group.id, MESSAGES_PER_PAGE),
           staleTime: 1000 * 60,
         });
       });
@@ -1536,7 +864,7 @@ export default function MessagesPage() {
       }
       if (timeoutHandle !== null) clearTimeout(timeoutHandle);
     };
-  }, [user, teams, memberClubs, chatGroups, queryClient, effectiveClubFilter]);
+  }, [user, teams, memberClubs, chatGroups, queryClient]);
 
   // Realtime: keep inbox previews + ordering fresh as new messages arrive.
   // Without this, latest-message text and the most-recent-at-top sort only
@@ -1654,7 +982,7 @@ export default function MessagesPage() {
       rafState[key] = requestAnimationFrame(() => { rafState[key] = 0; fn(); });
     };
     const bumpUnread = () => schedule('unread', () => {
-      queryClient.invalidateQueries({ queryKey: ["unread-message-counts", user.id] });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.messageUnreadFor(user.id) });
     });
 
     // Web: patch the latestMessages cache IN PLACE so the preview text updates
@@ -2292,7 +1620,6 @@ export default function MessagesPage() {
   );
 
   const hasAnyDisplayData = !!(teams?.length || memberClubs?.length || chatGroups?.length);
-  const isLoadingFreshData = !hasAnyDisplayData && !hasCachedData && !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingClubProStatus);
   // Wait for fresh latest-message data before sorting/rendering, so the most
   // recent thread is at the top on first paint (cached `lastActivity` may be
   // stale). We keep this gate even when cached data exists — otherwise the
@@ -2317,12 +1644,14 @@ export default function MessagesPage() {
   // means the first reveal always happens on server-authoritative ordering.
   // Errored queries still settle (isFetching flips false), and offline/paused
   // queries also report `isFetching === false`, so neither can wedge the gate.
-  const sortSourcesSettled =
-    (teamsFetched || teamsError) && !teamsFetching &&
-    (memberClubsFetched || memberClubsError) && !memberClubsFetching &&
-    (chatGroupsFetched || chatGroupsError) && !chatGroupsFetching &&
-    (latestBroadcastFetched || latestBroadcastError) && !latestBroadcastFetching &&
-    (dmFetched || dmError) && !dmFetching;
+  const sortSources = [
+    { isFetched: teamsFetched, isFetching: teamsFetching, isError: teamsError },
+    { isFetched: memberClubsFetched, isFetching: memberClubsFetching, isError: memberClubsError },
+    { isFetched: chatGroupsFetched, isFetching: chatGroupsFetching, isError: chatGroupsError },
+    { isFetched: latestBroadcastFetched, isFetching: latestBroadcastFetching, isError: latestBroadcastError },
+    { isFetched: dmFetched, isFetching: dmFetching, isError: dmError },
+  ];
+  const sortSourcesSettled = areInboxSortSourcesSettled(sortSources);
 
   // Hard ceiling: never hold the skeleton longer than this, even if one query
   // is pathologically slow. Order may correct in place after this point, but
@@ -2333,9 +1662,6 @@ export default function MessagesPage() {
     const t = window.setTimeout(() => setSortGateExpired(true), 3500);
     return () => window.clearTimeout(t);
   }, [sortSourcesSettled]);
-
-  // `freshSortDataReady` describes *initial ordering readiness only*.
-  const freshSortDataReady = !isOnline || sortSourcesSettled || sortGateExpired;
 
   // FIRST-REVEAL LATCH.
   // `sortSourcesSettled` depends on `isFetching`, which flips true again for
@@ -2372,9 +1698,19 @@ export default function MessagesPage() {
   // a cached inbox never waits on the *loading* half of the gate). Offline is
   // excluded entirely by the leading `isOnline`, so the cached inbox is still
   // revealed instantly with no network.
-  const initialRevealBlocked =
-    isOnline &&
-    (isLoadingFreshData || !freshSortDataReady);
+  const {
+    isLoadingFreshData,
+    initialRevealBlocked,
+    showSkeletonLoading,
+  } = resolveInboxRevealPolicy({
+    isOnline,
+    hasAnyDisplayData,
+    hasCachedData: !!hasCachedData,
+    hasLoadingSource: !!(teamsLoading || memberClubsLoading || chatGroupsLoading || isLoadingClubProStatus),
+    sortSources,
+    sortGateExpired,
+    hasRevealedStableInbox: hasRevealedStableInboxRef.current,
+  });
 
 
   useEffect(() => {
@@ -2390,11 +1726,6 @@ export default function MessagesPage() {
       setHasRevealedStableInbox(false);
     }
   }, [hasRevealedStableInbox, user?.id]);
-
-  const showSkeletonLoading = isOnline && !hasRevealedStableInboxRef.current && initialRevealBlocked;
-
-
-
 
   // Resume/reconnect stability: an inbox source query can transiently resolve
   // to undefined/[] while it is refetching or errored (auth refresh, RLS
@@ -2433,63 +1764,42 @@ export default function MessagesPage() {
   // first fetch for this mount (`!isFetched`) — that's what makes a warm inbox
   // open paint instantly instead of showing an empty list. A *settled* empty
   // online result stays authoritative.
-  const displayTeams = (stickyTeams?.length ? stickyTeams : ((!isOnline || !teamsFetched) ? (cachedData?.teams as any) : null)) || stickyTeams || cachedData?.teams || [];
-  const displayMemberClubs = (stickyMemberClubs?.length ? stickyMemberClubs : ((!isOnline || !memberClubsFetched) ? (cachedData?.memberClubs as any) : null)) || stickyMemberClubs || cachedData?.memberClubs || [];
+  const displayTeams = resolveInboxDisplayList({
+    sticky: stickyTeams,
+    cached: cachedData?.teams,
+    isOnline,
+    isFetched: teamsFetched,
+  });
+  const displayMemberClubs = resolveInboxDisplayList({
+    sticky: stickyMemberClubs,
+    cached: cachedData?.memberClubs,
+    isOnline,
+    isFetched: memberClubsFetched,
+  });
   const displayAdminClubs = adminClubs || cachedData?.adminClubs || [];
   // Important: an empty fresh chat-group result is authoritative *while
   // online*. Falling back to cached groups when `chatGroups.length === 0`
   // kept soft-deleted/purged club chats visible forever after the server
   // correctly returned no rows. Offline, an empty/failed result carries no
   // authority, so cached rows stay visible.
-  const allChatGroups = (stickyChatGroups?.length ? stickyChatGroups : ((!isOnline || !chatGroupsFetched) ? (cachedData?.chatGroups as any) : null)) ?? stickyChatGroups ?? (cachedData?.chatGroups as any) ?? [];
+  const allChatGroups = resolveInboxDisplayList({
+    sticky: stickyChatGroups,
+    cached: cachedData?.chatGroups,
+    isOnline,
+    isFetched: chatGroupsFetched,
+  });
 
 
   
   // Filter chat groups by user's roles
-  const displayChatGroups = useMemo(() => {
-    if (isAppAdmin || isCommitteeMember) return allChatGroups;
-
-    // Offline with no roles loaded: the cached groups were already RLS- and
-    // role-filtered for THIS user when they were written (cache is
-    // user-scoped and cleared on sign-out), so render them rather than
-    // dropping every club/team chat.
-    const rolesUnavailableOffline = !isOnline && !userAllRoles?.length;
-    if (rolesUnavailableOffline) return allChatGroups;
-
-    return allChatGroups.filter((group: any) => {
-      // Personal/custom groups (no club, team, or mini-league scope) are
-      // membership-based via group_members and RLS already filtered them.
-      // Always show them — do NOT gate on user_roles.
-      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
-      if (isPersonalGroup) return true;
-
-      if (!userAllRoles?.length) return false;
-
-
-      const allowedRoles: string[] = group.allowed_roles || [];
-      if (allowedRoles.length === 0) return true;
-
-      if (group.mini_league_id) {
-        const isLeagueAdmin = userAllRoles.some((ur: any) => 
-          ["club_admin", "league_admin", "coach", "team_admin"].includes(ur.role) && 
-          ur.club_id === group.club_id
-        );
-        if (isLeagueAdmin) return true;
-        if (!userLeagueIds?.has(group.mini_league_id)) return false;
-      }
-      
-      return userAllRoles.some((ur: any) => {
-        if (!allowedRoles.includes(ur.role)) return false;
-        if (group.club_id && !group.team_id && !group.mini_league_id) {
-          return ur.club_id === group.club_id;
-        }
-        if (group.team_id) {
-          return ur.team_id === group.team_id;
-        }
-        return true;
-      });
-    });
-  }, [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember, isOnline]);
+  const displayChatGroups = useMemo(() => filterInboxGroupsByVisibility({
+    groups: allChatGroups,
+    roles: userAllRoles,
+    leagueIds: userLeagueIds,
+    isAppAdmin: !!isAppAdmin,
+    isCommitteeMember: !!isCommitteeMember,
+    isOnline,
+  }), [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember, isOnline]);
 
   const displayLatestBroadcast = latestBroadcast || cachedData?.latestBroadcast;
   const displayLatestTeamMessages = latestTeamMessages || {};
@@ -2498,40 +1808,32 @@ export default function MessagesPage() {
 
   const displayClubsWithAnnouncements = displayMemberClubs;
 
-  const canCreateGroups = (adminTeamIds?.length || adminClubs?.length || isAppAdmin || isCommitteeMember) && (hasAnyProAccess || isAppAdmin);
+  const { hasAdminRole: hasAdminRoleForGroups, canCreateGroups } = resolveInboxGroupCreationCapability({
+    adminTeamCount: adminTeamIds?.length || 0,
+    adminClubCount: adminClubs?.length || 0,
+    isAppAdmin: !!isAppAdmin,
+    isCommitteeMember: !!isCommitteeMember,
+    hasAnyProAccess,
+  });
 
   // Filter all items based on search query and active club filter
-  const query = searchQuery.toLowerCase().trim();
+  const query = normalizeInboxSearchQuery(searchQuery);
 
   // Separate league chats from regular chat groups
-  const { leagueChats, regularChatGroups } = useMemo(() => {
-    const leagues: any[] = [];
-    const regular: any[] = [];
-    
-    displayChatGroups.forEach((group: any) => {
-      if (group.mini_league_id) {
-        leagues.push(group);
-      } else {
-        regular.push(group);
-      }
-    });
-    
-    return { leagueChats: leagues, regularChatGroups: regular };
-  }, [displayChatGroups]);
+  const { leagueChats, regularChatGroups } = useMemo(
+    () => partitionInboxGroups(displayChatGroups),
+    [displayChatGroups],
+  );
 
   // Personal/custom groups (membership-based, no club/team/league/competition scope).
   const personalGroupIds = useMemo(
-    () => regularChatGroups
-      .filter((g: any) => !g.club_id && !g.team_id && !g.mini_league_id && !g.competition_id)
-      .map((g: any) => g.id),
+    () => collectPersonalGroupIds(regularChatGroups),
     [regularChatGroups]
   );
 
   // Other-user ids across all DM conversations (used to test club membership).
   const dmOtherUserIds = useMemo(
-    () => (dmConversations || [])
-      .map((c: any) => c?.other_user?.id)
-      .filter((id: any) => !!id && id !== user?.id),
+    () => collectDirectMessagePeerIds(dmConversations || [], user?.id),
     [dmConversations, user?.id]
   );
 
@@ -2548,43 +1850,12 @@ export default function MessagesPage() {
     ],
     enabled: !!user && !!effectiveClubFilter && (personalGroupIds.length > 0 || dmOtherUserIds.length > 0),
     staleTime: 60_000,
-    queryFn: async () => {
-      // 1. Personal group memberships.
-      const groupMembersMap = new Map<string, string[]>();
-      if (personalGroupIds.length > 0) {
-        const { data: gm } = await supabase
-          .from("group_members")
-          .select("group_id, user_id")
-          .in("group_id", personalGroupIds);
-        (gm || []).forEach((row: any) => {
-          const arr = groupMembersMap.get(row.group_id) || [];
-          arr.push(row.user_id);
-          groupMembersMap.set(row.group_id, arr);
-        });
-      }
-
-      // 2. Union of user ids whose club membership we need to check.
-      const userIdSet = new Set<string>(dmOtherUserIds);
-      groupMembersMap.forEach((members) => {
-        members.forEach((uid) => {
-          if (uid && uid !== user?.id) userIdSet.add(uid);
-        });
-      });
-
-      const usersInClub = new Set<string>();
-      if (userIdSet.size > 0) {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("club_id", effectiveClubFilter)
-          .in("user_id", Array.from(userIdSet));
-        (roles || []).forEach((r: any) => {
-          if (r.user_id) usersInClub.add(r.user_id);
-        });
-      }
-
-      return { groupMembersMap, usersInClub };
-    },
+    queryFn: () => fetchInboxClubScopeFilter({
+      userId: user!.id,
+      clubId: effectiveClubFilter!,
+      personalGroupIds,
+      dmOtherUserIds,
+    }),
   });
 
   const clubScopedUsersInClub = clubScopeFilterData?.usersInClub;
@@ -2592,130 +1863,55 @@ export default function MessagesPage() {
 
 
 
-  const filteredLeagueChats = useMemo(() => {
-    let groups = leagueChats;
-    if (effectiveClubFilter) {
-      groups = groups.filter((group: any) => group.club_id === effectiveClubFilter);
-    }
-    if (!query) return groups;
-    return groups.filter((group: any) => {
-      const groupName = group.name?.toLowerCase() || "";
-      const clubName = group.clubs?.name?.toLowerCase() || "";
-      return groupName.includes(query) || clubName.includes(query);
-    });
-  }, [leagueChats, query, effectiveClubFilter]);
+  const filteredLeagueChats = useMemo(() => filterInboxLeagueChats({
+    groups: leagueChats,
+    query,
+    clubId: effectiveClubFilter,
+  }), [leagueChats, query, effectiveClubFilter]);
 
-  const filteredChatGroups = useMemo(() => {
-    let groups = regularChatGroups;
-    if (effectiveClubFilter) {
-      groups = groups.filter((group: any) => {
-        // Competition-scoped groups: only show when the active club has a
-        // team entered in that competition.
-        if (group.competition_id) {
-          const clubs = competitionClubMap?.[group.competition_id];
-          return !!clubs && clubs.has(effectiveClubFilter);
-        }
-        // Personal/custom groups: when a club filter is active, only show
-        // the group if at least one member (other than the current user)
-        // holds a role under the selected club. While the membership
-        // lookup is still loading, fall back to showing the group so it
-        // doesn't briefly disappear on each filter switch.
-        const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
-        if (isPersonalGroup) {
-          if (!clubScopedGroupMembers || !clubScopedUsersInClub) return true;
-          const members = clubScopedGroupMembers.get(group.id) || [];
-          const otherMembers = members.filter((uid) => uid !== user?.id);
-          if (otherMembers.length === 0) return true;
-          return otherMembers.some((uid) => clubScopedUsersInClub.has(uid));
-        }
+  const filteredChatGroups = useMemo(() => filterInboxChatGroups({
+    groups: regularChatGroups,
+    query,
+    effectiveClubId: effectiveClubFilter,
+    activeClubId: activeClubFilter,
+    activeClubTeamIds,
+    displayedTeams: displayTeams,
+    hiddenGroupMap,
+    latestGroupMessages: displayLatestGroupMessages,
+    competitionClubMap,
+    groupMembersMap: clubScopedGroupMembers,
+    usersInClub: clubScopedUsersInClub,
+    currentUserId: user?.id,
+  }), [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages, competitionClubMap, clubScopedGroupMembers, clubScopedUsersInClub, user?.id]);
 
-        return (
-          group.club_id === effectiveClubFilter ||
-          (group.team_id && (activeClubFilter ? activeClubTeamIds.includes(group.team_id) : displayTeams.some((t: any) => t.id === group.team_id && t.clubs?.id === effectiveClubFilter)))
-        );
-      });
-    }
+  const filteredTeams = useMemo(() => filterInboxTeams({
+    teams: displayTeams,
+    query,
+    effectiveClubId: effectiveClubFilter,
+    activeClubId: activeClubFilter,
+    activeClubTeamIds,
+  }), [displayTeams, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds]);
 
-    // Apply hidden filter for custom (personal) groups — they reappear when
-    // a new message arrives after the time the user hid them.
-    groups = groups.filter((group: any) => {
-      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id && !group.competition_id;
-      if (!isPersonalGroup) return true;
-      const hiddenAt = hiddenGroupMap?.get(group.id);
-      if (!hiddenAt) return true;
-      const lastMsgAt = displayLatestGroupMessages?.[group.id]?.created_at;
-      const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
-      if (stillHidden && !query) return false;
-      return true;
-    });
-    if (!query) return groups;
-    return groups.filter((group: any) => {
-      const groupName = group.name?.toLowerCase() || "";
-      const teamName = group.teams?.name?.toLowerCase() || "";
-      const clubName = group.clubs?.name?.toLowerCase() || "";
-      return groupName.includes(query) || teamName.includes(query) || clubName.includes(query);
-    });
-  }, [regularChatGroups, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds, displayTeams, hiddenGroupMap, displayLatestGroupMessages, competitionClubMap, clubScopedGroupMembers, clubScopedUsersInClub, user?.id]);
-
-  const filteredTeams = useMemo(() => {
-    let teamsToFilter = displayTeams || [];
-    if (effectiveClubFilter) {
-      if (activeClubFilter) {
-        const hasResolvedActiveClubTeams = activeClubTeamIds.length > 0;
-        teamsToFilter = teamsToFilter.filter((team: any) => {
-          const matchesResolvedIds = hasResolvedActiveClubTeams && activeClubTeamIds.includes(team.id);
-          const matchesClubRelation = team.clubs?.id === activeClubFilter;
-          return matchesResolvedIds || matchesClubRelation;
-        });
-      } else {
-        teamsToFilter = teamsToFilter.filter((team: any) => team.clubs?.id === effectiveClubFilter);
-      }
-    }
-    if (!query) return teamsToFilter;
-    return teamsToFilter.filter((team: any) =>
-      team.name.toLowerCase().includes(query) ||
-      team.clubs?.name?.toLowerCase()?.includes(query)
-    );
-  }, [displayTeams, query, effectiveClubFilter, activeClubFilter, activeClubTeamIds]);
-
-  const filteredClubs = useMemo(() => {
-    let clubsToFilter = displayClubsWithAnnouncements || [];
-    if (effectiveClubFilter) {
-      clubsToFilter = clubsToFilter.filter((club: any) => club.id === effectiveClubFilter);
-    }
-    if (!query) return clubsToFilter;
-    return clubsToFilter.filter((club: any) =>
-      club.name.toLowerCase().includes(query)
-    );
-  }, [displayClubsWithAnnouncements, query, effectiveClubFilter]);
+  const filteredClubs = useMemo(() => filterInboxClubs({
+    clubs: displayClubsWithAnnouncements,
+    query,
+    clubId: effectiveClubFilter,
+  }), [displayClubsWithAnnouncements, query, effectiveClubFilter]);
 
   const showBroadcast = !query || "announcements".includes(query);
 
   // Live drafts (unsent text in any chat composer)
   const allDrafts = useAllChatDrafts();
-  const draftFor = (id?: string | null) => (id ? allDrafts[id] : undefined);
 
   // Offline fallback: when the DM query errors (no network), React Query drops
   // the placeholder and `dmConversations` is undefined. Rebuild the list from
   // the user-scoped cache so saved conversations stay selectable offline.
   const offlineCachedDMs = useMemo(() => {
-    if (!cachedData?.dmConversations?.length) return [];
-    return cachedData.dmConversations.map((conv: any) => ({
-      ...conv,
-      created_at: conv.created_at || conv.updated_at,
-      created_by: conv.created_by || null,
-      last_message: cachedData.latestDMMessages?.[conv.id]
-        ? {
-            text: cachedData.latestDMMessages[conv.id].text,
-            image_url: cachedData.latestDMMessages[conv.id].image_url || null,
-            created_at: cachedData.latestDMMessages[conv.id].created_at,
-            author_id:
-              cachedData.latestDMMessages[conv.id].author === "You"
-                ? user?.id || ""
-                : conv.other_user?.id || "",
-          }
-        : null,
-    })) as any[];
+    return hydrateCachedDirectMessages({
+      conversations: cachedData?.dmConversations,
+      latestMessages: cachedData?.latestDMMessages,
+      currentUserId: user?.id,
+    });
   }, [cachedData, user?.id]);
 
   // Resume stability: keep the last non-empty DM list while the query is
@@ -2728,267 +1924,63 @@ export default function MessagesPage() {
   });
 
   const effectiveDMConversations = useMemo(() => {
-    if (stickyDMConversations?.length) return stickyDMConversations as any[];
-    if (!isOnline && offlineCachedDMs.length) return offlineCachedDMs;
-    return (stickyDMConversations as any[]) ?? [];
+    return resolveEffectiveDirectMessages({
+      sticky: stickyDMConversations as any[] | undefined,
+      offlineCached: offlineCachedDMs,
+      isOnline,
+    });
   }, [stickyDMConversations, isOnline, offlineCachedDMs]);
 
   // Filtered DM conversations
   // Hide empty DMs (no messages exchanged) from the list — these are stub
   // conversation rows that get created when someone opens a DM thread without
   // sending anything. They'd otherwise float to the top via `updated_at`.
-  const filteredDMs = useMemo(() => {
-    if (!effectiveDMConversations.length) return [];
-    // Fail CLOSED while the club-scope lookup for the *current* club filter is
-    // still resolving. Otherwise, immediately after switching clubs, the DM
-    // rows of the previous club render for a beat before the scope data lands
-    // and filters them out. (`clubScopeFilterData` is keyed by the filter, so
-    // undefined here means "not yet known for this club".)
-    if (effectiveClubFilter && !clubScopeFilterData && dmOtherUserIds.length > 0 && isOnline) {
-      return [];
-    }
-    return effectiveDMConversations.filter((conv: any) => {
-
-      const hiddenAt = hiddenDMMap?.get(conv.id);
-      if (hiddenAt) {
-        const lastMsgAt = conv.last_message?.created_at;
-        const stillHidden = !lastMsgAt || new Date(lastMsgAt).getTime() <= new Date(hiddenAt).getTime();
-        if (stillHidden && !query) return false;
-      }
-      // DMs are scoped to the active club: only show threads whose other
-      // participant holds a role in that club, so the list matches the badge.
-      if (effectiveClubFilter && clubScopedUsersInClub) {
-        const otherId = conv.other_user?.id;
-        if (!otherId || !clubScopedUsersInClub.has(otherId)) return false;
-      }
-      if (query) {
-        return conv.other_user?.display_name?.toLowerCase().includes(query);
-      }
-      // Surface if there's a real message OR an unsent draft for this thread.
-      const hasDraft = !!allDrafts[conv.id]?.text?.trim();
-      return !!conv.last_message || hasDraft;
-    });
-  }, [effectiveDMConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub, clubScopeFilterData, dmOtherUserIds.length, isOnline]);
-
-
+  const filteredDMs = useMemo(() => filterInboxDirectMessages({
+    conversations: effectiveDMConversations,
+    query,
+    drafts: allDrafts,
+    hiddenMap: hiddenDMMap,
+    effectiveClubId: effectiveClubFilter,
+    usersInClub: clubScopedUsersInClub,
+    isSupportUser: isIgniteSupportUser,
+  }), [effectiveDMConversations, hiddenDMMap, query, allDrafts, effectiveClubFilter, clubScopedUsersInClub]);
 
 
   // Check if Ignite Support should show
   const showIgniteSupport = systemMessage && (!query || "ignite support".includes(query));
 
   // Build unified conversation list
-  const freshUnifiedConversations = useMemo(() => {
-    const items: UnifiedConversation[] = [];
-
-    // Broadcast
-    if (showBroadcast) {
-      items.push({
-        type: 'broadcast',
-        id: 'broadcast',
-        key: 'broadcast',
-        name: 'Announcements',
-        link: '/messages/broadcast',
-        lastActivity: displayLatestBroadcast?.created_at || '',
-        lastMessage: displayLatestBroadcast ? {
-          text: displayLatestBroadcast.text,
-          author: (displayLatestBroadcast.profiles as any)?.display_name || '',
-          created_at: displayLatestBroadcast.created_at,
-          image_url: displayLatestBroadcast.image_url,
-        } : undefined,
-        unreadCount: unreadCounts?.broadcast || 0,
-        isMuted: false,
-      });
-    }
-
-    // Clubs
-    filteredClubs.forEach((club: any) => {
-      const lastMsg = displayLatestClubMessages?.[club.id];
-      // Treat as Pro until we have a definitive answer. This prevents a flash of
-      // "Pro only" lock state after returning from phone lock / visibility refetch
-      // when clubProStatus is briefly unavailable.
-      const proStatusKnown = !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
-      const hasProAccess = proStatusKnown ? (clubProStatus?.[club.id] === true) : true;
-      items.push({
-        type: 'club',
-        id: club.id,
-        key: `club-${club.id}`,
-        name: club.name,
-        avatarUrl: club.logo_url,
-        link: `/messages/club/${club.id}`,
-        lastActivity: lastMsg?.created_at || '',
-        lastMessage: lastMsg,
-        unreadCount: unreadCounts?.clubs[club.id] || 0,
-        isMuted: mutedChats?.clubs.has(club.id) || false,
-        isLocked: proStatusKnown && !hasProAccess,
-      });
-    });
-
-    // Teams
-    filteredTeams.forEach((team: any) => {
-      const lastMsg = displayLatestTeamMessages?.[team.id];
-      items.push({
-        type: 'team',
-        id: team.id,
-        key: `team-${team.id}`,
-        name: team.name,
-        avatarUrl: team.logo_url || team.clubs?.logo_url,
-        link: `/messages/${team.id}`,
-        lastActivity: lastMsg?.created_at || '',
-        lastMessage: lastMsg,
-        unreadCount: unreadCounts?.teams[team.id] || 0,
-        isMuted: mutedChats?.teams.has(team.id) || false,
-      });
-    });
-
-    // League chats
-    filteredLeagueChats.forEach((group: any) => {
-      const lastMsg = displayLatestGroupMessages?.[group.id];
-      items.push({
-        type: 'league',
-        id: group.id,
-        key: `league-${group.id}`,
-        name: group.name,
-        avatarUrl: group.clubs?.logo_url ?? null,
-        link: `/groups/${group.id}`,
-        lastActivity: lastMsg?.created_at || '',
-        lastMessage: lastMsg,
-        unreadCount: groupUnreadCache?.[group.id] ?? unreadCounts?.groups[group.id] ?? 0,
-        isMuted: mutedChats?.groups.has(group.id) || false,
-      });
-    });
-
-    // Chat groups
-    filteredChatGroups.forEach((group: any) => {
-      const lastMsg = displayLatestGroupMessages?.[group.id];
-      const isPersonalGroup = !group.club_id && !group.team_id && !group.mini_league_id;
-      const allowedRoles: string[] = group.allowed_roles || [];
-      const isClubRoleGroup =
-        !!group.club_id &&
-        !group.team_id &&
-        !group.mini_league_id &&
-        allowedRoles.some((r) =>
-          ["coach", "team_admin", "committee_member", "club_admin"].includes(r)
-        );
-      const proStatusKnown =
-        !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
-      const clubHasPro = group.club_id
-        ? proStatusKnown
-          ? clubProStatus?.[group.club_id] === true
-          : true
-        : true;
-      const isLocked =
-        isClubRoleGroup && proStatusKnown && !clubHasPro && !isAppAdmin;
-      items.push({
-        type: 'group',
-        id: group.id,
-        key: `group-${group.id}`,
-        name: group.name,
-        link: isLocked ? `/clubs/${group.club_id}/upgrade` : `/groups/${group.id}`,
-        lastActivity: lastMsg?.created_at || '',
-        lastMessage: lastMsg,
-        unreadCount: groupUnreadCache?.[group.id] ?? unreadCounts?.groups[group.id] ?? 0,
-        isMuted: mutedChats?.groups.has(group.id) || false,
-        canHide: isPersonalGroup,
-        category: (group as any).category ?? null,
-        isLocked,
-      });
-    });
-
-
-    // DM conversations
-    filteredDMs.forEach((conv: any) => {
-      const isSupport = isIgniteSupportUser(conv.other_user?.id);
-      items.push({
-        type: 'dm',
-        id: conv.id,
-        key: `dm-${conv.id}`,
-        name: isSupport ? "Ignite Support" : (conv.other_user?.display_name || "Unknown User"),
-        avatarUrl: conv.other_user?.avatar_url,
-        link: `/messages/dm/${conv.id}`,
-        lastActivity: conv.last_message?.created_at || conv.updated_at || '',
-        lastMessage: conv.last_message ? {
-          text: conv.last_message.text,
-          author: conv.last_message.author_id === user?.id ? "You" : (conv.other_user?.display_name || ""),
-          created_at: conv.last_message.created_at,
-          image_url: conv.last_message.image_url,
-        } : undefined,
-        unreadCount: unreadCounts?.dms[conv.id] || 0,
-        isMuted: false,
-        canHide: !isSupport,
-        dmData: conv,
-      });
-    });
-
-    // Club admin conversations (filter by search query against member name / club name / last message)
-    const filteredAdminConvs = query
-      ? clubAdminConversations.filter((conv) => {
-          const name = conv.member_name?.toLowerCase() || "";
-          const club = conv.club_name?.toLowerCase() || "";
-          const text = conv.last_text?.toLowerCase() || "";
-          return name.includes(query) || club.includes(query) || text.includes(query);
-        })
-      : clubAdminConversations;
-    filteredAdminConvs.forEach((conv) => {
-      items.push({
-        type: 'admin_group',
-        id: conv.id,
-        key: `admin-group-${conv.id}`,
-        name: conv.member_name,
-        avatarUrl: conv.member_avatar,
-        link: `/messages/club-admin/${conv.id}`,
-        lastActivity: conv.last_created_at || conv.updated_at || '',
-        lastMessage: conv.last_created_at ? {
-          text: conv.last_text || '',
-          author: conv.last_author_id === user?.id ? 'You' : conv.member_name,
-          created_at: conv.last_created_at,
-          image_url: conv.last_image,
-        } : undefined,
-        unreadCount: 0,
-        isMuted: false,
-        category: 'Admin Groups',
-      });
-    });
-
-
-    // Ignite Support system message (if not already shown as a DM)
-    if (showIgniteSupport && !filteredDMs.some((conv: any) => isIgniteSupportUser(conv.other_user?.id))) {
-      items.push({
-        type: 'support',
-        id: 'ignite-support',
-        key: 'ignite-support',
-        name: 'Ignite Support',
-        link: '/messages/welcome',
-        lastActivity: systemMessage?.created_at || '',
-        lastMessage: systemMessage ? {
-          text: systemMessage.text.substring(0, 60) + '...',
-          author: '',
-          created_at: systemMessage.created_at,
-        } : undefined,
-        unreadCount: 0,
-        isMuted: false,
-      });
-    }
-
-    // Attach drafts and bump lastActivity if draft is more recent than last message
-    return items.map((item) => {
-      const draftId = item.type === 'broadcast' ? 'broadcast' : item.id;
-      const draft = draftFor(draftId);
-      if (!draft) return item;
-      const draftTime = draft.updatedAt;
-      const lastTime = item.lastActivity;
-      const isNewer = !lastTime || new Date(draftTime).getTime() > new Date(lastTime).getTime();
-      return {
-        ...item,
-        draftText: draft.text,
-        lastActivity: isNewer ? draftTime : lastTime,
-      };
-    });
-  }, [
+  const freshUnifiedConversations = useMemo(() => buildUnifiedInboxConversations({
+    showBroadcast,
+    latestBroadcast: displayLatestBroadcast,
+    clubs: filteredClubs,
+    teams: filteredTeams,
+    leagueChats: filteredLeagueChats,
+    chatGroups: filteredChatGroups,
+    directMessages: filteredDMs,
+    adminConversations: clubAdminConversations,
+    latestClubMessages: displayLatestClubMessages,
+    latestTeamMessages: displayLatestTeamMessages,
+    latestGroupMessages: displayLatestGroupMessages,
+    unreadCounts,
+    realtimeGroupUnread: groupUnreadCache,
+    muted: mutedChats,
+    clubProStatuses: clubProStatus,
+    isClubProLoading: isLoadingClubProStatus,
+    isClubProFetching: isFetchingClubProStatus,
+    isAppAdmin: !!isAppAdmin,
+    query,
+    currentUserId: user?.id,
+    showSupport: !!showIgniteSupport,
+    systemMessage,
+    drafts: allDrafts,
+    isSupportUser: isIgniteSupportUser,
+  }), [
     showBroadcast, displayLatestBroadcast, unreadCounts, groupUnreadCache,
     filteredClubs, displayLatestClubMessages, isLoadingClubProStatus, isFetchingClubProStatus, clubProStatus, mutedChats,
     filteredTeams, displayLatestTeamMessages,
     filteredLeagueChats, filteredChatGroups, displayLatestGroupMessages,
-    filteredDMs, clubAdminConversations, query, user?.id, showIgniteSupport, systemMessage, allDrafts,
+    filteredDMs, clubAdminConversations, query, user?.id, showIgniteSupport, systemMessage, allDrafts, isAppAdmin,
   ]);
 
   // Keep the final authorised read model coherent across native resume and
@@ -3068,149 +2060,74 @@ export default function MessagesPage() {
 
   // Resolve event titles referenced in any conversation preview so they
   // display the actual event name instead of a generic "Event" placeholder.
-  const referencedEventIds = useMemo(() => {
-    const set = new Set<string>();
-    unifiedConversations.forEach((c) => {
-      extractEventIds(c.lastMessage?.text).forEach((id) => set.add(id));
-    });
-    return Array.from(set);
-  }, [unifiedConversations]);
-
-  const referencedVaultFolderIds = useMemo(() => {
-    const set = new Set<string>();
-    unifiedConversations.forEach((c) => {
-      extractVaultFolderIds(c.lastMessage?.text).forEach((id) => set.add(id));
-    });
-    return Array.from(set);
-  }, [unifiedConversations]);
-
-  const referencedVaultFileIds = useMemo(() => {
-    const set = new Set<string>();
-    unifiedConversations.forEach((c) => {
-      extractVaultFileIds(c.lastMessage?.text).forEach((id) => set.add(id));
-    });
-    return Array.from(set);
-  }, [unifiedConversations]);
+  const {
+    eventIds: referencedEventIds,
+    vaultFolderIds: referencedVaultFolderIds,
+    vaultFileIds: referencedVaultFileIds,
+  } = useMemo(
+    () => collectInboxPreviewReferences(unifiedConversations),
+    [unifiedConversations],
+  );
 
   const { data: eventTitleMap = {} } = useQuery({
     queryKey: ["messages-page-event-titles", referencedEventIds.join(",")],
-    queryFn: async () => {
-      if (referencedEventIds.length === 0) return {} as Record<string, string>;
-      const { data } = await supabase
-        .from("events")
-        .select("id, title")
-        .in("id", referencedEventIds);
-      const map: Record<string, string> = {};
-      (data || []).forEach((e) => {
-        if (e?.id && e?.title) map[e.id.toLowerCase()] = e.title;
-      });
-      return map;
-    },
+    queryFn: () => fetchInboxEventTitleMap(referencedEventIds),
     enabled: referencedEventIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: vaultFolderNameMap = {} } = useQuery({
     queryKey: ["messages-page-vault-folder-names", referencedVaultFolderIds.join(",")],
-    queryFn: async () => {
-      if (referencedVaultFolderIds.length === 0) return {} as Record<string, string>;
-      const { data } = await supabase
-        .from("vault_folders")
-        .select("id, name")
-        .in("id", referencedVaultFolderIds);
-      const map: Record<string, string> = {};
-      (data || []).forEach((f) => {
-        if (f?.id && f?.name) map[f.id.toLowerCase()] = f.name;
-      });
-      return map;
-    },
+    queryFn: () => fetchInboxVaultFolderNameMap(referencedVaultFolderIds),
     enabled: referencedVaultFolderIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: vaultFileNameMap = {} } = useQuery({
     queryKey: ["messages-page-vault-file-names", referencedVaultFileIds.join(",")],
-    queryFn: async () => {
-      if (referencedVaultFileIds.length === 0) return {} as Record<string, string>;
-      const { data } = await supabase
-        .from("vault_files")
-        .select("id, name")
-        .in("id", referencedVaultFileIds);
-      const map: Record<string, string> = {};
-      (data || []).forEach((f) => {
-        if (f?.id && f?.name) map[f.id.toLowerCase()] = f.name;
-      });
-      return map;
-    },
+    queryFn: () => fetchInboxVaultFileNameMap(referencedVaultFileIds),
     enabled: referencedVaultFileIds.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
   // Apply type filter chip (teams/groups/dms/club/league/all).
-  // Broadcasts and Ignite Support always remain visible regardless of chip
-  // (they're not real conversation types users think about filtering away).
-  const typeFilteredConversations = useMemo(() => {
-    if (typeFilter === 'all') return unifiedConversations;
-    return unifiedConversations.filter((c) => {
-      if (c.type === 'support') return true;
-      switch (typeFilter) {
-        // Mini-leagues (e.g. Maxiroos) live under Teams — users mentally treat
-        // them as another team they belong to.
-        case 'teams': return c.type === 'team' || c.type === 'league';
-        // Groups bucket includes club broadcast-style groups alongside regular chat groups.
-        case 'groups': return c.type === 'group' || c.type === 'club' || c.type === 'admin_group';
-        case 'dms': return c.type === 'dm';
-        default: return true;
-      }
-    });
-  }, [unifiedConversations, typeFilter]);
-
-  const sortByActivityDesc = (a: UnifiedConversation, b: UnifiedConversation) => {
-    if (!a.lastActivity && !b.lastActivity) return 0;
-    if (!a.lastActivity) return 1;
-    if (!b.lastActivity) return -1;
-    return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
-  };
+  // Ignite Support remains visible regardless of chip. Broadcasts are shown
+  // only in the unfiltered inbox, matching the existing chip behavior.
+  const typeFilteredConversations = useMemo(
+    () => filterInboxConversations(unifiedConversations, typeFilter),
+    [unifiedConversations, typeFilter],
+  );
 
   // Split into unread and recent
-  const unreadItems = useMemo(() => {
-    return typeFilteredConversations.filter(c => c.unreadCount > 0).sort(sortByActivityDesc);
-  }, [typeFilteredConversations]);
-
-  const recentItems = useMemo(() => {
-    return typeFilteredConversations.filter(c => c.unreadCount === 0).sort(sortByActivityDesc);
-  }, [typeFilteredConversations]);
+  const { unread: unreadItems, recent: recentItems } = useMemo(
+    () => partitionInboxByReadState(typeFilteredConversations),
+    [typeFilteredConversations],
+  );
 
   // Mark first non-empty render for perf diagnostics (one-shot).
   // Progressive disclosure for operational groups: when a user has many
   // stale group/league chats, collapse the long tail behind a "Show more
   // groups" toggle. Only kicks in for power users — regular parents with
   // only a few groups see no change.
-  const STALE_OPS_DAYS = 30;
-  const STALE_OPS_THRESHOLD = 6;
-  const OPS_VISIBLE_WHEN_COLLAPSED = 2;
-  const { visibleRecent, hiddenOps } = useMemo(() => {
-    const cutoff = Date.now() - STALE_OPS_DAYS * 24 * 60 * 60 * 1000;
-    const isStaleOp = (c: UnifiedConversation) =>
-      (c.type === 'group' || c.type === 'league') &&
-      c.unreadCount === 0 &&
-      !c.draftText &&
-      (!c.lastActivity || new Date(c.lastActivity).getTime() < cutoff);
-
-    const stale = recentItems.filter(isStaleOp);
-    if (stale.length <= STALE_OPS_THRESHOLD || showAllOps || typeFilter !== 'all' || !!query) {
-      return { visibleRecent: recentItems, hiddenOps: [] as UnifiedConversation[] };
-    }
-    const keepStaleIds = new Set(stale.slice(0, OPS_VISIBLE_WHEN_COLLAPSED).map(c => c.key));
-    const hidden = stale.slice(OPS_VISIBLE_WHEN_COLLAPSED);
-    const hiddenIds = new Set(hidden.map(c => c.key));
-    const visible = recentItems.filter(c => !hiddenIds.has(c.key) || keepStaleIds.has(c.key));
-    return { visibleRecent: visible, hiddenOps: hidden };
-  }, [recentItems, showAllOps, typeFilter, query]);
+  const { visibleRecent, hiddenOps } = useMemo(
+    () => resolveOperationalConversationDisclosure(recentItems, {
+      now: Date.now(),
+      showAll: showAllOps,
+      typeFilter,
+      hasSearchQuery: !!query,
+    }),
+    [recentItems, showAllOps, typeFilter, query],
+  );
 
 
-  const hasNoResults = query && unifiedConversations.length === 0;
-  const hasNoMessages = !displayTeams?.length && !displayMemberClubs?.length && displayChatGroups.length === 0 && filteredDMs.length === 0;
+  const { hasNoResults, hasNoMessages } = resolveInboxEmptyState({
+    query,
+    unifiedConversationCount: unifiedConversations.length,
+    teamCount: displayTeams.length,
+    memberClubCount: displayMemberClubs.length,
+    visibleGroupCount: displayChatGroups.length,
+    directMessageCount: filteredDMs.length,
+  });
 
   // If a specific club is in scope (active club theme or local filter), use that
   // club's Pro status — otherwise fall back to the global "any Pro" check. This
@@ -3222,19 +2139,19 @@ export default function MessagesPage() {
   // login (especially noticeable on iOS WebView resume) — without this guard
   // the upgrade banner flashes for admins of a Pro club. Mirrors the lock
   // logic at line ~1394.
-  const proAccessQueryReady = !isLoadingProAccess && !isFetchingProAccess && hasAnyProAccess !== undefined;
-  const clubProQueryReady = !isLoadingClubProStatus && !isFetchingClubProStatus && clubProStatus !== undefined;
-  const scopedClubIsPro = effectiveClubFilter ? clubProStatus?.[effectiveClubFilter] === true : null;
-  const proGateFails = effectiveClubFilter
-    ? clubProQueryReady && scopedClubIsPro === false
-    : proAccessQueryReady && hasAnyProAccess === false;
-  const hasAdminRoleButNoPro = proAccessQueryReady && clubProQueryReady && !!(adminTeamIds?.length || adminClubs?.length) && proGateFails && isAppAdmin === false;
-  const scopedAdminClubId = effectiveClubFilter
-    ? displayAdminClubs.find((club: any) => club.id === effectiveClubFilter)?.id ?? null
-    : null;
-  const upgradeClubId = effectiveClubFilter
-    ? scopedAdminClubId ?? effectiveClubFilter
-    : displayAdminClubs[0]?.id ?? displayMemberClubs[0]?.id ?? null;
+  const { scopedClubIsPro, hasAdminRoleButNoPro, upgradeClubId } = resolveInboxUpgradePresentation({
+    effectiveClubId: effectiveClubFilter,
+    clubProStatuses: clubProStatus,
+    hasAnyProAccess,
+    isProAccessLoading: isLoadingProAccess,
+    isProAccessFetching: isFetchingProAccess,
+    isClubProLoading: isLoadingClubProStatus,
+    isClubProFetching: isFetchingClubProStatus,
+    adminTeamCount: adminTeamIds?.length || 0,
+    adminClubs: displayAdminClubs,
+    memberClubs: displayMemberClubs,
+    isAppAdmin: !!isAppAdmin,
+  });
 
   // Type label map
   const typeLabels: Record<string, string> = {
@@ -3317,7 +2234,7 @@ export default function MessagesPage() {
             </Button>
           )}
 
-          {aiCatchUpResolved && recapVisible && (
+          {aiCatchUpResolved && hasAICatchUpClub && (
             <Button
               variant="outline"
               size="icon"
@@ -3349,17 +2266,9 @@ export default function MessagesPage() {
       </div>
 
       <QueryErrorBanner
-        // Only alarm the user when there is genuinely nothing to show. A
-        // failed background refresh over a rendered (cached) inbox is not an
-        // error the user needs to act on.
-        hasError={
-          !!(teamsError || memberClubsError || chatGroupsError) &&
-          unifiedConversations.length === 0
-        }
+        hasError={!!(teamsError || memberClubsError || chatGroupsError)}
         onRetry={async () => {
-          // No `stale` filter: errored queries that still hold cached data are
-          // stale, so filtering by `stale: false` made retry a silent no-op.
-          await queryClient.refetchQueries({ type: "all", predicate: (q) => q.state.status === "error" });
+          await queryClient.refetchQueries({ type: "all", stale: false, predicate: (q) => q.state.status === "error" });
         }}
         message="Couldn't load chats. Tap to retry."
       />
@@ -3394,38 +2303,43 @@ export default function MessagesPage() {
 
 
 
-      {/* New message bottom sheet (flat: DM + group types) */}
+      {/* New message + group-type bottom sheets */}
       <NewMessageSheet
         open={showNewMessageSheet}
         onOpenChange={setShowNewMessageSheet}
         canCreateGroups={!!canCreateGroups}
-        canCreateCustomGroup={!!(hasAnyProAccess || isAppAdmin)}
+        hasAdminRoleForGroups={hasAdminRoleForGroups}
         hasPro={effectiveClubFilter ? scopedClubIsPro === true : !!hasAnyProAccess}
         isAppAdmin={!!isAppAdmin}
         upgradeClubId={upgradeClubId}
         onPickDM={() => setShowDMDialog(true)}
-        onPickCustom={() => setShowCustomGroupDialog(true)}
-        onPickTeam={() => {
-          setGroupDialogType("team");
-          setShowGroupDialog(true);
-        }}
-        onPickRole={() => {
-          setGroupDialogType("role");
-          setShowGroupDialog(true);
-        }}
+        onPickGroup={() => setShowGroupTypeSheet(true)}
       />
-
+      {canCreateGroups && (
+        <NewGroupTypeSheet
+          open={showGroupTypeSheet}
+          onOpenChange={setShowGroupTypeSheet}
+          onPickRole={() => {
+            setGroupDialogType("role");
+            setShowGroupDialog(true);
+          }}
+          onPickTeam={() => {
+            setGroupDialogType("team");
+            setShowGroupDialog(true);
+          }}
+          onPickCustom={() => setShowCustomGroupDialog(true)}
+        />
+      )}
 
       {/* DM and Group dialogs — DM creation is Pro-gated */}
       {(!!hasAnyProAccess || !!isAppAdmin) && (
         <StartDMDialog open={showDMDialog} onOpenChange={setShowDMDialog} mode="dm" />
       )}
-      {(!!hasAnyProAccess || !!isAppAdmin) && (
+      {canCreateGroups && (
         <StartDMDialog
           open={showCustomGroupDialog}
           onOpenChange={setShowCustomGroupDialog}
           mode="custom-group"
-          allowCategory={!!canCreateGroups}
         />
       )}
       {canCreateGroups && (
@@ -3486,11 +2400,9 @@ export default function MessagesPage() {
 
       {/* Lightweight type filter chips. Only chips for types the user actually
           has appear, keeping the inbox uncluttered for simple users. Gated on
-          exactly the same reveal latch as the conversation list, so the chips
-          paint in the SAME frame as the rows instead of popping in afterwards
-          and pushing the list down (previously gated on all four inbox queries
-          having individually resolved, which lands later than first reveal). */}
-      {!showSkeletonLoading && (() => {
+          ALL inbox queries having resolved so chips pop in together instead of
+          Teams → Groups → DMs appearing one-by-one as each query finishes. */}
+      {(!isOnline || ((teamsFetched || teamsError) && (memberClubsFetched || memberClubsError) && (chatGroupsFetched || chatGroupsError) && (dmFetched || dmError))) && (() => {
         const counts = { teams: 0, groupish: 0, dms: 0 };
         const unread = { teams: 0, groupish: 0, dms: 0 };
         unifiedConversations.forEach((c) => {

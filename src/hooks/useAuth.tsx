@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { useQueryClient, onlineManager } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { showBrowserNotification, requestNotificationPermission } from "@/lib/notifications";
 import { subscribeToPushNotifications } from "@/lib/pushNotifications";
 import { prefetchUserData } from "@/lib/prefetchData";
 import { clearProfileCache } from "@/lib/profileCache";
@@ -18,8 +19,6 @@ import { MESSAGE_NOTIFICATION_TYPES } from "@/lib/notificationTypes";
 import { fetchUnreadMessageCounts, getTotalUnreadMessageCount } from "@/lib/unreadMessageCounts";
 import { markProfileCompleted } from "@/components/InviteFlowProgress";
 import { isNativePlatform, unregisterNativePush } from "@/lib/nativePush";
-import { isTransientAuthFailure } from "@/lib/authRecoveryClassification";
-import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
 import { notificationKeys } from "@/features/notifications/queryKeys";
 
 interface Profile {
@@ -588,30 +587,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } else if (event === 'SIGNED_OUT') {
           console.log('[Auth] SIGNED_OUT event');
-          // A refresh-token rotation race on app resume can fire a SPURIOUS
-          // SIGNED_OUT immediately followed by SIGNED_IN for the same user.
-          // Wiping React Query + every `ignite_*` localStorage cache in that
-          // window destroys the last-good snapshots (Next Up, My Teams, …) and
-          // the follow-up refetch can race a mid-rotation token, painting the
-          // "set up your club" empty state. So VERIFY the sign-out is real
-          // before doing anything destructive; state resets below are harmless
-          // because a real session immediately re-populates them.
-          setTimeout(() => {
-            void (async () => {
-              try {
-                const { data } = await supabase.auth.getSession();
-                const stillSignedIn = !!data?.session?.user?.id;
-                if (stillSignedIn) {
-                  console.log('[Auth] SIGNED_OUT was spurious (session still valid) — skipping cache wipe');
-                  return;
-                }
-                queryClient.clear();
-                clearUserScopedCaches();
-                if (previousUserId) revokeAllForUser(previousUserId);
-              } catch { /* noop */ }
-            })();
-          }, 400);
-
+          // Clear ALL cached query data - prevents stale data from being served
+          // after re-login (same userId would match stale queryKeys)
+          queryClient.clear();
+          // Same as the cross-user SIGNED_IN path: wipe per-user caches that
+          // live outside React Query so they can't leak to the next account
+          // signing in on this device.
+          try {
+            clearUserScopedCaches();
+            if (previousUserId) revokeAllForUser(previousUserId);
+          } catch { /* noop */ }
 
           profileFetched = false;
           setIsFreshLogin(false);
@@ -753,11 +738,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         console.warn(`[Auth] ${source} - no active session found, attempting one-time refresh`);
-        // Single-flight: never race the supabase-js autoRefresh timer or the
-        // 401-retry interceptor — a rotated-token replay would look like a
-        // logout.
-        const { session: refreshedSession, error: refreshError } = await refreshSessionOnce(12000);
-        const refreshData = { session: refreshedSession };
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
 
         if (!refreshError && refreshData.session) {
           console.log(`[Auth] ${source} - session recovered via refresh`);
@@ -783,17 +764,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // CRITICAL: never tear down the local session because the network was
-        // unreachable. Clearing the cache + `setUser(null)` here is what made the
-        // club switcher vanish and the theme fall back to Ignite after a coverage
-        // drop, with no path back until relaunch.
-        if (!tokenMissing && (isTransientAuthFailure(refreshError) || isTransientAuthFailure(retryError))) {
-          console.warn(`[Auth] ${source} - refresh failed for network reasons; keeping session`, refreshError ?? retryError ?? null);
-          return;
-        }
-
         console.warn(`[Auth] ${source} - session unrecoverable`, refreshError ?? currentError ?? retryError ?? null);
-
         queryClient.clear();
         clearProfileCache();
         clearClubTeamCache();
@@ -828,13 +799,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Coverage restored: re-run the health check so a session that could not be
-    // verified while offline recovers without waiting for the next resume.
-    const unsubscribeOnline = onlineManager.subscribe(() => {
-      if (onlineManager.isOnline()) recoverSession('reconnect');
-    });
-
-
     // Native apps: also listen for Capacitor App resume event
     // This fires more reliably than visibilitychange on Android
     let resumeListener: { remove: () => Promise<void> } | null = null;
@@ -863,15 +827,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const nowSec = Math.floor(Date.now() / 1000);
         // Refresh when <2 min remaining.
         if (expiresAt - nowSec < 120) {
-          refreshSessionOnce(12000).catch(() => { /* ignore — recovery path will pick up */ });
+          supabase.auth.refreshSession().catch(() => { /* ignore — recovery path will pick up */ });
         }
       }).catch(() => {});
     }, 4 * 60 * 1000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      unsubscribeOnline();
-
       resumeListener?.remove().catch(() => {});
       window.clearInterval(heartbeat);
     };
@@ -954,12 +916,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
           
-          // Browser-level notifications are intentionally NOT fired here.
-          // Push delivery is native-only (FCM/APNs via the Capacitor app); web
-          // push is disabled. Firing showBrowserNotification from an open tab
-          // produced Chrome-branded "igniteclubhq.app" alerts duplicating the
-          // native app's notifications. In-app UI (bell + toasts) covers the
-          // browser case.
+          // Only show browser notification if push notifications are NOT active.
+          // Push (web SW or native FCM) already displays the notification —
+          // firing showBrowserNotification here too causes duplicates.
+          const pushActive = isNativePlatform() ||
+            (typeof Notification !== 'undefined' && Notification.permission === 'granted' &&
+             'serviceWorker' in navigator && navigator.serviceWorker.controller);
+          
+          if (!pushActive) {
+            const message = (payload.new as any)?.message || 'You have a new notification';
+            showBrowserNotification('Ignite', message, () => {
+              window.location.href = '/notifications';
+            });
+          }
         }
       )
       .on(

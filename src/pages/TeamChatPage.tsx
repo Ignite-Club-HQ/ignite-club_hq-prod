@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect, lazy, Suspense } from "react";
-import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
 import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
 import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
-import { findLocalReplyMessage } from "@/lib/chatRealtimeReply";
-import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
+import { useChatComposerController } from "@/hooks/useChatComposerController";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
-import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
 
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { ChatThreadSponsorStrip } from "@/components/chat/ChatThreadSponsorStrip";
@@ -21,7 +18,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Search, UserPlus, ChevronRight } from "lucide-react";
+import { ArrowLeft, Send, Loader2, UserPlus, ChevronRight } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
@@ -33,14 +30,14 @@ import { markChatOpened } from "@/hooks/useChatCatchUp";
 import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
-import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
+import { ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
-const AddTeamMemberSheet = lazyWithRetry(() => import("@/components/AddTeamMemberSheet"));
+const AddTeamMemberSheet = lazy(() => import("@/components/AddTeamMemberSheet"));
 import AddRoleToMemberDialog from "@/components/AddRoleToMemberDialog";
 import MemberDetailSheet from "@/components/MemberDetailSheet";
 import { Button } from "@/components/ui/button";
@@ -68,15 +65,14 @@ import { usePinnedMessages } from "@/hooks/usePinnedMessages";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
+import { ChatPageFrame } from "@/components/chat/ChatPageFrame";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
-import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
-import { NewsAttachmentPreview } from "@/components/chat/NewsAttachmentPreview";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -93,12 +89,18 @@ import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   isTombstoned,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
+import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
+import { buildChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
+import { createSendTempId, splitPollMarkup, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
+import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -110,10 +112,18 @@ import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemov
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
-import { lazyWithRetry } from "@/lib/lazyWithRetry";
+import { buildChatScopeFilter, TEAM_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
+import {
+  mergeOlderChatMessagesChronologically,
+  orderChatMessagesChronologically,
+} from "@/features/messaging/thread/chatMessageOrdering";
+import { selectHistoryChatPlaceholderSource } from "@/features/messaging/thread/chatThreadCacheHydration";
 
 
 const MESSAGES_PER_PAGE = 30;
+const getTeamMessagesQueryKey = (teamId?: string) =>
+  [TEAM_CHAT_SCOPE.cachePrefix, teamId] as const;
 
 interface Message {
   id: string;
@@ -213,6 +223,7 @@ export default function TeamChatPage() {
     return () => noteChatUnmount("TeamChat", k, null);
   }, []);
   const { teamId } = useParams<{ teamId: string }>();
+  const teamMessagesQueryKey = useMemo(() => getTeamMessagesQueryKey(teamId), [teamId]);
   const { user, profile, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
   const notificationNudge = useNotificationNudge(user?.id, "chat");
   const swipeBack = useSwipeBack();
@@ -229,24 +240,34 @@ export default function TeamChatPage() {
   );
   const mountTsRef = useRef<number>(Date.now());
   const perfLoggedRef = useRef<boolean>(false);
-  const [message, setMessage, clearDraft] = useChatDraft(teamId);
+  const {
+    text: message,
+    setText: setMessage,
+    clearDraft,
+    imageUrl,
+    setImageUrl,
+    replyingTo,
+    setReplyingTo,
+    editingMessage,
+    pendingPollId,
+    setPendingPollId,
+    canSend,
+    beginEdit,
+    cancelEdit,
+    finishEdit,
+    buildSubmission,
+    resetAfterSend,
+    restoreAfterFailedSend,
+  } = useChatComposerController<{ id: string; text: string; authorName: string | null }>(teamId);
   // Gate non-critical chat-page queries (pinned, vault, club-pro, online count)
   // until after first paint + idle so they don't compete with the messages
   // fetch and visual-settle window on notification opens.
   const chatReady = useChatPageReady();
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useChatDraftReply<{ id: string; text: string; authorName: string | null }>(teamId);
-  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
-  const [newsPickerOpen, setNewsPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
-  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
-  const [pendingNewsId, setPendingNewsId] = useState<string | null>(null);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget | null = teamId
-    ? { chat_type: "team", team_id: teamId }
-    : null;
+  const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("team", teamId);
   const [selectedMember, setSelectedMember] = useState<{ userId: string; displayName: string; avatarUrl?: string | null; roles: { id: string; role: string }[] } | null>(null);
   const [addRoleMember, setAddRoleMember] = useState<{ userId: string; userName: string; existingRoles: string[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -350,12 +371,12 @@ export default function TeamChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId, targetJumpNonce]);
+  }, [targetMessageId, targetParentId, targetJumpNonce, queryClient, teamMessagesQueryKey]);
 
   // Pinned messages
   const {
@@ -557,10 +578,10 @@ export default function TeamChatPage() {
     }
 
     toast.success("Role removed");
-    queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
     queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
     setSelectedMember(null);
-  }, [teamId, queryClient]);
+  }, [teamId, queryClient, teamMessagesQueryKey]);
 
   const handleRemoveSelectedMemberFromTeam = useCallback(async () => {
     if (!teamId || !selectedMember) return;
@@ -579,11 +600,11 @@ export default function TeamChatPage() {
     }
 
     toast.success("Member removed from team");
-    queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+    queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
     queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
     queryClient.invalidateQueries({ queryKey: ["authorized-scopes"] });
     setSelectedMember(null);
-  }, [teamId, selectedMember, queryClient]);
+  }, [teamId, selectedMember, queryClient, teamMessagesQueryKey]);
 
   // Force a fresh fetch whenever we land on this team chat. Push notifications
   // and inbox taps can land here while react-query still has stale data —
@@ -594,7 +615,7 @@ export default function TeamChatPage() {
   const invalidateGateTeam = eagerInvalidateTeam ? !!user?.id : authReady;
   useEffect(() => {
     if (!teamId || !invalidateGateTeam) return;
-    const key = ["team-messages", teamId];
+    const key = teamMessagesQueryKey;
     if (shouldSkipChatMountInvalidate(queryClient, key, `team:${teamId}`)) return;
     let cancelled = false;
     (async () => {
@@ -603,10 +624,10 @@ export default function TeamChatPage() {
       queryClient.invalidateQueries({ queryKey: key });
     })();
     return () => { cancelled = true; };
-  }, [teamId, invalidateGateTeam, queryClient, eagerInvalidateTeam]);
+  }, [teamId, invalidateGateTeam, queryClient, eagerInvalidateTeam, teamMessagesQueryKey]);
 
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({
-    queryKey: ["team-messages", teamId],
+    queryKey: teamMessagesQueryKey,
     queryFn: async () => {
       markChatFetch();
       // If offline, return cached messages using the React Query online manager
@@ -659,7 +680,7 @@ export default function TeamChatPage() {
       const authorIds = [...new Set(messagesToDisplay.map((m) => m.author_id))];
 
       // Preserve cached reactions when the reactions query fails transiently.
-      const cachedQueryData = queryClient.getQueryData(["team-messages", teamId]) as
+      const cachedQueryData = queryClient.getQueryData(teamMessagesQueryKey) as
         | { messages?: Message[] }
         | Message[]
         | undefined;
@@ -776,16 +797,6 @@ export default function TeamChatPage() {
       // it actually contains a meaningful history window — otherwise a
       // single preloaded row replaces `prev` and the user sees one message
       // floating at the top of an empty viewport until the real fetch lands.
-      if (openedFromNotificationRef.current) {
-        const cachedMessages = getCachedTeamMessages(teamId);
-        // Require a meaningful history window (>=5). The notification preload
-        // writes a SINGLE message into cache before the chat mounts — using
-        // that as placeholder strands the user with one message at the top.
-        const cachedHasHistory = cachedMessages.length >= 5;
-        if (cachedHasHistory) {
-          return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
-        }
-      }
       // SECURITY (cross-team bleed): `prev` is whatever THIS hook instance last
       // rendered. If the route param changed without a remount it is the
       // PREVIOUS team's message list — returning it verbatim renders team A's
@@ -796,11 +807,14 @@ export default function TeamChatPage() {
         Array.isArray(prev.messages) &&
         prev.messages.length > 0 &&
         prev.messages.every((m: any) => belongsToTeam(m, teamId));
-      if (prevBelongsToThisTeam) return prev;
-
-
       const cachedMessages = getCachedTeamMessages(teamId);
-      if (cachedMessages.length < 2) return undefined;
+      const placeholderSource = selectHistoryChatPlaceholderSource({
+        hasPrevious: prevBelongsToThisTeam,
+        cachedMessageCount: cachedMessages.length,
+        openedFromNotification: !!openedFromNotificationRef.current,
+      });
+      if (placeholderSource === "previous") return prev;
+      if (placeholderSource === "none") return undefined;
 
       return { messages: cachedMessages, hasOlderMessages: cachedMessages.length >= MESSAGES_PER_PAGE, fromCache: true };
     },
@@ -808,19 +822,15 @@ export default function TeamChatPage() {
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `team:${teamId ?? "none"}`;
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
-    const msgList = Array.isArray(messagesData)
-      ? messagesData
-      : (messagesData as any).messages || [];
+    const msgList = extractChatQueryMessages<Message>(messagesData);
     // SECURITY (cross-team bleed): last line of defence before render.
-    const scoped = (msgList as any[]).filter((m) => belongsToTeam(m, teamId));
-    // Sort by created_at to ensure proper ordering
-    const sorted = [...scoped].sort((a, b) => 
-      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
-    );
+    const scoped = msgList.filter((message) => belongsToTeam(message, teamId));
+    const sorted = orderChatMessagesChronologically(scoped);
     // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
     // after a realtime UPDATE must never restore pre-edit text or resurrect a
     // deleted row.
@@ -839,21 +849,17 @@ export default function TeamChatPage() {
   });
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
-  const reactionQueryKey = useMemo(() => ["team-messages", teamId], [teamId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
     // Scope guard: message_reactions realtime events are unfiltered platform-wide.
     getLocalMessages: () => localMessagesRef.current,
-    queryKey: reactionQueryKey,
+    queryKey: teamMessagesQueryKey,
     setLocalMessages,
   });
   const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
-  const showLoadingRaw =
+  const showLoading =
     (!authReady && !hasMeaningfulLocal) ||
     (loadingMessages && !messagesData && !hasMeaningfulLocal);
-  // Latched: once this thread has painted, a transient local-cache reseed or a
-  // realtime-driven refetch must not re-raise the skeleton.
-  const showLoading = useChatLoadingLatch(showLoadingRaw, teamId);
 
   // Defer banner mounts until each banner's data has resolved. Banners
   // (notification nudge, pinned vault, pinned messages) resolve from async
@@ -919,7 +925,7 @@ export default function TeamChatPage() {
       return;
     }
 
-    const cachedQueryData = queryClient.getQueryData(["team-messages", teamId]) as
+    const cachedQueryData = queryClient.getQueryData(teamMessagesQueryKey) as
       | { messages?: Message[] }
       | Message[]
       | undefined;
@@ -939,11 +945,7 @@ export default function TeamChatPage() {
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
 
-    return () => {
-      // Tombstones/patches are per-thread; drop them when leaving the thread.
-      clearReconciliationScope(`team:${teamId}`);
-    };
-  }, [teamId, queryClient, reconcileScope]);
+  }, [teamId, queryClient, reconcileScope, teamMessagesQueryKey]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
   // gate on as soon as we have any messages so older-page loads can begin.
@@ -959,9 +961,9 @@ export default function TeamChatPage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
-    await queryClient.refetchQueries({ queryKey: ["team-messages", teamId], type: "active" });
-  }, [queryClient, teamId]);
+    await queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
+    await queryClient.refetchQueries({ queryKey: teamMessagesQueryKey, type: "active" });
+  }, [queryClient, teamMessagesQueryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
@@ -1076,9 +1078,9 @@ export default function TeamChatPage() {
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("team", teamId, fetchedCount)) {
       console.log("[TeamChat] Messages unexpectedly 0, triggering refetch");
-      queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+      queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
     }
-  }, [teamId, authReady, messages, loadingMessages, isFetching, queryClient]);
+  }, [teamId, authReady, messages, loadingMessages, isFetching, queryClient, teamMessagesQueryKey]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
@@ -1091,14 +1093,14 @@ export default function TeamChatPage() {
         if (timeSinceLastRefresh > 30000) {
           console.log("[TeamChat] App became visible, refreshing messages");
           lastRefresh = Date.now();
-          await queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+          await queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [teamId, authReady, queryClient]);
+  }, [teamId, authReady, queryClient, teamMessagesQueryKey]);
 
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
@@ -1247,20 +1249,16 @@ export default function TeamChatPage() {
       // in the same task, so the user never sees the intermediate state.
       // Functional merge keyed by message id — never replace the collection.
       const mergeOlder = (existing: Message[] | undefined): Message[] => {
-        const byId = new Map<string, Message>();
-        olderMessages.forEach((m) => byId.set(m.id, m));
-        (existing || []).forEach((m) => byId.set(m.id, m)); // current state wins on boundary duplicates
-        const sorted = [...byId.values()].sort(
-          (a, b) =>
-            (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) ||
-            a.id.localeCompare(b.id),
+        const sorted = mergeOlderChatMessagesChronologically(
+          olderMessages,
+          existing,
         );
         // An UPDATE received while this page was in flight must survive.
         return (reconcileMessages(reconcileScope, sorted) ?? []) as Message[];
       };
 
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
+        queryClient.setQueryData(teamMessagesQueryKey, (old: any) => ({
           ...(old || {}),
           messages: mergeOlder(old?.messages as Message[] | undefined),
           hasOlderMessages: hasMore,
@@ -1276,7 +1274,7 @@ export default function TeamChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
+  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope, teamMessagesQueryKey]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1324,15 +1322,9 @@ export default function TeamChatPage() {
         (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
       );
 
-      // Only force a scroller remount when the target row was NOT already
-      // rendered. Bumping the nonce unconditionally remounts the virtualized
-      // list over already-painted content — the "messages → blank → skeleton →
-      // messages" flash. When the row is present, the merged window updates in
-      // place and the existing jump/align path handles positioning.
-      const targetAlreadyRendered = (localMessagesRef.current || []).some((m) => m.id === targetMessageId);
       setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as Message[]);
       setHasOlderMessages(windowRows.length >= 13);
-      if (!targetAlreadyRendered) setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
+      setJumpRenderNonce(`${targetJumpNonce ?? "jump"}:${Date.now()}`);
     };
 
     void hydrateTargetWindow();
@@ -1348,10 +1340,10 @@ export default function TeamChatPage() {
   useEffect(() => {
     if (!teamId || teamRealtimeMode !== "polling") return;
     const id = window.setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+      queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
     }, teamPollIntervalMs);
     return () => window.clearInterval(id);
-  }, [teamId, teamRealtimeMode, teamPollIntervalMs, queryClient]);
+  }, [teamId, teamRealtimeMode, teamPollIntervalMs, queryClient, teamMessagesQueryKey]);
 
   useEffect(() => {
     if (!teamId) return;
@@ -1378,14 +1370,9 @@ export default function TeamChatPage() {
           // Get cached profile synchronously (instant, non-blocking)
           const { cached: cachedProfiles } = getProfilesFromCache([newMsg.author_id]);
           const cachedProfile = cachedProfiles.get(newMsg.author_id);
-          const currentMessages = queryClient.getQueryData<{ messages: Message[] }>(["team-messages", teamId])?.messages;
-          const localReplyMessage = findLocalReplyMessage(currentMessages, newMsg.reply_to_id);
-          const localReply = localReplyMessage
-            ? { text: localReplyMessage.text, profiles: localReplyMessage.profiles }
-            : null;
           
           // IMMEDIATELY update cache with message (don't wait for profile fetch)
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+          queryClient.setQueryData(teamMessagesQueryKey, (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
             
             // Check if message already exists with real ID
@@ -1403,7 +1390,7 @@ export default function TeamChatPage() {
                 ? { display_name: cachedProfile.display_name, avatar_url: cachedProfile.avatar_url }
                 : null,
               reactions: [],
-              reply_to: localReply,
+              reply_to: null,
             };
             
             if (tempIndex !== -1) {
@@ -1428,7 +1415,7 @@ export default function TeamChatPage() {
           
           // Asynchronously fetch profile and reply_to data if needed, then update
           const needsProfileFetch = !cachedProfile;
-          const needsReplyFetch = !!newMsg.reply_to_id && !localReplyMessage;
+          const needsReplyFetch = !!newMsg.reply_to_id;
           
           if (needsProfileFetch || needsReplyFetch) {
             Promise.all([
@@ -1444,7 +1431,7 @@ export default function TeamChatPage() {
                 : Promise.resolve({ data: null }),
             ]).then(([profileData, replyToResult]) => {
               // Update the message with fetched data
-              queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+              queryClient.setQueryData(teamMessagesQueryKey, (old: any) => {
                 const existingMessages: Message[] = old?.messages || [];
                 return {
                   ...(old || {}),
@@ -1483,10 +1470,9 @@ export default function TeamChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
-            ...(old || {}),
-            messages: removeMessage((old?.messages || []) as Message[], deletedId),
-          }));
+          queryClient.setQueryData(teamMessagesQueryKey, (old: any) =>
+            removeMessageFromQueryEnvelope<Message>(old, deletedId)
+          );
           setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
@@ -1508,20 +1494,18 @@ export default function TeamChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
-              ...(old || {}),
-              messages: removeMessage((old?.messages || []) as Message[], updated.id),
-            }));
+            queryClient.setQueryData(teamMessagesQueryKey, (old: any) =>
+              removeMessageFromQueryEnvelope<Message>(old, updated.id)
+            );
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
           }
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData(["team-messages", teamId], (old: any) => ({
-            ...(old || {}),
-            messages: applyMessageUpdate((old?.messages || []) as Message[], updated),
-          }));
+          queryClient.setQueryData(teamMessagesQueryKey, (old: any) =>
+            applyMessageUpdateToQueryEnvelope<Message>(old, updated)
+          );
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
@@ -1562,7 +1546,7 @@ export default function TeamChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`team-messages-${teamId}`);
     };
-  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [teamId, queryClient, teamRealtimeMode, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete, teamMessagesQueryKey]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -1580,28 +1564,12 @@ export default function TeamChatPage() {
     });
   }, []);
 
-  const queryKeyMemo = useMemo(() => ["team-messages", teamId!], [teamId]);
-
-  // Vault mirroring runs ONLY for confirmed-delivered messages (see
-  // `chatSendResult`). Fire-and-forget: a Vault failure must never turn a
-  // delivered chat message into a failed send.
   const clubIdForVault = team?.club_id ?? null;
-  const syncSendToVault = useCallback(
-    (vars: { text: string; image_url: string | null }) => {
-      if (!user || !clubIdForVault || !teamId) return;
-      if (!vars.image_url && !vars.text) return;
-      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-        syncChatAttachmentToVault({
-          imageUrl: vars.image_url,
-          text: vars.text,
-          userId: user.id,
-          clubId: clubIdForVault,
-          teamId,
-        }).catch((err) => console.warn("Team chat vault sync failed", err));
-      });
-    },
-    [user, clubIdForVault, teamId],
-  );
+  const syncSendToVault = useChatVaultDeliverySync({
+    userId: user?.id,
+    scope: clubIdForVault && teamId ? { clubId: clubIdForVault, teamId } : null,
+    surfaceLabel: "Team chat",
+  });
 
   const sendMessageMutation = useMutation({
     mutationFn: async ({ text, image_url, reply_to_id }: { text: string; image_url: string | null; reply_to_id: string | null }) => {
@@ -1634,7 +1602,7 @@ export default function TeamChatPage() {
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
 
-      await queryClient.cancelQueries({ queryKey: ["team-messages", teamId] });
+      await queryClient.cancelQueries({ queryKey: teamMessagesQueryKey });
 
       // Mutation-specific temp id so overlapping sends can be rolled back
       // independently (Date.now() alone collides on rapid double-sends).
@@ -1661,7 +1629,7 @@ export default function TeamChatPage() {
       };
 
       // Update query cache directly (this will sync to localMessages via useEffect)
-      queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+      queryClient.setQueryData(teamMessagesQueryKey, (old: any) => {
         const existingMessages: Message[] = old?.messages || [];
         return {
           ...(old || {}),
@@ -1669,20 +1637,8 @@ export default function TeamChatPage() {
         };
       });
 
-      // Append to local render state in the SAME batch as the composer clear
-      // below. React Query notifies subscribers on a setTimeout(0), so relying
-      // on the cache→localMessages sync alone lands the new row a task AFTER
-      // the composer has collapsed: frame 1 the thread drops with the
-      // composer, frame 2 it rises for the row — the post-send "shake". The
-      // later cache sync dedupes by id, so this never double-renders.
-      setLocalMessages((prev) => (prev && !prev.some((m) => m.id === tempId) ? [...prev, optimisticMessage] : prev));
-
       // Clear input immediately
-      setMessage("");
-      setImageUrl(null);
-      setReplyingTo(null);
-      setPendingPollId(null);
-      setPendingNewsId(null);
+      resetAfterSend();
       
       // Scroll to bottom to show new message — force=true bypasses the
       // "user is touching viewport" guard, which can spuriously cancel the
@@ -1706,10 +1662,10 @@ export default function TeamChatPage() {
 
       // If the insert actually landed and arrived via realtime, treat it as a
       // success: no failure toast and no draft restoration.
-      const current = queryClient.getQueryData<{ messages: Message[] }>(["team-messages", teamId]);
+      const current = queryClient.getQueryData<{ messages: Message[] }>(teamMessagesQueryKey);
       if (authoritativeMessageExists(current?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         // Errored request, confirmed delivery: same Vault handling as success.
-        syncSendToVault(variables);
+        syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
         return;
       }
 
@@ -1718,7 +1674,7 @@ export default function TeamChatPage() {
         // Remove ONLY this mutation's optimistic row, regardless of whether a
         // previous cache snapshot existed. Never restore a whole snapshot —
         // that would discard newer realtime rows / concurrent optimistic sends.
-        queryClient.setQueryData(["team-messages", teamId], (old: any) => {
+        queryClient.setQueryData(teamMessagesQueryKey, (old: any) => {
           if (!old) return old;
           const existingMessages: Message[] = old?.messages || [];
           return { ...old, messages: existingMessages.filter((m) => m.id !== tempId) };
@@ -1727,20 +1683,14 @@ export default function TeamChatPage() {
       }
 
       // Restore each composer field only when its slot is still empty.
-      restoreFailedSendComposer({
-        context,
-        setText: setMessage,
-        setImage: setImageUrl,
-        setReply: setReplyingTo,
-        setPoll: setPendingPollId,
-      });
+      restoreAfterFailedSend(context);
 
       console.error("Failed to send team message", err);
       toast.error("Failed to send message");
     },
 
     onSuccess: (result, variables) => {
-      if (isConfirmedDelivery(result)) syncSendToVault(variables);
+      if (isConfirmedDelivery(result)) syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
     },
 
     onSettled: (_, __, variables) => {
@@ -1762,54 +1712,42 @@ export default function TeamChatPage() {
 
   const updateMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!editingMessage) return;
-      const { error } = await supabase.from("team_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      const edit = buildChatMessageEdit(editingMessage, message);
+      if (!edit) return;
+      const { error } = await supabase.from("team_messages").update({ text: edit.text }).eq("id", edit.messageId);
       if (error) throw error;
     },
     onSuccess: () => {
-      setMessage("");
-      setEditingMessage(null);
-      queryClient.invalidateQueries({ queryKey: queryKeyMemo });
+      finishEdit();
+      queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
       // silent success
     },
     onError: () => toast.error("Failed to update message"),
   });
 
   const handleSend = () => {
-    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
-    // Keep the composer focused through the tap. NEVER blur-to-flush the IME
-    // here: on Android a blur → refocus round-trip fires a real
-    // keyboardWillHide/keyboardWillShow pair, which collapses and restores
-    // the chat viewport (composer drops to the bottom nav, thread grows,
-    // then snaps back) — the post-send "thread jumps up and back". Composer
-    // state already mirrors every IME composition update, so reading it
-    // directly sends exactly what the user sees. See src/lib/chatComposerFocus.ts.
     keepComposerFocusedThroughSend(composerRef.current);
 
-    if (!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId) return;
+    if (!canSend) return;
     if (!user?.id || !teamId) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
-    const baseText = message.trim();
-    let finalText = pendingPollId
-      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-      : baseText;
-    if (pendingNewsId) {
-      finalText = finalText ? `${finalText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`;
-    }
+    const submission = buildSubmission();
     const hadImage = !!imageUrl;
-    sendMessageMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
+    sendMessageMutation.mutate({
+      text: submission.text,
+      image_url: submission.imageUrl,
+      reply_to_id: submission.replyToId,
+    });
     if (hadImage) nudgeGalleryAfterSend();
   };
 
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
-    setEditingMessage(msg);
-    setMessage(msg.text);
-    setReplyingTo(null);
-  }, []);
+    beginEdit(msg);
+  }, [beginEdit]);
 
   const {
     publishingIds,
@@ -1826,9 +1764,8 @@ export default function TeamChatPage() {
   });
 
   const handleCancelEdit = useCallback(() => {
-    setEditingMessage(null);
-    setMessage("");
-  }, []);
+    cancelEdit();
+  }, [cancelEdit]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1848,8 +1785,8 @@ export default function TeamChatPage() {
     cacheKey: `team:${teamId ?? ""}`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "team_messages",
-        scope: { team_id: teamId! },
+        table: TEAM_CHAT_SCOPE.messageTable,
+        scope: buildChatScopeFilter(TEAM_CHAT_SCOPE, teamId),
         query: q,
         signal,
         selectColumns:
@@ -1965,7 +1902,7 @@ export default function TeamChatPage() {
 
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
+    <ChatPageFrame height={chatHeight} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
       <ChatHeaderShell
         type="team"
@@ -1973,14 +1910,9 @@ export default function TeamChatPage() {
         sublabel={teamHeaderSublabel}
         avatarUrl={team.logo_url || team.clubs?.logo_url}
         onOpenDetails={() => setMembersOpen(true)}
-        leftSlot={
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
-        }
+        search={{ onSearch: setSearchQuery, isOpen: searchOpen, onOpenChange: setSearchOpen, isSearching: isSearchFetching }}
         rightSlot={
           <>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)} aria-label="Search messages">
-              <Search className="h-4 w-4" />
-            </Button>
             {isAdmin && (
               <Button
                 variant="ghost"
@@ -2171,7 +2103,7 @@ export default function TeamChatPage() {
                       reactions={msg.reactions}
                       currentUserId={user?.id}
                       messageType="team"
-                      queryKey={queryKeyMemo}
+                      queryKey={teamMessagesQueryKey}
                       replyToMessage={
                         msg.reply_to
                           ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
@@ -2229,23 +2161,12 @@ export default function TeamChatPage() {
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <ChatComposerShell
           preview={
-            (pendingPollId || pendingNewsId) && !editingMessage ? (
-              <div className="space-y-1.5">
-                {pendingPollId && (
-                  <PollAttachmentPreview
-                    pollId={pendingPollId}
-                    onRemove={() => setPendingPollId(null)}
-                    disabled={sendMessageMutation.isPending}
-                  />
-                )}
-                {pendingNewsId && (
-                  <NewsAttachmentPreview
-                    newsId={pendingNewsId}
-                    onRemove={() => setPendingNewsId(null)}
-                    disabled={sendMessageMutation.isPending}
-                  />
-                )}
-              </div>
+            pendingPollId && !editingMessage ? (
+              <PollAttachmentPreview
+                pollId={pendingPollId}
+                onRemove={() => setPendingPollId(null)}
+                disabled={sendMessageMutation.isPending}
+              />
             ) : undefined
           }
         >
@@ -2257,8 +2178,6 @@ export default function TeamChatPage() {
             teamId={teamId}
             showEventPicker={true}
             onEventSelect={() => setEventPickerOpen(true)}
-            showNewsPicker={!!(team?.club_id)}
-            onNewsSelect={() => setNewsPickerOpen(true)}
             showPollCreator={true}
             onPollCreate={() => setPollDialogOpen(true)}
             showBoardPicker={true}
@@ -2288,9 +2207,9 @@ export default function TeamChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId}
+            disabled={!canSend}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!imageUrl || !!pendingPollId || !!pendingNewsId}
+            canSend={canSend}
           />
         </ChatComposerShell>
         {scheduleTarget && (
@@ -2300,11 +2219,11 @@ export default function TeamChatPage() {
             target={scheduleTarget}
             initialText={message}
             initialImageUrl={imageUrl}
-            onScheduled={() => {
-              setMessage("");
-              setImageUrl(null);
-              clearDraft?.();
-            }}
+            onScheduled={() => resetChatComposerAfterSchedule({
+              setComposerText: setMessage,
+              setImageUrl,
+              clearDraft,
+            })}
           />
         )}
         <EventPickerSheet
@@ -2316,12 +2235,6 @@ export default function TeamChatPage() {
           }}
           teamId={teamId}
           clubId={team?.club_id}
-        />
-        <NewsPickerSheet
-          open={newsPickerOpen}
-          onOpenChange={setNewsPickerOpen}
-          clubId={team?.club_id}
-          onSelectNews={(newsId) => setPendingNewsId(newsId)}
         />
         <BoardPickerSheet
           open={boardPickerOpen}
@@ -2378,12 +2291,12 @@ export default function TeamChatPage() {
           onOpenChange={(open) => {
             if (!open) {
               setAddRoleMember(null);
-              queryClient.invalidateQueries({ queryKey: ["team-messages", teamId] });
+              queryClient.invalidateQueries({ queryKey: teamMessagesQueryKey });
               queryClient.invalidateQueries({ queryKey: ["chat-members", "team", teamId] });
             }
           }}
         />
       )}
-    </div>
+    </ChatPageFrame>
   );
 }

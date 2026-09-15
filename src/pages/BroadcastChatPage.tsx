@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
+import { useChatComposerController } from "@/hooks/useChatComposerController";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
@@ -12,14 +12,14 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, Flame, Search, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Flame, CalendarPlus } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { PageLoading } from "@/components/ui/page-loading";
 import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
 import { ChatHeaderMenu } from "@/components/chat/ChatHeaderMenu";
 import { jumpToMessageInVirtualizedChat } from "@/lib/jumpToMessage";
-import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
+import { ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
@@ -36,6 +36,7 @@ import { format, parseISO, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
+import { ChatPageFrame } from "@/components/chat/ChatPageFrame";
 import { ChatImageInput } from "@/components/chat/ChatImageInput";
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EditingBanner } from "@/components/chat/EditingBanner";
@@ -48,7 +49,12 @@ import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
-import { BroadcastAudienceSelector } from "@/components/chat/BroadcastAudienceSelector";
+import { BROADCAST_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
+import {
+  orderChatMessagesChronologically,
+  prependStrictlyOlderChatMessages,
+} from "@/features/messaging/thread/chatMessageOrdering";
 
 const BROADCAST_CHAT_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -58,11 +64,15 @@ import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   isTombstoned,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
+import { buildChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
+import { createSendTempId, splitPollMarkup, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 
 import { ChatEmptyState } from "@/components/chat/ChatEmptyState";
 
@@ -80,11 +90,10 @@ import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
-import { useClubTheme } from "@/hooks/useClubTheme";
-import { broadcastVisibleInClub, filterBroadcastsForClub } from "@/lib/broadcastClubScope";
 
 
 const MESSAGES_PER_PAGE = 30;
+const BROADCAST_MESSAGES_QUERY_KEY = [BROADCAST_CHAT_SCOPE.cachePrefix] as const;
 
 interface Message {
   id: string;
@@ -101,7 +110,6 @@ interface Message {
   reply_to?: {
     text: string;
   } | null;
-  target_club_ids?: string[] | null;
 }
 
 const getCachedBroadcastMessages = (): Message[] =>
@@ -118,9 +126,6 @@ const getCachedBroadcastMessages = (): Message[] =>
       reaction_type: reaction.reaction_type,
     })),
     reply_to: cachedMessage.reply_to ? { text: cachedMessage.reply_to.text } : null,
-    target_club_ids: Object.prototype.hasOwnProperty.call(cachedMessage, "target_club_ids")
-      ? (cachedMessage.target_club_ids as string[] | null)
-      : undefined,
   }));
 
 export default function BroadcastChatPage() {
@@ -135,23 +140,33 @@ export default function BroadcastChatPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  // Targeted announcements must only show while viewing a targeted club.
-  const { activeClubFilter } = useClubTheme();
   const authReady = !!user && initialized;
   const [searchParams] = useSearchParams();
-  const [message, setMessage, clearDraft] = useChatDraft("broadcast");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const {
+    text: message,
+    setText: setMessage,
+    clearDraft,
+    imageUrl,
+    setImageUrl,
+    replyingTo,
+    setReplyingTo,
+    editingMessage,
+    pendingPollId,
+    setPendingPollId,
+    canSend,
+    beginEdit,
+    cancelEdit,
+    finishEdit,
+    buildSubmission,
+    resetAfterSend,
+    restoreAfterFailedSend,
+  } = useChatComposerController("broadcast");
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget = { chat_type: "broadcast" };
+  const scheduleTarget: ScheduleTarget = buildChatScheduleTarget("broadcast");
   const { hasAccess: hasSchedulePro, isLoading: scheduleProLoading } = useScheduleProAccess(scheduleTarget);
-  const [replyingTo, setReplyingTo] = useChatDraftReply<{ id: string; text: string; authorName: string | null }>("broadcast");
-  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
-  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
-  // Empty = global announcement (stored as NULL target_club_ids).
-  const [targetClubIds, setTargetClubIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -218,7 +233,7 @@ export default function BroadcastChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
@@ -246,7 +261,7 @@ export default function BroadcastChatPage() {
   const invalidateGateBroadcast = eagerInvalidateBroadcast ? !!user?.id : authReady;
   useEffect(() => {
     if (!invalidateGateBroadcast) return;
-    const key = ["broadcast-messages"];
+    const key = BROADCAST_MESSAGES_QUERY_KEY;
     if (shouldSkipChatMountInvalidate(queryClient, key, "broadcast")) return;
     let cancelled = false;
     (async () => {
@@ -258,7 +273,7 @@ export default function BroadcastChatPage() {
   }, [invalidateGateBroadcast, queryClient, eagerInvalidateBroadcast]);
 
   const { data: messagesData, isLoading } = useQuery({
-    queryKey: ["broadcast-messages"],
+    queryKey: BROADCAST_MESSAGES_QUERY_KEY,
     queryFn: async () => {
       // If offline, return cached messages using the shared online manager
       // so native app resume does not incorrectly fall back to stale cache.
@@ -275,18 +290,15 @@ export default function BroadcastChatPage() {
         throw new Error("No cached messages available offline");
       }
 
-      const { data: rawMessagesAll, error } = await supabase
+      const { data: rawMessages, error } = await supabase
         .from("broadcast_messages")
-        .select("id, text, image_url, created_at, edited_at, author_id, reply_to_id, deleted_at, target_club_ids")
+        .select("id, text, image_url, created_at, edited_at, author_id, reply_to_id, deleted_at")
         .is("deleted_at", null) // Only fetch non-deleted messages
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PER_PAGE + 1);
 
       if (error) throw error;
-
-      // Drop announcements targeted at other clubs (app admins can read them all).
-      const rawMessages = filterBroadcastsForClub(rawMessagesAll as any[], activeClubFilter);
-
+      
       if (!rawMessages?.length) {
         return { messages: [] as Message[], hasOlderMessages: false };
       }
@@ -300,7 +312,7 @@ export default function BroadcastChatPage() {
         .map((m) => m.reply_to_id as string);
 
       // Preserve cached reactions when the reactions query fails transiently
-      const cachedQueryData = queryClient.getQueryData(["broadcast-messages"]) as any;
+      const cachedQueryData = queryClient.getQueryData(BROADCAST_MESSAGES_QUERY_KEY) as any;
       const cachedMessages: Message[] = Array.isArray(cachedQueryData)
         ? cachedQueryData
         : cachedQueryData?.messages || [];
@@ -343,7 +355,6 @@ export default function BroadcastChatPage() {
             ? cachedReactionsByMessage.get(msg.id) || []
             : reactionsResult.data?.filter((r) => r.broadcast_message_id === msg.id) || [],
           reply_to: replyTo,
-          target_club_ids: msg.target_club_ids ?? null,
         };
       }) as Message[];
 
@@ -355,7 +366,6 @@ export default function BroadcastChatPage() {
         created_at: m.created_at,
         image_url: m.image_url,
         reply_to_id: m.reply_to_id,
-         target_club_ids: m.target_club_ids ?? null,
         profiles: null,
         reactions: m.reactions,
         reply_to: m.reply_to,
@@ -381,33 +391,26 @@ export default function BroadcastChatPage() {
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   // Broadcast is a single global thread, so the scope is constant.
   const reconcileScope = "broadcast";
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
   // Extract messages and hasOlderMessages from query data
   const messages = useMemo(() => {
     if (!messagesData) return undefined;
-    const msgList = Array.isArray(messagesData) 
-      ? messagesData 
-      : (messagesData as any).messages || [];
-    // Sort by created_at to ensure proper ordering
-    const sorted = filterBroadcastsForClub(msgList as Message[], activeClubFilter).sort((a, b) => 
-      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
-    );
+    const msgList = extractChatQueryMessages<Message>(messagesData);
+    const sorted = orderChatMessagesChronologically(msgList);
     // Re-apply realtime edits/soft-deletes so a stale in-flight fetch cannot
     // restore pre-edit text or resurrect a deleted row.
     return reconcileMessages(reconcileScope, sorted) as Message[];
-  }, [messagesData, reconcileScope, activeClubFilter]);
+  }, [messagesData, reconcileScope]);
 
   // Local copy used for rendering so optimistic updates are instant
   const [localMessages, setLocalMessages] = useState<Message[] | undefined>(
     () => reconcileMessages(reconcileScope, getCachedBroadcastMessages()) as Message[],
   );
 
-  // Tombstones/patches are per-thread; drop them when leaving the chat.
-  useEffect(() => () => clearReconciliationScope(reconcileScope), [reconcileScope]);
- 
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
-  const reactionQueryKey = useMemo(() => ["broadcast-messages"], []);
+  const reactionQueryKey = useMemo(() => BROADCAST_MESSAGES_QUERY_KEY, []);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<Message>({
     scopeKey: reconcileScope,
     // Scope guard: message_reactions realtime events are unfiltered platform-wide.
@@ -421,7 +424,7 @@ export default function BroadcastChatPage() {
 
   // Android resume escape hatch: abort zombie GETs + re-issue the messages
   // query while the page is stuck on a skeleton.
-  useChatStuckWatchdog(showLoading, [["broadcast-messages"]], "broadcast-chat");
+  useChatStuckWatchdog(showLoading, [BROADCAST_MESSAGES_QUERY_KEY], "broadcast-chat");
 
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
@@ -438,7 +441,7 @@ export default function BroadcastChatPage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+    await queryClient.invalidateQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY });
   }, [queryClient]);
 
   const handleManualRefresh = useCallback(async () => {
@@ -515,7 +518,6 @@ export default function BroadcastChatPage() {
         created_at: m.created_at,
         image_url: m.image_url,
         reply_to_id: m.reply_to_id,
-        target_club_ids: m.target_club_ids,
         profiles: null,
         reactions: m.reactions,
         reply_to: m.reply_to,
@@ -532,7 +534,7 @@ export default function BroadcastChatPage() {
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("broadcast", "broadcast", fetchedCount)) {
       console.log("[BroadcastChat] Messages unexpectedly 0, triggering refetch");
-      queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+      queryClient.invalidateQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY });
     }
   }, [authReady, messages, isLoading, queryClient]);
 
@@ -547,7 +549,7 @@ export default function BroadcastChatPage() {
         if (timeSinceLastRefresh > 30000) {
           console.log("[BroadcastChat] App became visible, refreshing messages");
           lastRefresh = Date.now();
-          await queryClient.invalidateQueries({ queryKey: ["broadcast-messages"] });
+          await queryClient.invalidateQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY });
         }
       }
     };
@@ -590,7 +592,7 @@ export default function BroadcastChatPage() {
     try {
       const oldestMessage = currentMessages[0];
       
-      const { data: olderDataAll, error } = await supabase
+      const { data: olderData, error } = await supabase
         .from("broadcast_messages")
         .select("*")
         .is("deleted_at", null)
@@ -602,13 +604,13 @@ export default function BroadcastChatPage() {
       clearTimeout(timeoutId);
 
       if (error) throw error;
-      const hasMore = (olderDataAll?.length ?? 0) > MESSAGES_PER_PAGE;
-      const olderData = filterBroadcastsForClub(olderDataAll as any[], activeClubFilter);
-      setHasOlderMessages(hasMore);
-      if (!olderData.length) {
+      if (!olderData?.length) {
+        setHasOlderMessages(false);
         return;
       }
 
+      const hasMore = olderData.length > MESSAGES_PER_PAGE;
+      setHasOlderMessages(hasMore);
       const dataToUse = hasMore ? olderData.slice(0, MESSAGES_PER_PAGE) : olderData;
 
       // Reverse to get chronological order
@@ -657,11 +659,14 @@ export default function BroadcastChatPage() {
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+        queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
           const existingMessages: Message[] = old?.messages || [];
           return {
             ...(old || {}),
-            messages: [...olderMessages, ...existingMessages],
+            messages: prependStrictlyOlderChatMessages(
+              olderMessages,
+              existingMessages,
+            ),
             hasOlderMessages: hasMore,
           };
         });
@@ -672,7 +677,7 @@ export default function BroadcastChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope, activeClubFilter]);
+  }, [queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, reconcileScope]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -692,9 +697,7 @@ export default function BroadcastChatPage() {
         },
         async (payload) => {
           const newMsg = payload.new as any;
-          // Ignore announcements targeted at other clubs.
-          if (!broadcastVisibleInClub(newMsg?.target_club_ids ?? null, activeClubFilter)) return;
-
+          
           // Fetch reply_to data first if needed
           let replyToData = null;
           if (newMsg.reply_to_id) {
@@ -718,7 +721,7 @@ export default function BroadcastChatPage() {
           };
           
           // Single atomic update - handles both temp replacement and new message addition
-          queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+          queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
             const existingMessages: Message[] = old?.messages || [];
             
             // Check if message already exists with real ID
@@ -759,10 +762,9 @@ export default function BroadcastChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData(["broadcast-messages"], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            return { ...old, messages: removeMessage(existingMessages, deletedId) };
-          });
+          queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) =>
+            removeMessageFromQueryEnvelope<Message>(old, deletedId)
+          );
           setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
       )
@@ -781,20 +783,18 @@ export default function BroadcastChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData(["broadcast-messages"], (old: any) => {
-              const existingMessages: Message[] = old?.messages || [];
-              return { ...old, messages: removeMessage(existingMessages, updated.id) };
-            });
+            queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) =>
+              removeMessageFromQueryEnvelope<Message>(old, updated.id)
+            );
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
           }
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData(["broadcast-messages"], (old: any) => {
-            const existingMessages: Message[] = old?.messages || [];
-            return { ...old, messages: applyMessageUpdate(existingMessages, updated) };
-          });
+          queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) =>
+            applyMessageUpdateToQueryEnvelope<Message>(old, updated)
+          );
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
       )
@@ -835,7 +835,7 @@ export default function BroadcastChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved("broadcast-messages-realtime");
     };
-  }, [queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete, activeClubFilter]);
+  }, [queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -851,7 +851,7 @@ export default function BroadcastChatPage() {
     });
   }, [toast]);
 
-  const queryKeyMemo = useMemo(() => ["broadcast-messages"], []);
+  const queryKeyMemo = useMemo(() => BROADCAST_MESSAGES_QUERY_KEY, []);
 
   const formatTimestamp = useCallback((dateStr: string) => {
     return format(parseISO(dateStr), "MMM d, h:mm a");
@@ -878,12 +878,11 @@ export default function BroadcastChatPage() {
         author_id: user!.id,
         image_url,
         reply_to_id,
-        target_club_ids: targetClubIds.length > 0 ? targetClubIds : null,
       });
       if (error) throw error;
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
-      await queryClient.cancelQueries({ queryKey: ["broadcast-messages"] });
+      await queryClient.cancelQueries({ queryKey: BROADCAST_MESSAGES_QUERY_KEY });
 
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
@@ -900,11 +899,10 @@ export default function BroadcastChatPage() {
         created_at: new Date().toISOString(),
         reactions: [],
         reply_to: replyingTo ? { text: replyingTo.text } : null,
-        target_club_ids: targetClubIds.length > 0 ? [...targetClubIds] : null,
       };
 
       // Update query cache directly (this will sync to localMessages via useEffect)
-      queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+      queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
         const existingMessages: Message[] = old?.messages || [];
         return {
           ...(old || {}),
@@ -912,15 +910,8 @@ export default function BroadcastChatPage() {
         };
       });
 
-      // Same batch as the composer clear (cache→local sync is a task later and
-      // would step the thread down-then-up). Later sync dedupes by id.
-      setLocalMessages((prev) => (prev && !prev.some((m) => m.id === tempId) ? [...prev, optimisticMessage] : prev));
-
       // Clear input immediately
-      setMessage("");
-      setImageUrl(null);
-      setReplyingTo(null);
-      setPendingPollId(null);
+      resetAfterSend();
       
       // Scroll to bottom — force bypasses touch-guard so the post-send
       // re-pins still fire after composer reflow shrinks bottomPadding.
@@ -941,16 +932,15 @@ export default function BroadcastChatPage() {
         toast({ title: "Message queued - will send when online" });
         return;
       }
-
       // Succeeded-but-errored: the row already arrived via realtime.
-      const currentData = queryClient.getQueryData<{ messages: Message[] }>(["broadcast-messages"]);
+      const currentData = queryClient.getQueryData<{ messages: Message[] }>(BROADCAST_MESSAGES_QUERY_KEY);
       if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         return;
       }
 
       // Remove ONLY this mutation's optimistic row (no snapshot rollback).
       if (context?.tempId) {
-        queryClient.setQueryData(["broadcast-messages"], (old: any) => {
+        queryClient.setQueryData(BROADCAST_MESSAGES_QUERY_KEY, (old: any) => {
           if (!old) return old;
           const existingMessages: Message[] = old?.messages || [];
           return { ...old, messages: existingMessages.filter((m) => m.id !== context.tempId) };
@@ -958,13 +948,7 @@ export default function BroadcastChatPage() {
         setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
       }
 
-      restoreFailedSendComposer({
-        context,
-        setText: setMessage,
-        setImage: setImageUrl,
-        setReply: setReplyingTo,
-        setPoll: setPendingPollId,
-      });
+      restoreAfterFailedSend(context);
 
       console.error("Failed to send broadcast message", err);
       toast({
@@ -980,13 +964,13 @@ export default function BroadcastChatPage() {
 
   const updateMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!editingMessage) return;
-      const { error } = await supabase.from("broadcast_messages").update({ text: message.trim() }).eq("id", editingMessage.id);
+      const edit = buildChatMessageEdit(editingMessage, message);
+      if (!edit) return;
+      const { error } = await supabase.from("broadcast_messages").update({ text: edit.text }).eq("id", edit.messageId);
       if (error) throw error;
     },
     onSuccess: () => {
-      setMessage("");
-      setEditingMessage(null);
+      finishEdit();
       queryClient.invalidateQueries({ queryKey: queryKeyMemo });
       // silent success
     },
@@ -994,29 +978,27 @@ export default function BroadcastChatPage() {
   });
 
   const handleSend = () => {
-    if (!message.trim() && !imageUrl && !pendingPollId) return;
+    if (!canSend) return;
     try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
     if (editingMessage) {
       updateMessageMutation.mutate();
       return;
     }
-    const baseText = message.trim();
-    const finalText = pendingPollId
-      ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-      : baseText;
-    sendMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
+    const submission = buildSubmission();
+    sendMutation.mutate({
+      text: submission.text,
+      image_url: submission.imageUrl,
+      reply_to_id: submission.replyToId,
+    });
   };
 
   const handleEdit = useCallback((msg: { id: string; text: string }) => {
-    setEditingMessage(msg);
-    setMessage(msg.text);
-    setReplyingTo(null);
-  }, []);
+    beginEdit(msg);
+  }, [beginEdit]);
 
   const handleCancelEdit = useCallback(() => {
-    setEditingMessage(null);
-    setMessage("");
-  }, []);
+    cancelEdit();
+  }, [cancelEdit]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1033,27 +1015,25 @@ export default function BroadcastChatPage() {
     cacheKey: `broadcast`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "broadcast_messages",
+        table: BROADCAST_CHAT_SCOPE.messageTable,
         scope: {},
         query: q,
         signal,
-        selectColumns: "id, text, image_url, created_at, edited_at, author_id, reply_to_id, target_club_ids",
+        selectColumns: "id, text, image_url, created_at, edited_at, author_id, reply_to_id",
       })) as Message[],
   });
 
   const filteredMessages = useMemo(() => {
     if (!localMessages) return localMessages;
-    // Never render an announcement targeted at another club.
-    const clubScoped = filterBroadcastsForClub(localMessages, activeClubFilter);
     const base = !searchQuery.trim()
-      ? clubScoped
-      : clubScoped.filter((msg) =>
+      ? localMessages
+      : localMessages.filter((msg) =>
           fuzzyMatchesQuery(msg.text, searchQuery)
         );
     return [...base].sort(
       (a, b) => (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
     );
-  }, [localMessages, searchQuery, activeClubFilter]);
+  }, [localMessages, searchQuery]);
 
   const firstMatchId = searchQuery.trim() ? filteredMessages?.[0]?.id ?? null : null;
   const lastCenteredKeyRef = useRef<string | null>(null);
@@ -1116,21 +1096,16 @@ export default function BroadcastChatPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
+    <ChatPageFrame height={chatHeight} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
       <ChatHeaderShell
         type="broadcast"
         name="Announcements"
         sublabel="Official updates & news"
         onOpenDetails={() => setDetailsOpen(true)}
-        leftSlot={
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
-        }
+        search={{ onSearch: setSearchQuery, isOpen: searchOpen, onOpenChange: setSearchOpen, isSearching: isSearchFetching }}
         rightSlot={
           <>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-              <Search className="h-4 w-4" />
-            </Button>
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
@@ -1249,13 +1224,6 @@ export default function BroadcastChatPage() {
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
           <ScheduledMessagesBanner target={scheduleTarget} />
-          {!editingMessage && (
-            <BroadcastAudienceSelector
-              value={targetClubIds}
-              onChange={setTargetClubIds}
-              disabled={sendMutation.isPending}
-            />
-          )}
           <ChatComposerShell
             preview={
               pendingPollId && !editingMessage ? (
@@ -1297,9 +1265,9 @@ export default function BroadcastChatPage() {
                 handleSend();
               }}
               onSchedule={() => setScheduleDialogOpen(true)}
-              disabled={!message.trim() && !imageUrl && !pendingPollId}
+              disabled={!canSend}
               loading={sendMutation.isPending}
-              canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
+              canSend={canSend}
             />
           </ChatComposerShell>
           <ScheduleMessageDialog
@@ -1308,11 +1276,11 @@ export default function BroadcastChatPage() {
             target={scheduleTarget}
             initialText={message}
             initialImageUrl={imageUrl}
-            onScheduled={() => {
-              setMessage("");
-              setImageUrl(null);
-              clearDraft?.();
-            }}
+            onScheduled={() => resetChatComposerAfterSchedule({
+              setComposerText: setMessage,
+              setImageUrl,
+              clearDraft,
+            })}
           />
           <CreatePollDialog
             open={pollDialogOpen}
@@ -1332,6 +1300,6 @@ export default function BroadcastChatPage() {
         </div>
         </>
       )}
-    </div>
+    </ChatPageFrame>
   );
 }

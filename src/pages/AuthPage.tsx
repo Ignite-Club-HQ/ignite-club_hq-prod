@@ -1045,6 +1045,7 @@ export default function AuthPage() {
                 )}
                 <form
                   className={signupFormClassName}
+                  noValidate
                   onSubmit={(e) => {
                     e.preventDefault();
                     handleAuth("signup");

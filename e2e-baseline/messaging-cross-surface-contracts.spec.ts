@@ -259,7 +259,7 @@ test("messages inbox exposes the button that starts a new direct-message flow", 
   await newDm.click();
   const dmDialog = page.getByRole("dialog", { name: /New Message/ });
   await expect(dmDialog.getByRole("heading", { name: "New Message" })).toBeVisible();
-  await expect(dmDialog.getByText("Select one or more people")).toBeVisible();
+  await expect(dmDialog.getByText("Select one person", { exact: true })).toBeVisible();
 });
 
 test("an all-club-admin inbox preview opens the same non-blank message thread", async ({ page }) => {

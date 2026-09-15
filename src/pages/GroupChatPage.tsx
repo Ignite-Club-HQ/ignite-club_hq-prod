@@ -1,31 +1,34 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, lazy, Suspense } from "react";
-import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
 import { fuzzyMatchesQuery } from "@/lib/fuzzySearch";
-import { useChatDraft, useChatDraftReply } from "@/hooks/useChatDraft";
+import { useChatComposerController } from "@/hooks/useChatComposerController";
 import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { ChatMessagesScroller } from "@/components/chat/ChatMessagesScroller";
 import { debugLogEvent } from "@/components/chat/chatVirtDebug";
 import { shouldGroupWithPrev } from "@/lib/chatGrouping";
-import { findLocalReplyMessage } from "@/lib/chatRealtimeReply";
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
-import { reconcileFlatReactions, reconcileReactions } from "@/lib/chatReactionReconciliation";
+import { reconcileFlatReactions } from "@/lib/chatReactionReconciliation";
 import {
   recordRealtimeMutation,
   reconcileMessages,
   applyMessageUpdate,
+  applyMessageUpdateToQueryEnvelope,
   removeMessage,
+  removeMessageFromQueryEnvelope,
   isTombstoned,
-  clearReconciliationScope,
 } from "@/lib/chatMessageReconciliation";
-import { createSendTempId, splitPollMarkup, restoreFailedSendComposer, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
+import { useChatReconciliationScopeLifecycle } from "@/hooks/useChatReconciliationScopeLifecycle";
+import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
+import { buildChatMessageEdit } from "@/lib/chatComposerEdit";
+import { buildChatScheduleTarget, resetChatComposerAfterSchedule } from "@/lib/chatScheduleIntent";
+import { createSendTempId, splitPollMarkup, authoritativeMessageExists, findSupersededOptimisticIndex, type FailedSendContext } from "@/lib/failedSendRestore";
 import { deliveredSend, queuedSend, isConfirmedDelivery } from "@/lib/chatSendResult";
+import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 
 import type { VirtualizedChatMessageListHandle } from "@/components/chat/VirtualizedChatMessageList";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
-import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -37,9 +40,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { MentionInput } from "@/components/chat/MentionInput";
 import { ChatComposerShell } from "@/components/chat/ChatComposerShell";
-import { canPostInCompetitionChat, competitionChatSublabel } from "@/features/competitions/competitionChatScope";
-
-import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, Search, UserPlus, ChevronRight, Lock } from "lucide-react";
+import { ChatPageFrame } from "@/components/chat/ChatPageFrame";
+import { ArrowLeft, Send, MoreVertical, Pencil, Trash2, Reply, SmilePlus, Loader2, Clock, Users, UserPlus, ChevronRight, Lock } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { ChatHeaderShell } from "@/components/chat/ChatHeaderShell";
@@ -51,7 +53,7 @@ import { useAICatchUpAvailability } from "@/hooks/useAICatchUpAvailability";
 import { useUnreadMessageCounts } from "@/hooks/useUnreadMessageCounts";
 import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
-import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
+import { ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
 import { searchChatHistory } from "@/lib/searchChatHistory";
 import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
@@ -77,11 +79,9 @@ import { ChatImageInput } from "@/components/chat/ChatImageInput";
 // EmojiPicker is built into MentionInput
 import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { EventPickerSheet } from "@/components/chat/EventPickerSheet";
-import { NewsPickerSheet } from "@/components/chat/NewsPickerSheet";
 import { BoardPickerSheet } from "@/components/chat/BoardPickerSheet";
 import { CreatePollDialog } from "@/components/chat/CreatePollDialog";
 import { PollAttachmentPreview } from "@/components/chat/PollAttachmentPreview";
-import { NewsAttachmentPreview } from "@/components/chat/NewsAttachmentPreview";
 import { GroupChatMessageRow } from "@/components/chat/GroupChatMessageRow";
 import { usePublishChatImage } from "@/hooks/usePublishChatImage";
 import { useRecentMatchWindow } from "@/hooks/useRecentMatchWindow";
@@ -90,7 +90,6 @@ import { PinnedVaultBanner } from "@/components/chat/PinnedVaultBanner";
 import { PinVaultSheet } from "@/components/chat/PinVaultSheet";
 import { useChatPinnedVault } from "@/hooks/useChatPinnedVault";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
-import { useUserHasAnyClubPro } from "@/hooks/useUserHasAnyClubPro";
 import { useClubRealtimeMode } from "@/hooks/useClubRealtimeMode";
 import { ChatSendButton } from "@/components/chat/ChatSendButton";
 import { ScheduleMessageDialog } from "@/components/chat/ScheduleMessageDialog";
@@ -128,7 +127,7 @@ import { queueMessage, getQueuedMessagesForTarget } from "@/lib/messageQueue";
 import { Capacitor } from "@capacitor/core";
 import { useNotificationNudge } from "@/hooks/useNotificationNudge";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
-const AddMiniLeagueMemberSheet = lazyWithRetry(() => import("@/components/AddMiniLeagueMemberSheet").then(m => ({ default: m.AddMiniLeagueMemberSheet })));
+const AddMiniLeagueMemberSheet = lazy(() => import("@/components/AddMiniLeagueMemberSheet").then(m => ({ default: m.AddMiniLeagueMemberSheet })));
 import { noteChatMount, noteChatUnmount, noteChannelSubscribed, noteChannelRemoved } from "@/lib/chatPerfDiagnostics";
 import { registerChannel } from "@/lib/realtimeChannelRegistry";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
@@ -136,11 +135,19 @@ import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
 import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
-import { lazyWithRetry } from "@/lib/lazyWithRetry";
+import { buildChatScopeFilter, GROUP_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
+import { extractChatQueryMessages } from "@/features/messaging/thread/chatThreadQueryData";
+import {
+  mergeOlderChatMessagesChronologically,
+  orderChatMessagesChronologically,
+} from "@/features/messaging/thread/chatMessageOrdering";
+import { selectHistoryChatPlaceholderSource } from "@/features/messaging/thread/chatThreadCacheHydration";
 
 
 
 const REACTION_EMOJIS = ["👍", "❤️", "🔥", "👏", "😂", "😢"];
+const getGroupMessagesQueryKey = (groupId?: string) =>
+  [GROUP_CHAT_SCOPE.cachePrefix, groupId] as const;
 
 // Stable empty array reference so rows with no reactions don't bust
 // GroupChatMessageRow's memo on every parent render.
@@ -288,6 +295,7 @@ export default function GroupChatPage() {
     };
   }, []);
   const { groupId } = useParams<{ groupId: string }>();
+  const groupMessagesQueryKey = useMemo(() => getGroupMessagesQueryKey(groupId), [groupId]);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile, refreshUnreadCount, decrementUnreadCount, initialized } = useAuth();
@@ -300,21 +308,33 @@ export default function GroupChatPage() {
   );
   const mountTsRef = useRef<number>(Date.now());
   const perfLoggedRef = useRef<boolean>(false);
-  const [message, setMessage, clearDraft] = useChatDraft(groupId);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const {
+    text: message,
+    setText: setMessage,
+    clearDraft,
+    imageUrl,
+    setImageUrl,
+    replyingTo: replyTo,
+    setReplyingTo: setReplyTo,
+    editingMessage,
+    pendingPollId,
+    setPendingPollId,
+    canSend,
+    beginEdit,
+    cancelEdit,
+    finishEdit,
+    buildSubmission,
+    resetAfterSend,
+    restoreAfterFailedSend,
+  } = useChatComposerController<GroupMessage, GroupMessage>(groupId, {
+    clearReplyOnEdit: false,
+  });
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [miniLeagueInviteOpen, setMiniLeagueInviteOpen] = useState(false);
-  const scheduleTarget: ScheduleTarget | null = groupId
-    ? { chat_type: "group", group_id: groupId }
-    : null;
-  const [replyTo, setReplyTo] = useChatDraftReply<GroupMessage>(groupId);
-  const [editingMessage, setEditingMessage] = useState<GroupMessage | null>(null);
+  const scheduleTarget: ScheduleTarget | null = buildChatScheduleTarget("group", groupId);
   const [eventPickerOpen, setEventPickerOpen] = useState(false);
-  const [newsPickerOpen, setNewsPickerOpen] = useState(false);
   const [boardPickerOpen, setBoardPickerOpen] = useState(false);
   const [pollDialogOpen, setPollDialogOpen] = useState(false);
-  const [pendingPollId, setPendingPollId] = useState<string | null>(null);
-  const [pendingNewsId, setPendingNewsId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   // Persists the search text after the user taps a result so highlights
   // remain visible on the jumped-to message. Cleared when the highlight
@@ -428,12 +448,12 @@ export default function GroupChatPage() {
       setHighlightedMessageId,
       {
         tryLoadOlder: () => loadOlderMessagesRef.current?.(),
-        refetchLatest: () => queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] }),
+        refetchLatest: () => queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey }),
         parentMessageId: targetParentId ?? undefined,
       },
     );
     return cancel;
-  }, [targetMessageId, targetParentId, targetJumpNonce]);
+  }, [targetMessageId, targetParentId, targetJumpNonce, groupMessagesQueryKey, queryClient]);
 
   // Pinned messages
   const {
@@ -528,16 +548,8 @@ export default function GroupChatPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { hasPro: clubPro, isLoading: clubProLoading } = useClubProAccess(group?.club_id ?? null, { enabled: chatReady });
-  // Personal groups have no club_id, so the club lookup never resolves and the
-  // menu would show Pro locks to genuine Pro users. Fall back to the user's
-  // Pro access across any of their clubs in that case.
-  const { hasAnyClubPro, isLoading: anyProLoading } = useUserHasAnyClubPro();
-  const hasClubScope = !!group?.club_id;
-  const groupClubHasPro = hasClubScope ? clubPro : hasAnyClubPro;
-  const groupClubProLoading = hasClubScope ? clubProLoading : anyProLoading;
+  const { hasPro: groupClubHasPro, isLoading: groupClubProLoading } = useClubProAccess(group?.club_id ?? null, { enabled: chatReady });
   const pinnedVaultLocked = !groupClubProLoading && !groupClubHasPro;
-
 
   // Sync active club to this group's owning club so push-launched threads
   // don't leave the user inside the wrong club context.
@@ -598,7 +610,7 @@ export default function GroupChatPage() {
   const invalidateGate = eagerInvalidate ? !!user?.id : authReady;
   useEffect(() => {
     if (!groupId || !invalidateGate || !group) return;
-    const key = ["group-messages", groupId];
+    const key = groupMessagesQueryKey;
     if (shouldSkipChatMountInvalidate(queryClient, key, `group:${groupId}`)) return;
     let cancelled = false;
     (async () => {
@@ -607,7 +619,7 @@ export default function GroupChatPage() {
       queryClient.invalidateQueries({ queryKey: key });
     })();
     return () => { cancelled = true; };
-  }, [groupId, invalidateGate, group, queryClient, eagerInvalidate]);
+  }, [groupId, invalidateGate, group, queryClient, eagerInvalidate, groupMessagesQueryKey]);
 
   // Fetch messages with reactions - limit to MESSAGES_PER_PAGE for fast initial load
   const {
@@ -618,8 +630,7 @@ export default function GroupChatPage() {
     fetchStatus: messagesFetchStatus,
     refetch: refetchMessages,
   } = useQuery({
-    queryKey: ["group-messages", groupId],
-
+    queryKey: groupMessagesQueryKey,
     queryFn: async () => {
       markChatFetch();
       // If offline, return cached messages using the shared online manager
@@ -682,7 +693,7 @@ export default function GroupChatPage() {
       const authorIds = [...new Set(dataToDisplay.map((m) => m.author_id))];
 
       // Preserve cached reactions when the reactions query fails transiently
-      const cachedQueryData = queryClient.getQueryData(["group-messages", groupId]) as any;
+      const cachedQueryData = queryClient.getQueryData(groupMessagesQueryKey) as any;
       const cachedReactions: MessageReaction[] = cachedQueryData?.reactions || [];
       const cachedReactionsByMessage = new Map<string, MessageReaction[]>();
       cachedReactions.forEach((cr) => {
@@ -776,21 +787,14 @@ export default function GroupChatPage() {
       // but only when the cache has a meaningful history window. A single
       // preloaded row replacing `prev` strands the user with one message
       // floating at the top of an empty viewport.
-      if (openedFromNotificationRef.current) {
-        const cachedData = getCachedGroupMessages(groupId);
-        // Require a meaningful history window (>=5). The notification preload
-        // writes a SINGLE message into cache before the chat mounts.
-        const cachedHasHistory = cachedData.messages.length >= 5;
-        if (cachedHasHistory) {
-          return { ...cachedData, hasOlderMessages: false, fromCache: true };
-        }
-      }
-      if (prevBelongsToThisGroup) return prev;
-
-
       const cachedData = getCachedGroupMessages(groupId);
-      // A genuine one-message thread is usable; a notification-preload stub is not.
-      if (!isUsableCachedThread(cachedData.messages as any)) return undefined;
+      const placeholderSource = selectHistoryChatPlaceholderSource({
+        hasPrevious: prevBelongsToThisGroup,
+        cachedMessageCount: cachedData.messages.length,
+        openedFromNotification: !!openedFromNotificationRef.current,
+      });
+      if (placeholderSource === "previous") return prev;
+      if (placeholderSource === "none") return undefined;
 
       return { ...cachedData, hasOlderMessages: false, fromCache: true };
     },
@@ -799,20 +803,16 @@ export default function GroupChatPage() {
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
   const reconcileScope = `group:${groupId ?? "none"}`;
+  useChatReconciliationScopeLifecycle(reconcileScope);
 
   // Extract messages and reactions from query data
   const messages = useMemo(() => {
     if (!messagesData) return [];
-    const msgList = Array.isArray(messagesData) 
-      ? messagesData 
-      : (messagesData as any).messages || [];
+    const msgList = extractChatQueryMessages<GroupMessage>(messagesData);
     // SECURITY (cross-group bleed): last line of defence before render — a row
     // is only ever displayed in the thread it was posted to.
-    const scoped = (msgList as any[]).filter((m) => !m?.group_id || m.group_id === groupId);
-    // Sort by created_at to ensure proper ordering
-    const sorted = [...scoped].sort((a, b) => 
-      (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id)
-    );
+    const scoped = msgList.filter((message) => !message.group_id || message.group_id === groupId);
+    const sorted = orderChatMessagesChronologically(scoped);
     // Re-apply realtime edits/soft-deletes: an older in-flight fetch resolving
     // after a realtime UPDATE must never restore pre-edit text or resurrect a
     // deleted row.
@@ -826,7 +826,7 @@ export default function GroupChatPage() {
     if (!groupId) return undefined;
 
     const cachedQueryData = queryClient.getQueryData<{ messages: GroupMessage[]; reactions: MessageReaction[] }>([
-      "group-messages",
+      GROUP_CHAT_SCOPE.cachePrefix,
       groupId,
     ]);
 
@@ -857,12 +857,11 @@ export default function GroupChatPage() {
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages) and
   // the group-specific flat reactions array.
-  const reactionQueryKey = useMemo(() => ["group-messages", groupId], [groupId]);
   const { applyRealtimeReaction, applyRealtimeReactionDelete } = useRealtimeReactionSync<GroupMessage>({
     scopeKey: reconcileScope,
     // Scope guard: message_reactions realtime events are unfiltered platform-wide.
     getLocalMessages: () => localMessagesRef.current,
-    queryKey: reactionQueryKey,
+    queryKey: groupMessagesQueryKey,
     setLocalMessages,
   });
   // The message_reactions realtime subscription cannot be filtered by group in
@@ -887,7 +886,7 @@ export default function GroupChatPage() {
       if (!reaction?.id || !reaction.group_message_id) return;
       if (!reactionBelongsToThisGroup(reaction.group_message_id)) return;
       applyRealtimeReaction(reaction.group_message_id, reaction);
-      queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+      queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
         if (!old) return old;
         const flat = (old.reactions || []) as any[];
         if (
@@ -911,20 +910,20 @@ export default function GroupChatPage() {
         return { ...old, reactions: [...kept, reaction] };
       });
     },
-    [applyRealtimeReaction, queryClient, groupId],
+    [applyRealtimeReaction, queryClient, groupMessagesQueryKey],
   );
   const applyGroupReactionDelete = useCallback(
     (reaction: any) => {
       if (!reaction?.id) return;
       applyRealtimeReactionDelete(reaction.group_message_id ?? null, reaction.id);
-      queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+      queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
         if (!old) return old;
         const flat = (old.reactions || []) as any[];
         if (!flat.some((r) => r.id === reaction.id)) return old;
         return { ...old, reactions: flat.filter((r) => r.id !== reaction.id) };
       });
     },
-    [applyRealtimeReactionDelete, queryClient, groupId],
+    [applyRealtimeReactionDelete, queryClient, groupMessagesQueryKey],
   );
   const hasMeaningfulLocal = isUsableCachedThread(localMessages as any);
 
@@ -1016,15 +1015,14 @@ export default function GroupChatPage() {
     inboxSaysHasMessage,
     recoveryExhausted,
   });
-  // Latched: see useChatLoadingLatch — no skeleton regression after first paint.
-  const showLoading = useChatLoadingLatch(threadPhase === "loading", groupId);
+  const showLoading = threadPhase === "loading";
 
 
   // Android resume escape hatch: abort zombie GETs + re-issue the gating
   // queries while the page is stuck on a skeleton.
   useChatStuckWatchdog(
     (!!groupId && (groupLoading || showLoading)),
-    [["chat-group", groupId], ["group-messages", groupId]],
+    [["chat-group", groupId], groupMessagesQueryKey],
     "group-chat",
   );
 
@@ -1089,10 +1087,6 @@ export default function GroupChatPage() {
     setHasOlderMessages(true);
     setInfiniteScrollEnabled(false);
 
-    return () => {
-      // Tombstones/patches are per-thread; drop them when leaving the thread.
-      clearReconciliationScope(`group:${groupId ?? "none"}`);
-    };
   }, [groupId, queryClient, reconcileScope]);
 
   // Virtuoso owns initial bottom-pin and reveal; flip the infinite-scroll
@@ -1109,8 +1103,8 @@ export default function GroupChatPage() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   
   const handleRefresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
-  }, [queryClient, groupId]);
+    await queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
+  }, [queryClient, groupMessagesQueryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsManualRefreshing(true);
@@ -1171,27 +1165,7 @@ export default function GroupChatPage() {
         return true;
       });
       const mergedIncomingMessages = messages.map((message) => {
-        // The flat reactions array is only refreshed by fetch + realtime, but
-        // ChatMessage's optimistic add/remove writes to the EMBEDDED
-        // message.reactions in the query cache. Union both sources so a
-        // tap-to-react survives this merge; recorded realtime deletes are
-        // re-applied to the final list below so a stale in-flight fetch can't
-        // revive a removed row.
-        const flatIncoming = incomingReactionsByMsg.get(message.id) || [];
-        const embeddedIncoming = ((message as any).reactions || []) as MessageReaction[];
-        const flatIds = new Set(flatIncoming.map((r) => r.id));
-        const incomingReactions = [
-          ...flatIncoming,
-          ...embeddedIncoming.filter(
-            (r) =>
-              r &&
-              r.id &&
-              !flatIds.has(r.id) &&
-              // One reaction per user per message: once the flat array holds
-              // the confirmed row, drop the user's leftover temp row.
-              !(r.id.startsWith("temp-") && flatIncoming.some((f) => f.user_id === r.user_id)),
-          ),
-        ];
+        const incomingReactions = incomingReactionsByMsg.get(message.id) || [];
         const previousMessage = prev?.find((item) => item.id === message.id);
         const previousReactions: MessageReaction[] = (previousMessage as any)?.reactions || [];
 
@@ -1217,14 +1191,11 @@ export default function GroupChatPage() {
           reactions: [...incomingReactions, ...missingFromIncoming],
         };
       });
-      const mergedMessages = (reconcileReactions(
+      const mergedMessages = (reconcileMessages(
         reconcileScope,
-        (reconcileMessages(
-          reconcileScope,
-          [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
-            (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
-          ),
-        ) ?? []) as GroupMessage[],
+        [...previousOnly, ...mergedIncomingMessages].sort((a, b) =>
+          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) || a.id.localeCompare(b.id),
+        ),
       ) ?? []) as GroupMessage[];
       if (prev && mergedMessages.length < prev.length - 5) {
         debugLogEvent("local-replace", {
@@ -1297,9 +1268,9 @@ export default function GroupChatPage() {
     const fetchedCount = messages?.length ?? 0;
     if (shouldRefetchMessages("group", groupId, fetchedCount)) {
       console.log("[GroupChat] Messages unexpectedly 0, triggering refetch");
-      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+      queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
     }
-  }, [groupId, authReady, messages, messagesLoading, queryClient]);
+  }, [groupId, authReady, messages, messagesLoading, queryClient, groupMessagesQueryKey]);
 
   // Visibility change handler - refetch messages and profiles when app becomes visible (e.g., phone unlock)
   useEffect(() => {
@@ -1312,14 +1283,14 @@ export default function GroupChatPage() {
         if (timeSinceLastRefresh > 30000) {
           console.log("[GroupChat] App became visible, refreshing messages");
           lastRefresh = Date.now();
-          await queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+          await queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [groupId, authReady, queryClient]);
+  }, [groupId, authReady, queryClient, groupMessagesQueryKey]);
 
   // Always ensure profiles are loaded for messages with missing author data
   useEffect(() => {
@@ -1471,15 +1442,14 @@ export default function GroupChatPage() {
 
       // Prepend + restore scroll anchor synchronously inside flushSync (no jolt).
       queueAnchoredPrepend(() => {
-        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(["group-messages", groupId], (old: any) => {
+        queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[], hasOlderMessages?: boolean }>(groupMessagesQueryKey, (old: any) => {
           if (!old) return { messages: enrichedOlderMessages, reactions: reactionsData as MessageReaction[], hasOlderMessages: hasMore };
-          const existingIds = new Set((old.messages || []).map((m: GroupMessage) => m.id));
           return {
             ...old,
-            messages: [
-              ...enrichedOlderMessages.filter((m) => !existingIds.has(m.id)),
-              ...old.messages,
-            ],
+            messages: mergeOlderChatMessagesChronologically(
+              enrichedOlderMessages,
+              old.messages,
+            ),
             reactions: [...(reactionsData as MessageReaction[]), ...(old.reactions || [])],
             hasOlderMessages: hasMore,
           };
@@ -1492,7 +1462,7 @@ export default function GroupChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend]);
+  }, [groupId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, groupMessagesQueryKey, reconcileScope]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1595,12 +1565,9 @@ export default function GroupChatPage() {
       });
 
       debugLogEvent("local-replace", { cause: "jump-window", nextLen: anchoredWindow.length });
-      // See TeamChatPage: only remount the scroller if the target row wasn't
-      // already painted, otherwise the remount flashes blank + skeleton.
-      const targetAlreadyRendered = (localMessagesRef.current || []).some((m) => m.id === targetMessageId);
       setLocalMessages((reconcileMessages(reconcileScope, anchoredWindow) ?? []) as GroupMessage[]);
       setHasOlderMessages((beforeResult.data || []).length >= WINDOW_BEFORE);
-      if (!targetAlreadyRendered) setJumpRenderNonce(targetJumpNonce ?? Date.now());
+      setJumpRenderNonce(targetJumpNonce ?? Date.now());
     };
 
     void hydrateTargetWindow();
@@ -1616,10 +1583,10 @@ export default function GroupChatPage() {
   useEffect(() => {
     if (!groupId || groupRealtimeMode !== "polling") return;
     const id = window.setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+      queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
     }, groupPollIntervalMs);
     return () => window.clearInterval(id);
-  }, [groupId, groupRealtimeMode, groupPollIntervalMs, queryClient]);
+  }, [groupId, groupRealtimeMode, groupPollIntervalMs, queryClient, groupMessagesQueryKey]);
 
   // Real-time subscription - directly update cache instead of invalidating
   useEffect(() => {
@@ -1642,20 +1609,15 @@ export default function GroupChatPage() {
           // Get cached profile synchronously (instant, non-blocking)
           const { cached: cachedProfiles } = getProfilesFromCache([newMsg.author_id]);
           const cachedProfile = cachedProfiles.get(newMsg.author_id);
-          const currentMessages = queryClient.getQueryData<{ messages: GroupMessage[] }>(["group-messages", groupId])?.messages;
-          const localReplyMessage = findLocalReplyMessage(currentMessages, newMsg.reply_to_id);
-          const localReply = localReplyMessage
-            ? { text: localReplyMessage.text, author: localReplyMessage.author ?? undefined }
-            : null;
           
           // IMMEDIATELY update cache with message (don't wait for profile fetch)
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions?: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [{
               ...newMsg,
               author: cachedProfile 
                 ? { display_name: cachedProfile.display_name, avatar_url: cachedProfile.avatar_url }
                 : null,
-              reply_to: localReply,
+              reply_to: null,
             }], reactions: [] };
             
             // Check if message already exists with real ID
@@ -1696,7 +1658,7 @@ export default function GroupChatPage() {
           
           // Asynchronously fetch profile and reply_to data if needed, then update
           const needsProfileFetch = !cachedProfile;
-          const needsReplyFetch = !!newMsg.reply_to_id && !localReplyMessage;
+          const needsReplyFetch = !!newMsg.reply_to_id;
           
           if (needsProfileFetch || needsReplyFetch) {
             Promise.all([
@@ -1712,7 +1674,7 @@ export default function GroupChatPage() {
                 : Promise.resolve({ data: null }),
             ]).then(([profileData, replyToResult]) => {
               // Update the message with fetched data
-              queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+              queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
                 if (!old) return old;
                 return {
                   ...old,
@@ -1747,9 +1709,9 @@ export default function GroupChatPage() {
           if (!deletedId) return;
           // Tombstone so an older in-flight fetch cannot resurrect the row.
           recordRealtimeMutation(reconcileScope, { id: deletedId, deleted_at: new Date().toISOString() });
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions?: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [], reactions: [] };
-            return { ...old, messages: removeMessage(old.messages, deletedId) };
+            return removeMessageFromQueryEnvelope<GroupMessage>(old, deletedId);
           });
           setLocalMessages((prev) => (prev ? removeMessage(prev, deletedId) : prev));
         }
@@ -1770,9 +1732,9 @@ export default function GroupChatPage() {
           const outcome = recordRealtimeMutation(reconcileScope, updated);
 
           if (outcome === "deleted") {
-            queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+            queryClient.setQueryData<{ messages: GroupMessage[], reactions?: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
               if (!old) return { messages: [], reactions: [] };
-              return { ...old, messages: removeMessage(old.messages, updated.id) };
+              return removeMessageFromQueryEnvelope<GroupMessage>(old, updated.id);
             });
             setLocalMessages((prev) => (prev ? removeMessage(prev, updated.id) : prev));
             return;
@@ -1780,9 +1742,9 @@ export default function GroupChatPage() {
 
           // Apply the edit to BOTH stores with the same pure helper so they
           // can never diverge. Fields absent from the payload are preserved.
-          queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+          queryClient.setQueryData<{ messages: GroupMessage[], reactions?: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
             if (!old) return { messages: [], reactions: [] };
-            return { ...old, messages: applyMessageUpdate(old.messages, updated) };
+            return applyMessageUpdateToQueryEnvelope<GroupMessage>(old, updated);
           });
           setLocalMessages((prev) => (prev ? applyMessageUpdate(prev, updated) : prev));
         }
@@ -1812,11 +1774,9 @@ export default function GroupChatPage() {
       if (unregister) unregister(); else supabase.removeChannel(channel);
       noteChannelRemoved(`group-messages-${groupId}`);
     };
-  }, [groupId, queryClient, groupRealtimeMode, user?.id, reconcileScope, applyGroupReaction, applyGroupReactionDelete]);
+  }, [groupId, queryClient, groupRealtimeMode, user?.id, reconcileScope, applyGroupReaction, applyGroupReactionDelete, groupMessagesQueryKey]);
 
 
-  // Vault mirroring runs ONLY for confirmed-delivered messages, preserving the
-  // group's exact folder scope (restricted roles included).
   const vaultGroupScope = useMemo(
     () =>
       group?.club_id
@@ -1830,21 +1790,11 @@ export default function GroupChatPage() {
         : null,
     [group?.club_id, group?.team_id, group?.id, group?.name, group?.allowed_roles],
   );
-  const syncSendToVault = useCallback(
-    (vars: { text: string; image_url: string | null }) => {
-      if (!user || !vaultGroupScope) return;
-      if (!vars.image_url && !vars.text) return;
-      import("@/lib/chatVaultSync").then(({ syncChatAttachmentToVault }) => {
-        syncChatAttachmentToVault({
-          imageUrl: vars.image_url,
-          text: vars.text,
-          userId: user.id,
-          ...vaultGroupScope,
-        }).catch((err) => console.warn("Group chat vault sync failed", err));
-      });
-    },
-    [user, vaultGroupScope],
-  );
+  const syncSendToVault = useChatVaultDeliverySync({
+    userId: user?.id,
+    scope: vaultGroupScope,
+    surfaceLabel: "Group chat",
+  });
 
   // Send message mutation
   const sendMessageMutation = useMutation({
@@ -1878,7 +1828,7 @@ export default function GroupChatPage() {
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
-      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
+      await queryClient.cancelQueries({ queryKey: groupMessagesQueryKey });
 
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
@@ -1902,7 +1852,7 @@ export default function GroupChatPage() {
       };
 
       // Update query cache directly (this will sync to localMessages via useEffect)
-      queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+      queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
         const existingMessages: GroupMessage[] = old?.messages || [];
         return {
           ...(old || {}),
@@ -1911,16 +1861,8 @@ export default function GroupChatPage() {
         };
       });
 
-      // Same batch as the composer clear (cache→local sync is a task later and
-      // would step the thread down-then-up). Later sync dedupes by id.
-      setLocalMessages((prev) => (prev && !prev.some((m) => m.id === tempId) ? [...prev, optimisticMessage] : prev));
-
       // Clear input immediately
-      setMessage("");
-      setImageUrl(null);
-      setReplyTo(null);
-      setPendingPollId(null);
-      setPendingNewsId(null);
+      resetAfterSend();
       
       // Scroll to bottom — force bypasses the touch-guard so the deferred
       // re-pins still fire after composer reflow shrinks bottomPadding.
@@ -1941,18 +1883,17 @@ export default function GroupChatPage() {
         toast.info("Message queued - will send when online");
         return;
       }
-
       // Succeeded-but-errored: the row already arrived via realtime.
-      const currentData = queryClient.getQueryData<{ messages: GroupMessage[] }>(["group-messages", groupId]);
+      const currentData = queryClient.getQueryData<{ messages: GroupMessage[] }>(groupMessagesQueryKey);
       if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
         // Errored request, confirmed delivery: same Vault handling as success.
-        syncSendToVault(variables);
+        syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
         return;
       }
 
       // Remove ONLY this mutation's optimistic row (no snapshot rollback).
       if (context?.tempId) {
-        queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+        queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
           if (!old) return old;
           const existingMessages: GroupMessage[] = old?.messages || [];
           return { ...old, messages: existingMessages.filter((m) => m.id !== context.tempId) };
@@ -1960,20 +1901,14 @@ export default function GroupChatPage() {
         setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
       }
 
-      restoreFailedSendComposer({
-        context,
-        setText: setMessage,
-        setImage: setImageUrl,
-        setReply: setReplyTo,
-        setPoll: setPendingPollId,
-      });
+      restoreAfterFailedSend(context);
 
       console.error("Failed to send group message", err);
       toast.error("Failed to send message");
     },
 
     onSuccess: (result, variables) => {
-      if (isConfirmedDelivery(result)) syncSendToVault(variables);
+      if (isConfirmedDelivery(result)) syncSendToVault({ text: variables.text, imageUrl: variables.image_url });
     },
 
     onSettled: (_, __, variables) => {
@@ -1996,17 +1931,17 @@ export default function GroupChatPage() {
   // Update message mutation
   const updateMessageMutation = useMutation({
     mutationFn: async () => {
-      if (!editingMessage) return;
+      const edit = buildChatMessageEdit(editingMessage, message);
+      if (!edit) return;
       const { error } = await supabase
         .from("group_messages")
-        .update({ text: message.trim() })
-        .eq("id", editingMessage.id);
+        .update({ text: edit.text })
+        .eq("id", edit.messageId);
       if (error) throw error;
     },
     onSuccess: () => {
-      setMessage("");
-      setEditingMessage(null);
-      queryClient.invalidateQueries({ queryKey: ["group-messages", groupId] });
+      finishEdit();
+      queryClient.invalidateQueries({ queryKey: groupMessagesQueryKey });
       // silent success
     },
     onError: () => {
@@ -2025,10 +1960,10 @@ export default function GroupChatPage() {
     },
     onMutate: async (messageId: string) => {
       // Optimistically hide the message
-      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
-      const previousData = queryClient.getQueryData(["group-messages", groupId]);
+      await queryClient.cancelQueries({ queryKey: groupMessagesQueryKey });
+      const previousData = queryClient.getQueryData(groupMessagesQueryKey);
       
-      queryClient.setQueryData(["group-messages", groupId], (old: any) => {
+      queryClient.setQueryData(groupMessagesQueryKey, (old: any) => {
         if (!old) return old;
         const existingMessages: GroupMessage[] = old?.messages || [];
         return { ...old, messages: existingMessages.filter(m => m.id !== messageId) };
@@ -2049,7 +1984,7 @@ export default function GroupChatPage() {
     },
     onError: (err, variables, context) => {
       if (context?.previousData) {
-        queryClient.setQueryData(["group-messages", groupId], context.previousData);
+        queryClient.setQueryData(groupMessagesQueryKey, context.previousData);
       }
       toast.error("Failed to delete message");
     },
@@ -2176,9 +2111,9 @@ export default function GroupChatPage() {
       return { action: 'added' as const, reaction: data ?? { id: `server-${Date.now()}`, user_id: user.id, reaction_type: normalizedReactionType, group_message_id: messageId }, messageId };
     },
     onMutate: async ({ messageId, reactionType }) => {
-      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
+      await queryClient.cancelQueries({ queryKey: groupMessagesQueryKey });
 
-      const liveData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId]);
+      const liveData = queryClient.getQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey);
 
       // Immutable pre-mutation snapshot: copy the arrays (and the reaction
       // rows themselves) so later optimistic/realtime cache writes can never
@@ -2210,7 +2145,7 @@ export default function GroupChatPage() {
 
       const tempReactionId = `temp-reaction-${Date.now()}`;
 
-      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
         if (!old) return { messages: [], reactions: [] };
 
         if (existingReaction) {
@@ -2252,7 +2187,7 @@ export default function GroupChatPage() {
           (r) => r.user_id === currentUserId,
         );
         queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(
-          ["group-messages", groupId],
+          groupMessagesQueryKey,
           (live) => {
             if (!live) return context.previousData!;
             const othersReactions = (live.reactions || []).filter((r) => r.user_id !== currentUserId);
@@ -2298,7 +2233,7 @@ export default function GroupChatPage() {
     onSuccess: (result) => {
       if (!result) return;
 
-      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(["group-messages", groupId], (old) => {
+      queryClient.setQueryData<{ messages: GroupMessage[], reactions: MessageReaction[] }>(groupMessagesQueryKey, (old) => {
         if (!old) return { messages: [], reactions: [] };
 
         if (result.action === 'added' && result.reaction) {
@@ -2341,45 +2276,29 @@ export default function GroupChatPage() {
   });
 
   const handleSend = () => {
-    try { window.dispatchEvent(new Event("chat:message-sent")); } catch { /* noop */ }
-    // Keep the composer focused through the tap. NEVER blur-to-flush the IME
-    // here: on Android a blur → refocus round-trip fires a real
-    // keyboardWillHide/keyboardWillShow pair, which collapses and restores
-    // the chat viewport (composer drops to the bottom nav, thread grows,
-    // then snaps back) — the post-send "thread jumps up and back". Composer
-    // state already mirrors every IME composition update, so reading it
-    // directly sends exactly what the user sees. See src/lib/chatComposerFocus.ts.
     keepComposerFocusedThroughSend(composerRef.current);
 
-    if ((!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId) || !user) return;
+    if (!canSend || !user) return;
     if (editingMessage) {
       updateMessageMutation.mutate();
     } else {
-      const baseText = message.trim();
-      let finalText = pendingPollId
-        ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
-        : baseText;
-      if (pendingNewsId) {
-        finalText = finalText ? `${finalText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`;
-      }
+      const submission = buildSubmission();
       sendMessageMutation.mutate({
-        text: finalText,
-        image_url: imageUrl,
-        reply_to_id: replyTo?.id || null,
+        text: submission.text,
+        image_url: submission.imageUrl,
+        reply_to_id: submission.replyToId,
       });
     }
   };
 
 
   const handleEdit = (msg: GroupMessage) => {
-    setEditingMessage(msg);
-    setMessage(msg.text);
+    beginEdit(msg);
     inputRef.current?.focus();
   };
 
   const handleCancelEdit = () => {
-    setEditingMessage(null);
-    setMessage("");
+    cancelEdit();
   };
 
   const handleReply = (msg: GroupMessage) => {
@@ -2412,8 +2331,8 @@ export default function GroupChatPage() {
     cacheKey: `group:${groupId ?? ""}`,
     fetcher: async (q, signal) =>
       (await searchChatHistory({
-        table: "group_messages",
-        scope: { group_id: groupId! },
+        table: GROUP_CHAT_SCOPE.messageTable,
+        scope: buildChatScopeFilter(GROUP_CHAT_SCOPE, groupId),
         query: q,
         signal,
         selectColumns: "id, text, image_url, created_at, edited_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
@@ -2588,48 +2507,15 @@ export default function GroupChatPage() {
     miniLeagueId: group?.mini_league_id ?? null,
   });
 
-  // Competition threads: the competition-wide ("all_members") thread can be
-  // configured as organiser-only, in which case members read but cannot post.
-  const groupCompetitionId = (group as any)?.competition_id as string | null | undefined;
-  const groupCompetitionScope = (group as any)?.competition_scope as string | null | undefined;
-  const { data: competitionChatSettings } = useQuery({
-    queryKey: ["competition-chat-posting", groupCompetitionId, user?.id],
-    enabled: !!groupCompetitionId && !!user?.id,
-    queryFn: async () => {
-      const [{ data: comp }, { data: isAdmin }] = await Promise.all([
-        supabase
-          .from("competitions")
-          .select("member_chat_admins_only")
-          .eq("id", groupCompetitionId!)
-          .maybeSingle(),
-        supabase.rpc("is_competition_admin", {
-          _user_id: user!.id,
-          _competition_id: groupCompetitionId!,
-        }),
-      ]);
-      return {
-        adminsOnly: !!comp?.member_chat_admins_only,
-        isCompetitionAdmin: !!isAdmin,
-      };
-    },
-  });
-
-  const canPostInGroup = canPostInCompetitionChat({
-    scope: groupCompetitionScope,
-    adminsOnly: competitionChatSettings?.adminsOnly,
-    isCompetitionAdmin: competitionChatSettings?.isCompetitionAdmin ?? false,
-  });
-
   const groupBaseSublabel = group?.mini_league_id
     ? "Mini-league chat"
-    : groupCompetitionId
-    ? competitionChatSublabel(groupCompetitionScope)
+    : (group as any)?.competition_id
+    ? "Competition chat"
     : group?.team_id
     ? "Team group"
     : group?.club_id
     ? "Club group"
     : "Personal group";
-
 
   const groupHeaderSublabel = groupOnlineCount > 0
     ? `${groupBaseSublabel} · ${groupOnlineCount} online`
@@ -2724,21 +2610,16 @@ export default function GroupChatPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden overscroll-none" style={{ height: chatHeight }} data-lock-keyboard-scroll="true" onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
+    <ChatPageFrame height={chatHeight} onTouchStart={swipeBack.onTouchStart} onTouchEnd={swipeBack.onTouchEnd}>
       {/* Header */}
       <ChatHeaderShell
         type={group.team_id || group.club_id ? "group" : "group"}
         name={group.name}
         sublabel={groupHeaderSublabel}
         onOpenDetails={() => setMembersOpen(true)}
-        leftSlot={
-          <ChatSearchBar onSearch={setSearchQuery} isOpen={searchOpen} onOpenChange={setSearchOpen} isSearching={isSearchFetching} />
-        }
+        search={{ onSearch: setSearchQuery, isOpen: searchOpen, onOpenChange: setSearchOpen, isSearching: isSearchFetching }}
         rightSlot={
           <>
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)}>
-              <Search className="h-4 w-4" />
-            </Button>
             <ChatHeaderMenu
               onRefresh={handleManualRefresh}
               isRefreshing={isAnyRefreshing}
@@ -2968,14 +2849,7 @@ export default function GroupChatPage() {
       {/* Input - Fixed at bottom above nav bar */}
       <div className={`fixed left-0 right-0 bg-background z-[49] pointer-events-none ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight, height: nativeKbHeight > 0 ? "3rem" : "calc(var(--bottom-nav-offset, 0px) + 3rem)" }} />
         <div ref={composerRef} data-chat-chrome="true" data-chat-composer="true" className={`fixed left-0 right-0 w-full max-w-full overflow-visible border-t border-border/30 pt-1 pb-2 px-2 bg-background/95 z-[51] ${searchOpen ? "hidden" : ""}`} style={{ bottom: nativeKbHeight > 0 ? nativeKbHeight : "var(--bottom-nav-offset, 0px)" }}>
-        {!canPostInGroup ? (
-          <p className="py-3 text-center text-sm text-muted-foreground">
-            Only competition organisers can post in this chat.
-          </p>
-        ) : (
-        <>
         <TypingIndicator typingUsers={typingUsers} />
-
         {replyTo && (
           <ReplyPreview
             replyingTo={{
@@ -2997,23 +2871,12 @@ export default function GroupChatPage() {
         {scheduleTarget && <ScheduledMessagesBanner target={scheduleTarget} />}
         <ChatComposerShell
           preview={
-            (pendingPollId || pendingNewsId) && !editingMessage ? (
-              <div className="space-y-1.5">
-                {pendingPollId && (
-                  <PollAttachmentPreview
-                    pollId={pendingPollId}
-                    onRemove={() => setPendingPollId(null)}
-                    disabled={sendMessageMutation.isPending}
-                  />
-                )}
-                {pendingNewsId && (
-                  <NewsAttachmentPreview
-                    newsId={pendingNewsId}
-                    onRemove={() => setPendingNewsId(null)}
-                    disabled={sendMessageMutation.isPending}
-                  />
-                )}
-              </div>
+            pendingPollId && !editingMessage ? (
+              <PollAttachmentPreview
+                pollId={pendingPollId}
+                onRemove={() => setPendingPollId(null)}
+                disabled={sendMessageMutation.isPending}
+              />
             ) : undefined
           }
         >
@@ -3024,8 +2887,6 @@ export default function GroupChatPage() {
             teamId={group?.team_id || undefined}
             showEventPicker={true}
             onEventSelect={() => setEventPickerOpen(true)}
-            showNewsPicker={!!(group?.club_id || undefined)}
-            onNewsSelect={() => setNewsPickerOpen(true)}
             showPollCreator={true}
             onPollCreate={() => setPollDialogOpen(true)}
             showBoardPicker={false}
@@ -3061,14 +2922,11 @@ export default function GroupChatPage() {
               handleSend();
             }}
             onSchedule={scheduleTarget ? () => setScheduleDialogOpen(true) : undefined}
-            disabled={!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId}
+            disabled={!canSend}
             loading={sendMessageMutation.isPending}
-            canSend={!!message.trim() || !!imageUrl || !!pendingPollId || !!pendingNewsId}
+            canSend={canSend}
           />
         </ChatComposerShell>
-        </>
-        )}
-
         {scheduleTarget && (
           <ScheduleMessageDialog
             open={scheduleDialogOpen}
@@ -3076,11 +2934,11 @@ export default function GroupChatPage() {
             target={scheduleTarget}
             initialText={message}
             initialImageUrl={imageUrl}
-            onScheduled={() => {
-              setMessage("");
-              setImageUrl(null);
-              clearDraft?.();
-            }}
+            onScheduled={() => resetChatComposerAfterSchedule({
+              setComposerText: setMessage,
+              setImageUrl,
+              clearDraft,
+            })}
           />
         )}
         <EventPickerSheet
@@ -3095,12 +2953,6 @@ export default function GroupChatPage() {
           miniLeagueId={group?.mini_league_id ?? null}
           competitionId={(group as any)?.competition_id ?? null}
 
-        />
-        <NewsPickerSheet
-          open={newsPickerOpen}
-          onOpenChange={setNewsPickerOpen}
-          clubId={group?.club_id || undefined}
-          onSelectNews={(newsId) => setPendingNewsId(newsId)}
         />
         <BoardPickerSheet
           open={boardPickerOpen}
@@ -3154,14 +3006,14 @@ export default function GroupChatPage() {
             <AlertDialogDescription>
               This will remove the chat from everyone's inbox. Messages stay archived
               and an app admin can restore the chat within 30 days. To continue, type
-              <strong>delete</strong> below.
+              the group name below.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <input
             type="text"
             value={deleteConfirmText}
             onChange={(e) => setDeleteConfirmText(e.target.value)}
-            placeholder="delete"
+            placeholder={group.name}
             autoCapitalize="none"
             autoCorrect="off"
             className="mt-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -3170,15 +3022,15 @@ export default function GroupChatPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
-                if (deleteConfirmText.trim().toLowerCase() !== "delete") {
+                if (deleteConfirmText.trim() !== group.name.trim()) {
                   e.preventDefault();
-                  toast.error("Type delete to confirm");
+                  toast.error("Group name does not match");
                   return;
                 }
                 deleteGroupMutation.mutate();
               }}
               disabled={
-                deleteConfirmText.trim().toLowerCase() !== "delete" ||
+                deleteConfirmText.trim() !== group.name.trim() ||
                 deleteGroupMutation.isPending
               }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -3188,6 +3040,6 @@ export default function GroupChatPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </ChatPageFrame>
   );
 }
