@@ -263,6 +263,20 @@ describe("membership invitation read repository", () => {
     });
   });
 
+  it("scopes parent candidates to the destination club so another club's guardian cannot be attached", async () => {
+    const inClub = { id: "parent-a", display_name: "Alex In Club", avatar_url: null, masked_email: null };
+    const otherClub = { id: "parent-b", display_name: "Alex Other Club", avatar_url: null, masked_email: null };
+    const { client, calls } = scriptedClient({
+      user_roles: { data: [{ user_id: "parent-a" }], error: null },
+    }, { data: [inClub, otherClub], error: null });
+    await expect(searchInvitableProfiles("Alex", client, "club-a")).resolves.toEqual([inClub]);
+    expect(calls).toEqual(expect.arrayContaining([
+      { table: "$rpc", method: "search_invitable_profiles", args: [{ _query: "Alex", _limit: 8, _club_id: "club-a" }] },
+      { table: "user_roles", method: "eq", args: ["club_id", "club-a"] },
+      { table: "user_roles", method: "in", args: ["user_id", ["parent-a", "parent-b"]] },
+    ]));
+  });
+
   it("short-circuits profile and parent searches below two characters", async () => {
     const { client, calls } = scriptedClient({});
     await expect(searchInvitableProfiles("A", client)).resolves.toEqual([]);
@@ -280,8 +294,8 @@ describe("membership invitation read repository", () => {
     ] }));
 
     await expect(searchPendingClubInvites("Pend", "club-a", client, loadProfiles)).resolves.toEqual([
-      { id: "user-a", display_name: "Profile A", avatar_url: "avatar-a", invited_email: "a@test", isPendingInvite: true, pendingInviteId: "invite-a" },
-      { id: "pending-invite-b", display_name: "Pending B", avatar_url: null, invited_email: "b@test", isPendingInvite: true, pendingInviteId: "invite-b" },
+      { id: "pending-invite-a", display_name: "Profile A", avatar_url: "avatar-a", invited_email: "a@test", isPendingInvite: true, pendingInviteId: "invite-a", invitedUserId: "user-a" },
+      { id: "pending-invite-b", display_name: "Pending B", avatar_url: null, invited_email: "b@test", isPendingInvite: true, pendingInviteId: "invite-b", invitedUserId: null },
     ]);
     expect(calls).toEqual(expect.arrayContaining([
       { table: "pending_invites", method: "eq", args: ["club_id", "club-a"] },
@@ -299,7 +313,23 @@ describe("membership invitation read repository", () => {
     const loadProfiles = vi.fn(async () => ({ data: [] }));
 
     await expect(searchPendingClubInvites("Fa", "club-a", client, loadProfiles)).resolves.toEqual([
-      expect.objectContaining({ id: "user-a", display_name: "Fallback A", avatar_url: null }),
+      expect.objectContaining({ id: "pending-invite-a", display_name: "Fallback A", avatar_url: null }),
+    ]);
+  });
+
+  it("keeps two pending invites for one existing account distinct for explicit parent attachment", async () => {
+    const { client } = scriptedClient({ pending_invites: { data: [
+      { id: "invite-team-a", invited_label: "Alex Parent", invited_email: "alex@test", invited_user_id: "user-a", metadata: {}, team_id: "team-a" },
+      { id: "invite-team-b", invited_label: "Alex Parent", invited_email: "alex@test", invited_user_id: "user-a", metadata: {}, team_id: "team-b" },
+    ], error: null } });
+    const loadProfiles = vi.fn(async () => ({ data: [
+      { id: "user-a", display_name: "Alex Parent", avatar_url: null },
+    ] }));
+
+    const results = await searchPendingClubInvites("Alex", "club-a", client, loadProfiles);
+    expect(results.map(({ id, pendingInviteId, invitedUserId }) => ({ id, pendingInviteId, invitedUserId }))).toEqual([
+      { id: "pending-invite-team-a", pendingInviteId: "invite-team-a", invitedUserId: "user-a" },
+      { id: "pending-invite-team-b", pendingInviteId: "invite-team-b", invitedUserId: "user-a" },
     ]);
   });
 
@@ -363,10 +393,13 @@ describe("membership invitation read repository", () => {
       { id: "current", display_name: "Current", avatar_url: null, masked_email: null },
       { id: "new", display_name: "New", avatar_url: null, masked_email: null },
     ];
-    const { client, calls } = scriptedClient({ pending_invites: { data: [
+    const { client, calls } = scriptedClient({
+      user_roles: { data: [{ user_id: "existing" }, { user_id: "current" }, { user_id: "new" }], error: null },
+      pending_invites: { data: [
       { id: "invite-new", invited_label: "Duplicate New", invited_email: null, invited_user_id: "new", metadata: {}, team_id: "team-a" },
       { id: "invite-pending", invited_label: "Pending", invited_email: "p@test", invited_user_id: null, metadata: {}, team_id: "team-b" },
-    ], error: null } }, { data: rpcProfiles, error: null });
+    ], error: null },
+    }, { data: rpcProfiles, error: null });
 
     await expect(searchBulkInvitationCandidates(["Ne"], {
       clubId: "club-a",
@@ -389,7 +422,10 @@ describe("membership invitation read repository", () => {
 
   it("keeps existing profiles available when bulk-adding a parent role", async () => {
     const profile = { id: "existing", display_name: "Existing", avatar_url: null, masked_email: null };
-    const { client } = scriptedClient({ pending_invites: { data: [], error: null } }, { data: [profile], error: null });
+    const { client } = scriptedClient({
+      user_roles: { data: [{ user_id: "existing" }], error: null },
+      pending_invites: { data: [], error: null },
+    }, { data: [profile], error: null });
     const result = await searchBulkInvitationCandidates(["Ex"], {
       clubId: "club-a",
       selectedRole: "parent",

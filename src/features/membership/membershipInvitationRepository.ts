@@ -54,6 +54,7 @@ export interface PendingInviteSearchResult {
   invited_email: string | null;
   isPendingInvite: true;
   pendingInviteId: string;
+  invitedUserId: string | null;
 }
 
 export type BulkInvitationCandidate =
@@ -243,7 +244,16 @@ export async function searchInvitableProfiles(
     _limit: 8,
     ...(clubId ? { _club_id: clubId } : {}),
   });
-  return (data ?? []) as InvitableProfileResult[];
+  const profiles = (data ?? []) as InvitableProfileResult[];
+  if (!clubId || !profiles.length) return profiles;
+
+  const { data: scopedRoles } = await client
+    .from("user_roles")
+    .select("user_id")
+    .eq("club_id", clubId)
+    .in("user_id", profiles.map((profile) => profile.id));
+  const scopedUserIds = new Set((scopedRoles ?? []).map((role) => role.user_id));
+  return profiles.filter((profile) => scopedUserIds.has(profile.id));
 }
 
 export async function searchPendingClubInvites(
@@ -272,7 +282,7 @@ export async function searchPendingClubInvites(
   }
 
   return invites.map((invite) => ({
-    id: invite.invited_user_id || `pending-${invite.id}`,
+    id: `pending-${invite.id}`,
     display_name: invite.invited_user_id
       ? profilesById.get(invite.invited_user_id)?.display_name || invite.invited_label
       : invite.invited_label,
@@ -282,6 +292,7 @@ export async function searchPendingClubInvites(
     invited_email: invite.invited_email,
     isPendingInvite: true,
     pendingInviteId: invite.id,
+    invitedUserId: invite.invited_user_id,
   }));
 }
 
@@ -379,14 +390,15 @@ export async function searchBulkInvitationCandidates(
     const profileIds = new Set(profileResults.map((profile) => profile.id));
     const pendingResults: PendingInviteSearchResult[] = (invites ?? [])
       .map((invite) => ({
-        id: invite.invited_user_id || `pending-${invite.id}`,
+        id: `pending-${invite.id}`,
         display_name: invite.invited_label,
         avatar_url: null,
         invited_email: invite.invited_email,
         isPendingInvite: true as const,
         pendingInviteId: invite.id,
+        invitedUserId: invite.invited_user_id,
       }))
-      .filter((invite) => !profileIds.has(invite.id));
+      .filter((invite) => !invite.invitedUserId || !profileIds.has(invite.invitedUserId));
 
     return { term, results: [...profileResults, ...pendingResults] };
   }));

@@ -513,21 +513,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
 
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["user-search-team-member", debouncedNameInput, clubId],
-    queryFn: async () => {
-      if (debouncedNameInput.length < 2) return [];
-      const { data, error } = await supabase.rpc("search_invitable_profiles", {
-        _query: debouncedNameInput,
-        _limit: 8,
-        _club_id: clubId ?? null,
-      });
-      if (error) throw error;
-      return (data || []) as Array<{
-        id: string;
-        display_name: string | null;
-        avatar_url: string | null;
-        masked_email: string | null;
-      }>;
-    },
+    queryFn: () => searchInvitableProfiles(debouncedNameInput, supabase, clubId),
     enabled: debouncedNameInput.length >= 2,
   });
 

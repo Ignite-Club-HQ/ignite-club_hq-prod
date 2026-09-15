@@ -37,6 +37,7 @@ import {
 } from "@/features/membership/inviteTokenRepository";
 import {
   resolveInviteJoinCompletion,
+  resolveLoggedOutInviteAuthMode,
   selectNewInviteRoles,
   validateReusableTeamInvite,
 } from "@/features/membership/inviteAcceptancePolicy";
@@ -1142,6 +1143,10 @@ export default function JoinTeamPage() {
     // The URL carries the whole intent (mode + next + invite token) because
     // sessionStorage writes throw in some webviews; storage is a fallback only.
     if (!user) {
+      const authMode = resolveLoggedOutInviteAuthMode({
+        isPendingInvite,
+        invitedUserId: pendingInviteData?.invited_user_id,
+      });
       const nextPath = location.pathname + location.search;
       console.log("[SignupFlow] Join click (unauthenticated)", {
         next: nextPath,
@@ -1163,7 +1168,7 @@ export default function JoinTeamPage() {
         currentStep: "auth",
       });
       navigate(
-        buildAuthPathWithIntent({ next: nextPath, mode: "signup", invite: token }),
+        buildAuthPathWithIntent({ next: nextPath, mode: authMode, invite: token }),
       );
       return;
     }
@@ -1728,7 +1733,9 @@ export default function JoinTeamPage() {
               </p>
               {!user && (
                 <p className="text-xs text-muted-foreground">
-                  Create an account to join as {pendingInviteData.invited_label}
+                  {pendingInviteData.invited_user_id
+                    ? `Sign in to join as ${pendingInviteData.invited_label}`
+                    : `Create an account to join as ${pendingInviteData.invited_label}`}
                 </p>
               )}
             </div>
@@ -1768,7 +1775,9 @@ export default function JoinTeamPage() {
             ) : null}
             {!joinMutation.isPending && !(user && profileLoading) && (
                 !user
-                ? "Create Account to Join"
+                ? pendingInviteData?.invited_user_id
+                  ? "Sign In to Join"
+                  : "Create Account to Join"
                 : nameValidationError
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion

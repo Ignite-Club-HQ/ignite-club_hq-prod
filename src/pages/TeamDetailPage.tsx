@@ -173,6 +173,23 @@ export function resolveTeamDetailEntitlements(
   };
 }
 
+export function resolveTeamCardParentIds(input: {
+  candidateParentIds: readonly string[];
+  memberships: readonly { user_id: string; team_id: string | null; club_id: string | null }[];
+  teamId: string;
+  clubId: string | null | undefined;
+}): string[] {
+  const scopedMembers = new Set(
+    input.memberships
+      .filter((membership) =>
+        membership.team_id === input.teamId ||
+        (Boolean(input.clubId) && membership.club_id === input.clubId),
+      )
+      .map((membership) => membership.user_id),
+  );
+  return [...new Set(input.candidateParentIds)].filter((userId) => scopedMembers.has(userId));
+}
+
 export default function TeamDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -393,10 +410,23 @@ export default function TeamDetailPage() {
         : { data: [] as { child_id: string; guardian_id: string }[] };
 
 
-      const parentIds = [...new Set([
+      const candidateParentIds = [...new Set([
         ...childrenRows.map((c) => c.parent_id).filter(Boolean),
         ...(guardianLinks || []).map((g) => g.guardian_id).filter(Boolean),
-      ])];
+      ])] as string[];
+
+      const { data: parentMemberships } = candidateParentIds.length > 0
+        ? await supabase
+          .from("user_roles")
+          .select("user_id, team_id, club_id")
+          .in("user_id", candidateParentIds)
+        : { data: [] };
+      const parentIds = resolveTeamCardParentIds({
+        candidateParentIds,
+        memberships: parentMemberships || [],
+        teamId: id!,
+        clubId: team?.club_id,
+      });
 
       let parentProfiles: Record<string, { id: string; display_name: string | null }> = {};
       if (parentIds.length > 0) {
@@ -409,6 +439,7 @@ export default function TeamDetailPage() {
 
       const guardiansByChild: Record<string, string[]> = {};
       for (const link of (guardianLinks || [])) {
+        if (!parentIds.includes(link.guardian_id)) continue;
         if (!guardiansByChild[link.child_id]) guardiansByChild[link.child_id] = [];
         guardiansByChild[link.child_id].push(link.guardian_id);
       }

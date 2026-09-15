@@ -2,7 +2,34 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/pitch/PitchBoard", () => ({ default: () => null }));
 
-import { resolveTeamDetailAccess, resolveTeamDetailEntitlements } from "./TeamDetailPage";
+import {
+  resolveTeamCardParentIds,
+  resolveTeamDetailAccess,
+  resolveTeamDetailEntitlements,
+} from "./TeamDetailPage";
+
+describe("TeamDetailPage child-card parent scope", () => {
+  it("shows Paul with Teddy in Club A without leaking Tessa's Club B guardian relationship", () => {
+    expect(resolveTeamCardParentIds({
+      candidateParentIds: ["paul", "tessa"],
+      memberships: [
+        { user_id: "paul", team_id: "club-a-team", club_id: "club-a" },
+        { user_id: "tessa", team_id: "club-b-team", club_id: "club-b" },
+      ],
+      teamId: "club-a-team",
+      clubId: "club-a",
+    })).toEqual(["paul"]);
+  });
+
+  it("still shows a guardian who belongs to another team in the same club", () => {
+    expect(resolveTeamCardParentIds({
+      candidateParentIds: ["same-club-guardian"],
+      memberships: [{ user_id: "same-club-guardian", team_id: "other-team", club_id: "club-a" }],
+      teamId: "club-a-team",
+      clubId: "club-a",
+    })).toEqual(["same-club-guardian"]);
+  });
+});
 
 describe("TeamDetailPage access characterization", () => {
   it.each(["team_admin", "coach"])("gives a %s full team and pitch management", (role) => {
