@@ -15,6 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { membershipKeys } from "@/features/membership/membershipQueryKeys";
 
 interface MoveToTeamSheetProps {
   open: boolean;
@@ -88,8 +89,8 @@ export function MoveToTeamSheet({
         title: "Member moved",
         description: `${memberName} has been moved to ${targetTeam?.name || "the new team"}`,
       });
-      queryClient.invalidateQueries({ queryKey: ["team-roles"] });
-      queryClient.invalidateQueries({ queryKey: ["team-children"] });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.teamRoles() });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.teamChildren() });
       queryClient.invalidateQueries({ queryKey: ["club-members-roles"] });
       onOpenChange(false);
       setSelectedTeamId(null);

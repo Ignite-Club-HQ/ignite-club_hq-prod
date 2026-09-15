@@ -52,6 +52,30 @@ describe("findOrphanedReferences", () => {
     const executed = mkSub("A", "GHOST", 1, 60, true);
     expect(findOrphanedReferences([executed], players)).toBe(false);
   });
+
+  it("does not cancel a plan when an unreferenced player leaves the match roster", () => {
+    const players = [
+      mkPlayer("A"),
+      mkPlayer("B", { onPitch: false }),
+    ];
+    const plan = [mkSub("A", "B")];
+
+    expect(findOrphanedReferences(plan, players)).toBe(false);
+  });
+
+  it("detects a removed player whether they were scheduled to come on or go off", () => {
+    const remainingPlayers = [
+      mkPlayer("A"),
+      mkPlayer("B", { onPitch: false }),
+    ];
+
+    expect(
+      findOrphanedReferences([mkSub("removed-out", "B")], remainingPlayers),
+    ).toBe(true);
+    expect(
+      findOrphanedReferences([mkSub("A", "removed-in")], remainingPlayers),
+    ).toBe(true);
+  });
 });
 
 describe("repairForComposition", () => {
@@ -89,6 +113,46 @@ describe("repairForComposition", () => {
     expect(intent.kind).toBe("replace");
     if (intent.kind === "replace") {
       expect(intent.reason).toBe("composition-changed");
+    }
+  });
+
+  it("keeps the existing schedule valid when a late arrival joins the bench", () => {
+    const planned = mkSub("A", "B", 1, 600);
+    const players = [
+      mkPlayer("A", { onPitch: true }),
+      mkPlayer("B", { onPitch: false }),
+      mkPlayer("late-arrival", { onPitch: false }),
+    ];
+
+    const intent = repairForComposition([planned], players);
+
+    expect(intent.kind).toBe("replace");
+    if (intent.kind === "replace") {
+      expect(intent.executed).toEqual([]);
+      expect(intent.remaining).toEqual([planned]);
+    }
+  });
+
+  it("preserves completed and skipped history while repairing future substitutions", () => {
+    const completed = { ...mkSub("A", "B", 1, 60, true), skipped: false };
+    const skipped = { ...mkSub("C", "D", 1, 120, true), skipped: true };
+    const future = mkSub("E", "F", 1, 600);
+    const players = [
+      mkPlayer("A", { onPitch: false }),
+      mkPlayer("B", { onPitch: true }),
+      mkPlayer("C", { onPitch: true }),
+      mkPlayer("D", { onPitch: false }),
+      mkPlayer("E", { onPitch: true }),
+      mkPlayer("F", { onPitch: false }),
+    ];
+
+    const intent = repairForComposition([completed, skipped, future], players);
+
+    expect(intent.kind).toBe("replace");
+    if (intent.kind === "replace") {
+      expect(intent.executed).toContainEqual(completed);
+      expect(intent.executed).toContainEqual(skipped);
+      expect(intent.remaining).toContainEqual(future);
     }
   });
 });
@@ -136,6 +200,36 @@ describe("repairForInjury", () => {
         (s) => s.playerOut.id === "B" || s.playerIn.id === "B"
       );
       expect(stillReferencesB).toBe(false);
+    }
+  });
+
+  it("never reintroduces the injured player into the replacement plan", () => {
+    const executed = mkSub("A", "B", 1, 60, true);
+    const pending = mkSub("C", "injured", 1, 600);
+    const players = [
+      mkPlayer("A", { onPitch: false }),
+      mkPlayer("B", { onPitch: true }),
+      mkPlayer("C", { onPitch: true }),
+      mkPlayer("injured", { onPitch: false, injured: true }),
+      mkPlayer("healthy-reserve", { onPitch: false }),
+    ];
+
+    const intent = repairForInjury({
+      ...baseArgs,
+      plan: [executed, pending],
+      updatedPlayers: players,
+      injuredId: "injured",
+    });
+
+    expect(intent.kind).toBe("replace");
+    if (intent.kind === "replace") {
+      expect(intent.executed).toEqual([executed]);
+      expect(
+        intent.remaining.some(
+          (sub) =>
+            sub.playerIn.id === "injured" || sub.playerOut.id === "injured",
+        ),
+      ).toBe(false);
     }
   });
 });

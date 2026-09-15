@@ -90,6 +90,7 @@ function stubFetch(blob: Blob, ok = true, status = 200) {
 }
 
 beforeEach(() => {
+  vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:54321/");
   state.lookup = { data: null, error: null };
   state.insert = { data: { id: "new-photo" }, error: null };
   state.uploadError = null;
@@ -101,6 +102,7 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -214,6 +216,9 @@ describe("publishChatImageToGallery", () => {
     expect(path.endsWith(".jpg")).toBe(true);
     expect(opts.upsert).toBe(false);
     expect(state.insertPayload).toMatchObject({
+      image_url: expect.stringMatching(
+        /^http:\/\/127\.0\.0\.1:54321\/storage\/v1\/object\/public\/photos\/clubs\/c1\/teams\/t1\/u1\//,
+      ),
       uploader_id: "u1",
       club_id: "c1",
       team_id: "t1",

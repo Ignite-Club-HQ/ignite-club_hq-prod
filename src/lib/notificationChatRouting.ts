@@ -1,5 +1,19 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { ChatJumpKind } from "@/lib/pendingChatJump";
+import {
+  chatTargetPath,
+  NOTIFICATION_FALLBACK_PATH,
+  type ChatJumpKind,
+  type ChatTarget,
+  type ChatTargetResolution,
+} from "@/features/notifications/navigationPolicy";
+
+export {
+  chatTargetPath,
+  NOTIFICATION_FALLBACK_PATH,
+  type ChatJumpKind,
+  type ChatTarget,
+  type ChatTargetResolution,
+} from "@/features/notifications/navigationPolicy";
 
 /**
  * Shared resolution of a notification's `related_id` (a message id) to an
@@ -17,38 +31,11 @@ import type { ChatJumpKind } from "@/lib/pendingChatJump";
  * retry instead of a misleading redirect.
  */
 
-export type ChatTarget = {
-  kind: ChatJumpKind;
-  targetId: string | null;
-  messageId: string;
-  path: string;
-};
-
 /**
  * `found`       — message resolved to an accessible chat.
  * `not_found`   — every probe SUCCEEDED and returned no row (deleted / no access).
  * `unreachable` — at least one probe failed (network, 5xx, aborted). Recoverable.
  */
-export type ChatTargetResolution =
-  | { status: "found"; target: ChatTarget }
-  | { status: "not_found"; target: null }
-  | { status: "unreachable"; target: null };
-
-/** Safe destination when a referenced message cannot be resolved. */
-export const NOTIFICATION_FALLBACK_PATH = "/messages";
-
-export const chatTargetPath = (kind: ChatJumpKind, targetId: string | null, messageId: string) => {
-  switch (kind) {
-    case "team": return targetId ? `/messages/${targetId}?message=${messageId}` : NOTIFICATION_FALLBACK_PATH;
-    case "club": return targetId ? `/messages/club/${targetId}?message=${messageId}` : NOTIFICATION_FALLBACK_PATH;
-    case "group": return targetId ? `/groups/${targetId}?message=${messageId}` : NOTIFICATION_FALLBACK_PATH;
-    case "dm": return targetId ? `/messages/dm/${targetId}?message=${messageId}` : NOTIFICATION_FALLBACK_PATH;
-    case "club_admin": return targetId ? `/messages/club-admin/${targetId}?message=${messageId}` : NOTIFICATION_FALLBACK_PATH;
-    case "broadcast": return `/messages/broadcast?message=${messageId}`;
-    default: return NOTIFICATION_FALLBACK_PATH;
-  }
-};
-
 // "No rows" / RLS-hidden results arrive as `data: null` with no error via
 // maybeSingle(). Anything else means the probe did NOT prove absence.
 function isLookupFailure(table: string, error: unknown): boolean {

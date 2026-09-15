@@ -12,6 +12,7 @@ import { join } from "node:path";
 const auth = readFileSync(join(__dirname, "../hooks/useAuth.tsx"), "utf8");
 const layout = readFileSync(join(__dirname, "../components/layout/AppLayout.tsx"), "utf8");
 const messages = readFileSync(join(__dirname, "../pages/MessagesPage.tsx"), "utf8");
+const revealPolicy = readFileSync(join(__dirname, "../features/messaging/inbox/inboxRevealPolicy.ts"), "utf8");
 
 describe("cold-start auth flash guard", () => {
   it("auth exposes an explicit session-restoration state", () => {
@@ -34,11 +35,12 @@ describe("cold-start auth flash guard", () => {
 describe("inbox first-paint ordering guard", () => {
   it("waits for in-flight fetches, not just isFetched, before revealing rows", () => {
     expect(messages).toMatch(/sortSourcesSettled/);
-    expect(messages).toMatch(/!teamsFetching/);
-    expect(messages).toMatch(/!memberClubsFetching/);
-    expect(messages).toMatch(/!chatGroupsFetching/);
-    expect(messages).toMatch(/!latestBroadcastFetching/);
-    expect(messages).toMatch(/!dmFetching/);
+    expect(messages).toMatch(/isFetching: teamsFetching/);
+    expect(messages).toMatch(/isFetching: memberClubsFetching/);
+    expect(messages).toMatch(/isFetching: chatGroupsFetching/);
+    expect(messages).toMatch(/isFetching: latestBroadcastFetching/);
+    expect(messages).toMatch(/isFetching: dmFetching/);
+    expect(revealPolicy).toMatch(/!source\.isFetching/);
   });
 
   it("keeps a hard ceiling so the skeleton always releases", () => {
@@ -46,6 +48,6 @@ describe("inbox first-paint ordering guard", () => {
   });
 
   it("still bypasses the gate entirely when offline", () => {
-    expect(messages).toMatch(/const freshSortDataReady = !isOnline \|\|/);
+    expect(revealPolicy).toMatch(/!input\.isOnline \|\| sortSourcesSettled/);
   });
 });

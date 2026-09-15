@@ -33,6 +33,7 @@ type TableResp = { data: Row[] | null; error: { message: string } | null };
 // Per-table configurable responses.
 const tableResponses: Record<string, TableResp | (() => TableResp)> = {};
 const tableCalls: Record<string, number> = {};
+const tableFilters: Record<string, Array<[string, ...unknown[]]>> = {};
 
 const makeChain = (table: string) => {
   const resolve = () => {
@@ -42,9 +43,9 @@ const makeChain = (table: string) => {
   };
   const chain: any = {
     select: () => chain,
-    eq: () => chain,
-    in: () => chain,
-    not: () => chain,
+    eq: (...args: unknown[]) => { (tableFilters[table] ||= []).push(["eq", ...args]); return chain; },
+    in: (...args: unknown[]) => { (tableFilters[table] ||= []).push(["in", ...args]); return chain; },
+    not: (...args: unknown[]) => { (tableFilters[table] ||= []).push(["not", ...args]); return chain; },
     then: (onF: any, onR: any) => resolve().then(onF, onR),
   };
   return chain;
@@ -73,6 +74,7 @@ const baseArgs = {
 beforeEach(() => {
   Object.keys(tableResponses).forEach((k) => delete tableResponses[k]);
   Object.keys(tableCalls).forEach((k) => delete tableCalls[k]);
+  Object.keys(tableFilters).forEach((k) => delete tableFilters[k]);
   invokeSpy.mockClear();
   flagsMock = { coach: true, team_admin: true, subs_manager: true };
 });
@@ -89,6 +91,31 @@ describe("useAutoSubNotify — retry-safe dedup", () => {
       await result.current(baseArgs);
     });
     expect(invokeSpy).toHaveBeenCalledTimes(2);
+    expect(tableFilters.user_roles).toContainEqual(["eq", "team_id", "team-1"]);
+    expect(tableFilters.user_roles).toContainEqual(["in", "role", ["team_admin", "coach"]]);
+    expect(invokeSpy.mock.calls.map((call) => (call[1] as any).body.userId).sort()).toEqual(["u1", "u2"]);
+    expect(invokeSpy).toHaveBeenCalledWith("send-push-notification", { body: {
+      userId: "u1",
+      title: "Team — Auto-sub",
+      body: "Alice ON for Bob at GK (Q2)",
+      tag: "auto-sub-team-1",
+      notificationType: "pitch_board_auto_sub",
+    } });
+  });
+
+  it("deduplicates a user who is both coach and Subs Manager and excludes every undiscovered player", async () => {
+    tableResponses.user_roles = { data: [{ user_id: "coach-and-manager" }, { user_id: "coach-only" }], error: null };
+    tableResponses.duties = { data: [{ assigned_to: "coach-and-manager" }, { assigned_to: "manager-only" }], error: null };
+    const { result } = renderHook(() => useAutoSubNotify("team-1", "Team", "event-9"));
+    await act(async () => result.current(baseArgs));
+    const recipients = invokeSpy.mock.calls.map((call) => (call[1] as any).body.userId).sort();
+    expect(recipients).toEqual(["coach-and-manager", "coach-only", "manager-only"]);
+    expect(recipients).not.toContain("ordinary-player");
+    expect(tableFilters.duties).toEqual(expect.arrayContaining([
+      ["eq", "event_id", "event-9"],
+      ["eq", "name", "Subs Manager"],
+      ["not", "assigned_to", "is", null],
+    ]));
   });
 
   it("dedupes identical sub in the same minute after a completed dispatch", async () => {
@@ -203,6 +230,24 @@ describe("useAutoSubNotify — retry-safe dedup", () => {
     expect(invokeSpy).toHaveBeenCalledTimes(2);
     // team-role table must not be queried for mini-league groups.
     expect(tableCalls.user_roles).toBeUndefined();
+    expect(tableFilters.event_group_duties).toEqual(expect.arrayContaining([
+      ["eq", "group_id", "g1"],
+      ["in", "name", ["Referee", "Subs Manager"]],
+      ["not", "assigned_to", "is", null],
+    ]));
+    expect(invokeSpy.mock.calls.map((call) => (call[1] as any).body.userId).sort()).toEqual(["ref-1", "sm-1"]);
+    for (const call of invokeSpy.mock.calls) {
+      expect((call[1] as any).body.tag).toBe("auto-sub-event-group-g1");
+    }
+  });
+
+  it("mini-league notification lookup is isolated to one match group", async () => {
+    tableResponses.event_group_duties = { data: [{ assigned_to: "this-match-ref" }], error: null };
+    const { result } = renderHook(() => useAutoSubNotify("event-group-match-44", "Final"));
+    await act(async () => result.current(baseArgs));
+    expect(tableFilters.event_group_duties).toContainEqual(["eq", "group_id", "match-44"]);
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+    expect((invokeSpy.mock.calls[0][1] as any).body.userId).toBe("this-match-ref");
   });
 
   it("muted flags do not query user_roles or duties", async () => {

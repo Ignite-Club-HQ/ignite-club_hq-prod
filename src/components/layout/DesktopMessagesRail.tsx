@@ -28,6 +28,13 @@ interface RailItem {
   otherUserIds?: string[];
 }
 
+export function formatRailActivity(activityAt: string | null | undefined): string {
+  if (!activityAt) return "";
+  const date = new Date(activityAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return formatDistanceToNow(date, { addSuffix: true });
+}
+
 
 /**
  * Desktop-only right rail (xl+) listing recent conversations with last-message
@@ -412,7 +419,7 @@ export function DesktopMessagesRail() {
                     {item.title}
                   </span>
                   <span className="text-[10px] text-muted-foreground font-medium shrink-0">
-                    {formatDistanceToNow(new Date(item.activityAt), { addSuffix: true })}
+                    {formatRailActivity(item.activityAt)}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1 truncate">

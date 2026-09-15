@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 
 import {
   getParentInviteErrorMessage,
@@ -8,6 +9,19 @@ import {
 
 const joinTeamPage = readFileSync("src/pages/JoinTeamPage.tsx", "utf8");
 const welcomeDialog = readFileSync("src/components/PendingInviteWelcomeDialog.tsx", "utf8");
+const productionMigrations = readdirSync("supabase/migrations")
+  .filter((name) => name.endsWith(".sql"))
+  .sort()
+  .map((name) => readFileSync(`supabase/migrations/${name}`, "utf8"))
+  .join("\n");
+
+function latestFunctionDefinition(functionName: string): string {
+  const marker = `CREATE OR REPLACE FUNCTION public.${functionName}`;
+  const start = productionMigrations.lastIndexOf(marker);
+  if (start < 0) return "";
+  const nextFunction = productionMigrations.indexOf("CREATE OR REPLACE FUNCTION public.", start + marker.length);
+  return productionMigrations.slice(start, nextFunction < 0 ? undefined : nextFunction);
+}
 const completeProfilePage = readFileSync("src/pages/CompleteProfilePage.tsx", "utf8");
 
 /**
@@ -89,5 +103,34 @@ describe("parent invite atomic acceptance", () => {
     expect(joinTeamPage).toContain("claim_mini_league_invite");
     expect(welcomeDialog).toContain("accept_guardian_parent_invite");
     expect(joinTeamPage).toContain('metadata?.kind === "mini_league_parent_join_link"');
+  });
+
+  it("keeps the profile-creation invite claimant in version-controlled migrations", () => {
+    const claimant = latestFunctionDefinition("claim_pending_invites_on_profile_create");
+    expect(claimant).not.toBe("");
+    expect(claimant).toContain("children");
+    expect(claimant).toContain("provision_invite_children");
+  });
+
+  it("never lets the user-role trigger consume a normal parent invite without provisioning children", () => {
+    const autoAccept = latestFunctionDefinition("auto_accept_pending_invites_on_role");
+    expect(autoAccept).not.toBe("");
+    expect(autoAccept).toContain("children");
+    expect(autoAccept).toContain("provision_invite_children");
+  });
+
+  it("does not let an authenticated caller provision children for another user", () => {
+    const provisioner = latestFunctionDefinition("provision_invite_children");
+    expect(provisioner).not.toBe("");
+    expect(provisioner).toContain("auth.uid()");
+    expect(provisioner).not.toContain("p_user_id");
+    expect(provisioner).toMatch(/_caller\s*<>\s*_guardian_id/i);
+  });
+
+  it("checks invite ownership inside the provisioning RPC rather than trusting its caller", () => {
+    const provisioner = latestFunctionDefinition("provision_invite_children");
+    expect(provisioner).toContain("invited_user_id");
+    expect(provisioner).toMatch(/_invite\.invited_user_id\s*=\s*_guardian_id/i);
+    expect(provisioner).toContain("invite_not_for_this_user");
   });
 });

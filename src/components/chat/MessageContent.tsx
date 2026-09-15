@@ -180,10 +180,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         result.push({ type: "news-link", content: match[17] || "" });
       } else if (match[18]) {
         // Markdown link match: [text](url) - match[19] is text, match[20] is URL
-        result.push({ 
-          type: "markdown-link", 
-          content: match[20] || "", 
-          linkText: match[19] || "" 
+        result.push({
+          type: "markdown-link",
+          content: match[20] || "",
+          linkText: match[19] || ""
         });
       } else if (match[21]) {
         // Event URL match: /events/uuid - match[22] is the event ID
@@ -193,10 +193,10 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
         result.push({ type: "link", content: match[23] });
       } else if (match[24]) {
         // Mention match - match[25] is display name, match[26] is userId
-        result.push({ 
-          type: "mention", 
-          content: match[25] || "", 
-          userId: match[26] || "" 
+        result.push({
+          type: "mention",
+          content: match[25] || "",
+          userId: match[26] || ""
         });
       }
       

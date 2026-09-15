@@ -17,12 +17,15 @@ const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
 const createPage = read("src/pages/CreateEventPage.tsx");
 const editPage = read("src/pages/EditEventPage.tsx");
+const createWorkflow = read("src/features/events/createEventWorkflow.ts");
+const editWorkflow = read("src/features/events/editEventWorkflow.ts");
 
 describe("CreateEventPage — atomic event + duties", () => {
   it("creates the event, its recurring children and its duties in one RPC", () => {
-    expect(createPage).toContain('supabase.rpc("create_event_with_duties"');
-    expect(createPage).toContain("p_child_dates");
-    expect(createPage).toContain("p_duties");
+    expect(createPage).toContain("createEventTransaction(supabase");
+    expect(createWorkflow).toContain('client.rpc("create_event_with_duties"');
+    expect(createWorkflow).toContain("p_child_dates");
+    expect(createWorkflow).toContain("p_duties");
   });
 
   it("never writes duties or events with a direct table insert", () => {
@@ -35,16 +38,17 @@ describe("CreateEventPage — atomic event + duties", () => {
   });
 
   it("aborts navigation when the RPC returns an error", () => {
-    expect(createPage).toMatch(/if \(error\) throw error;/);
-    expect(createPage).toContain('throw new Error("Event could not be created.")');
+    expect(createWorkflow).toMatch(/if \(error\) throw error;/);
+    expect(createWorkflow).toContain('throw new Error("Event could not be created.")');
   });
 });
 
 describe("EditEventPage — atomic duty sync", () => {
   it("applies deletes, updates and inserts through a single RPC", () => {
-    expect(editPage).toContain('supabase.rpc("sync_event_duties"');
-    expect(editPage).toContain("p_delete_ids");
-    expect(editPage).toContain("p_duties");
+    expect(editPage).toContain("syncEventDuties(supabase");
+    expect(editWorkflow).toContain('client.rpc("sync_event_duties"');
+    expect(editWorkflow).toContain("p_delete_ids");
+    expect(editWorkflow).toContain("p_duties");
   });
 
   it("no longer issues per-duty table mutations", () => {
@@ -52,7 +56,7 @@ describe("EditEventPage — atomic duty sync", () => {
   });
 
   it("sends a stable index with each duty so new ids can be reconciled", () => {
-    expect(editPage).toMatch(/duties\.map\(\(duty, idx\) => \(\{[\s\S]*?idx,/);
+    expect(editWorkflow).toMatch(/duties\.map\(\(duty, idx\) => \(\{[\s\S]*?idx,/);
     expect(editPage).toMatch(/synced\.find\(\(s\) => s\.idx === idx\)/);
   });
 

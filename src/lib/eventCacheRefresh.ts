@@ -11,17 +11,18 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { clearCachedEventsLists } from "./scheduleCache";
 import { clearCachedNextUp } from "./nextUpEventsCache";
+import { eventKeys } from "@/features/events/eventQueryKeys";
 
 export function refreshEventCaches(
   queryClient: QueryClient,
   userId: string | undefined | null,
 ): void {
   // React Query (in-memory)
-  queryClient.invalidateQueries({ queryKey: ["events"] });
-  queryClient.invalidateQueries({ queryKey: ["upcoming-events"] });
-  queryClient.invalidateQueries({ queryKey: ["team-next-event"] });
+  queryClient.invalidateQueries({ queryKey: eventKeys.lists() });
+  queryClient.invalidateQueries({ queryKey: eventKeys.upcoming() });
+  queryClient.invalidateQueries({ queryKey: eventKeys.teamNext() });
   if (userId) {
-    queryClient.invalidateQueries({ queryKey: ["user-memberships-and-events", userId] });
+    queryClient.invalidateQueries({ queryKey: eventKeys.home(userId) });
   }
 
   // Persisted snapshots (localStorage) — must be cleared too, otherwise the

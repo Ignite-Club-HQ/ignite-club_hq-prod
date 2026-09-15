@@ -28,7 +28,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
 import { getCachedEventsList, cacheEventsList } from "@/lib/scheduleCache";
-import { filterRecurringEvents } from "@/lib/filterRecurringEvents";
 import { sendScheduleBroadcast } from "@/lib/scheduleBroadcast";
 import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,7 +36,7 @@ import { WifiOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logScheduleOpenLatency, resetScheduleOpenLog } from "@/lib/scheduleOpenLatency";
-import { format, parseISO, startOfDay, isSameDay, subHours, addDays } from "date-fns";
+import { format, parseISO, startOfDay, isSameDay, addDays } from "date-fns";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { EventsHeaderSponsorStrip } from "@/components/events/EventsHeaderSponsorStrip";
@@ -45,6 +44,20 @@ import { useUserEventViews } from "@/hooks/useEventViews";
 import { ScheduleDateStrip } from "@/components/events/ScheduleDateStrip";
 import { ClubDaySummary } from "@/components/events/ClubDaySummary";
 import { SponsorOrAdCarousel } from "@/components/SponsorOrAdCarousel";
+import {
+  parseScheduleEntityFilter,
+} from "@/features/events/scheduleVisibilityPolicy";
+import {
+  deriveRoleScheduleScope,
+  uniqueIds,
+} from "@/features/events/scheduleMembershipPolicy";
+import {
+  finalizeScheduleRows,
+  getScheduleDateWindow,
+  isAbortedScheduleRequest,
+  resolveAbortedScheduleRead,
+  resolveScheduleReadFailure,
+} from "@/features/events/scheduleQueryPolicy";
 
 type EventType = "game" | "training" | "social";
 
@@ -249,29 +262,13 @@ export default function EventsPage() {
         return { roles: [], teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], isAppAdmin: false };
       }
       
-      const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
-      const clubIds = new Set<string>();
-      const clubAdminClubIds = new Set<string>();
-      const leagueAdminClubIds = new Set<string>();
-      let isAppAdmin = false;
-      
-      // Direct club roles
-      roles.forEach(r => {
-        if (r.role === 'app_admin') isAppAdmin = true;
-        if (r.club_id) {
-          clubIds.add(r.club_id);
-          // Track club admin roles for team event visibility
-          if (r.role === 'club_admin' || r.role === 'app_admin') {
-            clubAdminClubIds.add(r.club_id);
-          }
-          // Track league admin roles for league access (per-club league_admin sees every league in that club).
-          // club_admin is intentionally excluded here — they only see mini-league events for leagues
-          // they're explicitly a member/admin of (matches mini-league chat scoping).
-          if (r.role === 'league_admin' || r.role === 'app_admin') {
-            leagueAdminClubIds.add(r.club_id);
-          }
-        }
-      });
+      const {
+        teamIds,
+        clubIds,
+        clubAdminClubIds,
+        leagueAdminClubIds,
+        isAppAdmin,
+      } = deriveRoleScheduleScope(roles);
       
       // Add teams via children (primary parents and guardians)
       step = performance.now();
@@ -281,10 +278,10 @@ export default function EventsPage() {
       ]);
       if (guardianRes.error) throw guardianRes.error;
       if (ownChildrenRes.error) throw ownChildrenRes.error;
-      const childIds = Array.from(new Set([
+      const childIds = uniqueIds([
         ...(guardianRes.data || []).map((g: any) => g.child_id).filter(Boolean),
         ...(ownChildrenRes.data || []).map((c: any) => c.id).filter(Boolean),
-      ]));
+      ]);
       if (childIds.length > 0) {
         const { data: childTeams, error: childTeamsErr } = await supabase
           .from("child_team_assignments")
@@ -338,11 +335,11 @@ export default function EventsPage() {
       if (mlaRes.error) throw mlaRes.error;
       if (adminLeaguesRes.error) throw adminLeaguesRes.error;
 
-      const miniLeagueIds = Array.from(new Set([
+      const miniLeagueIds = uniqueIds([
         ...((playerLeaguesRes.data || []).map((p: any) => p.mini_league_id).filter(Boolean) as string[]),
         ...((mlaRes.data || []).map((m: any) => m.mini_league_id).filter(Boolean) as string[]),
         ...((adminLeaguesRes.data || []).map((l: any) => l.id).filter(Boolean) as string[]),
-      ]));
+      ]);
       
       diagLog("memberships:end", { totalMs: Math.round(performance.now() - overall), teamIds: teamIds.length, clubIds: clubIds.size, miniLeagueIds: miniLeagueIds.length });
       return { 
@@ -428,14 +425,11 @@ export default function EventsPage() {
       // List view stays narrow (~45 days) to shrink payload; calendar view
       // needs a much wider window so users can browse months ahead and still
       // see future fixtures (e.g. a full season).
-      const USE_NARROW_SCHEDULE_WINDOW = true;
-      const upperDays = viewMode === "calendar"
-        ? 240
-        : (USE_NARROW_SCHEDULE_WINDOW ? 45 : 120);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - Math.max(30, pastDaysBack));
-      const upperBound = new Date();
-      upperBound.setDate(upperBound.getDate() + upperDays);
+      const { lowerDate, upperDate } = getScheduleDateWindow(
+        new Date(),
+        viewMode,
+        pastDaysBack,
+      );
 
       let query = supabase
         .from("events")
@@ -469,15 +463,15 @@ export default function EventsPage() {
           clubs!club_id (name, sport)
 
         `)
-        .gte("event_date", thirtyDaysAgo.toISOString().split('T')[0])
-        .lte("event_date", upperBound.toISOString().split('T')[0])
+        .gte("event_date", lowerDate)
+        .lte("event_date", upperDate)
         .order("event_date", { ascending: true });
 
       // teamFilter may encode either a real team id or a mini-league id (`ml:<uuid>`).
-      const selectedMiniLeagueId = teamFilter && teamFilter.startsWith("ml:")
-        ? teamFilter.slice(3)
-        : null;
-      const selectedTeamIdFilter = teamFilter && !selectedMiniLeagueId ? teamFilter : null;
+      const {
+        selectedMiniLeagueId,
+        selectedTeamId: selectedTeamIdFilter,
+      } = parseScheduleEntityFilter(teamFilter);
 
       if (filter !== "all") query = query.eq("type", filter);
       if (clubFilter) query = query.eq("club_id", clubFilter);
@@ -496,12 +490,10 @@ export default function EventsPage() {
         // 25s REST timeout fired on a flaky network) as a non-error: don't
         // surface the red "Couldn't load schedule" banner just because the
         // previous in-flight request was cancelled when the filter changed.
-        const name = e?.name || "";
-        const msg = String(e?.message || "");
-        if (name === "AbortError" || /aborted|abort/i.test(msg)) {
+        if (isAbortedScheduleRequest(e)) {
           diagLog("events:query-aborted", { ms: Math.round(performance.now() - queryStart) });
           const cached = getCachedEventsList(eventsScopeKey, user?.id);
-          return (cached as Event[]) || [];
+          return resolveAbortedScheduleRead(cached as Event[] | null);
         }
         throw e;
       }
@@ -510,41 +502,17 @@ export default function EventsPage() {
         // Network failed — try cache as fallback
         const cached = getCachedEventsList(eventsScopeKey, user?.id);
         diagLog("events:error-fallback-cache", { hasCached: !!cached, error: error.message });
-        if (cached) return cached as Event[];
-        throw error;
+        return resolveScheduleReadFailure(error, cached as Event[] | null);
       }
 
-
-      const cutoffTime = subHours(new Date(), 48);
-      let filteredData = (data as (Event & { updated_at: string; mini_league_id: string | null })[]).filter(event => {
-        if (!event.is_cancelled) return true;
-        const updatedAt = new Date(event.updated_at);
-        return updatedAt > cutoffTime;
-      });
-
-      const { clubAdminClubIds } = userMemberships;
-      filteredData = filteredData.filter(event => {
-        if (event.mini_league_id) {
-          // When explicitly filtering by a mini-league, the SQL `eq` already restricted us.
-          if (selectedMiniLeagueId) return event.mini_league_id === selectedMiniLeagueId;
-          return miniLeagueIds.includes(event.mini_league_id);
-        } else if (event.team_id) {
-          if (selectedTeamIdFilter && selectedTeamIdFilter === event.team_id && clubAdminClubIds.includes(event.club_id)) {
-            return true;
-          }
-          return teamIds.includes(event.team_id);
-        } else {
-          return clubIds.includes(event.club_id);
-        }
-      });
-
-      // In calendar view we render a specific day, so showing every recurring
-      // occurrence is desirable. In list view we cap recurring SERIES to
-      // avoid flooding with months of future occurrences.
-      const finalEvents: Event[] =
-        viewMode === "calendar"
-          ? (filteredData as Event[])
-          : (filterRecurringEvents(filteredData) as Event[]);
+      const finalEvents = finalizeScheduleRows({
+        rows: data as (Event & { updated_at: string })[],
+        memberships: userMemberships,
+        selectedTeamId: selectedTeamIdFilter,
+        selectedMiniLeagueId,
+        viewMode,
+        now: new Date(),
+      }) as Event[];
 
       // Cache for offline use
       cacheEventsList(eventsScopeKey, finalEvents, user?.id);

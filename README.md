@@ -1,73 +1,111 @@
-# Welcome to your Lovable project
+# Ignite Club HQ
 
-## Project info
+Ignite Club HQ is a multi-club sports-management platform covering membership,
+events and RSVP, messaging, media and vault content, competitions, notifications,
+subscriptions, and game-day pitch-board workflows. It ships as a React web app
+and as Capacitor-based Android and iOS apps, backed by Supabase.
 
-**URL**: https://lovable.dev/projects/0ae01178-1280-45c0-83ac-d7ab1bb64b2e
+This README is the canonical starting point for engineers and support vendors.
+Start with the documents below before changing or deploying the system.
 
-## How can I edit this code?
+## Start here
 
-There are several ways of editing your application.
+1. [Architecture](docs/ARCHITECTURE.md) — system boundaries, data flows, security
+   invariants, and known structural debt.
+2. [Promotion and rollback](docs/PROMOTION.md) — branch roles, validation gates,
+   production impact, and rollback rules.
+3. [Vendor technical handover](docs/VENDOR_HANDOVER.md) — detailed feature and
+   operational reference.
+4. [Documentation index](docs/README.md) — authoritative, supporting, and
+   historical documents.
 
-**Use Lovable**
+## Technology
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0ae01178-1280-45c0-83ac-d7ab1bb64b2e) and start prompting.
+- React 18, TypeScript, Vite 7, React Router, and TanStack Query
+- Capacitor 8 for Android and iOS
+- Supabase Auth, Postgres/RLS, Realtime, Storage, and Edge Functions
+- Vitest/Testing Library, Playwright, and an isolated local Supabase baseline
 
-Changes made via Lovable will be committed automatically to this repo.
+The lockfile is authoritative for resolved dependency versions.
 
-**Use your preferred IDE**
+## Repository map
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+| Path | Purpose |
+| --- | --- |
+| `src/pages` | Route-level screens and composition |
+| `src/features` | Extracted feature contracts, queries, mutations, and orchestration |
+| `src/components` | Shared and feature UI |
+| `src/hooks` | Cross-feature application hooks and legacy feature logic |
+| `src/integrations/supabase` | Browser Supabase client and generated database types |
+| `supabase/migrations` | Hosted database migration history |
+| `supabase/functions` | Deployable Supabase Edge Functions |
+| `local-supabase-workspace` | Disposable, synthetic, local-only integration environment |
+| `tests` / `e2e-baseline` | Integration and Playwright baseline journeys |
+| `scripts` | Test, safety, release, and operational automation |
+| `.github/workflows` | CI and production promotion automation |
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Local frontend development
 
-Follow these steps:
+Prerequisites: Node.js 22.12 or newer and npm.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm ci
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Application environment values are deployment-specific. Never copy production
+credentials into a local shell, test command, fixture, or committed file. Obtain
+the correct non-production setup through the repository owner.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Quality gates
 
-**Use GitHub Codespaces**
+Fast checks:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+npm run typecheck:production
+npm run typecheck:strict-features
+npm run build
+npm run test:run
+```
 
-## What technologies are used for this project?
+The complete baseline runs frontend tests, Playwright journeys, and a disposable
+Docker-based Supabase stack:
 
-This project is built with:
+```bash
+npm run test:baseline
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Read [the local Supabase safety guide](docs/testing/local-supabase.md) before the
+first run. The baseline accepts only localhost Supabase endpoints and synthetic
+data. Hosted Supabase testing is deliberately disabled.
 
-## How can I deploy this project?
+CI automatically runs the complete isolated baseline only on
+`codespaces-review`. Frontend tests also run on `main` and pull requests to
+`main`. A green build is necessary but does not replace the manual native and
+role-based checks required for a release.
 
-Simply open [Lovable](https://lovable.dev/projects/0ae01178-1280-45c0-83ac-d7ab1bb64b2e) and click on Share -> Publish.
+## Branch and deployment warning
 
-## Can I connect a custom domain to my Lovable project?
+- `main` is the primary development line.
+- `codespaces-review` is the isolated full-baseline validation line.
+- `prod` is a deployment trigger, not a general working branch.
 
-Yes, you can!
+Pull requests targeting `prod` run repository-only migration and Edge Function
+validation. Production credentials and commands are isolated in a separate job
+that cannot run for pull-request events and requires the `prod` ref. Merging or
+manually dispatching from `prod` remains a production operation. Follow
+[the promotion runbook](docs/PROMOTION.md) exactly.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Never deploy a cumulative refactor/integration branch directly. Promote one
+reviewed tranche at a time from a branch based on the latest `main`, preserve a
+known-good commit reference, and verify the exact commit being released.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## Documentation rules
+
+- Update architecture and promotion docs in the same change when their contract
+  changes.
+- Generated types and lockfiles are authoritative over prose version claims.
+- Dated audits and refactoring plans are evidence of a point in time, not current
+  operating instructions.
+- Never put secrets, user data, hosted database URLs, or project credentials in
+  documentation or fixtures.

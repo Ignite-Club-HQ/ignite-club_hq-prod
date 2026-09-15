@@ -1,144 +1,298 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, useLocation } from "react-router-dom";
+
+const native = vi.hoisted(() => ({
+  isNative: true,
+  appStateHandler: null as null | ((state: { isActive: boolean }) => void),
+  remove: vi.fn(),
+}));
+
+vi.mock("@capacitor/core", () => ({
+  Capacitor: { isNativePlatform: () => native.isNative },
+}));
+
+vi.mock("@capacitor/app", () => ({
+  App: {
+    addListener: vi.fn(async (_event: string, handler: (state: { isActive: boolean }) => void) => {
+      native.appStateHandler = handler;
+      return { remove: native.remove };
+    }),
+  },
+}));
+
 import PitchBoardResumeRedirect from "./PitchBoardResumeRedirect";
 import {
-  PITCH_BOARD_BACKGROUNDED_AT_KEY,
+  PITCH_BOARD_LAST_CONTEXT_KEY,
   PITCH_BOARD_OPEN_AT_KEY,
   PITCH_BOARD_OPEN_KEY,
   PITCH_BOARD_OPEN_PATH_KEY,
 } from "./types";
 
-vi.mock("@capacitor/core", () => ({
-  Capacitor: {
-    isNativePlatform: () => false,
-  },
-}));
-
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname + location.search}</output>;
+  const navigate = useNavigate();
+  return (
+    <>
+      <output data-testid="location">{location.pathname}{location.search}</output>
+      <button onClick={() => navigate("/")}>home</button>
+      <button onClick={() => navigate("/media")}>media</button>
+    </>
+  );
 }
 
-function renderRedirect(initialPath: string) {
+function mountAt(path: string) {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
+    <MemoryRouter initialEntries={[path]}>
       <PitchBoardResumeRedirect />
-      <LocationProbe />
+      <Routes>
+        <Route path="*" element={<LocationProbe />} />
+      </Routes>
     </MemoryRouter>,
   );
 }
 
-function seedOpenBoard(path = "/teams/team-1") {
+function persistOpenBoard(path: string) {
   localStorage.setItem(PITCH_BOARD_OPEN_KEY, "true");
   localStorage.setItem(PITCH_BOARD_OPEN_PATH_KEY, path);
   localStorage.setItem(PITCH_BOARD_OPEN_AT_KEY, String(Date.now()));
+  localStorage.setItem(
+    PITCH_BOARD_LAST_CONTEXT_KEY,
+    JSON.stringify({ teamId: "team-1", teamName: "U10 Blue", readOnly: false }),
+  );
 }
 
-describe("PitchBoardResumeRedirect behavior", () => {
+async function signalNativeResume() {
+  await waitFor(() => expect(native.appStateHandler).toBeTypeOf("function"));
+  await act(async () => native.appStateHandler?.({ isActive: true }));
+}
+
+describe("PitchBoardResumeRedirect lock/unlock recovery", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
     localStorage.clear();
-    delete (window as Window & { __pitchBoardMounted?: boolean }).__pitchBoardMounted;
-    delete (window as Window & { __pitchBoardMountedThisSession?: boolean })
-      .__pitchBoardMountedThisSession;
+    native.isNative = true;
+    native.appStateHandler = null;
+    native.remove.mockClear();
+    delete (window as any).__pitchBoardMounted;
+    delete (window as any).__pitchBoardMountedThisSession;
+    vi.spyOn(performance, "now").mockReturnValue(1_000);
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
   });
 
-  afterEach(() => {
-    cleanup();
-    vi.useRealTimers();
-  });
+  afterEach(() => vi.restoreAllMocks());
 
-  it("restores an open board from home on cold start", () => {
-    seedOpenBoard();
-    renderRedirect("/");
+  it("cold-starts from home back onto the exact event pitchboard route", async () => {
+    persistOpenBoard("/events/event-1?tab=attendance");
+    mountAt("/");
 
-    act(() => vi.advanceTimersByTime(1));
-
-    expect(screen.getByTestId("location")).toHaveTextContent(
-      "/teams/team-1?openPitchBoard=1",
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/events/event-1?tab=attendance&openPitchBoard=1",
+      ),
     );
   });
 
-  it("reclaims a protected route that wins during bootstrap", () => {
-    seedOpenBoard("/events/event-1?tab=details");
-    renderRedirect("/messages");
+  it("restores a team-scoped board and preserves its existing query", async () => {
+    persistOpenBoard("/teams/team-1?from=game-day");
+    mountAt("/");
 
-    act(() => vi.advanceTimersByTime(1));
-
-    expect(screen.getByTestId("location")).toHaveTextContent(
-      "/events/event-1?tab=details&openPitchBoard=1",
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/teams/team-1?from=game-day&openPitchBoard=1",
+      ),
     );
   });
 
-  it("does not override an authentication route", () => {
-    seedOpenBoard();
-    renderRedirect("/auth");
+  it("cold restart restores the board even when the WebView revives a different cached route", async () => {
+    persistOpenBoard("/teams/team-1?from=game-day&tab=lineup");
 
-    act(() => vi.advanceTimersByTime(30_000));
+    // Android can recreate the WebView using a cached navigation entry rather
+    // than the configured start URL. The recent open-board marker must win.
+    mountAt("/messages");
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/auth");
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/teams/team-1?from=game-day&tab=lineup&openPitchBoard=1",
+      ),
+    );
   });
 
-  it("clears a stale open flag instead of restoring it", () => {
-    seedOpenBoard();
+  it("warm unlock repairs route drift that occurred while the app was hidden", async () => {
+    persistOpenBoard("/events/event-1?tab=lineup");
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = false;
+    mountAt("/events/event-1?tab=lineup");
+
+    let visibility: DocumentVisibilityState = "hidden";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibility,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    // Model the native WebView restoring an older history entry while the
+    // phone is locked. This is not a user navigation and must not close the
+    // persisted board.
+    await act(async () => screen.getByRole("button", { name: "media" }).click());
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/media"));
+
+    visibility = "visible";
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/events/event-1?tab=lineup&openPitchBoard=1",
+      ),
+    );
+  });
+
+  it("converges on the exact board route under repeated unlock signals", async () => {
+    persistOpenBoard("/events/event-1");
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = false;
+    mountAt("/events/event-1");
+
+    let visibility: DocumentVisibilityState = "hidden";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibility,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await act(async () => screen.getByRole("button", { name: "media" }).click());
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/media"));
+
+    await waitFor(() => expect(native.appStateHandler).toBeTypeOf("function"));
+    visibility = "visible";
+    await act(async () => {
+      native.appStateHandler?.({ isActive: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("pageshow"));
+      window.dispatchEvent(new Event("pageshow"));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/events/event-1?openPitchBoard=1",
+      ),
+    );
+  });
+
+  it("warm unlock reopens a board whose React modal was lost on its existing route", async () => {
+    vi.mocked(performance.now).mockReturnValue(30_000);
+    persistOpenBoard("/events/event-1");
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = false;
+    mountAt("/events/event-1");
+
+    await signalNativeResume();
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/events/event-1?openPitchBoard=1",
+      ),
+    );
+  });
+
+  it("does not navigate while the pitchboard remains mounted", async () => {
+    persistOpenBoard("/events/event-1");
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = true;
+    mountAt("/");
+
+    await signalNativeResume();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
+  });
+
+  it("does not hijack an unrelated non-neutral page after unlock", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    persistOpenBoard("/events/event-1");
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = true;
+    mountAt("/events/event-1");
+
+    // Model deliberate foreground navigation after bootstrap has settled,
+    // rather than a cached route supplied during the restore lease.
+    now.mockReturnValue(32_000);
+    (window as any).__pitchBoardMounted = false;
+    await act(async () => screen.getByRole("button", { name: "media" }).click());
+
+    await signalNativeResume();
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/media"));
+  });
+
+  it("does not restore a different route when the persisted board marker is stale", async () => {
+    persistOpenBoard("/events/event-1");
     localStorage.setItem(
       PITCH_BOARD_OPEN_AT_KEY,
-      String(Date.now() - 13 * 60 * 60 * 1000),
+      String(Date.now() - (12 * 60 * 60 * 1000 + 1)),
     );
-    renderRedirect("/");
+    mountAt("/messages");
 
-    act(() => vi.advanceTimersByTime(1));
+    await signalNativeResume();
+    expect(screen.getByTestId("location")).toHaveTextContent("/messages");
+    expect(localStorage.getItem(PITCH_BOARD_OPEN_KEY)).toBeNull();
+  });
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/");
+  it("clears a stale previous-session flag instead of reopening it on warm resume", async () => {
+    vi.mocked(performance.now).mockReturnValue(30_000);
+    persistOpenBoard("/events/event-1");
+    localStorage.removeItem(PITCH_BOARD_OPEN_AT_KEY);
+    mountAt("/");
+
+    await signalNativeResume();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
     expect(localStorage.getItem(PITCH_BOARD_OPEN_KEY)).toBeNull();
     expect(localStorage.getItem(PITCH_BOARD_OPEN_PATH_KEY)).toBeNull();
-    expect(localStorage.getItem(PITCH_BOARD_OPEN_AT_KEY)).toBeNull();
+    expect(localStorage.getItem(PITCH_BOARD_LAST_CONTEXT_KEY)).toBeNull();
   });
 
-  it("does not navigate when the board is still mounted", () => {
-    seedOpenBoard();
-    (window as Window & { __pitchBoardMounted?: boolean }).__pitchBoardMounted = true;
-    renderRedirect("/");
+  it("treats navigation from the board route to Home as an explicit close", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    persistOpenBoard("/events/event-1");
+    (window as any).__pitchBoardMountedThisSession = true;
+    mountAt("/events/event-1");
 
-    act(() => vi.advanceTimersByTime(30_000));
+    // Once the cold-start lease has elapsed, leaving the board route is a
+    // foreground user action and must clear the persisted open marker.
+    now.mockReturnValue(32_000);
+    await act(async () => screen.getByRole("button", { name: "home" }).click());
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/));
+    expect(localStorage.getItem(PITCH_BOARD_OPEN_KEY)).toBeNull();
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/");
+    await signalNativeResume();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
   });
 
-  it("restores the stored board after native route drift to a stale route", () => {
-    seedOpenBoard("/teams/team-1");
-    // Simulate a resume where the WebView came back on /media.
-    localStorage.setItem(PITCH_BOARD_BACKGROUNDED_AT_KEY, String(Date.now()));
-    renderRedirect("/media");
-
-    act(() => vi.advanceTimersByTime(1));
-
-    expect(screen.getByTestId("location")).toHaveTextContent(
-      "/teams/team-1?openPitchBoard=1",
-    );
-  });
-
-  it("keeps the open marker when the route drifts while the app is hidden", () => {
-    seedOpenBoard("/teams/team-1");
-    const { rerender } = render(
-      <MemoryRouter initialEntries={["/teams/team-1"]}>
-        <PitchBoardResumeRedirect />
-        <LocationProbe />
-      </MemoryRouter>,
-    );
-    // Let the initial cold-start lease expire.
-    act(() => vi.advanceTimersByTime(40_000));
-    // App goes to background, then the WebView drifts to a stale route.
-    localStorage.setItem(PITCH_BOARD_BACKGROUNDED_AT_KEY, String(Date.now()));
-    rerender(
-      <MemoryRouter initialEntries={["/messages"]}>
-        <PitchBoardResumeRedirect />
-        <LocationProbe />
-      </MemoryRouter>,
-    );
-    act(() => vi.advanceTimersByTime(1));
-
+  it("leaves a home-overlay board for HomePage to restore", async () => {
+    persistOpenBoard("/");
+    mountAt("/");
+    await signalNativeResume();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/$/);
     expect(localStorage.getItem(PITCH_BOARD_OPEN_KEY)).toBe("true");
+  });
+
+  it("cancels delayed native-resume retries when the redirect unmounts", async () => {
+    persistOpenBoard("/events/event-1");
+    (window as any).__pitchBoardMountedThisSession = true;
+    (window as any).__pitchBoardMounted = true;
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
+    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
+    const view = mountAt("/media");
+
+    await signalNativeResume();
+    const resumeTimerIds = setTimeoutSpy.mock.calls.flatMap(([, delay], index) =>
+      delay === 400 || delay === 1200
+        ? [setTimeoutSpy.mock.results[index].value]
+        : [],
+    );
+    expect(resumeTimerIds).toHaveLength(2);
+    view.unmount();
+
+    // These are the two timers that previously escaped teardown and fired
+    // after jsdom had removed `window`.
+    const clearedIds = clearTimeoutSpy.mock.calls.map(([id]) => id);
+    expect(clearedIds).toEqual(expect.arrayContaining(resumeTimerIds));
   });
 });

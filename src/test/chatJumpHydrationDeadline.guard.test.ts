@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 
 const list = readFileSync("src/components/chat/VirtualizedChatMessageList.tsx", "utf8");
+const overlay = readFileSync("src/components/chat/useChatJumpHydration.ts", "utf8");
 const jump = readFileSync("src/lib/jumpToMessage.ts", "utf8");
 const lifecycle = readFileSync("src/lib/chatJumpLifecycle.ts", "utf8");
 
@@ -22,17 +23,17 @@ describe("chat jump hydration reveal lifecycle", () => {
   });
 
   it("keeps duplicate start/end notifications idempotent", () => {
-    expect(list).toContain("if (hydrating) return;");
-    expect(list).toContain("if (cancelSettleWait) return;");
+    expect(overlay).toContain("if (hydrating && !endReceived) return;");
+    expect(overlay).toContain("if (cancelSettleWait) return;");
     expect(jump).toContain("if (hydrationEnded) return;");
     expect(lifecycle).toContain("if (current.ended) return");
   });
 
   it("retains a never-blank-forever backstop plus a short reveal fail-safe", () => {
-    expect(list).toContain("const OVERLAY_HARD_DEADLINE_MS = 32000");
-    expect(list).toContain("const OVERLAY_REVEAL_FAILSAFE_MS = 4000");
+    expect(overlay).toContain("const OVERLAY_HARD_DEADLINE_MS = 32000");
+    expect(overlay).toContain("const OVERLAY_REVEAL_FAILSAFE_MS = 4000");
     expect(list).toContain("const JUMP_REVEAL_FAILSAFE_MS = 4000");
-    expect(list).toContain("if (isChatJumpActive()) onStart();");
+    expect(overlay).toContain("if (isChatJumpActive()) onStart();");
     expect(jump).toContain("const OVERLAY_RELEASE_MS = maxAttempts * intervalMs + 3000");
     expect(jump).toContain('new CustomEvent("chat:jump-hydration-end")');
   });
@@ -43,7 +44,7 @@ describe("chat jump hydration reveal lifecycle", () => {
   });
 
   it("keeps the skeleton masking and exact-target selection intact", () => {
-    expect(list).toContain("{!initialRevealReady ? <JumpHydrationSkeleton /> : null}");
+    expect(list).toContain("{!initialRevealReady ? <ChatJumpHydrationSkeleton /> : null}");
     expect(list).toContain("initialTargetMessageId && initialTargetIndex >= 0");
     expect(list).toContain("initialBottomPinned, initialTargetMessageId]");
   });

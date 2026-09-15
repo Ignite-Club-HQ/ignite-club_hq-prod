@@ -14,6 +14,7 @@ import { getPlatform } from "@/lib/nativePush";
  */
 const SAMPLE_RATE = 0.1; // 10% of received events
 const FLUSH_MS = 30_000;
+const MAX_PENDING_SAMPLES = 100;
 
 type Pending = {
   channel: string;
@@ -46,6 +47,11 @@ export function useRealtimePerfSampler(userId: string | undefined) {
         latency_ms: Math.round(latency),
         sent_at: sentIso,
       });
+      // A telemetry path must never create unbounded client memory growth if
+      // the database is slow or unavailable.
+      if (pending.length > MAX_PENDING_SAMPLES) {
+        pending.splice(0, pending.length - MAX_PENDING_SAMPLES);
+      }
     };
 
     const notifChan = supabase
@@ -61,7 +67,15 @@ export function useRealtimePerfSampler(userId: string | undefined) {
       .channel("perf-message-reads")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "message_reads" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "message_reads",
+          // Never subscribe the sampler to every user's read receipts. Apart
+          // from unnecessary fan-out, that would make instrumentation itself
+          // a scaling liability as more clubs are onboarded.
+          filter: `user_id=eq.${userId}`,
+        },
         (payload) => record("message_reads", "INSERT", (payload.new as any)?.read_at),
       )
       .subscribe();

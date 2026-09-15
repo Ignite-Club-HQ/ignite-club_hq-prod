@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateRolesCache } from "@/lib/rolesCache";
 import { cn } from "@/lib/utils";
+import { refreshTeamRoleChange } from "@/features/membership/teamMembershipCacheCompletion";
 
 /**
  * Single dialog that unifies role assignment AND team-admin promotion for a
@@ -207,7 +208,7 @@ export default function ManageRolesDialog({
       invalidateRolesCache();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
+      refreshTeamRoleChange(queryClient, teamId);
 
       const summary: string[] = [];
       if (additions.length > 0) {

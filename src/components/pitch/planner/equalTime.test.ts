@@ -127,6 +127,25 @@ describe("buildEqualTimePlan — squad-wide fairness", () => {
     expect(totalProjected(res.projectedSec)).toBe(teamSize * HALF * 2);
   });
 
+  it("uses a compact cyclic schedule instead of micro-substitutions when every player is position-compatible", () => {
+    const players = squad(13, 10);
+    const res = buildEqualTimePlan({
+      players,
+      teamSize: 10,
+      halfDurationSec: 40 * 60,
+      minShiftSec: 3 * 60,
+      chunkSec: 30,
+      noSubBeforeSec: 0,
+      noSubAfterSec: 30,
+    });
+
+    // N equal periods require exactly N-1 boundaries. This protects the UX
+    // from a mathematically fair but unusable plan containing micro-subs.
+    expect(res.plan).toHaveLength(players.length - 1);
+    expect(res.spreadSec).toBeLessThanOrEqual(1);
+    expect(totalProjected(res.projectedSec)).toBe(10 * 40 * 60 * 2);
+  });
+
   it("every healthy eligible rotation player gets on the pitch", () => {
     const players = squad(9, 7);
     const res = buildEqualTimePlan({

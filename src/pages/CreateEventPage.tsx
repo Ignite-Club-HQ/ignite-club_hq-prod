@@ -38,16 +38,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
-import { type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
-import { MoreEventOptions } from "@/components/event/MoreEventOptions";
+import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
+import { EventRoleAudienceSelect, type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
-import { refreshEventCaches } from "@/lib/eventCacheRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { AddressAutocomplete, SavedLocation } from "@/components/AddressAutocomplete";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
-import { EventAudienceSelector } from "@/components/event/EventAudienceSelector";
+import { TargetTeamsPicker } from "@/components/event/TargetTeamsPicker";
 import { OpponentInput } from "@/components/OpponentInput";
 import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -60,9 +59,20 @@ import {
   CONFLICT_CHECK_ERROR_DESCRIPTION,
   type ConflictCheckResult,
 } from "@/features/events/trainingConflictPolicy";
+import { buildSharedEventPayload } from "@/features/events/eventPayloadPolicy";
+import {
+  recurringChildTimestamps,
+  timeOnEventDate,
+  type RecurrencePattern,
+} from "@/features/events/eventRecurrencePolicy";
+import { createEventTransaction } from "@/features/events/createEventWorkflow";
+import {
+  acquireEventSubmission,
+  releaseEventSubmission,
+} from "@/features/events/eventSubmissionGate";
+import { completeEventCreate } from "@/features/events/eventMutationCompletion";
 
 type EventType = "game" | "training" | "social" | "mini_league";
-type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
 
 const DAYS_OF_WEEK = [
   { value: 0, label: "S" },
@@ -113,6 +123,7 @@ export default function CreateEventPage() {
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  const submissionLockRef = useRef(false);
   // Event + duties are written atomically by create_event_with_duties, so no
   // partial-write retry state is needed.
 
@@ -134,7 +145,6 @@ export default function CreateEventPage() {
   
   // Price for social events
   const [price, setPrice] = useState("");
-  const [paidEvent, setPaidEvent] = useState(false);
 
   // Guest settings for social events
   const [allowGuests, setAllowGuests] = useState(false);
@@ -152,39 +162,25 @@ export default function CreateEventPage() {
   const [restrictedRoles, setRestrictedRoles] = useState<ClubEventRole[]>([]);
   const [adultsOnly, setAdultsOnly] = useState(false);
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
-  // Subset targeting for club-wide games/socials/trainings: null = all club, [...] = only those teams
+  // Subset targeting for club-wide games/socials: null = all club, [...] = only those teams
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
-  // Types that support a club-wide ("All Club") scope and therefore team targeting.
-  const supportsClubWideScope = type === "game" || type === "social" || type === "training";
-
   // Clear stale target_team_ids whenever the event moves out of the
-  // club-wide window (team picked, unsupported type, club changed).
+  // "club-wide game/social" window (team picked, unsupported type, club
+  // changed). Prevents a stale UUID subset from being submitted after the
+  // relationship changes — the backend validation trigger would reject it
+  // anyway, but clearing gives a clean UX.
   useEffect(() => {
-    if (
-      targetTeamIds !== null &&
-      (teamId || (type !== "game" && type !== "social" && type !== "training"))
-    ) {
+    if (targetTeamIds !== null && (teamId || (type !== "game" && type !== "social"))) {
       setTargetTeamIds(null);
     }
   }, [teamId, type, clubId, targetTeamIds]);
-
 
   // Auto-calculate end time from duration or vice versa
   const getStartTimeStr = () => {
     if (!eventDateTime) return "";
     const d = new Date(eventDateTime);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  };
-
-  // Convert a bare HH:mm time string to a full ISO timestamp using the event date
-  const timeToTimestamp = (timeStr: string | null | undefined, baseDate: Date): string | null => {
-    if (!timeStr) return null;
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    if (isNaN(hours) || isNaN(minutes)) return null;
-    const d = new Date(baseDate);
-    d.setHours(hours, minutes, 0, 0);
-    return d.toISOString();
   };
 
   const handleDurationChange = (val: string) => {
@@ -585,42 +581,6 @@ export default function CreateEventPage() {
     );
   };
 
-  const generateRecurringDates = (startDate: Date, endDate: Date): Date[] => {
-    const dates: Date[] = [new Date(startDate)];
-    let currentDate = new Date(startDate);
-
-    while (currentDate < endDate) {
-      if (recurrencePattern === "daily") {
-        currentDate = new Date(currentDate.setDate(currentDate.getDate() + recurrenceInterval));
-      } else if (recurrencePattern === "weekly") {
-        if (recurrenceDays.length > 0) {
-          let found = false;
-          for (let i = 1; i <= 7 * recurrenceInterval && !found; i++) {
-            const nextDate = new Date(currentDate);
-            nextDate.setDate(nextDate.getDate() + i);
-            if (recurrenceDays.includes(nextDate.getDay())) {
-              currentDate = nextDate;
-              found = true;
-            }
-          }
-          if (!found) break;
-        } else {
-          currentDate = new Date(currentDate.setDate(currentDate.getDate() + 7 * recurrenceInterval));
-        }
-      } else if (recurrencePattern === "biweekly") {
-        currentDate = new Date(currentDate.setDate(currentDate.getDate() + 14 * recurrenceInterval));
-      } else if (recurrencePattern === "monthly") {
-        currentDate = new Date(currentDate.setMonth(currentDate.getMonth() + recurrenceInterval));
-      }
-
-      if (currentDate <= endDate) {
-        dates.push(new Date(currentDate));
-      }
-    }
-
-    return dates;
-  };
-
   // Check for conflicting events at the same day, time, and location.
   // Returns an explicit result — a failed read is NEVER treated as "no conflict".
   const checkForConflicts = useCallback(async (): Promise<ConflictCheckResult> => {
@@ -641,7 +601,6 @@ export default function CreateEventPage() {
       .lte("event_date", `${eventDateStr}T23:59:59`);
 
     if (directDateQuery.error) return { status: "error" };
-
     // Also check recurring parent events whose children might not yet exist on this date
     // (e.g. if the new event date is beyond existing generated children)
     const recurringParentQuery = await supabase
@@ -680,21 +639,22 @@ export default function CreateEventPage() {
       return;
     }
 
+    // Require team selection for games and training
     // Remember last used event type
     localStorage.setItem("lastEventType", type);
 
-    // Training, games and socials may be club-wide ("All Club") or targeted at
-    // a subset of teams. When a subset is chosen it must contain 2+ teams.
-    if (!teamId && targetTeamIds !== null && targetTeamIds.length < 2) {
+    // Training always requires a team. Games can be "All Club" (club-wide match).
+    if (type === "training" && !teamId) {
       toast({
-        title: "Select at least 2 teams",
-        description:
-          "Pick two or more teams, or choose All Club members. For a single team, select it in the Team dropdown.",
-        variant: "destructive",
+        title: "Team required",
+        description: "Please select a team for training sessions.",
       });
       return;
     }
 
+    // React state does not update synchronously. Reserve the submission before
+    // the first awaited validation so rapid taps cannot run parallel creates.
+    if (!acquireEventSubmission(submissionLockRef)) return;
 
     // Guard against a stale team selection: if the team was soft-deleted
     // (possibly from another device) the event — and its auto "event created"
@@ -713,6 +673,7 @@ export default function CreateEventPage() {
             : "The selected team has been deleted. Please pick a current team.",
           variant: "destructive",
         });
+        releaseEventSubmission(submissionLockRef);
         return;
       }
     }
@@ -735,6 +696,7 @@ export default function CreateEventPage() {
               : "The selected team is not part of the selected club. Please choose a team from this club.",
           variant: "destructive",
         });
+        releaseEventSubmission(submissionLockRef);
         return;
       }
     }
@@ -746,6 +708,7 @@ export default function CreateEventPage() {
         description: "Please add a location for this event.",
         variant: "destructive",
       });
+      releaseEventSubmission(submissionLockRef);
       return;
     }
 
@@ -755,6 +718,7 @@ export default function CreateEventPage() {
         title: "Mini League required",
         description: "Please select a mini league for this event.",
       });
+      releaseEventSubmission(submissionLockRef);
       return;
     }
 
@@ -764,6 +728,7 @@ export default function CreateEventPage() {
         description: "Please set an end date for recurring events.",
         variant: "destructive",
       });
+      releaseEventSubmission(submissionLockRef);
       return;
     }
 
@@ -776,6 +741,7 @@ export default function CreateEventPage() {
           description: "Enter a whole number between 1 and 480 minutes, or leave blank.",
           variant: "destructive",
         });
+        releaseEventSubmission(submissionLockRef);
         return;
       }
     }
@@ -791,10 +757,12 @@ export default function CreateEventPage() {
           description: CONFLICT_CHECK_ERROR_DESCRIPTION,
           variant: "destructive",
         });
+        releaseEventSubmission(submissionLockRef);
         return;
       }
       if (conflictResult.status === "conflict") {
         setConflictDialogOpen(true);
+        releaseEventSubmission(submissionLockRef);
         return;
       }
     }
@@ -803,42 +771,38 @@ export default function CreateEventPage() {
     setSaving(true);
 
     const parsedDateTime = new Date(eventDateTime);
-    const parsedPrice = price ? parseFloat(price) : null;
+    const sharedEventData = buildSharedEventPayload({
+      title,
+      type: type === "mini_league" ? "game" : type,
+      address,
+      description,
+      clubId,
+      teamId: type === "mini_league" ? "" : teamId,
+      price,
+      opponent,
+      isBye,
+      arrivalMinutesBefore,
+      rsvpAudience,
+      allowGuests,
+      maxGuestsPerMember,
+      restrictedRoles,
+      adultsOnly,
+      rsvpGrouping,
+      targetTeamIds,
+    });
     const baseEventData = {
-      title: title.trim(),
-      type: type === "mini_league" ? "game" : type, // Store mini_league as game type
-      club_id: clubId,
-      team_id: type === "mini_league" ? null : (teamId || null),
+      ...sharedEventData,
       mini_league_id: type === "mini_league" ? miniLeagueId : null,
-      address: address.trim() || null,
       suburb: null,
       state: null,
       postcode: null,
-      description: description.trim() || null,
       created_by: user!.id,
       is_recurring: isRecurring,
       recurrence_end_date: isRecurring ? recurrenceEndDate : null,
       reminder_hours_before: reminderEnabled ? reminderHours : null,
       reminder_sent: false,
-      amount: type === "social" ? parsedPrice : null,
-      opponent: type === "game" && !isBye ? opponent.trim() || null : null,
-      arrival_minutes_before: type === "game" && !isBye && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
-      rsvp_audience: rsvpAudience,
-      is_bye: type === "game" ? isBye : false,
-      allow_guests: type === "social" && allowGuests ? true : null,
-      max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
-      start_time: timeToTimestamp(getStartTimeStr(), parsedDateTime),
-      end_time: timeToTimestamp(endTime, parsedDateTime),
-      restricted_to_roles:
-        type === "social" && !teamId && restrictedRoles.length > 0 ? restrictedRoles : null,
-      adults_only: adultsOnly,
-      rsvp_grouping:
-        !teamId && supportsClubWideScope && rsvpGrouping ? rsvpGrouping : null,
-      target_team_ids:
-        !teamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
-          ? targetTeamIds
-          : null,
-
+      start_time: timeOnEventDate(getStartTimeStr(), parsedDateTime),
+      end_time: timeOnEventDate(endTime, parsedDateTime),
     } as any;
 
     // The event row, any recurring occurrences and the duties are written by a
@@ -852,41 +816,28 @@ export default function CreateEventPage() {
     try {
       let childDates: string[] | null = null;
       if (isRecurring) {
-        const endDate = new Date(recurrenceEndDate);
-        const dates = generateRecurringDates(parsedDateTime, endDate);
-        childDates = dates.slice(1).map((date) => {
-          const childDateTime = new Date(date);
-          childDateTime.setHours(parsedDateTime.getHours(), parsedDateTime.getMinutes());
-          return childDateTime.toISOString();
+        childDates = recurringChildTimestamps({
+          startDate: parsedDateTime,
+          endDate: new Date(recurrenceEndDate),
+          pattern: recurrencePattern,
+          interval: recurrenceInterval,
+          weekdays: recurrenceDays,
         });
-        if (childDates.length === 0) childDates = null;
       }
 
-      const { data: newEventId, error } = await supabase.rpc("create_event_with_duties", {
-        p_event: {
-          ...baseEventData,
-          event_date: parsedDateTime.toISOString(),
-        } as any,
-        p_child_dates: childDates,
-        p_duties: dutyPayload as any,
+      const newEventId = await createEventTransaction(supabase, {
+        event: baseEventData,
+        eventDate: parsedDateTime.toISOString(),
+        childDates,
+        duties: dutyPayload,
       });
 
-      if (error) throw error;
-      if (!newEventId) throw new Error("Event could not be created.");
-
-      try {
-        await queryClient.invalidateQueries({
-          queryKey: ["user-memberships-and-events", user!.id],
-        });
-        // Also refresh every other event-derived surface (Schedule list, team
-        // next-event) and drop the persisted localStorage snapshots so a cold
-        // open cannot repaint a list that predates this event.
-        refreshEventCaches(queryClient, user!.id);
-      } catch (invalidationError) {
-        console.warn("Next Up invalidation failed after event creation:", invalidationError);
-      }
-
-      navigate(`/events/${newEventId}`);
+      await completeEventCreate({
+        queryClient,
+        navigate,
+        userId: user!.id,
+        warn: console.warn,
+      }, newEventId);
     } catch (error: any) {
       console.error("Error creating event:", error);
 
@@ -935,7 +886,7 @@ export default function CreateEventPage() {
         if (!title.trim()) missingFields.push("Event title");
         if (!clubId) missingFields.push("Club selection");
         if (!eventDateTime) missingFields.push("Date and time");
-        if (!teamId && targetTeamIds !== null && targetTeamIds.length < 2) missingFields.push("Team selection");
+        if ((type === "game" || type === "training") && !teamId) missingFields.push("Team selection");
         
         if (missingFields.length > 0) {
           errorDescription = `Missing required fields: ${missingFields.join(", ")}`;
@@ -951,6 +902,7 @@ export default function CreateEventPage() {
       });
     } finally {
       setSaving(false);
+      releaseEventSubmission(submissionLockRef);
     }
   };
 
@@ -1193,23 +1145,47 @@ export default function CreateEventPage() {
                 />
                 )}
                 
-                {/* Audience selection — single control for club / one team / several teams */}
+                {/* Team selection - for non-mini-league events */}
                 {type !== "mini_league" && (
-                  <EventAudienceSelector
-                    teams={teams ?? undefined}
-                    clubTeams={allClubTeams ?? undefined}
-                    teamId={teamId}
-                    onTeamIdChange={setTeamId}
-                    targetTeamIds={targetTeamIds}
-                    onTargetTeamIdsChange={setTargetTeamIds}
-                    supportsClubWideScope={supportsClubWideScope}
+                  <MobileCardSelect
+                    value={teamId || ((type === "social" || type === "game") ? "__all__" : "")}
+                    onValueChange={(v) => setTeamId(v === "__all__" ? "" : v)}
+                    options={[
+                      ...((type === "social" || type === "game")
+                        ? [{ value: "__all__", label: "All Club" }]
+                        : []),
+                      ...(teams?.map((team) => ({ value: team.id, label: team.name })) || []),
+                    ]}
+                    placeholder={(type === "social" || type === "game") ? "All Club" : "Select team"}
+                    label="Team"
                     disabled={!clubId}
-                    defaultMode="team"
+                    required={type === "training"}
                   />
                 )}
 
-                
+                {/* RSVP grouping - only for club-wide game/social events */}
+                {!teamId && (type === "game" || type === "social") && (
+                  <MobileCardSelect
+                    value={rsvpGrouping || "none"}
+                    onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
+                    options={[
+                      { value: "none", label: "No grouping (flat list)" },
+                      { value: "level", label: "Group by age level (U8, U9…)" },
+                      { value: "team", label: "Group by team (U8 Blue, U8 Red…)" },
+                    ]}
+                    placeholder="No grouping"
+                    label="RSVP grouping"
+                  />
+                )}
 
+                {/* Target teams — restrict a club-wide game/social to a subset of teams */}
+                {!teamId && (type === "game" || type === "social") && (
+                  <TargetTeamsPicker
+                    teams={allClubTeams ?? undefined}
+                    value={targetTeamIds}
+                    onChange={setTargetTeamIds}
+                  />
+                )}
                 
                 {/* Mini League selection - only for mini_league events, hidden when pre-set */}
                 {type === "mini_league" && !isFromMiniLeague && (
@@ -1267,92 +1243,89 @@ export default function CreateEventPage() {
                 </div>
               )}
 
-              {/* Paid event - only for social events */}
+              {(type === "game" || type === "training" || type === "social") && (
+                <RsvpAudienceSelect
+                  value={rsvpAudience}
+                  onChange={setRsvpAudience}
+                  teamDefault={null}
+                />
+              )}
+
+              {/* Adults only - hides child RSVP prompts */}
+              <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="adults-only" className="text-sm font-medium">Adults only</Label>
+                  <p className="text-xs text-muted-foreground">Hide child RSVP prompts. Use for committee meetings, AGMs and adult socials.</p>
+                </div>
+                <Switch id="adults-only" checked={adultsOnly} onCheckedChange={setAdultsOnly} />
+              </div>
+
+              {/* Role restriction - only for club-wide social events */}
+              {type === "social" && !teamId && (
+                <EventRoleAudienceSelect
+                  value={restrictedRoles}
+                  onChange={setRestrictedRoles}
+                />
+              )}
+
+
+
+
+              {/* Price - only for social events */}
               {type === "social" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="paid-event" className="text-sm font-medium">Paid event</Label>
-                      <p className="text-xs text-muted-foreground">Charge attendees to come along.</p>
-                    </div>
-                    <Switch
-                      id="paid-event"
-                      checked={paidEvent}
-                      onCheckedChange={(next) => {
-                        setPaidEvent(next);
-                        if (!next) setPrice("");
-                      }}
+                <div className="space-y-2">
+                  <Label htmlFor="price">Price (AUD)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="price"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00 (free)"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      className="pl-9"
                     />
                   </div>
-                  {paidEvent && (
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Price per person (AUD)</Label>
-                      <div className="relative">
-                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="price"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0.00"
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          className="pl-9"
-                        />
-                      </div>
+                </div>
+              )}
+
+              {/* Guest settings - only for social events, only for club admins */}
+              {type === "social" && isClubAdminForSelectedClub && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <Label htmlFor="allow-guests" className="flex items-center gap-2">
+                        <UserPlus className="h-4 w-4" />
+                        Allow Guests
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        Members can add non-member guests
+                      </span>
+                    </div>
+                    <Switch
+                      id="allow-guests"
+                      checked={allowGuests}
+                      onCheckedChange={setAllowGuests}
+                    />
+                  </div>
+                  {allowGuests && (
+                    <div className="space-y-2 pl-6">
+                      <Label htmlFor="max-guests">Max guests per member</Label>
+                      <Input
+                        id="max-guests"
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={maxGuestsPerMember}
+                        onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
+                        className="w-24"
+                      />
                     </div>
                   )}
                 </div>
               )}
-
-              <MoreEventOptions
-                showGrouping={!teamId && supportsClubWideScope}
-                rsvpGrouping={rsvpGrouping}
-                onRsvpGroupingChange={setRsvpGrouping}
-                adultsOnly={adultsOnly}
-                onAdultsOnlyChange={setAdultsOnly}
-                showRoleRestriction={type === "social" && !teamId}
-                restrictedRoles={restrictedRoles}
-                onRestrictedRolesChange={setRestrictedRoles}
-                extraSummary={type === "social" && allowGuests ? ["Guests allowed"] : undefined}
-              >
-                {/* Guest settings - only for social events, only for club admins */}
-                {type === "social" && isClubAdminForSelectedClub && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <Label htmlFor="allow-guests" className="flex items-center gap-2">
-                          <UserPlus className="h-4 w-4" />
-                          Allow Guests
-                        </Label>
-                        <span className="text-xs text-muted-foreground">
-                          Members can add non-member guests
-                        </span>
-                      </div>
-                      <Switch
-                        id="allow-guests"
-                        checked={allowGuests}
-                        onCheckedChange={setAllowGuests}
-                      />
-                    </div>
-                    {allowGuests && (
-                      <div className="space-y-2 pl-6">
-                        <Label htmlFor="max-guests">Max guests per member</Label>
-                        <Input
-                          id="max-guests"
-                          type="number"
-                          min={1}
-                          max={20}
-                          value={maxGuestsPerMember}
-                          onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
-                          className="w-24"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </MoreEventOptions>
-
 
               {/* Description */}
               <div className="space-y-2">
@@ -1759,7 +1732,7 @@ export default function CreateEventPage() {
         <Button
           className="w-full h-12 text-base font-semibold shadow-lg disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground"
           onClick={() => handleSubmit()}
-          disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim()}
+          disabled={saving || !title.trim() || !clubId || !eventDateTime || !address.trim() || (type === "training" && !teamId)}
         >
           {saving ? (
             <Loader2 className="h-5 w-5 animate-spin" />

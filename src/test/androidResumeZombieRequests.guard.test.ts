@@ -21,8 +21,10 @@ const read = (rel: string) =>
 const authRetry = read("../lib/supabaseAuthRetry.ts");
 const adapter = read("../lib/reactQueryNativeAdapter.ts");
 const ensureFresh = read("../lib/ensureFreshSession.ts");
+const refreshOnce = read("../lib/refreshSessionOnce.ts");
 const eventsPage = read("../pages/EventsPage.tsx");
 const mediaPage = read("../pages/MediaPage.tsx");
+const mediaRealtime = read("../features/media/useMediaRealtime.ts");
 
 describe("supabaseAuthRetry wall-clock deadlines", () => {
   it("tracks in-flight REST GETs with a wall-clock deadline, not just a timer", () => {
@@ -70,7 +72,8 @@ describe("native adapter aborts before refetching on resume", () => {
 describe("ensureFreshSession is bounded even when hidden", () => {
   it("does not gate the timeout race on document visibility", () => {
     expect(ensureFresh).not.toMatch(/const isVisible/);
-    expect(ensureFresh).toMatch(/Promise\.race\(\[/);
+    expect(ensureFresh).toMatch(/refreshSessionOnce\(REFRESH_TIMEOUT_MS\)/);
+    expect(refreshOnce).toMatch(/Promise\.race\(\[/);
     expect(ensureFresh).toMatch(/REFRESH_TIMEOUT_MS/);
   });
 });
@@ -94,10 +97,9 @@ describe("page-level escape hatches", () => {
   });
 
   it("Media opts out of its own visibility listeners on native", () => {
-    const listeners =
-      mediaPage.match(/addEventListener\("visibilitychange"/g) ?? [];
-    expect(listeners.length).toBe(2);
-    const optOuts = mediaPage.match(/if \(isNativeRuntime\(\)\) return;/g) ?? [];
-    expect(optOuts.length).toBeGreaterThanOrEqual(2);
+    expect(mediaPage).toMatch(/addEventListener\("visibilitychange", onVisible\)/);
+    expect(mediaPage).toMatch(/if \(isNativeRuntime\(\)\) return;/);
+    expect(mediaRealtime).toMatch(/addEventListener\("visibilitychange", onVisible\)/);
+    expect(mediaRealtime).toMatch(/if \(isNativeRuntime\(\) \|\| document\.visibilityState !== "visible"\) return;/);
   });
 });

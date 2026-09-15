@@ -108,4 +108,3 @@ export function useUserHasAnyAICatchUpClub(scopedClubId?: string | null) {
     resolved,
   };
 }
-

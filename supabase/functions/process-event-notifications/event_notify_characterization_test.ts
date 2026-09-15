@@ -146,6 +146,76 @@ Deno.test("targeted club-wide event: targeted teams + club admins + guardians on
   assertEquals(sorted(ids), ["admin1", "cm1", "guardian-1", "t1u1", "t2u1"]);
 });
 
+Deno.test("targeted audience deduplicates users who are members, admins, and guardians", async () => {
+  const db = new FakeSupabase({
+    user_roles: teamRoles([
+      ["multi-role", "player", TEAM],
+      ["multi-role", "club_admin", null],
+      ["other", "coach", OTHER_TEAM],
+    ]),
+    child_team_assignments: [{ team_id: TEAM, child_id: "child-1" }],
+    child_guardians: [{ child_id: "child-1", guardian_id: "multi-role" }],
+    events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM, OTHER_TEAM] }],
+  });
+  const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
+  assertEquals(sorted(ids), ["multi-role", "other"]);
+});
+
+Deno.test("targeted audience excludes the creator through every recipient path", async () => {
+  const db = new FakeSupabase({
+    user_roles: teamRoles([
+      [CREATOR, "player", TEAM],
+      [CREATOR, "club_admin", null],
+      ["member", "player", TEAM],
+    ]),
+    child_team_assignments: [{ team_id: TEAM, child_id: "child-1" }],
+    child_guardians: [{ child_id: "child-1", guardian_id: CREATOR }],
+    events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM] }],
+  });
+  const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
+  assertEquals(ids, ["member"]);
+});
+
+Deno.test("targeted team roles paginate beyond one recipient page", async () => {
+  const rows = Array.from({ length: 451 }, (_, i) =>
+    [`u${String(i).padStart(4, "0")}`, "player", i % 2 ? TEAM : OTHER_TEAM] as [string, string, string]
+  );
+  const db = new FakeSupabase({
+    user_roles: teamRoles(rows),
+    child_team_assignments: [],
+    child_guardians: [],
+    events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM, OTHER_TEAM] }],
+  });
+  const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
+  assertEquals(ids.length, 451);
+  const teamRanges = db.queries
+    .filter((q) => q.table === "user_roles" && q.filters.some((f) => f[0] === "in" && f[1] === "team_id"))
+    .map((q) => q.range);
+  assertEquals(teamRanges, [[0, 199], [200, 399], [400, 599]]);
+});
+
+Deno.test("guardian discovery chunks more than 200 assigned children and deduplicates guardians", async () => {
+  const assignments = Array.from({ length: 205 }, (_, i) => ({ team_id: TEAM, child_id: `child-${i}` }));
+  const guardians = assignments.flatMap((row, i) => [
+    { child_id: row.child_id, guardian_id: `guardian-${i}` },
+    ...(i === 0 ? [{ child_id: row.child_id, guardian_id: "shared-guardian" }] : []),
+    ...(i === 204 ? [{ child_id: row.child_id, guardian_id: "shared-guardian" }] : []),
+  ]);
+  const db = new FakeSupabase({
+    user_roles: [],
+    child_team_assignments: assignments,
+    child_guardians: guardians,
+    events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM] }],
+  });
+  const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
+  assertEquals(ids.length, 206);
+  assertEquals(ids.filter((id) => id === "shared-guardian").length, 1);
+  const guardianRanges = db.queries
+    .filter((q) => q.table === "child_guardians")
+    .map((q) => q.range);
+  assertEquals(guardianRanges, [[0, 199], [0, 199], [200, 399]]);
+});
+
 Deno.test("notification rows: exact shape, one per recipient, skip_push true", () => {
   const rows = buildNotificationRows(["u1", "u2"], "event_invite", "You've been invited to: Carnival", EVENT);
   assertEquals(rows, [
@@ -172,6 +242,22 @@ Deno.test("notification insert: batches of 500", async () => {
   assertEquals(inserted, 1100);
   assertEquals(db.inserts.map((i) => i.rows.length), [500, 500, 100]);
   assertEquals(db.inserts[0].options, { onConflict: "id", ignoreDuplicates: true });
+});
+
+Deno.test("notification insert: empty audience performs no database write", async () => {
+  const db = new FakeSupabase({ notifications: [] });
+  const result = await batchInsertNotifications(db, [], "event_invite", "msg", EVENT);
+  assertEquals(result, { inserted: 0, ids: [] });
+  assertEquals(db.inserts, []);
+});
+
+Deno.test("notification insert: a rejected batch is not counted as delivered", async () => {
+  const db = new FakeSupabase({ notifications: [] });
+  db.errors.notifications = { code: "42501", message: "denied" };
+  const recipients = Array.from({ length: 501 }, (_, i) => `u${i}`);
+  const result = await batchInsertNotifications(db, recipients, "event_invite", "msg", EVENT);
+  assertEquals(result, { inserted: 0, ids: [] });
+  assertEquals(db.inserts.map((i) => i.rows.length), [500, 1]);
 });
 
 Deno.test("push payload: exact shape and tag format", () => {

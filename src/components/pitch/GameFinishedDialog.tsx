@@ -109,7 +109,7 @@ export default function GameFinishedDialog({
   const effectiveEventId = linkedEventId || retroEventId;
   const linkTeamId = teamId || boardTeamId || undefined;
   const canPickEvent = !linkedEventId && !!linkTeamId && !linkTeamId.startsWith("event-group-");
-  
+
 
   
   // Sort players by minutes played (descending)
@@ -325,7 +325,7 @@ export default function GameFinishedDialog({
           {teamName && (
             <p className="text-center text-muted-foreground">{teamName}</p>
           )}
-          
+
           {/* Event linked indicator */}
           {effectiveEventId ? (
             <div className="flex items-center justify-center gap-2 text-sm text-primary">
@@ -367,9 +367,7 @@ export default function GameFinishedDialog({
               {saveError}
             </div>
           )}
-          
 
-          
           {/* Summary stats */}
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-primary/10 rounded-lg p-3 text-center">

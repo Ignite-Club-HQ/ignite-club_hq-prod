@@ -915,7 +915,7 @@ export default function AuthPage() {
                     </div>
                     {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
                   </div>
-                  
+
                   <Button 
                     type="submit"
                     className="w-full" 
@@ -936,7 +936,7 @@ export default function AuthPage() {
                       </button>
                     </div>
                   )}
-                  
+
                   {!isSignInKeyboardOpen && (
                     <>
                       <div className="relative">

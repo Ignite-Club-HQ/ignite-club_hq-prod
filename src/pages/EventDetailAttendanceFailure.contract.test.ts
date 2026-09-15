@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const source = readFileSync(resolve(__dirname, "EventDetailPage.tsx"), "utf8");
+const notificationDialogs = readFileSync(
+  resolve(__dirname, "../components/event/EventNotificationDialogs.tsx"),
+  "utf8",
+);
 
 /**
  * Event Detail attendance failure handling.
@@ -59,10 +63,8 @@ describe("Event Detail attendance failure handling", () => {
     expect(source).toContain(
       "disabled={parentLeaguePlayerRsvpMutation.isPending || attendanceActionsDisabled}",
     );
-    expect(source).toContain("disabled={remindMutation.isPending || attendanceActionsDisabled}");
-    expect(source).toContain(
-      "disabled={resendInvitesMutation.isPending || attendanceActionsDisabled}",
-    );
+    expect(source).toContain("actionsDisabled={attendanceActionsDisabled}");
+    expect(notificationDialogs).toContain("disabled={isPending || actionsDisabled}");
   });
 
   it("keeps cached attendance stable during a background refetch", () => {

@@ -18,7 +18,7 @@ import { Pencil, Eraser, Trash2, ArrowLeft, RotateCcw, MoveRight, Save, FolderOp
 import { cn } from "@/lib/utils";
 import PlayerToken from "./PlayerToken";
 import SoccerBall from "./SoccerBall";
-import GameTimer, { GameTimerRef, playSubAlertBeep } from "./GameTimer";
+import GameTimer, { GameTimerRef } from "./GameTimer";
 import PitchToolbar from "./PitchToolbar";
 import { EventLinkSelector } from "./EventLinkSelector";
 import { LinkedEventHeader } from "./LinkedEventHeader";
@@ -55,7 +55,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
-import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
 import { useIsLandscape } from "@/hooks/useIsLandscape";
 import { useEventGroupSync } from "@/hooks/useEventGroupSync";
 
@@ -66,7 +65,6 @@ import { hapticImpactMedium, hapticImpactLight } from "@/lib/haptics";
 // Import types and utils from extracted files
 import { 
   Player, 
-  SubstitutionEvent, 
   TeamSize, 
   DrawingTool,
   Goal,
@@ -108,11 +106,15 @@ import { usePitchBoardLifecycle } from "./hooks/usePitchBoardLifecycle";
 import { usePitchBoardDrawing } from "./hooks/usePitchBoardDrawing";
 import { usePitchBoardPlanRepair } from "./hooks/usePitchBoardPlanRepair";
 import { usePitchBoardInitialState, isSavedDefaultTeamSize } from "./hooks/usePitchBoardInitialState";
+import { usePitchBoardFormationNotifications } from "./hooks/usePitchBoardFormationNotifications";
+import { usePitchBoardHalftimeOrchestration } from "./hooks/usePitchBoardHalftimeOrchestration";
+import { usePitchBoardUnlinkEvent } from "./hooks/usePitchBoardUnlinkEvent";
+import { usePitchBoardResetGame } from "./hooks/usePitchBoardResetGame";
 import { TacticalMode, computeTacticalOffsets, computeBallOffset, TACTICAL_MODE_LABELS, RECOMMENDED_FORMATIONS } from "./tacticalMode";
 import { type PitchBoardMode } from "./ModeSwitch";
 import { PitchBoardLayoutContext } from "./PitchBoardLayoutContext";
 import type { PitchBoardLayoutContextValue } from "./PitchBoardLayoutContext";
-import { acknowledgeHalftimePrompt, canShowHalftimePrompt, getHalftimePromptAckKey, hasAcknowledgedHalftimePrompt } from "./halftimePromptAck";
+import { acknowledgeHalftimePrompt, getHalftimePromptAckKey } from "./halftimePromptAck";
 import PitchBoardLandscapeLayout from "./PitchBoardLandscapeLayout";
 import PitchBoardPortraitLayout from "./PitchBoardPortraitLayout";
 
@@ -179,7 +181,6 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
 function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, initialMode = "match", miniLeagueTeams, onUnlinkEvent }: PitchBoardProps) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -688,27 +689,6 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
       return () => clearTimeout(timer);
     }
   }, [isMobileLandscape]);
-  // Create database notification which triggers server-side push via database trigger
-  const createSubNotification = useCallback(async (message: string) => {
-    if (!user?.id) return;
-    if (!pitchBoardNotificationsEnabled) return; // Check preference
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: user.id,
-          type: 'substitution',
-          message,
-          related_id: null,
-        });
-      if (error) {
-        console.log('Failed to create notification:', error);
-      }
-    } catch (error) {
-      console.log('Notification creation failed:', error);
-    }
-  }, [user?.id, pitchBoardNotificationsEnabled]);
-
   // Open auto-sub plan dialog with minutes from pitch settings
   const openAutoSubPlanDialog = useCallback((editMode?: boolean) => {
     const isFinished = gameTimerRef.current?.isGameFinished();
@@ -1916,115 +1896,17 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     setPortraitSheetOpen,
   });
 
-  // Send push notification to team coaches/admins and Subs Manager assignees when formation or team size changes
-  const notifyFormationOrSizeChange = useCallback(async (
-    changeType: 'formation' | 'team_size', 
-    detail: string,
-    changeDetails?: {
-      positionSwaps: { player: Player; fromPosition: PitchPosition; toPosition: PitchPosition; fromX?: number; toX?: number }[];
-      benchMoves: { player: Player; direction: "to-pitch" | "to-bench"; position?: PitchPosition }[];
-    }
-  ) => {
-    // Notify whenever formation changes (during setup or active game), skip only for read-only or finished games
-    if (!user?.id || readOnly || gameTimerRef.current?.isGameFinished()) return;
-    try {
-      const recipientIds = new Set<string>();
-      // Always include the current user so they get a record of the change
-      recipientIds.add(user.id);
-      const isEventGroup = teamId.startsWith("event-group-");
-
-      if (isEventGroup) {
-        // Mini-league: notify Referee + Subs Manager of this specific match
-        const groupId = teamId.replace("event-group-", "");
-        const { data: matchDuties } = await supabase
-          .from("event_group_duties")
-          .select("assigned_to")
-          .eq("group_id", groupId)
-          .in("name", ["Referee", "Subs Manager"])
-          .not("assigned_to", "is", null);
-        matchDuties?.forEach(d => {
-          if (d.assigned_to) recipientIds.add(d.assigned_to);
-        });
-      } else {
-        // Regular team: notify coaches/admins
-        const { data: staffRoles } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("team_id", teamId)
-          .in("role", ["coach", "team_admin"]);
-        
-        staffRoles?.forEach(r => {
-          if (r.user_id) recipientIds.add(r.user_id);
-        });
-
-        // Also include Subs Manager assignees for regular events
-        if (linkedEventId) {
-          const { data: subsManagers } = await supabase
-            .from("duties")
-            .select("assigned_to")
-            .eq("event_id", linkedEventId)
-            .eq("name", "Subs Manager")
-            .not("assigned_to", "is", null);
-          subsManagers?.forEach(d => {
-            if (d.assigned_to) recipientIds.add(d.assigned_to);
-          });
-        }
-      }
-
-      // Build detailed change description for notification body
-      const changeParts: string[] = [];
-      if (changeDetails) {
-        const benchExits = changeDetails.benchMoves.filter(m => m.direction === "to-bench");
-        const pitchEntries = changeDetails.benchMoves.filter(m => m.direction === "to-pitch");
-        const swaps = changeDetails.positionSwaps;
-        
-        if (benchExits.length > 0) {
-          changeParts.push(`📤 Off: ${benchExits.map(m => m.player.name).join(", ")}`);
-        }
-        if (pitchEntries.length > 0) {
-          changeParts.push(`📥 On: ${pitchEntries.map(m => `${m.player.name} (${m.position || ""})`).join(", ")}`);
-        }
-        if (swaps.length > 0) {
-          changeParts.push(`🔄 Moved: ${swaps.map(s => `${s.player.name} ${s.fromPosition}→${s.toPosition}`).join(", ")}`);
-        }
-      }
-
-      const title = changeType === 'formation' 
-        ? `⚽ ${teamName} - Formation Changed`
-        : `⚽ ${teamName} - Team Size Changed`;
-      const baseSummary = changeType === 'formation'
-        ? `Formation changed to ${detail}`
-        : `Team size changed to ${detail} players`;
-      const body = changeParts.length > 0 
-        ? `${baseSummary}\n${changeParts.join("\n")}`
-        : baseSummary;
-
-      // Create in-app notifications with details via SECURITY DEFINER RPC
-      // (direct inserts fail RLS when the current user isn't a coach/admin in the same team)
-      const notificationMessage = changeParts.length > 0
-        ? `${baseSummary} — ${changeParts.join(" • ")}`
-        : baseSummary;
-
-      const recipientArray = Array.from(recipientIds);
-      if (recipientArray.length > 0) {
-        console.log("[Formation notify] Sending to", recipientArray.length, "recipients, teamId:", teamId);
-        const { error: rpcError } = await supabase.rpc("notify_formation_change", {
-          _recipient_ids: recipientArray,
-          _message: notificationMessage,
-          _related_id: teamId,
-        });
-        if (rpcError) {
-          console.error("Formation notification RPC error:", JSON.stringify(rpcError));
-        } else {
-          console.log("[Formation notify] RPC success — notifications inserted");
-        }
-      } else {
-        console.warn("[Formation notify] No recipients found");
-      }
-    } catch (e) {
-      console.error("Failed to send formation change notification:", e);
-    }
-  }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
+  const isGameFinishedForNotifications = useCallback(
+    () => gameTimerRef.current?.isGameFinished() ?? false,
+    [],
+  );
+  const notifyFormationOrSizeChange = usePitchBoardFormationNotifications({
+    userId: user?.id,
+    teamId,
+    readOnly,
+    linkedEventId,
+    isGameFinished: isGameFinishedForNotifications,
+  });
 
   // applyFormationChange now lives in usePitchBoardLineup (declared at top).
 
@@ -2526,62 +2408,18 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
   updateNextSubInfoRef_timer.current = updateNextSubInfo;
   checkForDueSubsRef_timer.current = checkForDueSubs;
 
-  // Half change callback - check for halftime subs (including batch)
-  const handleHalfChange = useCallback((newHalf: 1 | 2, source: 'live' | 'reconcile' = 'live') => {
-    // Guard: if the timer was reconciled on resume/cold-open and we're already
-    // well into the 2nd half, the half-change callback can still fire as part
-    // of the catch-up. In that case the user has already played past halftime
-    // and should not see a stale "Half Time!" dialog they have to dismiss.
-    if (newHalf === 2) {
-      const elapsedInHalf2 = gameTimerRef.current?.getElapsedSeconds?.() ?? 0;
-      if (elapsedInHalf2 > 30 || hasAcknowledgedHalftimePrompt(halftimePromptAckKey)) {
-        return;
-      }
-    }
-
-    // Delegate auto-sub halftime checks to the hook
-    if (checkHalftimeSubs(newHalf)) return;
-
-    // Case 2: No auto-sub plan, but a preferred 2nd half GK was selected — prompt GK swap
-    if (newHalf === 2 && preferredSecondHalfGkId) {
-      const currentGk = players.find(p => p.currentPitchPosition === "GK" && p.position !== null);
-      const secondHalfGk = players.find(p => p.id === preferredSecondHalfGkId);
-      
-      if (currentGk && secondHalfGk && currentGk.id !== secondHalfGk.id) {
-        const gkSwapEvent: SubstitutionEvent = {
-          time: 0,
-          half: 2,
-          playerOut: currentGk,
-          playerIn: secondHalfGk,
-          executed: false,
-        };
-        
-        setTimeout(() => {
-          if (!canShowHalftimePrompt(loadTimerStateForMinutes(teamId), savedState)) return;
-          const notificationBody = `Halftime GK swap: ${currentGk.name} ➜ ${secondHalfGk.name}`;
-          playSubAlertBeep(notificationBody);
-          setPendingAutoSub(gkSwapEvent);
-          setPendingBatchSubs([]);
-          setSubConfirmDialogOpen(true);
-        }, 500);
-        return;
-      }
-    }
-
-    // Case 3: No subs and no GK swap — only show the informational halftime
-    // dialog on a LIVE boundary crossing. On reconcile (cold-open / resume),
-    // the user has typically already seen the push and there is nothing
-    // actionable to confirm, so skip the empty prompt.
-    if (newHalf === 2 && source === 'live') {
-      setTimeout(() => {
-        if (!canShowHalftimePrompt(loadTimerStateForMinutes(teamId), savedState)) return;
-        playSubAlertBeep("Half Time!");
-        setPendingAutoSub(null);
-        setPendingBatchSubs([]);
-        setSubConfirmDialogOpen(true);
-      }, 500);
-    }
-  }, [checkHalftimeSubs, halftimePromptAckKey, preferredSecondHalfGkId, players, savedState, setPendingAutoSub, setPendingBatchSubs, setSubConfirmDialogOpen, teamId]);
+  const handleHalfChange = usePitchBoardHalftimeOrchestration({
+    gameTimerRef,
+    halftimePromptAckKey,
+    checkHalftimeSubs,
+    preferredSecondHalfGkId,
+    players,
+    savedState,
+    teamId,
+    setPendingAutoSub,
+    setPendingBatchSubs,
+    setSubConfirmDialogOpen,
+  });
 
   // Ball drag/touch handlers now live in usePitchBoardBall (top of component).
 
@@ -2590,121 +2428,65 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
 
 
 
-  const handleUnlinkEvent = useCallback(async () => {
-    setLinkedEventId(null);
-    onUnlinkEvent?.();
-
-    savePitchState(teamId, {
-      players,
-      teamSize,
-      selectedFormation,
-      ballPosition,
-      autoSubPlan,
-      autoSubActive,
-      autoSubPaused,
-      mockMode,
-      linkedEventId: null,
-      goals,
-    });
-
-    if (user?.id && !teamId.startsWith("event-group-")) {
-      await supabase
-        .from("active_games")
-        .update({ is_active: false })
-        .eq("team_id", teamId)
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-    }
-
+  const invalidateTeamActiveGame = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["team-active-game", teamId] });
+  }, [queryClient, teamId]);
+  const notifyGameUnlinked = useCallback(() => {
     toast({
       title: "Game Unlinked",
       description: "This board is no longer linked to the match.",
     });
-  }, [autoSubActive, autoSubPaused, autoSubPlan, ballPosition, goals, mockMode, onUnlinkEvent, players, queryClient, selectedFormation, teamId, teamSize, toast, user?.id]);
+  }, [toast]);
+  const handleUnlinkEvent = usePitchBoardUnlinkEvent({
+    teamId,
+    userId: user?.id,
+    players,
+    teamSize,
+    selectedFormation,
+    ballPosition,
+    autoSubPlan,
+    autoSubActive,
+    autoSubPaused,
+    mockMode,
+    goals,
+    setLinkedEventId,
+    onUnlinkEvent,
+    invalidateTeamActiveGame,
+    notifyUnlinked: notifyGameUnlinked,
+  });
 
-  // Reset game - clears all player minutes, timer, and positions.
-  // `preserveLineup` keeps the coach's current positions, settings and
-  // auto-sub plan (used when re-opening Set up game after full time) and only
-  // resets the clock.
-  const handleResetGame = useCallback((silent = false, opts?: { preserveLineup?: boolean }) => {
-    const preserveLineup = opts?.preserveLineup === true;
-
-    // Stop the timer first
-    gameTimerRef.current?.resetTimer();
-
-    if (!preserveLineup) {
-      // Reset pitch settings to last saved team defaults
-      const savedDefaults = savedTeamDefaultsRef.current;
-      setMinutesPerHalf(savedDefaults.minutesPerHalf);
-      setRotationSpeed(savedDefaults.rotationSpeed);
-      setDisablePositionSwaps(savedDefaults.disablePositionSwaps);
-      setDisableBatchSubs(savedDefaults.disableBatchSubs);
-      setRotateGkAtHalftime(savedDefaults.rotateGkAtHalftime);
-      setMaxSpreadMinutes(savedDefaults.maxSpreadMinutes);
-
-      // Reset team size to saved default value
-      const defaultTeamSize: TeamSize = savedDefaults.teamSize;
-      setTeamSize(defaultTeamSize);
-
-      // Reset formation to saved default value for the team size
-      const formations = FORMATIONS[defaultTeamSize];
-      let defaultFormationIndex = 0;
-      if (savedDefaults.formation) {
-        const index = formations.findIndex(f => f.name === savedDefaults.formation);
-        if (index >= 0) defaultFormationIndex = index;
-      }
-      setSelectedFormation(defaultFormationIndex);
-
-      // Reset players - remove temporary fill-ins, clear minutes, and re-place
-      // regular roster players with the default formation. Fill-ins are per-game
-      // only and must not survive Reset Game / Set up game.
-      const resetPlayers = players
-        .filter(p => !p.isFillIn)
-        .map(p => ({
-          ...p,
-          minutesPlayed: 0,
-        }));
-
-      // Re-place players using default formation
-      const placedPlayers = autoPlacePlayersOnPitch(resetPlayers, defaultTeamSize, defaultFormationIndex);
-      setPlayers(placedPlayers);
-
-      // Clear auto-sub plan
-      setAutoSubPlan([]);
-      setAutoSubActive(false);
-      setAutoSubPaused(false);
-    } else {
-      // Keep positions and plan, just zero the clock-derived minutes.
-      setPlayers(prev => prev.map(p => ({ ...p, minutesPlayed: 0 })));
-    }
-
-    // Reset sub mode
-    setSubMode(false);
-    setSelectedOnPitch(null);
-    setSelectedOnBench(null);
-    
-    // Reset game in progress flag so Plan button is enabled again
-    setGameInProgress(false);
-    
-    // Force remount all GameTimer instances to pick up clean state
-    setTimerResetKey(prev => prev + 1);
-    
-    if (!preserveLineup) {
-      // Clear persisted state
-      clearPitchState(teamId);
-
-      // Reset hasLoadedRef so fresh state can be saved
-      hasLoadedRef.current = false;
-    }
-    
-    if (!silent) {
-      toast({
-        title: "Game Reset",
-        description: "All player minutes and settings have been reset to defaults.",
-      });
-    }
-  }, [players, autoPlacePlayersOnPitch, teamId, toast]);
+  const notifyGameReset = useCallback(() => {
+    toast({
+      title: "Game Reset",
+      description: "All player minutes and settings have been reset to defaults.",
+    });
+  }, [toast]);
+  const handleResetGame = usePitchBoardResetGame({
+    teamId,
+    players,
+    gameTimerRef,
+    savedTeamDefaultsRef,
+    hasLoadedRef,
+    autoPlacePlayersOnPitch,
+    setMinutesPerHalf,
+    setRotationSpeed,
+    setDisablePositionSwaps,
+    setDisableBatchSubs,
+    setRotateGkAtHalftime,
+    setMaxSpreadMinutes,
+    setTeamSize,
+    setSelectedFormation,
+    setPlayers,
+    setAutoSubPlan,
+    setAutoSubActive,
+    setAutoSubPaused,
+    setSubMode,
+    setSelectedOnPitch,
+    setSelectedOnBench,
+    setGameInProgress,
+    setTimerResetKey,
+    notifyReset: notifyGameReset,
+  });
 
   // Helper: if the game is at full time, reset the clock before showing the
   // lineup picker — but never wipe the coach's positions or auto-sub plan, so

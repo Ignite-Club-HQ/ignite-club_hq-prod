@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, CheckCircle, XCircle, Users, AlertTriangle, Plus, UserCheck, Sparkles, Info } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Users, AlertTriangle, Plus, UserCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,16 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   safeSessionGet,
   safeSessionSet,
@@ -40,28 +30,27 @@ import { PhotoConsentDialog } from "@/components/PhotoConsentDialog";
 import { AppStoreDownloadGuide } from "@/components/AppStoreDownloadGuide";
 import { InviteFlowProgress, setInviteFlowContext, getInviteFlowContext, clearInviteFlowContext } from "@/components/InviteFlowProgress";
 import type { Database } from "@/integrations/supabase/types";
+import { membershipKeys } from "@/features/membership/membershipQueryKeys";
+import {
+  fetchPendingInviteByToken,
+  fetchTeamInviteByToken,
+} from "@/features/membership/inviteTokenRepository";
+import {
+  resolveInviteJoinCompletion,
+  selectNewInviteRoles,
+  validateReusableTeamInvite,
+} from "@/features/membership/inviteAcceptancePolicy";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
-/**
- * Referentially stable empty fallback. A fresh `[]` default made the
- * selected-role effect re-run every render (Maximum update depth exceeded),
- * which blocked React from unmounting this page when navigating to /auth.
- */
-const EMPTY_ROLES: AppRole[] = [];
-
-/** Child-carrying metadata shape stored on `pending_invites.metadata`. */
 type InviteChildMetadata = {
   children?: { name: string; yearOfBirth: number | null; existingChildId?: string | null }[];
   mini_league_id?: string;
   child_id?: string;
   player_id?: string;
-  second_parent_user_id?: string;
-  linked_invite_token?: string;
   kind?: string;
 } | null;
 
-/** Named pending invite matched while joining through a shareable team link. */
 type ReconciledInvite = {
   id: string;
   invited_label: string | null;
@@ -70,6 +59,13 @@ type ReconciledInvite = {
   team_id: string | null;
   club_id: string | null;
 };
+
+/**
+ * Referentially stable empty fallback. A fresh `[]` default made the
+ * selected-role effect re-run every render (Maximum update depth exceeded),
+ * which blocked React from unmounting this page when navigating to /auth.
+ */
+const EMPTY_ROLES: AppRole[] = [];
 
 
 
@@ -86,12 +82,6 @@ const roleLabels: Record<AppRole, string> = {
   association_admin: "Association Admin",
   competition_admin: "Competition Admin",
 };
-
-// SessionStorage key for the invite metadata shown on the /auth page banner
-// (club, team, role, invited email). This deliberately lives in sessionStorage
-// so it is scoped to the current invite hand-off and can be read before the
-// form is rendered.
-const INVITE_AUTH_CONTEXT_KEY = "inviteAuthContext";
 
 // Roles that users can request when joining a team
 const selectableRoles: AppRole[] = ["coach", "player", "parent"];
@@ -119,12 +109,6 @@ export default function JoinTeamPage() {
   const [addingChild, setAddingChild] = useState(false);
   const [addedChildren, setAddedChildren] = useState<string[]>([]);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
-  // Children created/linked from invite metadata during this join — when
-  // non-empty the manual "Add your child" step must be skipped.
-  const provisionedChildIdsRef = useRef<string[]>([]);
-  // Name of the club we switched the user to after a successful join (shown on the success card).
-  const [clubSwitchName, setClubSwitchName] = useState<string | null>(null);
-  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
   const autoJoinAttempted = useRef(false);
   
   // Check if we should auto-join (returning from auth after install flow)
@@ -135,91 +119,18 @@ export default function JoinTeamPage() {
 
   // Fetch pending invite details using RPC function (for name-restricted invites)
   const { data: pendingInviteData, isLoading: pendingInviteLoading, error: pendingInviteError, isError: pendingInviteIsError } = useQuery({
-    queryKey: ["pending-invite-token", token],
-    queryFn: async () => {
-      console.log("[JoinTeam] Fetching pending invite for token:", token);
-      try {
-        const { data, error } = await supabase
-          .rpc("get_pending_invite_by_token", { _token: token! });
-        console.log("[JoinTeam] RPC response:", { data, error });
-        if (error) {
-          console.error("[JoinTeam] RPC error:", error);
-          throw error;
-        }
-        if (data && data.length > 0) {
-          return data[0];
-        }
-        console.log("[JoinTeam] No invite found for token");
-        return null;
-      } catch (err) {
-        console.error("[JoinTeam] Exception fetching invite:", err);
-        throw err;
-      }
-    },
+    queryKey: membershipKeys.pendingInviteToken(token ?? ""),
+    queryFn: () => fetchPendingInviteByToken(supabase, token!),
     enabled: !!token && isPendingInvite,
     retry: 2,
     retryDelay: 1000,
     staleTime: 0,
   });
 
-  /**
-   * Silent check: does the invited email already have an Ignite account?
-   * Token-gated RPC (no email enumeration — the caller must already hold a
-   * valid invite token). Never blocks render; failures fall back to the
-   * default "Create account" behaviour.
-   */
-  const { data: invitedEmailHasAccount } = useQuery({
-    queryKey: ["invite-email-has-account", token],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("invite_token_has_existing_account", {
-        _token: token!,
-      });
-      if (error) {
-        console.warn("[JoinTeam] existing-account check failed", error.message);
-        return false;
-      }
-      return data === true;
-    },
-    enabled: !!token && isPendingInvite && !user,
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
-
-
   // Fetch team invite details using secure RPC function (for regular invites)
   const { data: teamInvite, isLoading: teamInviteLoading, error: teamInviteError } = useQuery({
-    queryKey: ["team-invite", token],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc("get_team_invite_by_token", { _token: token! });
-      if (error) throw error;
-      if (data && data.length > 0) {
-        const row = data[0];
-        return {
-          id: row.id,
-          team_id: row.team_id,
-          role: row.role,
-          token: row.token,
-          uses_count: row.uses_count,
-          max_uses: row.max_uses,
-          expires_at: row.expires_at,
-          created_at: row.created_at,
-          created_by: row.created_by,
-          metadata: row.metadata as { child_name?: string; child_year_of_birth?: number } | null,
-          teams: {
-            id: row.team_id,
-            name: row.team_name,
-            logo_url: row.team_logo_url,
-            club_id: row.club_id,
-            clubs: {
-              name: row.club_name,
-              logo_url: undefined as string | undefined
-            }
-          }
-        };
-      }
-      return null;
-    },
+    queryKey: membershipKeys.teamInvite(token ?? ""),
+    queryFn: () => fetchTeamInviteByToken(supabase, token!),
     enabled: !!token && !isPendingInvite,
     retry: 2,
     retryDelay: 1000,
@@ -291,7 +202,7 @@ export default function JoinTeamPage() {
 
   // Fetch user's existing roles for the invite destination
   const { data: existingRoles = EMPTY_ROLES } = useQuery({
-    queryKey: ["user-invite-roles", invite?.team_id, inviteClubId, user?.id],
+    queryKey: membershipKeys.inviteRoles(invite?.team_id, inviteClubId, user?.id ?? ""),
     queryFn: async () => {
       let query = supabase
         .from("user_roles")
@@ -312,35 +223,10 @@ export default function JoinTeamPage() {
     enabled: !!invite && !!user,
   });
 
-  // Does the signed-in user already belong to a DIFFERENT club? Used to show a
-  // heads-up that joining adds an additional club rather than replacing one.
-  const { data: otherMembershipClubName } = useQuery({
-    queryKey: ["join-other-club-membership", user?.id, inviteClubId],
-    queryFn: async () => {
-      let query = supabase
-        .from("user_roles")
-        .select("club_id")
-        .eq("user_id", user!.id)
-        .not("club_id", "is", null);
-      if (inviteClubId) query = query.neq("club_id", inviteClubId);
-      const { data } = await query.limit(10);
-      const otherClubId = (data || []).find((r) => r.club_id)?.club_id;
-      if (!otherClubId) return null;
-      const { data: club } = await supabase
-        .from("clubs")
-        .select("name")
-        .eq("id", otherClubId)
-        .maybeSingle();
-      return (club?.name as string) ?? null;
-    },
-    enabled: !!user && !!invite,
-    staleTime: 60 * 1000,
-  });
-
   // Fetch user's profile for name validation and profile completion check
   // Use staleTime: 0 to ensure fresh data when returning from profile completion
   const { data: userProfile, isLoading: profileLoading } = useQuery({
-    queryKey: ["user-profile-for-join", user?.id],
+    queryKey: membershipKeys.joinProfile(user?.id ?? ""),
     queryFn: async () => {
       const { data } = await selectCachedProfileById(user!.id);
       return data;
@@ -413,7 +299,7 @@ export default function JoinTeamPage() {
   // Only surface children who don't yet have a primary parent or any guardians,
   // so a new parent can claim them without colliding with existing families.
   const { data: existingTeamChildren = [] } = useQuery({
-    queryKey: ["team-children-for-linking", invite?.team_id],
+    queryKey: membershipKeys.teamChildrenForLinking(invite?.team_id ?? ""),
     queryFn: async () => {
       const { data } = await supabase
         .from("child_team_assignments")
@@ -451,23 +337,6 @@ export default function JoinTeamPage() {
     if ((pendingInviteData as { invited_user_id?: string }).invited_user_id === user.id) return true;
     return !!invitedEmail && !!userEmail && invitedEmail === userEmail;
   })();
-
-  /**
-   * Email-matched pending invites override the name-mismatch gate. If the
-   * invite's email matches the signed-in user, we treat it as belonging to this
-   * account regardless of any invited_label/display_name difference.
-   */
-  const emailMatches =
-    isPendingInvite &&
-    !!pendingInviteData?.invited_email &&
-    !!user?.email &&
-    pendingInviteData.invited_email.trim().toLowerCase() === user.email.trim().toLowerCase();
-
-  const showNameMismatchInfo =
-    emailMatches &&
-    !!pendingInviteData?.invited_label &&
-    !!userProfile?.display_name &&
-    pendingInviteData.invited_label.trim().toLowerCase() !== userProfile.display_name.trim().toLowerCase();
 
   /**
    * Re-opening the app can replay a stale invite deep link (stored
@@ -540,19 +409,8 @@ export default function JoinTeamPage() {
 
   // Validate name for pending invites - only block EXISTING users with a different name already set
   // New signups (no display_name yet) are allowed - their name will be auto-set during join
-  // A matching email always wins over a name difference.
   useEffect(() => {
     if (isPendingInvite && pendingInviteData?.invited_label && user && userProfile !== undefined) {
-      const emailMatches =
-        !!pendingInviteData.invited_email &&
-        !!user.email &&
-        pendingInviteData.invited_email.trim().toLowerCase() === user.email.trim().toLowerCase();
-
-      if (emailMatches) {
-        setNameValidationError(null);
-        return;
-      }
-
       const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
       const actualName = (userProfile?.display_name || "").toLowerCase().trim();
       
@@ -628,88 +486,46 @@ export default function JoinTeamPage() {
   };
 
   /**
-   * Switches the active club filter to the invited club after a successful
-   * join. Delegates to `applyInviteClubSwitch` (the sanctioned helper for
-   * user-driven invite switches) so state, localStorage and
-   * `profiles.active_club_theme_id` stay in sync. Without this, a user who
-   * already belongs to another club joins successfully but stays filtered on
-   * their old club — the new team appears nowhere and the join looks broken.
-   * Applied at most once per page mount.
+   * Applies the invited club as the active club filter after a successful join.
+   * Uses the explicit invite-switch helper so a successful join becomes
+   * visible immediately even when the member was viewing another club.
    */
   const applyInviteClubFilter = async () => {
     if (clubFilterSeededRef.current) return;
     if (!user?.id || !inviteClubId) return;
     clubFilterSeededRef.current = true;
-    const result = await applyInviteClubSwitch(user.id, inviteClubId, setActiveClubTheme, {
+    await applyInviteClubSwitch(user.id, inviteClubId, setActiveClubTheme, {
       source: "join-team",
       announce: false,
     });
-    // Only surface the "we've switched you" copy when we actually overrode a
-    // previous club preference — a first-time seed isn't a "switch".
-    if (result.switched && result.previousClubId) {
-      setClubSwitchName(invite?.teams?.clubs?.name ?? null);
-    }
   };
 
-  /**
-   * Single code path for materialising the children carried on a named pending
-   * invite's metadata. Used by both the /join/p/<token> named-invite path and
-   * the shareable /join/<token> path (where a named pending invite for the same
-   * team gets reconciled) — otherwise the shareable link consumes the invite
-   * and silently discards its child metadata.
-   *
-   * Returns the ids of the children it created or linked.
-   */
   const provisionChildrenFromInviteMetadata = async (params: {
     inviteId: string;
     inviteStatus?: string | null;
     inviteRole?: string | null;
-    metadata: InviteChildMetadata | null;
-    teamId?: string | null;
-    clubId?: string | null;
+    metadata: InviteChildMetadata;
     userId: string;
-    /** Pending-invite token; only present on the named-invite path. */
     claimToken?: string | null;
   }): Promise<string[]> => {
     const { inviteId, inviteStatus, inviteRole, metadata, userId, claimToken } = params;
     if (inviteRole !== "parent" || !metadata) return [];
 
     if (metadata.child_id && metadata.mini_league_id && claimToken) {
-      console.log("[JoinTeam] Mini-league invite: claiming child via RPC:", metadata.child_id);
-      const { error: claimErr } = await supabase.rpc("claim_mini_league_invite", {
-        _token: claimToken,
-      });
-      if (claimErr) {
-        console.error("[JoinTeam] claim_mini_league_invite failed:", claimErr);
-        throw new Error(`Couldn't link you to your child: ${claimErr.message}`);
-      }
+      const { error } = await supabase.rpc("claim_mini_league_invite", { _token: claimToken });
+      if (error) throw new Error(`Couldn't link you to your child: ${error.message}`);
       return [metadata.child_id];
     }
 
-    if (metadata.children && metadata.children.length > 0) {
-      // Transactional acceptance: children, guardian links, team assignment,
-      // the parent role and the invite status all commit together. On failure
-      // nothing is written and the invite stays pending for a retry.
-      console.log("[JoinTeam] Accepting parent invite via transactional RPC");
+    if (metadata.children?.length) {
       try {
-        if (inviteStatus === "pending") {
-          const result = await acceptParentTeamInvite({ inviteId });
-          console.log("[JoinTeam] Parent invite accepted:", {
-            children: result.childIds.length,
-            alreadyAccepted: result.alreadyAccepted,
-          });
-        }
-
-        const childIds = await provisionInviteChildren({
-          inviteId,
-          guardianId: userId,
-        });
+        if (inviteStatus === "pending") await acceptParentTeamInvite({ inviteId });
+        const childIds = await provisionInviteChildren({ inviteId, guardianId: userId });
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["children"] }),
           queryClient.invalidateQueries({ queryKey: ["user-roles"] }),
           queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
         ]);
-        console.log("[JoinTeam] Parent invite children provisioned:", childIds.length);
         return childIds;
       } catch (rpcError) {
         throw new Error(getParentInviteErrorMessage(rpcError));
@@ -717,23 +533,12 @@ export default function JoinTeamPage() {
     }
 
     if (metadata.child_id) {
-      // Link existing child to this parent (child was pre-created by admin)
-      console.log("[JoinTeam] Linking existing child to parent:", metadata.child_id);
-      await supabase
-        .from("children")
-        .update({ parent_id: userId })
-        .eq("id", metadata.child_id);
-
-      // Update legacy mini_league_players record
+      await supabase.from("children").update({ parent_id: userId }).eq("id", metadata.child_id);
       if (metadata.player_id) {
-        await supabase
-          .from("mini_league_players")
-          .update({ parent_user_id: userId })
-          .eq("id", metadata.player_id);
+        await supabase.from("mini_league_players").update({ parent_user_id: userId }).eq("id", metadata.player_id);
       }
       return [metadata.child_id];
     }
-
     return [];
   };
 
@@ -741,7 +546,6 @@ export default function JoinTeamPage() {
   const executeJoin = async (rolesToAdd: AppRole[]) => {
     if (!invite || !user) throw new Error("Missing data");
 
-    // The most recent named pending invite reconciled by a shareable-link join.
     let reconciledInvite: ReconciledInvite | null = null;
 
 
@@ -749,26 +553,20 @@ export default function JoinTeamPage() {
     if (isPendingInvite && pendingInviteData?.invited_label) {
       const { data: profile } = await selectCachedProfileById(user.id);
 
-      const invitedEmail = (pendingInviteData.invited_email || "").toLowerCase().trim();
-      const userEmail = (user.email || "").toLowerCase().trim();
-      const emailMatches = !!invitedEmail && !!userEmail && invitedEmail === userEmail;
+      const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
+      const actualName = (profile?.display_name || "").toLowerCase().trim();
 
       // If user has no display_name, set it to the expected name
-      if (!profile?.display_name) {
+      if (!profile?.display_name || !actualName) {
         await supabase
           .from("profiles")
           .update({ display_name: pendingInviteData.invited_label })
           .eq("id", user.id);
-      } else if (!emailMatches) {
-        const expectedName = pendingInviteData.invited_label.toLowerCase().trim();
-        const actualName = (profile?.display_name || "").toLowerCase().trim();
-
-        if (actualName !== expectedName) {
-          const adminType = pendingInviteData.team_id ? "team admin" : "club admin";
-          throw new Error(
-            `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your ${adminType} for a different invite link.`
-          );
-        }
+      } else if (actualName !== expectedName) {
+        const adminType = pendingInviteData.team_id ? "team admin" : "club admin";
+        throw new Error(
+          `This invite was created for "${pendingInviteData.invited_label}". Please create a new account with that name or contact your ${adminType} for a different invite link.`
+        );
       }
 
       // Accepted parent invites remain recoverable because the backend may
@@ -870,25 +668,66 @@ export default function JoinTeamPage() {
 
         return ["parent" as AppRole];
       }
-      provisionedChildIdsRef.current = await provisionChildrenFromInviteMetadata({
-        inviteId: pendingInviteData.id,
-        inviteStatus: pendingInviteData.status,
-        inviteRole: pendingInviteData.role,
-        metadata,
-        teamId: (pendingInviteData as { team_id?: string | null }).team_id ?? invite.team_id ?? null,
-        clubId: (pendingInviteData as { club_id?: string | null }).club_id ?? inviteClubId ?? null,
-        userId: user.id,
-        claimToken: token ?? null,
-      });
+      if (metadata?.child_id && metadata?.mini_league_id && pendingInviteData.role === "parent") {
+        console.log("[JoinTeam] Mini-league invite: claiming child via RPC:", metadata.child_id);
+        const { error: claimErr } = await supabase.rpc("claim_mini_league_invite", {
+          _token: token!,
+        });
+        if (claimErr) {
+          console.error("[JoinTeam] claim_mini_league_invite failed:", claimErr);
+          throw new Error(`Couldn't link you to your child: ${claimErr.message}`);
+        }
+      } else if (metadata?.children && metadata.children.length > 0 && pendingInviteData.role === "parent") {
+        // Transactional acceptance: children, guardian links, team assignment,
+        // the parent role and the invite status all commit together. On failure
+        // nothing is written and the invite stays pending for a retry.
+        console.log("[JoinTeam] Accepting parent invite via transactional RPC");
+        try {
+          if (pendingInviteData.status === "pending") {
+            const result = await acceptParentTeamInvite({ inviteId: pendingInviteData.id });
+            console.log("[JoinTeam] Parent invite accepted:", {
+              children: result.childIds.length,
+              alreadyAccepted: result.alreadyAccepted,
+            });
+          }
+
+          const childIds = await provisionInviteChildren({
+            inviteId: pendingInviteData.id,
+            guardianId: user.id,
+          });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["children"] }),
+            queryClient.invalidateQueries({ queryKey: ["user-roles"] }),
+            queryClient.invalidateQueries({ queryKey: ["rsvps"] }),
+          ]);
+          console.log("[JoinTeam] Parent invite children provisioned:", childIds.length);
+        } catch (rpcError) {
+          throw new Error(getParentInviteErrorMessage(rpcError));
+        }
+      } else if (pendingInviteData.role === "parent" && metadata?.child_id) {
+
+        // Link existing child to this parent (child was pre-created by admin)
+        console.log("[JoinTeam] Linking existing child to parent:", metadata.child_id);
+        await supabase
+          .from("children")
+          .update({ parent_id: user.id })
+          .eq("id", metadata.child_id);
+
+        // Update legacy mini_league_players record
+        if (metadata.player_id) {
+          await supabase
+            .from("mini_league_players")
+            .update({ parent_user_id: user.id })
+            .eq("id", metadata.player_id);
+        }
+      }
     } else if (!isPendingInvite) {
       // Regular team invite - check expiry and usage limits
-      if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-        throw new Error("This invite link has expired");
-      }
-
-      if (invite.max_uses && invite.uses_count >= invite.max_uses) {
-        throw new Error("This invite link has reached its usage limit");
-      }
+      validateReusableTeamInvite({
+        expiresAt: invite.expires_at,
+        maxUses: invite.max_uses,
+        usesCount: invite.uses_count,
+      });
 
       // Reconcile any matching pending invites for this user (by user_id or email)
       const userEmail = user.email?.toLowerCase().trim();
@@ -906,9 +745,7 @@ export default function JoinTeamPage() {
         .order("created_at", { ascending: false });
 
       if (matchingPendingInvites && matchingPendingInvites.length > 0) {
-        // Most recent matching row wins for child provisioning.
         reconciledInvite = matchingPendingInvites[0] as ReconciledInvite;
-
         // Use the first match's label to prefill display name if needed
         const firstLabel = matchingPendingInvites.find(i => i.invited_label)?.invited_label;
         if (firstLabel) {
@@ -935,49 +772,25 @@ export default function JoinTeamPage() {
         
         console.log("[JoinTeam] Reconciled", matchingIds.length, "pending invite(s) for user");
 
-        // The reconciled invite may carry child metadata (named parent invite).
-        // Without this the invite is consumed and its child silently discarded.
-        const reconciledMetadata =
-          (reconciledInvite.metadata as InviteChildMetadata | null) ??
-          ((teamInvite?.metadata as InviteChildMetadata | null) ?? null);
         if (reconciledInvite.role === "parent") {
           try {
-            const provisioned = await provisionChildrenFromInviteMetadata({
+            await provisionChildrenFromInviteMetadata({
               inviteId: reconciledInvite.id,
-              // Already flipped to accepted above.
               inviteStatus: "accepted",
               inviteRole: reconciledInvite.role,
-              metadata: reconciledMetadata,
-              teamId: reconciledInvite.team_id ?? invite.team_id ?? null,
-              clubId: reconciledInvite.club_id ?? inviteClubId ?? null,
+              metadata: (reconciledInvite.metadata as InviteChildMetadata) ??
+                ((teamInvite?.metadata as InviteChildMetadata) ?? null),
               userId: user.id,
-              claimToken: null,
             });
-            provisionedChildIdsRef.current = provisioned;
-            console.log(
-              "[JoinTeam] Reconciled invite provisioned children:",
-              provisioned.length,
-            );
-          } catch (provisionError) {
-            console.error(
-              "[JoinTeam] Reconciled invite child provisioning failed:",
-              provisionError,
-            );
-            provisionedChildIdsRef.current = [];
-            // Never consume the invite when provisioning produced no children —
-            // leave it pending so a retry (or an admin) can finish the job.
+          } catch (error) {
             await supabase
               .from("pending_invites")
               .update({ status: "pending", accepted_at: null })
               .eq("id", reconciledInvite.id);
-            toast({
-              title: "We couldn't link your child automatically",
-              description: "Please add them below.",
-            });
+            throw new Error(getParentInviteErrorMessage(error));
           }
         }
       }
-
 
       // Increment uses_count for team invite
       await supabase
@@ -1131,7 +944,7 @@ export default function JoinTeamPage() {
       }
     }
 
-    // Switch the active club filter to the invited club (idempotent, once only).
+    // Seed the active club filter from the invited club (idempotent, once only).
     await applyInviteClubFilter();
 
     return rolesToAdd;
@@ -1148,7 +961,7 @@ export default function JoinTeamPage() {
       }
 
       // Filter out roles user already has
-      const rolesToAdd = selectedRoles.filter(role => !existingRoles?.includes(role));
+      const rolesToAdd = selectNewInviteRoles(selectedRoles, existingRoles ?? []);
 
       if (rolesToAdd.length === 0) {
         throw new Error("You already have all selected roles in this team");
@@ -1184,19 +997,13 @@ export default function JoinTeamPage() {
       
       // If parent role was added via a regular invite WITHOUT child metadata, show child step.
       // Same flow for mini-league parent shareable join link (no preset child).
-      const isLeagueParentLink =
-        isPendingInvite &&
-        (pendingInviteData?.metadata as any)?.kind === "mini_league_parent_join_link";
-      // A reconciled named invite may have already created/linked children —
-      // don't ask the parent to add a child that now exists.
-      const childrenAlreadyProvisioned = provisionedChildIdsRef.current.length > 0;
-      if (
-        (!isPendingInvite &&
-          rolesToAdd.includes("parent") &&
-          !teamInvite?.metadata &&
-          !childrenAlreadyProvisioned) ||
-        (isLeagueParentLink && rolesToAdd.includes("parent"))
-      ) {
+      const completion = resolveInviteJoinCompletion({
+        isPendingInvite,
+        addedRoles: rolesToAdd,
+        regularInviteHasMetadata: !!teamInvite?.metadata,
+        pendingInviteKind: (pendingInviteData?.metadata as any)?.kind,
+      });
+      if (completion === "add-child") {
         setShowChildStep(true);
       } else {
         setJoined(true);
@@ -1217,7 +1024,7 @@ export default function JoinTeamPage() {
   useEffect(() => {
     // Wait for profile to finish loading before making any decisions
     if (profileLoading) return;
-    
+
     // First check if user needs to complete their profile
     if (user && userProfile !== undefined && !userProfile?.display_name) {
       // User hasn't completed profile - redirect to complete profile
@@ -1263,17 +1070,8 @@ export default function JoinTeamPage() {
         // User already has this role - just navigate to the relevant destination
         autoJoinAttempted.current = true;
         safeSessionRemove("autoJoinAfterAuth");
-        // Already a member — still make sure the active club filter points at
-        // this invite's club so the team is actually visible afterwards.
-        void applyInviteClubFilter();
         toast({ title: `You're already a member of ${inviteEntityName}!` });
-        // Parents reopening a parent link may still need to link a child
-        // (e.g. a sibling, or a child added to the roster after they joined).
-        if (inviteRole === "parent") {
-          setShowChildStep(true);
-        } else {
-          setJoined(true);
-        }
+        setJoined(true);
         return;
       }
       
@@ -1308,12 +1106,14 @@ export default function JoinTeamPage() {
         const result = await executeJoin(pendingJoinRoles);
         const roleNames = result.map(r => roleLabels[r]).join(", ");
         toast({ title: `Successfully joined as ${roleNames}!` });
-        if (
-          !isPendingInvite &&
-          result.includes("parent") &&
-          !teamInvite?.metadata &&
-          provisionedChildIdsRef.current.length === 0
-        ) {
+        const completion = resolveInviteJoinCompletion({
+          isPendingInvite,
+          addedRoles: result,
+          regularInviteHasMetadata: !!teamInvite?.metadata,
+          pendingInviteKind: (pendingInviteData?.metadata as any)?.kind,
+          completedAfterPhotoConsent: true,
+        });
+        if (completion === "add-child") {
           setShowChildStep(true);
         } else {
           setJoined(true);
@@ -1336,63 +1136,38 @@ export default function JoinTeamPage() {
     });
   };
 
-  const persistInviteAuthContext = () => {
-    const nextPath = location.pathname + location.search;
-    safeSessionSet("redirectAfterAuth", nextPath);
-    safeSessionSet("autoJoinAfterAuth", "true");
-    safeSessionSet(
-      INVITE_AUTH_CONTEXT_KEY,
-      JSON.stringify({
-        clubName: invite?.teams?.clubs?.name ?? null,
-        teamName: invite?.teams?.name ?? null,
-        invitedEmail: isPendingInvite ? (pendingInviteData?.invited_email ?? null) : null,
-        roleLabel: roleLabels[invite?.role as AppRole] ?? null,
-      }),
-    );
-    // Keep the existing invite-flow context (localStorage) up to date so the
-    // progress indicator and PWA install resume path continue to work.
-    setInviteFlowContext({
-      ...(getInviteFlowContext() ?? {}),
-      active: true,
-      clubName: invite?.teams?.clubs?.name || undefined,
-      teamName: invite?.teams?.name || undefined,
-      role: invite?.role || undefined,
-      inviteToken: token,
-      currentStep: "auth",
-    });
-  };
-
-  const handleCreateAccountClick = () => {
-    persistInviteAuthContext();
-    navigate(
-      buildAuthPathWithIntent({
-        next: location.pathname + location.search,
-        mode: "signup",
-        invite: token,
-      }),
-    );
-  };
-
-  const handleSignInClick = () => {
-    persistInviteAuthContext();
-    navigate(
-      buildAuthPathWithIntent({
-        next: location.pathname + location.search,
-        mode: "signin",
-        invite: token,
-      }),
-    );
-  };
-
   // Handle join action - redirect to auth if not logged in
   const handleJoinClick = async () => {
     // If not logged in, redirect to auth with auto-join flag.
     // The URL carries the whole intent (mode + next + invite token) because
     // sessionStorage writes throw in some webviews; storage is a fallback only.
     if (!user) {
-      handleCreateAccountClick();
+      const nextPath = location.pathname + location.search;
+      console.log("[SignupFlow] Join click (unauthenticated)", {
+        next: nextPath,
+        role: invite?.role,
+        isPendingInvite,
+      });
+      safeSessionSet("redirectAfterAuth", nextPath);
+      safeSessionSet("autoJoinAfterAuth", "true");
+      // Set the invite-flow context on this (native/app) path too — previously
+      // only the PWA handler set it, so InviteFlowProgress never rendered on
+      // /auth and the flow looked broken.
+      setInviteFlowContext({
+        ...(getInviteFlowContext() ?? {}),
+        active: true,
+        clubName: invite?.teams?.clubs?.name || undefined,
+        teamName: invite?.teams?.name || undefined,
+        role: invite?.role || undefined,
+        inviteToken: token,
+        currentStep: "auth",
+      });
+      navigate(
+        buildAuthPathWithIntent({ next: nextPath, mode: "signup", invite: token }),
+      );
       return;
     }
+
 
     // Check if user needs to complete their profile first
     if (!userProfile?.display_name) {
@@ -1404,7 +1179,7 @@ export default function JoinTeamPage() {
       navigate("/complete-profile");
       return;
     }
-    
+
     // User is logged in with complete profile - proceed with join (may need photo consent for parent role)
     joinMutation.mutate();
   };
@@ -1535,7 +1310,7 @@ export default function JoinTeamPage() {
   const availableRoles = selectableRoles.filter(role => !existingRoles.includes(role));
   const allRolesAssigned = !!invite?.role && existingRoles.includes(invite.role as AppRole);
 
-  if (allRolesAssigned && !showChildStep) {
+  if (allRolesAssigned) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
@@ -1545,21 +1320,7 @@ export default function JoinTeamPage() {
             <p className="text-muted-foreground mb-4">
               You already have all available roles in {inviteEntityName}.
             </p>
-            <div className="space-y-2">
-              {invite?.role === "parent" && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setShowChildStep(true)}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Link a child to {inviteEntityName}
-                </Button>
-              )}
-              <Button className="w-full" onClick={() => navigate(inviteDestination)}>
-                View {inviteEntityLabel}
-              </Button>
-            </div>
+            <Button onClick={() => navigate(inviteDestination)}>View {inviteEntityLabel}</Button>
           </CardContent>
         </Card>
       </div>
@@ -1606,32 +1367,6 @@ export default function JoinTeamPage() {
       await supabase.from("notifications").insert(rows);
     } catch (err) {
       console.error("[JoinTeam] Failed to notify admins of unlinked parent:", err);
-    }
-  };
-
-  // True when this parent already has a child (owned or guardian-linked) on
-  // the team — used to avoid nagging admins when an existing member reopens
-  // a parent join link and skips the child step.
-  const parentHasChildOnTeam = async (): Promise<boolean> => {
-    if (!user || !invite?.team_id) return false;
-    try {
-      const [{ data: own }, { data: guarded }] = await Promise.all([
-        supabase.from("children").select("id").eq("parent_id", user.id),
-        supabase.from("child_guardians").select("child_id").eq("guardian_id", user.id),
-      ]);
-      const ids = [
-        ...(own || []).map((c: any) => c.id),
-        ...(guarded || []).map((g: any) => g.child_id),
-      ];
-      if (ids.length === 0) return false;
-      const { data: assignments } = await supabase
-        .from("child_team_assignments")
-        .select("child_id")
-        .eq("team_id", invite.team_id)
-        .in("child_id", ids);
-      return (assignments || []).length > 0;
-    } catch {
-      return false;
     }
   };
 
@@ -1730,7 +1465,9 @@ export default function JoinTeamPage() {
       setLinkExistingChildId(null);
       // Refresh the "existing children on team" list so the just-linked child
       // disappears from the choices.
-      queryClient.invalidateQueries({ queryKey: ["team-children-for-linking", invite?.team_id] });
+      queryClient.invalidateQueries({
+        queryKey: membershipKeys.teamChildrenForLinking(invite?.team_id ?? ""),
+      });
     } catch (err) {
       console.error("[JoinTeam] Error adding child:", err);
       toast({ title: "Failed to add child", variant: "destructive" });
@@ -1751,22 +1488,12 @@ export default function JoinTeamPage() {
       return;
     }
     if (!leagueLinkMiniLeagueId) {
-      // Team flow: nudge admins to link the parent's child manually — but only
-      // when the parent genuinely has no child on this team yet. Existing
-      // members reopening a parent link usually already do.
-      const alreadyLinked = await parentHasChildOnTeam();
-      if (alreadyLinked) {
-        toast({
-          title: "You're all set",
-          description: "Your child is already linked to this team.",
-        });
-      } else {
-        await notifyAdminsOfUnlinkedParent();
-        toast({
-          title: "Team admins notified",
-          description: "They'll help link your child to the team.",
-        });
-      }
+      // Team flow: nudge admins to link the parent's child manually
+      await notifyAdminsOfUnlinkedParent();
+      toast({
+        title: "Team admins notified",
+        description: "They'll help link your child to the team.",
+      });
     } else {
       toast({
         title: "You can add your child anytime",
@@ -1777,32 +1504,10 @@ export default function JoinTeamPage() {
     setJoined(true);
   };
 
-  // Progress step is derived from real component state (not just stored
-  // context) so the child step and success screens show the right position.
-  const getCurrentStep = (): "view" | "install" | "auth" | "profile" | "done" => {
-    if (joined) return "done";
-    if (showChildStep) return "profile";
-    const storedContext = getInviteFlowContext();
-    if (storedContext?.currentStep && storedContext.currentStep !== "view") {
-      return storedContext.currentStep;
-    }
-    return "view";
-  };
-
   if (showChildStep) {
     const hasAdded = addedChildren.length > 0;
-    // handleAddChild early-returns without either of these — never show a
-    // tappable button that would silently do nothing.
-    const canAddChild = !!invite?.team_id || !!leagueLinkMiniLeagueId;
     return (
-      <>
-      <div className="min-h-screen flex flex-col bg-background">
-        <InviteFlowProgress
-          currentStep={getCurrentStep()}
-          isExistingUser={!!user}
-          className="fixed top-0 left-0 right-0"
-        />
-        <div className="flex-1 flex items-center justify-center p-4 pt-16">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-2">
             <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -1843,12 +1548,6 @@ export default function JoinTeamPage() {
               </div>
             )}
 
-            {!hasAdded && existingTeamChildren.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                Don't see your child? They may already be linked to another parent — ask your coach to add you instead of creating a duplicate.
-              </p>
-            )}
-
             {existingTeamChildren.length > 0 && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Link to existing child on team</Label>
@@ -1874,9 +1573,6 @@ export default function JoinTeamPage() {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Don't see your child? They may already be linked to another parent — ask your coach to add you instead of creating a duplicate.
-                </p>
                 <div className="relative py-2">
                   <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t border-border" />
@@ -1907,22 +1603,17 @@ export default function JoinTeamPage() {
                     value={childYearOfBirth}
                     onChange={(e) => setChildYearOfBirth(e.target.value)}
                     placeholder="e.g. 2015"
-                    min={1940}
+                    min="2000"
                     max={new Date().getFullYear()}
                   />
                 </div>
               </div>
             )}
 
-            {!canAddChild && (
-              <p className="text-sm text-muted-foreground text-center">
-                This invite isn't linked to a team yet — ask your club admin to add your child.
-              </p>
-            )}
             <Button
               className="w-full"
               onClick={handleAddChild}
-              disabled={!canAddChild || addingChild || (!childName.trim() && !linkExistingChildId)}
+              disabled={addingChild || (!childName.trim() && !linkExistingChildId)}
             >
               {addingChild ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -1947,39 +1638,18 @@ export default function JoinTeamPage() {
                 Done
               </Button>
             ) : (
-              <div className="text-center">
-                <button
-                  type="button"
-                  onClick={() => setShowSkipConfirm(true)}
-                  disabled={addingChild}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
-                >
-                  I'll do this later
-                </button>
-              </div>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={handleSkipChildStep}
+                disabled={addingChild}
+              >
+                Skip for now
+              </Button>
             )}
           </CardContent>
         </Card>
-        </div>
       </div>
-
-      <AlertDialog open={showSkipConfirm} onOpenChange={setShowSkipConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Skip linking your child?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Without a linked child you won't see team sheets, RSVPs or match notifications for your player. A team admin will need to link them manually.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Go back</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleSkipChildStep()}>
-              Skip anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      </>
     );
   }
 
@@ -1988,13 +1658,7 @@ export default function JoinTeamPage() {
     const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
 
     return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <InviteFlowProgress
-          currentStep="done"
-          isExistingUser={!!user}
-          className="fixed top-0 left-0 right-0"
-        />
-        <div className="flex-1 flex items-center justify-center p-4 pt-16">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 space-y-6">
             {/* Success message */}
@@ -2004,11 +1668,6 @@ export default function JoinTeamPage() {
               <p className="text-muted-foreground">
                 You've successfully joined {inviteEntityName}.
               </p>
-              {clubSwitchName && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  We've switched you to {clubSwitchName}.
-                </p>
-              )}
             </div>
 
             {/* App store download - only show if not a native app */}
@@ -2023,10 +1682,20 @@ export default function JoinTeamPage() {
             </Button>
           </CardContent>
         </Card>
-        </div>
       </div>
     );
   }
+
+  // Determine current step for progress indicator
+  const getCurrentStep = (): "view" | "install" | "auth" | "profile" | "done" => {
+    // Check stored context for resume step
+    const storedContext = getInviteFlowContext();
+    if (storedContext?.currentStep && storedContext.currentStep !== "view") {
+      return storedContext.currentStep;
+    }
+
+    return "view";
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -2059,12 +1728,9 @@ export default function JoinTeamPage() {
               </p>
               {!user && (
                 <p className="text-xs text-muted-foreground">
-                  {invitedEmailHasAccount
-                    ? `Sign in to join as ${pendingInviteData.invited_label}`
-                    : `Create an account to join as ${pendingInviteData.invited_label}`}
+                  Create an account to join as {pendingInviteData.invited_label}
                 </p>
               )}
-
             </div>
           )}
         </CardHeader>
@@ -2083,26 +1749,6 @@ export default function JoinTeamPage() {
             </div>
           )}
 
-          {showNameMismatchInfo && (
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
-              <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-              <p className="text-sm text-muted-foreground">
-                This invite was addressed to {pendingInviteData?.invited_label}. You can accept it as {userProfile?.display_name}.
-              </p>
-            </div>
-          )}
-
-          {/* Heads-up for users who already belong to a different club: joining
-              ADDS a club, it doesn't replace the existing one. */}
-          {user && otherMembershipClubName && inviteClubId && (
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border">
-              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <p className="text-sm text-muted-foreground">
-                You're already in <span className="font-medium text-foreground">{otherMembershipClubName}</span>. Joining adds <span className="font-medium text-foreground">{invite?.teams?.clubs?.name || inviteEntityName}</span> to your account — you can switch clubs anytime from the header.
-              </p>
-            </div>
-          )}
-
           {/* Fixed role display for admin invites - no role selection */}
           {/* Fixed role display - all invites use a predetermined role */}
           <div className="flex items-center justify-center gap-2">
@@ -2111,70 +1757,25 @@ export default function JoinTeamPage() {
             <Badge variant="secondary">{roleLabels[invite.role as AppRole]}</Badge>
           </div>
 
-          {!user ? (
-            <div className="space-y-3">
-              {invitedEmailHasAccount && pendingInviteData?.invited_email && (
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
-                  <UserCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                  <p className="text-sm text-muted-foreground">
-                    We found an existing Ignite account for{" "}
-                    <span className="font-medium text-foreground break-all">
-                      {pendingInviteData.invited_email}
-                    </span>
-                    . Sign in to accept this invite.
-                  </p>
-                </div>
-              )}
-              {invitedEmailHasAccount ? (
-                <>
-                  <Button onClick={handleSignInClick} className="w-full" size="lg">
-                    Sign in to join
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleCreateAccountClick}
-                    className="w-full"
-                    size="lg"
-                  >
-                    Create a new account instead
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button onClick={handleCreateAccountClick} className="w-full" size="lg">
-                    Create account to join
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleSignInClick}
-                    className="w-full"
-                    size="lg"
-                  >
-                    Already have an account? Sign in
-                  </Button>
-                </>
-              )}
-            </div>
-
-          ) : (
-            <Button
-              onClick={handleJoinClick}
-              disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError && !emailMatches)}
-              className="w-full"
-              size="lg"
-            >
-              {(joinMutation.isPending || (user && profileLoading)) ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : null}
-              {!joinMutation.isPending && !(user && profileLoading) && (
-                nameValidationError && !emailMatches
+          <Button
+            onClick={handleJoinClick}
+            disabled={joinMutation.isPending || (user && profileLoading) || (user && selectedRoles.length === 0 && !needsProfileCompletion) || (user && !!nameValidationError)}
+            className="w-full"
+            size="lg"
+          >
+            {(joinMutation.isPending || (user && profileLoading)) ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : null}
+            {!joinMutation.isPending && !(user && profileLoading) && (
+                !user
+                ? "Create Account to Join"
+                : nameValidationError
                   ? "Cannot Join - Name Mismatch"
                   : needsProfileCompletion
                     ? "Complete Profile to Join"
                     : `Join as ${roleLabels[invite.role as AppRole]}`
-              )}
-            </Button>
-          )}
+            )}
+          </Button>
           <Button 
             variant="ghost" 
             onClick={() => navigate("/")}
@@ -2183,6 +1784,12 @@ export default function JoinTeamPage() {
             Cancel
           </Button>
 
+          {/* App store download instructions - show on join form if not a native app */}
+          {!(window as any).Capacitor?.isNativePlatform?.() && (
+            <div className="border-t border-border pt-4 mt-4">
+              <AppStoreDownloadGuide compact />
+            </div>
+          )}
         </CardContent>
       </Card>
       </div>

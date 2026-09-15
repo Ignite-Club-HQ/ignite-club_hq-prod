@@ -17,6 +17,12 @@ import {
   AudienceResolutionError,
   resolveRecipients,
 } from "../../supabase/functions/process-event-notifications/recipients.ts";
+import {
+  batchInsertNotifications,
+  buildNotificationRows,
+  buildPushPayload,
+} from "../../supabase/functions/process-event-notifications/fanout.ts";
+import { buildDedupeKey, changeVersion } from "../../supabase/functions/process-event-notifications/dedupe.ts";
 import { FakeSupabase } from "../../supabase/functions/process-event-notifications/testFakeSupabase.ts";
 
 const CLUB = "club-1";
@@ -142,6 +148,22 @@ describe("event audience resolution — fail closed", () => {
 });
 
 describe("event audience resolution — unchanged behaviour", () => {
+  it.each([19, 20, 21, 30, 31, 200, 201, 501])(
+    "does not truncate a %i-member team audience",
+    async count => {
+      const db = new FakeSupabase({
+        user_roles: roles(Array.from({ length: count }, (_, i) => [
+          `user-${String(i).padStart(4, "0")}`,
+          "player",
+          TEAM,
+        ])),
+      });
+      const ids = await resolveRecipients(db, EVENT, CLUB, TEAM, null, CREATOR);
+      expect(ids).toHaveLength(count);
+      expect(new Set(ids)).toHaveLength(count);
+    },
+  );
+
   it("a genuinely unrestricted club-wide event still reaches all eligible club members", async () => {
     const db = new FakeSupabase({
       user_roles: roles([
@@ -184,6 +206,78 @@ describe("event audience resolution — unchanged behaviour", () => {
     expect([...ids].sort()).toEqual(["admin1", "guardian-1", "t1u1"]);
   });
 
+  it("deduplicates a targeted recipient found as member, admin, and guardian", async () => {
+    const db = new FakeSupabase({
+      user_roles: roles([
+        ["multi-role", "player", TEAM],
+        ["multi-role", "club_admin", null],
+        ["other", "coach", OTHER_TEAM],
+        ["outside", "player", "team-c"],
+      ]),
+      child_team_assignments: [{ team_id: TEAM, child_id: "child-1" }],
+      child_guardians: [{ child_id: "child-1", guardian_id: "multi-role" }],
+      events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM, OTHER_TEAM] }],
+    });
+    const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
+    expect([...ids].sort()).toEqual(["multi-role", "other"]);
+  });
+
+  it("excludes the creator through targeted membership, admin, and guardian paths", async () => {
+    const db = new FakeSupabase({
+      user_roles: roles([
+        [CREATOR, "player", TEAM],
+        [CREATOR, "club_admin", null],
+        ["member", "player", TEAM],
+      ]),
+      child_team_assignments: [{ team_id: TEAM, child_id: "child-1" }],
+      child_guardians: [{ child_id: "child-1", guardian_id: CREATOR }],
+      events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM] }],
+    });
+    await expect(resolveRecipients(db, EVENT, CLUB, null, null, CREATOR)).resolves.toEqual(["member"]);
+  });
+
+  it("paginates a targeted multi-team audience deterministically", async () => {
+    const db = new FakeSupabase({
+      user_roles: roles(Array.from({ length: 451 }, (_, i) => [
+        `user-${String(i).padStart(4, "0")}`,
+        "player",
+        i % 2 ? TEAM : OTHER_TEAM,
+      ])),
+      child_team_assignments: [],
+      events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM, OTHER_TEAM] }],
+    });
+    const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
+    expect(ids).toHaveLength(451);
+    expect(db.queries
+      .filter(q => q.table === "user_roles" && q.filters.some(f => f[0] === "in" && f[1] === "team_id"))
+      .map(q => q.range)).toEqual([[0, 199], [200, 399], [400, 599]]);
+  });
+
+  it("chunks guardian resolution above 200 children without duplicate delivery", async () => {
+    const assignments = Array.from({ length: 205 }, (_, i) => ({ team_id: TEAM, child_id: `child-${i}` }));
+    const db = new FakeSupabase({
+      user_roles: [],
+      child_team_assignments: assignments,
+      child_guardians: assignments.flatMap((row, i) => [
+        { child_id: row.child_id, guardian_id: `guardian-${i}` },
+        ...([0, 204].includes(i) ? [{ child_id: row.child_id, guardian_id: "shared" }] : []),
+      ]),
+      events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM] }],
+    });
+    const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
+    expect(ids).toHaveLength(206);
+    expect(ids.filter(id => id === "shared")).toHaveLength(1);
+    // The first 200-child chunk yields 201 guardian rows (including the
+    // shared guardian), so it correctly needs a second result page. The
+    // remaining five children are queried as a separate child-id chunk.
+    const guardianRanges = db.queries
+      .filter(q => q.table === "child_guardians")
+      .map(q => q.range);
+    expect(guardianRanges).toHaveLength(3);
+    expect(guardianRanges.filter(range => range?.[0] === 0 && range?.[1] === 199)).toHaveLength(2);
+    expect(guardianRanges.filter(range => range?.[0] === 200 && range?.[1] === 399)).toHaveLength(1);
+  });
+
   it("ordinary team events never touch the events table and are unaffected", async () => {
     const db = new FakeSupabase({
       user_roles: roles([
@@ -207,5 +301,171 @@ describe("event audience resolution — unchanged behaviour", () => {
     db.errors.events = { code: "57014", message: "timeout" };
     const ids = await resolveRecipients(db, EVENT, CLUB, null, "ml-1", CREATOR);
     expect([...ids].sort()).toEqual(["a1", "la1", "p1"]);
+  });
+});
+
+describe("event audience resolution — high-scale and read-failure safety", () => {
+  it("does not silently truncate a mini-league audience above the PostgREST row cap", async () => {
+    const parentCount = 1_205;
+    const db = new FakeSupabase({
+      mini_league_players: Array.from({ length: parentCount }, (_, i) => ({
+        mini_league_id: "ml-large",
+        parent_user_id: `parent-${String(i).padStart(4, "0")}`,
+      })),
+      mini_league_admins: [{ mini_league_id: "ml-large", user_id: "league-admin" }],
+      user_roles: [],
+    });
+
+    const ids = await resolveRecipients(db, EVENT, CLUB, null, "ml-large", CREATOR);
+    expect(ids).toHaveLength(parentCount + 1);
+    expect(new Set(ids)).toHaveLength(parentCount + 1);
+    expect(ids).toContain("parent-1204");
+    expect(ids).toContain("league-admin");
+  });
+
+  it("does not silently truncate guardian discovery above the PostgREST row cap", async () => {
+    const childCount = 1_205;
+    const assignments = Array.from({ length: childCount }, (_, i) => ({
+      team_id: TEAM,
+      child_id: `child-${String(i).padStart(4, "0")}`,
+    }));
+    const db = new FakeSupabase({
+      user_roles: [],
+      child_team_assignments: assignments,
+      child_guardians: assignments.map((assignment, i) => ({
+        child_id: assignment.child_id,
+        guardian_id: `guardian-${String(i).padStart(4, "0")}`,
+      })),
+      events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM] }],
+    });
+
+    const ids = await resolveRecipients(db, EVENT, CLUB, null, null, CREATOR);
+    expect(ids).toHaveLength(childCount);
+    expect(new Set(ids)).toHaveLength(childCount);
+    expect(ids).toContain("guardian-1204");
+  });
+
+  it.each([
+    ["team membership", "user_roles", TEAM, null],
+    ["mini-league membership", "mini_league_players", null, "ml-1"],
+    ["targeted child assignments", "child_team_assignments", null, null],
+    ["targeted guardian relationships", "child_guardians", null, null],
+  ] as const)(
+    "fails closed when the %s read fails",
+    async (_label, failedTable, teamId, miniLeagueId) => {
+      const db = new FakeSupabase({
+        user_roles: roles([["member", "player", TEAM]]),
+        mini_league_players: [{ mini_league_id: "ml-1", parent_user_id: "parent" }],
+        mini_league_admins: [],
+        child_team_assignments: [{ team_id: TEAM, child_id: "child" }],
+        child_guardians: [{ child_id: "child", guardian_id: "guardian" }],
+        events: [{ id: EVENT, restricted_to_roles: null, target_team_ids: [TEAM] }],
+      });
+      db.errors[failedTable] = { code: "57014", message: "synthetic read timeout" };
+
+      await expect(
+        resolveRecipients(db, EVENT, CLUB, teamId, miniLeagueId, CREATOR),
+      ).rejects.toBeInstanceOf(AudienceResolutionError);
+    },
+  );
+});
+
+describe("event notification fan-out and idempotency", () => {
+  it("builds one in-app row per recipient without creating RSVP state", () => {
+    const rows = buildNotificationRows(["u1", "u2"], "event_invite", "Carnival", EVENT);
+    expect(rows).toEqual([
+      { user_id: "u1", type: "event_invite", message: "Carnival", related_id: EVENT, skip_push: true },
+      { user_id: "u2", type: "event_invite", message: "Carnival", related_id: EVENT, skip_push: true },
+    ]);
+    expect(rows.every(row => !("rsvp" in row))).toBe(true);
+  });
+
+  it("inserts 1,100 recipients in complete 500/500/100 batches", async () => {
+    const db = new FakeSupabase({ notifications: [] });
+    const recipients = Array.from({ length: 1100 }, (_, i) => `u${i}`);
+    await expect(batchInsertNotifications(db, recipients, "event_invite", "Carnival", EVENT))
+      .resolves.toEqual(expect.objectContaining({ inserted: 1100 }));
+    expect(db.inserts.map(write => write.rows.length)).toEqual([500, 500, 100]);
+  });
+
+  it("performs no database operation for an empty audience", async () => {
+    const db = new FakeSupabase({ notifications: [] });
+    await expect(batchInsertNotifications(db, [], "event_invite", "Carnival", EVENT))
+      .resolves.toEqual({ inserted: 0, ids: [] });
+    expect(db.inserts).toEqual([]);
+  });
+
+  it("does not count rejected notification batches as delivered", async () => {
+    const db = new FakeSupabase({ notifications: [] });
+    db.errors.notifications = { code: "42501", message: "denied" };
+    const recipients = Array.from({ length: 501 }, (_, i) => `u${i}`);
+    await expect(batchInsertNotifications(db, recipients, "event_invite", "Carnival", EVENT))
+      .resolves.toEqual({ inserted: 0, ids: [] });
+    expect(db.inserts.map(write => write.rows.length)).toEqual([500, 1]);
+  });
+
+  it("continues independent batches and reports only rows actually committed after a middle-batch failure", async () => {
+    const db = new FakeSupabase({ notifications: [] });
+    db.writeErrors.notifications = [
+      null,
+      { code: "57014", message: "synthetic middle-batch timeout" },
+      null,
+    ];
+    const recipients = Array.from({ length: 1_100 }, (_, i) => `u${i}`);
+
+    const result = await batchInsertNotifications(
+      db,
+      recipients,
+      "event_invite",
+      "Carnival",
+      EVENT,
+    );
+
+    expect(db.inserts.map(write => write.rows.length)).toEqual([500, 500, 100]);
+    expect(result.inserted).toBe(600);
+    expect(result.ids).toHaveLength(600);
+    expect(db.tables.notifications).toHaveLength(600);
+  });
+
+  it("gives retries the same invite/cancellation identity but versions distinct edits", async () => {
+    expect(buildDedupeKey({ notificationType: "event_invite", eventId: EVENT, userId: "u1" }))
+      .toBe(`event_invite:${EVENT}:u1`);
+    expect(buildDedupeKey({ notificationType: "event_cancelled", eventId: EVENT, userId: "u1" }))
+      .toBe(`event_cancelled:${EVENT}:u1`);
+    const first = await changeVersion([{ field: "date", old: "2026-08-01", new: "2026-08-02" }]);
+    const retry = await changeVersion([{ field: "date", old: "2026-08-01", new: "2026-08-02" }]);
+    const later = await changeVersion([{ field: "date", old: "2026-08-02", new: "2026-08-03" }]);
+    expect(retry).toBe(first);
+    expect(later).not.toBe(first);
+  });
+
+  it("keeps change identity stable when database changed-field order differs", async () => {
+    const a = await changeVersion([
+      { field: "location", old: "A", new: "B" },
+      { field: "date", old: "1", new: "2" },
+    ]);
+    const b = await changeVersion([
+      { field: "date", old: "1", new: "2" },
+      { field: "location", old: "A", new: "B" },
+    ]);
+    expect(a).toBe(b);
+  });
+
+  it("builds a push payload tied to the notification row and event route", () => {
+    expect(buildPushPayload({
+      userId: "u1",
+      body: "Carnival",
+      url: `/events/${EVENT}`,
+      notificationId: "notification-1",
+      notificationType: "event_invite",
+    })).toEqual({
+      userId: "u1",
+      title: "Ignite",
+      body: "Carnival",
+      url: `/events/${EVENT}`,
+      notificationId: "notification-1",
+      tag: "event_invite-notification-1",
+      notificationType: "event_invite",
+    });
   });
 });

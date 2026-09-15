@@ -30,11 +30,9 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { ensureFreshSession, isAuthLikeError } from "@/lib/ensureFreshSession";
 import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
-import { useChatStuckWatchdog, createChatFetchBudget } from "@/lib/chatStuckWatchdog";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { toast } from "sonner";
@@ -57,9 +55,31 @@ import { useClubFreeUsage, readClubFreeUsageSnapshot, FREE_PHOTO_UPLOADS_PER_CYC
 import { UsageMeter } from "@/components/subscription/UsageMeter";
 import { FREE_UPGRADE_MESSAGES } from "@/lib/freeUpgradeMessages";
 import { MediaHeaderSponsorStrip } from "@/components/media/MediaHeaderSponsorStrip";
-import { cachePhotos, removePhotoFromCache, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
+import { cachePhotos, getFeedPhotosFromCache, backgroundRefreshPhotos, CachedPhoto } from "@/lib/mediaCache";
 import { useProfiles } from "@/hooks/useProfiles";
 import { usePhotoViewCounts, useRecordPhotoView, usePhotoViewRealtime } from "@/hooks/usePhotoViews";
+import { mediaKeys } from "@/features/media/mediaQueryKeys";
+import {
+  fetchGalleryCardPhotoIds,
+  fetchHighlightedMediaPhoto,
+  fetchMediaComments,
+  fetchMediaFeedPage,
+  fetchMediaReactions,
+} from "@/features/media/mediaReadRepository";
+import {
+  fetchMediaFilterClubs,
+  fetchMediaFilterTeams,
+  fetchMediaProAccess,
+  fetchMediaUserRoles,
+} from "@/features/media/mediaAccessRepository";
+import {
+  createMediaComment,
+  removeMediaReaction,
+  replaceMediaReaction,
+} from "@/features/media/mediaEngagementRepository";
+import { useMediaRealtime } from "@/features/media/useMediaRealtime";
+import { canDeleteMediaPhoto, canShareMediaPhoto } from "@/features/media/mediaPermissions";
+import { useMediaPhotoDeletion } from "@/features/media/useMediaPhotoDeletion";
 
 /** True inside the Capacitor native shell (Android/iOS WebView). */
 const isNativeRuntime = () => !!(window as any).Capacitor?.isNativePlatform?.();
@@ -126,7 +146,6 @@ export default function MediaPage() {
   const [replyingTo, setReplyingTo] = useState<Record<string, { id: string; name: string } | undefined>>({});
   const [activeCommentPhotoId, setActiveCommentPhotoId] = useState<string | null>(null);
   const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null);
-  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [selectedDeleteOption, setSelectedDeleteOption] = useState<'feed' | 'vault' | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   // Optional album-scoped lightbox: when set, the lightbox shows just the
@@ -314,18 +333,18 @@ export default function MediaPage() {
   };
 
   const { data: userRoles, isLoading: loadingRoles } = useQuery({
-    queryKey: ["user-roles-media", user?.id],
+    queryKey: mediaKeys.roles(user?.id),
     queryFn: async () => {
       const start = performance.now();
       diagLog("userRoles:start");
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role, club_id, team_id")
-        .eq("user_id", user!.id);
-      diagLog("userRoles:end", { ms: Math.round(performance.now() - start), count: data?.length ?? null, error: error?.message });
-
-      if (error) throw error;
-      return data || [];
+      try {
+        const roles = await fetchMediaUserRoles(user!.id);
+        diagLog("userRoles:end", { ms: Math.round(performance.now() - start), count: roles.length, error: undefined });
+        return roles;
+      } catch (error: any) {
+        diagLog("userRoles:end", { ms: Math.round(performance.now() - start), count: null, error: error?.message });
+        throw error;
+      }
     },
     enabled: !!user,
     staleTime: 300000,
@@ -350,95 +369,23 @@ export default function MediaPage() {
   // Quick Pro check - check if user has any Pro club/team membership
   // Logic: Club Pro → all teams inherit Pro; Free club → check team subscription
   const { data: hasProClub, isLoading: loadingProAccess, error: proAccessError } = useQuery({
-    queryKey: ["has-pro-access", user?.id, roleClubIds.join(","), roleTeamIds.join(",")],
+    queryKey: mediaKeys.proAccessFor(
+      user?.id,
+      roleClubIds.join(","),
+      roleTeamIds.join(","),
+      activeClubFilter,
+    ),
     queryFn: async () => {
       try { await ensureFreshSession(); } catch { /* offline / signed out — let queries surface real errors */ }
       const overall = performance.now();
       diagLog("hasProClub:start", { roleClubIds: roleClubIds.length, roleTeamIds: roleTeamIds.length, activeClubFilter });
-      const candidateClubIds = activeClubFilter
-        ? [...new Set([...roleClubIds, activeClubFilter])]
-        : roleClubIds;
-
-      if (candidateClubIds.length === 0 && roleTeamIds.length === 0) {
-        diagLog("hasProClub:end-no-candidates");
-        return false;
-      }
-
-      // Fetch club subscriptions and team info in parallel
-      const parallelStart = performance.now();
-      const [clubSubResult, teamInfoResult] = await Promise.all([
-        candidateClubIds.length > 0
-          ? supabase
-              .from("club_subscriptions")
-              .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-              .in("club_id", candidateClubIds)
-          : Promise.resolve({ data: [], error: null }),
-        roleTeamIds.length > 0
-          ? supabase.from("teams").select("id, club_id").in("id", roleTeamIds)
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-      diagLog("hasProClub:parallel-resolved", {
-        ms: Math.round(performance.now() - parallelStart),
-        clubSubError: clubSubResult.error?.message,
-        teamInfoError: teamInfoResult.error?.message,
-        totalMs: Math.round(performance.now() - overall),
+      const hasAccess = await fetchMediaProAccess({
+        roleClubIds,
+        roleTeamIds,
+        activeClubId: activeClubFilter,
       });
-
-      if (clubSubResult.error) throw clubSubResult.error;
-      if (teamInfoResult.error) throw teamInfoResult.error;
-
-      const hasCandidateClubPro = (clubSubResult.data || []).some(
-        (sub) => sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
-      );
-
-      if (hasCandidateClubPro) return true;
-
-      const teamParentClubIds = [...new Set((teamInfoResult.data || []).map((t) => t.club_id).filter(Boolean) as string[])];
-      const missingParentClubIds = teamParentClubIds.filter((clubId) => !candidateClubIds.includes(clubId));
-
-      if (missingParentClubIds.length > 0) {
-        const { data: parentClubSubs, error: parentClubSubsError } = await supabase
-          .from("club_subscriptions")
-          .select("club_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("club_id", missingParentClubIds);
-
-        if (parentClubSubsError) throw parentClubSubsError;
-
-        const parentHasPro = (parentClubSubs || []).some(
-          (sub) => sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
-        );
-
-        if (parentHasPro) return true;
-      }
-
-      if (roleTeamIds.length > 0) {
-        const { data: teamSubs, error: teamSubsError } = await supabase
-          .from("team_subscriptions")
-          .select("team_id, is_pro, is_pro_football, admin_pro_override, admin_pro_football_override")
-          .in("team_id", roleTeamIds);
-
-        if (teamSubsError) throw teamSubsError;
-
-        const teamHasPro = (teamSubs || []).some(
-          (sub) => sub.is_pro || sub.is_pro_football || sub.admin_pro_override || sub.admin_pro_football_override
-        );
-
-        if (teamHasPro) return true;
-      }
-
-      const allResolvedClubIds = [...new Set([...candidateClubIds, ...teamParentClubIds])];
-      if (allResolvedClubIds.length > 0) {
-        const { data: clubs, error: clubsError } = await supabase
-          .from("clubs")
-          .select("id")
-          .in("id", allResolvedClubIds)
-          .eq("is_pro", true);
-
-        if (clubsError) throw clubsError;
-        if ((clubs || []).length > 0) return true;
-      }
-
-      return false;
+      diagLog("hasProClub:end", { totalMs: Math.round(performance.now() - overall), hasAccess });
+      return hasAccess;
     },
     enabled: !!user,
     staleTime: 300000,
@@ -449,7 +396,7 @@ export default function MediaPage() {
   });
 
   const { data: userProfile } = useQuery({
-    queryKey: ["user-profile-media", user?.id],
+    queryKey: mediaKeys.profile(user?.id),
     queryFn: async () => {
       const { data } = await selectCachedProfileById(user!.id);
       return data;
@@ -461,18 +408,10 @@ export default function MediaPage() {
 
   // Fetch clubs user has access to for filtering
   const { data: availableClubs } = useQuery({
-    queryKey: ["media-filter-clubs", user?.id],
-    queryFn: async () => {
-      const clubIds = [...new Set(userRoles?.map(r => r.club_id).filter(Boolean))] as string[];
-      if (clubIds.length === 0) return [];
-      
-      const { data } = await supabase
-        .from("clubs")
-        .select("id, name")
-        .in("id", clubIds)
-        .order("name");
-      return data || [];
-    },
+    queryKey: mediaKeys.filterClubs(user?.id),
+    queryFn: () => fetchMediaFilterClubs(
+      (userRoles ?? []).flatMap((role) => role.club_id ? [role.club_id] : []),
+    ),
     enabled: !!user && !!userRoles && userRoles.length > 0,
     staleTime: 300000,
     placeholderData: (prev) => prev,
@@ -480,19 +419,10 @@ export default function MediaPage() {
 
   // Fetch teams user has access to for filtering
   const { data: availableTeams } = useQuery({
-    queryKey: ["media-filter-teams", user?.id],
-    queryFn: async () => {
-      const teamIds = [...new Set(userRoles?.map(r => r.team_id).filter(Boolean))] as string[];
-      if (teamIds.length === 0) return [];
-      
-      const { data } = await supabase
-        .from("teams")
-        .select("id, name, club_id, clubs!club_id(name)")
-        .in("id", teamIds)
-        .is("deleted_at", null)
-        .order("name");
-      return data || [];
-    },
+    queryKey: mediaKeys.filterTeams(user?.id),
+    queryFn: () => fetchMediaFilterTeams(
+      (userRoles ?? []).flatMap((role) => role.team_id ? [role.team_id] : []),
+    ),
     enabled: !!user && !!userRoles && userRoles.length > 0,
     staleTime: 300000,
     placeholderData: (prev) => prev,
@@ -520,16 +450,8 @@ export default function MediaPage() {
   // Fetch the gallery card's photo_ids when ?card= is present so we can scope
   // the gallery to just that upload batch.
   const { data: cardPhotoIds } = useQuery({
-    queryKey: ["gallery-chat-card-photo-ids", cardId],
-    queryFn: async () => {
-      if (!cardId) return null;
-      const { data } = await supabase
-        .from("gallery_chat_cards")
-        .select("photo_ids")
-        .eq("id", cardId)
-        .maybeSingle();
-      return (data?.photo_ids as string[] | null) ?? [];
-    },
+    queryKey: mediaKeys.cardPhotoIds(cardId),
+    queryFn: () => cardId ? fetchGalleryCardPhotoIds(cardId) : null,
     enabled: !!cardId,
     staleTime: 5 * 60 * 1000,
   });
@@ -540,14 +462,22 @@ export default function MediaPage() {
   const dateToKey = dateRange.to ? endOfDay(dateRange.to).toISOString() : null;
   const cardPhotoIdsKey = cardPhotoIds?.join(",") ?? "";
   const photosQueryKey = useMemo(
-    () => ["photos", user?.id, selectedClubFilter, selectedTeamFilter, urlEventId ?? null, dateFromKey, dateToKey, cardId, cardPhotoIdsKey] as const,
+    () => mediaKeys.feed({
+      userId: user?.id,
+      clubId: selectedClubFilter,
+      teamId: selectedTeamFilter,
+      eventId: urlEventId ?? null,
+      dateFrom: dateFromKey,
+      dateTo: dateToKey,
+      cardId,
+      cardPhotoIdsSignature: cardPhotoIdsKey,
+    }),
     [user?.id, selectedClubFilter, selectedTeamFilter, urlEventId, dateFromKey, dateToKey, cardId, cardPhotoIdsKey]
   );
 
   const { 
     data: photosData, 
     isLoading: loadingPhotos,
-    isFetching: isFetchingPhotos,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -557,45 +487,27 @@ export default function MediaPage() {
   } = useInfiniteQuery({
     queryKey: photosQueryKey,
     queryFn: async ({ pageParam = 0 }) => {
-      if (cardId && (cardPhotoIds?.length ?? 0) === 0) {
-        return { photos: [], nextCursor: undefined };
-      }
-
       const start = performance.now();
       diagLog("photos:start", { pageParam });
-      let query = supabase
-        .from("photos")
-        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, album_id, clubs!club_id(name, is_pro), teams(name, club_id, clubs!club_id(name)), mini_leagues(name, club_id, clubs!club_id(name))")
-        .eq("show_in_feed", true)
-        .is("deleted_at", null);
-
-      if (cardId && cardPhotoIds?.length) query = query.in("id", cardPhotoIds);
-      if (selectedClubFilter) query = query.eq("club_id", selectedClubFilter);
-      if (selectedTeamFilter) query = query.eq("team_id", selectedTeamFilter);
-      if (urlEventId) query = query.eq("event_id", urlEventId);
-      if (dateFromKey) query = query.gte("created_at", dateFromKey);
-      if (dateToKey) query = query.lte("created_at", dateToKey);
-
-      // Hard wall-clock budget: a GET that was in flight when the WebView was
-      // frozen never fails on its own, which used to leave the gallery on
-      // "Updating..." forever AND keep a connection slot occupied, starving
-      // other pages (Schedule) of sockets. 15s then abort → error → retry.
-      const budget = createChatFetchBudget(15_000);
-      let data: any[] | null = null;
-      let error: any = null;
+      let page: Awaited<ReturnType<typeof fetchMediaFeedPage>>;
       try {
-        const res = await query
-          .order("created_at", { ascending: false })
-          .range(pageParam, pageParam + PHOTOS_PER_PAGE - 1)
-          .abortSignal(budget.signal);
-        data = res.data as any[] | null;
-        error = res.error;
-      } finally {
-        budget.done();
+        page = await fetchMediaFeedPage({
+          clubId: selectedClubFilter,
+          teamId: selectedTeamFilter,
+          eventId: urlEventId ?? null,
+          dateFrom: dateFromKey,
+          dateTo: dateToKey,
+          cardId,
+          cardPhotoIds,
+          offset: pageParam,
+          pageSize: PHOTOS_PER_PAGE,
+        });
+      } catch (error: any) {
+        diagLog("photos:end", { pageParam, ms: Math.round(performance.now() - start), rows: null, error: error?.message });
+        throw error;
       }
-      diagLog("photos:end", { pageParam, ms: Math.round(performance.now() - start), rows: data?.length ?? null, error: error?.message });
-
-      if (error) throw error;
+      const data = page.photos;
+      diagLog("photos:end", { pageParam, ms: Math.round(performance.now() - start), rows: data.length, error: undefined });
       
       // Cache first page results for offline access
       if (pageParam === 0 && data && !selectedClubFilter && !selectedTeamFilter && !urlEventId && !dateFromKey && !dateToKey && !cardId) {
@@ -615,23 +527,14 @@ export default function MediaPage() {
         setIsCacheStale(false);
       }
       
-      return { photos: data || [], nextCursor: data && data.length === PHOTOS_PER_PAGE ? pageParam + PHOTOS_PER_PAGE : undefined };
+      return page;
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: 0,
     enabled: !!user && (!cardId || cardPhotoIds !== undefined),
     staleTime: 5 * 60 * 1000,
     gcTime: 300000,
-    retry: (failureCount, error) => failureCount < 2 && (isAuthLikeError(error) || onlineManager.isOnline()),
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
-
-  // Escape hatch for a zombie photos GET: while a refresh is in flight with
-  // cached/stale content on screen (the "Updating..." pill) for longer than the
-  // watchdog interval, abort in-flight REST reads and re-issue. Without this
-  // the pill sticks forever and the dead socket blocks Schedule's requests too.
-  const photosStuck = isOnline && (loadingPhotos || isFetchingPhotos);
-  useChatStuckWatchdog(photosStuck, [photosQueryKey], "media-photos");
 
   // Eagerly prefetch the next page once the first page is in so the user
   // doesn't see a loading shimmer when they reach the end of the first batch.
@@ -642,26 +545,8 @@ export default function MediaPage() {
     }
   }, [photosSuccess, hasNextPage, isFetchingNextPage, fetchNextPage]);
   const { data: highlightedPhoto, refetch: refetchHighlightedPhoto } = useQuery({
-    queryKey: ["highlighted-photo", user?.id, highlightedPhotoId],
-    queryFn: async () => {
-      if (!highlightedPhotoId) return null;
-      // Retry with backoff for very recent uploads where DB replication may
-      // briefly lag behind the push notification.
-      const delays = [0, 500, 1000, 2000];
-      for (let i = 0; i < delays.length; i++) {
-        if (delays[i] > 0) await new Promise((r) => setTimeout(r, delays[i]));
-        const { data, error } = await supabase
-          .from("photos")
-          .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs!club_id(name, is_pro), teams(name, club_id, clubs!club_id(name)), mini_leagues(name, club_id, clubs!club_id(name))")
-          .eq("id", highlightedPhotoId)
-          .eq("show_in_feed", true)
-          .is("deleted_at", null)
-          .maybeSingle();
-        if (error) throw error;
-        if (data) return data;
-      }
-      return null;
-    },
+    queryKey: mediaKeys.highlightedPhoto(user?.id, highlightedPhotoId),
+    queryFn: () => highlightedPhotoId ? fetchHighlightedMediaPhoto(highlightedPhotoId) : null,
     enabled: !!user && !!highlightedPhotoId,
     staleTime: 0,
     refetchOnMount: "always",
@@ -671,28 +556,9 @@ export default function MediaPage() {
   // the latest photo isn't hidden behind the 60s staleTime.
   useEffect(() => {
     if (!highlightedPhotoId || !user) return;
-    queryClient.invalidateQueries({ queryKey: ["photos", user.id] });
+    queryClient.invalidateQueries({ queryKey: mediaKeys.feeds(user.id) });
     refetchHighlightedPhoto();
   }, [highlightedPhotoId, user, queryClient, refetchHighlightedPhoto]);
-
-  // Realtime: invalidate the gallery feed when any new photo is inserted so
-  // viewers already on the page see new uploads instantly without refresh.
-  useEffect(() => {
-    if (!user) return;
-    const channel = supabase
-      .channel(`media-feed-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "photos" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["photos", user.id] });
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, queryClient]);
 
   // Background refresh if cache was stale
   useEffect(() => {
@@ -897,7 +763,7 @@ export default function MediaPage() {
       const aborted = abortAllInFlightRestGets("media-pro-watchdog");
       console.warn("[MediaDiag] pro-gate-watchdog", { t: new Date().toISOString(), abortedInFlight: aborted });
       setProGateTimedOut(true);
-      queryClient.refetchQueries({ queryKey: ["has-pro-access"] });
+      queryClient.refetchQueries({ queryKey: mediaKeys.proAccess() });
     }, 6000);
     return () => clearInterval(timer);
   }, [proGateStuck, queryClient]);
@@ -909,6 +775,7 @@ export default function MediaPage() {
 
   // Get ALL loaded photo IDs (not filtered) for fetching reactions/comments
   const allPhotoIds = useMemo(() => allPhotos?.map(p => p.id) || [], [allPhotos]);
+  useMediaRealtime(user?.id, allPhotoIds);
 
   // Photo view tracking — count, recording, and realtime updates
   const { data: photoViewCounts } = usePhotoViewCounts(allPhotoIds);
@@ -918,23 +785,12 @@ export default function MediaPage() {
   // Stable query key for reactions - bucket photo count by 50 to avoid refetching
   // on every infinite-scroll page load. Realtime channel below keeps data fresh in between.
   const photoCountBucket = Math.ceil(allPhotoIds.length / 50);
-  const reactionsQueryKey = useMemo(() => ["photo-reactions", user?.id, photoCountBucket], [user?.id, photoCountBucket]);
+  const reactionsQueryKey = useMemo(() => mediaKeys.reactionsBucket(user?.id, photoCountBucket), [user?.id, photoCountBucket]);
   
   // Fetch reactions for ALL loaded photos - use inline reactions as placeholder for instant display
   const { data: fetchedReactions } = useQuery({
     queryKey: reactionsQueryKey,
-    queryFn: async () => {
-      if (allPhotoIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("photo_reactions")
-        .select("photo_id, user_id, reaction_type, profiles:user_id(display_name, avatar_url)")
-        .in("photo_id", allPhotoIds);
-      if (error) {
-        console.error("Error fetching reactions:", error);
-        return [];
-      }
-      return data || [];
-    },
+    queryFn: () => fetchMediaReactions(allPhotoIds),
     enabled: !!user && allPhotoIds.length > 0,
     staleTime: 120000,
     placeholderData: (prev) => prev,
@@ -944,94 +800,20 @@ export default function MediaPage() {
   const allReactions = fetchedReactions || [];
 
   // Stable query key for comments - bucket photo count by 50 to avoid refetching on every page
-  const commentsQueryKey = useMemo(() => ["photo-comments", user?.id, photoCountBucket], [user?.id, photoCountBucket]);
+  const commentsQueryKey = useMemo(() => mediaKeys.commentsBucket(user?.id, photoCountBucket), [user?.id, photoCountBucket]);
 
   // Fetch comments for ALL loaded photos (not just filtered)
   const { data: allComments } = useQuery({
     queryKey: commentsQueryKey,
-    queryFn: async () => {
-      if (allPhotoIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("photo_comments")
-        .select("*, profiles:user_id(display_name, avatar_url)")
-        .in("photo_id", allPhotoIds)
-        .order("created_at", { ascending: true });
-      if (error) {
-        console.error("Error fetching comments:", error);
-        return [];
-      }
-      return data || [];
-    },
+    queryFn: () => fetchMediaComments(allPhotoIds),
     enabled: !!user && allPhotoIds.length > 0,
     staleTime: 120000,
     placeholderData: (prev) => prev,
   });
 
-  // Realtime: keep comments and reactions in sync so newly added ones
-  // appear without waiting for the 2-minute staleTime to expire.
-  useEffect(() => {
-    if (!user?.id || allPhotoIds.length === 0) return;
-    const channel = supabase
-      .channel(`media-comments-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "photo_comments" },
-        (payload: any) => {
-          const row = (payload.new || payload.old) as { photo_id?: string } | undefined;
-          if (row?.photo_id && allPhotoIds.includes(row.photo_id)) {
-            queryClient.invalidateQueries({ queryKey: ["photo-comments", user.id] });
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "photo_reactions" },
-        (payload: any) => {
-          const row = (payload.new || payload.old) as { photo_id?: string } | undefined;
-          if (row?.photo_id && allPhotoIds.includes(row.photo_id)) {
-            queryClient.invalidateQueries({ queryKey: ["photo-reactions", user.id] });
-          }
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id, allPhotoIds, queryClient]);
-
-  // Refresh comments/reactions when the tab/app becomes visible again so
-  // returning to the app surfaces anything posted while away.
-  useEffect(() => {
-    if (!user?.id) return;
-    const onVisible = () => {
-      // Native: leave resume refetching to the adapter's staggered drip.
-      if (isNativeRuntime()) return;
-      if (document.visibilityState === "visible") {
-        queryClient.invalidateQueries({ queryKey: ["photo-comments", user.id] });
-        queryClient.invalidateQueries({ queryKey: ["photo-reactions", user.id] });
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [user?.id, queryClient]);
-
   const reactMutation = useMutation({
     mutationFn: async ({ photoId, reactionType }: { photoId: string; reactionType: string }) => {
-      // First remove any existing reaction
-      const { error: deleteError } = await supabase.from("photo_reactions").delete()
-        .eq("photo_id", photoId)
-        .eq("user_id", user!.id);
-      
-      if (deleteError) throw deleteError;
-      
-      // Then add the new reaction
-      const { error: insertError } = await supabase.from("photo_reactions").insert({
-        photo_id: photoId,
-        user_id: user!.id,
-        reaction_type: reactionType,
-      });
-      
-      if (insertError) throw insertError;
+      await replaceMediaReaction({ photoId, userId: user!.id, reactionType });
     },
     onMutate: async ({ photoId, reactionType }) => {
       await queryClient.cancelQueries({ queryKey: reactionsQueryKey });
@@ -1066,10 +848,7 @@ export default function MediaPage() {
 
   const removeReactionMutation = useMutation({
     mutationFn: async (photoId: string) => {
-      const { error } = await supabase.from("photo_reactions").delete()
-        .eq("photo_id", photoId)
-        .eq("user_id", user!.id);
-      if (error) throw error;
+      await removeMediaReaction({ photoId, userId: user!.id });
     },
     onMutate: async (photoId: string) => {
       await queryClient.cancelQueries({ queryKey: reactionsQueryKey });
@@ -1098,14 +877,7 @@ export default function MediaPage() {
       if (!user?.id) {
         throw new Error("User not authenticated");
       }
-      const { error } = await supabase.from("photo_comments").insert({
-        photo_id: photoId,
-        user_id: user.id,
-        text,
-        reply_to_id: replyToId || null,
-      });
-      
-      if (error) throw error;
+      await createMediaComment({ photoId, userId: user.id, text, replyToId });
     },
     onMutate: async ({ photoId, text, replyToId }) => {
       if (!user?.id) return { previousComments: undefined };
@@ -1163,72 +935,22 @@ export default function MediaPage() {
     },
   });
 
-  const deletePhotoMutation = useMutation({
-    mutationFn: async ({ photoId, deleteFromVault }: { photoId: string; deleteFromVault: boolean }) => {
-      const { deleteMediaPhoto } = await import("@/lib/mediaPhotoDeletion");
-      await deleteMediaPhoto(supabase, {
-        photoId,
-        mode: deleteFromVault ? "feed_and_vault" : "feed_only",
-        callerId: user?.id ?? null,
-      });
-    },
-
-    onMutate: async ({ photoId }) => {
-      // Set deleting state for UI feedback
-      setDeletingPhotoId(photoId);
+  const { deletePhoto, deletingPhotoId } = useMediaPhotoDeletion({
+    userId: user?.id,
+    photosQueryKey,
+    onDeleteStarted: () => {
       setDeletePhotoId(null);
       setSelectedDeleteOption(null);
-      
-      // Cancel any outgoing refetches - use correct query key with user id
-      await queryClient.cancelQueries({ queryKey: photosQueryKey });
-      
-      // Snapshot the previous value
-      const previousPhotos = queryClient.getQueryData(photosQueryKey);
-      
-      // Optimistically remove the photo from the cache
-      queryClient.setQueryData(photosQueryKey, (old: any) => {
-        if (!old?.pages) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: { photos: any[]; nextCursor?: number }) => ({
-            ...page,
-            photos: page.photos.filter((photo: any) => photo.id !== photoId)
-          })),
-        };
-      });
-      
-      return { previousPhotos, photoId };
-    },
-    onSuccess: (_, { photoId, deleteFromVault }) => {
-      // Remove from local storage cache
-      removePhotoFromCache(photoId);
-      // Silent success - no toast
-    },
-    onError: (error: any, _, context) => {
-      // Rollback on error
-      if (context?.previousPhotos) {
-        queryClient.setQueryData(photosQueryKey, context.previousPhotos);
-      }
-      toast.error(error.message || "Failed to delete photo");
-    },
-    onSettled: () => {
-      setDeletingPhotoId(null);
-      queryClient.invalidateQueries({ queryKey: photosQueryKey });
     },
   });
 
   const canDeletePhoto = (photo: any) => {
-    if (isAppAdmin) return true;
-    if (photo.uploader_id === user?.id) return true;
-    if (userRoles?.some(r => r.role === "club_admin" && r.club_id === photo.club_id)) return true;
-    // Team admins can only delete team-level photos (not club-level photos where team_id is null)
-    if (photo.team_id && userRoles?.some(r => r.role === "team_admin" && r.team_id === photo.team_id)) return true;
-    return false;
+    return canDeleteMediaPhoto({ photo, userId: user?.id, isAppAdmin, roles: userRoles });
   };
 
   // Anyone who can view a photo should be able to share it
   const canSharePhoto = (_photo: any) => {
-    return !!user;
+    return canShareMediaPhoto(user?.id);
   };
 
   const toggleComments = (photoId: string) => {
@@ -1399,7 +1121,7 @@ export default function MediaPage() {
             onRetry={async () => {
               await Promise.all([
                 refetchPhotos(),
-                queryClient.invalidateQueries({ queryKey: ["has-pro-access", user?.id] }),
+                queryClient.invalidateQueries({ queryKey: mediaKeys.proAccessFor(user?.id) }),
               ]);
             }}
           />
@@ -1477,7 +1199,7 @@ export default function MediaPage() {
             <Button
               variant="outline"
               className="mt-3"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ["has-pro-access", user?.id] })}
+              onClick={() => queryClient.invalidateQueries({ queryKey: mediaKeys.proAccessFor(user?.id) })}
             >
               Retry
             </Button>
@@ -1846,7 +1568,7 @@ export default function MediaPage() {
               disabled={!selectedDeleteOption}
               onClick={() => {
                 if (!deletePhotoId || !selectedDeleteOption) return;
-                deletePhotoMutation.mutate({ 
+                deletePhoto({
                   photoId: deletePhotoId, 
                   deleteFromVault: selectedDeleteOption === 'vault' 
                 });

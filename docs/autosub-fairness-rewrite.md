@@ -4,12 +4,16 @@
 
 `src/components/pitch/autoSubFairness.acceptance.test.ts` runs a curated 96-case grid and reports two spread metrics per case (see harness header). Sim sanity (starvation, negative/over-match minutes) passes across the entire grid.
 
-**Current baseline (rotation-pool spread — cap-enforced):**
-- 62 / 96 cases exceed the 5-minute cap
-- Worst case: +14.33 min over cap (7-a-side, +4 bench, 45min halves, mode 1, gkSwap=true)
+**Current baseline (rotation-pool spread — cap-enforced, rerun 10 August 2026):**
+- 9 / 96 cases exceed the 5-minute cap
+- All 9 are Standard mode with halftime goalkeeper rotation enabled
+- Worst case: +4 min over cap / 9-minute spread (7-a-side, +4 bench,
+  30-minute halves, mode 1, gkSwap=true)
 
 **Informational baseline (full-squad spread):**
-- 4 cases balance within rotation pool (≤ cap) but breach the full-squad cap **only** because the locked GK is playing the entire match. These are the "enable halftime GK swap" UX nudge candidates.
+- 48 cases balance within rotation pool (≤ cap) but breach the full-squad cap
+  **only** because the locked GK is playing the entire match. These are the
+  "enable halftime GK swap" UX nudge candidates.
 
 Prior reports (92/96, +62.5min worst) conflated the locked-GK role with rotation-pool fairness. The equal-time planner explicitly excludes GK-only players from its rotation pool by design — those minutes are structurally fixed. Measuring them against the same cap was a harness bug, not a planner bug.
 

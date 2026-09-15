@@ -66,7 +66,7 @@ export interface ChatMessageProps {
   reactions?: Reaction[];
   currentUserId?: string;
   messageType: "team" | "club" | "broadcast" | "group" | "dm" | "club_admin";
-  queryKey: string[];
+  queryKey: readonly string[];
   replyToMessage?: ReplyToMessage | null;
   hasReply?: boolean;
   onReply?: (message: { id: string; text: string; authorName: string | null }) => void;

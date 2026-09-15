@@ -24,6 +24,10 @@ import { AddGroupMembersDialog } from "@/components/chat/AddGroupMembersDialog";
 import { ParticipantProfileSheet, type ParticipantRoleEntry } from "@/components/chat/ParticipantProfileSheet";
 import { cn } from "@/lib/utils";
 import { useOnlineSet } from "@/hooks/useUserPresence";
+import {
+  refreshChatManagedTeamMembership,
+  refreshChatRemovedTeamMember,
+} from "@/features/membership/teamMembershipCacheCompletion";
 
 // Highest-privilege first. App admin sinks to the end (internal-only).
 const ROLE_PRIORITY: string[] = [
@@ -604,9 +608,10 @@ export function ChatParticipantsList({
     } else {
       toast.success("Role removed");
       if (effectiveTeamId) {
-        queryClient.invalidateQueries({ queryKey: ["team-roles", effectiveTeamId] });
+        refreshChatManagedTeamMembership(queryClient, effectiveTeamId, chatType, chatId);
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
       }
-      queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
       setSelectedMember(null);
     }
   };
@@ -626,12 +631,6 @@ export function ChatParticipantsList({
       return;
     }
 
-    const refreshMembership = () => {
-      queryClient.invalidateQueries({ queryKey: ["team-roles", effectiveTeamId] });
-      queryClient.invalidateQueries({ queryKey: ["chat-members", chatType, chatId] });
-      queryClient.invalidateQueries({ queryKey: ["authorized-scopes"] });
-    };
-
     const { error: notifyError } = await supabase.from("notifications").insert({
       user_id: selectedMember.userId,
       type: "membership",
@@ -639,7 +638,7 @@ export function ChatParticipantsList({
       related_id: effectiveTeamId,
     });
 
-    refreshMembership();
+    refreshChatRemovedTeamMember(queryClient, effectiveTeamId, chatType, chatId);
     if (notifyError) {
       // Removal committed — do not report it as a failure or retry the role.
       toast.warning("Member removed — notification failed");

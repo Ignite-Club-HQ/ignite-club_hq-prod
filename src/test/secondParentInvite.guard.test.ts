@@ -9,6 +9,7 @@ import {
 } from "@/features/membership/secondParentInvite";
 
 const sheet = readFileSync("src/components/AddTeamMemberSheet.tsx", "utf8");
+const bulkWorkflow = readFileSync("src/features/membership/bulkInvitationWorkflow.ts", "utf8");
 
 /**
  * Production incident: a second parent (Zoe Schultz) was entered, no
@@ -50,8 +51,8 @@ describe("second parent invite", () => {
   });
 
   it("every branch of the sheet routes second parents through the shared helper", () => {
-    const calls = sheet.match(/ensureSecondParent\(\{/g) ?? [];
-    // existing-user path, dedupe path, new-invitee path, bulk helper
+    const calls = `${sheet}\n${bulkWorkflow}`.match(/ensureSecondParent\(\{/g) ?? [];
+    // Existing/new single-recipient paths plus existing/new bulk paths.
     expect(calls.length).toBeGreaterThanOrEqual(4);
   });
 
@@ -63,8 +64,8 @@ describe("second parent invite", () => {
 
   it("surfaces second-parent failures and blocks invalid submissions", () => {
     expect(sheet).toContain("secondParentValidationError({");
-    expect(sheet).toContain("!!secondParentBlocked");
-    expect(sheet).toContain("bulkSecondParentBlocked");
+    expect(sheet).toContain("if (secondParentBlocked)");
+    expect(bulkWorkflow).toContain("secondParentValidationError({");
     expect(sheet).toContain("secondParentPartialFailureMessage(");
     expect(sheet).toContain("SecondParentError");
   });

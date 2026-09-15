@@ -213,6 +213,10 @@ describe("vault deletion — edge function contract", () => {
 describe("vault uploads — quota and compensation", () => {
   const vaultPage = readFileSync(resolve(__dirname, "../pages/VaultPage.tsx"), "utf8");
   const helper = readFileSync(resolve(__dirname, "../lib/vaultUpload.ts"), "utf8");
+  const uploadService = readFileSync(
+    resolve(__dirname, "../features/vault/vaultUploadService.ts"),
+    "utf8",
+  );
 
   it("35. no hard-coded project origin remains in the vault UI", () => {
     expect(vaultPage).not.toContain("yabcfiuntwqjwvschnji");
@@ -220,20 +224,20 @@ describe("vault uploads — quota and compensation", () => {
   });
 
   it("36. quota is reserved server-side before bytes are written", () => {
-    const reserveAt = vaultPage.indexOf("reserveVaultStorage(");
-    const uploadAt = vaultPage.indexOf('supabase.storage\n        .from("photos")\n        .upload');
+    const reserveAt = uploadService.indexOf("dependencies.reserveStorage(");
+    const uploadAt = uploadService.indexOf("client.storage");
     expect(reserveAt).toBeGreaterThan(-1);
     expect(reserveAt).toBeLessThan(uploadAt);
   });
 
   it("37. orphaned objects are removed and reservations released on insert failure", () => {
-    expect(vaultPage).toContain("compensateVaultUpload(storagePath)");
-    expect(vaultPage).toContain("settleVaultStorage(reservationId, false)");
-    expect(vaultPage).toContain("settleVaultStorage(reservationId, true)");
+    expect(uploadService).toContain("dependencies.compensateUpload(storagePath)");
+    expect(uploadService).toContain("dependencies.settleStorage(reservationId, false)");
+    expect(uploadService).toContain("dependencies.settleStorage(reservationId, true)");
   });
 
   it("38. canonical bucket/path metadata is persisted with each upload", () => {
-    expect(vaultPage).toContain('storage_bucket: "photos"');
-    expect(vaultPage).toContain("storage_path: storagePath");
+    expect(uploadService).toContain('storage_bucket: "photos"');
+    expect(uploadService).toContain("storage_path: storagePath");
   });
 });

@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Loader2, UserCheck } from "lucide-react";
+import { refreshTeamRoleChange } from "@/features/membership/teamMembershipCacheCompletion";
 
 interface LinkChildToParentSheetProps {
   open: boolean;
@@ -71,7 +72,7 @@ export default function LinkChildToParentSheet({
         description: `${childName} has been linked to a parent successfully.`,
       });
       queryClient.invalidateQueries({ queryKey: ["team-children", teamId] });
-      queryClient.invalidateQueries({ queryKey: ["team-roles", teamId] });
+      refreshTeamRoleChange(queryClient, teamId);
       queryClient.invalidateQueries({ queryKey: ["pending-invites", teamId] });
       onOpenChange(false);
       setSelectedParentId(null);

@@ -15,7 +15,7 @@ workflows:
       node: 22
     scripts:
       - name: Install dependencies
-        script: rm -rf node_modules package-lock.json && npm install --no-audit --no-fund
+        script: npm install
       - name: Confirm env
         script: |
           echo "LOVABLE_ENV=$LOVABLE_ENV"
@@ -217,7 +217,7 @@ workflows:
       node: 22
     scripts:
       - name: Install dependencies
-        script: rm -rf node_modules package-lock.json && npm install --no-audit --no-fund
+        script: npm install
       - name: Confirm env
         script: |
           echo "LOVABLE_ENV=$LOVABLE_ENV"
@@ -489,7 +489,7 @@ workflows:
       node: 22
     scripts:
       - name: Install dependencies
-        script: rm -rf node_modules package-lock.json && npm install --no-audit --no-fund
+        script: npm install
       - name: Rewrite .env for PROD
         # Overwrites the committed dev .env with prod values so Vite bakes
         # the prod Supabase URL + anon key into the bundle. Fails fast if
@@ -971,7 +971,7 @@ workflows:
       node: 22
     scripts:
       - name: Install dependencies
-        script: rm -rf node_modules package-lock.json && npm install --no-audit --no-fund
+        script: npm install
       - name: Rewrite .env for PROD
         script: |
           set -euo pipefail

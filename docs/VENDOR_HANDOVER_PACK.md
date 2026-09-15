@@ -2,21 +2,23 @@
 
 > Companion to `docs/VENDOR_HANDOVER.md` (full technical reference).
 > This pack is the short, action-oriented brief a new vendor needs on Day 0.
+>
+> **Status:** Supporting onboarding checklist, reviewed 2026-08-13. `docs/ARCHITECTURE.md` and `docs/PROMOTION.md` are authoritative. External service state must be verified in its console.
 
 ---
 
 ## 1. Executive Summary
 
-Ignite Club HQ is a multi-tenant SaaS platform for sports clubs (primarily cricket, extensible to other sports). It provides team & competition management, RSVPs, chat, notifications, subscription (Pro) upgrades, canteen/BBQ rostering, vault/file storage, and PlayHQ integration.
+Ignite Club HQ is a multi-tenant SaaS platform for sports clubs. It provides team and competition management, RSVPs, chat, notifications, Pro upgrades, rostering, vault/file storage, game-day tools, and external integrations.
 
 - **Stack:** React 18 + Vite + TypeScript + Tailwind + shadcn/ui; Supabase (Postgres, Auth, Storage, Edge Functions); Capacitor 8 for iOS/Android.
 - **Hosting:** Netlify (web PWA), Codemagic (iOS/Android native builds), Supabase Cloud (backend).
 - **Environments:** `dev` (Lovable preview + dev Supabase) and `prod` (Netlify + prod Supabase). Promotion is git-driven (`main` → `prod`) via GitHub Actions.
-- **Scale (current):** ~170 tables, 116 edge functions, 926+ migrations, 108 pages, 204 components.
+- **Repository scale at review:** 1,023 migration files, 118 deployable Edge Function entry points, 109 non-test page modules, and 521 non-test component modules. Hosted runtime counts require external verification.
 - **Users:** Club admins, committee members, coaches, players, parents, and a global `app_admin` role.
 - **Business model:** Freemium with Pro subscription (Stripe web + native IAP).
 
-**Health at handover:** Production is stable. Dev/prod separation, RLS, backup pipeline and mobile CI are all in place. Main risks are size of surface area (see §5) and reliance on a single technical owner's knowledge.
+**Repository health at review:** automated coverage and release automation exist. This does not prove production health, universal RLS, backup restorability, or external configuration. Main risks are surface area and concentrated ownership.
 
 ---
 
@@ -46,7 +48,7 @@ Ignite Club HQ is a multi-tenant SaaS platform for sports clubs (primarily crick
              │  └────┬─────┘ └────┬─────┘ └────────┬─────────┘  │
              │       │            │                │            │
              │  ┌────▼────────────▼────────────────▼─────────┐  │
-             │  │        Edge Functions (Deno, 116)          │  │
+             │  │        Edge Functions (Deno, 118)          │  │
              │  │  playhq-sync • send-email • push-fanout •  │  │
              │  │  stripe-webhook • iap-verify • ai-recap …  │  │
              │  └────┬───────────┬───────────┬───────────┬───┘  │
@@ -120,7 +122,7 @@ Grant in this order. Do NOT share credentials; add the vendor as a member on eac
 2. Check **Supabase → Logs → Edge Functions** for 5xx spikes.
 3. Check **Netlify → Deploys** for failed builds.
 4. Check **GitHub Actions** for failed promotion or backup runs.
-5. Check **Sentry / browser console** on the affected route (use `code--read_console_logs` in Lovable dev).
+5. Check the browser console and configured monitoring. **[External verification required: do not assume Sentry is active.]**
 6. Reproduce in DEV before touching PROD.
 
 ### 4.3 Common incidents
@@ -147,12 +149,12 @@ Grant in this order. Do NOT share credentials; add the vendor as a member on eac
 
 **Migration blew up prod**
 1. Do NOT re-run.
-2. Restore relevant tables from the latest nightly backup artifact in GitHub Actions.
+2. Prefer a reviewed forward repair. Restore only through the authorized database recovery procedure with a confirmed recovery point.
 3. Post-mortem in `/docs`.
 
 ### 4.4 Rollback procedures
 - **Web:** Netlify → Deploys → click the previous good deploy → *Publish deploy*.
-- **Backend schema:** GitHub Actions → *Nightly Backup* artifact → restore via `restore-storage.yml` / manual `psql`.
+- **Backend schema/data:** follow `docs/PROMOTION.md`; storage restore is not database restore. Do not run ad-hoc `psql` restoration during triage.
 - **Native app:** Google Play → halt rollout. App Store → *Reject this build* (if unreleased) or expedited review with fix.
 
 ### 4.5 Escalation
@@ -168,16 +170,16 @@ Grant in this order. Do NOT share credentials; add the vendor as a member on eac
 | # | Risk | Likelihood | Impact | Mitigation | Owner |
 |---|------|------------|--------|------------|-------|
 | R1 | Single-owner knowledge (bus factor = 1) | High | High | This handover + shadow period + documented runbooks | Client |
-| R2 | Large surface area (116 edge functions, 926 migrations) drifts from docs | High | Medium | Enforce PR template requiring doc updates | Vendor |
+| R2 | Large surface area (118 Edge entry points, 1,023 migrations at review) drifts from docs | High | Medium | Use the PR template and update authoritative docs | Vendor |
 | R3 | RLS policy regression exposes cross-club data | Medium | Critical | Automated `supabase--linter` check in CI; quarterly review | Vendor |
 | R4 | Destructive migration reaches prod | Low | Critical | Existing guard in `promote-to-prod.yml`; nightly backup before risky merges | Vendor |
 | R5 | Push token drift → silent notification failure | Medium | Medium | Monitoring of `push-fanout` success rate; token refresh on login | Vendor |
 | R6 | PlayHQ API changes break sync | Medium | High | Contract tests around `playhq-sync`; alerting on 4xx spikes | Vendor |
 | R7 | Apple/Google signing certs expire | Low | High | Calendar reminders 60 days out; store in vault | Client |
 | R8 | Supabase project hits Free-tier / Pro-tier limits under growth | Medium | High | Monitor DB size, egress, MAU; upgrade before 80% | Vendor |
-| R9 | No PITR (cost decision) — RPO = 24h | Accepted | Medium | Nightly backups + pre-migration schema dump. Reconsider at scale. | Client |
+| R9 | Backup/PITR/restore objectives not proven from Git | Medium | High | Verify dashboard configuration and run a controlled restore exercise | Client + Vendor |
 | R9a | Shared Firebase (FCM) project across dev & prod | Accepted | Low | **Target state (option 2):** FCM secrets (`FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`, `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT`) present in PROD Supabase only; removed from DEV Supabase so dev `push-fanout` cannot send. Single Firebase project retained (one Android package ID, one console). See §8. | Client |
-| R10 | Chat scale (virtualization, presence) at >500 DAU | Medium | High | See `mem://scaling/near-term`; plan work before hitting threshold | Vendor |
+| R10 | Chat scale (virtualization, presence) under growth | Medium | High | Re-run capacity tests and monitor current Realtime/query behaviour before thresholds are reached | Vendor |
 | R11 | Third-party credential leak via chat/screenshots | Medium | Critical | Password manager only; rotate on any suspicion | Vendor |
 | R12 | Native app store rejection on next release | Low | Medium | Test flight/internal track before production track | Vendor |
 
@@ -185,8 +187,8 @@ Grant in this order. Do NOT share credentials; add the vendor as a member on eac
 
 ## 6. 30-Day Onboarding Plan
 
-**Week 1 — Read & observe (no PRs to prod)**
-- Day 1: Access provisioning (§3). Read `VENDOR_HANDOVER.md` + this pack.
+**Week 1 — Read & observe (no production operation)**
+- Day 1: Access provisioning (§3). Read `README.md`, `docs/ARCHITECTURE.md`, `docs/PROMOTION.md`, `VENDOR_HANDOVER.md`, and this pack.
 - Day 2: Clone repo, run locally (see `VENDOR_HANDOVER.md` §14). Log in as test user.
 - Day 3: Walk every top-level route. Note anything unclear in a *Questions* doc.
 - Day 4: Read `supabase/migrations` last 30 days. Understand RLS via `has_role` pattern.
@@ -247,7 +249,7 @@ If any answer is *"not yet"*, do not accept operational ownership.
 
 ---
 
-*Companion documents:* `docs/VENDOR_HANDOVER.md` (full technical reference), `docs/PROMOTION.md` (release process), `docs/PROMOTION_CHECKLIST.md` (env var checklist).
+*Companion documents:* `docs/VENDOR_HANDOVER.md` (full technical reference), `docs/PROMOTION.md` (release process), `docs/PROMOTION_CHECKLIST.md` (env var checklist), `docs/REFACTORING_AUTOMATED_CLOSEOUT_2026-08-15.md` (current cumulative checkpoint), and `docs/testing/REFACTORING_MANUAL_ACCEPTANCE.md` (delegated acceptance evidence).
 
 ---
 

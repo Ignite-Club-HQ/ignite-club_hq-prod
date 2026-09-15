@@ -34,16 +34,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
-import { type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
-import { MoreEventOptions } from "@/components/event/MoreEventOptions";
+import { RsvpAudienceSelect } from "@/components/event/RsvpAudienceSelect";
+import { EventRoleAudienceSelect, type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
-import { refreshEventCaches } from "@/lib/eventCacheRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleMapEmbed } from "@/components/GoogleMapEmbed";
 import { AddressAutocomplete, SavedLocation } from "@/components/AddressAutocomplete";
 import { MobileCardSelect } from "@/components/MobileCardSelect";
-import { EventAudienceSelector } from "@/components/event/EventAudienceSelector";
+import { TargetTeamsPicker } from "@/components/event/TargetTeamsPicker";
 import { OpponentInput } from "@/components/OpponentInput";
 import { DutyMemberSelect } from "@/components/DutyMemberSelect";
 import { format, parseISO } from "date-fns";
@@ -52,9 +51,21 @@ import { EventSponsorSelector } from "@/components/EventSponsorSelector";
 import { DEFAULT_MATCH_ARRIVAL_MINUTES } from "@/lib/matchArrivalTime";
 import { validateEventTeamClubScope } from "@/lib/eventScopeValidation";
 import { SeriesEndDateEditor } from "@/components/event/SeriesEndDateEditor";
+import { refreshEventCaches } from "@/lib/eventCacheRefresh";
+import { buildSharedEventPayload } from "@/features/events/eventPayloadPolicy";
+import {
+  alignEditedEventTimes,
+  generateRecurringDates,
+  type RecurrencePattern,
+} from "@/features/events/eventRecurrencePolicy";
+import {
+  convertEventToRecurringSeries,
+  syncEventDuties,
+  updateEventTransaction,
+} from "@/features/events/editEventWorkflow";
+import { completeEventEdit } from "@/features/events/eventMutationCompletion";
 
 type EventType = "game" | "training" | "social";
-type RecurrencePattern = "daily" | "weekly" | "biweekly" | "monthly";
 
 const DAYS_OF_WEEK = [
   { value: 0, label: "S" },
@@ -99,7 +110,6 @@ export default function EditEventPage() {
   
   // Price for social events
   const [price, setPrice] = useState("");
-  const [paidEvent, setPaidEvent] = useState(false);
 
   // Guest settings for social events
   const [allowGuests, setAllowGuests] = useState(false);
@@ -131,20 +141,16 @@ export default function EditEventPage() {
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
 
-  // Types that support a club-wide ("All Club") scope and therefore team targeting.
-  const supportsClubWideScope = type === "game" || type === "social" || type === "training";
-
   // Clear stale target_team_ids whenever the event moves out of the
-  // club-wide window. See CreateEventPage for rationale.
+  // "club-wide game/social" window. See CreateEventPage for rationale.
   useEffect(() => {
     if (
       targetTeamIds !== null &&
-      (selectedTeamId || (type !== "game" && type !== "social" && type !== "training"))
+      (selectedTeamId || (type !== "game" && type !== "social"))
     ) {
       setTargetTeamIds(null);
     }
   }, [selectedTeamId, type, targetTeamIds]);
-
 
   // Collapsible sections state
   const [openSections, setOpenSections] = useState({
@@ -185,42 +191,6 @@ export default function EditEventPage() {
     setRecurrenceDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
-  };
-
-  const generateRecurringDates = (startDate: Date, endDate: Date): Date[] => {
-    const dates: Date[] = [new Date(startDate)];
-    let currentDate = new Date(startDate);
-
-    while (currentDate < endDate) {
-      if (recurrencePattern === "daily") {
-        currentDate = new Date(currentDate.setDate(currentDate.getDate() + recurrenceInterval));
-      } else if (recurrencePattern === "weekly") {
-        if (recurrenceDays.length > 0) {
-          let found = false;
-          for (let i = 1; i <= 7 * recurrenceInterval && !found; i++) {
-            const nextDate = new Date(currentDate);
-            nextDate.setDate(nextDate.getDate() + i);
-            if (recurrenceDays.includes(nextDate.getDay())) {
-              currentDate = nextDate;
-              found = true;
-            }
-          }
-          if (!found) break;
-        } else {
-          currentDate = new Date(currentDate.setDate(currentDate.getDate() + 7 * recurrenceInterval));
-        }
-      } else if (recurrencePattern === "biweekly") {
-        currentDate = new Date(currentDate.setDate(currentDate.getDate() + 14 * recurrenceInterval));
-      } else if (recurrencePattern === "monthly") {
-        currentDate = new Date(currentDate.setMonth(currentDate.getMonth() + recurrenceInterval));
-      }
-
-      if (currentDate <= endDate) {
-        dates.push(new Date(currentDate));
-      }
-    }
-
-    return dates;
   };
 
   const { data: event, isLoading } = useQuery({
@@ -275,7 +245,7 @@ export default function EditEventPage() {
           .eq("user_id", user!.id)
           .eq("team_id", event.team_id)
           .in("role", ["team_admin", "coach"]);
-        
+
         if (teamRoleData && teamRoleData.length > 0) return true;
       }
 
@@ -528,7 +498,6 @@ export default function EditEventPage() {
       setReminderEnabled(event.reminder_hours_before !== null);
       setReminderHours(event.reminder_hours_before || 24);
       setPrice(event.amount ? String(event.amount) : "");
-      setPaidEvent(Number(event.amount ?? 0) > 0);
       setSelectedClubId(event.club_id);
       setSelectedTeamId(event.team_id || "");
       setOpponent((event as any).opponent || "");
@@ -593,19 +562,15 @@ export default function EditEventPage() {
       return;
     }
 
-    // Training, games and socials may be club-wide or targeted at a subset of
-    // teams. A subset must contain 2+ teams (mirrors the backend trigger).
+    // Training requires a team. Games can be club-wide ("All Club").
     const isMiniLeagueEvent = !!(event as any)?.mini_league_id;
-    if (!selectedTeamId && targetTeamIds !== null && targetTeamIds.length < 2) {
+    if (type === "training" && !selectedTeamId && !isMiniLeagueEvent) {
       toast({
-        title: "Select at least 2 teams",
-        description:
-          "Pick two or more teams, or leave it club-wide. For a single team, select it in the Team dropdown.",
-        variant: "destructive",
+        title: "Team required",
+        description: "Please select a team for training sessions.",
       });
       return;
     }
-
 
     // Frontend club/team scope guard — matches backend
     // validate_event_team_club_scope trigger. Fail closed if the team list
@@ -666,47 +631,35 @@ export default function EditEventPage() {
 
     // Keep start_time / end_time in sync with the new event_date.
     // Preserve duration when both original timestamps existed.
-    const newStartIso = parsedDateTime.toISOString();
-    let newEndIso: string | null = null;
-    if (event?.start_time && event?.end_time) {
-      const durMs = new Date(event.end_time).getTime() - new Date(event.start_time).getTime();
-      if (Number.isFinite(durMs) && durMs > 0) {
-        newEndIso = new Date(parsedDateTime.getTime() + durMs).toISOString();
-      }
-    } else if (event?.end_time) {
-      newEndIso = event.end_time;
-    }
+    const { startTime: newStartIso, endTime: newEndIso } = alignEditedEventTimes(
+      parsedDateTime,
+      event?.start_time,
+      event?.end_time,
+    );
 
     try {
-      const parsedPrice = price ? parseFloat(price) : null;
       const updateData = {
-        title: title.trim(),
-        type,
-        address: address.trim() || null,
-        description: description.trim() || null,
+        ...buildSharedEventPayload({
+          title,
+          type,
+          address,
+          description,
+          clubId: selectedClubId,
+          teamId: selectedTeamId,
+          price,
+          opponent,
+          isBye,
+          arrivalMinutesBefore,
+          rsvpAudience,
+          allowGuests,
+          maxGuestsPerMember,
+          restrictedRoles,
+          adultsOnly,
+          rsvpGrouping,
+          targetTeamIds,
+        }),
         reminder_hours_before: reminderEnabled ? reminderHours : null,
         reminder_sent: reminderEnabled ? (event?.reminder_hours_before === reminderHours ? event?.reminder_sent : false) : false,
-        amount: type === "social" ? parsedPrice : null,
-        club_id: selectedClubId,
-        team_id: selectedTeamId || null,
-        opponent: type === "game" && !isBye ? opponent.trim() || null : null,
-        arrival_minutes_before: type === "game" && !isBye && arrivalMinutesBefore.trim() !== "" ? parseInt(arrivalMinutesBefore, 10) : null,
-        rsvp_audience: rsvpAudience,
-        is_bye: type === "game" ? isBye : false,
-        allow_guests: type === "social" && allowGuests ? true : null,
-        max_guests_per_member: type === "social" && allowGuests ? maxGuestsPerMember : null,
-        restricted_to_roles:
-          type === "social" && !selectedTeamId && restrictedRoles.length > 0 ? restrictedRoles : null,
-        adults_only: adultsOnly,
-        rsvp_grouping:
-          !selectedTeamId && supportsClubWideScope && rsvpGrouping
-            ? rsvpGrouping
-            : null,
-        target_team_ids:
-          !selectedTeamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
-            ? targetTeamIds
-            : null,
-
       } as any;
 
       // If converting single event to recurring series.
@@ -714,41 +667,27 @@ export default function EditEventPage() {
       // a failed child insertion can never leave the parent marked recurring.
       if (enableRecurring && !isRecurring) {
         const endDate = new Date(recurrenceEndDate);
-        const dates = generateRecurringDates(parsedDateTime, endDate);
-
-        const childEvents = dates.slice(1).map((date) => {
-          const childDateTime = new Date(date);
-          childDateTime.setHours(parsedDateTime.getHours(), parsedDateTime.getMinutes());
-          const childEnd = newEndIso
-            ? new Date(childDateTime.getTime() + (new Date(newEndIso).getTime() - parsedDateTime.getTime())).toISOString()
-            : null;
-          return {
-            event_date: childDateTime.toISOString(),
-            start_time: childDateTime.toISOString(),
-            end_time: childEnd,
-          };
+        const dates = generateRecurringDates({
+          startDate: parsedDateTime,
+          endDate,
+          pattern: recurrencePattern,
+          interval: recurrenceInterval,
+          weekdays: recurrenceDays,
         });
 
-        const { data: convertResult, error: convertError } = await supabase.rpc(
-          "convert_event_to_recurring_series",
-          {
-            p_event_id: id!,
-            p_parent_updates: updateData as any,
-            p_child_events: childEvents as any,
-            p_parent_event_date: parsedDateTime.toISOString(),
-            p_parent_start_time: newStartIso,
-            p_parent_end_time: newEndIso,
-            p_recurrence_end_date: recurrenceEndDate,
-          },
-        );
-        if (convertError) throw convertError;
-
-        const occurrences =
-          (convertResult as { occurrence_count?: number } | null)?.occurrence_count ?? dates.length;
+        const occurrenceCount = await convertEventToRecurringSeries(supabase, {
+          eventId: id!,
+          updates: updateData,
+          selectedDate: parsedDateTime,
+          selectedStartTime: newStartIso,
+          selectedEndTime: newEndIso,
+          occurrenceDates: dates,
+          recurrenceEndDate,
+        });
 
         toast({
           title: "Recurring series created",
-          description: `Created ${occurrences} event${occurrences > 1 ? 's' : ''} in the series.`,
+          description: `Created ${occurrenceCount} event${occurrenceCount > 1 ? 's' : ''} in the series.`,
         });
       } else if (updateSeries) {
 
@@ -756,46 +695,38 @@ export default function EditEventPage() {
         // selected event, its parent, and all siblings either all succeed or
         // all roll back. The RPC verifies caller permission server-side and
         // preserves each sibling's own event_date / start_time / end_time.
-        const { error: rpcError } = await supabase.rpc("update_event_series", {
-          p_event_id: id!,
-          p_updates: updateData as any,
-          p_selected_event_date: parsedDateTime.toISOString(),
-          p_selected_start_time: newStartIso,
-          p_selected_end_time: newEndIso,
+        await updateEventTransaction(supabase, {
+          eventId: id!,
+          updates: updateData,
+          selectedEventDate: parsedDateTime.toISOString(),
+          selectedStartTime: newStartIso,
+          selectedEndTime: newEndIso,
+          updateSeries: true,
         });
-        if (rpcError) throw rpcError;
       } else {
         // Just update this single event — keep start_time/end_time aligned with the new event_date
-        const { error } = await supabase
-          .from("events")
-          .update({
-            ...updateData,
-            event_date: parsedDateTime.toISOString(),
-            start_time: newStartIso,
-            end_time: newEndIso,
-          })
-          .eq("id", id!);
-        if (error) throw error;
+        await updateEventTransaction(supabase, {
+          eventId: id!,
+          updates: updateData,
+          selectedEventDate: parsedDateTime.toISOString(),
+          selectedStartTime: newStartIso,
+          selectedEndTime: newEndIso,
+          updateSeries: false,
+        });
       }
 
       // Duty changes for game events are applied by a single transactional RPC:
       // every removal, edit and addition either commits together or rolls back,
       // and the RPC raises when RLS would silently skip a row.
       if (type === "game") {
-        const { data: syncedRaw, error: dutyError } = await supabase.rpc("sync_event_duties", {
-          p_event_id: id!,
-          p_delete_ids: dutiesToDelete,
-          p_duties: duties.map((duty, idx) => ({
-            idx,
-            id: duty.id ?? null,
-            name: duty.name,
-            assigned_to: duty.assignedTo,
-          })) as any,
-        });
-        if (dutyError) throw Object.assign(dutyError, { __dutyStage: "sync" });
+        let synced: { idx: number; id: string }[];
+        try {
+          synced = await syncEventDuties(supabase, id!, dutiesToDelete, duties);
+        } catch (dutyError) {
+          throw Object.assign(dutyError as object, { __dutyStage: "sync" });
+        }
 
         setDutiesToDelete([]);
-        const synced = (syncedRaw as { idx: number; id: string }[] | null) ?? [];
         if (synced.length > 0) {
           setDuties((prev) =>
             prev.map((d, idx) => {
@@ -812,13 +743,7 @@ export default function EditEventPage() {
 
       // Refresh event-derived caches so the pitch board picks up the new
       // start_time / opponent / title without waiting for staleTime.
-      queryClient.invalidateQueries({ queryKey: ["pitch-linked-event", id] });
-      queryClient.invalidateQueries({ queryKey: ["team-members-for-pitch"] });
-      queryClient.invalidateQueries({ queryKey: ["pitch-board-going-rsvps", id] });
-      queryClient.invalidateQueries({ queryKey: ["event", id] });
-      refreshEventCaches(queryClient, user?.id);
-
-      navigate(`/events/${id}`);
+      completeEventEdit({ queryClient, navigate, userId: user?.id }, id!);
 
     } catch (error: any) {
       console.error("Error updating event:", error);
@@ -1024,14 +949,43 @@ export default function EditEventPage() {
                   </div>
 
                 ) : (
-                  <EventAudienceSelector
-                    teams={selectableTeams}
-                    clubTeams={allClubTeams ?? undefined}
-                    teamId={selectedTeamId}
-                    onTeamIdChange={setSelectedTeamId}
-                    targetTeamIds={targetTeamIds}
-                    onTargetTeamIdsChange={setTargetTeamIds}
-                    supportsClubWideScope={supportsClubWideScope}
+                  <MobileCardSelect
+                    value={selectedTeamId || ((type === "social" || type === "game") ? "__none__" : "")}
+                    onValueChange={(value) => setSelectedTeamId(value === "__none__" ? "" : value)}
+                    options={[
+                      ...((type === "social" || type === "game")
+                        ? [{ value: "__none__", label: "Club-wide event" }]
+                        : []),
+                      ...selectableTeams.map((team) => ({ value: team.id, label: team.name })),
+                    ]}
+                    placeholder={(type === "social" || type === "game") ? "Club-wide (optional)" : "Select team"}
+                    label="Team"
+                    required={type === "training"}
+                  />
+                )}
+                {(type === "social" || type === "game") && (
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank for a club-wide event.
+                  </p>
+                )}
+                {!selectedTeamId && (type === "game" || type === "social") && !(event as any)?.mini_league_id && (
+                  <MobileCardSelect
+                    value={rsvpGrouping || "none"}
+                    onValueChange={(v) => setRsvpGrouping(v === "none" ? "" : (v as "level" | "team"))}
+                    options={[
+                      { value: "none", label: "No grouping (flat list)" },
+                      { value: "level", label: "Group by age level (U8, U9…)" },
+                      { value: "team", label: "Group by team (U8 Blue, U8 Red…)" },
+                    ]}
+                    placeholder="No grouping"
+                    label="RSVP grouping"
+                  />
+                )}
+                {!selectedTeamId && (type === "game" || type === "social") && !(event as any)?.mini_league_id && (
+                  <TargetTeamsPicker
+                    teams={allClubTeams ?? undefined}
+                    value={targetTeamIds}
+                    onChange={setTargetTeamIds}
                   />
                 )}
               </div>
@@ -1083,54 +1037,28 @@ export default function EditEventPage() {
                 </div>
               )}
 
-              <MoreEventOptions
-                showGrouping={!selectedTeamId && supportsClubWideScope && !(event as any)?.mini_league_id}
-                rsvpGrouping={rsvpGrouping}
-                onRsvpGroupingChange={setRsvpGrouping}
-                adultsOnly={adultsOnly}
-                onAdultsOnlyChange={setAdultsOnly}
-                showRoleRestriction={type === "social" && !selectedTeamId}
-                restrictedRoles={restrictedRoles}
-                onRestrictedRolesChange={setRestrictedRoles}
-                extraSummary={type === "social" && allowGuests ? ["Guests allowed"] : undefined}
-              >
-                {/* Guest settings - only for social events */}
-                {type === "social" && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <Label htmlFor="allow-guests-edit" className="flex items-center gap-2">
-                          <UserPlus className="h-4 w-4" />
-                          Allow Guests
-                        </Label>
-                        <span className="text-xs text-muted-foreground">
-                          Members can add non-member guests
-                        </span>
-                      </div>
-                      <Switch
-                        id="allow-guests-edit"
-                        checked={allowGuests}
-                        onCheckedChange={setAllowGuests}
-                      />
-                    </div>
-                    {allowGuests && (
-                      <div className="space-y-2 pl-6">
-                        <Label htmlFor="max-guests-edit">Max guests per member</Label>
-                        <Input
-                          id="max-guests-edit"
-                          type="number"
-                          min={1}
-                          max={20}
-                          value={maxGuestsPerMember}
-                          onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
-                          className="w-24 h-12"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </MoreEventOptions>
+              {(type === "game" || type === "training" || type === "social") && (
+                <RsvpAudienceSelect
+                  value={rsvpAudience}
+                  onChange={setRsvpAudience}
+                  teamDefault={teamDefaultRsvpAudience}
+                />
+              )}
 
+              <div className="flex items-start justify-between gap-3 rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="adults-only" className="text-sm font-medium">Adults only</Label>
+                  <p className="text-xs text-muted-foreground">Hide child RSVP prompts. Use for committee meetings, AGMs and adult socials.</p>
+                </div>
+                <Switch id="adults-only" checked={adultsOnly} onCheckedChange={setAdultsOnly} />
+              </div>
+
+              {type === "social" && !selectedTeamId && (
+                <EventRoleAudienceSelect
+                  value={restrictedRoles}
+                  onChange={setRestrictedRoles}
+                />
+              )}
             </CardContent>
           </CollapsibleContent>
         </Collapsible>
@@ -1424,46 +1352,64 @@ export default function EditEventPage() {
           />
           <CollapsibleContent>
             <CardContent className="pt-0 pb-4 px-4 space-y-4">
-              {/* Paid event - only for social events */}
+              {/* Price - only for social events */}
               {type === "social" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="paid-event-edit" className="flex items-center gap-2 text-sm font-medium">
-                        <DollarSign className="h-4 w-4" /> Paid event
-                      </Label>
-                      <p className="text-xs text-muted-foreground">Charge attendees to come along.</p>
-                    </div>
-                    <Switch
-                      id="paid-event-edit"
-                      checked={paidEvent}
-                      onCheckedChange={(next) => {
-                        setPaidEvent(next);
-                        if (!next) setPrice("");
-                      }}
+                <div className="space-y-2">
+                  <Label htmlFor="price" className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" /> Price (AUD)
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                    <Input
+                      id="price"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      className="pl-7 h-12"
                     />
                   </div>
-                  {paidEvent && (
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Price per person (AUD)</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                        <Input
-                          id="price"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0.00"
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          className="pl-7 h-12"
-                        />
-                      </div>
+                  <p className="text-xs text-muted-foreground">Optional - leave empty for free events</p>
+                </div>
+              )}
+
+              {/* Guest settings - only for social events */}
+              {type === "social" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <Label htmlFor="allow-guests-edit" className="flex items-center gap-2">
+                        <UserPlus className="h-4 w-4" />
+                        Allow Guests
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        Members can add non-member guests
+                      </span>
+                    </div>
+                    <Switch
+                      id="allow-guests-edit"
+                      checked={allowGuests}
+                      onCheckedChange={setAllowGuests}
+                    />
+                  </div>
+                  {allowGuests && (
+                    <div className="space-y-2 pl-6">
+                      <Label htmlFor="max-guests-edit">Max guests per member</Label>
+                      <Input
+                        id="max-guests-edit"
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={maxGuestsPerMember}
+                        onChange={(e) => setMaxGuestsPerMember(parseInt(e.target.value) || 1)}
+                        className="w-24 h-12"
+                      />
                     </div>
                   )}
                 </div>
               )}
-
 
               {/* Auto Reminder */}
               <div className="space-y-4">

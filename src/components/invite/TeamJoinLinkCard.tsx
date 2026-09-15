@@ -61,7 +61,6 @@ interface TeamJoinLinkCardProps {
    */
   autoCreateLink?: boolean;
 }
-
 interface JoinLinkRow {
   id: string;
   token: string;
@@ -547,4 +546,3 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
     </div>
   );
 }
-

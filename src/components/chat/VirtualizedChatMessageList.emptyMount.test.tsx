@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createRef, type ReactNode } from "react";
-import { render, act } from "@testing-library/react";
+import { render, act, cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   VirtualizedChatMessageList,
@@ -22,6 +23,14 @@ const baseProps = {
   onLoadOlder: () => {},
   renderItem,
 } as const;
+
+afterEach(async () => {
+  // Virtuoso can queue one final measurement frame during unmount. Explicitly
+  // unmount while the test environment's RAF shim still exists, then allow
+  // that frame to drain before jsdom globals are removed.
+  cleanup();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+});
 
 /**
  * Regression guard for the Android team/club chat notification crash:

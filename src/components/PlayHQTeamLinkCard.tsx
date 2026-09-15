@@ -33,6 +33,17 @@ interface MatchRow {
   away_team_name: string | null;
 }
 
+interface ImportFixturesResult {
+  created: number;
+  updated: number;
+  cancelled: number;
+  error?: string;
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function PlayHQTeamLinkCard({ teamId, clubId }: Props) {
   const qc = useQueryClient();
   const [importing, setImporting] = useState(false);
@@ -66,15 +77,13 @@ export function PlayHQTeamLinkCard({ teamId, clubId }: Props) {
     enabled: clubHasPlayHQ,
   });
 
-  if (clubLoading) return null;
-  if (!clubHasPlayHQ) return null;
-
   // PlayHQ comps the user can see (RLS already scopes by membership/visibility).
   // We don't pre-filter by organiser here so that comps run by a parent
   // association — or by a sister club the user belongs to — also surface,
   // even if `parent_org_id` hasn't been wired up on this club yet.
   const { data: comps } = useQuery({
     queryKey: ["playhq-comps-for-team", clubId],
+    enabled: clubHasPlayHQ,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competitions")
@@ -119,22 +128,24 @@ export function PlayHQTeamLinkCard({ teamId, clubId }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["team-playhq-link", teamId] });
     },
-    onError: (e: any) => toast.error(e.message ?? "Failed to update link"),
+    onError: (error: unknown) => toast.error(errorMessage(error, "Failed to update link")),
   });
 
   const runImport = async () => {
     setImporting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("playhq-materialise-team-events", {
-        body: { team_id: teamId },
-      });
+      const { data, error } = await supabase.functions.invoke<ImportFixturesResult>(
+        "playhq-materialise-team-events",
+        { body: { team_id: teamId } },
+      );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      const r = data as { created: number; updated: number; cancelled: number };
+      if (data?.error) throw new Error(data.error);
+      if (!data) throw new Error("Import returned no result");
+      const r = data;
       toast.success(`Imported: ${r.created} new, ${r.updated} updated, ${r.cancelled} cancelled`);
       qc.invalidateQueries({ queryKey: ["events"] });
-    } catch (e: any) {
-      toast.error(e.message ?? "Import failed");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Import failed"));
     } finally {
       setImporting(false);
     }
@@ -142,6 +153,8 @@ export function PlayHQTeamLinkCard({ teamId, clubId }: Props) {
 
   const unlink = () =>
     update.mutate({ playhq_team_id: null, playhq_competition_id: null });
+
+  if (clubLoading || !clubHasPlayHQ) return null;
 
   return (
     <Card className="border-orange-500/30 bg-orange-500/5">
