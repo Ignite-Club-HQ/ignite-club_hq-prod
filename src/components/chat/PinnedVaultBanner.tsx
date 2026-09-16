@@ -4,6 +4,7 @@ import { Pin, ChevronRight, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { hapticSelectionTick } from "@/lib/haptics";
+import { preventIfReactionInteractionGuarded } from "@/lib/reactionInteractionGuard";
 import type { PinnedVaultRecord } from "@/hooks/useChatPinnedVault";
 
 interface PinnedVaultBannerProps {
@@ -104,7 +105,8 @@ export function PinnedVaultBanner({ record, isAdmin = false }: PinnedVaultBanner
 
   if (!target) return null;
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
+    if (preventIfReactionInteractionGuarded(e)) return;
     hapticSelectionTick();
     navigate(target.href, { state: { fromChat: true } });
   };

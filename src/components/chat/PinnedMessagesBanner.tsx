@@ -19,6 +19,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { hapticSelectionTick } from "@/lib/haptics";
+import { preventIfReactionInteractionGuarded } from "@/lib/reactionInteractionGuard";
 import type { PinnedMessageWithContent } from "@/hooks/usePinnedMessages";
 
 
@@ -48,7 +49,8 @@ export function PinnedMessagesBanner({
   const latest = pins[0];
   const hasMore = pins.length > 1;
 
-  const handleBannerClick = () => {
+  const handleBannerClick = (e: React.MouseEvent) => {
+    if (preventIfReactionInteractionGuarded(e)) return;
     hapticSelectionTick();
     if (hasMore) {
       setListOpen(true);
