@@ -87,6 +87,10 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 
   useLayoutEffect(() => {
     if (!isOpen) return;
+    // Arm the guard for the whole time the picker is open so any synthetic
+    // click that leaks through to elements behind it (pinned banners, link
+    // previews) after the portal unmounts is swallowed.
+    armReactionInteractionGuard();
     gestureReleasedRef.current = false;
     // Mark released on the NEXT macrotask so the very touchend/mouseup that
     // completes the opening long-press cannot also select an emoji.
