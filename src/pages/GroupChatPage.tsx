@@ -585,6 +585,10 @@ export default function GroupChatPage() {
 
   const { isOnline } = useOnlineStatus();
 
+  // Group creators can edit their own groups, not just admins. This is the
+  // only way to rename a personal group (no club/team scope to grant admin).
+  const canEditGroup = !!(isAdmin || group?.created_by === user?.id);
+
   // Force a fresh fetch whenever we land on this group. Push notifications and
   // inbox taps can land here while react-query still has stale data — invalidating
   // guarantees the latest message is fetched on entry.
