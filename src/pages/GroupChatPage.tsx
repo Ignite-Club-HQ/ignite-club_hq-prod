@@ -585,6 +585,10 @@ export default function GroupChatPage() {
 
   const { isOnline } = useOnlineStatus();
 
+  // Group creators can edit their own groups, not just admins. This is the
+  // only way to rename a personal group (no club/team scope to grant admin).
+  const canEditGroup = !!(isAdmin || group?.created_by === user?.id);
+
   // Force a fresh fetch whenever we land on this group. Push notifications and
   // inbox taps can land here while react-query still has stale data — invalidating
   // guarantees the latest message is fetched on entry.
@@ -2746,7 +2750,7 @@ export default function GroupChatPage() {
               scheduleMessageLocked={!groupClubProLoading && !groupClubHasPro}
               onSummarizeMessages={(!aiCatchUpDisabled && groupClubHasPro) ? () => summarizeTriggerRef.current?.() : undefined}
               summarizeLocked={!groupClubProLoading && !groupClubHasPro}
-              onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
+              onEditGroup={canEditGroup ? () => setShowEditGroupDialog(true) : undefined}
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
               onManagePinnedVault={
                 (isAdmin || group.created_by === user?.id)
@@ -3122,7 +3126,7 @@ export default function GroupChatPage() {
       </div>
 
       {/* Edit Group Dialog */}
-      {isAdmin && group && (
+      {canEditGroup && group && (
         <EditGroupDialog
           group={{
             id: group.id,
@@ -3134,6 +3138,7 @@ export default function GroupChatPage() {
             team_id: group.team_id,
             mini_league_id: group.mini_league_id,
             join_policy: group.join_policy,
+            created_by: group.created_by,
           }}
           open={showEditGroupDialog}
           onOpenChange={setShowEditGroupDialog}

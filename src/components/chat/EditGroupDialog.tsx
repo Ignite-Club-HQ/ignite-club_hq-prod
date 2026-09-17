@@ -66,6 +66,7 @@ interface EditGroupDialogProps {
     mini_league_id?: string | null;
     join_policy?: string | null;
     allow_forwarding?: boolean;
+    created_by?: string | null;
   };
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -100,11 +101,17 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
     }
   }, [open, group.id]);
 
-  // Permission gate: for club-scoped groups, require club_admin (or app_admin).
+  // Permission gate: group creators can edit their own groups; otherwise
+  // club/team/app admins can edit groups in their scope.
   const { data: canEdit, isLoading: permLoading } = useQuery({
-    queryKey: ["edit-group-permission", group.id, user?.id, group.club_id, group.team_id],
+    queryKey: ["edit-group-permission", group.id, user?.id, group.club_id, group.team_id, group.created_by],
     queryFn: async () => {
       if (!user) return false;
+
+      // The person who created the group can always edit it (covers personal
+      // groups, which have no club/team scope for admin checks).
+      if (group.created_by === user.id) return true;
+
       const { data: appAdmin } = await supabase
         .from("user_roles")
         .select("role")
