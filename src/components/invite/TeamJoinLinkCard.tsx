@@ -498,7 +498,7 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
                   onClick={() => handleSaveQR(link.id)}
                 >
                   <Download className="h-3 w-3 mr-1" />
-                  {Capacitor.isNativePlatform() ? "Share QR image" : "Download QR"}
+                  Download QR
                 </Button>
               </div>
             </CollapsibleContent>
