@@ -112,6 +112,16 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
       // groups, which have no club/team scope for admin checks).
       if (group.created_by === user.id) return true;
 
+      // Club admins can rename any group that includes members of their
+      // club (matches the server-side RLS rule).
+      const { data: canRename } = await supabase.rpc("club_admin_can_rename_group", {
+        _user_id: user.id,
+        _group_id: group.id,
+        _club_id: group.club_id,
+      });
+      if (canRename) return true;
+
+
       const { data: appAdmin } = await supabase
         .from("user_roles")
         .select("role")
