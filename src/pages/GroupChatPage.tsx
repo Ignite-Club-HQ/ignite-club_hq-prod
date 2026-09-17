@@ -3126,7 +3126,7 @@ export default function GroupChatPage() {
       </div>
 
       {/* Edit Group Dialog */}
-      {isAdmin && group && (
+      {canEditGroup && group && (
         <EditGroupDialog
           group={{
             id: group.id,
@@ -3138,6 +3138,7 @@ export default function GroupChatPage() {
             team_id: group.team_id,
             mini_league_id: group.mini_league_id,
             join_policy: group.join_policy,
+            created_by: group.created_by,
           }}
           open={showEditGroupDialog}
           onOpenChange={setShowEditGroupDialog}
