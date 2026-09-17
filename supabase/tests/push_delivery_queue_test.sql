@@ -129,6 +129,9 @@ BEGIN
 END $$;
 
 -- 6. Claiming: bounded, skip-locked, stale reclaim, terminal never ----
+-- Isolate this scenario from pending jobs created by earlier fan-out tests.
+TRUNCATE TABLE public.push_delivery_queue, public.notifications CASCADE;
+
 DO $$
 DECLARE ev uuid := gen_random_uuid(); c1 bigint; c2 bigint; jid uuid;
 BEGIN

@@ -6,15 +6,11 @@
 -- Never point this at hosted dev or production.
 --
 -- Everything runs inside one transaction that is ROLLED BACK, and only
--- synthetic ids are used. The session explicitly runs with
+-- synthetic ids are used. The test asserts the database runs with
 -- plpgsql.variable_conflict = error — the strictest name-resolution mode —
 -- to prove the LANGUAGE sql rewrite can never regress to the ambiguity.
 -- =====================================================================
 BEGIN;
-
--- Strictest possible name resolution: if anyone ever reintroduces a PL/pgSQL
--- body with colliding output variables, this session fails loudly.
-SET LOCAL plpgsql.variable_conflict = 'error';
 
 CREATE OR REPLACE FUNCTION pg_temp.assert_eq(actual anyelement, expected anyelement, label text)
 RETURNS void LANGUAGE plpgsql AS $$
@@ -31,6 +27,9 @@ $$;
 --    attributes as before.
 DO $$
 BEGIN
+  PERFORM pg_temp.assert_eq(
+    current_setting('plpgsql.variable_conflict'),
+    'error', 'database uses strict PL/pgSQL name resolution');
   PERFORM pg_temp.assert_eq(
     (SELECT l.lanname FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang
       WHERE p.oid = 'public.enqueue_event_push_v2(text,jsonb)'::regprocedure),
