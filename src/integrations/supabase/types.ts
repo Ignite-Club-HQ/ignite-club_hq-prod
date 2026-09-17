@@ -11049,6 +11049,10 @@ export type Database = {
         Returns: undefined
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      club_admin_can_rename_group: {
+        Args: { _club_id: string; _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       club_engagement_active_users: {
         Args: { _club_id: string; _end: string; _start: string }
         Returns: {

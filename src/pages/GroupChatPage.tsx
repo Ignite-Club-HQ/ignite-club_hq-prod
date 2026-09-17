@@ -548,7 +548,16 @@ export default function GroupChatPage() {
     queryKey: ["group-chat-admin", groupId, user?.id, group?.team_id, group?.club_id],
     queryFn: async () => {
       if (!group) return false;
-      
+
+      // Club admins can also rename groups that include members of their
+      // club (server-enforced via RLS); this mirrors that rule for the UI.
+      const { data: canRename } = await supabase.rpc("club_admin_can_rename_group", {
+        _user_id: user!.id,
+        _group_id: group.id,
+        _club_id: group.club_id,
+      });
+      if (canRename) return true;
+
       // Run all role checks in parallel
       const [teamRoleResult, clubRoleResult, appAdminResult] = await Promise.all([
         group.team_id
