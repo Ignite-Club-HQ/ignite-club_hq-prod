@@ -304,12 +304,24 @@ export default function TeamJoinLinkCard({ teamId, teamName, teamType = "mixed",
 
       if (Capacitor.isNativePlatform()) {
         const base64 = dataUrl.split(",")[1];
-        const written = await Filesystem.writeFile({
-          path: filename,
-          data: base64,
-          directory: Directory.Cache,
-        });
-        await Share.share({ title: `Join ${teamName}`, url: written.uri, dialogTitle: "Share QR code" });
+        try {
+          // Save straight to the user's Documents so it lands in Files/Gallery.
+          await Filesystem.writeFile({
+            path: filename,
+            data: base64,
+            directory: Directory.Documents,
+            recursive: true,
+          });
+          toast({ title: "QR downloaded", description: `Saved to Documents as ${filename}` });
+        } catch {
+          // Fall back to the share sheet if Documents isn't writable.
+          const written = await Filesystem.writeFile({
+            path: filename,
+            data: base64,
+            directory: Directory.Cache,
+          });
+          await Share.share({ title: `Join ${teamName}`, url: written.uri, dialogTitle: "Share QR code" });
+        }
       } else {
         const a = document.createElement("a");
         a.href = dataUrl;
