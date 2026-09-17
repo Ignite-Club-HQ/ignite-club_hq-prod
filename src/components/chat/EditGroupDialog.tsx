@@ -66,6 +66,7 @@ interface EditGroupDialogProps {
     mini_league_id?: string | null;
     join_policy?: string | null;
     allow_forwarding?: boolean;
+    created_by?: string | null;
   };
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
