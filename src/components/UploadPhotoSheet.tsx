@@ -780,8 +780,9 @@ export function UploadPhotoSheet({
       const photo = photosToUpload[i];
       
       // Update toast progress
+      const itemNoun = isVideoFile(photo.file) ? "video" : "photo";
       toast.loading(
-        `Uploading photo ${i + 1} of ${totalPhotos}...`,
+        `Uploading ${itemNoun} ${i + 1} of ${totalPhotos}...`,
         { id: uploadToastId }
       );
       
