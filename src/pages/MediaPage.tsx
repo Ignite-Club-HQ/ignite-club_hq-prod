@@ -1544,7 +1544,7 @@ export default function MediaPage() {
                 <div className="relative aspect-square bg-muted">
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground font-medium">Uploading photo...</p>
+                    <p className="text-sm text-muted-foreground font-medium">Uploading...</p>
                   </div>
                 </div>
                 <CardContent className="p-3 space-y-3">

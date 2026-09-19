@@ -712,9 +712,13 @@ export function UploadPhotoSheet({
     onOpenChange(false);
     restoreNativeLayout();
     
+    // Label videos correctly in progress toasts
+    const hasVideos = photosToUpload.some((p) => isVideoFile(p.file));
+    const itemLabel = (n: number) => (hasVideos ? `item${n > 1 ? 's' : ''}` : `photo${n > 1 ? 's' : ''}`);
+
     // Show persistent loading toast
     const uploadToastId = toast.loading(
-      `Uploading ${totalPhotos} photo${totalPhotos > 1 ? 's' : ''}...`,
+      `Uploading ${totalPhotos} ${itemLabel(totalPhotos)}...`,
       { duration: Infinity }
     );
     
