@@ -803,7 +803,7 @@ export function UploadPhotoSheet({
     // Preload all uploaded images before dismissing toast
     if (uploadedUrls.length > 0) {
       toast.loading(
-        `Processing ${uploadedUrls.length} photo${uploadedUrls.length > 1 ? 's' : ''}...`,
+        `Processing ${uploadedUrls.length} ${hasVideos ? `item${uploadedUrls.length > 1 ? 's' : ''}` : `photo${uploadedUrls.length > 1 ? 's' : ''}`}...`,
         { id: uploadToastId }
       );
       
@@ -916,7 +916,7 @@ export function UploadPhotoSheet({
     } else if (successCount > 0 && errorCount > 0) {
       toast.warning(`${successCount} uploaded, ${errorCount} failed`);
     } else {
-      toast.error(firstErrorMessage ? `Failed to upload photos: ${firstErrorMessage}` : "Failed to upload photos");
+      toast.error(firstErrorMessage ? `Failed to upload ${hasVideos ? "items" : "photos"}: ${firstErrorMessage}` : `Failed to upload ${hasVideos ? "items" : "photos"}`);
     }
 
     // Award engagement points for successful uploads (fire and forget)
