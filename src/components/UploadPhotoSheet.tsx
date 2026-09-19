@@ -712,9 +712,13 @@ export function UploadPhotoSheet({
     onOpenChange(false);
     restoreNativeLayout();
     
+    // Label videos correctly in progress toasts
+    const hasVideos = photosToUpload.some((p) => isVideoFile(p.file));
+    const itemLabel = (n: number) => (hasVideos ? `item${n > 1 ? 's' : ''}` : `photo${n > 1 ? 's' : ''}`);
+
     // Show persistent loading toast
     const uploadToastId = toast.loading(
-      `Uploading ${totalPhotos} photo${totalPhotos > 1 ? 's' : ''}...`,
+      `Uploading ${totalPhotos} ${itemLabel(totalPhotos)}...`,
       { duration: Infinity }
     );
     
@@ -776,8 +780,9 @@ export function UploadPhotoSheet({
       const photo = photosToUpload[i];
       
       // Update toast progress
+      const itemNoun = isVideoFile(photo.file) ? "video" : "photo";
       toast.loading(
-        `Uploading photo ${i + 1} of ${totalPhotos}...`,
+        `Uploading ${itemNoun} ${i + 1} of ${totalPhotos}...`,
         { id: uploadToastId }
       );
       
@@ -798,7 +803,7 @@ export function UploadPhotoSheet({
     // Preload all uploaded images before dismissing toast
     if (uploadedUrls.length > 0) {
       toast.loading(
-        `Processing ${uploadedUrls.length} photo${uploadedUrls.length > 1 ? 's' : ''}...`,
+        `Processing ${uploadedUrls.length} ${hasVideos ? `item${uploadedUrls.length > 1 ? 's' : ''}` : `photo${uploadedUrls.length > 1 ? 's' : ''}`}...`,
         { id: uploadToastId }
       );
       
@@ -911,7 +916,7 @@ export function UploadPhotoSheet({
     } else if (successCount > 0 && errorCount > 0) {
       toast.warning(`${successCount} uploaded, ${errorCount} failed`);
     } else {
-      toast.error(firstErrorMessage ? `Failed to upload photos: ${firstErrorMessage}` : "Failed to upload photos");
+      toast.error(firstErrorMessage ? `Failed to upload ${hasVideos ? "items" : "photos"}: ${firstErrorMessage}` : `Failed to upload ${hasVideos ? "items" : "photos"}`);
     }
 
     // Award engagement points for successful uploads (fire and forget)
