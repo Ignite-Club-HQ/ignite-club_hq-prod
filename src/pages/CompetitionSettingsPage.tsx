@@ -19,6 +19,7 @@ import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { CompetitionAdminsCard } from "@/components/competitions/CompetitionAdminsCard";
 import { CompetitionMemberChatCard } from "@/components/competitions/CompetitionMemberChatCard";
 import { CompetitionOfficialsCard } from "@/components/competitions/CompetitionOfficialsCard";
+import { InviteMessageDefaultCard, INVITE_MESSAGE_MAX } from "@/components/invite/InviteMessageDefaultCard";
 
 
 export default function CompetitionSettingsPage() {
