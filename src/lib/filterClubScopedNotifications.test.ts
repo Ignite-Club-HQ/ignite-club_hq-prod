@@ -127,6 +127,19 @@ describe("filterClubScopedNotifications", () => {
     expect(out.map((r) => r.id).sort()).toEqual(["k1", "k2"]);
   });
 
+  it("resolves early RSVP reminders whose related_id is an event id", async () => {
+    tableRows.events = [
+      { id: "event-active", club_id: ACTIVE, team_id: null },
+      { id: "event-other", club_id: OTHER, team_id: null },
+    ];
+    const rows = [
+      { id: "keep", type: "early_rsvp_points", related_id: "event-active", club_id: null },
+      { id: "drop", type: "early_rsvp_points", related_id: "event-other", club_id: null },
+    ];
+    const out = await filterClubScopedNotifications(rows, ME, ACTIVE);
+    expect(out.map((r) => r.id)).toEqual(["keep"]);
+  });
+
   it("resolves points_awarded via event → club and drops foreign-club rows", async () => {
     tableRows.events = [{ id: "e1", club_id: OTHER, team_id: null }];
     const rows = [{ id: "n1", type: "points_awarded", related_id: "e1", club_id: null }];

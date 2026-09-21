@@ -15,6 +15,8 @@ interface Member {
   id: string;
   display_name: string | null;
   avatar_url?: string | null;
+  /** Optional context line, e.g. "Competition referee" for officials outside the clubs. */
+  subtitle?: string | null;
 }
 
 interface AssignDutySheetProps {
@@ -127,12 +129,17 @@ export function AssignDutySheet({
                         {member.display_name?.charAt(0)?.toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
-                    <p className={cn(
-                      "font-medium",
-                      isSelected ? "text-primary" : "text-foreground"
-                    )}>
-                      {member.display_name || "Unknown"}
-                    </p>
+                    <div className="text-left">
+                      <p className={cn(
+                        "font-medium",
+                        isSelected ? "text-primary" : "text-foreground"
+                      )}>
+                        {member.display_name || "Unknown"}
+                      </p>
+                      {member.subtitle && (
+                        <p className="text-xs text-muted-foreground">{member.subtitle}</p>
+                      )}
+                    </div>
                   </div>
                   {isSelected && (
                     <Check className="h-5 w-5 text-primary shrink-0" />

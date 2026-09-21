@@ -53,9 +53,15 @@ serve(async (req) => {
 
     const { data: club } = await admin
       .from("clubs")
-      .select("name, logo_url")
+      .select("name, logo_url, invite_email_message")
       .eq("id", sub.club_id)
       .maybeSingle();
+
+    // Personal note: one written for this send wins, else the club's saved default.
+    const oneOff = ((body as any)?.custom_message ?? "").toString().trim();
+    const customMessage = oneOff.length > 0
+      ? oneOff
+      : ((club?.invite_email_message ?? "").toString().trim() || undefined);
 
     const { data: season } = await admin
       .from("seasons")
@@ -95,6 +101,7 @@ serve(async (req) => {
           appName: "Ignite",
           expiresInMinutes: 60,
           logoUrl: club?.logo_url ?? undefined,
+          customMessage,
         },
       },
     });

@@ -16,6 +16,7 @@ import { SwipeableDropdownContent } from "@/components/ui/swipeable-dropdown-con
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { resolvePointsNotificationClubId } from "@/lib/pointsNotificationClub";
 import { guardClubListResult } from "@/lib/clubListEmptyGuard";
 import { useLogoAccentColor } from "@/hooks/useLogoAccentColor";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -323,7 +324,7 @@ export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { profile, unreadCount: globalUnreadCount, user, clearUnreadCount, refreshUnreadCount, signOut } = useAuth();
-  const { activeThemeData, activeClubTheme, activeClubFilter, activeFreeClubData } = useClubTheme();
+  const { activeThemeData, activeClubTheme, activeClubFilter, activeFreeClubData, setActiveClubTheme } = useClubTheme();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -755,6 +756,19 @@ export function AppHeader() {
 
   const navigateWithFreshJump = (to: string) => navigate(withChatJumpNonce(to));
 
+  // Points/rewards screens read per-club balances. Align the active club with
+  // the club that awarded the points before navigating there.
+  const switchToPointsClubThenNavigate = async (
+    n: { type?: string | null; club_id?: string | null; related_id?: string | null },
+    to: string,
+  ) => {
+    try {
+      const clubId = await resolvePointsNotificationClubId(n);
+      if (clubId && clubId !== activeClubFilter) setActiveClubTheme(clubId);
+    } catch { /* never block navigation */ }
+    navigate(to);
+  };
+
   const handleNotificationClick = async (notification: typeof recentNotifications[0]) => {
     try {
       console.log("[AppHeaderNotifTap] click", {
@@ -1093,15 +1107,18 @@ export function AppHeader() {
         case "points_awarded":
         case "reward_redeemed":
         case "player_of_match":
-          navigate("/profile?section=points-history");
+          // Reward points are per club — align the active club with the club
+          // that awarded them before showing the totals.
+          void switchToPointsClubThenNavigate(notification, "/profile?section=points-history");
           return;
         case "leaderboard_update":
         case "streak_progress":
         case "streak_bonus":
         case "reward_proximity":
         case "reward_unlocked":
-          navigate("/leaderboard");
+          void switchToPointsClubThenNavigate(notification, "/leaderboard");
           return;
+
       }
 
       navigate("/notifications");

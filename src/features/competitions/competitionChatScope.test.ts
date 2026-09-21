@@ -13,10 +13,25 @@ describe("competitionChatScope", () => {
     expect(normaliseCompetitionChatScope("something")).toBeNull();
   });
 
+  it("normalises the referee and committee scopes", () => {
+    expect(normaliseCompetitionChatScope("referees")).toBe("referees");
+    expect(normaliseCompetitionChatScope("committee")).toBe("committee");
+  });
+
   it("labels each thread distinctly", () => {
     expect(competitionChatSublabel("all_members")).toContain("all members");
     expect(competitionChatSublabel("coordinators")).toContain("coordinators");
+    expect(competitionChatSublabel("referees")).toContain("referees");
+    expect(competitionChatSublabel("committee")).toContain("committee");
     expect(competitionChatSublabel(undefined)).toBe("Competition chat");
+  });
+
+  it("never restricts the referee or committee threads", () => {
+    for (const scope of ["referees", "committee"]) {
+      expect(
+        canPostInCompetitionChat({ scope, adminsOnly: true, isCompetitionAdmin: false }),
+      ).toBe(true);
+    }
   });
 
   it("never restricts the coordinators thread", () => {

@@ -1137,6 +1137,35 @@ export default function JoinTeamPage() {
     return rolesToAdd;
   };
 
+  /**
+   * Whether a successful join should drop a new parent into the "link your
+   * child" step. Named invites that carry preset child metadata skip this
+   * because the child is auto-provisioned. Shareable team join links and
+   * mini-league parent links always prompt, because they never include a
+   * preset child.
+   */
+  const shouldShowChildLinkStep = (
+    roles: AppRole[],
+    childrenAlreadyProvisioned: boolean,
+  ): boolean => {
+    if (!roles.includes("parent")) return false;
+    if (childrenAlreadyProvisioned) return false;
+
+    const pendingMeta = (pendingInviteData?.metadata as { kind?: string } | null) ?? null;
+    const teamMeta = (teamInvite?.metadata as { kind?: string } | null) ?? null;
+
+    const isLeagueParentLink =
+      isPendingInvite && pendingMeta?.kind === "mini_league_parent_join_link";
+    const isTeamParentJoinLink =
+      (isPendingInvite && pendingMeta?.kind === "team_join_link") ||
+      (!isPendingInvite && teamMeta?.kind === "team_join_link");
+
+    return (
+      isLeagueParentLink ||
+      isTeamParentJoinLink ||
+      (!isPendingInvite && !teamMeta)
+    );
+  };
 
   const joinMutation = useMutation({
     mutationFn: async () => {
@@ -1182,21 +1211,10 @@ export default function JoinTeamPage() {
       safeSessionRemove("authDefaultTab");
       toast({ title: `Successfully joined as ${roleNames}!` });
       
-      // If parent role was added via a regular invite WITHOUT child metadata, show child step.
-      // Same flow for mini-league parent shareable join link (no preset child).
-      const isLeagueParentLink =
-        isPendingInvite &&
-        (pendingInviteData?.metadata as any)?.kind === "mini_league_parent_join_link";
       // A reconciled named invite may have already created/linked children —
       // don't ask the parent to add a child that now exists.
       const childrenAlreadyProvisioned = provisionedChildIdsRef.current.length > 0;
-      if (
-        (!isPendingInvite &&
-          rolesToAdd.includes("parent") &&
-          !teamInvite?.metadata &&
-          !childrenAlreadyProvisioned) ||
-        (isLeagueParentLink && rolesToAdd.includes("parent"))
-      ) {
+      if (shouldShowChildLinkStep(rolesToAdd, childrenAlreadyProvisioned)) {
         setShowChildStep(true);
       } else {
         setJoined(true);
@@ -1309,10 +1327,10 @@ export default function JoinTeamPage() {
         const roleNames = result.map(r => roleLabels[r]).join(", ");
         toast({ title: `Successfully joined as ${roleNames}!` });
         if (
-          !isPendingInvite &&
-          result.includes("parent") &&
-          !teamInvite?.metadata &&
-          provisionedChildIdsRef.current.length === 0
+          shouldShowChildLinkStep(
+            result,
+            provisionedChildIdsRef.current.length > 0,
+          )
         ) {
           setShowChildStep(true);
         } else {

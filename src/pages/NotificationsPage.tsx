@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { useNotificationIcon } from "@/components/NotificationIcon";
 import { resolveTeamInviteRoute } from "@/lib/resolveNotificationRoute";
+import { resolvePointsNotificationClubId } from "@/lib/pointsNotificationClub";
 import { filterClubScopedNotifications } from "@/lib/filterClubScopedNotifications";
 import { setPendingChatJump, withChatJumpNonce, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { useClubTheme } from "@/hooks/useClubTheme";
@@ -354,10 +355,19 @@ export default function NotificationsPage() {
         (payload) => {
           const raw = payload.new as any;
           const newNotification: Notification = { ...raw, read: raw.is_read };
-          queryClient.setQueriesData<Notification[]>(
-            { queryKey: ["notifications", user.id] },
-            (old) => old ? [newNotification, ...old] : [newNotification]
-          );
+          const currentKey = ["notifications", user.id, activeClubFilter ?? "all"];
+
+          if (!activeClubFilter || raw.club_id === activeClubFilter) {
+            queryClient.setQueryData<Notification[]>(
+              currentKey,
+              (old) => old ? [newNotification, ...old] : [newNotification],
+            );
+          } else if (raw.club_id == null) {
+            // Null-club rows need asynchronous ownership resolution. Never add
+            // them optimistically to a filtered list; refetch through the
+            // canonical resolver instead so another club cannot flash onscreen.
+            void queryClient.invalidateQueries({ queryKey: currentKey });
+          }
           
           refreshUnreadCount();
         }
@@ -400,7 +410,7 @@ export default function NotificationsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, queryClient, refreshUnreadCount]);
+  }, [user, activeClubFilter, queryClient, refreshUnreadCount]);
 
   const markAsRead = useMutation({
     mutationFn: async (id: string) => {
@@ -733,6 +743,20 @@ export default function NotificationsPage() {
       void requestClubSwitchForNotificationUrl(null, to)
         .catch(() => { /* never block navigation */ })
         .finally(() => routerNavigate(to));
+    };
+
+    // Points/rewards views are per club. Resolve the owning club of the tapped
+    // notification and align the active club filter before navigating, so the
+    // user never sees another club's balance or history.
+    const switchToPointsClubThenNavigate = async (
+      n: { type?: string | null; club_id?: string | null; related_id?: string | null },
+      to: string,
+    ) => {
+      try {
+        const clubId = await resolvePointsNotificationClubId(n);
+        if (clubId && clubId !== activeClubFilter) setActiveClubTheme(clubId);
+      } catch { /* never block navigation */ }
+      routerNavigate(to);
     };
 
     // Mark as read first
@@ -1073,15 +1097,18 @@ export default function NotificationsPage() {
       case "early_rsvp_points":
       case "reward_redeemed":
       case "player_of_match":
-        navigate("/profile?section=points-history");
+        // Reward points are per club: move the active club to the club that
+        // awarded them so the totals/history shown belong to that club.
+        void switchToPointsClubThenNavigate(notification, "/profile?section=points-history");
         break;
       case "leaderboard_update":
       case "streak_progress":
       case "streak_bonus":
       case "reward_proximity":
       case "reward_unlocked":
-        navigate("/leaderboard");
+        void switchToPointsClubThenNavigate(notification, "/leaderboard");
         break;
+
       case "fee_payment_request":
         if (relatedId) {
           navigate(`/pay-fees/${relatedId}`);

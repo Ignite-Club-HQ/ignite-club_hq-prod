@@ -2327,6 +2327,7 @@ export type Database = {
           events_sponsor_strip_enabled: boolean
           force_disable_message_previews: boolean
           id: string
+          invite_email_message: string | null
           invite_email_style: string
           is_pro: boolean
           kind: string
@@ -2415,6 +2416,7 @@ export type Database = {
           events_sponsor_strip_enabled?: boolean
           force_disable_message_previews?: boolean
           id?: string
+          invite_email_message?: string | null
           invite_email_style?: string
           is_pro?: boolean
           kind?: string
@@ -2503,6 +2505,7 @@ export type Database = {
           events_sponsor_strip_enabled?: boolean
           force_disable_message_previews?: boolean
           id?: string
+          invite_email_message?: string | null
           invite_email_style?: string
           is_pro?: boolean
           kind?: string
@@ -2998,6 +3001,7 @@ export type Database = {
           external_id: string | null
           external_tenant: string | null
           id: string
+          invite_email_message: string | null
           join_token: string | null
           join_token_enabled: boolean
           last_synced_at: string | null
@@ -3027,6 +3031,7 @@ export type Database = {
           external_id?: string | null
           external_tenant?: string | null
           id?: string
+          invite_email_message?: string | null
           join_token?: string | null
           join_token_enabled?: boolean
           last_synced_at?: string | null
@@ -3056,6 +3061,7 @@ export type Database = {
           external_id?: string | null
           external_tenant?: string | null
           id?: string
+          invite_email_message?: string | null
           join_token?: string | null
           join_token_enabled?: boolean
           last_synced_at?: string | null
@@ -11049,6 +11055,10 @@ export type Database = {
         Returns: undefined
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      club_admin_can_rename_group: {
+        Args: { _club_id: string; _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       club_engagement_active_users: {
         Args: { _club_id: string; _end: string; _start: string }
         Returns: {
@@ -11364,6 +11374,10 @@ export type Database = {
       }
       ensure_competition_member_chat: {
         Args: { _competition_id: string }
+        Returns: string
+      }
+      ensure_competition_role_chat: {
+        Args: { _competition_id: string; _scope: string }
         Returns: string
       }
       ensure_team_role_folders: {
@@ -12652,6 +12666,10 @@ export type Database = {
       }
       sync_competition_member_chat_members: {
         Args: { _competition_id: string }
+        Returns: undefined
+      }
+      sync_competition_role_chat_members: {
+        Args: { _competition_id: string; _scope: string }
         Returns: undefined
       }
       sync_event_duties: {
