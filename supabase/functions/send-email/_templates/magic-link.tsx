@@ -51,6 +51,7 @@ export const MagicLinkEmail = ({
   appName = "Ignite",
   logoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
+  customMessage,
 }: MagicLinkEmailProps) => {
   const actionTitles = {
     'login': 'Sign in to your account',
