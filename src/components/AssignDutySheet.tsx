@@ -15,6 +15,8 @@ interface Member {
   id: string;
   display_name: string | null;
   avatar_url?: string | null;
+  /** Optional context line, e.g. "Competition referee" for officials outside the clubs. */
+  subtitle?: string | null;
 }
 
 interface AssignDutySheetProps {
