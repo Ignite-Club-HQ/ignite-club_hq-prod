@@ -83,6 +83,29 @@ async function resolveInviteEmailStyle(
   }
 }
 
+/**
+ * The club's saved default personal message for invite emails. Only used when
+ * the caller did not supply a one-off message for this send. Best-effort.
+ */
+async function resolveClubInviteMessage(
+  supabaseAdmin: any,
+  clubName?: string,
+): Promise<string | undefined> {
+  if (!supabaseAdmin || !clubName) return undefined;
+  try {
+    const { data: club } = await supabaseAdmin
+      .from('clubs')
+      .select('invite_email_message')
+      .eq('name', clubName)
+      .maybeSingle();
+    const msg = (club?.invite_email_message ?? '').toString().trim();
+    return msg.length > 0 ? msg : undefined;
+  } catch (e) {
+    console.warn('[send-email] invite message lookup failed:', (e as Error)?.message);
+    return undefined;
+  }
+}
+
 
 
 
