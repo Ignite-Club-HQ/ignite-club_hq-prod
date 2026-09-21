@@ -101,6 +101,7 @@ serve(async (req) => {
           appName: "Ignite",
           expiresInMinutes: 60,
           logoUrl: club?.logo_url ?? undefined,
+          customMessage,
         },
       },
     });
