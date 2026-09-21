@@ -114,6 +114,14 @@ export const MagicLinkEmail = ({
               {actionDescriptions[actionType]}
             </Text>
 
+            {customMessage && customMessage.trim().length > 0 && (
+              <Section style={{ ...noteSection, borderLeftColor: primaryColor }}>
+                {customMessage.trim().split(/\n\n+/).map((para, i) => (
+                  <Text key={i} style={noteText}>{para}</Text>
+                ))}
+              </Section>
+            )}
+
             <Section style={buttonSection}>
               <Button style={{ ...button, backgroundColor: primaryColor }} href={magicLink}>
                 {actionButtons[actionType]}
