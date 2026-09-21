@@ -1092,6 +1092,22 @@ export default function MessagesPage() {
         if (!clubId) continue;
         (map[row.competition_id] ||= new Set()).add(clubId);
       }
+
+      // The organising club always counts as participating: referees and
+      // committee members are appointed by the host club and often belong to
+      // it without any of its teams being entered. Without this, their
+      // automatic Referees / Committee threads would be filtered out of the
+      // inbox while that club is selected.
+      const { data: comps, error: compsError } = await supabase
+        .from("competitions")
+        .select("id, organizer_club_id")
+        .in("id", competitionIdsForGroups);
+      if (compsError) throw compsError;
+      for (const row of (comps ?? []) as any[]) {
+        if (!row?.organizer_club_id) continue;
+        (map[row.id] ||= new Set()).add(row.organizer_club_id);
+      }
+
       return map;
     },
   });
