@@ -4545,19 +4545,32 @@ export default function EventDetailPage() {
         onOpenChange={setAssignDialogOpen}
         dutyName={duties?.find(d => d.id === selectedDutyId)?.name || "Duty"}
         currentAssignee={selectedUserId || null}
-        members={
-          isMiniLeagueEvent
+        members={(() => {
+          const base = isMiniLeagueEvent
             ? (miniLeagueDutyAssignees?.map((m: any) => ({
                 id: m.id,
                 display_name: m.display_name,
                 avatar_url: m.avatar_url,
+                subtitle: null as string | null,
               })) || [])
             : (members?.map((m: any) => ({
                 id: m.id,
                 display_name: m.display_name,
                 avatar_url: m.avatar_url,
-              })) || [])
-        }
+                subtitle: null as string | null,
+              })) || []);
+          const seen = new Set(base.map((m: any) => m.id));
+          const officials = (competitionOfficials || [])
+            .filter((o: any) => o.id && !seen.has(o.id))
+            .map((o: any) => ({
+              id: o.id,
+              display_name: o.display_name,
+              avatar_url: o.avatar_url,
+              subtitle:
+                o.official_role === "committee" ? "Competition committee" : "Competition referee",
+            }));
+          return [...base, ...officials];
+        })()}
         onAssign={(userId) => assignDutyMutation.mutate(userId)}
         isPending={assignDutyMutation.isPending}
       />
