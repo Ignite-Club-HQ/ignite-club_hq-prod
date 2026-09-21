@@ -570,6 +570,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           appName: data.appName || "Ignite",
           logoUrl: data.logoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          customMessage: data.customMessage,
         })
       );
     
