@@ -254,6 +254,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [customMessage, setCustomMessage] = useState("");
+  const [customMessageTouched, setCustomMessageTouched] = useState(false);
   const [showMessageEditor, setShowMessageEditor] = useState(false);
   // Second parent fields (for parent role)
   const [secondParentName, setSecondParentName] = useState("");
