@@ -297,7 +297,14 @@ export default function CompetitionSettingsPage() {
         organizerClubId={(competition as any).organizer_club_id ?? null}
       />
 
-      {/* 6. Competition-wide chat — opt-in thread for all members of entered teams */}
+      {/* 6. Referees & committee — roles with their own automatic chats */}
+      <CompetitionOfficialsCard
+        competitionId={id!}
+        competitionName={competition.name}
+        organizerClubId={(competition as any).organizer_club_id ?? null}
+      />
+
+      {/* 7. Competition-wide chat — opt-in thread for all members of entered teams */}
       <CompetitionMemberChatCard competitionId={id!} />
 
 
