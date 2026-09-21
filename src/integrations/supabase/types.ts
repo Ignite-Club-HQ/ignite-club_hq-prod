@@ -2327,6 +2327,7 @@ export type Database = {
           events_sponsor_strip_enabled: boolean
           force_disable_message_previews: boolean
           id: string
+          invite_email_message: string | null
           invite_email_style: string
           is_pro: boolean
           kind: string
@@ -2415,6 +2416,7 @@ export type Database = {
           events_sponsor_strip_enabled?: boolean
           force_disable_message_previews?: boolean
           id?: string
+          invite_email_message?: string | null
           invite_email_style?: string
           is_pro?: boolean
           kind?: string
@@ -2503,6 +2505,7 @@ export type Database = {
           events_sponsor_strip_enabled?: boolean
           force_disable_message_previews?: boolean
           id?: string
+          invite_email_message?: string | null
           invite_email_style?: string
           is_pro?: boolean
           kind?: string
@@ -2998,6 +3001,7 @@ export type Database = {
           external_id: string | null
           external_tenant: string | null
           id: string
+          invite_email_message: string | null
           join_token: string | null
           join_token_enabled: boolean
           last_synced_at: string | null
@@ -3027,6 +3031,7 @@ export type Database = {
           external_id?: string | null
           external_tenant?: string | null
           id?: string
+          invite_email_message?: string | null
           join_token?: string | null
           join_token_enabled?: boolean
           last_synced_at?: string | null
@@ -3056,6 +3061,7 @@ export type Database = {
           external_id?: string | null
           external_tenant?: string | null
           id?: string
+          invite_email_message?: string | null
           join_token?: string | null
           join_token_enabled?: boolean
           last_synced_at?: string | null
