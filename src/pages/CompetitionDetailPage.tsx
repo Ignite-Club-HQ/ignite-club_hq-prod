@@ -1145,6 +1145,7 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
             clubName: newClubName.trim() || tName,
             roleName: "Team Admin",
             inviteLink: claimLink,
+            customMessage: customMessage.trim() || undefined,
           },
         },
       });
