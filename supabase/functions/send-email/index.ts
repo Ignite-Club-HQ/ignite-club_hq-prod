@@ -479,6 +479,14 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         ? data.emailStyle
         : await resolveInviteEmailStyle(supabaseAdmin, data.clubName);
 
+      // Personal message: one supplied for this send wins, otherwise the
+      // club's saved default (set in club settings).
+      const oneOffMessage = (data.customMessage ?? '').toString().trim();
+      const inviteMessage = oneOffMessage.length > 0
+        ? oneOffMessage
+        : await resolveClubInviteMessage(supabaseAdmin, data.clubName);
+
+
       // Existing user + children → ChildAddedEmail (no download prompts).
       if (isExistingUser && data.childrenNames?.length > 0) {
         return await renderAsync(
