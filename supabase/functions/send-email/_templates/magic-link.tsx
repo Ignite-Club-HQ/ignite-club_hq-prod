@@ -23,6 +23,8 @@ interface MagicLinkEmailProps {
   appName?: string;
   logoUrl?: string;
   primaryColor?: string;
+  /** Optional personal note from the club/competition, shown above the button. */
+  customMessage?: string;
 }
 
 // Production domain for all links
