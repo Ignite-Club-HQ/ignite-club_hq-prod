@@ -11,12 +11,25 @@
  * rule lives in the `group_messages` INSERT policy).
  */
 
-export type CompetitionChatScope = "coordinators" | "all_members";
+export type CompetitionChatScope =
+  | "coordinators"
+  | "all_members"
+  | "referees"
+  | "committee";
+
+const KNOWN_SCOPES: CompetitionChatScope[] = [
+  "coordinators",
+  "all_members",
+  "referees",
+  "committee",
+];
 
 export function normaliseCompetitionChatScope(
   value: unknown,
 ): CompetitionChatScope | null {
-  return value === "coordinators" || value === "all_members" ? value : null;
+  return KNOWN_SCOPES.includes(value as CompetitionChatScope)
+    ? (value as CompetitionChatScope)
+    : null;
 }
 
 export function competitionChatSublabel(scope: unknown): string {
@@ -25,6 +38,10 @@ export function competitionChatSublabel(scope: unknown): string {
       return "Competition chat · all members";
     case "coordinators":
       return "Competition chat · coordinators";
+    case "referees":
+      return "Competition chat · referees";
+    case "committee":
+      return "Competition chat · committee";
     default:
       return "Competition chat";
   }

@@ -11370,6 +11370,10 @@ export type Database = {
         Args: { _competition_id: string }
         Returns: string
       }
+      ensure_competition_role_chat: {
+        Args: { _competition_id: string; _scope: string }
+        Returns: string
+      }
       ensure_team_role_folders: {
         Args: { _team_id: string }
         Returns: undefined
@@ -12656,6 +12660,10 @@ export type Database = {
       }
       sync_competition_member_chat_members: {
         Args: { _competition_id: string }
+        Returns: undefined
+      }
+      sync_competition_role_chat_members: {
+        Args: { _competition_id: string; _scope: string }
         Returns: undefined
       }
       sync_event_duties: {
