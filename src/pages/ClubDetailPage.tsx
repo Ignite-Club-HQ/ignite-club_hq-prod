@@ -2338,6 +2338,7 @@ export default function ClubDetailPage() {
               <ClubMessagePrivacySettings clubId={id!} />
               <ClubAICatchUpSettings clubId={id!} />
               <ClubInviteEmailSettings clubId={id!} />
+              <InviteMessageDefaultCard scope="club" scopeId={id!} />
             </div>
           </AccordionContent>
         </AccordionItem>
