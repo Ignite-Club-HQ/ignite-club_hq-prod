@@ -3466,7 +3466,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Textarea
                       placeholder={`Add a personal note (optional). Example:\n\nHi! We're using Ignite Club HQ to keep everything organised — fixtures, chat, and team updates all in one place. Tap the link to join.`}
                       value={customMessage}
-                      onChange={(e) => setCustomMessage(e.target.value)}
+                      onChange={(e) => { setCustomMessage(e.target.value); setCustomMessageTouched(true); }}
                       rows={4}
                       className="text-sm resize-none"
                     />
@@ -3951,7 +3951,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   <Textarea
                     placeholder={`Add a personal note (optional). Example:\n\nHi! We're using Ignite Club HQ to keep everything organised — fixtures, chat, and team updates all in one place. Tap the link to join.`}
                     value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
+                    onChange={(e) => { setCustomMessage(e.target.value); setCustomMessageTouched(true); }}
                     rows={4}
                     className="text-sm resize-none"
                   />
