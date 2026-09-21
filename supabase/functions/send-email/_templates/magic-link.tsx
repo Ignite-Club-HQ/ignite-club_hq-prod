@@ -23,6 +23,8 @@ interface MagicLinkEmailProps {
   appName?: string;
   logoUrl?: string;
   primaryColor?: string;
+  /** Optional personal note from the club/competition, shown above the button. */
+  customMessage?: string;
 }
 
 // Production domain for all links
@@ -49,6 +51,7 @@ export const MagicLinkEmail = ({
   appName = "Ignite",
   logoUrl,
   primaryColor = IGNITE_BRAND_COLOR,
+  customMessage,
 }: MagicLinkEmailProps) => {
   const actionTitles = {
     'login': 'Sign in to your account',
@@ -110,6 +113,14 @@ export const MagicLinkEmail = ({
             <Text style={paragraph}>
               {actionDescriptions[actionType]}
             </Text>
+
+            {customMessage && customMessage.trim().length > 0 && (
+              <Section style={{ ...noteSection, borderLeftColor: primaryColor }}>
+                {customMessage.trim().split(/\n\n+/).map((para, i) => (
+                  <Text key={i} style={noteText}>{para}</Text>
+                ))}
+              </Section>
+            )}
 
             <Section style={buttonSection}>
               <Button style={{ ...button, backgroundColor: primaryColor }} href={magicLink}>
@@ -357,4 +368,20 @@ const footerBrandTextLink = {
   color: IGNITE_BRAND_COLOR,
   fontSize: '12px',
   textDecoration: 'none',
+};
+
+const noteSection = {
+  backgroundColor: '#f6f9f8',
+  borderLeft: '4px solid #10b981',
+  borderRadius: '8px',
+  padding: '12px 16px',
+  margin: '0 0 20px 0',
+};
+
+const noteText = {
+  color: '#3f3f46',
+  fontSize: '15px',
+  lineHeight: '24px',
+  margin: '0 0 8px 0',
+  textAlign: 'left' as const,
 };

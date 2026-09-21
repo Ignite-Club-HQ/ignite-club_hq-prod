@@ -1041,6 +1041,28 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
   const [newClubName, setNewClubName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [customMessage, setCustomMessage] = useState("");
+  const [messageTouched, setMessageTouched] = useState(false);
+
+  // Pre-fill the personal note with the competition's saved default.
+  const { data: savedInviteMessage } = useQuery({
+    queryKey: ["competition-invite-message", competitionId],
+    enabled: open,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("competitions")
+        .select("invite_email_message")
+        .eq("id", competitionId)
+        .maybeSingle();
+      return ((data as any)?.invite_email_message ?? "") as string;
+    },
+  });
+
+  useEffect(() => {
+    if (!messageTouched && typeof savedInviteMessage === "string") {
+      setCustomMessage(savedInviteMessage);
+    }
+  }, [savedInviteMessage, messageTouched]);
 
   const { data: clubs = [] } = useQuery({
     queryKey: ["clubs-for-team-invite", clubSearch],
@@ -1123,6 +1145,7 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
             clubName: newClubName.trim() || tName,
             roleName: "Team Admin",
             inviteLink: claimLink,
+            customMessage: customMessage.trim() || undefined,
           },
         },
       });
@@ -1263,6 +1286,16 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
                 <Label>Contact email *</Label>
                 <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="contact@example.com" />
                 <p className="text-[11px] text-muted-foreground">This person will receive the invite and become the first team admin when they claim it.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Personal message (optional)</Label>
+                <Textarea
+                  value={customMessage}
+                  onChange={(e) => { setCustomMessage(e.target.value.slice(0, 500)); setMessageTouched(true); }}
+                  rows={3}
+                  placeholder="Add a short note to this invite email"
+                />
+                <p className="text-[11px] text-muted-foreground">{customMessage.length}/500 — the competition's saved message is filled in here, and you can change it for this invite.</p>
               </div>
             </>
           )}

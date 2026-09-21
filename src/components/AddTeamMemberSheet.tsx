@@ -254,6 +254,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const [bulkResults, setBulkResults] = useState<{ name: string; email: string; link: string; sent: boolean; role?: string; childrenCount?: number }[]>([]);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [customMessage, setCustomMessage] = useState("");
+  const [customMessageTouched, setCustomMessageTouched] = useState(false);
   const [showMessageEditor, setShowMessageEditor] = useState(false);
   // Second parent fields (for parent role)
   const [secondParentName, setSecondParentName] = useState("");
@@ -342,7 +343,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     queryFn: async () => {
       const { data } = await supabase
         .from("clubs")
-        .select("name, logo_url, contact_email, invite_email_style")
+        .select("name, logo_url, contact_email, invite_email_style, invite_email_message")
         .eq("id", clubId)
         .single();
       return data;
@@ -352,6 +353,15 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Club-selected invite email style: only the "discover" option uses the
   // "See which team X is in" subject line.
   const discoverEmailStyle = (clubBranding as { invite_email_style?: string } | null | undefined)?.invite_email_style === 'discover';
+  // Pre-fill the personal note with the club's saved default message, until the
+  // sender edits it for this invite.
+  const clubInviteMessage = (clubBranding as { invite_email_message?: string | null } | null | undefined)?.invite_email_message ?? "";
+  useEffect(() => {
+    if (!customMessageTouched && clubInviteMessage) {
+      setCustomMessage(clubInviteMessage);
+      setShowMessageEditor(true);
+    }
+  }, [clubInviteMessage, customMessageTouched]);
   // Fetch existing children in the club for matching
   const { data: clubChildren = [] } = useQuery({
     queryKey: ["club-children", clubId],
@@ -3459,7 +3469,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                     <Textarea
                       placeholder={`Add a personal note (optional). Example:\n\nHi! We're using Ignite Club HQ to keep everything organised — fixtures, chat, and team updates all in one place. Tap the link to join.`}
                       value={customMessage}
-                      onChange={(e) => setCustomMessage(e.target.value)}
+                      onChange={(e) => { setCustomMessage(e.target.value); setCustomMessageTouched(true); }}
                       rows={4}
                       className="text-sm resize-none"
                     />
@@ -3944,7 +3954,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                   <Textarea
                     placeholder={`Add a personal note (optional). Example:\n\nHi! We're using Ignite Club HQ to keep everything organised — fixtures, chat, and team updates all in one place. Tap the link to join.`}
                     value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
+                    onChange={(e) => { setCustomMessage(e.target.value); setCustomMessageTouched(true); }}
                     rows={4}
                     className="text-sm resize-none"
                   />

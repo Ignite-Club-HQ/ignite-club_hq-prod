@@ -83,6 +83,29 @@ async function resolveInviteEmailStyle(
   }
 }
 
+/**
+ * The club's saved default personal message for invite emails. Only used when
+ * the caller did not supply a one-off message for this send. Best-effort.
+ */
+async function resolveClubInviteMessage(
+  supabaseAdmin: any,
+  clubName?: string,
+): Promise<string | undefined> {
+  if (!supabaseAdmin || !clubName) return undefined;
+  try {
+    const { data: club } = await supabaseAdmin
+      .from('clubs')
+      .select('invite_email_message')
+      .eq('name', clubName)
+      .maybeSingle();
+    const msg = (club?.invite_email_message ?? '').toString().trim();
+    return msg.length > 0 ? msg : undefined;
+  } catch (e) {
+    console.warn('[send-email] invite message lookup failed:', (e as Error)?.message);
+    return undefined;
+  }
+}
+
 
 
 
@@ -456,6 +479,14 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
         ? data.emailStyle
         : await resolveInviteEmailStyle(supabaseAdmin, data.clubName);
 
+      // Personal message: one supplied for this send wins, otherwise the
+      // club's saved default (set in club settings).
+      const oneOffMessage = (data.customMessage ?? '').toString().trim();
+      const inviteMessage = oneOffMessage.length > 0
+        ? oneOffMessage
+        : await resolveClubInviteMessage(supabaseAdmin, data.clubName);
+
+
       // Existing user + children → ChildAddedEmail (no download prompts).
       if (isExistingUser && data.childrenNames?.length > 0) {
         return await renderAsync(
@@ -467,7 +498,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
             clubLogoUrl: data.clubLogoUrl,
             primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
             childrenNames: data.childrenNames || [],
-            customMessage: data.customMessage,
+            customMessage: inviteMessage,
             sport: data.sport ?? sport,
             emailStyle,
           })
@@ -485,7 +516,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || [],
-          customMessage: data.customMessage,
+          customMessage: inviteMessage,
           isExistingUser,
           isMiniLeague: data.isMiniLeague,
           sport: data.sport ?? sport,
@@ -539,6 +570,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           appName: data.appName || "Ignite",
           logoUrl: data.logoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
+          customMessage: data.customMessage,
         })
       );
     

@@ -19,6 +19,7 @@ import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { CompetitionAdminsCard } from "@/components/competitions/CompetitionAdminsCard";
 import { CompetitionMemberChatCard } from "@/components/competitions/CompetitionMemberChatCard";
 import { CompetitionOfficialsCard } from "@/components/competitions/CompetitionOfficialsCard";
+import { InviteMessageDefaultCard } from "@/components/invite/InviteMessageDefaultCard";
 
 
 export default function CompetitionSettingsPage() {
@@ -305,7 +306,10 @@ export default function CompetitionSettingsPage() {
         organizerClubId={(competition as any).organizer_club_id ?? null}
       />
 
-      {/* 7. Competition-wide chat — opt-in thread for all members of entered teams */}
+      {/* 7. Saved personal message pre-filled into competition invite emails */}
+      <InviteMessageDefaultCard scope="competition" scopeId={id!} />
+
+      {/* 8. Competition-wide chat — opt-in thread for all members of entered teams */}
       <CompetitionMemberChatCard competitionId={id!} />
 
 

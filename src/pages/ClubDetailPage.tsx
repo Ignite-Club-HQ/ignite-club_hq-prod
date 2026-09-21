@@ -91,6 +91,7 @@ import { ClubDMSettings } from "@/components/ClubDMSettings";
 import { ClubMessagePrivacySettings } from "@/components/ClubMessagePrivacySettings";
 import { ClubAICatchUpSettings } from "@/components/ClubAICatchUpSettings";
 import { ClubInviteEmailSettings } from "@/components/ClubInviteEmailSettings";
+import { InviteMessageDefaultCard } from "@/components/invite/InviteMessageDefaultCard";
 import { ClubAnnouncementDialog } from "@/components/ClubAnnouncementDialog";
 import { Palette, CalendarDays, BookOpen, ClipboardCheck, Share2, BarChart3, Megaphone, Activity, MoreVertical, Link as LinkIcon } from "lucide-react";
 import PendingInviteCard from "@/components/PendingInviteCard";
@@ -2338,6 +2339,7 @@ export default function ClubDetailPage() {
               <ClubMessagePrivacySettings clubId={id!} />
               <ClubAICatchUpSettings clubId={id!} />
               <ClubInviteEmailSettings clubId={id!} />
+              <InviteMessageDefaultCard scope="club" scopeId={id!} />
             </div>
           </AccordionContent>
         </AccordionItem>
