@@ -974,6 +974,49 @@ export default function EventDetailPage() {
     enabled: !!event,
   });
 
+  // Competition officials (referees / committee) linked to this event's competition
+  // match. They are often not members of either club playing, but must still be
+  // assignable to duties such as Referee. Presentation-only: RLS already lets
+  // competition organisers read these rows, and assigned users can read their duty.
+  const { data: competitionOfficials } = useQuery({
+    queryKey: ["event-competition-officials", event?.id],
+    queryFn: async () => {
+      const { data: matches, error: matchError } = await supabase
+        .from("competition_matches")
+        .select("competition_id")
+        .or(`home_event_id.eq.${event!.id},away_event_id.eq.${event!.id}`);
+      if (matchError) throw matchError;
+
+      const competitionIds = [...new Set((matches || []).map((m: any) => m.competition_id).filter(Boolean))];
+      if (competitionIds.length === 0) return [];
+
+      const { data: roles, error: rolesError } = await supabase
+        .from("competition_roles")
+        .select("user_id, role")
+        .in("competition_id", competitionIds)
+        .in("role", ["referee", "committee"]);
+      if (rolesError) throw rolesError;
+
+      const roleByUser = new Map<string, string>();
+      (roles || []).forEach((r: any) => {
+        if (!r.user_id) return;
+        // Referee label wins when someone holds both roles.
+        if (r.role === "referee" || !roleByUser.has(r.user_id)) roleByUser.set(r.user_id, r.role);
+      });
+      const userIds = [...roleByUser.keys()];
+      if (userIds.length === 0) return [];
+
+      const { data: profiles, error: profilesError } = await selectCachedProfilesByIds(userIds);
+      if (profilesError) throw profilesError;
+
+      return (profiles || []).map((p: any) => ({
+        ...p,
+        official_role: roleByUser.get(p.id) || null,
+      }));
+    },
+    enabled: !!event?.id,
+  });
+
   // Fetch mini-league players for mini-league events (for not responded list).
   // We enrich each player with `is_pending` = no parent has accepted the app yet
   // (no parent_user_id, linked child has no parent_id, and no guardians).
