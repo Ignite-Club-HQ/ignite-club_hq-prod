@@ -369,3 +369,19 @@ const footerBrandTextLink = {
   fontSize: '12px',
   textDecoration: 'none',
 };
+
+const noteSection = {
+  backgroundColor: '#f6f9f8',
+  borderLeft: '4px solid #10b981',
+  borderRadius: '8px',
+  padding: '12px 16px',
+  margin: '0 0 20px 0',
+};
+
+const noteText = {
+  color: '#3f3f46',
+  fontSize: '15px',
+  lineHeight: '24px',
+  margin: '0 0 8px 0',
+  textAlign: 'left' as const,
+};
