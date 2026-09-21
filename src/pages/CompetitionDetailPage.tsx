@@ -1041,6 +1041,28 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
   const [newClubName, setNewClubName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [customMessage, setCustomMessage] = useState("");
+  const [messageTouched, setMessageTouched] = useState(false);
+
+  // Pre-fill the personal note with the competition's saved default.
+  const { data: savedInviteMessage } = useQuery({
+    queryKey: ["competition-invite-message", competitionId],
+    enabled: open,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("competitions")
+        .select("invite_email_message")
+        .eq("id", competitionId)
+        .maybeSingle();
+      return ((data as any)?.invite_email_message ?? "") as string;
+    },
+  });
+
+  useEffect(() => {
+    if (!messageTouched && typeof savedInviteMessage === "string") {
+      setCustomMessage(savedInviteMessage);
+    }
+  }, [savedInviteMessage, messageTouched]);
 
   const { data: clubs = [] } = useQuery({
     queryKey: ["clubs-for-team-invite", clubSearch],
