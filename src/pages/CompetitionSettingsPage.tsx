@@ -18,6 +18,7 @@ import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { CompetitionAdminsCard } from "@/components/competitions/CompetitionAdminsCard";
 import { CompetitionMemberChatCard } from "@/components/competitions/CompetitionMemberChatCard";
+import { CompetitionOfficialsCard } from "@/components/competitions/CompetitionOfficialsCard";
 
 
 export default function CompetitionSettingsPage() {
