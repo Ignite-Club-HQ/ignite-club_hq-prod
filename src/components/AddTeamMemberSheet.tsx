@@ -352,6 +352,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // Club-selected invite email style: only the "discover" option uses the
   // "See which team X is in" subject line.
   const discoverEmailStyle = (clubBranding as { invite_email_style?: string } | null | undefined)?.invite_email_style === 'discover';
+  // Pre-fill the personal note with the club's saved default message, until the
+  // sender edits it for this invite.
+  const clubInviteMessage = (clubBranding as { invite_email_message?: string | null } | null | undefined)?.invite_email_message ?? "";
+  useEffect(() => {
+    if (!customMessageTouched && clubInviteMessage) setCustomMessage(clubInviteMessage);
+  }, [clubInviteMessage, customMessageTouched]);
   // Fetch existing children in the club for matching
   const { data: clubChildren = [] } = useQuery({
     queryKey: ["club-children", clubId],
