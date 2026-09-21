@@ -1287,6 +1287,16 @@ function InviteTeamForm({ competitionId, divisions, defaultOpen, onDone }: { com
                 <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="contact@example.com" />
                 <p className="text-[11px] text-muted-foreground">This person will receive the invite and become the first team admin when they claim it.</p>
               </div>
+              <div className="space-y-1.5">
+                <Label>Personal message (optional)</Label>
+                <Textarea
+                  value={customMessage}
+                  onChange={(e) => { setCustomMessage(e.target.value.slice(0, 500)); setMessageTouched(true); }}
+                  rows={3}
+                  placeholder="Add a short note to this invite email"
+                />
+                <p className="text-[11px] text-muted-foreground">{customMessage.length}/500 — the competition's saved message is filled in here, and you can change it for this invite.</p>
+              </div>
             </>
           )}
 
