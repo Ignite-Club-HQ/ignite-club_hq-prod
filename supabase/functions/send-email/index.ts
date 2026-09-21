@@ -516,7 +516,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           clubLogoUrl: data.clubLogoUrl,
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || [],
-          customMessage: data.customMessage,
+          customMessage: inviteMessage,
           isExistingUser,
           isMiniLeague: data.isMiniLeague,
           sport: data.sport ?? sport,
