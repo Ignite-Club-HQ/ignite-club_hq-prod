@@ -357,7 +357,10 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   // sender edits it for this invite.
   const clubInviteMessage = (clubBranding as { invite_email_message?: string | null } | null | undefined)?.invite_email_message ?? "";
   useEffect(() => {
-    if (!customMessageTouched && clubInviteMessage) setCustomMessage(clubInviteMessage);
+    if (!customMessageTouched && clubInviteMessage) {
+      setCustomMessage(clubInviteMessage);
+      setShowMessageEditor(true);
+    }
   }, [clubInviteMessage, customMessageTouched]);
   // Fetch existing children in the club for matching
   const { data: clubChildren = [] } = useQuery({
