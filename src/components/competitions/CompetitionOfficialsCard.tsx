@@ -122,12 +122,16 @@ export function CompetitionOfficialsCard({
       });
       if (error) throw error;
 
+      // Stamp the organising club so the notification stays inside that club's
+      // bell when the recipient has more than one club. Failure here must not
+      // undo the role assignment, so the result is intentionally not thrown.
       await supabase.from("notifications").insert({
         user_id: target.id,
         type: "membership",
         message: `You have been added as a ${ROLE_LABEL[role].toLowerCase()} for ${competitionName}`,
         related_id: competitionId,
-      });
+        club_id: organizerClubId ?? null,
+      } as any);
       return { target, role };
     },
     onSuccess: ({ target, role }) => {
