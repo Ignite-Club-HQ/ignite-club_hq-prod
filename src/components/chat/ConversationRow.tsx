@@ -125,7 +125,7 @@ function ConversationRowImpl({
                   <MessagePreview
                     text={item.lastMessage?.text}
                     imageUrl={item.lastMessage?.image_url}
-                    author={item.lastMessage?.author}
+                    author={item.lastMessage ? "Ignite" : undefined}
                     hasUnread={hasUnread}
                     fallback="Official announcements and updates"
                     eventTitles={eventTitleMap as any}
