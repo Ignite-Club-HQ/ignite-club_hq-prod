@@ -1,4 +1,4 @@
-import { filterBroadcastsForClub } from "@/lib/broadcastClubScope";
+import { filterBroadcastsForClub, broadcastVisibleInClub } from "@/lib/broadcastClubScope";
 import { useStickyList } from "@/hooks/useStickyList";
 import { useStableInboxReadModel } from "@/hooks/useStableInboxReadModel";
 import React, { Fragment, useState, useMemo, useEffect, useRef } from "react";
@@ -569,20 +569,15 @@ export default function MessagesPage() {
 
       if (!data) return null;
       
-      let authorName = "";
-      if (data.author_id) {
-        const { data: profile } = await selectCachedProfileById(data.author_id);
-        if (profile?.display_name) {
-          authorName = profile.display_name;
-        }
-      }
-      
+      // Announcements are always presented as coming from Ignite, never the
+      // individual admin who posted them.
       return {
         text: data.text,
         created_at: data.created_at,
         image_url: data.image_url,
         author_id: data.author_id,
-        profiles: { display_name: authorName }
+        target_club_ids: (data.target_club_ids ?? null) as string[] | null,
+        profiles: { display_name: "Ignite" }
       };
     },
     enabled: !!user && initialized,
@@ -2507,7 +2502,13 @@ export default function MessagesPage() {
     });
   }, [allChatGroups, userAllRoles, userLeagueIds, isAppAdmin, isCommitteeMember, isOnline]);
 
-  const displayLatestBroadcast = latestBroadcast || cachedData?.latestBroadcast;
+  // Fail closed: the persisted inbox cache is not club-keyed, so only show a
+  // preview whose targeting is known and matches the active club.
+  const displayLatestBroadcast = (() => {
+    const candidate = (latestBroadcast || cachedData?.latestBroadcast) as any;
+    if (!candidate) return candidate;
+    return broadcastVisibleInClub(candidate.target_club_ids, activeClubFilter) ? candidate : null;
+  })();
   const displayLatestTeamMessages = latestTeamMessages || {};
   const displayLatestClubMessages = latestClubMessages || {};
   const displayLatestGroupMessages = latestGroupMessages || {};
@@ -2807,7 +2808,7 @@ export default function MessagesPage() {
         lastActivity: displayLatestBroadcast?.created_at || '',
         lastMessage: displayLatestBroadcast ? {
           text: displayLatestBroadcast.text,
-          author: (displayLatestBroadcast.profiles as any)?.display_name || '',
+          author: 'Ignite',
           created_at: displayLatestBroadcast.created_at,
           image_url: displayLatestBroadcast.image_url,
         } : undefined,
