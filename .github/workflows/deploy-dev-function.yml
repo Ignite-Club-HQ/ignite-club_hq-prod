@@ -1,0 +1,29 @@
+name: Deploy DEV edge function
+
+# One-click redeploy of an existing edge function to the DEV project only.
+# GitHub → Actions → "Deploy DEV edge function" → Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      functions:
+        description: "Function names, space separated"
+        required: true
+        default: "send-email send-eoi-invite"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      DEV_REF: ecsdwrarzfexssxtrymj
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Deploy to DEV
+        run: |
+          for fn in ${{ github.event.inputs.functions }}; do
+            echo "Deploying $fn to DEV"
+            supabase functions deploy "$fn" --project-ref "$DEV_REF" --use-api
+          done
