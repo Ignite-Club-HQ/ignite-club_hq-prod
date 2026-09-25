@@ -877,6 +877,10 @@ export function AppHeader() {
         }
 
 
+        case "competition_admin_message": {
+          navigate(relatedId ? `/messages/competition-admin/${relatedId}` : "/messages");
+          return;
+        }
         case "club_admin_message": {
           // related_id is the club_admin_messages.id — resolve the conversation
           // and deep-link to the club-admin thread anchored on this message.
