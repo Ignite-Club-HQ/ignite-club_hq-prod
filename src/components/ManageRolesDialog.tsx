@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateRolesCache } from "@/lib/rolesCache";
 import { cn } from "@/lib/utils";
+import { sendCompetitionWelcomeEmail } from "@/lib/sendCompetitionWelcomeEmail";
 
 /**
  * Single dialog that unifies role assignment AND team-admin promotion for a
