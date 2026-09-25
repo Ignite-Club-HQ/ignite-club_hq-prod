@@ -1,3 +1,4 @@
+import { ContactCompetitionAdminsButton } from "@/components/competitions/ContactCompetitionAdminsButton";
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -228,6 +229,10 @@ export default function CompetitionDetailPage() {
           ) : null;
         })()}
       </header>
+
+      {user && !isAdmin && !isAdminLoading && (
+        <ContactCompetitionAdminsButton competitionId={id!} competitionName={competition.name} />
+      )}
 
       {isAdmin && !organizerHasPro && !proLoading && organizerClubId && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">

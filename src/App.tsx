@@ -76,6 +76,7 @@ const BroadcastChatPage = lazyWithRetry(() => import("./pages/BroadcastChatPage"
 const ClubChatPage = lazyWithRetry(() => import("./pages/ClubChatPage").then(markChatChunk));
 const GroupChatPage = lazyWithRetry(() => import("./pages/GroupChatPage").then(markChatChunk));
 const DirectMessagePage = lazyWithRetry(() => import("./pages/DirectMessagePage").then(markChatChunk));
+const CompetitionAdminChatPage = lazyWithRetry(() => import("./pages/CompetitionAdminChatPage").then(markChatChunk));
 const ClubAdminChatPage = lazyWithRetry(() => import("./pages/ClubAdminChatPage").then(markChatChunk));
 const WelcomeMessagePage = lazyWithRetry(() => import("./pages/WelcomeMessagePage"));
 const MediaPage = lazyWithRetry(() => import("./pages/MediaPage"));
@@ -462,6 +463,7 @@ const App = () => {
                   <Route path="/messages/broadcast" element={<BroadcastChatPage />} />
                   <Route path="/messages/club/:clubId" element={<RemountOnParamChange param="clubId"><ClubChatPage /></RemountOnParamChange>} />
                    <Route path="/messages/dm/:conversationId" element={<RemountOnParamChange param="conversationId"><DirectMessagePage /></RemountOnParamChange>} />
+                   <Route path="/messages/competition-admin/:conversationId" element={<RemountOnParamChange param="conversationId"><CompetitionAdminChatPage /></RemountOnParamChange>} />
                    <Route path="/messages/club-admin/:conversationId" element={<RemountOnParamChange param="conversationId"><ClubAdminChatPage /></RemountOnParamChange>} />
                   <Route path="/messages/welcome" element={<WelcomeMessagePage />} />
                   <Route path="/messages/:teamId" element={<RemountOnParamChange param="teamId"><TeamChatPage /></RemountOnParamChange>} />

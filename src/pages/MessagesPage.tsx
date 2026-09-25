@@ -53,6 +53,7 @@ import EditGroupDialog from "@/components/chat/EditGroupDialog";
 import { StartDMDialog } from "@/components/chat/StartDMDialog";
 import { NewMessageSheet } from "@/components/chat/NewMessageSheet";
 import { ContactClubButton } from "@/components/ContactClubButton";
+import { CompetitionAdminInboxList } from "@/components/chat/CompetitionAdminInboxList";
 import { clubAdminInboxQueryKey, fetchClubAdminConversations } from "@/components/chat/ClubAdminInboxList";
 import DiscoverGroupsList from "@/components/chat/DiscoverGroupsList";
 import { MessagePreview } from "@/components/chat/MessagePreview";
@@ -3878,6 +3879,9 @@ export default function MessagesPage() {
         {/* Contact Club - Pro feature */}
         {!showSkeletonLoading && (
           <ContactClubButton clubFilter={activeClubFilter} />
+        )}
+        {!showSkeletonLoading && (
+          <CompetitionAdminInboxList clubFilter={activeClubFilter} />
         )}
 
         {/* Discover open-to-club Operations / Volunteers groups */}
