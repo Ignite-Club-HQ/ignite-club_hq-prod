@@ -834,6 +834,9 @@ export default function NotificationsPage() {
           jumpAndNavigate(navigate, "group", groupMessage.group_id, relatedId, `/groups/${groupMessage.group_id}?message=${relatedId}`);
         }
         break;
+      case "competition_admin_message":
+        navigate(relatedId ? `/messages/competition-admin/${relatedId}` : "/messages");
+        break;
       case "club_admin_message": {
         // related_id is the club_admin_messages.id; look up its conversation
         const { data: caMsg } = await (supabase as any)
