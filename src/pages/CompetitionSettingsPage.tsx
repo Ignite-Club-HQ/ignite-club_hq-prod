@@ -20,6 +20,7 @@ import { CompetitionAdminsCard } from "@/components/competitions/CompetitionAdmi
 import { CompetitionMemberChatCard } from "@/components/competitions/CompetitionMemberChatCard";
 import { CompetitionOfficialsCard } from "@/components/competitions/CompetitionOfficialsCard";
 import { InviteMessageDefaultCard } from "@/components/invite/InviteMessageDefaultCard";
+import { CompetitionWelcomeEmailCard } from "@/components/competitions/CompetitionWelcomeEmailCard";
 
 
 export default function CompetitionSettingsPage() {
@@ -308,6 +309,9 @@ export default function CompetitionSettingsPage() {
 
       {/* 7. Saved personal message pre-filled into competition invite emails */}
       <InviteMessageDefaultCard scope="competition" scopeId={id!} />
+
+      {/* Player welcome email + Code of Conduct link */}
+      <CompetitionWelcomeEmailCard competitionId={id!} />
 
       {/* 8. Competition-wide chat — opt-in thread for all members of entered teams */}
       <CompetitionMemberChatCard competitionId={id!} />

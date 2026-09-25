@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
 import * as React from "npm:react@18.3.1";
 import { TeamInviteEmail } from "./_templates/team-invite.tsx";
@@ -103,6 +103,54 @@ async function resolveClubInviteMessage(
   } catch (e) {
     console.warn('[send-email] invite message lookup failed:', (e as Error)?.message);
     return undefined;
+  }
+}
+
+/**
+ * Competition player welcome: when the invited team is entered in a
+ * competition that has a saved player welcome message, use it (with the
+ * team name filled in) plus a signed link to its Code of Conduct.
+ */
+async function resolveCompetitionWelcome(
+  supabaseAdmin: any,
+  clubName?: string,
+  teamName?: string,
+): Promise<{ message?: string; cocUrl?: string; cocName?: string }> {
+  if (!supabaseAdmin || !clubName || !teamName) return {};
+  try {
+    const { data: club } = await supabaseAdmin
+      .from('clubs').select('id').eq('name', clubName).maybeSingle();
+    if (!club?.id) return {};
+    const { data: team } = await supabaseAdmin
+      .from('teams').select('id').eq('club_id', club.id).eq('name', teamName)
+      .is('deleted_at', null).maybeSingle();
+    if (!team?.id) return {};
+    const { data: entries } = await supabaseAdmin
+      .from('competition_entries')
+      .select('competition_id, competitions!inner(player_welcome_message, code_of_conduct_path, code_of_conduct_name, created_at)')
+      .eq('team_id', team.id)
+      .in('status', ['invited', 'accepted'])
+      .not('competitions.player_welcome_message', 'is', null);
+    const comps = (entries ?? [])
+      .map((e: any) => e.competitions)
+      .filter((c: any) => c && (c.player_welcome_message ?? '').trim().length > 0)
+      .sort((a: any, b: any) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+    const comp = comps[0];
+    if (!comp) return {};
+    const message = comp.player_welcome_message
+      .replace(/\{team\}|X{3,}/g, teamName)
+      .replace(/:?\s*\[LINK\]/gi, ' using the buttons below');
+    let cocUrl: string | undefined;
+    if (comp.code_of_conduct_path) {
+      const { data: signed } = await supabaseAdmin.storage
+        .from('competition-documents')
+        .createSignedUrl(comp.code_of_conduct_path, 60 * 60 * 24 * 365);
+      cocUrl = signed?.signedUrl;
+    }
+    return { message, cocUrl, cocName: comp.code_of_conduct_name ?? undefined };
+  } catch (e) {
+    console.warn('[send-email] competition welcome lookup failed:', (e as Error)?.message);
+    return {};
   }
 }
 
@@ -482,9 +530,12 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
       // Personal message: one supplied for this send wins, otherwise the
       // club's saved default (set in club settings).
       const oneOffMessage = (data.customMessage ?? '').toString().trim();
+      // Every invite to a team entered in a competition with a welcome
+      // message gets it — players, parents, coaches and team admins alike.
+      const welcome = await resolveCompetitionWelcome(supabaseAdmin, data.clubName, data.teamName);
       const inviteMessage = oneOffMessage.length > 0
         ? oneOffMessage
-        : await resolveClubInviteMessage(supabaseAdmin, data.clubName);
+        : (welcome.message ?? await resolveClubInviteMessage(supabaseAdmin, data.clubName));
 
 
       // Existing user + children → ChildAddedEmail (no download prompts).
@@ -517,6 +568,8 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || [],
           customMessage: inviteMessage,
+          codeOfConductUrl: welcome.cocUrl,
+          codeOfConductName: welcome.cocName,
           isExistingUser,
           isMiniLeague: data.isMiniLeague,
           sport: data.sport ?? sport,
