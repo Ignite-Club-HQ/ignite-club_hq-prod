@@ -31,6 +31,9 @@ interface TeamInviteEmailProps {
   primaryColor?: string;
   childrenNames?: string[];
   customMessage?: string;
+  /** Signed link to a competition Code of Conduct document. */
+  codeOfConductUrl?: string;
+  codeOfConductName?: string;
   isExistingUser?: boolean;
   isMiniLeague?: boolean;
   sport?: string | null;
@@ -74,6 +77,8 @@ export const TeamInviteEmail = ({
   primaryColor = IGNITE_BRAND_COLOR,
   childrenNames = [],
   customMessage,
+  codeOfConductUrl,
+  codeOfConductName,
   isExistingUser = false,
   isMiniLeague = false,
   sport,
@@ -147,6 +152,13 @@ export const TeamInviteEmail = ({
                     </Text>
                   ));
                 })}
+                {codeOfConductUrl && (
+                  <Section style={{ margin: '8px 0 16px 0' }}>
+                    <Button style={{ ...cocButton, borderColor: primaryColor, color: primaryColor }} href={codeOfConductUrl}>
+                      📄 Read the {codeOfConductName ? codeOfConductName.replace(/\.pdf$/i, '') : 'Code of Conduct'}
+                    </Button>
+                  </Section>
+                )}
               </>
             ) : isSimple ? (
               /* Short, focused copy — no feature list (club setting: simple) */
@@ -452,6 +464,16 @@ const headingText = {
   fontWeight: 'bold' as const,
   lineHeight: '28px',
   margin: '0 0 20px 0',
+};
+
+const cocButton = {
+  border: '2px solid',
+  borderRadius: '8px',
+  fontSize: '15px',
+  fontWeight: '600' as const,
+  padding: '10px 18px',
+  textDecoration: 'none',
+  display: 'inline-block',
 };
 
 const bodyText = {

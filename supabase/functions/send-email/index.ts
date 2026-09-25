@@ -530,9 +530,13 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
       // Personal message: one supplied for this send wins, otherwise the
       // club's saved default (set in club settings).
       const oneOffMessage = (data.customMessage ?? '').toString().trim();
+      const isStaffRole = ['Club Admin', 'Committee Member', 'Coach', 'Team Admin'].includes(data.roleName);
+      const welcome = isStaffRole
+        ? {}
+        : await resolveCompetitionWelcome(supabaseAdmin, data.clubName, data.teamName);
       const inviteMessage = oneOffMessage.length > 0
         ? oneOffMessage
-        : await resolveClubInviteMessage(supabaseAdmin, data.clubName);
+        : (welcome.message ?? await resolveClubInviteMessage(supabaseAdmin, data.clubName));
 
 
       // Existing user + children → ChildAddedEmail (no download prompts).
@@ -565,6 +569,8 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           primaryColor: data.primaryColor || IGNITE_BRAND_COLOR,
           childrenNames: data.childrenNames || [],
           customMessage: inviteMessage,
+          codeOfConductUrl: welcome.cocUrl,
+          codeOfConductName: welcome.cocName,
           isExistingUser,
           isMiniLeague: data.isMiniLeague,
           sport: data.sport ?? sport,
