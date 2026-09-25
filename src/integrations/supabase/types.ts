@@ -10376,6 +10376,7 @@ export type Database = {
       vault_files: {
         Row: {
           club_id: string | null
+          competition_id: string | null
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
@@ -10397,6 +10398,7 @@ export type Database = {
         }
         Insert: {
           club_id?: string | null
+          competition_id?: string | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -10418,6 +10420,7 @@ export type Database = {
         }
         Update: {
           club_id?: string | null
+          competition_id?: string | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -10453,6 +10456,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "vault_files_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vault_files_folder_id_fkey"
             columns: ["folder_id"]
             isOneToOne: false
@@ -10479,6 +10489,8 @@ export type Database = {
         Row: {
           chat_group_id: string | null
           club_id: string | null
+          competition_id: string | null
+          competition_team_id: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -10493,6 +10505,8 @@ export type Database = {
         Insert: {
           chat_group_id?: string | null
           club_id?: string | null
+          competition_id?: string | null
+          competition_team_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -10507,6 +10521,8 @@ export type Database = {
         Update: {
           chat_group_id?: string | null
           club_id?: string | null
+          competition_id?: string | null
+          competition_team_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -10538,6 +10554,20 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vault_folders_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vault_folders_competition_team_id_fkey"
+            columns: ["competition_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
           {
@@ -11464,6 +11494,10 @@ export type Database = {
       }
       ensure_competition_role_chat: {
         Args: { _competition_id: string; _scope: string }
+        Returns: string
+      }
+      ensure_competition_vault: {
+        Args: { _competition_id: string }
         Returns: string
       }
       ensure_team_role_folders: {
