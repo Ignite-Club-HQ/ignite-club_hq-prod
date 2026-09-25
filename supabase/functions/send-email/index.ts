@@ -530,10 +530,9 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
       // Personal message: one supplied for this send wins, otherwise the
       // club's saved default (set in club settings).
       const oneOffMessage = (data.customMessage ?? '').toString().trim();
-      const isStaffRole = ['Club Admin', 'Committee Member', 'Coach', 'Team Admin'].includes(data.roleName);
-      const welcome = isStaffRole
-        ? {}
-        : await resolveCompetitionWelcome(supabaseAdmin, data.clubName, data.teamName);
+      // Every invite to a team entered in a competition with a welcome
+      // message gets it — players, parents, coaches and team admins alike.
+      const welcome = await resolveCompetitionWelcome(supabaseAdmin, data.clubName, data.teamName);
       const inviteMessage = oneOffMessage.length > 0
         ? oneOffMessage
         : (welcome.message ?? await resolveClubInviteMessage(supabaseAdmin, data.clubName));
