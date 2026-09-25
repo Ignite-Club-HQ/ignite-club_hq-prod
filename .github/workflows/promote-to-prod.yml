@@ -520,7 +520,7 @@ jobs:
       # Storage buckets are not created by migrations — ensure required
       # private buckets exist in PROD (idempotent; never modifies existing).
       - name: Ensure PROD storage buckets
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           PROD_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_PROD_SERVICE_ROLE_KEY }}
         run: |
