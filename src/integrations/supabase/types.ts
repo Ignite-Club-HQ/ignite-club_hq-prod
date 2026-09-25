@@ -12135,6 +12135,10 @@ export type Database = {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
+      is_competition_role_admin: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_eligible_competition_owner: {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
