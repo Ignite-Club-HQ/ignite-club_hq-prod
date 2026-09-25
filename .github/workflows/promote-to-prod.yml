@@ -517,6 +517,30 @@ jobs:
         if: github.event_name == 'push'
         run: supabase db push --linked
 
+      # Storage buckets are not created by migrations — ensure required
+      # private buckets exist in PROD (idempotent; never modifies existing).
+      - name: Ensure PROD storage buckets
+        if: github.event_name == 'push'
+        env:
+          PROD_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_PROD_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$PROD_SERVICE_ROLE_KEY" ]; then
+            echo "::warning::SUPABASE_PROD_SERVICE_ROLE_KEY not set — skipping bucket check."; exit 0
+          fi
+          BASE_URL="https://${PROJECT_REF}.supabase.co"
+          for b in competition-documents; do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/storage/v1/bucket/$b" \
+              -H "Authorization: Bearer $PROD_SERVICE_ROLE_KEY" -H "apikey: $PROD_SERVICE_ROLE_KEY")
+            if [ "$CODE" = "200" ]; then echo "✅ Bucket $b exists."; continue; fi
+            RESP=$(curl -s -w '\n%{http_code}' -X POST "$BASE_URL/storage/v1/bucket" \
+              -H "Authorization: Bearer $PROD_SERVICE_ROLE_KEY" -H "apikey: $PROD_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"id\":\"$b\",\"name\":\"$b\",\"public\":false,\"file_size_limit\":10485760}")
+            STATUS=$(echo "$RESP" | tail -n1)
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "201" ]; then echo "✅ Bucket $b created (private)."
+            else echo "::error::Failed to create bucket $b (HTTP $STATUS)"; exit 1; fi
+          done
+
 
 
       - name: Deploy changed edge functions to PROD
