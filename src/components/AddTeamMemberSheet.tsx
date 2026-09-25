@@ -1146,6 +1146,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           } catch (err) {
             console.error("[AddMember] Failed to send team-invite email to primary parent:", err);
           }
+        } else if (!result?.roleWasDuplicate) {
+          // Parent added without children: still send the competition welcome (if any).
+          void sendCompetitionWelcomeEmail({
+            userId: selectedUser.id, recipientName: selectedUser.display_name, teamId, teamName,
+            clubId: clubId as string, clubName: clubBranding?.name, roleName: "Parent",
+          });
         }
       }
 
