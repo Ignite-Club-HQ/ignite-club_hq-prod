@@ -1,3 +1,4 @@
+import { sendCompetitionWelcomeEmail } from "@/lib/sendCompetitionWelcomeEmail";
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
