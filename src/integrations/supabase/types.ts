@@ -2653,6 +2653,79 @@ export type Database = {
           },
         ]
       }
+      competition_admin_conversations: {
+        Row: {
+          competition_id: string
+          created_at: string
+          id: string
+          last_message_at: string | null
+          member_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          competition_id: string
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          member_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          competition_id?: string
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          member_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_admin_conversations_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competition_admin_messages: {
+        Row: {
+          author_id: string
+          conversation_id: string
+          created_at: string
+          id: string
+          image_url: string | null
+          is_admin_reply: boolean
+          text: string
+        }
+        Insert: {
+          author_id: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_admin_reply?: boolean
+          text?: string
+        }
+        Update: {
+          author_id?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_admin_reply?: boolean
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_admin_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "competition_admin_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competition_broadcasts: {
         Row: {
           competition_id: string
@@ -10808,6 +10881,10 @@ export type Database = {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
+      can_access_competition_admin_conversation: {
+        Args: { _conversation_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_access_mini_league_chat: {
         Args: { _mini_league_id: string; _user_id: string }
         Returns: boolean
@@ -11722,6 +11799,10 @@ export type Database = {
       }
       get_or_create_club_admin_conversation: {
         Args: { p_club_id: string }
+        Returns: string
+      }
+      get_or_create_competition_admin_conversation: {
+        Args: { p_competition_id: string }
         Returns: string
       }
       get_or_create_dm_conversation: {
