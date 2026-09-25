@@ -115,7 +115,7 @@ async function resolveCompetitionWelcome(
   supabaseAdmin: any,
   clubName?: string,
   teamName?: string,
-): Promise<{ message?: string; cocUrl?: string; cocName?: string }> {
+): Promise<{ message?: string; cocUrl?: string; cocName?: string; compName?: string }> {
   if (!supabaseAdmin || !clubName || !teamName) return {};
   try {
     const { data: club } = await supabaseAdmin
@@ -127,7 +127,7 @@ async function resolveCompetitionWelcome(
     if (!team?.id) return {};
     const { data: entries } = await supabaseAdmin
       .from('competition_entries')
-      .select('competition_id, competitions!inner(player_welcome_message, code_of_conduct_path, code_of_conduct_name, created_at)')
+      .select('competition_id, competitions!inner(name, player_welcome_message, code_of_conduct_path, code_of_conduct_name, created_at)')
       .eq('team_id', team.id)
       .in('status', ['invited', 'accepted'])
       .not('competitions.player_welcome_message', 'is', null);
@@ -147,7 +147,7 @@ async function resolveCompetitionWelcome(
         .createSignedUrl(comp.code_of_conduct_path, 60 * 60 * 24 * 365);
       cocUrl = signed?.signedUrl;
     }
-    return { message, cocUrl, cocName: comp.code_of_conduct_name ?? undefined };
+    return { message, cocUrl, cocName: comp.code_of_conduct_name ?? undefined, compName: comp.name ?? undefined };
   } catch (e) {
     console.warn('[send-email] competition welcome lookup failed:', (e as Error)?.message);
     return {};
@@ -1008,6 +1008,15 @@ serve(async (req: Request): Promise<Response> => {
       sender = `${senderName} <support@igniteclubhq.app>`;
     } else {
       sender = from || "Ignite <support@igniteclubhq.app>";
+    }
+
+    // Women's Masters (Bridgewater) invites: send as the competition, replies to its inbox.
+    if ((template === 'team-invite' || template === 'invite-reminder') && templateData?.clubName && templateData?.teamName) {
+      const w = await resolveCompetitionWelcome(adminClient, templateData.clubName, templateData.teamName);
+      if (w.message && /women'?s\s+masters/i.test(w.compName ?? '')) {
+        sender = 'Bridgewater Womens Masters Comp <support@igniteclubhq.app>';
+        replyTo = 'bridgewaterwomenssoccer@gmail.com';
+      }
     }
 
     console.log(`Sending ${template || 'custom'} email to ${toArray.length} recipient(s)${replyTo ? ` (reply-to: ${replyTo})` : ''}`);
