@@ -3066,6 +3066,8 @@ export type Database = {
       }
       competitions: {
         Row: {
+          code_of_conduct_name: string | null
+          code_of_conduct_path: string | null
           contact_email: string | null
           created_at: string
           created_by: string
@@ -3083,6 +3085,7 @@ export type Database = {
           member_chat_enabled: boolean
           name: string
           organizer_club_id: string
+          player_welcome_message: string | null
           points_draw: number
           points_loss: number
           points_win: number
@@ -3096,6 +3099,8 @@ export type Database = {
           visibility: string
         }
         Insert: {
+          code_of_conduct_name?: string | null
+          code_of_conduct_path?: string | null
           contact_email?: string | null
           created_at?: string
           created_by: string
@@ -3113,6 +3118,7 @@ export type Database = {
           member_chat_enabled?: boolean
           name: string
           organizer_club_id: string
+          player_welcome_message?: string | null
           points_draw?: number
           points_loss?: number
           points_win?: number
@@ -3126,6 +3132,8 @@ export type Database = {
           visibility?: string
         }
         Update: {
+          code_of_conduct_name?: string | null
+          code_of_conduct_path?: string | null
           contact_email?: string | null
           created_at?: string
           created_by?: string
@@ -3143,6 +3151,7 @@ export type Database = {
           member_chat_enabled?: boolean
           name?: string
           organizer_club_id?: string
+          player_welcome_message?: string | null
           points_draw?: number
           points_loss?: number
           points_win?: number
