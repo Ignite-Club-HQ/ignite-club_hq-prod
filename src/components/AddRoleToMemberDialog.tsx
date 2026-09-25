@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { sendCompetitionWelcomeEmail } from "@/lib/sendCompetitionWelcomeEmail";
 
 type TeamRole = "player" | "parent" | "coach" | "team_admin";
 
@@ -81,6 +82,10 @@ export default function AddRoleToMemberDialog({
         type: "membership",
         message: `You have been assigned new role(s) in ${teamName}: ${roleNames}`,
         related_id: teamId,
+      });
+
+      void sendCompetitionWelcomeEmail({
+        userId, recipientName: userName, teamId, teamName, clubId, roleName: roleNames,
       });
     },
     onSuccess: () => {

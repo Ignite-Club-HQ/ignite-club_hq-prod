@@ -986,6 +986,18 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
+    // Callers that only want the competition welcome email (e.g. role added to
+    // an existing member) skip silently when the team has no competition welcome.
+    if ((templateData as any)?.onlyIfCompetitionWelcome) {
+      const w = await resolveCompetitionWelcome(adminClient, templateData?.clubName, templateData?.teamName);
+      if (!w.message) {
+        return new Response(
+          JSON.stringify({ success: true, skipped: "no_competition_welcome" }),
+          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
+        );
+      }
+    }
+
     // Generate HTML from template or use provided HTML
     let emailHtml = html;
     if (template && templateData) {
