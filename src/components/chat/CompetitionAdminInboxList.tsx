@@ -67,8 +67,7 @@ export function CompetitionAdminInboxList({ clubFilter }: { clubFilter?: string 
 
       const visible = convs.filter((c: any) => allowed.has(c.competition_id) && compMap.has(c.competition_id));
       const memberIds = [...new Set(visible.map((c: any) => c.member_user_id))] as string[];
-      const profiles = memberIds.length ? await fetchProfilesWithCache(memberIds) : [];
-      const pMap = new Map<string, any>((profiles as any[]).map((p) => [p.id, p]));
+      const pMap: Map<string, any> = await fetchProfilesWithCache(memberIds);
 
       return visible.map((c: any) => ({
         id: c.id,
