@@ -26,6 +26,8 @@ interface RailItem {
   teamId?: string | null;
   /** Other participant (DMs) or members (personal groups) for club scoping */
   otherUserIds?: string[];
+  /** Competition chats: clubs participating (organiser + entered teams). null = unresolved. */
+  competitionClubIds?: string[] | null;
 }
 
 
@@ -119,7 +121,7 @@ export function DesktopMessagesRail() {
 
       const { data: groups, error } = await supabase
         .from("chat_groups")
-        .select("id, name, created_at, club_id, team_id, teams(name, deleted_at), clubs!club_id(name, deleted_at, purged_at)")
+        .select("id, name, created_at, club_id, team_id, competition_id, teams(name, deleted_at), clubs!club_id(name, deleted_at, purged_at)")
         .in("id", ids as string[])
         .is("deleted_at", null);
       if (error) throw error;
@@ -141,9 +143,38 @@ export function DesktopMessagesRail() {
         // Snippets are best-effort in the rail.
       }
 
+      // Competition chats: resolve participating clubs (organiser + entered teams).
+      const competitionIds = [
+        ...new Set(visible.map((g: any) => g.competition_id).filter(Boolean)),
+      ] as string[];
+      const compClubs = new Map<string, Set<string>>();
+      let compResolved = true;
+      if (competitionIds.length > 0) {
+        const [comps, entries] = await Promise.all([
+          supabase.from("competitions").select("id, organizer_club_id").in("id", competitionIds),
+          supabase
+            .from("competition_entries")
+            .select("competition_id, status, teams!inner(club_id)")
+            .in("competition_id", competitionIds)
+            .in("status", ["invited", "accepted"]),
+        ]);
+        if (comps.error || entries.error) compResolved = false;
+        ((comps.data as any[]) || []).forEach((c: any) => {
+          if (!c.organizer_club_id) return;
+          if (!compClubs.has(c.id)) compClubs.set(c.id, new Set());
+          compClubs.get(c.id)!.add(c.organizer_club_id);
+        });
+        ((entries.data as any[]) || []).forEach((e: any) => {
+          const cid = e.teams?.club_id;
+          if (!cid) return;
+          if (!compClubs.has(e.competition_id)) compClubs.set(e.competition_id, new Set());
+          compClubs.get(e.competition_id)!.add(cid);
+        });
+      }
+
       // Personal groups (no club/team) are scoped by their members' club roles.
       const personalIds = visible
-        .filter((g: any) => !g.club_id && !g.team_id)
+        .filter((g: any) => !g.club_id && !g.team_id && !g.competition_id)
         .map((g: any) => g.id);
       const membersByGroup = new Map<string, string[]>();
       if (personalIds.length > 0) {
@@ -178,6 +209,11 @@ export function DesktopMessagesRail() {
           clubId: g.club_id ?? null,
           teamId: g.team_id ?? null,
           otherUserIds: membersByGroup.get(g.id) || [],
+          competitionClubIds: g.competition_id
+            ? compResolved
+              ? Array.from(compClubs.get(g.competition_id) || [])
+              : null
+            : undefined,
         };
       });
     },
@@ -338,6 +374,10 @@ export function DesktopMessagesRail() {
       combined = combined.filter((i) => {
         if (i.clubId) return i.clubId === activeClubFilter;
         if (i.teamId) return activeClubTeamIds.includes(i.teamId);
+        // Competition chats: only in clubs participating in the competition (fail closed).
+        if (i.competitionClubIds !== undefined) {
+          return !!i.competitionClubIds && i.competitionClubIds.includes(activeClubFilter);
+        }
         // DMs and personal groups: keep when a counterpart is in the active club.
         const others = i.otherUserIds || [];
         if (others.length === 0) return true;
