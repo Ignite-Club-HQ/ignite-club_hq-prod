@@ -989,6 +989,10 @@ serve(async (req: Request): Promise<Response> => {
     // Generate HTML from template or use provided HTML
     let emailHtml = html;
     if (template && templateData) {
+      // So the "already on Ignite" check works when the caller only sent toUserId.
+      if ((template === 'team-invite' || template === 'invite-reminder') && !templateData.invitedEmail && !templateData.to) {
+        templateData = { ...templateData, invitedEmail: toArray[0] };
+      }
       try {
         emailHtml = await renderEmailTemplate(template, templateData, adminClient);
         console.log(`Rendered ${template} template successfully`);
