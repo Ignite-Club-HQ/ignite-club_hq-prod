@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateRolesCache } from "@/lib/rolesCache";
 import { cn } from "@/lib/utils";
+import { sendCompetitionWelcomeEmail } from "@/lib/sendCompetitionWelcomeEmail";
 
 /**
  * Single dialog that unifies role assignment AND team-admin promotion for a
@@ -177,6 +178,10 @@ export default function ManageRolesDialog({
         }));
         const { error } = await supabase.from("user_roles").insert(rows);
         if (error) throw error;
+        void sendCompetitionWelcomeEmail({
+          userId, recipientName: userName, teamId, teamName, clubId,
+          roleName: additions.map((r) => r.label).join(", "),
+        });
       }
       if (removals.length > 0) {
         const ids = removals.map((r) => r.id);

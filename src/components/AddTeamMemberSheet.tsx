@@ -1,3 +1,4 @@
+import { sendCompetitionWelcomeEmail } from "@/lib/sendCompetitionWelcomeEmail";
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -1146,6 +1147,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           } catch (err) {
             console.error("[AddMember] Failed to send team-invite email to primary parent:", err);
           }
+        } else if (!result?.roleWasDuplicate) {
+          // Parent added without children: still send the competition welcome (if any).
+          void sendCompetitionWelcomeEmail({
+            userId: selectedUser.id, recipientName: selectedUser.display_name, teamId, teamName,
+            clubId: clubId as string, clubName: clubBranding?.name, roleName: "Parent",
+          });
         }
       }
 
