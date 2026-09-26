@@ -935,6 +935,7 @@ export function UploadPhotoSheet({
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
+    setSelectedCompetitionId("");
     setSelectedEventId("");
     setCaption("");
     setSelectedPhotos([]);
@@ -1314,6 +1315,7 @@ export function UploadPhotoSheet({
                             setSelectedClubId(club.id);
                             setSelectedTeamId("");
                             setSelectedMiniLeagueId("");
+                            setSelectedCompetitionId("");
                           }}
                           className={cn(
                             "flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left w-full",
