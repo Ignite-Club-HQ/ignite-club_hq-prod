@@ -27,9 +27,14 @@ import { useOnlineSet } from "@/hooks/useUserPresence";
 
 // Highest-privilege first. App admin sinks to the end (internal-only).
 const ROLE_PRIORITY: string[] = [
+  "competition_admin",
+  "competition_committee",
+  "referee",
+  "scorer",
   "club_admin",
   "league_admin",
   "committee_member",
+  "captain",
   "team_admin",
   "coach",
   "parent",
@@ -48,6 +53,11 @@ const ROLE_LABEL_SHORT: Record<string, string> = {
   parent: "Parent",
   player: "Player",
   basic_user: "Member",
+  competition_admin: "League Admin",
+  competition_committee: "Committee",
+  referee: "Referee",
+  scorer: "Scorer",
+  captain: "Captain",
 };
 
 function shortRoleLabel(role: string) {
@@ -133,7 +143,7 @@ export function ChatParticipantsList({
     queryFn: async () => {
       const { data } = await supabase
         .from("chat_groups")
-        .select("created_by, membership_mode")
+        .select("created_by, membership_mode, competition_id")
         .eq("id", chatId)
         .maybeSingle();
       return data ?? null;
@@ -508,10 +518,63 @@ export function ChatParticipantsList({
   const teamScopeClubId = resolvedClubId ?? (chatType === "club" ? chatId : clubId) ?? null;
   // All roles per member, with team_id + team name. Powers both the compact row
   // (primary role + "+N roles") and the profile sheet (grouped by team).
+  const competitionId: string | null = (groupMeta as any)?.competition_id ?? null;
   const { data: memberRoleEntries } = useQuery({
-    queryKey: ["chat-members-role-entries", chatType, chatId, teamScopeClubId, memberIds],
+    queryKey: ["chat-members-role-entries", chatType, chatId, teamScopeClubId, competitionId, memberIds],
     queryFn: async () => {
       if (memberIds.length === 0) return {} as Record<string, ParticipantRoleEntry[]>;
+      if (competitionId) {
+        // Competition chats: only show roles tied to this competition.
+        const [compRoles, entries] = await Promise.all([
+          (supabase.from("competition_roles") as any)
+            .select("user_id, role")
+            .eq("competition_id", competitionId)
+            .in("user_id", memberIds),
+          (supabase.from("competition_entries") as any)
+            .select("team_id, status, teams(name)")
+            .eq("competition_id", competitionId),
+        ]);
+        const teamRows = ((entries.data || []) as any[]).filter(
+          (e) => e.team_id && !["declined", "withdrawn", "removed", "rejected"].includes(e.status),
+        );
+        const teamIds = teamRows.map((e) => e.team_id as string);
+        const teamName = new Map<string, string>(teamRows.map((e) => [e.team_id, e.teams?.name ?? null]));
+        const [teamRoles, captains] = teamIds.length
+          ? await Promise.all([
+              supabase
+                .from("user_roles")
+                .select("user_id, role, team_id")
+                .in("team_id", teamIds)
+                .in("user_id", memberIds)
+                .in("role", ["player", "team_admin", "coach"]),
+              supabase
+                .from("team_captains")
+                .select("user_id, team_id")
+                .in("team_id", teamIds)
+                .in("user_id", memberIds),
+            ])
+          : [{ data: [] as any[] }, { data: [] as any[] }];
+        const map: Record<string, ParticipantRoleEntry[]> = {};
+        const seen: Record<string, Set<string>> = {};
+        const push = (uid: string, role: string, team_id: string | null) => {
+          if (!map[uid]) { map[uid] = []; seen[uid] = new Set(); }
+          const k = `${role}::${team_id ?? ""}`;
+          if (seen[uid].has(k)) return;
+          seen[uid].add(k);
+          map[uid].push({ role, team_id, team_name: team_id ? teamName.get(team_id) ?? null : null });
+        };
+        const COMP_ROLE: Record<string, string> = {
+          owner: "competition_admin",
+          admin: "competition_admin",
+          referee: "referee",
+          committee: "competition_committee",
+          scorer: "scorer",
+        };
+        for (const r of (compRoles.data || []) as any[]) push(r.user_id, COMP_ROLE[r.role] ?? r.role, null);
+        for (const c of (captains.data || []) as any[]) push(c.user_id, "captain", c.team_id);
+        for (const r of (teamRoles.data || []) as any[]) push(r.user_id, r.role, r.team_id);
+        return map;
+      }
       let q = supabase
         .from("user_roles")
         .select("user_id, role, club_id, team_id, teams(name, club_id)")
