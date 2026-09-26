@@ -23,6 +23,11 @@ import { JoinRequestResponseEmail } from "./_templates/join-request-response.tsx
 import { sportEmoji, swapTrailingSportEmoji } from "./_templates/sport-meta.ts";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
 
+const BRIDGEWATER_MASTERS_DISPLAY_NAME = 'Bridgewater Masters Womens Comp';
+function isBridgewaterMastersTeam(clubName?: string | null, teamType?: string | null): boolean {
+  return clubName === 'Bridgewater Soccer Club' && teamType === 'senior';
+}
+
 /**
  * Look up the club's sport and the team's team_type for sport-aware /
  * audience-aware email rendering. Best-effort; failures are non-fatal.
@@ -42,12 +47,14 @@ async function resolveSportAndTeamType(
     let sport: string | null = club?.sport ?? null;
     let teamType: string | null = null;
     if (club?.id && teamName) {
-      const { data: team } = await supabaseAdmin
+      // Team names can repeat within a club: fetch all matches, prefer senior.
+      const { data: teams } = await supabaseAdmin
         .from('teams')
         .select('team_type, sport')
         .eq('club_id', club.id)
-        .eq('name', teamName)
-        .maybeSingle();
+        .eq('name', teamName);
+      const list = (teams ?? []) as Array<{ team_type: string | null; sport: string | null }>;
+      const team = list.find((t) => t.team_type === 'senior') ?? list[0];
       if (team) {
         teamType = team.team_type ?? null;
         sport = team.sport ?? sport;
@@ -575,6 +582,9 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           sport: data.sport ?? sport,
           teamType: data.teamType ?? teamType,
           emailStyle,
+          clubDisplayName: isBridgewaterMastersTeam(data.clubName, teamType)
+            ? BRIDGEWATER_MASTERS_DISPLAY_NAME
+            : undefined,
         })
       );
     }
@@ -973,13 +983,17 @@ serve(async (req: Request): Promise<Response> => {
     // the existing emoji if no sport is on record.
     if ((template === 'team-invite' || template === 'invite-reminder') && templateData?.clubName) {
       try {
-        const { sport } = await resolveSportAndTeamType(
+        const { sport, teamType } = await resolveSportAndTeamType(
           adminClient,
           templateData.clubName,
           templateData.teamName,
         );
         if (sport) {
           subject = swapTrailingSportEmoji(subject, sport);
+        }
+        if (template === 'team-invite' && isBridgewaterMastersTeam(templateData.clubName, teamType) && templateData.teamName) {
+          const role = (templateData as any).roleName || 'Player';
+          subject = `Bridgewater Womens Masters: You've been added to team ${templateData.teamName} as ${role} 🏆`;
         }
       } catch (e) {
         console.warn('[send-email] subject emoji rewrite failed:', (e as Error)?.message);
