@@ -10911,6 +10911,10 @@ export type Database = {
         Args: { _club_ids: string[]; _user_id: string }
         Returns: boolean
       }
+      broadcast_visible_to_user: {
+        Args: { _club_ids: string[]; _sent_at: string; _user_id: string }
+        Returns: boolean
+      }
       can_access_chat: {
         Args: { _chat_id: string; _chat_type: string }
         Returns: boolean
