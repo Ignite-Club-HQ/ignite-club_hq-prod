@@ -565,12 +565,12 @@ export default function MediaPage() {
       diagLog("photos:start", { pageParam });
       let query = supabase
         .from("photos")
-        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, album_id, clubs!club_id(name, is_pro), teams(name, club_id, clubs!club_id(name)), mini_leagues(name, club_id, clubs!club_id(name))")
+        .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, competition_id, uploader_id, album_id, competitions(name), clubs!club_id(name, is_pro), teams(name, club_id, clubs!club_id(name)), mini_leagues(name, club_id, clubs!club_id(name))")
         .eq("show_in_feed", true)
         .is("deleted_at", null);
 
       if (cardId && cardPhotoIds?.length) query = query.in("id", cardPhotoIds);
-      if (selectedClubFilter) query = query.eq("club_id", selectedClubFilter);
+      if (selectedClubFilter) query = query.or(`club_id.eq.${selectedClubFilter},competition_id.not.is.null`);
       if (selectedTeamFilter) query = query.eq("team_id", selectedTeamFilter);
       if (urlEventId) query = query.eq("event_id", urlEventId);
       if (dateFromKey) query = query.gte("created_at", dateFromKey);
@@ -652,7 +652,7 @@ export default function MediaPage() {
         if (delays[i] > 0) await new Promise((r) => setTimeout(r, delays[i]));
         const { data, error } = await supabase
           .from("photos")
-          .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, uploader_id, clubs!club_id(name, is_pro), teams(name, club_id, clubs!club_id(name)), mini_leagues(name, club_id, clubs!club_id(name))")
+          .select("id, file_url, image_url, title, caption, created_at, club_id, team_id, event_id, mini_league_id, competition_id, uploader_id, competitions(name), clubs!club_id(name, is_pro), teams(name, club_id, clubs!club_id(name)), mini_leagues(name, club_id, clubs!club_id(name))")
           .eq("id", highlightedPhotoId)
           .eq("show_in_feed", true)
           .is("deleted_at", null)
@@ -757,7 +757,7 @@ export default function MediaPage() {
     
     // Filter by club
     if (selectedClubId !== "all") {
-      filtered = filtered.filter(photo => photo.club_id === selectedClubId);
+      filtered = filtered.filter((photo: any) => photo.club_id === selectedClubId || !!photo.competition_id);
     }
     
     // Filter by team
@@ -1594,7 +1594,9 @@ export default function MediaPage() {
                       {displayName || <Skeleton className="h-3 w-20 inline-block" />}
                     </p>
                     <p className="text-[11px] text-muted-foreground truncate">
-                      {photo.mini_leagues?.name
+                      {(photo as any).competitions?.name
+                        ? `🏆 ${(photo as any).competitions.name}`
+                        : photo.mini_leagues?.name
                         ? `${photo.mini_leagues?.clubs?.name || photo.clubs?.name} · ${photo.mini_leagues.name}`
                         : photo.teams?.name
                           ? `${photo.teams?.clubs?.name || photo.clubs?.name} · ${photo.teams.name}`
