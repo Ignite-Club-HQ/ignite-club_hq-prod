@@ -268,7 +268,6 @@ export default function CompetitionDetailPage() {
         <TabsList className="w-full">
           <TabsTrigger value="fixtures" className="flex-1">Fixtures</TabsTrigger>
           {canViewLadder && <TabsTrigger value="ladder" className="flex-1">Ladder</TabsTrigger>}
-          <TabsTrigger value="media" className="flex-1">Media</TabsTrigger>
           {competition.source === "playhq" && (
             <TabsTrigger value="stats" className="flex-1">Stats</TabsTrigger>
           )}
@@ -288,10 +287,6 @@ export default function CompetitionDetailPage() {
             <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={canManage} />
           </TabsContent>
         )}
-
-        <TabsContent value="media">
-          <CompetitionMediaPanel competitionId={id!} organizerClubId={organizerClubId} canManage={isAdmin} />
-        </TabsContent>
 
 
         {competition.source === "playhq" && (
