@@ -25,6 +25,8 @@ interface TeamInviteEmailProps {
   invitedEmail?: string;
   teamName: string;
   clubName: string;
+  /** Optional name for the signature/footer; defaults to clubName. */
+  clubDisplayName?: string;
   roleName: string;
   inviteLink: string;
   clubLogoUrl?: string;
@@ -71,6 +73,7 @@ export const TeamInviteEmail = ({
   invitedEmail,
   teamName = "The Team",
   clubName = "The Club",
+  clubDisplayName,
   roleName = "Player",
   inviteLink = "https://igniteclubhq.app/join",
   clubLogoUrl,
@@ -384,7 +387,7 @@ export const TeamInviteEmail = ({
             </Text>
 
             <Text style={clubSignature}>
-              {clubName}
+              {clubDisplayName ?? clubName}
             </Text>
           </Section>
 
