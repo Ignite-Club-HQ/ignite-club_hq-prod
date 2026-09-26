@@ -66,6 +66,25 @@ export default function MatchCaptainSelector({
     },
   });
 
+  // Season-long team captain, used as the default when this game has no captain row.
+  const { data: seasonCaptain } = useQuery({
+    queryKey: ["team-season-captain", teamId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("team_captains")
+        .select("user_id")
+        .eq("team_id", teamId!)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.user_id) return null;
+      const { data: profile } = await selectCachedProfileById(data.user_id);
+      return { user_id: data.user_id, profiles: profile as any };
+    },
+    enabled: !!teamId,
+  });
+
   const { data: playerUserIds = [] } = useQuery({
     queryKey: ["team-player-user-ids", teamId],
     queryFn: async () => {
@@ -150,7 +169,29 @@ export default function MatchCaptainSelector({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          {captain ? (
+          {!captain && seasonCaptain ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10 ring-2 ring-blue-500">
+                  {seasonCaptain.profiles?.avatar_url && (
+                    <AvatarImage src={seasonCaptain.profiles.avatar_url} />
+                  )}
+                  <AvatarFallback className="bg-blue-500/20 text-blue-600">
+                    {(seasonCaptain.profiles?.display_name || "?").charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col">
+                  <span className="font-semibold">{seasonCaptain.profiles?.display_name || "Team captain"}</span>
+                  <span className="text-xs text-muted-foreground">(season captain)</span>
+                </div>
+              </div>
+              {isAdmin && (
+                <Button variant="ghost" size="sm" onClick={() => setSelectDialogOpen(true)}>
+                  Change
+                </Button>
+              )}
+            </div>
+          ) : captain ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10 ring-2 ring-blue-500">
