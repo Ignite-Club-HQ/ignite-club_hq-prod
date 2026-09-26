@@ -113,6 +113,21 @@ export default function CompetitionSettingsPage() {
 
   const save = async () => {
     if (!isDirty) return;
+    if (competition?.status === "draft" && status !== "draft") {
+      const { data: m } = await supabase
+        .from("competition_matches")
+        .select("home_team_id, away_team_id")
+        .eq("competition_id", competition.id)
+        .not("scheduled_at", "is", null)
+        .not("home_team_id", "is", null)
+        .not("away_team_id", "is", null);
+      const games = (m ?? []).length * 2;
+      const teams = new Set((m ?? []).flatMap((r: any) => [r.home_team_id, r.away_team_id])).size;
+      const msg = games > 0
+        ? `Publishing adds ${games} game${games === 1 ? "" : "s"} to ${teams} team${teams === 1 ? "" : "s"}' schedules and sends each team one alert. Continue?`
+        : "Publish this competition? No dated fixtures yet, so no games will be added to team schedules.";
+      if (!window.confirm(msg)) return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from("competitions")
