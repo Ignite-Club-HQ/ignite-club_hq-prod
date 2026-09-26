@@ -96,7 +96,7 @@ export default function PublicCompetitionPage() {
   const hiddenDivisionIds = new Set(
     (divisions as any[]).filter((d: any) => d.hide_ladder).map((d: any) => d.id)
   );
-  const hasHiddenDivisionLadder = hiddenDivisionIds.size > 0;
+  const hasHiddenDivisionLadder = !!(competition as any)?.hide_ladder || hiddenDivisionIds.size > 0;
   const ladderByDivision = new Map<string, any[]>();
   ladder.forEach((r: any) => {
     if (hasHiddenDivisionLadder) return;
