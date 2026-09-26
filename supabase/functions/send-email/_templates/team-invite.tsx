@@ -387,7 +387,7 @@ export const TeamInviteEmail = ({
             </Text>
 
             <Text style={clubSignature}>
-              {clubName}
+              {clubDisplayName ?? clubName}
             </Text>
           </Section>
 
