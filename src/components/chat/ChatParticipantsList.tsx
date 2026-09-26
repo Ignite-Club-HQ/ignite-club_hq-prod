@@ -333,7 +333,10 @@ export function ChatParticipantsList({
         const { data: rows, error } = await supabase.rpc("get_manual_group_participants", {
           p_group_id: chatId,
         });
-        if (error) return [];
+        if (error) {
+          console.warn("[ChatParticipantsList] get_manual_group_participants failed", error);
+          return [];
+        }
         return (rows || []).map((r: any) => ({
           id: r.user_id,
           display_name: r.display_name,

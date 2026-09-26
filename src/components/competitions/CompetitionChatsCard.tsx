@@ -10,6 +10,12 @@ const SCOPE_LABEL: Record<string, string> = {
   referees: "Referees chat",
   committee: "Committee chat",
 };
+const EMPTY_HINT: Record<string, string> = {
+  all_members: "Turn on competition-wide chat to create it",
+  coordinators: "Created once a team is entered",
+  referees: "Add a referee below to create it",
+  committee: "Add a committee member below to create it",
+};
 const ORDER = ["all_members", "coordinators", "referees", "committee"];
 
 /** Quick links for competition admins to every chat of this competition. */
@@ -19,12 +25,15 @@ export function CompetitionChatsCard({ competitionId }: { competitionId: string 
     queryKey: ["competition-chats-links", competitionId],
     queryFn: async () => {
       const { data, error } = await (supabase.from("chat_groups") as any)
-        .select("id, name, competition_scope")
+        .select("id, name, competition_scope, deleted_at")
         .eq("competition_id", competitionId);
       if (error) throw error;
-      return ((data ?? []) as { id: string; name: string; competition_scope: string | null }[])
-        .filter((c) => c.competition_scope && SCOPE_LABEL[c.competition_scope])
-        .sort((a, b) => ORDER.indexOf(a.competition_scope!) - ORDER.indexOf(b.competition_scope!));
+      return (data ?? []) as {
+        id: string;
+        name: string;
+        competition_scope: string | null;
+        deleted_at: string | null;
+      }[];
     },
   });
 
@@ -37,22 +46,35 @@ export function CompetitionChatsCard({ competitionId }: { competitionId: string 
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {chats.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No chats yet.</p>
-        ) : (
-          chats.map((c) => (
+        {ORDER.map((scope) => {
+          const chat = chats.find((c) => c.competition_scope === scope && !c.deleted_at);
+          if (!chat) {
+            return (
+              <div
+                key={scope}
+                className="w-full flex items-center gap-3 p-3 rounded-lg border border-dashed border-border text-left opacity-70"
+              >
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{SCOPE_LABEL[scope]}</p>
+                  <p className="text-xs text-muted-foreground">{EMPTY_HINT[scope]}</p>
+                </div>
+              </div>
+            );
+          }
+          return (
             <button
-              key={c.id}
+              key={scope}
               type="button"
-              onClick={() => navigate(`/groups/${c.id}`)}
+              onClick={() => navigate(`/groups/${chat.id}`)}
               className="w-full flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/50 text-left"
             >
               <MessageSquare className="h-4 w-4 text-primary" />
-              <span className="flex-1 text-sm font-medium">{SCOPE_LABEL[c.competition_scope!]}</span>
+              <span className="flex-1 text-sm font-medium">{SCOPE_LABEL[scope]}</span>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </button>
-          ))
-        )}
+          );
+        })}
       </CardContent>
     </Card>
   );
