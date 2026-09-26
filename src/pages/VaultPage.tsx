@@ -521,13 +521,13 @@ export default function VaultPage() {
       if (currentView.type !== "club") return [];
       
       // First get all teams user can potentially access
-      let teams: { id: string; name: string; folder_id: string | null }[] = [];
+      let teams: { id: string; name: string; folder_id: string | null; team_type: string | null }[] = [];
       
       if (isClubAdmin) {
         // Club admins and app admins can see all teams
         const { data } = await supabase
           .from("teams")
-          .select("id, name, folder_id")
+          .select("id, name, folder_id, team_type")
           .eq("club_id", currentView.clubId)
           .is("deleted_at", null)
           .order("name");
@@ -538,7 +538,7 @@ export default function VaultPage() {
         
         const { data } = await supabase
           .from("teams")
-          .select("id, name, folder_id")
+          .select("id, name, folder_id, team_type")
           .eq("club_id", currentView.clubId)
           .in("id", userTeamIds)
           .is("deleted_at", null)
@@ -3929,71 +3929,33 @@ export default function VaultPage() {
             <div className="space-y-4">
               <h2 className="text-sm font-medium text-muted-foreground">Teams</h2>
               
-              {/* Render team folders with their teams */}
-              {teamFolders && teamFolders.length > 0 && teamFolders.map((folder) => {
-                const teamsInFolder = clubTeams.filter(team => team.folder_id === folder.id);
-                if (teamsInFolder.length === 0) return null;
-                
-                const colorInfo = getFolderColorClass(folder.color);
-                
-                return (
-                  <div key={folder.id} className="space-y-2">
-                    <div className={`flex items-center gap-2 px-2 py-1 rounded-lg ${colorInfo.bgClassName}`}>
-                      <FolderOpen className={`h-4 w-4 ${colorInfo.className}`} />
-                      <span className="text-sm font-medium">{folder.name}</span>
-                      <span className="text-xs text-muted-foreground">({teamsInFolder.length})</span>
-                    </div>
-                    <div className="pl-2 space-y-2">
-                      {teamsInFolder.map((team) => (
-                        <Card
-                          key={team.id}
-                          className="cursor-pointer hover:bg-accent/50 transition-colors"
-                          onClick={() => {
-                            setFolderPath([]);
-                            setCurrentView({ 
-                              type: "team", 
-                              clubId: currentView.clubId, 
-                              clubName: currentView.clubName,
-                              teamId: team.id, 
-                              teamName: team.name 
-                            });
-                          }}
-                        >
-                          <CardContent className="p-3 flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-secondary">
-                              <FolderOpen className="h-4 w-4 text-secondary-foreground" />
-                            </div>
-                            <p className="font-medium flex-1 text-sm">{team.name}</p>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-              
-              {/* Uncategorized teams (no folder_id) */}
+              {/* Teams grouped by team type: Senior, Mixed, Junior, then Other */}
               {(() => {
-                const uncategorizedTeams = clubTeams.filter(team => !team.folder_id);
-                if (uncategorizedTeams.length === 0) return null;
-                
-                // Show header only if there are team folders with teams
-                const hasTeamFolders = teamFolders && teamFolders.some(folder => 
-                  clubTeams.some(team => team.folder_id === folder.id)
-                );
-                
-                return (
-                  <div className="space-y-2">
-                    {hasTeamFolders && (
+                const groups = [
+                  { key: "senior", name: "Senior Teams" },
+                  { key: "mixed", name: "Mixed Teams" },
+                  { key: "junior", name: "Junior Teams" },
+                  { key: "other", name: "Other Teams" },
+                ];
+                const typeOf = (t: any) => {
+                  const v = (t.team_type || "").toLowerCase();
+                  return v === "senior" || v === "mixed" || v === "junior" ? v : "other";
+                };
+                const nonEmpty = groups
+                  .map(g => ({ ...g, teams: clubTeams.filter(t => typeOf(t) === g.key) }))
+                  .filter(g => g.teams.length > 0);
+                const showHeaders = nonEmpty.length > 1 || nonEmpty[0]?.key !== "other";
+                return nonEmpty.map((group) => (
+                  <div key={group.key} className="space-y-2">
+                    {showHeaders && (
                       <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-muted/50">
-                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium text-muted-foreground">Other Teams</span>
-                        <span className="text-xs text-muted-foreground">({uncategorizedTeams.length})</span>
+                        <FolderOpen className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">{group.name}</span>
+                        <span className="text-xs text-muted-foreground">({group.teams.length})</span>
                       </div>
                     )}
-                    <div className={hasTeamFolders ? "pl-2 space-y-2" : "space-y-2"}>
-                      {uncategorizedTeams.map((team) => (
+                    <div className={showHeaders ? "pl-2 space-y-2" : "space-y-2"}>
+                      {group.teams.map((team) => (
                         <Card
                           key={team.id}
                           className="cursor-pointer hover:bg-accent/50 transition-colors"
@@ -4019,7 +3981,7 @@ export default function VaultPage() {
                       ))}
                     </div>
                   </div>
-                );
+                ));
               })()}
             </div>
           )}

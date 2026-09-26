@@ -12355,6 +12355,10 @@ export type Database = {
         Args: { _row: Database["public"]["Tables"]["message_reads"]["Row"] }
         Returns: string
       }
+      mirror_competition_photo_to_vault: {
+        Args: { _photo_id: string }
+        Returns: string
+      }
       move_child_to_team: {
         Args: {
           p_child_id: string
