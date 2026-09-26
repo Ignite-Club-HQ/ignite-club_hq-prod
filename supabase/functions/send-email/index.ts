@@ -582,7 +582,7 @@ async function renderEmailTemplate(template: TemplateType, data: any, supabaseAd
           sport: data.sport ?? sport,
           teamType: data.teamType ?? teamType,
           emailStyle,
-          clubDisplayName: isBridgewaterMastersTeam(data.clubName, teamType)
+          clubDisplayName: (data.__bridgewaterMasters === true || isBridgewaterMastersTeam(data.clubName, teamType))
             ? BRIDGEWATER_MASTERS_DISPLAY_NAME
             : undefined,
         })
@@ -991,10 +991,21 @@ serve(async (req: Request): Promise<Response> => {
         if (sport) {
           subject = swapTrailingSportEmoji(subject, sport);
         }
-        if (template === 'team-invite' && isBridgewaterMastersTeam(templateData.clubName, teamType) && templateData.teamName) {
+        let mastersBrand = isBridgewaterMastersTeam(templateData.clubName, teamType);
+        if (!mastersBrand && templateData.clubName === 'Bridgewater Soccer Club' && templateData.teamName) {
+          // Teams entered in the Women's Masters competition (often team_type
+          // 'mixed', e.g. Blue/Tangerinas) get the same branding as the sender.
+          const w = await resolveCompetitionWelcome(adminClient, templateData.clubName, templateData.teamName);
+          mastersBrand = !!w.message && /women'?s\s+masters/i.test(w.compName ?? '');
+        }
+        if (mastersBrand) {
+          templateData = { ...(templateData as any), __bridgewaterMasters: true };
+        }
+        if (template === 'team-invite' && mastersBrand && templateData.teamName) {
           const role = (templateData as any).roleName || 'Player';
           subject = `Bridgewater Womens Masters: You've been added to team ${templateData.teamName} as ${role} 🏆`;
         }
+        console.log(`[send-email] invite branding: masters=${mastersBrand} teamType=${teamType ?? 'null'}`);
       } catch (e) {
         console.warn('[send-email] subject emoji rewrite failed:', (e as Error)?.message);
       }
