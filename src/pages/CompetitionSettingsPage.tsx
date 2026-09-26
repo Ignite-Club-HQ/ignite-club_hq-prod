@@ -19,6 +19,7 @@ import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { CompetitionAdminsCard } from "@/components/competitions/CompetitionAdminsCard";
 import { CompetitionMemberChatCard } from "@/components/competitions/CompetitionMemberChatCard";
 import { CompetitionOfficialsCard } from "@/components/competitions/CompetitionOfficialsCard";
+import { CompetitionChatsCard } from "@/components/competitions/CompetitionChatsCard";
 import { InviteMessageDefaultCard } from "@/components/invite/InviteMessageDefaultCard";
 import { CompetitionWelcomeEmailCard } from "@/components/competitions/CompetitionWelcomeEmailCard";
 
@@ -314,6 +315,8 @@ export default function CompetitionSettingsPage() {
         competitionName={competition.name}
         organizerClubId={(competition as any).organizer_club_id ?? null}
       />
+
+      <CompetitionChatsCard competitionId={id!} />
 
       {/* 6. Referees & committee — roles with their own automatic chats */}
       <CompetitionOfficialsCard
