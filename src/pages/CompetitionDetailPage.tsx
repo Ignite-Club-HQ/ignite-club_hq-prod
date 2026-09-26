@@ -169,7 +169,7 @@ export default function CompetitionDetailPage() {
   }
 
   const ladderVisibilityLoading = (!!user && isAdminLoading) || divisionsLoading;
-  const hasHiddenDivisionLadder = divisions.some((d: any) => !!d.hide_ladder);
+  const hasHiddenDivisionLadder = !!(competition as any)?.hide_ladder || divisions.some((d: any) => !!d.hide_ladder);
   const canViewLadder = !ladderVisibilityLoading && (isAdmin || !hasHiddenDivisionLadder);
 
   return (
@@ -387,11 +387,11 @@ function DraftSetupProgress({
     },
     {
       key: "divisions",
-      label: "Add divisions",
+      label: "Add divisions (optional)",
       done: divisionsCount > 0,
       hint:
         divisionsCount === 0
-          ? "Optional — group teams by age, gender or skill."
+          ? "Only needed if you have more than one division. Skip it for a single-division competition."
           : `${divisionsCount} division${divisionsCount === 1 ? "" : "s"}`,
       dismissible: divisionsCount === 0,
     },

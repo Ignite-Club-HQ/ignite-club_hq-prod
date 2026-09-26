@@ -1509,8 +1509,8 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
           });
         } else {
           toast({
-            title: "Added to team",
-            description: `${existingUserAdded.name} already has an account and has been added directly — no email invite was sent.`,
+            title: "Existing member found",
+            description: `${existingUserAdded.name} is already in ${clubBranding?.name || "your club"} — added to ${teamName}. They've been notified in the app; no email invite was sent.`,
           });
         }
         secondParentOutcomeToast();

@@ -113,6 +113,21 @@ export default function CompetitionSettingsPage() {
 
   const save = async () => {
     if (!isDirty) return;
+    if (competition?.status === "draft" && status !== "draft") {
+      const { data: m } = await supabase
+        .from("competition_matches")
+        .select("home_team_id, away_team_id")
+        .eq("competition_id", competition.id)
+        .not("scheduled_at", "is", null)
+        .not("home_team_id", "is", null)
+        .not("away_team_id", "is", null);
+      const games = (m ?? []).length * 2;
+      const teams = new Set((m ?? []).flatMap((r: any) => [r.home_team_id, r.away_team_id])).size;
+      const msg = games > 0
+        ? `Publishing adds ${games} game${games === 1 ? "" : "s"} to ${teams} team${teams === 1 ? "" : "s"}' schedules and sends each team one alert. Continue?`
+        : "Publish this competition? No dated fixtures yet, so no games will be added to team schedules.";
+      if (!window.confirm(msg)) return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from("competitions")
@@ -372,6 +387,32 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
 
+  const { data: competition } = useQuery({
+    queryKey: ["competition-hide-ladder", competitionId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("competitions")
+        .select("hide_ladder")
+        .eq("id", competitionId)
+        .maybeSingle();
+      return data as { hide_ladder: boolean } | null;
+    },
+  });
+
+  const toggleWhole = async (hide: boolean) => {
+    const { error } = await supabase
+      .from("competitions")
+      .update({ hide_ladder: hide } as any)
+      .eq("id", competitionId);
+    if (error) {
+      toast({ title: "Could not update", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["competition-hide-ladder", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -379,14 +420,19 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
         <CardDescription>Choose which divisions or grades show a ladder. Fixtures and results stay visible.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="flex items-center justify-between gap-3 border rounded-md p-3">
+          <div className="min-w-0">
+            <div className="text-sm font-medium">Whole competition</div>
+            <div className="text-xs text-muted-foreground">Hide the ladder for everyone except competition admins.</div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs text-muted-foreground">Hide ladder</span>
+            <Switch checked={!!competition?.hide_ladder} onCheckedChange={toggleWhole} />
+          </div>
+        </div>
         {isLoading ? (
           <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
-        ) : divisions.length === 0 ? (
-          <div className="rounded-md border border-dashed p-4 text-center">
-            <p className="text-sm text-muted-foreground">No divisions yet.</p>
-            <p className="text-xs text-muted-foreground mt-1">Add divisions from the Teams tab to manage ladder visibility.</p>
-          </div>
-        ) : (
+        ) : divisions.length === 0 ? null : (
           <div className="divide-y border rounded-md">
             {divisions.map((d: any) => (
               <div key={d.id} className="flex items-center justify-between gap-3 p-3">

@@ -3075,6 +3075,7 @@ export type Database = {
           ends_on: string | null
           external_id: string | null
           external_tenant: string | null
+          hide_ladder: boolean
           id: string
           invite_email_message: string | null
           join_token: string | null
@@ -3108,6 +3109,7 @@ export type Database = {
           ends_on?: string | null
           external_id?: string | null
           external_tenant?: string | null
+          hide_ladder?: boolean
           id?: string
           invite_email_message?: string | null
           join_token?: string | null
@@ -3141,6 +3143,7 @@ export type Database = {
           ends_on?: string | null
           external_id?: string | null
           external_tenant?: string | null
+          hide_ladder?: boolean
           id?: string
           invite_email_message?: string | null
           join_token?: string | null
