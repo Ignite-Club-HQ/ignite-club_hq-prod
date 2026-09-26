@@ -3937,7 +3937,7 @@ export default function VaultPage() {
                   { key: "junior", name: "Junior Teams" },
                   { key: "other", name: "Other Teams" },
                 ];
-                const typeOf = (t: { team_type?: string | null }) => {
+                const typeOf = (t: any) => {
                   const v = (t.team_type || "").toLowerCase();
                   return v === "senior" || v === "mixed" || v === "junior" ? v : "other";
                 };
