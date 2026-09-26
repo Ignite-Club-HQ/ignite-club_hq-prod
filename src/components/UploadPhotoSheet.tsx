@@ -85,6 +85,7 @@ export function UploadPhotoSheet({
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [selectedMiniLeagueId, setSelectedMiniLeagueId] = useState<string>("");
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState<string>("");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [caption, setCaption] = useState<string>("");
   const [uploading, setUploading] = useState(false);
@@ -344,6 +345,31 @@ export function UploadPhotoSheet({
     enabled: !!user && !!selectedClubId && userRoles !== undefined,
   });
 
+  // Competitions the user belongs to (via an accepted team entry or a competition role)
+  const { data: userCompetitions } = useQuery({
+    queryKey: ["user-competitions-upload-sheet", user?.id, selectedClubId],
+    queryFn: async () => {
+      if (!selectedClubId) return [] as { id: string; name: string }[];
+      const { data: clubTeamRows } = await supabase.from("teams").select("id").eq("club_id", selectedClubId).is("deleted_at", null);
+      const teamIds = (clubTeamRows || []).map((t: any) => t.id);
+      const ids = new Set<string>();
+      if (teamIds.length) {
+        const { data: entries } = await supabase.from("competition_entries").select("competition_id").eq("status", "accepted").in("team_id", teamIds);
+        (entries || []).forEach((e: any) => ids.add(e.competition_id));
+      }
+      const { data: organised } = await supabase.from("competitions").select("id").eq("organizer_club_id", selectedClubId);
+      (organised || []).forEach((c: any) => ids.add(c.id));
+      if (ids.size === 0) return [];
+      const { data: comps } = await supabase.from("competitions").select("id, name").in("id", [...ids]).order("name");
+      const checks = await Promise.all((comps || []).map(async (c: any) => {
+        const { data } = await (supabase.rpc as any)("is_competition_member", { _user_id: user!.id, _competition_id: c.id });
+        return data ? { id: c.id as string, name: c.name as string } : null;
+      }));
+      return checks.filter(Boolean) as { id: string; name: string }[];
+    },
+    enabled: !!user && !!selectedClubId,
+  });
+
   // Admins, team admins, coaches, and committee members can post club-wide (no team/league selected)
   const canPostClubWide = useMemo(() => {
     if (isAppAdmin) return true;
@@ -414,14 +440,16 @@ export function UploadPhotoSheet({
     };
   }, []);
 
-  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, eventId: string, photoCaption: string, albumId: string | null): Promise<{ url: string; photoId: string }> => {
+  const uploadSinglePhoto = async (file: File, clubId: string, teamId: string, miniLeagueId: string, eventId: string, photoCaption: string, albumId: string | null, competitionId: string = ""): Promise<{ url: string; photoId: string }> => {
     const fileExt = file.name.split(".").pop();
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(7);
     
     // Structure path with club/team/mini-league context for easier backup identification
     let storagePath: string;
-    if (miniLeagueId) {
+    if (competitionId) {
+      storagePath = `competitions/${competitionId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
+    } else if (miniLeagueId) {
       storagePath = `clubs/${clubId}/mini-leagues/${miniLeagueId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
     } else if (teamId) {
       storagePath = `clubs/${clubId}/teams/${teamId}/${user!.id}/${timestamp}-${randomSuffix}.${fileExt}`;
@@ -446,10 +474,11 @@ export function UploadPhotoSheet({
     const { data: insertedPhoto, error: insertError } = await supabase.from("photos").insert({
       image_url: storageUrl,
       uploader_id: user!.id,
-      club_id: clubId || null,
-      team_id: teamId || null,
-      mini_league_id: miniLeagueId || null,
-      event_id: eventId || null,
+      club_id: competitionId ? null : (clubId || null),
+      team_id: competitionId ? null : (teamId || null),
+      mini_league_id: competitionId ? null : (miniLeagueId || null),
+      event_id: competitionId ? null : (eventId || null),
+      ...(competitionId ? { competition_id: competitionId } : {}),
       file_size: file.size,
       title: photoCaption || null,
       caption: photoCaption || null,
@@ -470,7 +499,7 @@ export function UploadPhotoSheet({
     // One-way mirror: gallery upload → vault "Gallery Uploads" folder
     // (team-scoped if a team is selected, else club-wide). Vault edits/deletes
     // never propagate back to the gallery.
-    syncGalleryPhotoToVault({
+    if (!competitionId) syncGalleryPhotoToVault({
       fileUrl: storageUrl,
       fileName: file.name,
       fileSize: file.size,
@@ -493,6 +522,7 @@ export function UploadPhotoSheet({
     setSelectedClubId("");
     setSelectedTeamId("");
     setSelectedMiniLeagueId("");
+    setSelectedCompetitionId("");
     setSelectedEventId("");
     setCaption("");
     setSelectedPhotos([]);
@@ -667,7 +697,7 @@ export function UploadPhotoSheet({
     // club admins, committee members, team admins and coaches. Guard here so
     // non-privileged members get a clear message instead of a raw RLS error
     // after their photos have already been uploaded to storage.
-    if (!selectedTeamId && !selectedMiniLeagueId && !canPostClubWide) {
+    if (!selectedTeamId && !selectedMiniLeagueId && !selectedCompetitionId && !canPostClubWide) {
       toast.error(
         "Choose a team or mini league for these photos — only club admins, committee members, team admins and coaches can post to the whole club.",
       );
@@ -702,6 +732,7 @@ export function UploadPhotoSheet({
     const clubId = selectedClubId;
     const teamId = selectedTeamId;
     const miniLeagueId = selectedMiniLeagueId;
+    const competitionId = selectedCompetitionId;
     const eventId = selectedEventId;
     const photoCaption = caption.trim();
     
@@ -739,7 +770,7 @@ export function UploadPhotoSheet({
     // feed cards). Never silently fall back to ungrouped: retry once, and
     // if still failing, abort the whole upload with a clear error.
     let albumId: string | null = null;
-    if (photosToUpload.length > 1) {
+    if (photosToUpload.length > 1 && !competitionId) {
       const args = {
         _club_id: clubId || null,
         _team_id: teamId || null,
@@ -787,7 +818,7 @@ export function UploadPhotoSheet({
       );
       
       try {
-        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, eventId, photoCaption, albumId);
+        const { url, photoId } = await uploadSinglePhoto(photo.file, clubId, teamId, miniLeagueId, eventId, photoCaption, albumId, competitionId);
         uploadedUrls.push(url);
         uploadedPhotoIds.push(photoId);
         successCount++;
@@ -826,7 +857,7 @@ export function UploadPhotoSheet({
     // Aggregation (10-min window) and message text are handled in the RPC.
     // Push notification only when ≥5 items in the resulting card.
     // ---------------------------------------------------------------------
-    if (teamId && successCount >= 2 && uploadedPhotoIds.length >= 2) {
+    if (teamId && !competitionId && successCount >= 2 && uploadedPhotoIds.length >= 2) {
       try {
         const heroPhotoId = uploadedPhotoIds[0];
         const heroUrl = uploadedUrls[0];
@@ -1327,7 +1358,7 @@ export function UploadPhotoSheet({
               </div>
 
               {/* Team Selection */}
-              {selectedClubId && userTeams && userTeams.length > 0 && !selectedMiniLeagueId && (
+              {selectedClubId && userTeams && userTeams.length > 0 && !selectedMiniLeagueId && !selectedCompetitionId && (
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Team {canPostClubWide ? "(optional)" : ""}</Label>
                   <div className="grid gap-2">
@@ -1379,7 +1410,7 @@ export function UploadPhotoSheet({
               )}
 
               {/* Mini-League Selection */}
-              {selectedClubId && userMiniLeagues && userMiniLeagues.length > 0 && !selectedTeamId && (
+              {selectedClubId && userMiniLeagues && userMiniLeagues.length > 0 && !selectedTeamId && !selectedCompetitionId && (
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Mini League {canPostClubWide ? "(optional)" : ""}</Label>
                   <div className="grid gap-2">
@@ -1399,6 +1430,38 @@ export function UploadPhotoSheet({
                       >
                         <span>{league.name}</span>
                         {selectedMiniLeagueId === league.id && (
+                          <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Competition Selection - visible to everyone in the competition */}
+              {selectedClubId && userCompetitions && userCompetitions.length > 0 && !selectedTeamId && !selectedMiniLeagueId && (
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Competition (optional)</Label>
+                  <p className="text-xs text-muted-foreground">Shared with every team in the competition.</p>
+                  <div className="grid gap-2">
+                    {userCompetitions.map((comp) => (
+                      <button
+                        key={comp.id}
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => setSelectedCompetitionId(selectedCompetitionId === comp.id ? "" : comp.id)}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left w-full",
+                          selectedCompetitionId === comp.id
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-card hover:border-muted-foreground/50",
+                          uploading && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <span>{comp.name}</span>
+                        {selectedCompetitionId === comp.id && (
                           <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
                             <Check className="h-3 w-3 text-primary-foreground" />
                           </div>
