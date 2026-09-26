@@ -1,0 +1,284 @@
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Upload, Download, Loader2, AlertTriangle, Check } from "lucide-react";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+
+const TEMPLATE =
+  "Date,Time,Round,Home,Away,Location,Pitch,Division\n" +
+  "04/10/2026,09:00,1,Tangerinas,Blue,Bridgewater Oval,Pitch 1 - North field (near canteen),\n" +
+  "04/10/2026,09:00,1,Red,Green,Bridgewater Oval,Pitch 2 - South field (far end),\n";
+
+/** Minimal CSV/TSV parser supporting quoted fields. */
+export function parseDelimited(text: string): string[][] {
+  const firstLine = text.split(/\r?\n/)[0] ?? "";
+  const delim = firstLine.includes("\t") ? "\t" : firstLine.split(";").length > firstLine.split(",").length ? ";" : ",";
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') inQuotes = false;
+      else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === delim) { row.push(field); field = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(field); field = "";
+      if (row.some((f) => f.trim())) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  row.push(field);
+  if (row.some((f) => f.trim())) rows.push(row);
+  return rows.map((r) => r.map((f) => f.trim()));
+}
+
+/** Parses DD/MM/YYYY, D-M-YY or YYYY-MM-DD plus "HH:MM" / "h:mm pm". Local time. */
+export function parseDateTime(dateStr: string, timeStr: string): Date | null {
+  let y: number, m: number, d: number;
+  const iso = dateStr.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  const dmy = dateStr.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
+  if (iso) { y = +iso[1]; m = +iso[2]; d = +iso[3]; }
+  else if (dmy) { d = +dmy[1]; m = +dmy[2]; y = +dmy[3]; if (y < 100) y += 2000; }
+  else return null;
+  let hh = 0, mm = 0;
+  if (timeStr) {
+    const t = timeStr.toLowerCase().replace(/\s+/g, "").match(/^(\d{1,2})(?:[:.](\d{2}))?(am|pm)?$/);
+    if (!t) return null;
+    hh = +t[1]; mm = t[2] ? +t[2] : 0;
+    if (t[3] === "pm" && hh < 12) hh += 12;
+    if (t[3] === "am" && hh === 12) hh = 0;
+    if (hh > 23 || mm > 59) return null;
+  }
+  const dt = new Date(y, m - 1, d, hh, mm);
+  if (dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return dt;
+}
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+const HEADER_ALIASES: Record<string, string[]> = {
+  date: ["date", "match date", "day"],
+  time: ["time", "kick off", "kickoff", "start", "start time"],
+  round: ["round", "rd", "round number"],
+  home: ["home", "team for", "for", "home team", "team 1", "team a"],
+  away: ["away", "team against", "against", "away team", "opponent", "team 2", "team b"],
+  location: ["location", "venue", "ground", "address"],
+  pitch: ["pitch", "field", "court", "pitch description"],
+  division: ["division", "grade", "pool"],
+};
+
+interface ParsedRow {
+  line: number;
+  errors: string[];
+  scheduledAt: Date | null;
+  round: number | null;
+  homeId: string | null;
+  awayId: string | null;
+  homeName: string;
+  awayName: string;
+  venue: string;
+  pitch: string;
+  divisionId: string | null;
+}
+
+export function ImportFixturesMenuItem({ competitionId, entries, divisions }: { competitionId: string; entries: any[]; divisions: any[] }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const accepted = entries.filter((e: any) => e.status === "accepted" && e.teams);
+
+  const parsed = useMemo<{ rows: ParsedRow[]; headerError: string | null }>(() => {
+    if (!text.trim()) return { rows: [], headerError: null };
+    const grid = parseDelimited(text);
+    if (grid.length < 2) return { rows: [], headerError: "Add a header row and at least one fixture." };
+    const header = grid[0].map(norm);
+    const col: Record<string, number> = {};
+    for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
+      col[key] = header.findIndex((h) => aliases.includes(h));
+    }
+    const missing = ["date", "home", "away"].filter((k) => col[k] < 0);
+    if (missing.length) return { rows: [], headerError: `Missing column${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}` };
+    const get = (r: string[], k: string) => (col[k] >= 0 ? r[col[k]] ?? "" : "");
+    const findTeam = (name: string) => {
+      const n = norm(name);
+      const hit = accepted.find((e: any) => norm(e.teams.name) === n);
+      return hit ?? null;
+    };
+    const rows = grid.slice(1).map((r, i): ParsedRow => {
+      const errors: string[] = [];
+      const homeName = get(r, "home");
+      const awayName = get(r, "away");
+      const home = findTeam(homeName);
+      const away = findTeam(awayName);
+      if (!home) errors.push(`"${homeName || "(blank)"}" isn't an accepted team`);
+      if (!away) errors.push(`"${awayName || "(blank)"}" isn't an accepted team`);
+      if (home && away && home.teams.id === away.teams.id) errors.push("Home and away are the same team");
+      const scheduledAt = parseDateTime(get(r, "date"), get(r, "time"));
+      if (!scheduledAt) errors.push("Date/time not recognised (use DD/MM/YYYY and HH:MM)");
+      const roundRaw = get(r, "round").replace(/[^0-9]/g, "");
+      const round = roundRaw ? Number(roundRaw) : null;
+      let divisionId: string | null = null;
+      const divName = get(r, "division");
+      if (divName) {
+        const div = divisions.find((d: any) => norm(d.name) === norm(divName));
+        if (!div) errors.push(`Division "${divName}" not found`);
+        else divisionId = div.id;
+      } else if (home?.division_id && home.division_id === away?.division_id) {
+        divisionId = home.division_id;
+      }
+      return {
+        line: i + 2, errors, scheduledAt, round,
+        homeId: home?.teams.id ?? null, awayId: away?.teams.id ?? null,
+        homeName: home?.teams.name ?? homeName, awayName: away?.teams.name ?? awayName,
+        venue: get(r, "location"), pitch: get(r, "pitch"), divisionId,
+      };
+    });
+    return { rows, headerError: null };
+  }, [text, accepted, divisions]);
+
+  const errorCount = parsed.rows.filter((r) => r.errors.length).length;
+  const canImport = parsed.rows.length > 0 && errorCount === 0 && !parsed.headerError;
+
+  const onFile = async (file: File) => {
+    if (!/\.(csv|tsv|txt)$/i.test(file.name)) {
+      toast({ title: "Please use a CSV file", description: "In Excel or Google Sheets choose File → Save as / Download → CSV.", variant: "destructive" });
+      return;
+    }
+    setText(await file.text());
+  };
+
+  const downloadTemplate = () => {
+    const blob = new Blob([TEMPLATE], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "fixtures-template.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const submit = async () => {
+    if (!canImport) return;
+    setSaving(true);
+    const rows = parsed.rows.map((r) => ({
+      competition_id: competitionId,
+      division_id: r.divisionId,
+      round_number: r.round,
+      home_team_id: r.homeId,
+      away_team_id: r.awayId,
+      status: "scheduled",
+      created_by: user?.id ?? null,
+      scheduled_at: r.scheduledAt!.toISOString(),
+      venue: r.venue || null,
+      pitch_number: r.pitch || null,
+    }));
+    const { error } = await supabase.from("competition_matches").insert(rows);
+    setSaving(false);
+    if (error) {
+      const raw = (error.message || "").toLowerCase();
+      toast({
+        title: "Couldn't import fixtures",
+        description: raw.includes("permission") || raw.includes("row-level")
+          ? "You don't have permission to add fixtures to this competition."
+          : "Nothing was saved. Please check the file and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({ title: `Imported ${rows.length} fixture${rows.length === 1 ? "" : "s"}` });
+    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    setText("");
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setOpen(true); }}>
+        <Upload className="h-4 w-4 mr-2" /> Import fixtures
+      </DropdownMenuItem>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-3xl px-5 pb-8">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="text-xl font-bold">Import fixtures</SheetTitle>
+            <SheetDescription>
+              Upload a CSV (or paste from a spreadsheet) with columns: Date, Time, Round, Home, Away, Location, Pitch. Division is optional. Team names must match accepted teams. Each row's Pitch text is saved as that fixture's pitch description.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={downloadTemplate}>
+                <Download className="h-4 w-4 mr-2" /> Download template
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <label className="cursor-pointer">
+                  <Upload className="h-4 w-4 mr-2" /> Choose CSV file
+                  <input type="file" accept=".csv,.tsv,.txt,text/csv" className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+                </label>
+              </Button>
+            </div>
+            <div>
+              <Label>Or paste rows here</Label>
+              <Textarea rows={5} value={text} onChange={(e) => setText(e.target.value)}
+                placeholder={"Date,Time,Round,Home,Away,Location,Pitch\n04/10/2026,09:00,1,Tangerinas,Blue,Bridgewater Oval,Pitch 1 - North field"}
+                className="font-mono text-xs" />
+            </div>
+
+            {parsed.headerError && (
+              <p className="text-sm text-destructive flex items-center gap-2"><AlertTriangle className="h-4 w-4" />{parsed.headerError}</p>
+            )}
+
+            {parsed.rows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  {parsed.rows.length} fixture{parsed.rows.length === 1 ? "" : "s"} found
+                  {errorCount > 0 && <span className="text-destructive"> · {errorCount} need fixing</span>}
+                </p>
+                <div className="rounded-md border divide-y max-h-72 overflow-y-auto">
+                  {parsed.rows.map((r) => (
+                    <div key={r.line} className="p-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        {r.errors.length ? <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" /> : <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                        <span className="font-medium">
+                          {r.round != null && `R${r.round} · `}{r.homeName} vs {r.awayName}
+                        </span>
+                      </div>
+                      <div className="text-muted-foreground pl-5">
+                        {r.scheduledAt ? r.scheduledAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                        {r.venue && ` · ${r.venue}`}{r.pitch && ` · ${r.pitch}`}
+                      </div>
+                      {r.errors.map((e) => (
+                        <div key={e} className="text-destructive pl-5">Row {r.line}: {e}</div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button className="w-full" disabled={!canImport || saving} onClick={submit}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Import {parsed.rows.length || ""} fixture{parsed.rows.length === 1 ? "" : "s"}
+            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              While the competition is in Draft, imported fixtures stay private. When published, they become games in both teams' schedules.
+            </p>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
