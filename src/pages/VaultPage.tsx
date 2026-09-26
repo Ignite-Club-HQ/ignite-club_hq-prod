@@ -3929,59 +3929,19 @@ export default function VaultPage() {
             <div className="space-y-4">
               <h2 className="text-sm font-medium text-muted-foreground">Teams</h2>
               
-              {/* Render team folders with their teams */}
-              {teamFolders && teamFolders.length > 0 && teamFolders.map((folder) => {
-                const teamsInFolder = clubTeams.filter(team => team.folder_id === folder.id);
+              {/* Teams grouped by team type: Senior, Mixed, Junior, then Other */}
+              {([
+                { key: "senior", name: "Senior Teams", className: "text-primary", bgClassName: "bg-primary/10" },
+                { key: "mixed", name: "Mixed Teams", className: "text-primary", bgClassName: "bg-accent/50" },
+                { key: "junior", name: "Junior Teams", className: "text-primary", bgClassName: "bg-secondary" },
+              ] as const).map((folder) => {
+                const teamsInFolder = clubTeams.filter(team => (team.team_type || "").toLowerCase() === folder.key);
                 if (teamsInFolder.length === 0) return null;
                 
-                const colorInfo = getFolderColorClass(folder.color);
+                const colorInfo = folder;
                 
                 return (
-                  <div key={folder.id} className="space-y-2">
-                    <div className={`flex items-center gap-2 px-2 py-1 rounded-lg ${colorInfo.bgClassName}`}>
-                      <FolderOpen className={`h-4 w-4 ${colorInfo.className}`} />
-                      <span className="text-sm font-medium">{folder.name}</span>
-                      <span className="text-xs text-muted-foreground">({teamsInFolder.length})</span>
-                    </div>
-                    <div className="pl-2 space-y-2">
-                      {teamsInFolder.map((team) => (
-                        <Card
-                          key={team.id}
-                          className="cursor-pointer hover:bg-accent/50 transition-colors"
-                          onClick={() => {
-                            setFolderPath([]);
-                            setCurrentView({ 
-                              type: "team", 
-                              clubId: currentView.clubId, 
-                              clubName: currentView.clubName,
-                              teamId: team.id, 
-                              teamName: team.name 
-                            });
-                          }}
-                        >
-                          <CardContent className="p-3 flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-secondary">
-                              <FolderOpen className="h-4 w-4 text-secondary-foreground" />
-                            </div>
-                            <p className="font-medium flex-1 text-sm">{team.name}</p>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-              
-              {/* Uncategorized teams (no folder_id) */}
-              {(() => {
-                const uncategorizedTeams = clubTeams.filter(team => !team.folder_id);
-                if (uncategorizedTeams.length === 0) return null;
-                
-                // Show header only if there are team folders with teams
-                const hasTeamFolders = teamFolders && teamFolders.some(folder => 
-                  clubTeams.some(team => team.folder_id === folder.id)
-                );
+                  <div key={folder.key} className="space-y-2">
                 
                 return (
                   <div className="space-y-2">
