@@ -521,13 +521,13 @@ export default function VaultPage() {
       if (currentView.type !== "club") return [];
       
       // First get all teams user can potentially access
-      let teams: { id: string; name: string; folder_id: string | null }[] = [];
+      let teams: { id: string; name: string; folder_id: string | null; team_type: string | null }[] = [];
       
       if (isClubAdmin) {
         // Club admins and app admins can see all teams
         const { data } = await supabase
           .from("teams")
-          .select("id, name, folder_id")
+          .select("id, name, folder_id, team_type")
           .eq("club_id", currentView.clubId)
           .is("deleted_at", null)
           .order("name");
@@ -538,7 +538,7 @@ export default function VaultPage() {
         
         const { data } = await supabase
           .from("teams")
-          .select("id, name, folder_id")
+          .select("id, name, folder_id, team_type")
           .eq("club_id", currentView.clubId)
           .in("id", userTeamIds)
           .is("deleted_at", null)
