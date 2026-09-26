@@ -6998,6 +6998,7 @@ export type Database = {
           album_id: string | null
           caption: string | null
           club_id: string | null
+          competition_id: string | null
           created_at: string
           deleted_at: string | null
           event_id: string | null
@@ -7016,6 +7017,7 @@ export type Database = {
           album_id?: string | null
           caption?: string | null
           club_id?: string | null
+          competition_id?: string | null
           created_at?: string
           deleted_at?: string | null
           event_id?: string | null
@@ -7034,6 +7036,7 @@ export type Database = {
           album_id?: string | null
           caption?: string | null
           club_id?: string | null
+          competition_id?: string | null
           created_at?: string
           deleted_at?: string | null
           event_id?: string | null
@@ -7068,6 +7071,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "photos_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
             referencedColumns: ["id"]
           },
           {
@@ -10965,6 +10975,10 @@ export type Database = {
         Returns: boolean
       }
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
+      can_manage_competition_media: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_event_groups: {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean
@@ -12178,6 +12192,10 @@ export type Database = {
         Returns: boolean
       }
       is_competition_league_admin: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_competition_member: {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
