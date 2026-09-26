@@ -409,12 +409,15 @@ Deno.serve(async (req) => {
       // route into an empty thread.
       const { data: broadcastRow } = await supabase
         .from('broadcast_messages')
-        .select('target_club_ids')
+        .select('target_club_ids, created_at')
         .eq('id', messageId)
         .maybeSingle();
       const targetClubIds: string[] = Array.isArray(broadcastRow?.target_club_ids)
         ? broadcastRow!.target_club_ids as string[]
         : [];
+      // Only people already registered (and, for targeted sends, already in
+      // the club) when the announcement was sent — matches the SELECT policy.
+      const sentAt: string = (broadcastRow as any)?.created_at ?? new Date().toISOString();
 
       const PAGE_SIZE = 1000;
       let offset = 0;
@@ -425,11 +428,13 @@ Deno.serve(async (req) => {
               .from('user_roles')
               .select('user_id')
               .in('club_id', targetClubIds)
+              .lte('created_at', sentAt)
               .neq('user_id', authorId)
               .range(offset, offset + PAGE_SIZE - 1)
           : await supabase
               .from('profiles')
               .select('id')
+              .lte('created_at', sentAt)
               .neq('id', authorId)
               .range(offset, offset + PAGE_SIZE - 1);
 
