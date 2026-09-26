@@ -33,6 +33,11 @@ const ROLE_LABEL: Record<string, string> = {
   parent: "Parent",
   player: "Player",
   basic_user: "Member",
+  competition_admin: "League Admin",
+  competition_committee: "Committee",
+  referee: "Referee",
+  scorer: "Scorer",
+  captain: "Captain",
 };
 
 function formatRole(role: string) {
