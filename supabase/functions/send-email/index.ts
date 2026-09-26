@@ -1007,8 +1007,7 @@ serve(async (req: Request): Promise<Response> => {
           templateData = { ...(templateData as any), __bridgewaterMasters: true };
         }
         if (template === 'team-invite' && mastersBrand && templateData.teamName) {
-          const role = (templateData as any).roleName || 'Player';
-          subject = `Bridgewater Womens Masters: You've been added to team ${templateData.teamName} as ${role} 🏆`;
+          subject = `Bridgewater Womens Masters: You've been added to team ${templateData.teamName} 🏆`;
         }
         console.log(`[send-email] invite branding: masters=${mastersBrand} teamType=${teamType ?? 'null'}`);
       } catch (e) {
