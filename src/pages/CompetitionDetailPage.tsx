@@ -387,11 +387,11 @@ function DraftSetupProgress({
     },
     {
       key: "divisions",
-      label: "Add divisions",
+      label: "Add divisions (optional)",
       done: divisionsCount > 0,
       hint:
         divisionsCount === 0
-          ? "Optional — group teams by age, gender or skill."
+          ? "Only needed if you have more than one division. Skip it for a single-division competition."
           : `${divisionsCount} division${divisionsCount === 1 ? "" : "s"}`,
       dismissible: divisionsCount === 0,
     },
