@@ -1248,6 +1248,10 @@ function SetMaxRoundsButton({
     setSaving(true);
     try {
       if (willDelete.length > 0) {
+        const ok = window.confirm(
+          `This deletes round${willDelete.length === 1 ? "" : "s"} ${willDelete.join(", ")}. Any games already in team schedules for these rounds, with their RSVPs, duties and lineups, will be deleted too. Continue?`
+        );
+        if (!ok) { setSaving(false); return; }
         const { error } = await supabase
           .from("competition_matches")
           .delete()
@@ -1447,7 +1451,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
 
   const remove = async () => {
-    if (!window.confirm("Delete this match?")) return;
+    if (!window.confirm("Delete this match? If it's already in the teams' schedules, those games and their RSVPs, duties and lineups are deleted too.")) return;
     const { error } = await supabase.from("competition_matches").delete().eq("id", match.id);
     if (error) {
       toast({ title: "Could not delete", description: error.message, variant: "destructive" });
