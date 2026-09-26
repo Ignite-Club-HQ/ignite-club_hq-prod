@@ -916,6 +916,11 @@ serve(async (req: Request): Promise<Response> => {
 
     const body = await req.json();
     let { to, subject, html, from, replyTo, senderName, template, templateData } = body as EmailRequest & { toUserId?: string };
+    // Server-only branding flag: never trust it from the caller.
+    if (templateData && typeof templateData === 'object' && '__bridgewaterMasters' in (templateData as any)) {
+      const { __bridgewaterMasters: _ignored, ...rest } = templateData as any;
+      templateData = rest;
+    }
     const toUserId = body.toUserId as string | undefined;
 
     // If toUserId is provided instead of "to", look up the user's email
