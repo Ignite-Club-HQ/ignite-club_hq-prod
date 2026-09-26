@@ -169,7 +169,7 @@ export default function CompetitionDetailPage() {
   }
 
   const ladderVisibilityLoading = (!!user && isAdminLoading) || divisionsLoading;
-  const hasHiddenDivisionLadder = divisions.some((d: any) => !!d.hide_ladder);
+  const hasHiddenDivisionLadder = !!(competition as any)?.hide_ladder || divisions.some((d: any) => !!d.hide_ladder);
   const canViewLadder = !ladderVisibilityLoading && (isAdmin || !hasHiddenDivisionLadder);
 
   return (
