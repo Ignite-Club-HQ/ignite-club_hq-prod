@@ -1935,6 +1935,8 @@ export type Database = {
           is_important: boolean
           is_published: boolean
           published_at: string
+          target_competition_id: string | null
+          target_mini_league_id: string | null
           target_team_ids: string[] | null
           title: string
           updated_at: string
@@ -1951,6 +1953,8 @@ export type Database = {
           is_important?: boolean
           is_published?: boolean
           published_at?: string
+          target_competition_id?: string | null
+          target_mini_league_id?: string | null
           target_team_ids?: string[] | null
           title: string
           updated_at?: string
@@ -1967,6 +1971,8 @@ export type Database = {
           is_important?: boolean
           is_published?: boolean
           published_at?: string
+          target_competition_id?: string | null
+          target_mini_league_id?: string | null
           target_team_ids?: string[] | null
           title?: string
           updated_at?: string
@@ -1984,6 +1990,20 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_news_target_competition_id_fkey"
+            columns: ["target_competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_news_target_mini_league_id_fkey"
+            columns: ["target_mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
         ]
@@ -11277,6 +11297,10 @@ export type Database = {
           team_msgs: number
         }[]
       }
+      club_news_competition_ids: {
+        Args: { _club_id: string }
+        Returns: string[]
+      }
       club_scoped_child_guardians: {
         Args: { p_child_ids: string[]; p_club_id: string }
         Returns: {
@@ -12199,6 +12223,10 @@ export type Database = {
         Returns: boolean
       }
       is_competition_admin: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_competition_audience: {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }

@@ -11,6 +11,7 @@ import {
   useClubNewsFeed,
   useClubTeamsForNews,
   useNewsPublishableClubs,
+  useNewsPublishableCompetitions,
   useTeamNamesByIds,
 } from "@/features/news/useClubNews";
 import ClubNewsComposer from "@/components/news/ClubNewsComposer";
@@ -36,7 +37,8 @@ export default function ClubNewsPage() {
 
   const [composerOpen, setComposerOpen] = useState(false);
 
-  const canPublish = publishableClubs.length > 0;
+  const { data: publishableComps = [] } = useNewsPublishableCompetitions();
+  const canPublish = publishableClubs.length > 0 || publishableComps.length > 0;
 
   return (
     <div className="container mx-auto max-w-2xl space-y-4 px-4 py-4">
