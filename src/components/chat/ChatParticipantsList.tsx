@@ -143,7 +143,7 @@ export function ChatParticipantsList({
     queryFn: async () => {
       const { data } = await supabase
         .from("chat_groups")
-        .select("created_by, membership_mode, competition_id")
+        .select("created_by, membership_mode, competition_id, competition_scope")
         .eq("id", chatId)
         .maybeSingle();
       return data ?? null;
@@ -633,14 +633,32 @@ export function ChatParticipantsList({
     return s;
   }, [realtimeOnline, heartbeatOnlineIds]);
 
+  // Role-specific competition chats (Referees, Committee, Coordinators) only
+  // list people who hold that role. Competition/league admins can still see
+  // and read these chats, but they aren't shown as participants.
+  const competitionScope: string | null = (groupMeta as any)?.competition_scope ?? null;
+  const visibleMembers = useMemo(() => {
+    const allowed: Record<string, string[]> = {
+      referees: ["referee"],
+      committee: ["competition_committee"],
+      coordinators: ["captain", "team_admin"],
+    };
+    const need = competitionId && competitionScope ? allowed[competitionScope] : undefined;
+    if (!need) return uniqueMembers;
+    if (!memberRoleEntries) return [];
+    return uniqueMembers.filter((m) =>
+      (memberRoleEntries[m.id] || []).some((e) => need.includes(e.role)),
+    );
+  }, [uniqueMembers, memberRoleEntries, competitionId, competitionScope]);
+
   const sortedMembers = useMemo(() => {
-    return [...uniqueMembers].sort((a, b) => {
+    return [...visibleMembers].sort((a, b) => {
       const aOnline = onlineIds.has(a.id) ? 1 : 0;
       const bOnline = onlineIds.has(b.id) ? 1 : 0;
       if (aOnline !== bOnline) return bOnline - aOnline;
       return (a.display_name || "").localeCompare(b.display_name || "");
     });
-  }, [uniqueMembers, onlineIds]);
+  }, [visibleMembers, onlineIds]);
 
 
 
@@ -731,7 +749,7 @@ export function ChatParticipantsList({
     <div className={className}>
       <div className="flex items-center justify-between mb-2 px-1">
         <h3 className="text-sm font-semibold">
-          Participants{uniqueMembers.length > 0 ? ` · ${uniqueMembers.length}` : ""}
+          Participants{visibleMembers.length > 0 ? ` · ${visibleMembers.length}` : ""}
         </h3>
         {isPersonalGroupChat && isGroupCreator && (
           <Button variant="ghost" size="sm" className="gap-1 h-8" onClick={() => setAddPeopleOpen(true)}>
