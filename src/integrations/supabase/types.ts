@@ -754,6 +754,7 @@ export type Database = {
           club_id: string | null
           competition_id: string | null
           competition_scope: string | null
+          contact_user_id: string | null
           created_at: string
           created_by: string
           deleted_at: string | null
@@ -780,6 +781,7 @@ export type Database = {
           club_id?: string | null
           competition_id?: string | null
           competition_scope?: string | null
+          contact_user_id?: string | null
           created_at?: string
           created_by: string
           deleted_at?: string | null
@@ -806,6 +808,7 @@ export type Database = {
           club_id?: string | null
           competition_id?: string | null
           competition_scope?: string | null
+          contact_user_id?: string | null
           created_at?: string
           created_by?: string
           deleted_at?: string | null
@@ -10965,6 +10968,10 @@ export type Database = {
         Args: { _parent: string; _viewer: string }
         Returns: boolean
       }
+      can_contact_competition_admins: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_control_pitch_board: {
         Args: { _event_id: string; _team_id: string }
         Returns: boolean
@@ -11865,6 +11872,10 @@ export type Database = {
         Args: { p_club_id: string }
         Returns: string
       }
+      get_or_create_competition_admin_chat: {
+        Args: { p_competition_id: string }
+        Returns: string
+      }
       get_or_create_competition_admin_conversation: {
         Args: { p_competition_id: string }
         Returns: string
@@ -12295,6 +12306,14 @@ export type Database = {
           display_name: string
           role: string
           user_id: string
+        }[]
+      }
+      list_contactable_competitions: {
+        Args: { p_club_id?: string }
+        Returns: {
+          id: string
+          logo_url: string
+          name: string
         }[]
       }
       list_divisions_by_join_token: {
@@ -12815,6 +12834,10 @@ export type Database = {
           p_player2_id: string
           p_player2_team: string
         }
+        Returns: undefined
+      }
+      sync_competition_contact_chat_members: {
+        Args: { _group_id: string }
         Returns: undefined
       }
       sync_competition_coord_chat_members: {
