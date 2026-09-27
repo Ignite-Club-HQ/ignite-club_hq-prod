@@ -130,7 +130,19 @@ export function ClubDaySummary({
   }, [myDayEvents, myTeamSet]);
 
   const visible = useMemo(() => {
-    if (scope === "club") return events || [];
+    if (scope === "club") {
+      // Intra-club games (e.g. competition fixtures between two of our teams)
+      // exist once per team with names reversed. Show each match once.
+      const seenGames = new Set<string>();
+      return (events || []).filter((e) => {
+        if (e.type !== "game" || !e.team_name || !e.opponent) return true;
+        const pair = [e.team_name, e.opponent].map((s) => s.trim().toLowerCase()).sort().join("|");
+        const key = `${e.start_time || e.event_date}|${pair}`;
+        if (seenGames.has(key)) return false;
+        seenGames.add(key);
+        return true;
+      });
+    }
     // "My teams" = events for any team the user belongs to + club-wide events (no team_id)
     const fromMyDay = myVisibleEvents.map(fromEventCardEvent);
     const fromRpc = (events || []).filter((e) => !e.team_id || myTeamSet.has(e.team_id));
