@@ -105,6 +105,7 @@ import ClubNewsSection from "@/components/home/ClubNewsSection";
 import { NextUpCarousel } from "@/components/NextUpCarousel";
 import { getCachedNextUp, setCachedNextUp, clearCachedNextUp } from "@/lib/nextUpEventsCache";
 import { ContactClubButton } from "@/components/ContactClubButton";
+import { ContactCompetitionAdminsList } from "@/components/competitions/ContactCompetitionAdminsButton";
 
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
 import { DesktopActionBar } from "@/components/home/DesktopActionBar";
@@ -2375,6 +2376,7 @@ export default function HomePage() {
       {/* Contact Club - quick DM to club admin (Pro only) */}
       <LazyMount minHeight={48}>
         <ContactClubButton clubFilter={activeClubFilter} compact />
+        <ContactCompetitionAdminsList clubFilter={activeClubFilter} compact />
       </LazyMount>
 
 
