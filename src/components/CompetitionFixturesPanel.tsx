@@ -102,6 +102,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
   const { toast } = useToast();
   const { user } = useAuth();
   const [genOpen, setGenOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [genDivisionId, setGenDivisionId] = useState<string>("");
   const [genFirstRoundDate, setGenFirstRoundDate] = useState<string>("");
   const [genDayStart, setGenDayStart] = useState<string>("09:00");
