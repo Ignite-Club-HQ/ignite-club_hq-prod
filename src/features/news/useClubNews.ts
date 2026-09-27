@@ -20,13 +20,15 @@ export interface ClubNewsRow {
   image_url: string | null;
   author_id: string | null;
   target_team_ids: string[] | null;
+  target_mini_league_id?: string | null;
+  target_competition_id?: string | null;
   is_important: boolean;
   published_at: string;
   attachments?: unknown;
 }
 
 const NEWS_COLUMNS =
-  "id, club_id, title, content, image_url, author_id, target_team_ids, is_important, published_at, attachments";
+  "id, club_id, title, content, image_url, author_id, target_team_ids, target_mini_league_id, target_competition_id, is_important, published_at, attachments";
 
 
 export function useClubNewsFeed(clubId?: string | null, limit = 50) {
@@ -41,7 +43,20 @@ export function useClubNewsFeed(clubId?: string | null, limit = 50) {
         .order("published_at", { ascending: false })
         .limit(limit);
 
-      if (clubId) query = query.eq("club_id", clubId);
+      if (clubId) {
+        // Competition news lives on the organising club, but must also show in
+        // the News of every club with a team entered. RLS still decides who
+        // actually sees each post.
+        const { data: compIds } = await (supabase.rpc as any)("club_news_competition_ids", {
+          _club_id: clubId,
+        });
+        const ids = ((compIds || []) as unknown[])
+          .map((r) => (typeof r === "string" ? r : (r as any)?.club_news_competition_ids))
+          .filter(Boolean) as string[];
+        query = ids.length
+          ? query.or(`club_id.eq.${clubId},target_competition_id.in.(${ids.join(",")})`)
+          : query.eq("club_id", clubId);
+      }
 
       const { data, error } = await query;
       if (error) throw error;
@@ -143,6 +158,50 @@ export function useTeamNamesByIds(teamIds?: string[] | null) {
       return (data || []) as Array<{ id: string; name: string }>;
     },
     enabled: ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Competitions where the viewer is an owner/admin and may publish news. */
+export function useNewsPublishableCompetitions() {
+  const { user } = useAuth();
+  return useQuery<Array<{ id: string; name: string; organizer_club_id: string }>>({
+    queryKey: ["news-publishable-competitions", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("competition_roles")
+        .select("competition_id, role")
+        .eq("user_id", user!.id)
+        .in("role", ["owner", "admin"]);
+      if (error) throw error;
+      const ids = Array.from(new Set((data || []).map((r) => r.competition_id)));
+      if (ids.length === 0) return [];
+      const { data: comps, error: cErr } = await supabase
+        .from("competitions")
+        .select("id, name, organizer_club_id")
+        .in("id", ids)
+        .order("name");
+      if (cErr) throw cErr;
+      return (comps || []) as Array<{ id: string; name: string; organizer_club_id: string }>;
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useClubMiniLeaguesForNews(clubId?: string | null) {
+  return useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ["club-mini-leagues-for-news", clubId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mini_leagues")
+        .select("id, name")
+        .eq("club_id", clubId!)
+        .order("name");
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+    enabled: !!clubId,
     staleTime: 5 * 60 * 1000,
   });
 }
