@@ -352,6 +352,17 @@ export default function VaultPage() {
   // Auto-navigate to club view when theme filter is active - only on initial load
   const hasAutoNavigatedRef = useRef(false);
   useEffect(() => {
+    // A deep link (?team=, ?club=, ?miniLeague=, /vault/folder/:id) owns the
+    // initial view — never let the club-filter auto-nav race it.
+    const hasDeepLink =
+      !!urlFolderId ||
+      !!searchParams.get("team") ||
+      !!searchParams.get("club") ||
+      !!searchParams.get("miniLeague");
+    if (hasDeepLink) {
+      hasAutoNavigatedRef.current = true;
+      return;
+    }
     if (activeClubFilter && currentView.type === "root" && userClubs && userClubs.length > 0 && !hasAutoNavigatedRef.current) {
       const club = userClubs.find(c => c.id === activeClubFilter);
       if (club && club.is_pro) {
