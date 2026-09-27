@@ -15,13 +15,15 @@ export type CompetitionChatScope =
   | "coordinators"
   | "all_members"
   | "referees"
-  | "committee";
+  | "committee"
+  | "admin_contact";
 
 const KNOWN_SCOPES: CompetitionChatScope[] = [
   "coordinators",
   "all_members",
   "referees",
   "committee",
+  "admin_contact",
 ];
 
 export function normaliseCompetitionChatScope(
@@ -42,6 +44,8 @@ export function competitionChatSublabel(scope: unknown): string {
       return "Competition chat · referees";
     case "committee":
       return "Competition chat · committee";
+    case "admin_contact":
+      return "Private · competition admins";
     default:
       return "Competition chat";
   }
