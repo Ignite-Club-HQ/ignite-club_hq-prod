@@ -92,11 +92,21 @@ interface ParsedRow {
   divisionId: string | null;
 }
 
-export function ImportFixturesMenuItem({ competitionId, entries, divisions }: { competitionId: string; entries: any[]; divisions: any[] }) {
+/** Menu entry only. The sheet must live OUTSIDE the dropdown: opening the
+ * native file picker closes the menu, which would unmount the sheet and drop
+ * the chosen file silently. */
+export function ImportFixturesMenuItem({ onOpen }: { onOpen: () => void }) {
+  return (
+    <DropdownMenuItem onSelect={() => setTimeout(onOpen, 0)}>
+      <Upload className="h-4 w-4 mr-2" /> Import fixtures
+    </DropdownMenuItem>
+  );
+}
+
+export function ImportFixturesSheet({ competitionId, entries, divisions, open, setOpen }: { competitionId: string; entries: any[]; divisions: any[]; open: boolean; setOpen: (o: boolean) => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -206,9 +216,6 @@ export function ImportFixturesMenuItem({ competitionId, entries, divisions }: { 
 
   return (
     <>
-      <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setOpen(true); }}>
-        <Upload className="h-4 w-4 mr-2" /> Import fixtures
-      </DropdownMenuItem>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-3xl px-5 pb-8">
           <SheetHeader className="mb-4">
