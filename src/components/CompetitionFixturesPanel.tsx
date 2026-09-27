@@ -40,7 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
-import { ImportFixturesMenuItem } from "@/components/competitions/ImportFixturesMenuItem";
+import { ImportFixturesMenuItem, ImportFixturesSheet } from "@/components/competitions/ImportFixturesMenuItem";
 
 function TeamAvatar({
   name,
@@ -500,11 +500,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <CalendarPlus className="h-4 w-4 mr-2" /> Generate round-robin
                   </DropdownMenuItem>
                   <AddMatchMenuItem competitionId={competitionId} entries={entries} divisions={divisions} />
-                  <ImportFixturesMenuItem competitionId={competitionId} entries={entries} divisions={divisions} />
+                  <ImportFixturesMenuItem onOpen={() => setImportOpen(true)} />
                   <AddFinalsRoundMenuItem competitionId={competitionId} divisions={divisions} />
 
                 </DropdownMenuContent>
               </DropdownMenu>
+              <ImportFixturesSheet competitionId={competitionId} entries={entries} divisions={divisions} open={importOpen} setOpen={setImportOpen} />
             </div>
           ) : (
             <Card className="w-full">
