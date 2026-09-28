@@ -97,33 +97,22 @@ Deno.serve(async (req) => {
       .insert(rows)
       .select('id, user_id');
 
-    // Dispatch pushes (concurrency 20)
+    // Dispatch pushes in small groups with retry on transient failures
     const payloads = (inserted || []).map((n: any) => ({
       userId: n.user_id,
+      title: 'Ignite',
+      body: message,
+      url,
       notificationId: n.id,
+      tag: `event-note-${eventId}`,
+      notificationType: 'event_note',
     }));
-    let sent = 0;
-    const concurrency = 20;
-    for (let i = 0; i < payloads.length; i += concurrency) {
-      const batch = payloads.slice(i, i + concurrency);
-      const results = await Promise.allSettled(
-        batch.map((p) =>
-          fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${anonKey}` },
-            body: JSON.stringify({
-              userId: p.userId,
-              title: 'Ignite',
-              body: message,
-              url,
-              notificationId: p.notificationId,
-              tag: `event-note-${eventId}`,
-              notificationType: 'event_note',
-            }),
-          }).then((r) => { const ok = r.ok; r.body?.cancel(); return ok; })
-        )
-      );
-      sent += results.filter((r) => r.status === 'fulfilled' && r.value).length;
+    const pushResult = await dispatchPushRequests(supabaseUrl, anonKey, payloads, {
+      concurrency: 5, pauseMs: 150, logPrefix: '[NOTIFY-EVENT-NOTE]',
+    });
+    const sent = pushResult.sent;
+    if (pushResult.failed > 0) {
+      console.error(`[NOTIFY-EVENT-NOTE] push failures: ${pushResult.failed}/${payloads.length} for event_note:${eventId}`);
     }
 
     return new Response(JSON.stringify({ recipients: recipientIds.length, push_sent: sent }), {

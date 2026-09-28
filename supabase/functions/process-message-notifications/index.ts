@@ -613,6 +613,9 @@ Deno.serve(async (req) => {
     }));
 
     const pushResult = await dispatchPushBatch(supabaseUrl, anonKey, pushPayloads);
+    if (pushResult.failed > 0) {
+      console.error(`[NOTIFY] push failures: ${pushResult.failed}/${pushPayloads.length} for ${messageType}:${contextId || 'broadcast'}`);
+    }
 
     // Send email notifications in batched concurrency (max 20 concurrent)
     const EMAIL_CONCURRENCY = 20;
