@@ -11034,6 +11034,10 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
       }
+      can_rename_competition_chat: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_view_album: { Args: { _album_id: string }; Returns: boolean }
       can_view_child_via_team: {
         Args: { _child_id: string; _user_id: string }
@@ -12638,6 +12642,10 @@ export type Database = {
       remove_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: Json
+      }
+      rename_competition_chat: {
+        Args: { _group_id: string; _name: string }
+        Returns: undefined
       }
       repair_event_push_queue: {
         Args: { p_dry_run?: boolean; p_event_id: string }
