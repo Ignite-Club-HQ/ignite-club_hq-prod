@@ -1,6 +1,7 @@
 import { requireServiceRoleAuth } from "../_shared/callerAuth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
+import { dispatchPushRequests } from "../_shared/pushDispatch.ts";
 
 // Module-scope env + client: created once per isolate, reused across warm invocations.
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -78,7 +79,8 @@ function formatMessageBodyForPush(text: string | null | undefined, imageUrl?: st
   return out;
 }
 
-// Dispatch push notifications with controlled concurrency
+// Dispatch push notifications in small groups (5, 150 ms apart) with retry on
+// network errors / 429 / 5xx. Final failures are logged individually.
 async function dispatchPushBatch(
   supabaseUrl: string,
   anonKey: string,
@@ -92,39 +94,22 @@ async function dispatchPushBatch(
     notificationType: string;
     data?: Record<string, unknown>;
   }>,
-  concurrency: number = 20
-): Promise<{ sent: number; failed: number }> {
-  let sent = 0;
-  let failed = 0;
-
-  for (let i = 0; i < notifications.length; i += concurrency) {
-    const batch = notifications.slice(i, i + concurrency);
-    const results = await Promise.allSettled(
-      batch.map(n =>
-        fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${anonKey}`,
-          },
-          body: JSON.stringify({
-            userId: n.userId,
-            title: n.title,
-            body: n.body,
-            url: n.url,
-            notificationId: n.notificationId,
-            tag: n.tag,
-            notificationType: n.notificationType,
-            data: n.data,
-          }),
-        }).then(r => { const ok = r.ok; r.body?.cancel(); return ok; })
-      )
-    );
-    sent += results.filter(r => r.status === 'fulfilled' && r.value).length;
-    failed += results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value)).length;
-  }
-
-  return { sent, failed };
+): Promise<{ sent: number; failed: number; failedUserIds: string[] }> {
+  return dispatchPushRequests(
+    supabaseUrl,
+    anonKey,
+    notifications.map(n => ({
+      userId: n.userId,
+      title: n.title,
+      body: n.body,
+      url: n.url,
+      notificationId: n.notificationId,
+      tag: n.tag,
+      notificationType: n.notificationType,
+      data: n.data,
+    })),
+    { concurrency: 5, pauseMs: 150, logPrefix: '[NOTIFY]' },
+  );
 }
 
 // Build the push notification URL for a message type
@@ -628,6 +613,9 @@ Deno.serve(async (req) => {
     }));
 
     const pushResult = await dispatchPushBatch(supabaseUrl, anonKey, pushPayloads);
+    if (pushResult.failed > 0) {
+      console.error(`[NOTIFY] push failures: ${pushResult.failed}/${pushPayloads.length} for ${messageType}:${contextId || 'broadcast'}`);
+    }
 
     // Send email notifications in batched concurrency (max 20 concurrent)
     const EMAIL_CONCURRENCY = 20;
