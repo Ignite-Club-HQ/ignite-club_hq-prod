@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, lazy, Suspense } from "react";
+import { RenameChatGroupDialog } from "@/components/chat/RenameChatGroupDialog";
 import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
 import { resolveChatJumpTarget } from "@/lib/resolveChatJumpTarget";
@@ -597,6 +598,22 @@ export default function GroupChatPage() {
   // Group creators can edit their own groups, not just admins. This is the
   // only way to rename a personal group (no club/team scope to grant admin).
   const canEditGroup = !!(isAdmin || group?.created_by === user?.id);
+
+  // Competition owners/admins can rename that competition's chats (name only).
+  const competitionGroupId = (group as any)?.competition_id as string | null | undefined;
+  const { data: canRenameCompetitionChat } = useQuery({
+    queryKey: ["can-rename-competition-chat", groupId, user?.id],
+    queryFn: async () => {
+      const { data } = await (supabase.rpc as any)("can_rename_competition_chat", {
+        _user_id: user!.id,
+        _group_id: groupId,
+      });
+      return !!data;
+    },
+    enabled: !!groupId && !!user?.id && !!competitionGroupId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
 
   // Force a fresh fetch whenever we land on this group. Push notifications and
   // inbox taps can land here while react-query still has stale data — invalidating
@@ -2759,7 +2776,13 @@ export default function GroupChatPage() {
               scheduleMessageLocked={!groupClubProLoading && !groupClubHasPro}
               onSummarizeMessages={(!aiCatchUpDisabled && groupClubHasPro) ? () => summarizeTriggerRef.current?.() : undefined}
               summarizeLocked={!groupClubProLoading && !groupClubHasPro}
-              onEditGroup={canEditGroup ? () => setShowEditGroupDialog(true) : undefined}
+              onEditGroup={
+                canRenameCompetitionChat
+                  ? () => setShowRenameDialog(true)
+                  : canEditGroup
+                    ? () => setShowEditGroupDialog(true)
+                    : undefined
+              }
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
               onManagePinnedVault={
                 (isAdmin || group.created_by === user?.id)
@@ -3133,6 +3156,15 @@ export default function GroupChatPage() {
           />
         )}
       </div>
+
+      {canRenameCompetitionChat && group && (
+        <RenameChatGroupDialog
+          groupId={group.id}
+          currentName={group.name}
+          open={showRenameDialog}
+          onOpenChange={setShowRenameDialog}
+        />
+      )}
 
       {/* Edit Group Dialog */}
       {canEditGroup && group && (
