@@ -1117,6 +1117,20 @@ export default function NotificationsPage() {
           navigate(`/pay-fees/${relatedId}`);
         }
         break;
+      case "subscription_renewal_reminder":
+        // related_id is the team_id (team subs) or club_id (club subs). The
+        // navigate wrapper switches the active club first using the row's
+        // club_id, so a Basket Range tap no longer lands while filtered to
+        // another club.
+        if (relatedId) {
+          const { data: clubCheck } = await supabase
+            .from("clubs")
+            .select("id")
+            .eq("id", relatedId)
+            .maybeSingle();
+          navigate(clubCheck ? `/clubs/${relatedId}` : `/teams/${relatedId}`);
+        }
+        break;
       default:
         break;
     }
