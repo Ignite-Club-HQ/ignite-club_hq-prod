@@ -46,7 +46,7 @@ serve(async (req: Request): Promise<Response> => {
 
     const { data: recentNotifications, error: notifError } = await supabase
       .from('notifications')
-      .select('id, user_id, type, message, related_id, skip_push')
+      .select('id, user_id, type, message, related_id, skip_push, created_at')
       .gte('created_at', fiveMinAgo)
       .lte('created_at', fifteenSecAgo)
       .order('created_at', { ascending: false })
@@ -87,7 +87,20 @@ serve(async (req: Request): Promise<Response> => {
     // Exclude skip_push=true notifications — those are handled by edge functions
     // (e.g. check-pending-subs) which send their own pushes directly.
     // Retrying them here would cause duplicate push notifications.
-    const missedNotifications = recentNotifications.filter(n => !loggedIds.has(n.id) && !n.skip_push);
+    //
+    // Exception: chat-message notifications are inserted with skip_push=true by
+    // process-message-notifications, which then pushes them itself with the
+    // notificationId. send-push-notification always writes a push log row
+    // (claim placeholder) when given a notificationId, so a chat row that still
+    // has no log after 2 minutes was never delivered — give it one late retry.
+    // The claim mechanism in send-push-notification dedups any in-flight send.
+    const CHAT_SKIP_PUSH_TYPES = new Set(['team_message', 'club_message', 'group_message', 'broadcast']);
+    const twoMinAgoMs = Date.now() - 2 * 60 * 1000;
+    const missedNotifications = recentNotifications.filter(n => {
+      if (loggedIds.has(n.id)) return false;
+      if (!n.skip_push) return true;
+      return CHAT_SKIP_PUSH_TYPES.has(n.type) && new Date(n.created_at).getTime() <= twoMinAgoMs;
+    });
 
     if (missedNotifications.length === 0) {
       return new Response(
@@ -229,12 +242,13 @@ serve(async (req: Request): Promise<Response> => {
     // actually be sent. Cross-run dedup is handled by the next run seeing the real
     // log row that send-push-notification writes after sending.
 
-    // Dispatch with controlled concurrency (20 at a time)
-    const CONCURRENCY = 20;
+    // Dispatch in small groups (5 at a time, 150 ms apart)
+    const CONCURRENCY = 5;
     let retriedCount = 0;
     let errorCount = 0;
 
     for (let i = 0; i < missedNotifications.length; i += CONCURRENCY) {
+      if (i > 0) await new Promise(r => setTimeout(r, 150));
       const batch = missedNotifications.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         batch.map(async notif => {
