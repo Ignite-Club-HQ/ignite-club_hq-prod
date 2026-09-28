@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
+import { dispatchPushRequests } from "../_shared/pushDispatch.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
