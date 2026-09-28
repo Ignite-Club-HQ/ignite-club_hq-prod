@@ -1935,6 +1935,8 @@ export type Database = {
           is_important: boolean
           is_published: boolean
           published_at: string
+          target_competition_id: string | null
+          target_mini_league_id: string | null
           target_team_ids: string[] | null
           title: string
           updated_at: string
@@ -1951,6 +1953,8 @@ export type Database = {
           is_important?: boolean
           is_published?: boolean
           published_at?: string
+          target_competition_id?: string | null
+          target_mini_league_id?: string | null
           target_team_ids?: string[] | null
           title: string
           updated_at?: string
@@ -1967,6 +1971,8 @@ export type Database = {
           is_important?: boolean
           is_published?: boolean
           published_at?: string
+          target_competition_id?: string | null
+          target_mini_league_id?: string | null
           target_team_ids?: string[] | null
           title?: string
           updated_at?: string
@@ -1984,6 +1990,20 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_news_target_competition_id_fkey"
+            columns: ["target_competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_news_target_mini_league_id_fkey"
+            columns: ["target_mini_league_id"]
+            isOneToOne: false
+            referencedRelation: "mini_leagues"
             referencedColumns: ["id"]
           },
         ]
@@ -11014,6 +11034,10 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
       }
+      can_rename_competition_chat: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_view_album: { Args: { _album_id: string }; Returns: boolean }
       can_view_child_via_team: {
         Args: { _child_id: string; _user_id: string }
@@ -11276,6 +11300,10 @@ export type Database = {
           rsvps_total: number
           team_msgs: number
         }[]
+      }
+      club_news_competition_ids: {
+        Args: { _club_id: string }
+        Returns: string[]
       }
       club_scoped_child_guardians: {
         Args: { p_child_ids: string[]; p_club_id: string }
@@ -12202,6 +12230,10 @@ export type Database = {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
+      is_competition_audience: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_competition_league_admin: {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
@@ -12610,6 +12642,10 @@ export type Database = {
       remove_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: Json
+      }
+      rename_competition_chat: {
+        Args: { _group_id: string; _name: string }
+        Returns: undefined
       }
       repair_event_push_queue: {
         Args: { p_dry_run?: boolean; p_event_id: string }

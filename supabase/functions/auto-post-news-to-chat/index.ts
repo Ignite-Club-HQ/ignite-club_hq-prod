@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
     const { data: news, error: newsErr } = await admin
       .from("club_news")
       .select(
-        "id, club_id, title, content, is_important, is_published, target_team_ids, chat_posted_at",
+        "id, club_id, title, content, is_important, is_published, target_team_ids, target_mini_league_id, target_competition_id, chat_posted_at",
       )
       .eq("id", newsId)
       .maybeSingle();
@@ -174,6 +174,10 @@ Deno.serve(async (req) => {
     if (newsErr || !news) return json({ error: "news not found" }, 404);
     if (!news.is_published) return json({ skipped: "not published" });
     if (news.chat_posted_at) return json({ skipped: "already posted" });
+    // Mini league / competition news is never posted into club or team chats.
+    if ((news as any).target_mini_league_id || (news as any).target_competition_id) {
+      return json({ skipped: "not a club or team audience" });
+    }
 
     const { data: club } = await admin
       .from("clubs")

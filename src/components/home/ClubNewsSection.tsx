@@ -4,7 +4,11 @@ import { ChevronRight, Newspaper } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { useLatestClubNews, useNewsPublishableClubs } from "@/features/news/useClubNews";
+import {
+  useLatestClubNews,
+  useNewsPublishableClubs,
+  useNewsPublishableCompetitions,
+} from "@/features/news/useClubNews";
 import { stripAttachmentTokens } from "@/features/news/newsAttachments";
 
 /**
@@ -17,7 +21,8 @@ export default function ClubNewsSection() {
   const { activeClubFilter } = useClubTheme();
   const { latest } = useLatestClubNews(activeClubFilter);
   const { data: publishableClubs = [] } = useNewsPublishableClubs();
-  const canPublish = publishableClubs.length > 0;
+  const { data: publishableComps = [] } = useNewsPublishableCompetitions();
+  const canPublish = publishableClubs.length > 0 || publishableComps.length > 0;
 
   // No posts yet: stay hidden for members, but give club admins a way in.
   if (!latest) {

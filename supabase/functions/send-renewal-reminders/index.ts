@@ -194,6 +194,10 @@ Deno.serve(async (req) => {
               ? `${teamName}'s ${tierName} access, granted via a promotional code, ends on ${expiryDate}. No payment will be taken.`
               : `${teamName}'s ${tierName} subscription will renew on ${expiryDate}. To cancel, visit the team settings.`,
             related_id: sub.team_id,
+            // Scope to the owning club so the bell filter hides it from other
+            // clubs and a tap can switch the active club (defence in depth —
+            // the push trigger also backfills this).
+            club_id: team?.club_id ?? null,
           }));
 
           await supabase.from('notifications').insert(notifications);
@@ -324,6 +328,7 @@ Deno.serve(async (req) => {
               ? `${clubName}'s ${tierName} access, granted via a promotional code, ends on ${expiryDate}. No payment will be taken.`
               : `${clubName}'s ${tierName} subscription will renew on ${expiryDate}. To cancel, visit the club settings.`,
             related_id: sub.club_id,
+            club_id: sub.club_id,
           }));
 
           await supabase.from('notifications').insert(notifications);

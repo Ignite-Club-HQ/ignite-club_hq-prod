@@ -88,16 +88,16 @@ export function TeamNextEventCard({ teamId, clubId }: TeamNextEventCardProps) {
               );
             })()}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-              {nextEvent.start_time && (
+              {(nextEvent.start_time || nextEvent.event_date) && (
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {format(new Date(nextEvent.start_time), "h:mm a")}
+                  {format(new Date(nextEvent.start_time || nextEvent.event_date), "h:mm a")}
                   {nextEvent.end_time && ` – ${format(new Date(nextEvent.end_time), "h:mm a")}`}
                 </span>
               )}
               {locationDisplay && (
-                <span className="flex items-center gap-1 truncate max-w-[180px]">
-                  <MapPin className="h-3 w-3 shrink-0" />
+                <span className="flex items-start gap-1 min-w-0 break-words">
+                  <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
                   {locationDisplay}
                 </span>
               )}
