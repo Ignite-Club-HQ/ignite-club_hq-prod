@@ -106,8 +106,9 @@ export function extractPlayHQDates(raw: string): string[] {
   const toDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
   const dayRange = (from: number, to: number, mon: number, year: number) => {
     const out: string[] = [];
-    const start = new Date(year, mon - 1, from);
-    const end = to >= from ? new Date(year, mon - 1, to) : new Date(year, mon, to);
+    // "31-1/11/2026": the month/year belong to the last day.
+    const start = to >= from ? new Date(year, mon - 1, from) : new Date(year, mon - 2, from);
+    const end = new Date(year, mon - 1, to);
     for (let d = start; d <= end && out.length < 7; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) out.push(toDate(d));
     return out;
   };
@@ -209,6 +210,9 @@ export function playHQToDriblShape(headers: string[], rows: string[][]): { heade
     const round = get(row, "round");
 
     const dayList = [...days.entries()].sort((x, y) => dateValue(x[0]) - dateValue(y[0]));
+    // A later day with no time listed starts at the same time as the first day.
+    const fallbackTime = dayList.find(([, t]) => t)?.[1] ?? "";
+    for (const d of dayList) if (!d[1]) d[1] = fallbackTime;
     dayList.forEach(([date, time], i) => {
       const multi = dayList.length > 1;
       const dayLabel = multi ? `Day ${i + 1} of ${dayList.length}` : "";
