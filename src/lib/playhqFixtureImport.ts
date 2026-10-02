@@ -50,8 +50,9 @@ export function normalisePlayHQDate(raw: string): string {
   // Numeric dd/mm[/yyyy] — take the first one; if it has no year, use the
   // year that appears later in the cell ("17/10 - 18/10/2026").
   const y = v.match(/\b(20\d{2})\b/);
-  m = v.match(/(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?(?![\d])/);
-  if (m && (m[3] || y)) return `${pad(m[1])}/${pad(m[2])}/${m[3] ? fullYear(m[3]) : y![1]}`;
+  m = v.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})|(\d{1,2})[\/.](\d{1,2})(?![\/.\d])/);
+  if (m && m[1]) return `${pad(m[1])}/${pad(m[2])}/${fullYear(m[3])}`;
+  if (m && m[4] && y) return `${pad(m[4])}/${pad(m[5])}/${y[1]}`;
   // Month names: "17 Oct 2026", "Sat 17 October 2026", "17-18 Oct 2026"
   m = v.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\s*(?:-|–|&|and)\s*\d{1,2}(?:st|nd|rd|th)?)?\s+([a-z]{3,9})\.?,?\s*(\d{4})?/i);
   if (m) {
