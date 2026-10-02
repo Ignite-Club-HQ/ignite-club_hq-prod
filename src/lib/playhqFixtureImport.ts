@@ -33,13 +33,36 @@ export function playHQToDriblShape(headers: string[], rows: string[][]): { heade
     "Away Club Name", "Away Team", "Away Team Group",
   ];
 
+  // PlayHQ lists multi-day matches (e.g. "Two Day" games) as one row per day,
+  // all sharing the same Game ID. Group those rows so each match imports once,
+  // using the first day's date and start time.
+  const parseDate = (d: string): number => {
+    const m = d.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+    if (m) {
+      const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+      return new Date(y, Number(m[2]) - 1, Number(m[1])).getTime();
+    }
+    const t = new Date(d).getTime();
+    return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+  };
+
   const outRows: string[][] = [];
-  for (const row of rows) {
+  const seenMatches = new Set<string>();
+  const sortedRows = [...rows].sort((r1, r2) => parseDate(get(r1, "game date")) - parseDate(get(r2, "game date")));
+
+  for (const row of sortedRows) {
     const home = get(row, "home team");
     const away = get(row, "away team");
     const bye = get(row, "bye");
     const status = get(row, "game status").toLowerCase();
     if (!home || !away || bye || status === "cancelled" || status === "forfeit") continue;
+
+    const matchKey =
+      get(row, "game id") ||
+      get(row, "game code") ||
+      `${home.toLowerCase()}|${away.toLowerCase()}|${get(row, "round").toLowerCase()}`;
+    if (seenMatches.has(matchKey)) continue;
+    seenMatches.add(matchKey);
 
     const h = splitPlayHQTeam(home);
     const a = splitPlayHQTeam(away);
