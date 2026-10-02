@@ -1157,9 +1157,25 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               <p className="text-xs text-destructive text-center">{authBlockMessage}</p>
             )}
             {!allFixturesValid && invalidCount > 0 && (
-              <p className="text-xs text-destructive text-center">
-                {invalidCount} fixture{invalidCount !== 1 ? 's' : ''} missing required fields
-              </p>
+              <div className="text-xs text-destructive space-y-1">
+                <p className="text-center">
+                  {invalidCount} fixture{invalidCount !== 1 ? 's' : ''} missing required fields — fix or remove these to import:
+                </p>
+                <ul className="list-disc pl-5 max-h-40 overflow-y-auto">
+                  {fixturesAfterExclusion.filter(f => !isFixtureValid(f)).map((f, i) => {
+                    const reasons: string[] = [];
+                    if (!f.title.trim()) reasons.push('no title');
+                    if (!isValidDate(f.date)) reasons.push(f.date ? `date "${f.date}" not recognised` : 'no date');
+                    if (!isValidTime(f.time)) reasons.push(f.time ? `time "${f.time}" not recognised` : 'no start time');
+                    return (
+                      <li key={i}>
+                        <span className="font-medium">{f.title.trim() || 'Untitled'}</span>
+                        {f.date ? ` (${f.date})` : ''}: {reasons.join(', ')}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             )}
           </CardContent>
         </Card>
