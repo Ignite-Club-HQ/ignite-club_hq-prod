@@ -92,6 +92,57 @@ export function normalisePlayHQTime(raw: string): string {
   return v;
 }
 
+const VALID_DATE = /^\d{2}\/\d{2}\/\d{4}$/;
+const PIECE_SPLIT = /\s*(?:,|;|\n|&|\band\b|\bto\b|\s[-–]\s|\|)\s*/i;
+
+/**
+ * Every date in a cell, as dd/mm/yyyy, in order. Handles
+ * "17/10/2026, 18/10/2026", "17/10/2026 - 18/10/2026", "17-18/10/2026",
+ * "17-18 Oct 2026", "17/10 - 18/10/2026", one date per line, etc.
+ */
+export function extractPlayHQDates(raw: string): string[] {
+  const v = (raw || "").trim();
+  if (!v) return [];
+  const toDate = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const dayRange = (from: number, to: number, mon: number, year: number) => {
+    const out: string[] = [];
+    // "31-1/11/2026": the month/year belong to the last day.
+    const start = to >= from ? new Date(year, mon - 1, from) : new Date(year, mon - 2, from);
+    const end = new Date(year, mon - 1, to);
+    for (let d = start; d <= end && out.length < 7; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) out.push(toDate(d));
+    return out;
+  };
+  // "17-18/10/2026"
+  let m = v.match(/^(\d{1,2})\s*[-–&]\s*(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/);
+  if (m) return dayRange(Number(m[1]), Number(m[2]), Number(m[3]), fullYear(m[4]));
+  // "17-18 Oct 2026" / "Sat 17 - Sun 18 October 2026"
+  m = v.match(/^(?:[a-z]{3,9}\s+)?(\d{1,2})(?:st|nd|rd|th)?\s*[-–&]\s*(?:[a-z]{3,9}\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3,9})\.?,?\s+(\d{4})$/i);
+  if (m) {
+    const mon = MONTHS[m[3].slice(0, 4).toLowerCase()] ?? MONTHS[m[3].slice(0, 3).toLowerCase()];
+    if (mon) return dayRange(Number(m[1]), Number(m[2]), mon, Number(m[4]));
+  }
+  const year = v.match(/\b(20\d{2})\b/)?.[1];
+  const pieces = v.split(PIECE_SPLIT).filter(Boolean);
+  const dates: string[] = [];
+  for (const piece of pieces) {
+    const withYear = year && !/\b\d{4}\b/.test(piece) && !/\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2}\b/.test(piece) ? `${piece} ${year}` : piece;
+    const d = normalisePlayHQDate(withYear);
+    if (VALID_DATE.test(d) && !dates.includes(d)) dates.push(d);
+  }
+  if (dates.length >= 2) return dates;
+  const single = normalisePlayHQDate(v);
+  return [single];
+}
+
+/** Every start time in a cell, as HH:MM, in order ("10:00, 10:00" -> ["10:00","10:00"]). */
+export function extractPlayHQTimes(raw: string): string[] {
+  const v = (raw || "").trim();
+  if (!v) return [];
+  const pieces = v.split(/\s*(?:,|;|\n|&|\band\b|\s[-–\/]\s|\|)\s*/i).filter(Boolean);
+  const times = pieces.map(normalisePlayHQTime).filter((t) => /^\d{2}:\d{2}$/.test(t));
+  return times.length ? times : [normalisePlayHQTime(v)];
+}
+
 export function playHQToDriblShape(headers: string[], rows: string[][]): { headers: string[]; rows: string[][] } {
   const idx = (name: string) => headers.findIndex((x) => x.toLowerCase().trim() === name);
   const get = (row: string[], name: string) => {
@@ -105,25 +156,20 @@ export function playHQToDriblShape(headers: string[], rows: string[][]): { heade
     "Away Club Name", "Away Team", "Away Team Group",
   ];
 
-  // PlayHQ lists multi-day matches (e.g. "Two Day" games) as one row per day,
-  // all sharing the same Game ID. Group those rows so each match imports once,
-  // using the first day's date and start time.
-  const parseDate = (raw: string): number => {
-    const d = normalisePlayHQDate(raw);
-    const m = d.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
-    if (m) {
-      const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
-      return new Date(y, Number(m[2]) - 1, Number(m[1])).getTime();
-    }
-    const t = new Date(d).getTime();
-    return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+  // Multi-day matches (e.g. two-day cricket) arrive either as one row per day
+  // sharing the same Game ID, or as one row with several dates in the cell.
+  // Every playing day becomes its own fixture ("Round 1 (Day 1 of 2)") so
+  // each day lands on the schedule.
+  const dateValue = (d: string): number => {
+    const m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime() : Number.MAX_SAFE_INTEGER;
   };
 
-  const outRows: string[][] = [];
-  const seenMatches = new Set<string>();
-  const sortedRows = [...rows].sort((r1, r2) => parseDate(get(r1, "game date")) - parseDate(get(r2, "game date")));
+  type Match = { row: string[]; days: Map<string, string> };
+  const matches = new Map<string, Match>();
+  const order: string[] = [];
 
-  for (const row of sortedRows) {
+  for (const row of rows) {
     const home = get(row, "home team");
     const away = get(row, "away team");
     const bye = get(row, "bye");
@@ -134,28 +180,56 @@ export function playHQToDriblShape(headers: string[], rows: string[][]): { heade
       get(row, "game id") ||
       get(row, "game code") ||
       `${home.toLowerCase()}|${away.toLowerCase()}|${get(row, "round").toLowerCase()}`;
-    if (seenMatches.has(matchKey)) continue;
-    seenMatches.add(matchKey);
+    let match = matches.get(matchKey);
+    if (!match) {
+      match = { row, days: new Map() };
+      matches.set(matchKey, match);
+      order.push(matchKey);
+    }
+    const dates = extractPlayHQDates(get(row, "game date"));
+    const times = extractPlayHQTimes(get(row, "time"));
+    dates.forEach((d, i) => {
+      if (!match!.days.has(d)) match!.days.set(d, times[i] ?? times[0] ?? "");
+      else if (!match!.days.get(d) && (times[i] ?? times[0])) match!.days.set(d, times[i] ?? times[0]);
+    });
+    if (dates.length === 0 && !match.days.has("")) match.days.set("", times[0] ?? "");
+  }
 
+  const outRows: string[][] = [];
+  for (const key of order) {
+    const { row, days } = matches.get(key)!;
+    const home = get(row, "home team");
+    const away = get(row, "away team");
     const h = splitPlayHQTeam(home);
     const a = splitPlayHQTeam(away);
     const gradeCol = get(row, "grade");
     const grade = h.grade || a.grade || (gradeCol.match(GRADE_RE)?.[0] ?? gradeCol);
     const venue = get(row, "venue");
     const surface = get(row, "playing surface");
+    const id = get(row, "game id") || get(row, "game code");
+    const round = get(row, "round");
 
-    outRows.push([
-      get(row, "game id") || get(row, "game code"),
-      [get(row, "competition"), gradeCol].filter(Boolean).join(" - "),
-      get(row, "round"),
-      normalisePlayHQDate(get(row, "game date")),
-      normalisePlayHQTime(get(row, "time")),
-      venue,
-      surface && surface.toLowerCase() !== venue.toLowerCase() ? surface : "",
-      grade,
-      h.club, home, h.group,
-      a.club, away, a.group,
-    ]);
+    const dayList = [...days.entries()].sort((x, y) => dateValue(x[0]) - dateValue(y[0]));
+    // A later day with no time listed starts at the same time as the first day.
+    const fallbackTime = dayList.find(([, t]) => t)?.[1] ?? "";
+    for (const d of dayList) if (!d[1]) d[1] = fallbackTime;
+    dayList.forEach(([date, time], i) => {
+      const multi = dayList.length > 1;
+      const dayLabel = multi ? `Day ${i + 1} of ${dayList.length}` : "";
+      outRows.push([
+        multi && id ? `${id}#day${i + 1}` : id,
+        [get(row, "competition"), gradeCol].filter(Boolean).join(" - "),
+        multi ? (round ? `${round} (${dayLabel})` : dayLabel) : round,
+        date,
+        time,
+        venue,
+        surface && surface.toLowerCase() !== venue.toLowerCase() ? surface : "",
+        grade,
+        h.club, home, h.group,
+        a.club, away, a.group,
+      ]);
+    });
   }
+  outRows.sort((r1, r2) => dateValue(r1[3]) - dateValue(r2[3]));
   return { headers: outHeaders, rows: outRows };
 }
