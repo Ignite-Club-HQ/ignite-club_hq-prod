@@ -56,10 +56,10 @@ export function normalisePlayHQDate(raw: string): string {
   if (m && y) return `${pad(m[1])}/${pad(m[2])}/${y[1]}`;
   // Month names: "17 Oct 2026", "Sat 17 October 2026", "17-18 Oct 2026"
   m = v.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\s*(?:-|–|&|and)\s*\d{1,2}(?:st|nd|rd|th)?)?\s+([a-z]{3,9})\.?,?\s*(\d{4})?/i);
-  if (m && MONTHS[m[2].slice(0, 4).toLowerCase()] ?? MONTHS[m[2].slice(0, 3).toLowerCase()]) {
+  if (m) {
     const mon = MONTHS[m[2].slice(0, 4).toLowerCase()] ?? MONTHS[m[2].slice(0, 3).toLowerCase()];
     const year = m[3] || y?.[1];
-    if (year) return `${pad(m[1])}/${pad(mon)}/${year}`;
+    if (mon && year) return `${pad(m[1])}/${pad(mon)}/${year}`;
   }
   // "October 17, 2026"
   m = v.match(/([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})/i);

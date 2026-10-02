@@ -428,7 +428,9 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         if (isPlayHQFormat(headers)) {
           const converted = playHQToDriblShape(
             headers,
-            rows.slice(1).map((row) => row.map((cell) => cell?.toString() || '')),
+            rows.slice(1).map((row) =>
+              row.map((cell) => (cell instanceof Date ? cell.toISOString() : cell?.toString() || '')),
+            ),
           );
           setFile(selectedFile);
           if (converted.rows.length === 0) {
