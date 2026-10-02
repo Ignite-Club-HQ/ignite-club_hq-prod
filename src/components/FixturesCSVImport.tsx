@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { FixturePreviewEditor } from "@/components/FixturePreviewEditor";
 import { DriblImportMapper, isDriblFormat, parseDriblRows } from "@/components/DriblImportMapper";
 import { validateFixtureImportAuthorization } from "@/lib/fixtureImportAuthorization";
+import { isPlayHQFormat, playHQToDriblShape } from "@/lib/playhqFixtureImport";
 import ExcelJS from "exceljs";
 
 interface Team {
@@ -423,6 +424,22 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         
         const headers = rows[0].map(h => h?.toString() || '');
         
+        // PlayHQ (cricket) export — reuse the team mapper, no Pro Football gate
+        if (isPlayHQFormat(headers)) {
+          const converted = playHQToDriblShape(
+            headers,
+            rows.slice(1).map((row) => row.map((cell) => cell?.toString() || '')),
+          );
+          setFile(selectedFile);
+          if (converted.rows.length === 0) {
+            setErrors([{ row: 0, message: "No upcoming games found in this PlayHQ file (byes and cancelled games are skipped)." }]);
+            return;
+          }
+          setDriblMode(true);
+          setDriblRawData(converted);
+          return;
+        }
+
         // Check if this is a Dribl export
         if (isDriblFormat(headers)) {
           // Dribl imports are only available for Pro Football clubs
@@ -867,6 +884,12 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                   </p>
                 </div>
               )}
+
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground">
+                  <strong>🏏 PlayHQ exports (cricket):</strong> Upload the PlayHQ "advanced fixture" CSV or Excel file and we'll match your teams by age group and colour.
+                </p>
+              </div>
 
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" size="sm" className="flex-1" onClick={downloadTemplate}>
