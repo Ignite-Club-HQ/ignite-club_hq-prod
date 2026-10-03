@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { FixturePreviewEditor } from "@/components/FixturePreviewEditor";
 import { DriblImportMapper, isDriblFormat, parseDriblRows } from "@/components/DriblImportMapper";
 import { validateFixtureImportAuthorization } from "@/lib/fixtureImportAuthorization";
+import { isPlayHQFormat, playHQToDriblShape } from "@/lib/playhqFixtureImport";
 import ExcelJS from "exceljs";
 
 interface Team {
@@ -423,6 +424,24 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         
         const headers = rows[0].map(h => h?.toString() || '');
         
+        // PlayHQ (cricket) export — reuse the team mapper, no Pro Football gate
+        if (isPlayHQFormat(headers)) {
+          const converted = playHQToDriblShape(
+            headers,
+            rows.slice(1).map((row) =>
+              row.map((cell) => (cell instanceof Date ? cell.toISOString() : cell?.toString() || '')),
+            ),
+          );
+          setFile(selectedFile);
+          if (converted.rows.length === 0) {
+            setErrors([{ row: 0, message: "No upcoming games found in this PlayHQ file (byes and cancelled games are skipped)." }]);
+            return;
+          }
+          setDriblMode(true);
+          setDriblRawData(converted);
+          return;
+        }
+
         // Check if this is a Dribl export
         if (isDriblFormat(headers)) {
           // Dribl imports are only available for Pro Football clubs
@@ -609,13 +628,34 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
         }
       }
 
-      const eventsToInsert = fixturesToInsert.map(fixture => {
+      // Bulk import notification behaviour: the earliest game per team sends the
+      // normal per-game invite; every other game is inserted with
+      // notify_suppressed = true and the team gets one summary alert instead
+      // (sent via send_fixture_import_summary after the insert).
+      const firstFixtureKeyByTeam = new Map<string, number>();
+      fixturesToInsert.forEach((fixture, idx) => {
+        const tId = fixture.teamId || teamId || null;
+        if (!tId) return;
+        const existing = firstFixtureKeyByTeam.get(tId);
+        if (existing === undefined) {
+          firstFixtureKeyByTeam.set(tId, idx);
+          return;
+        }
+        const existingFixture = fixturesToInsert[existing];
+        const thisStart = `${fixture.date}T${fixture.time}`;
+        const existingStart = `${existingFixture.date}T${existingFixture.time}`;
+        if (thisStart < existingStart) firstFixtureKeyByTeam.set(tId, idx);
+      });
+
+      const eventsToInsert = fixturesToInsert.map((fixture, idx) => {
         const eventDateTime = new Date(`${fixture.date}T${fixture.time}`);
+        const tId = fixture.teamId || teamId || null;
+        const isFirstForTeam = tId ? firstFixtureKeyByTeam.get(tId) === idx : true;
         return {
           title: fixture.title,
           type: 'game' as const,
           club_id: clubId,
-          team_id: fixture.teamId || teamId || null,
+          team_id: tId,
           event_date: eventDateTime.toISOString(),
           start_time: eventDateTime.toISOString(),
           address: fixture.address || null,
@@ -626,14 +666,30 @@ export function FixturesCSVImport({ clubId, clubName = '', teamId, teams = [], o
           is_recurring: false,
           opponent: fixture.opponent || null,
           is_home_game: fixture.isHomeGame ?? null,
+          notify_suppressed: !isFirstForTeam,
         };
       });
 
-      const { error: insertError } = await supabase
+      const { data: insertedEvents, error: insertError } = await supabase
         .from('events')
-        .insert(eventsToInsert);
+        .insert(eventsToInsert)
+        .select('id, team_id');
 
       if (insertError) throw insertError;
+
+      // One summary alert per team that had more than one game imported.
+      const suppressedIds = (insertedEvents || [])
+        .filter(e => e.team_id && firstFixtureKeyByTeam.has(e.team_id))
+        .map(e => e.id);
+      const hasSuppressed = eventsToInsert.some(e => e.notify_suppressed);
+      if (hasSuppressed && suppressedIds.length > 0) {
+        const { error: summaryError } = await supabase.rpc('send_fixture_import_summary', {
+          p_event_ids: suppressedIds,
+        });
+        if (summaryError) {
+          console.error('Fixture import summary notification failed:', summaryError);
+        }
+      }
 
       toast({
         title: "Fixtures imported",
@@ -867,6 +923,12 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
                   </p>
                 </div>
               )}
+
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground">
+                  <strong>🏏 PlayHQ exports (cricket):</strong> Upload the PlayHQ "advanced fixture" CSV or Excel file and we'll match your teams by age group and colour.
+                </p>
+              </div>
 
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" size="sm" className="flex-1" onClick={downloadTemplate}>
@@ -1134,9 +1196,25 @@ Round 2 vs Tigers,${formatDate(followingSaturday)},14:30,Tigers United,456 Stadi
               <p className="text-xs text-destructive text-center">{authBlockMessage}</p>
             )}
             {!allFixturesValid && invalidCount > 0 && (
-              <p className="text-xs text-destructive text-center">
-                {invalidCount} fixture{invalidCount !== 1 ? 's' : ''} missing required fields
-              </p>
+              <div className="text-xs text-destructive space-y-1">
+                <p className="text-center">
+                  {invalidCount} fixture{invalidCount !== 1 ? 's' : ''} missing required fields — fix or remove these to import:
+                </p>
+                <ul className="list-disc pl-5 max-h-40 overflow-y-auto">
+                  {fixturesAfterExclusion.filter(f => !isFixtureValid(f)).map((f, i) => {
+                    const reasons: string[] = [];
+                    if (!f.title.trim()) reasons.push('no title');
+                    if (!isValidDate(f.date)) reasons.push(f.date ? `date "${f.date}" not recognised` : 'no date');
+                    if (!isValidTime(f.time)) reasons.push(f.time ? `time "${f.time}" not recognised` : 'no start time');
+                    return (
+                      <li key={i}>
+                        <span className="font-medium">{f.title.trim() || 'Untitled'}</span>
+                        {f.date ? ` (${f.date})` : ''}: {reasons.join(', ')}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             )}
           </CardContent>
         </Card>

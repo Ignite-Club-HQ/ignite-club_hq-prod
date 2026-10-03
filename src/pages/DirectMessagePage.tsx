@@ -478,6 +478,11 @@ export default function DirectMessagePage() {
     refetchOnMount: "always", // Force refetch on every mount (true is a no-op while staleTime is unmet)
   });
 
+  // The user is a participant once RLS returns the conversation row to them.
+  const isParticipant = !!conversation && !!user?.id &&
+    (conversation.participant_1 === user.id || conversation.participant_2 === user.id);
+  const dmStartBlocked = canDM === false && !isParticipant;
+
   // Memoize query key to prevent ChatMessage memo breaks
   const dmQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
 
@@ -1176,10 +1181,10 @@ export default function DirectMessagePage() {
       updateMessageMutation.mutate();
       return;
     }
-    // Allow sending if canDM is true OR if we're still checking (give benefit of doubt for existing conversations)
-    // The server-side RLS will still enforce the actual permission
-    if (canDM === false && !checkingCanDM) {
-      toast.error("DMs require both users to be members of a Pro club");
+    // Replies in an existing conversation are always allowed for participants;
+    // RLS on direct_messages enforces participant membership server-side.
+    if (dmStartBlocked && !checkingCanDM) {
+      toast.error("You can't start this direct message");
       return;
     }
     stopTyping();
@@ -1435,8 +1440,9 @@ export default function DirectMessagePage() {
     );
   }
 
-  // Access denied for non-Pro users
-  if (canDM === false) {
+  // can_dm_user only gates STARTING a DM. Participants of an existing
+  // conversation can always open and reply, whatever their role/plan.
+  if (dmStartBlocked) {
     return (
       <div className="py-6 space-y-6">
         <div className="flex items-center gap-3">

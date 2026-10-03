@@ -279,7 +279,15 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
         }
       }
 
-      return { canSend: false, reason: "not_admin" };
+      // Collect the roles the user's Pro club(s) allow to start DMs so the
+      // lock screen can show the real reason (club role settings, not Pro).
+      const allowedRoleSet = new Set<string>();
+      for (const clubId of proClubIds) {
+        const settings = dmSettings?.find(s => s.club_id === clubId);
+        if (settings && settings.dm_enabled === false) continue;
+        (settings?.allowed_roles ?? ['app_admin', 'club_admin', 'team_admin']).forEach((r: string) => allowedRoleSet.add(r));
+      }
+      return { canSend: false, reason: "not_admin", allowedRoles: Array.from(allowedRoleSet) };
     },
     enabled: !!user && hasProAccess === true,
     staleTime: 5 * 60 * 1000,
@@ -898,9 +906,17 @@ export function StartDMDialog({ open: controlledOpen, onOpenChange, mode = "dm",
                 <Lock className="h-6 w-6 text-muted-foreground" />
               </div>
               <div>
-                <p className="font-medium">Admin Feature</p>
+                <p className="font-medium">Restricted by your club</p>
                 <p className="text-sm text-muted-foreground">
-                  Direct messages are restricted to club administrators. Contact your club admin if you need this feature enabled.
+                  {(() => {
+                    const roles = ((canSendDMs as any)?.allowedRoles as string[] | undefined) ?? [];
+                    const labels = roles.map((r) =>
+                      r.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+                    );
+                    return labels.length > 0
+                      ? `Your club only lets ${labels.join(", ")} start direct messages. You can still reply to messages sent to you.`
+                      : "Your club has turned off starting direct messages. You can still reply to messages sent to you.";
+                  })()}
                 </p>
               </div>
             </div>
