@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getCompetitionFinalsLabel } from "@/lib/competitionFinalsLabel";
 
 const TEMPLATE =
   "Date,Time,Round,Home,Away,Location,Pitch,Division\n" +
@@ -83,6 +84,7 @@ interface ParsedRow {
   errors: string[];
   scheduledAt: Date | null;
   round: number | null;
+  finalsLabel: string | null;
   homeId: string | null;
   awayId: string | null;
   homeName: string;
@@ -147,6 +149,7 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
       if (home && away && home.teams.id === away.teams.id) errors.push("Home and away are the same team");
       const scheduledAt = parseDateTime(get(r, "date"), get(r, "time"));
       if (!scheduledAt) errors.push("Date/time not recognised (use DD/MM/YYYY and HH:MM)");
+      const finalsLabel = getCompetitionFinalsLabel(get(r, "round"));
       const roundRaw = get(r, "round").replace(/[^0-9]/g, "");
       const round = roundRaw ? Number(roundRaw) : null;
       let divisionId: string | null = null;
@@ -159,7 +162,7 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
         divisionId = home.division_id;
       }
       return {
-        line: i + 2, errors, scheduledAt, round,
+        line: i + 2, errors, scheduledAt, round, finalsLabel,
         homeId: home?.teams.id ?? null, awayId: away?.teams.id ?? null,
         homeName: home?.teams.name ?? (homeTbd ? "TBD" : homeName), awayName: away?.teams.name ?? (awayTbd ? "TBD" : awayName),
         venue: get(r, "location"), pitch: get(r, "pitch"), divisionId,
@@ -189,19 +192,21 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
 
   const submit = async () => {
     if (!canImport) return;
+    if (parsed.rows.some((r) => !r.scheduledAt)) return;
     setSaving(true);
-    const rows = parsed.rows.map((r) => ({
+    const rows = parsed.rows.flatMap((r) => r.scheduledAt ? [{
       competition_id: competitionId,
       division_id: r.divisionId,
       round_number: r.round,
+      notes: r.finalsLabel,
       home_team_id: r.homeId,
       away_team_id: r.awayId,
       status: "scheduled",
       created_by: user?.id ?? null,
-      scheduled_at: r.scheduledAt!.toISOString(),
+      scheduled_at: r.scheduledAt.toISOString(),
       venue: r.venue || null,
       pitch_number: r.pitch || null,
-    }));
+    }] : []);
     const { error } = await supabase.from("competition_matches").insert(rows);
     setSaving(false);
     if (error) {
@@ -267,7 +272,7 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
                       <div className="flex items-center gap-2">
                         {r.errors.length ? <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" /> : <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                         <span className="font-medium">
-                          {r.round != null && `R${r.round} · `}{r.homeName} vs {r.awayName}
+                          {r.finalsLabel ? `${r.finalsLabel} · ` : r.round != null ? `R${r.round} · ` : ""}{r.homeName} vs {r.awayName}
                         </span>
                       </div>
                       <div className="text-muted-foreground pl-5">

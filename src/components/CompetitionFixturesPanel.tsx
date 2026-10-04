@@ -41,6 +41,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { ImportFixturesMenuItem, ImportFixturesSheet } from "@/components/competitions/ImportFixturesMenuItem";
+import { getCompetitionFinalsLabel } from "@/lib/competitionFinalsLabel";
 
 function TeamAvatar({
   name,
@@ -1501,7 +1502,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
       <CardContent className="px-4 pt-4 pb-3.5 space-y-4">
         {/* 1. Time — compact metadata row */}
         {!editing && (
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <span className="text-base font-semibold text-foreground tabular-nums leading-snug">
               {scheduledDate ? format(scheduledDate, "h:mm a") : "Time TBD"}
             </span>
@@ -1509,6 +1510,12 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
               {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
             </span>
             <div className="flex-1 min-w-0" />
+            {getCompetitionFinalsLabel(match.notes) && (
+              <Badge variant="secondary" className="max-w-full whitespace-normal break-words gap-1">
+                <Trophy className="h-3 w-3 shrink-0" aria-hidden="true" />
+                {getCompetitionFinalsLabel(match.notes)}
+              </Badge>
+            )}
             {match.source && match.source !== "manual" && (
               <span
                 className="shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider bg-sky-500/15 text-sky-700 dark:text-sky-400"
