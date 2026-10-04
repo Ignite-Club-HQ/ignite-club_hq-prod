@@ -3,3 +3,40 @@ export function getCompetitionFinalsLabel(value?: string | null): string | null 
   const label = value?.split("·")[0].trim();
   return label && /\bfinals?\b/i.test(label) ? label : null;
 }
+
+const FINALS_PHRASE = /\b((?:grand|semi|preliminary|prelim|elimination|qualifying|quarter)[\s-]*)?finals?\b/i;
+
+const titleCase = (s: string) =>
+  s.toLowerCase().replace(/(^|[\s-])([a-z])/g, (_m, p, c) => p + c.toUpperCase());
+
+/**
+ * Derive a finals label from an imported fixture row. The Round cell wins
+ * ("Grand Final", "Finals vs TBD" → "Finals"); otherwise any other cell
+ * mentioning finals (e.g. a Notes column) yields the short finals phrase.
+ */
+export function deriveImportedFinalsLabel(roundCell: string, otherCells: string[]): string | null {
+  const round = roundCell.trim().replace(/\s+(?:vs?\.?|versus)\s+.*$/i, "").trim();
+  if (round && FINALS_PHRASE.test(round)) return round.replace(/\s+/g, " ");
+  for (const cell of otherCells) {
+    const hit = cell.match(FINALS_PHRASE);
+    if (hit) return titleCase(hit[0].replace(/\s+/g, " "));
+  }
+  return null;
+}
+
+/** Key used to detect a fixture that already exists (or repeats in the file). */
+export function competitionFixtureKey(f: {
+  scheduledAt: string | Date;
+  homeId: string | null;
+  awayId: string | null;
+  venue?: string | null;
+  pitch?: string | null;
+}): string {
+  const minute = Math.floor(new Date(f.scheduledAt).getTime() / 60000);
+  const teams = [f.homeId ?? "tbd", f.awayId ?? "tbd"].sort().join("|");
+  // When both teams are unknown, the venue/pitch is the only thing that tells games apart.
+  const place = !f.homeId && !f.awayId
+    ? `|${(f.venue ?? "").trim().toLowerCase()}|${(f.pitch ?? "").trim().toLowerCase()}`
+    : "";
+  return `${minute}|${teams}${place}`;
+}
