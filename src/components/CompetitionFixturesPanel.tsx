@@ -1074,7 +1074,7 @@ function FixturesFilterAndList({
   for (const m of filteredMatches) {
     const finalsLabel = m.round_number == null ? getCompetitionFinalsLabel(m.notes) : null;
     const key = m.round_number != null ? `r${m.round_number}` : finalsLabel ? `f:${finalsLabel.toLowerCase()}` : "unscheduled";
-    const label = m.round_number != null ? `Round ${m.round_number}` : finalsLabel ?? "Other matches";
+    const label = m.round_number != null ? `Round ${m.round_number}` : finalsLabel ?? "Minor Round";
     let idx = indexByKey.get(key);
     if (idx == null) {
       idx = groups.length;
