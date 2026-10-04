@@ -181,7 +181,15 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
       if (!scheduledAt) errors.push("Date/time not recognised (use DD/MM/YYYY and HH:MM)");
       const teamCols = new Set([col.home, col.away]);
       const finalsLabel = deriveImportedFinalsLabel(get(r, "round"), r.filter((_, ci) => !teamCols.has(ci)));
-      const roundRaw = get(r, "round").replace(/[^0-9]/g, "");
+      let roundRaw = get(r, "round").replace(/[^0-9]/g, "");
+      if (!roundRaw && !finalsLabel) {
+        // No round column: look for "Round 3" / "Rd 3" / "R3" in title, notes or other cells.
+        for (let ci = 0; ci < r.length && !roundRaw; ci++) {
+          if (teamCols.has(ci)) continue;
+          const m = String(r[ci] ?? "").match(/\b(?:round|rd|r)\s*\.?\s*(\d{1,3})\b/i);
+          if (m) roundRaw = m[1];
+        }
+      }
       const round = roundRaw ? Number(roundRaw) : null;
       let divisionId: string | null = null;
       const divName = get(r, "division");
