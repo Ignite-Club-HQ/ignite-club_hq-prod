@@ -94,7 +94,8 @@ describe("CompetitionFixturesPanel — fixture read failures", () => {
       home: { id: "blue", name: "Blue" }, away: null,
     }], error: null });
     wrap(<CompetitionFixturesPanel competitionId="c1" isAdmin={false} divisions={[]} entries={[]} />);
-    await waitFor(() => expect(screen.getByText("Finals")).toBeTruthy());
+    // Shown both as the section heading and as the card badge.
+    await waitFor(() => expect(screen.getAllByText("Finals").length).toBe(2));
     expect(screen.getByText("Blue")).toBeTruthy();
     expect(screen.getByText("TBD")).toBeTruthy();
   });
@@ -105,7 +106,7 @@ describe("CompetitionFixturesPanel — fixture read failures", () => {
       "Date,Time,Round,Home,Away,Pitch\n10/10/2026,18:30,Grand Final,TBD,TBD,TBD",
     } });
     expect(screen.getByText("Grand Final · TBD vs TBD")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Import 1 fixture" }).hasAttribute("disabled")).toBe(false);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Import 1 fixture" }).hasAttribute("disabled")).toBe(false));
   });
 
   it("labels finals from a notes column and skips fixtures already imported", async () => {
