@@ -41,6 +41,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import { ImportFixturesMenuItem, ImportFixturesSheet } from "@/components/competitions/ImportFixturesMenuItem";
+import { getCompetitionFinalsLabel } from "@/lib/competitionFinalsLabel";
 
 function TeamAvatar({
   name,
@@ -95,9 +96,13 @@ interface Props {
   divisions: any[];
   entries: any[]; // includes teams:team_id(id,name)
   source?: string;
+  competitionStatus?: string;
 }
 
-export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries, source }: Props) {
+export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries, source, competitionStatus }: Props) {
+  // Bulk import is only allowed while the competition is still a draft — once
+  // published, fixtures must be amended individually so events stay in sync.
+  const canImport = !competitionStatus || competitionStatus === "draft";
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -501,12 +506,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <CalendarPlus className="h-4 w-4 mr-2" /> Generate round-robin
                   </DropdownMenuItem>
                   <AddMatchMenuItem competitionId={competitionId} entries={entries} divisions={divisions} />
-                  <ImportFixturesMenuItem onOpen={() => setImportOpen(true)} />
+                  {canImport && <ImportFixturesMenuItem onOpen={() => setImportOpen(true)} />}
                   <AddFinalsRoundMenuItem competitionId={competitionId} divisions={divisions} />
 
                 </DropdownMenuContent>
               </DropdownMenu>
-              <ImportFixturesSheet competitionId={competitionId} entries={entries} divisions={divisions} open={importOpen} setOpen={setImportOpen} />
+              {canImport && <ImportFixturesSheet competitionId={competitionId} entries={entries} divisions={divisions} open={importOpen} setOpen={setImportOpen} />}
             </div>
           ) : (
             <Card className="w-full">
@@ -1071,8 +1076,9 @@ function FixturesFilterAndList({
   const groups: { key: string; label: string; items: any[] }[] = [];
   const indexByKey = new Map<string, number>();
   for (const m of filteredMatches) {
-    const key = m.round_number != null ? `r${m.round_number}` : "unscheduled";
-    const label = m.round_number != null ? `Round ${m.round_number}` : "Other matches";
+    const finalsLabel = m.round_number == null ? getCompetitionFinalsLabel(m.notes) : null;
+    const key = m.round_number != null ? `r${m.round_number}` : finalsLabel ? `f:${finalsLabel.toLowerCase()}` : "unscheduled";
+    const label = m.round_number != null ? `Round ${m.round_number}` : finalsLabel ?? "Minor Round";
     let idx = indexByKey.get(key);
     if (idx == null) {
       idx = groups.length;
@@ -1501,7 +1507,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
       <CardContent className="px-4 pt-4 pb-3.5 space-y-4">
         {/* 1. Time — compact metadata row */}
         {!editing && (
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <span className="text-base font-semibold text-foreground tabular-nums leading-snug">
               {scheduledDate ? format(scheduledDate, "h:mm a") : "Time TBD"}
             </span>
@@ -1509,6 +1515,12 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
               {scheduledDate ? format(scheduledDate, "EEE d MMM") : "Date TBD"}
             </span>
             <div className="flex-1 min-w-0" />
+            {getCompetitionFinalsLabel(match.notes) && (
+              <Badge variant="secondary" className="max-w-full whitespace-normal break-words gap-1">
+                <Trophy className="h-3 w-3 shrink-0" aria-hidden="true" />
+                {getCompetitionFinalsLabel(match.notes)}
+              </Badge>
+            )}
             {match.source && match.source !== "manual" && (
               <span
                 className="shrink-0 inline-flex items-center px-1.5 py-px rounded text-[9px] font-semibold uppercase tracking-wider bg-sky-500/15 text-sky-700 dark:text-sky-400"
@@ -1718,12 +1730,9 @@ function EditMatchDetailsDialog({
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
-    if (!homeId || !awayId || homeId === awayId) {
+    // Teams may be left as TBD (e.g. finals decided by standings later).
+    if (homeId && awayId && homeId === awayId) {
       toast({ title: "Pick two different teams", variant: "destructive" });
-      return;
-    }
-    if (!venue.trim()) {
-      toast({ title: "Venue is required", variant: "destructive" });
       return;
     }
     let scheduledAt: string | null = match.scheduled_at ?? null;
@@ -1735,11 +1744,11 @@ function EditMatchDetailsDialog({
     const { error } = await supabase
       .from("competition_matches")
       .update({
-        home_team_id: homeId,
-        away_team_id: awayId,
+        home_team_id: homeId || null,
+        away_team_id: awayId || null,
         division_id: divisionId || null,
         scheduled_at: scheduledAt,
-        venue: venue,
+        venue: venue.trim() || null,
         pitch_number: pitch.trim() || null,
         round_number: round ? Number(round) : null,
         duration_minutes: duration ? Number(duration) : null,
@@ -1772,9 +1781,10 @@ function EditMatchDetailsDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Home team</Label>
-              <Select value={homeId} onValueChange={setHomeId}>
+              <Select value={homeId || "_tbd"} onValueChange={(v) => setHomeId(v === "_tbd" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="_tbd">TBD</SelectItem>
                   {accepted.map((e: any) => (
                     <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
                   ))}
@@ -1783,9 +1793,10 @@ function EditMatchDetailsDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Away team</Label>
-              <Select value={awayId} onValueChange={setAwayId}>
+              <Select value={awayId || "_tbd"} onValueChange={(v) => setAwayId(v === "_tbd" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="_tbd">TBD</SelectItem>
                   {accepted.map((e: any) => (
                     <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
                   ))}
@@ -1891,10 +1902,6 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
       toast({ title: "Pick a finals date", variant: "destructive" });
       return;
     }
-    if (!venue.trim()) {
-      toast({ title: "Venue is required", variant: "destructive" });
-      return;
-    }
     setSaving(true);
 
     // Compute next round number for this competition + division scope
@@ -1944,7 +1951,7 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
         status: "scheduled" as const,
         created_by: user?.id ?? null,
         scheduled_at: start.toISOString(),
-        venue,
+        venue: venue.trim() || null,
         pitch_number: pitch,
         duration_minutes: dur,
         notes: p.isGrandFinal
@@ -2029,7 +2036,7 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
               </div>
             </div>
             <div>
-              <Label>Venue <span className="text-destructive">*</span></Label>
+              <Label>Venue</Label>
               <AddressAutocomplete
                 value={venue}
                 onChange={setVenue}
@@ -2102,7 +2109,8 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
   };
 
   const submit = async () => {
-    if (!homeId || !awayId || homeId === awayId) {
+    // Teams may be left as TBD (e.g. finals decided by standings later).
+    if (homeId && awayId && homeId === awayId) {
       toast({ title: "Pick two different teams", variant: "destructive" });
       return;
     }
@@ -2110,18 +2118,14 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
       toast({ title: "Start date & time required", variant: "destructive" });
       return;
     }
-    if (!venue.trim()) {
-      toast({ title: "Venue is required", variant: "destructive" });
-      return;
-    }
     setSaving(true);
     const { error } = await supabase.from("competition_matches").insert({
       competition_id: competitionId,
-      home_team_id: homeId,
-      away_team_id: awayId,
+      home_team_id: homeId || null,
+      away_team_id: awayId || null,
       division_id: divisionId || null,
       scheduled_at: new Date(scheduledAt).toISOString(),
-      venue: venue,
+      venue: venue.trim() || null,
       pitch_number: pitch.trim() || null,
       round_number: round ? Number(round) : null,
       duration_minutes: duration ? Number(duration) : null,
@@ -2156,9 +2160,10 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
       <div className="flex items-end gap-3">
         <div className="flex-1 min-w-0">
           <label className={labelClass}>Home team</label>
-          <Select value={homeId} onValueChange={setHomeId}>
+          <Select value={homeId || "_tbd"} onValueChange={(v) => setHomeId(v === "_tbd" ? "" : v)}>
             <SelectTrigger className={fieldClass}><SelectValue placeholder="Select team" /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="_tbd">TBD</SelectItem>
               {accepted.map((e: any) => (
                 <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
               ))}
@@ -2170,9 +2175,10 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
         </div>
         <div className="flex-1 min-w-0">
           <label className={labelClass}>Away team</label>
-          <Select value={awayId} onValueChange={setAwayId}>
+          <Select value={awayId || "_tbd"} onValueChange={(v) => setAwayId(v === "_tbd" ? "" : v)}>
             <SelectTrigger className={fieldClass}><SelectValue placeholder="Select team" /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="_tbd">TBD</SelectItem>
               {accepted.map((e: any) => (
                 <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
               ))}
@@ -2242,7 +2248,7 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
       {/* Venue + Pitch */}
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2">
-          <label className={labelClass}>Venue <span className="text-destructive">*</span></label>
+          <label className={labelClass}>Venue</label>
           <AddressAutocomplete
             value={venue}
             onChange={setVenue}
