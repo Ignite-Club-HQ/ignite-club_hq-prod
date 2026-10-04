@@ -96,9 +96,13 @@ interface Props {
   divisions: any[];
   entries: any[]; // includes teams:team_id(id,name)
   source?: string;
+  competitionStatus?: string;
 }
 
-export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries, source }: Props) {
+export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries, source, competitionStatus }: Props) {
+  // Bulk import is only allowed while the competition is still a draft — once
+  // published, fixtures must be amended individually so events stay in sync.
+  const canImport = !competitionStatus || competitionStatus === "draft";
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -502,12 +506,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <CalendarPlus className="h-4 w-4 mr-2" /> Generate round-robin
                   </DropdownMenuItem>
                   <AddMatchMenuItem competitionId={competitionId} entries={entries} divisions={divisions} />
-                  <ImportFixturesMenuItem onOpen={() => setImportOpen(true)} />
+                  {canImport && <ImportFixturesMenuItem onOpen={() => setImportOpen(true)} />}
                   <AddFinalsRoundMenuItem competitionId={competitionId} divisions={divisions} />
 
                 </DropdownMenuContent>
               </DropdownMenu>
-              <ImportFixturesSheet competitionId={competitionId} entries={entries} divisions={divisions} open={importOpen} setOpen={setImportOpen} />
+              {canImport && <ImportFixturesSheet competitionId={competitionId} entries={entries} divisions={divisions} open={importOpen} setOpen={setImportOpen} />}
             </div>
           ) : (
             <Card className="w-full">
