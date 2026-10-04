@@ -94,7 +94,7 @@ interface ParsedRow {
   pitch: string;
   divisionId: string | null;
   fileNotes: string;
-  duplicate: boolean;
+  duplicate: false | "existing" | "file";
 }
 
 async function fetchExistingKeys(competitionId: string): Promise<string[]> {
@@ -138,6 +138,9 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
   const { data: existingKeys } = useQuery({
     queryKey: ["competition-match-keys", competitionId],
     enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
     queryFn: () => fetchExistingKeys(competitionId),
   });
 
@@ -198,11 +201,13 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
       };
     });
     // Flag rows already in the competition, or repeated earlier in the same file.
-    const seen = new Set(existingKeys ?? []);
+    const existing = new Set(existingKeys ?? []);
+    const seen = new Set<string>();
     for (const row of rows) {
       if (row.errors.length || !row.scheduledAt) continue;
       const key = rowKey(row);
-      if (seen.has(key)) row.duplicate = true;
+      if (existing.has(key)) row.duplicate = "existing";
+      else if (seen.has(key)) row.duplicate = "file";
       else seen.add(key);
     }
     return { rows, headerError: null };
@@ -210,6 +215,8 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
 
   const errorCount = parsed.rows.filter((r) => r.errors.length).length;
   const duplicateCount = parsed.rows.filter((r) => r.duplicate).length;
+  const existingDupCount = parsed.rows.filter((r) => r.duplicate === "existing").length;
+  const fileDupCount = parsed.rows.filter((r) => r.duplicate === "file").length;
   const newCount = parsed.rows.length - duplicateCount;
   const canImport = parsed.rows.length > 0 && newCount > 0 && errorCount === 0 && !parsed.headerError && existingKeys !== undefined;
 
@@ -331,7 +338,8 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
                 <p className="text-sm font-medium">
                   {parsed.rows.length} fixture{parsed.rows.length === 1 ? "" : "s"} found
                   {errorCount > 0 && <span className="text-destructive"> · {errorCount} need fixing</span>}
-                  {duplicateCount > 0 && <span className="text-muted-foreground"> · {duplicateCount} already imported (will be skipped)</span>}
+                  {existingDupCount > 0 && <span className="text-muted-foreground"> · {existingDupCount} already imported (will be skipped)</span>}
+                  {fileDupCount > 0 && <span className="text-muted-foreground"> · {fileDupCount} repeated in file (will be skipped)</span>}
                 </p>
                 <div className="rounded-md border divide-y max-h-72 overflow-y-auto">
                   {parsed.rows.map((r) => (
@@ -346,7 +354,7 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
                         {r.scheduledAt ? r.scheduledAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"}
                         {r.venue && ` · ${r.venue}`}{r.pitch && ` · ${r.pitch}`}
                       </div>
-                      {r.duplicate && <div className="text-muted-foreground pl-5">Already in this competition — won't be imported again</div>}
+                      {r.duplicate && <div className="text-muted-foreground pl-5">{r.duplicate === "file" ? "Same game appears earlier in this file — will be skipped" : "Already in this competition — won't be imported again"}</div>}
                       {r.errors.map((e) => (
                         <div key={e} className="text-destructive pl-5">Row {r.line}: {e}</div>
                       ))}
