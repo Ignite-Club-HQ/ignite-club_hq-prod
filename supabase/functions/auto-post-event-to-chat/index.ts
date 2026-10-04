@@ -29,89 +29,16 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 
 type Action = "event_created" | "event_cancelled";
 
-const LOCAL_TIME_ZONE = "Australia/Adelaide";
+import {
+  fmtWhen,
+  ensureBot as sharedEnsureBot,
+  ensureBotInTeam as sharedEnsureBotInTeam,
+} from "../_shared/clubChatBot.ts";
 
-function fmtWhen(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  // E.g. "Sat 16 May, 2:30 PM"
-  // Edge runtime is UTC — always render in club-local time so chat posts match
-  // the Schedule / Next Up cards users see on their devices.
-  const date = d.toLocaleDateString("en-AU", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    timeZone: LOCAL_TIME_ZONE,
-  });
-  const time = d.toLocaleTimeString("en-AU", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: LOCAL_TIME_ZONE,
-  });
-  return `${date}, ${time}`;
-}
-
-async function ensureBot(
-  clubId: string,
-  clubName: string,
-  logoUrl: string | null,
-): Promise<string | null> {
-  const { data: club } = await admin
-    .from("clubs")
-    .select("bot_user_id")
-    .eq("id", clubId)
-    .maybeSingle();
-  if (club?.bot_user_id) return club.bot_user_id;
-
-  const botEmail = `bot-${clubId}@club.igniteapp.internal`;
-  const botPassword = crypto.randomUUID() + crypto.randomUUID();
-
-  let botUserId: string | null = null;
-  const { data: created, error: createErr } =
-    await admin.auth.admin.createUser({
-      email: botEmail,
-      password: botPassword,
-      email_confirm: true,
-      user_metadata: { full_name: clubName, is_club_bot: true, club_id: clubId },
-    });
-  if (createErr) {
-    if (createErr.message?.includes("already been registered")) {
-      const { data: existing } = await admin.auth.admin.listUsers();
-      const found = existing?.users?.find((u: any) => u.email === botEmail);
-      if (found) botUserId = found.id;
-    }
-    if (!botUserId) {
-      console.error("ensureBot create failed", clubId, createErr);
-      return null;
-    }
-  } else {
-    botUserId = created.user.id;
-  }
-
-  await admin
-    .from("profiles")
-    .upsert({ id: botUserId, display_name: clubName, avatar_url: logoUrl });
-  await admin.from("clubs").update({ bot_user_id: botUserId }).eq("id", clubId);
-  return botUserId;
-}
-
-async function ensureBotInTeam(botUserId: string, clubId: string, teamId: string) {
-  const { data: existing } = await admin
-    .from("user_roles")
-    .select("user_id")
-    .eq("user_id", botUserId)
-    .eq("team_id", teamId)
-    .maybeSingle();
-  if (existing) return;
-  await admin.from("user_roles").insert({
-    user_id: botUserId,
-    club_id: clubId,
-    team_id: teamId,
-    role: "basic_user",
-  });
-}
+const ensureBot = (clubId: string, clubName: string, logoUrl: string | null) =>
+  sharedEnsureBot(admin, clubId, clubName, logoUrl);
+const ensureBotInTeam = (botUserId: string, clubId: string, teamId: string) =>
+  sharedEnsureBotInTeam(admin, botUserId, clubId, teamId);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
