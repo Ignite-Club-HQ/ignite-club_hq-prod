@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { competitionFixtureKey, deriveImportedFinalsLabel } from "@/lib/competitionFinalsLabel";
+import { competitionFixtureKey, deriveImportedFinalsLabel, getCompetitionFinalsLabel } from "@/lib/competitionFinalsLabel";
 
 const TEMPLATE =
   "Date,Time,Round,Home,Away,Location,Pitch,Division\n" +
@@ -100,18 +100,20 @@ interface ParsedRow {
 async function fetchExistingKeys(competitionId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from("competition_matches")
-    .select("scheduled_at, home_team_id, away_team_id, venue, pitch_number")
+    .select("scheduled_at, home_team_id, away_team_id, venue, pitch_number, notes")
     .eq("competition_id", competitionId)
     .not("scheduled_at", "is", null)
     .limit(5000);
   if (error) throw error;
   return (data ?? []).map((m: any) => competitionFixtureKey({
     scheduledAt: m.scheduled_at, homeId: m.home_team_id, awayId: m.away_team_id, venue: m.venue, pitch: m.pitch_number,
+    finalsLabel: getCompetitionFinalsLabel(m.notes),
   }));
 }
 
 const rowKey = (r: ParsedRow) => competitionFixtureKey({
   scheduledAt: r.scheduledAt!, homeId: r.homeId, awayId: r.awayId, venue: r.venue || null, pitch: r.pitch || null,
+  finalsLabel: r.finalsLabel,
 });
 
 /** Menu entry only. The sheet must live OUTSIDE the dropdown: opening the
