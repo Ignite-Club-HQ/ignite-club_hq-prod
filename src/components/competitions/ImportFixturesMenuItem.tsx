@@ -158,7 +158,7 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
       return {
         line: i + 2, errors, scheduledAt, round,
         homeId: home?.teams.id ?? null, awayId: away?.teams.id ?? null,
-        homeName: home?.teams.name ?? homeName, awayName: away?.teams.name ?? awayName,
+        homeName: home?.teams.name ?? (homeTbd ? "TBD" : homeName), awayName: away?.teams.name ?? (awayTbd ? "TBD" : awayName),
         venue: get(r, "location"), pitch: get(r, "pitch"), divisionId,
       };
     });
@@ -225,7 +225,7 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
           <SheetHeader className="mb-4">
             <SheetTitle className="text-xl font-bold">Import fixtures</SheetTitle>
             <SheetDescription>
-              Upload a CSV (or paste from a spreadsheet) with columns: Date, Time, Round, Home, Away, Location, Pitch. Division is optional. Team names must match accepted teams. Each row's Pitch text is saved as that fixture's pitch description.
+              Upload a CSV (or paste from a spreadsheet) with columns: Date, Time, Round, Home, Away, Location, Pitch. Division is optional. Team names must match accepted teams — or leave a team blank or write TBD for games like finals where the teams aren't known yet. Each row's Pitch text is saved as that fixture's pitch description.
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-3">
