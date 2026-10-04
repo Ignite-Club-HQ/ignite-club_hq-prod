@@ -71,8 +71,8 @@ const HEADER_ALIASES: Record<string, string[]> = {
   date: ["date", "match date", "day"],
   time: ["time", "kick off", "kickoff", "start", "start time"],
   round: ["round", "rd", "round number"],
-  home: ["home", "team for", "for", "home team", "team 1", "team a"],
-  away: ["away", "team against", "against", "away team", "opponent", "team 2", "team b"],
+  home: ["home", "team for", "for", "home team", "team 1", "team a", "team", "team name", "my team", "our team", "club team", "home team name", "home side"],
+  away: ["away", "team against", "against", "away team", "opponent", "opponents", "opposition", "opponent team", "vs", "versus", "team 2", "team b", "away team name", "away side"],
   location: ["location", "venue", "ground", "address"],
   pitch: ["pitch", "field", "court", "pitch description"],
   division: ["division", "grade", "pool"],
@@ -122,7 +122,10 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
       col[key] = header.findIndex((h) => aliases.includes(h));
     }
     const missing = ["date", "home", "away"].filter((k) => col[k] < 0);
-    if (missing.length) return { rows: [], headerError: `Missing column${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}` };
+    if (missing.length) {
+      const found = grid[0].map((h) => h.trim()).filter(Boolean).join(", ");
+      return { rows: [], headerError: `Missing column${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}. The first row must be headings — found: ${found || "(empty)"}. Rename your team columns to "Home" and "Away".` };
+    }
     const get = (r: string[], k: string) => (col[k] >= 0 ? r[col[k]] ?? "" : "");
     const findTeam = (name: string) => {
       const n = norm(name);
