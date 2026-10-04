@@ -9,7 +9,7 @@
 
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
@@ -69,6 +69,9 @@ import {
   CompetitionFixturesPanel,
   CompetitionLadderPanel,
 } from "./CompetitionFixturesPanel";
+import { ImportFixturesSheet } from "./competitions/ImportFixturesMenuItem";
+
+const insertRows = vi.fn();
 
 const wrap = (ui: React.ReactElement) => {
   const qc = new QueryClient({
