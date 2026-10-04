@@ -93,7 +93,9 @@ serve(async (req) => {
       `)
       .eq("reminder_sent", false)
       .eq("is_cancelled", false)
-      .not("reminder_hours_before", "is", null);
+      .not("reminder_hours_before", "is", null)
+      // Never remind for games that have already started/finished.
+      .gt("event_date", now.toISOString());
 
     if (eventsError) {
       console.error("Error fetching events:", eventsError);
