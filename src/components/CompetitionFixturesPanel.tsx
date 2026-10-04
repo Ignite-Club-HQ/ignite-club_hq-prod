@@ -96,9 +96,13 @@ interface Props {
   divisions: any[];
   entries: any[]; // includes teams:team_id(id,name)
   source?: string;
+  competitionStatus?: string;
 }
 
-export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries, source }: Props) {
+export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, entries, source, competitionStatus }: Props) {
+  // Bulk import is only allowed while the competition is still a draft — once
+  // published, fixtures must be amended individually so events stay in sync.
+  const canImport = !competitionStatus || competitionStatus === "draft";
   const qc = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
