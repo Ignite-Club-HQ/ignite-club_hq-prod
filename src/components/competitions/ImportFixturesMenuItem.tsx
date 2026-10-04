@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload, Download, Loader2, AlertTriangle, Check } from "lucide-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { getCompetitionFinalsLabel } from "@/lib/competitionFinalsLabel";
+import { competitionFixtureKey, deriveImportedFinalsLabel } from "@/lib/competitionFinalsLabel";
 
 const TEMPLATE =
   "Date,Time,Round,Home,Away,Location,Pitch,Division\n" +
@@ -71,12 +71,13 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const HEADER_ALIASES: Record<string, string[]> = {
   date: ["date", "match date", "day"],
   time: ["time", "kick off", "kickoff", "start", "start time"],
-  round: ["round", "rd", "round number"],
+  round: ["round", "rd", "round number", "round name", "stage", "match", "match type", "fixture", "game", "game type"],
   home: ["home", "team for", "for", "home team", "team 1", "team a", "team", "team name", "my team", "our team", "club team", "home team name", "home side"],
   away: ["away", "team against", "against", "away team", "opponent", "opponents", "opposition", "opponent team", "vs", "versus", "team 2", "team b", "away team name", "away side"],
   location: ["location", "venue", "ground", "address"],
   pitch: ["pitch", "field", "court", "pitch description"],
   division: ["division", "grade", "pool"],
+  notes: ["notes", "note", "comments", "comment", "description", "details", "info"],
 };
 
 interface ParsedRow {
@@ -92,7 +93,26 @@ interface ParsedRow {
   venue: string;
   pitch: string;
   divisionId: string | null;
+  fileNotes: string;
+  duplicate: boolean;
 }
+
+async function fetchExistingKeys(competitionId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("competition_matches")
+    .select("scheduled_at, home_team_id, away_team_id, venue, pitch_number")
+    .eq("competition_id", competitionId)
+    .not("scheduled_at", "is", null)
+    .limit(5000);
+  if (error) throw error;
+  return (data ?? []).map((m: any) => competitionFixtureKey({
+    scheduledAt: m.scheduled_at, homeId: m.home_team_id, awayId: m.away_team_id, venue: m.venue, pitch: m.pitch_number,
+  }));
+}
+
+const rowKey = (r: ParsedRow) => competitionFixtureKey({
+  scheduledAt: r.scheduledAt!, homeId: r.homeId, awayId: r.awayId, venue: r.venue || null, pitch: r.pitch || null,
+});
 
 /** Menu entry only. The sheet must live OUTSIDE the dropdown: opening the
  * native file picker closes the menu, which would unmount the sheet and drop
@@ -113,6 +133,13 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
   const [saving, setSaving] = useState(false);
 
   const accepted = entries.filter((e: any) => e.status === "accepted" && e.teams);
+
+  // Existing fixtures, used to stop the same games being imported twice.
+  const { data: existingKeys } = useQuery({
+    queryKey: ["competition-match-keys", competitionId],
+    enabled: open,
+    queryFn: () => fetchExistingKeys(competitionId),
+  });
 
   const parsed = useMemo<{ rows: ParsedRow[]; headerError: string | null }>(() => {
     if (!text.trim()) return { rows: [], headerError: null };
@@ -149,7 +176,8 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
       if (home && away && home.teams.id === away.teams.id) errors.push("Home and away are the same team");
       const scheduledAt = parseDateTime(get(r, "date"), get(r, "time"));
       if (!scheduledAt) errors.push("Date/time not recognised (use DD/MM/YYYY and HH:MM)");
-      const finalsLabel = getCompetitionFinalsLabel(get(r, "round"));
+      const teamCols = new Set([col.home, col.away]);
+      const finalsLabel = deriveImportedFinalsLabel(get(r, "round"), r.filter((_, ci) => !teamCols.has(ci)));
       const roundRaw = get(r, "round").replace(/[^0-9]/g, "");
       const round = roundRaw ? Number(roundRaw) : null;
       let divisionId: string | null = null;
@@ -166,13 +194,24 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
         homeId: home?.teams.id ?? null, awayId: away?.teams.id ?? null,
         homeName: home?.teams.name ?? (homeTbd ? "TBD" : homeName), awayName: away?.teams.name ?? (awayTbd ? "TBD" : awayName),
         venue: get(r, "location"), pitch: get(r, "pitch"), divisionId,
+        fileNotes: get(r, "notes").trim(), duplicate: false,
       };
     });
+    // Flag rows already in the competition, or repeated earlier in the same file.
+    const seen = new Set(existingKeys ?? []);
+    for (const row of rows) {
+      if (row.errors.length || !row.scheduledAt) continue;
+      const key = rowKey(row);
+      if (seen.has(key)) row.duplicate = true;
+      else seen.add(key);
+    }
     return { rows, headerError: null };
-  }, [text, accepted, divisions]);
+  }, [text, accepted, divisions, existingKeys]);
 
   const errorCount = parsed.rows.filter((r) => r.errors.length).length;
-  const canImport = parsed.rows.length > 0 && errorCount === 0 && !parsed.headerError;
+  const duplicateCount = parsed.rows.filter((r) => r.duplicate).length;
+  const newCount = parsed.rows.length - duplicateCount;
+  const canImport = parsed.rows.length > 0 && newCount > 0 && errorCount === 0 && !parsed.headerError && existingKeys !== undefined;
 
   const onFile = async (file: File) => {
     if (!/\.(csv|tsv|txt)$/i.test(file.name)) {
@@ -194,11 +233,34 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
     if (!canImport) return;
     if (parsed.rows.some((r) => !r.scheduledAt)) return;
     setSaving(true);
-    const rows = parsed.rows.flatMap((r) => r.scheduledAt ? [{
+    // Re-check against the latest fixtures so a double tap or a second admin can't duplicate games.
+    let fresh: Set<string>;
+    try {
+      fresh = new Set(await fetchExistingKeys(competitionId));
+    } catch {
+      setSaving(false);
+      toast({ title: "Couldn't check existing fixtures", description: "Nothing was saved. Please try again.", variant: "destructive" });
+      return;
+    }
+    const toInsert = parsed.rows.filter((r) => {
+      if (!r.scheduledAt) return false;
+      const key = rowKey(r);
+      if (fresh.has(key)) return false;
+      fresh.add(key);
+      return true;
+    });
+    if (toInsert.length === 0) {
+      setSaving(false);
+      toast({ title: "Nothing new to import", description: "These fixtures are already in the competition." });
+      qc.invalidateQueries({ queryKey: ["competition-match-keys", competitionId] });
+      return;
+    }
+    const skipped = parsed.rows.length - toInsert.length;
+    const rows = toInsert.flatMap((r) => r.scheduledAt ? [{
       competition_id: competitionId,
       division_id: r.divisionId,
       round_number: r.round,
-      notes: r.finalsLabel,
+      notes: [r.finalsLabel, r.fileNotes].filter(Boolean).join(" · ") || null,
       home_team_id: r.homeId,
       away_team_id: r.awayId,
       status: "scheduled",
@@ -220,8 +282,12 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
       });
       return;
     }
-    toast({ title: `Imported ${rows.length} fixture${rows.length === 1 ? "" : "s"}` });
+    toast({
+      title: `Imported ${rows.length} fixture${rows.length === 1 ? "" : "s"}`,
+      description: skipped ? `${skipped} already existed and ${skipped === 1 ? "was" : "were"} skipped.` : undefined,
+    });
     qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-match-keys", competitionId] });
     setText("");
     setOpen(false);
   };
@@ -265,12 +331,13 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
                 <p className="text-sm font-medium">
                   {parsed.rows.length} fixture{parsed.rows.length === 1 ? "" : "s"} found
                   {errorCount > 0 && <span className="text-destructive"> · {errorCount} need fixing</span>}
+                  {duplicateCount > 0 && <span className="text-muted-foreground"> · {duplicateCount} already imported (will be skipped)</span>}
                 </p>
                 <div className="rounded-md border divide-y max-h-72 overflow-y-auto">
                   {parsed.rows.map((r) => (
                     <div key={r.line} className="p-2 text-xs">
                       <div className="flex items-center gap-2">
-                        {r.errors.length ? <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" /> : <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                        {r.errors.length ? <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" /> : r.duplicate ? <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                         <span className="font-medium">
                           {r.finalsLabel ? `${r.finalsLabel} · ` : r.round != null ? `R${r.round} · ` : ""}{r.homeName} vs {r.awayName}
                         </span>
@@ -279,6 +346,7 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
                         {r.scheduledAt ? r.scheduledAt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—"}
                         {r.venue && ` · ${r.venue}`}{r.pitch && ` · ${r.pitch}`}
                       </div>
+                      {r.duplicate && <div className="text-muted-foreground pl-5">Already in this competition — won't be imported again</div>}
                       {r.errors.map((e) => (
                         <div key={e} className="text-destructive pl-5">Row {r.line}: {e}</div>
                       ))}
@@ -290,7 +358,9 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
 
             <Button className="w-full" disabled={!canImport || saving} onClick={submit}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Import {parsed.rows.length || ""} fixture{parsed.rows.length === 1 ? "" : "s"}
+              {parsed.rows.length > 0 && newCount === 0 && errorCount === 0
+                ? "All fixtures already imported"
+                : <>Import {newCount || ""} fixture{newCount === 1 ? "" : "s"}</>}
             </Button>
             <p className="text-[11px] text-muted-foreground">
               While the competition is in Draft, imported fixtures stay private. When published, they become games in both teams' schedules.

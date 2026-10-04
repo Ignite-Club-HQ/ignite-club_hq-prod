@@ -94,7 +94,8 @@ describe("CompetitionFixturesPanel — fixture read failures", () => {
       home: { id: "blue", name: "Blue" }, away: null,
     }], error: null });
     wrap(<CompetitionFixturesPanel competitionId="c1" isAdmin={false} divisions={[]} entries={[]} />);
-    await waitFor(() => expect(screen.getByText("Finals")).toBeTruthy());
+    // Shown both as the section heading and as the card badge.
+    await waitFor(() => expect(screen.getAllByText("Finals").length).toBe(2));
     expect(screen.getByText("Blue")).toBeTruthy();
     expect(screen.getByText("TBD")).toBeTruthy();
   });
@@ -105,7 +106,21 @@ describe("CompetitionFixturesPanel — fixture read failures", () => {
       "Date,Time,Round,Home,Away,Pitch\n10/10/2026,18:30,Grand Final,TBD,TBD,TBD",
     } });
     expect(screen.getByText("Grand Final · TBD vs TBD")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Import 1 fixture" }).hasAttribute("disabled")).toBe(false);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Import 1 fixture" }).hasAttribute("disabled")).toBe(false));
+  });
+
+  it("labels finals from a notes column and skips fixtures already imported", async () => {
+    const blue = { status: "accepted", teams: { id: "blue", name: "Blue" } };
+    queue("competition_matches", { data: [{
+      scheduled_at: new Date(2026, 2, 3, 18, 30).toISOString(), home_team_id: "blue", away_team_id: null, venue: null, pitch_number: null,
+    }], error: null });
+    wrap(<ImportFixturesSheet competitionId="c1" entries={[blue]} divisions={[]} open setOpen={vi.fn()} />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value:
+      "Date,Time,Home,Away,Notes\n03/03/2026,18:30,Blue,TBD,Finals fixture\n03/03/2026,19:30,Blue,TBD,Finals fixture",
+    } });
+    await waitFor(() => expect(screen.getByText(/1 already imported/)).toBeTruthy());
+    expect(screen.getAllByText("Finals · Blue vs TBD").length).toBe(2);
+    expect(screen.getByRole("button", { name: "Import 1 fixture" })).toBeTruthy();
   });
 
   it("shows an error state (not 'No fixtures yet') when the fixture query fails", async () => {
