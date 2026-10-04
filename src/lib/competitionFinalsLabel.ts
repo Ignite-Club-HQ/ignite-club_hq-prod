@@ -31,12 +31,16 @@ export function competitionFixtureKey(f: {
   awayId: string | null;
   venue?: string | null;
   pitch?: string | null;
+  finalsLabel?: string | null;
 }): string {
   const minute = Math.floor(new Date(f.scheduledAt).getTime() / 60000);
   const teams = [f.homeId ?? "tbd", f.awayId ?? "tbd"].sort().join("|");
+  // Distinct finals ("Finals Match 1" vs "Finals Match 2") are separate games
+  // even when teams/time/venue coincide, so the label is part of the key.
+  const finals = f.finalsLabel ? `|f:${f.finalsLabel.trim().toLowerCase()}` : "";
   // When both teams are unknown, the venue/pitch is the only thing that tells games apart.
   const place = !f.homeId && !f.awayId
     ? `|${(f.venue ?? "").trim().toLowerCase()}|${(f.pitch ?? "").trim().toLowerCase()}`
     : "";
-  return `${minute}|${teams}${place}`;
+  return `${minute}|${teams}${finals}${place}`;
 }

@@ -100,7 +100,7 @@ interface ParsedRow {
 async function fetchExistingKeys(competitionId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from("competition_matches")
-    .select("scheduled_at, home_team_id, away_team_id, venue, pitch_number")
+    .select("scheduled_at, home_team_id, away_team_id, venue, pitch_number, notes")
     .eq("competition_id", competitionId)
     .not("scheduled_at", "is", null)
     .limit(5000);
