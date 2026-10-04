@@ -20,7 +20,8 @@ describe("imported finals labels", () => {
   });
   it("falls back to other cells such as notes", () => {
     expect(deriveImportedFinalsLabel("", ["2026-03-03", "Finals fixture. Opponent and pitch TBD."])).toBe("Finals");
-    expect(deriveImportedFinalsLabel("", ["semi final 2"])).toBe("Semi Final");
+    expect(deriveImportedFinalsLabel("", ["semi final 2"])).toBe("Semi Final 2");
+    expect(deriveImportedFinalsLabel("", ["Finals Match 1"])).toBe("Finals Match 1");
   });
   it("ignores ordinary rows", () => {
     expect(deriveImportedFinalsLabel("3", ["Bridgewater Oval", "Bring water"])).toBeNull();
@@ -40,5 +41,13 @@ describe("fixture duplicate keys", () => {
   it("keeps TBD-vs-TBD games on different pitches apart", () => {
     expect(competitionFixtureKey({ scheduledAt: at, homeId: null, awayId: null, pitch: "1" }))
       .not.toBe(competitionFixtureKey({ scheduledAt: at, homeId: null, awayId: null, pitch: "2" }));
+  });
+  it("treats numbered finals at the same time as separate games", () => {
+    expect(competitionFixtureKey({ scheduledAt: at, homeId: "green", awayId: null, finalsLabel: "Finals Match 1" }))
+      .not.toBe(competitionFixtureKey({ scheduledAt: at, homeId: "green", awayId: null, finalsLabel: "Finals Match 2" }));
+  });
+  it("still flags the same numbered final imported twice", () => {
+    expect(competitionFixtureKey({ scheduledAt: at, homeId: null, awayId: "blue", finalsLabel: "Finals Match 1" }))
+      .toBe(competitionFixtureKey({ scheduledAt: at, homeId: "blue", awayId: null, finalsLabel: "finals match 1" }));
   });
 });
