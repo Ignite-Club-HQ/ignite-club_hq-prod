@@ -12,6 +12,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { fmtWhen, postTeamChatAsClubBot } from "../_shared/clubChatBot.ts";
 
 interface Body {
   team_id: string;
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
   // Load team.
   const { data: team, error: teamErr } = await supabase
     .from("teams")
-    .select("id, club_id, name, playhq_team_id, playhq_competition_id, playhq_auto_create_events, created_by")
+    .select("id, club_id, name, playhq_team_id, playhq_competition_id, playhq_auto_create_events, created_by, auto_chat_post_enabled")
     .eq("id", body.team_id)
     .single();
 
@@ -68,6 +69,22 @@ Deno.serve(async (req) => {
       `external_home_team_id.eq.${team.playhq_team_id},external_away_team_id.eq.${team.playhq_team_id}`,
     );
   if (mErr) return json({ error: mErr.message }, 500);
+
+  // Work out which NEW future fixtures this run will create. When there are
+  // 2+, only the earliest upcoming one sends the normal invite; the rest are
+  // inserted with notify_suppressed and summarised in ONE team-chat post.
+  const nowMs = Date.now();
+  const newFuture = (matches ?? []).filter((m) => {
+    const isHome = m.external_home_team_id === team.playhq_team_id;
+    const existing = isHome ? m.home_event_id : m.away_event_id;
+    return !existing && m.scheduled_at && m.status !== "cancelled" &&
+      new Date(m.scheduled_at).getTime() >= nowMs;
+  }).sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime());
+  const consolidate = newFuture.length >= 2;
+  const firstUpcomingMatchId = newFuture[0]?.id ?? null;
+
+  let invitedEventId: string | null = null;
+  const suppressed: Array<{ id: string; event_date: string; opponent: string; is_home_game: boolean }> = [];
 
   let created = 0;
   let updated = 0;
@@ -101,6 +118,13 @@ Deno.serve(async (req) => {
 
     if (!m.scheduled_at) continue; // can't create an event without a date
 
+    // Past/cancelled fixtures never notify (trigger skips them anyway);
+    // in a multi-fixture run every non-first fixture is suppressed.
+    const isFutureLive = !isCancelled && new Date(m.scheduled_at).getTime() >= nowMs;
+    const notifySuppressed = consolidate
+      ? m.id !== firstUpcomingMatchId
+      : !isFutureLive;
+
     // Create event.
     const { data: ev, error: evErr } = await supabase
       .from("events")
@@ -117,6 +141,7 @@ Deno.serve(async (req) => {
         created_by: createdBy,
         competition_match_id: m.id,
         competition_side: side,
+        notify_suppressed: notifySuppressed,
       })
       .select("id")
       .single();
@@ -130,9 +155,52 @@ Deno.serve(async (req) => {
       .eq("id", m.id);
 
     created++;
+    if (isFutureLive) {
+      if (notifySuppressed) {
+        suppressed.push({ id: ev.id, event_date: m.scheduled_at, opponent: opponentName, is_home_game: isHome });
+      } else {
+        invitedEventId = ev.id;
+      }
+    }
   }
 
-  return json({ ok: true, created, updated, cancelled, total: matches?.length ?? 0 });
+  // ONE consolidated team-chat post for the suppressed fixtures. The normal
+  // chat-message notification flow sends a single push for it.
+  let consolidatedPosted = false;
+  if (suppressed.length > 0 && team.club_id && team.auto_chat_post_enabled !== false) {
+    suppressed.sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
+    const total = suppressed.length + (invitedEventId ? 1 : 0);
+    const next = newFuture[0];
+    const nextOpp = next
+      ? ((next.external_home_team_id === team.playhq_team_id ? next.away_team_name : next.home_team_name) ?? "Opponent")
+      : suppressed[0].opponent;
+    const nextWhen = fmtWhen(next?.scheduled_at ?? suppressed[0].event_date);
+    const lines = [
+      `📅 ${total} fixtures imported for ${team.name}. Next up: vs ${nextOpp}, ${nextWhen}.`,
+      "",
+      "Also coming up:",
+      ...suppressed.slice(0, 5).map((s) => `• ${fmtWhen(s.event_date)} — vs ${s.opponent}`),
+    ];
+    if (suppressed.length > 5) lines.push(`+${suppressed.length - 5} more`);
+    lines.push("", "Full season is in the Schedule. Please RSVP for each game.");
+    const msgId = await postTeamChatAsClubBot(supabase, {
+      clubId: team.club_id,
+      teamId: team.id,
+      text: lines.join("\n"),
+    });
+    consolidatedPosted = !!msgId;
+  }
+
+  return json({
+    ok: true,
+    created,
+    updated,
+    cancelled,
+    total: matches?.length ?? 0,
+    invited_event_id: invitedEventId,
+    suppressed_count: suppressed.length,
+    consolidated_posted: consolidatedPosted,
+  });
 });
 
 function json(body: unknown, status = 200) {
