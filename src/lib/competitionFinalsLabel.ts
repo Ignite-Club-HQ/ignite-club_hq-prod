@@ -4,7 +4,7 @@ export function getCompetitionFinalsLabel(value?: string | null): string | null 
   return label && /\bfinals?\b/i.test(label) ? label : null;
 }
 
-const FINALS_PHRASE = /\b((?:grand|semi|preliminary|prelim|elimination|qualifying|quarter)[\s-]*)?finals?\b/i;
+const FINALS_PHRASE = /\b((?:grand|semi|preliminary|prelim|elimination|qualifying|quarter)[\s-]*)?finals?\b(?:[\s-]*(?:match|game)?[\s-]*\d+)?/i;
 
 const titleCase = (s: string) =>
   s.toLowerCase().replace(/(^|[\s-])([a-z])/g, (_m, p, c) => p + c.toUpperCase());
