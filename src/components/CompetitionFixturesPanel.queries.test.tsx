@@ -71,8 +71,6 @@ import {
 } from "./CompetitionFixturesPanel";
 import { ImportFixturesSheet } from "./competitions/ImportFixturesMenuItem";
 
-const insertRows = vi.fn();
-
 const wrap = (ui: React.ReactElement) => {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -89,6 +87,27 @@ beforeEach(() => {
 });
 
 describe("CompetitionFixturesPanel — fixture read failures", () => {
+  it("shows a finals badge on a fixture with TBD teams", async () => {
+    queue("competition_matches", { data: [{
+      id: "final-1", notes: "Finals", status: "scheduled",
+      scheduled_at: "2026-10-10T18:30:00Z", round_number: null,
+      home: { id: "blue", name: "Blue" }, away: null,
+    }], error: null });
+    wrap(<CompetitionFixturesPanel competitionId="c1" isAdmin={false} divisions={[]} entries={[]} />);
+    await waitFor(() => expect(screen.getByText("Finals")).toBeTruthy());
+    expect(screen.getByText("Blue")).toBeTruthy();
+    expect(screen.getByText("TBD")).toBeTruthy();
+  });
+
+  it("preserves finals labels in the import preview", async () => {
+    wrap(<ImportFixturesSheet competitionId="c1" entries={[]} divisions={[]} open setOpen={vi.fn()} />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value:
+      "Date,Time,Round,Home,Away,Pitch\n10/10/2026,18:30,Grand Final,TBD,TBD,TBD",
+    } });
+    expect(screen.getByText("Grand Final · TBD vs TBD")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Import 1 fixture" }).hasAttribute("disabled")).toBe(false);
+  });
+
   it("shows an error state (not 'No fixtures yet') when the fixture query fails", async () => {
     queue("competition_matches", { data: null, error: { message: "boom" } });
     wrap(
