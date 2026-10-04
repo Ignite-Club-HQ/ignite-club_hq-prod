@@ -129,14 +129,18 @@ export function ImportFixturesSheet({ competitionId, entries, divisions, open, s
       const hit = accepted.find((e: any) => norm(e.teams.name) === n);
       return hit ?? null;
     };
+    // Blank or "TBD" teams are allowed (e.g. finals where standings aren't known yet)
+    const isTbd = (name: string) => !name.trim() || norm(name) === "tbd";
     const rows = grid.slice(1).map((r, i): ParsedRow => {
       const errors: string[] = [];
       const homeName = get(r, "home");
       const awayName = get(r, "away");
-      const home = findTeam(homeName);
-      const away = findTeam(awayName);
-      if (!home) errors.push(`"${homeName || "(blank)"}" isn't an accepted team`);
-      if (!away) errors.push(`"${awayName || "(blank)"}" isn't an accepted team`);
+      const homeTbd = isTbd(homeName);
+      const awayTbd = isTbd(awayName);
+      const home = homeTbd ? null : findTeam(homeName);
+      const away = awayTbd ? null : findTeam(awayName);
+      if (!homeTbd && !home) errors.push(`"${homeName}" isn't an accepted team`);
+      if (!awayTbd && !away) errors.push(`"${awayName}" isn't an accepted team`);
       if (home && away && home.teams.id === away.teams.id) errors.push("Home and away are the same team");
       const scheduledAt = parseDateTime(get(r, "date"), get(r, "time"));
       if (!scheduledAt) errors.push("Date/time not recognised (use DD/MM/YYYY and HH:MM)");
