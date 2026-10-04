@@ -506,12 +506,12 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
                     <CalendarPlus className="h-4 w-4 mr-2" /> Generate round-robin
                   </DropdownMenuItem>
                   <AddMatchMenuItem competitionId={competitionId} entries={entries} divisions={divisions} />
-                  <ImportFixturesMenuItem onOpen={() => setImportOpen(true)} />
+                  {canImport && <ImportFixturesMenuItem onOpen={() => setImportOpen(true)} />}
                   <AddFinalsRoundMenuItem competitionId={competitionId} divisions={divisions} />
 
                 </DropdownMenuContent>
               </DropdownMenu>
-              <ImportFixturesSheet competitionId={competitionId} entries={entries} divisions={divisions} open={importOpen} setOpen={setImportOpen} />
+              {canImport && <ImportFixturesSheet competitionId={competitionId} entries={entries} divisions={divisions} open={importOpen} setOpen={setImportOpen} />}
             </div>
           ) : (
             <Card className="w-full">
