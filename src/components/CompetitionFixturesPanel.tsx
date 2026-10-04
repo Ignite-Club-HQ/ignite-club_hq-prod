@@ -1718,12 +1718,9 @@ function EditMatchDetailsDialog({
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
-    if (!homeId || !awayId || homeId === awayId) {
+    // Teams may be left as TBD (e.g. finals decided by standings later).
+    if (homeId && awayId && homeId === awayId) {
       toast({ title: "Pick two different teams", variant: "destructive" });
-      return;
-    }
-    if (!venue.trim()) {
-      toast({ title: "Venue is required", variant: "destructive" });
       return;
     }
     let scheduledAt: string | null = match.scheduled_at ?? null;
@@ -1735,11 +1732,11 @@ function EditMatchDetailsDialog({
     const { error } = await supabase
       .from("competition_matches")
       .update({
-        home_team_id: homeId,
-        away_team_id: awayId,
+        home_team_id: homeId || null,
+        away_team_id: awayId || null,
         division_id: divisionId || null,
         scheduled_at: scheduledAt,
-        venue: venue,
+        venue: venue.trim() || null,
         pitch_number: pitch.trim() || null,
         round_number: round ? Number(round) : null,
         duration_minutes: duration ? Number(duration) : null,
@@ -1772,9 +1769,10 @@ function EditMatchDetailsDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Home team</Label>
-              <Select value={homeId} onValueChange={setHomeId}>
+              <Select value={homeId || "_tbd"} onValueChange={(v) => setHomeId(v === "_tbd" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="_tbd">TBD</SelectItem>
                   {accepted.map((e: any) => (
                     <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
                   ))}
@@ -1783,9 +1781,10 @@ function EditMatchDetailsDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Away team</Label>
-              <Select value={awayId} onValueChange={setAwayId}>
+              <Select value={awayId || "_tbd"} onValueChange={(v) => setAwayId(v === "_tbd" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="_tbd">TBD</SelectItem>
                   {accepted.map((e: any) => (
                     <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
                   ))}
@@ -1891,10 +1890,6 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
       toast({ title: "Pick a finals date", variant: "destructive" });
       return;
     }
-    if (!venue.trim()) {
-      toast({ title: "Venue is required", variant: "destructive" });
-      return;
-    }
     setSaving(true);
 
     // Compute next round number for this competition + division scope
@@ -1944,7 +1939,7 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
         status: "scheduled" as const,
         created_by: user?.id ?? null,
         scheduled_at: start.toISOString(),
-        venue,
+        venue: venue.trim() || null,
         pitch_number: pitch,
         duration_minutes: dur,
         notes: p.isGrandFinal
@@ -2029,7 +2024,7 @@ function AddFinalsRoundMenuItem({ competitionId, divisions }: { competitionId: s
               </div>
             </div>
             <div>
-              <Label>Venue <span className="text-destructive">*</span></Label>
+              <Label>Venue</Label>
               <AddressAutocomplete
                 value={venue}
                 onChange={setVenue}
@@ -2102,7 +2097,8 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
   };
 
   const submit = async () => {
-    if (!homeId || !awayId || homeId === awayId) {
+    // Teams may be left as TBD (e.g. finals decided by standings later).
+    if (homeId && awayId && homeId === awayId) {
       toast({ title: "Pick two different teams", variant: "destructive" });
       return;
     }
@@ -2110,18 +2106,14 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
       toast({ title: "Start date & time required", variant: "destructive" });
       return;
     }
-    if (!venue.trim()) {
-      toast({ title: "Venue is required", variant: "destructive" });
-      return;
-    }
     setSaving(true);
     const { error } = await supabase.from("competition_matches").insert({
       competition_id: competitionId,
-      home_team_id: homeId,
-      away_team_id: awayId,
+      home_team_id: homeId || null,
+      away_team_id: awayId || null,
       division_id: divisionId || null,
       scheduled_at: new Date(scheduledAt).toISOString(),
-      venue: venue,
+      venue: venue.trim() || null,
       pitch_number: pitch.trim() || null,
       round_number: round ? Number(round) : null,
       duration_minutes: duration ? Number(duration) : null,
@@ -2156,9 +2148,10 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
       <div className="flex items-end gap-3">
         <div className="flex-1 min-w-0">
           <label className={labelClass}>Home team</label>
-          <Select value={homeId} onValueChange={setHomeId}>
+          <Select value={homeId || "_tbd"} onValueChange={(v) => setHomeId(v === "_tbd" ? "" : v)}>
             <SelectTrigger className={fieldClass}><SelectValue placeholder="Select team" /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="_tbd">TBD</SelectItem>
               {accepted.map((e: any) => (
                 <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
               ))}
@@ -2170,9 +2163,10 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
         </div>
         <div className="flex-1 min-w-0">
           <label className={labelClass}>Away team</label>
-          <Select value={awayId} onValueChange={setAwayId}>
+          <Select value={awayId || "_tbd"} onValueChange={(v) => setAwayId(v === "_tbd" ? "" : v)}>
             <SelectTrigger className={fieldClass}><SelectValue placeholder="Select team" /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="_tbd">TBD</SelectItem>
               {accepted.map((e: any) => (
                 <SelectItem key={e.team_id} value={e.team_id}>{e.teams?.name}</SelectItem>
               ))}
@@ -2242,7 +2236,7 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
       {/* Venue + Pitch */}
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2">
-          <label className={labelClass}>Venue <span className="text-destructive">*</span></label>
+          <label className={labelClass}>Venue</label>
           <AddressAutocomplete
             value={venue}
             onChange={setVenue}
