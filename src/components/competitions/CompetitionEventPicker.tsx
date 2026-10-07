@@ -1,20 +1,17 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CreateCompetitionEventButton } from "./CreateCompetitionEventButton";
 
 /**
  * Shown on the Create Event page: lets competition organisers (owners/admins,
  * league admins of the organising club) create one competition-wide event.
  * Renders nothing when the user can't organise any competition.
  */
-export function CompetitionEventPicker() {
+export function CompetitionEventPicker({ value: competitionId, onChange }: { value: string; onChange: (id: string) => void }) {
   const { user } = useAuth();
-  const [competitionId, setCompetitionId] = useState("");
 
   const { data: competitions = [] } = useQuery({
     queryKey: ["organisable-competitions", user?.id],
@@ -59,16 +56,19 @@ export function CompetitionEventPicker() {
         <Trophy className="h-4 w-4 text-primary" />
         Event for a whole competition?
       </Label>
-      <Select value={competitionId} onValueChange={setCompetitionId}>
-        <SelectTrigger><SelectValue placeholder="Choose a competition" /></SelectTrigger>
+      <Select value={competitionId || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
+        <SelectTrigger><SelectValue placeholder="No – normal event" /></SelectTrigger>
         <SelectContent>
+          <SelectItem value="none">No – normal event</SelectItem>
           {competitions.map((c) => (
             <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
           ))}
         </SelectContent>
       </Select>
       {competitionId && (
-        <CreateCompetitionEventButton competitionId={competitionId} teamCount={teamCount} />
+        <p className="text-xs text-muted-foreground">
+          One event for the whole competition. Everyone on the {teamCount} entered {teamCount === 1 ? "team" : "teams"} (and parents/guardians) will be invited. The team choice above is ignored.
+        </p>
       )}
     </div>
   );
