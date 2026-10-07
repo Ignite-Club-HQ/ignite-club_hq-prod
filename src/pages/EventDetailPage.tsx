@@ -10,7 +10,7 @@ import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand, Lock } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand, Lock, ClipboardCheck } from "lucide-react";
 import { exportEventIcs } from "@/lib/icsExport";
 import { queueRsvp } from "@/lib/rsvpQueue";
 import { TrainingDefaultControl } from "@/components/event/TrainingDefaultControl";
