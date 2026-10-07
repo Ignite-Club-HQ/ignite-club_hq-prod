@@ -4464,11 +4464,13 @@ export type Database = {
           coach_note: string | null
           coach_note_author: string | null
           coach_note_updated_at: string | null
+          competition_id: string | null
           competition_match_id: string | null
           competition_side: string | null
           created_at: string
           created_by: string
           description: string | null
+          duty_team_id: string | null
           end_time: string | null
           event_date: string
           final_score_away: number | null
@@ -4521,11 +4523,13 @@ export type Database = {
           coach_note?: string | null
           coach_note_author?: string | null
           coach_note_updated_at?: string | null
+          competition_id?: string | null
           competition_match_id?: string | null
           competition_side?: string | null
           created_at?: string
           created_by: string
           description?: string | null
+          duty_team_id?: string | null
           end_time?: string | null
           event_date: string
           final_score_away?: number | null
@@ -4578,11 +4582,13 @@ export type Database = {
           coach_note?: string | null
           coach_note_author?: string | null
           coach_note_updated_at?: string | null
+          competition_id?: string | null
           competition_match_id?: string | null
           competition_side?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
+          duty_team_id?: string | null
           end_time?: string | null
           event_date?: string
           final_score_away?: number | null
@@ -4641,6 +4647,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
             referencedColumns: ["id"]
           },
           {
@@ -11405,6 +11418,18 @@ export type Database = {
           p_year_of_birth?: number
         }
         Returns: string
+      }
+      create_competition_event: {
+        Args: {
+          p_competition_id: string
+          p_description?: string
+          p_end_time?: string
+          p_event_date: string
+          p_location?: string
+          p_title: string
+          p_type: Database["public"]["Enums"]["event_type"]
+        }
+        Returns: number
       }
       create_event_with_duties: {
         Args: { p_child_dates?: string[]; p_duties?: Json; p_event: Json }
