@@ -456,6 +456,7 @@ export default function EventsPage() {
           team_id,
           mini_league_id,
           target_team_ids,
+          competition_id,
           is_cancelled,
           is_bye,
           is_recurring,
@@ -480,7 +481,11 @@ export default function EventsPage() {
       const selectedTeamIdFilter = teamFilter && !selectedMiniLeagueId ? teamFilter : null;
 
       if (filter !== "all") query = query.eq("type", filter);
-      if (clubFilter) query = query.eq("club_id", clubFilter);
+      // Competition-wide events live under the organising club but are shown
+      // to every entered-team member (RLS gates who can read them).
+      if (clubFilter && !selectedTeamIdFilter && !selectedMiniLeagueId) {
+        query = query.or(`club_id.eq.${clubFilter},and(competition_id.not.is.null,team_id.is.null)`);
+      } else if (clubFilter) query = query.eq("club_id", clubFilter);
       if (selectedTeamIdFilter) query = query.eq("team_id", selectedTeamIdFilter);
       if (selectedMiniLeagueId) query = query.eq("mini_league_id", selectedMiniLeagueId);
 
@@ -533,6 +538,9 @@ export default function EventsPage() {
             return true;
           }
           return teamIds.includes(event.team_id);
+        } else if ((event as any).competition_id) {
+          // Competition-wide event: RLS already limited rows to its audience.
+          return true;
         } else {
           return clubIds.includes(event.club_id);
         }
