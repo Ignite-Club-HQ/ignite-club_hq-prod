@@ -23,6 +23,7 @@ export type RsvpChildScopeEvent = {
   rsvp_audience?: string | null;
   adults_only?: boolean | null;
   restricted_to_roles?: string[] | null;
+  competition_id?: string | null;
 };
 
 /**
@@ -45,6 +46,22 @@ export function childrenAreExcluded(
 async function teamIdsForClub(clubId: string): Promise<string[]> {
   const { data } = await supabase.from("teams").select("id").eq("club_id", clubId);
   return (data ?? []).map((t: any) => t.id);
+}
+
+/** Accepted entered teams for a competition-wide event. */
+async function teamIdsForCompetition(competitionId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from("competition_entries")
+    .select("team_id")
+    .eq("competition_id", competitionId)
+    .eq("status", "accepted");
+  return (data ?? []).map((r: any) => r.team_id).filter(Boolean);
+}
+
+async function unscopedTeamIds(event: RsvpChildScopeEvent): Promise<string[]> {
+  if (event.competition_id) return teamIdsForCompetition(event.competition_id);
+  if (!event.club_id) return [];
+  return teamIdsForClub(event.club_id);
 }
 
 /** Keep only children with a child_team_assignments row in one of `teamIds`. */
@@ -101,9 +118,7 @@ export async function resolveRsvpChildren({
   const eligible = getEventEligibleTeamIds(event);
   if (eligible) return intersectWithTeams(candidates, eligible);
 
-  if (!event.club_id) return [];
-  const clubTeamIds = await teamIdsForClub(event.club_id);
-  return intersectWithTeams(candidates, clubTeamIds);
+  return intersectWithTeams(candidates, await unscopedTeamIds(event));
 }
 
 /**
@@ -122,7 +137,7 @@ export async function resolveEventChildRoster({
 
   const eligible = getEventEligibleTeamIds(event);
   let teamIds: string[] = eligible ?? [];
-  if (!eligible && event.club_id) teamIds = await teamIdsForClub(event.club_id);
+  if (!eligible) teamIds = await unscopedTeamIds(event);
   if (teamIds.length === 0) return [];
 
   const { data, error } = await supabase
