@@ -1,5 +1,4 @@
 import { ContactCompetitionAdminsButton } from "@/components/competitions/ContactCompetitionAdminsButton";
-import { CreateCompetitionEventButton } from "@/components/competitions/CreateCompetitionEventButton";
 import { CompetitionEventsList } from "@/components/competitions/CompetitionEventsList";
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
@@ -265,12 +264,6 @@ export default function CompetitionDetailPage() {
 
       {competition.status !== "draft" && <CompetitionEventsList competitionId={id!} />}
 
-      {canCreateEvent && competition.status !== "draft" && (
-        <CreateCompetitionEventButton
-          competitionId={id!}
-          teamCount={entries.filter((e: any) => e.status === "accepted").length}
-        />
-      )}
 
       {canManage && competition.status === "draft" && (
         <DraftSetupProgress
