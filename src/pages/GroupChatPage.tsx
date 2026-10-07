@@ -3173,6 +3173,7 @@ export default function GroupChatPage() {
             id: group.id,
             name: group.name,
             allowed_roles: group.allowed_roles as any,
+            include_captains: (group as any).include_captains === true,
             membership_mode: group.membership_mode,
             category: group.category,
             club_id: group.club_id,
