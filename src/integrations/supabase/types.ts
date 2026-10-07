@@ -4470,6 +4470,7 @@ export type Database = {
           created_at: string
           created_by: string
           description: string | null
+          duty_team_id: string | null
           end_time: string | null
           event_date: string
           final_score_away: number | null
@@ -4528,6 +4529,7 @@ export type Database = {
           created_at?: string
           created_by: string
           description?: string | null
+          duty_team_id?: string | null
           end_time?: string | null
           event_date: string
           final_score_away?: number | null
@@ -4586,6 +4588,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           description?: string | null
+          duty_team_id?: string | null
           end_time?: string | null
           event_date?: string
           final_score_away?: number | null
@@ -4658,6 +4661,13 @@ export type Database = {
             columns: ["competition_match_id"]
             isOneToOne: false
             referencedRelation: "competition_matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_duty_team_id_fkey"
+            columns: ["duty_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
           {
