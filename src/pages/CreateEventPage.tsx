@@ -1,3 +1,4 @@
+import { CompetitionEventPicker } from "@/components/competitions/CompetitionEventPicker";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
