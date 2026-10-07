@@ -645,6 +645,15 @@ export default function EventDetailPage() {
         if (leagueAdminData && leagueAdminData.length > 0) return true;
       }
       
+      // Competition-wide events: organisers (incl. league admins of the organising club) have full rights
+      if ((event as any).competition_id && !event.team_id) {
+        const { data: canOrganise } = await supabase.rpc("can_create_competition_event" as any, {
+          _user_id: user!.id,
+          _competition_id: (event as any).competition_id,
+        });
+        if (canOrganise === true) return true;
+      }
+      
       return false;
     },
     enabled: !!user && !!event,
