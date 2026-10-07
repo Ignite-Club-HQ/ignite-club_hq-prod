@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
 import { MoreEventOptions } from "@/components/event/MoreEventOptions";
+import { DutyTeamPicker } from "@/components/event/DutyTeamPicker";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
 import { refreshEventCaches } from "@/lib/eventCacheRefresh";
@@ -130,6 +131,7 @@ export default function EditEventPage() {
   const [adultsOnly, setAdultsOnly] = useState(false);
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
+  const [dutyTeamId, setDutyTeamId] = useState<string | null>(null);
 
   // Types that support a club-wide ("All Club") scope and therefore team targeting.
   const supportsClubWideScope = type === "game" || type === "social" || type === "training";
@@ -556,6 +558,7 @@ export default function EditEventPage() {
       setRsvpGrouping(grp === "level" || grp === "team" ? grp : "");
       const tti = (event as any).target_team_ids;
       setTargetTeamIds(Array.isArray(tti) && tti.length > 0 ? (tti as string[]) : null);
+      setDutyTeamId((event as any).duty_team_id ?? null);
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
@@ -706,6 +709,7 @@ export default function EditEventPage() {
           !selectedTeamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
             ? targetTeamIds
             : null,
+        duty_team_id: dutyTeamId,
 
       } as any;
 
@@ -1092,8 +1096,9 @@ export default function EditEventPage() {
                 showRoleRestriction={type === "social" && !selectedTeamId}
                 restrictedRoles={restrictedRoles}
                 onRestrictedRolesChange={setRestrictedRoles}
-                extraSummary={type === "social" && allowGuests ? ["Guests allowed"] : undefined}
+                extraSummary={[...(type === "social" && allowGuests ? ["Guests allowed"] : []), ...(dutyTeamId ? ["Team on duty set"] : [])]}
               >
+                <DutyTeamPicker clubId={(event as any)?.club_id} value={dutyTeamId} onChange={setDutyTeamId} />
                 {/* Guest settings - only for social events */}
                 {type === "social" && (
                   <div className="space-y-3">

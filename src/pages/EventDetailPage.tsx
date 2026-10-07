@@ -10,7 +10,7 @@ import { defaultMinutesPerHalfForTeamName } from "@/lib/teamAgeDefaults";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand, Lock } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Users, CheckCircle2, Circle, Loader2, Plus, Trash2, UserPlus, MessageSquare, Baby, Pencil, XCircle, Bell, DollarSign, Check, Share2, Play, Flame, MoreVertical, Eye, ChevronDown, CalendarPlus, Shield, Trophy, Hand, Lock, ClipboardCheck } from "lucide-react";
 import { exportEventIcs } from "@/lib/icsExport";
 import { queueRsvp } from "@/lib/rsvpQueue";
 import { TrainingDefaultControl } from "@/components/event/TrainingDefaultControl";
@@ -3161,6 +3161,7 @@ export default function EventDetailPage() {
               </div>
             </div>
           ) : null}
+          <DutyTeamBadge dutyTeamId={(event as any).duty_team_id ?? null} />
           {event.type === "game" && event.opponent && (
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-primary" />
@@ -4654,6 +4655,24 @@ export default function EventDetailPage() {
         );
       })()}
 
+    </div>
+  );
+}
+
+function DutyTeamBadge({ dutyTeamId }: { dutyTeamId: string | null }) {
+  const { data: name } = useQuery({
+    queryKey: ["duty-team-name", dutyTeamId],
+    enabled: !!dutyTeamId,
+    queryFn: async () => {
+      const { data } = await supabase.from("teams").select("name").eq("id", dutyTeamId!).maybeSingle();
+      return (data as any)?.name ?? null;
+    },
+  });
+  if (!dutyTeamId || !name) return null;
+  return (
+    <div className="flex items-center gap-3">
+      <ClipboardCheck className="h-5 w-5 text-primary" />
+      <Badge variant="secondary">On duty: {name}</Badge>
     </div>
   );
 }

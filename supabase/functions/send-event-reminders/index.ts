@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { isAuthorizedCronCaller } from "../_shared/cron-auth.ts";
+import { fmtWhen } from "../_shared/clubChatBot.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -486,6 +487,96 @@ serve(async (req) => {
               }
             }
           }
+        }
+      }
+    }
+
+    // ============================================
+    // Team-on-duty reminders (events.duty_team_id)
+    // Additive to individual duty reminders above. Fires at the event's
+    // reminder time (default 24h). Uses the existing event_reminder channel,
+    // so push/mute/preference handling is unchanged. Deduped per user+event by
+    // message prefix; the current duty_team_id is read at send time, so
+    // changing/removing the duty team needs no corrections.
+    // ============================================
+    const { data: dutyTeamEvents, error: dutyTeamErr } = await supabase
+      .from("events")
+      .select("id, title, event_date, club_id, reminder_hours_before, duty_team_id")
+      .not("duty_team_id", "is", null)
+      .eq("is_cancelled", false)
+      .gt("event_date", now.toISOString())
+      .lte("event_date", new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000).toISOString());
+
+    if (dutyTeamErr) {
+      console.error("Error fetching duty-team events:", dutyTeamErr);
+    } else {
+      for (const ev of dutyTeamEvents || []) {
+        const hours = (ev as any).reminder_hours_before ?? 24;
+        const remindAt = new Date(new Date(ev.event_date).getTime() - hours * 3600 * 1000);
+        if (now < remindAt) continue;
+
+        const { data: team } = await supabase
+          .from("teams")
+          .select("id, name, club_id, is_archived, deleted_at")
+          .eq("id", (ev as any).duty_team_id)
+          .maybeSingle();
+        // Fail closed: team must be active and in the event's club.
+        if (!team || team.is_archived || team.deleted_at || team.club_id !== ev.club_id) continue;
+
+        const [rolesRes, kidsRes] = await Promise.all([
+          supabase.from("user_roles").select("user_id").eq("team_id", team.id),
+          supabase.from("child_team_assignments").select("child_id").eq("team_id", team.id),
+        ]);
+        if (rolesRes.error || kidsRes.error) {
+          console.error("Duty-team recipient lookup failed", ev.id, rolesRes.error || kidsRes.error);
+          continue;
+        }
+        const childIds = [...new Set((kidsRes.data || []).map((k: any) => k.child_id))];
+        let parentIds: string[] = [];
+        let guardianIds: string[] = [];
+        if (childIds.length > 0) {
+          const [parentsRes, guardRes] = await Promise.all([
+            supabase.from("children").select("parent_id").in("id", childIds),
+            supabase.rpc("club_scoped_child_guardians", { p_child_ids: childIds, p_club_id: ev.club_id }),
+          ]);
+          if (parentsRes.error || guardRes.error) {
+            console.error("Duty-team guardian lookup failed", ev.id, parentsRes.error || guardRes.error);
+            continue;
+          }
+          parentIds = (parentsRes.data || []).map((c: any) => c.parent_id);
+          guardianIds = (guardRes.data || []).map((g: any) => g.guardian_id);
+        }
+        const recipients = [...new Set(
+          [...(rolesRes.data || []).map((r: any) => r.user_id), ...parentIds, ...guardianIds].filter(Boolean),
+        )] as string[];
+        if (recipients.length === 0) continue;
+
+        const prefix = `Reminder: ${team.name} is on duty at`;
+        const { data: already } = await supabase
+          .from("notifications")
+          .select("user_id")
+          .eq("type", "event_reminder")
+          .eq("related_id", ev.id)
+          .like("message", "Reminder: % is on duty at %")
+          .in("user_id", recipients);
+        const done = new Set((already || []).map((n: any) => n.user_id));
+        const toSend = recipients.filter((u) => !done.has(u));
+        if (toSend.length === 0) continue;
+
+        const message = `${prefix} ${ev.title} — ${fmtWhen(ev.event_date)}.`;
+        const { error: insErr } = await supabase.from("notifications").insert(
+          toSend.map((userId) => ({
+            user_id: userId,
+            type: "event_reminder",
+            message,
+            related_id: ev.id,
+            club_id: ev.club_id,
+          })),
+        );
+        if (insErr) console.error("Duty-team reminder insert failed", ev.id, insErr);
+        else {
+          console.log(`Sent ${toSend.length} duty-team reminders for ${ev.id} (${team.name})`);
+          totalReminders += toSend.length;
         }
       }
     }
