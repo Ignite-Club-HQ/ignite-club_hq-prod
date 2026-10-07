@@ -64,6 +64,7 @@ interface EditGroupDialogProps {
     id: string;
     name: string;
     allowed_roles: AppRole[];
+    include_captains?: boolean;
     membership_mode?: string | null;
     category?: string | null;
     club_id?: string | null;
