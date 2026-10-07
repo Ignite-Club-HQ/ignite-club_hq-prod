@@ -42,11 +42,15 @@ interface CreateGroupDialogProps {
   groupType?: "role" | "team";
 }
 
+// "captain" is not an app_role: it maps to chat_groups.include_captains and
+// grants access to adult season captains (team_captains) in scope.
+const CAPTAIN_OPTION = "captain" as AppRole;
 const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "league_admin", label: "League Admins" },
   { value: "committee_member", label: "Committee" },
   { value: "team_admin", label: "Team Admins" },
   { value: "coach", label: "Coaches" },
+  { value: CAPTAIN_OPTION, label: "Captains" },
   { value: "parent", label: "Parents" },
   { value: "player", label: "Players" },
 ];
@@ -206,6 +210,8 @@ export default function CreateGroupDialog({
           seen.get(r.role)!.add(r.user_id);
         });
         seen.forEach((set, role) => { counts[role] = set.size; });
+        const { data: caps } = await (supabase as any).from("team_captains").select("user_id").eq("team_id", scopeTeamId);
+        counts[CAPTAIN_OPTION] = new Set(((caps as any[]) || []).map((c) => c.user_id).filter(Boolean)).size;
         return counts;
       }
 
@@ -248,6 +254,10 @@ export default function CreateGroupDialog({
         seen.get(r.role)!.add(r.user_id);
       });
       seen.forEach((set, role) => { counts[role] = set.size; });
+      if (teamIds.length > 0) {
+        const { data: caps } = await (supabase as any).from("team_captains").select("user_id").in("team_id", teamIds);
+        counts[CAPTAIN_OPTION] = new Set(((caps as any[]) || []).map((c) => c.user_id).filter(Boolean)).size;
+      }
       return counts;
     },
     enabled: isOpen && !!(clubInfo?.clubId || teamId || miniLeagueId),
