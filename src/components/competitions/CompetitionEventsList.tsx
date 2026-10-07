@@ -10,10 +10,10 @@ export function CompetitionEventsList({ competitionId }: { competitionId: string
   const { data: events = [] } = useQuery({
     queryKey: ["competition-events", competitionId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("events")
         .select("id, title, event_date, location_name, location, is_cancelled")
-        .eq("competition_id" as any, competitionId)
+        .eq("competition_id", competitionId)
         .is("team_id", null)
         .gte("event_date", new Date(Date.now() - 12 * 3600 * 1000).toISOString())
         .order("event_date", { ascending: true })
