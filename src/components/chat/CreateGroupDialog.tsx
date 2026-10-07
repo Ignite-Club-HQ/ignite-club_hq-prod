@@ -304,14 +304,22 @@ export default function CreateGroupDialog({
     queryFn: async () => {
       if (selectedRoles.length === 0) return 0;
       const scopeTeamId = teamId || selectedTeamId || null;
+      const wantCaptains = selectedRoles.includes(CAPTAIN_OPTION);
+      const selectedRoles_ = selectedRoles;
+      const selectedRolesNoCap = selectedRoles_.filter((r) => r !== CAPTAIN_OPTION);
+      const captainIds = async (ids: string[]) => {
+        if (!wantCaptains || ids.length === 0) return [] as string[];
+        const { data } = await (supabase as any).from("team_captains").select("user_id").in("team_id", ids);
+        return ((data as any[]) || []).map((c) => c.user_id as string).filter(Boolean);
+      };
 
       if (scopeTeamId) {
         const { data } = await supabase
           .from("user_roles")
           .select("user_id")
           .eq("team_id", scopeTeamId)
-          .in("role", selectedRoles as any);
-        return new Set((data || []).map(r => r.user_id)).size;
+          .in("role", selectedRolesNoCap as any);
+        return new Set([...(data || []).map(r => r.user_id), ...(await captainIds([scopeTeamId]))]).size;
       }
       if (miniLeagueId) {
         const { data } = await (supabase as any)
@@ -324,7 +332,7 @@ export default function CreateGroupDialog({
       if (!clubInfo?.clubId) return 0;
 
       const [{ data: clubRows }, { data: teams }] = await Promise.all([
-        supabase.from("user_roles").select("user_id").eq("club_id", clubInfo.clubId).in("role", selectedRoles as any),
+        supabase.from("user_roles").select("user_id").eq("club_id", clubInfo.clubId).in("role", selectedRolesNoCap as any),
         supabase.from("teams").select("id").eq("club_id", clubInfo.clubId),
       ]);
       const teamIds = (teams || []).map(t => t.id);
@@ -334,11 +342,11 @@ export default function CreateGroupDialog({
           .from("user_roles")
           .select("user_id")
           .in("team_id", teamIds)
-          .in("role", selectedRoles as any);
+          .in("role", selectedRolesNoCap as any);
         teamRows = data || [];
       }
       return new Set(
-        [...(clubRows || []), ...teamRows].map((r: any) => r.user_id)
+        [...[...(clubRows || []), ...teamRows].map((r: any) => r.user_id), ...(await captainIds(teamIds))]
       ).size;
     },
     enabled: isOpen && selectedRoles.length > 0,
@@ -386,7 +394,8 @@ export default function CreateGroupDialog({
           team_id: finalTeamId,
           mini_league_id: finalMiniLeagueId,
           // Category-only groups: no role-based fanout, no allowed_roles.
-          allowed_roles: categoryOnlyClubScope ? [] : selectedRoles,
+          allowed_roles: categoryOnlyClubScope ? [] : selectedRoles.filter((r) => r !== CAPTAIN_OPTION),
+          include_captains: !categoryOnlyClubScope && !finalMiniLeagueId && selectedRoles.includes(CAPTAIN_OPTION),
           membership_mode: categoryOnlyClubScope ? "manual" : undefined,
           created_by: user.id,
           // Only meaningful for club-scoped groups — it drives the parent
