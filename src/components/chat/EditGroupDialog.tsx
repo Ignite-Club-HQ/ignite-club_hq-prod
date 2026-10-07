@@ -25,10 +25,15 @@ const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "committee_member", label: "Committee Members" },
   { value: "team_admin", label: "Team Admins" },
   { value: "coach", label: "Coaches" },
+  { value: "captain" as AppRole, label: "Captains" },
   { value: "parent", label: "Parents" },
   { value: "player", label: "Players" },
   { value: "club_admin", label: "Club Admins" },
 ];
+// "captain" is a UI-only option mapped to chat_groups.include_captains.
+const withCaptain = (g: any): AppRole[] =>
+  [...(g.allowed_roles || []), ...(g.include_captains ? ["captain" as AppRole] : [])];
+
 type JoinPolicy = "invite_only" | "request_to_join" | "open_to_club";
 
 const JOIN_POLICY_OPTIONS: { value: JoinPolicy; label: string; description: string }[] = [
@@ -82,7 +87,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
     (group.category === "Operations" || group.category === "Volunteers");
   const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState(group.name);
-  const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(group.allowed_roles);
+  const [selectedRoles, setSelectedRoles] = useState<AppRole[]>(withCaptain(group));
   const [joinPolicy, setJoinPolicy] = useState<JoinPolicy>(normalizeJoinPolicy(group.join_policy));
   const [allowForwarding, setAllowForwarding] = useState<boolean>(group.allow_forwarding !== false);
   const queryClient = useQueryClient();
@@ -95,7 +100,7 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
   useEffect(() => {
     if (open) {
       setName(group.name);
-      setSelectedRoles(group.allowed_roles);
+      setSelectedRoles(withCaptain(group));
       setJoinPolicy(normalizeJoinPolicy(group.join_policy));
       setAllowForwarding(group.allow_forwarding !== false);
     }
@@ -172,7 +177,10 @@ export default function EditGroupDialog({ group, open: controlledOpen, onOpenCha
     mutationFn: async () => {
       if (!canEdit) throw new Error("You do not have permission to edit this group");
       const updates: { name: string; allowed_roles?: AppRole[]; join_policy?: string; allow_forwarding?: boolean } = { name };
-      if (!isManual) updates.allowed_roles = selectedRoles;
+      if (!isManual) {
+        updates.allowed_roles = selectedRoles.filter((r) => r !== ("captain" as AppRole));
+        (updates as any).include_captains = !(group as any).mini_league_id && selectedRoles.includes("captain" as AppRole);
+      }
       if (qualifiesForOpenJoin) {
         updates.join_policy = joinPolicy;
       }
