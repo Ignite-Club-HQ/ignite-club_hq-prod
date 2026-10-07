@@ -13,9 +13,9 @@ import { supabase } from "@/integrations/supabase/client";
 type EventType = "social" | "training" | "game";
 
 /**
- * Lets competition owners/admins create one event that is added to the
- * schedule of every accepted team in the competition. Each team's members
- * receive the normal event invite and can RSVP.
+ * Lets competition organisers (owners/admins, league admins) create ONE
+ * competition-wide event (not per-team copies). Everyone on accepted teams
+ * (plus parents/guardians) is invited and can RSVP.
  */
 export function CreateCompetitionEventButton({
   competitionId,
@@ -74,10 +74,11 @@ export function CreateCompetitionEventButton({
     toast({
       title: "Event created",
       description: n > 0
-        ? `Added to ${n} team ${n === 1 ? "schedule" : "schedules"} — members have been invited.`
-        : "No teams are entered yet, so no one was invited.",
+        ? `${n} ${n === 1 ? "person has" : "people have"} been invited.`
+        : "No one to invite yet — it's still listed on the competition page.",
     });
     qc.invalidateQueries({ queryKey: ["events"] });
+    qc.invalidateQueries({ queryKey: ["competition-events", competitionId] });
     reset();
     setOpen(false);
   };
@@ -86,14 +87,14 @@ export function CreateCompetitionEventButton({
     <>
       <Button variant="outline" className="w-full" onClick={() => setOpen(true)} disabled={teamCount === 0}>
         <CalendarPlus className="h-4 w-4 mr-2" />
-        Create event for all teams
+        Create competition event
       </Button>
       <Dialog open={open} onOpenChange={(o) => !saving && setOpen(o)}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Competition event</DialogTitle>
             <DialogDescription>
-              Added to all {teamCount} entered {teamCount === 1 ? "team" : "teams"}. Everyone on those teams is invited and can RSVP.
+              One event for the whole competition. Everyone on the {teamCount} entered {teamCount === 1 ? "team" : "teams"} is invited and can RSVP.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

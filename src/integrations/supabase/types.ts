@@ -11067,6 +11067,10 @@ export type Database = {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
+      can_view_competition_wide_event: {
+        Args: { _event_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_view_drill: {
         Args: { _drill_id: string; _user_id: string }
         Returns: boolean
@@ -11330,6 +11334,13 @@ export type Database = {
         Returns: {
           child_id: string
           guardian_id: string
+        }[]
+      }
+      competition_event_audience: {
+        Args: { _competition_id: string }
+        Returns: {
+          club_id: string
+          user_id: string
         }[]
       }
       complete_stripe_webhook_event: {
@@ -11710,6 +11721,10 @@ export type Database = {
           sport: string
           status: string
         }[]
+      }
+      get_competition_event_recipients: {
+        Args: { p_event_id: string }
+        Returns: string[]
       }
       get_competition_join_token_status: {
         Args: { p_token: string }
