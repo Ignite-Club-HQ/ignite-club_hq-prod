@@ -1043,8 +1043,6 @@ export default function CreateEventPage() {
         </div>
       </div>
 
-      {!isFromMiniLeague && <CompetitionEventPicker />}
-
       {/* Event Type Selection - hidden when coming from mini league */}
       {!isFromMiniLeague && ((clubId && isLoadingProFootball) ? (
         <div className="grid grid-cols-4 gap-2">
@@ -1214,6 +1212,8 @@ export default function CreateEventPage() {
                     defaultMode="team"
                   />
                 )}
+
+                {type !== "mini_league" && !isFromMiniLeague && <CompetitionEventPicker />}
 
                 
 
