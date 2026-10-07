@@ -40,6 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import { friendlyMutationError } from "@/lib/friendlyMutationError";
 import { type ClubEventRole } from "@/components/event/EventRoleAudienceSelect";
 import { MoreEventOptions } from "@/components/event/MoreEventOptions";
+import { DutyTeamPicker } from "@/components/event/DutyTeamPicker";
 import type { RsvpAudience } from "@/lib/rsvpAudience";
 import { useAuth } from "@/hooks/useAuth";
 import { refreshEventCaches } from "@/lib/eventCacheRefresh";
@@ -154,6 +155,7 @@ export default function CreateEventPage() {
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
   // Subset targeting for club-wide games/socials/trainings: null = all club, [...] = only those teams
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
+  const [dutyTeamId, setDutyTeamId] = useState<string | null>(null);
 
   // Types that support a club-wide ("All Club") scope and therefore team targeting.
   const supportsClubWideScope = type === "game" || type === "social" || type === "training";
@@ -838,6 +840,7 @@ export default function CreateEventPage() {
         !teamId && supportsClubWideScope && targetTeamIds && targetTeamIds.length >= 2
           ? targetTeamIds
           : null,
+        duty_team_id: dutyTeamId,
 
     } as any;
 
@@ -1314,8 +1317,9 @@ export default function CreateEventPage() {
                 showRoleRestriction={type === "social" && !teamId}
                 restrictedRoles={restrictedRoles}
                 onRestrictedRolesChange={setRestrictedRoles}
-                extraSummary={type === "social" && allowGuests ? ["Guests allowed"] : undefined}
+                extraSummary={[...(type === "social" && allowGuests ? ["Guests allowed"] : []), ...(dutyTeamId ? ["Team on duty set"] : [])]}
               >
+                <DutyTeamPicker clubId={clubId} value={dutyTeamId} onChange={setDutyTeamId} />
                 {/* Guest settings - only for social events, only for club admins */}
                 {type === "social" && isClubAdminForSelectedClub && (
                   <div className="space-y-3">
