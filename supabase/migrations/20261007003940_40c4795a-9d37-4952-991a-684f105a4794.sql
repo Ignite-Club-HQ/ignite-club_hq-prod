@@ -1,0 +1,1 @@
+ALTER TABLE public.events DROP CONSTRAINT IF EXISTS events_duty_team_id_fkey;
