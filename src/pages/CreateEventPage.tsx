@@ -156,6 +156,7 @@ export default function CreateEventPage() {
   // Subset targeting for club-wide games/socials/trainings: null = all club, [...] = only those teams
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
   const [dutyTeamId, setDutyTeamId] = useState<string | null>(null);
+  useEffect(() => { setDutyTeamId(null); }, [clubId]);
 
   // Types that support a club-wide ("All Club") scope and therefore team targeting.
   const supportsClubWideScope = type === "game" || type === "social" || type === "training";
