@@ -1,3 +1,4 @@
+import { CompetitionEventPicker } from "@/components/competitions/CompetitionEventPicker";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1041,6 +1042,8 @@ export default function CreateEventPage() {
           )}
         </div>
       </div>
+
+      {!isFromMiniLeague && <CompetitionEventPicker />}
 
       {/* Event Type Selection - hidden when coming from mini league */}
       {!isFromMiniLeague && ((clubId && isLoadingProFootball) ? (
