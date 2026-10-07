@@ -82,6 +82,18 @@ export default function CompetitionDetailPage() {
   const organizerClubId = (competition as any)?.organizer_club_id ?? null;
   const { hasPro: organizerHasPro, isLoading: proLoading } = useClubProAccess(organizerClubId);
   const canManage = isAdmin && organizerHasPro;
+  const { data: canCreateEventRole = false } = useQuery({
+    queryKey: ["competition-can-create-event", id, user?.id],
+    enabled: !!id && !!user,
+    queryFn: async () => {
+      const { data } = await supabase.rpc("can_create_competition_event" as any, {
+        _user_id: user!.id,
+        _competition_id: id!,
+      });
+      return !!data;
+    },
+  });
+  const canCreateEvent = canCreateEventRole && organizerHasPro;
 
   const { data: divisions = [], isLoading: divisionsLoading } = useQuery({
     queryKey: ["competition-divisions", id],
@@ -250,7 +262,7 @@ export default function CompetitionDetailPage() {
         </div>
       )}
 
-      {canManage && competition.status !== "draft" && (
+      {canCreateEvent && competition.status !== "draft" && (
         <CreateCompetitionEventButton
           competitionId={id!}
           teamCount={entries.filter((e: any) => e.status === "accepted").length}
