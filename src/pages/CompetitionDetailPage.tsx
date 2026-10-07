@@ -1,5 +1,6 @@
 import { ContactCompetitionAdminsButton } from "@/components/competitions/ContactCompetitionAdminsButton";
 import { CreateCompetitionEventButton } from "@/components/competitions/CreateCompetitionEventButton";
+import { CompetitionEventsList } from "@/components/competitions/CompetitionEventsList";
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -261,6 +262,8 @@ export default function CompetitionDetailPage() {
           </Button>
         </div>
       )}
+
+      {competition.status !== "draft" && <CompetitionEventsList competitionId={id!} />}
 
       {canCreateEvent && competition.status !== "draft" && (
         <CreateCompetitionEventButton
