@@ -2480,6 +2480,9 @@ export default function MessagesPage() {
 
       const allowedRoles: string[] = group.allowed_roles || [];
       if (allowedRoles.length === 0) return true;
+      // Captain-inclusive groups: server access (team_captains) already
+      // gated the row via RLS, so a captain without a matching role keeps it.
+      if (group.include_captains === true && !group.mini_league_id) return true;
 
       if (group.mini_league_id) {
         const isLeagueAdmin = userAllRoles.some((ur: any) => 

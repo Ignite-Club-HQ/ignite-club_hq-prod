@@ -42,11 +42,15 @@ interface CreateGroupDialogProps {
   groupType?: "role" | "team";
 }
 
+// "captain" is not an app_role: it maps to chat_groups.include_captains and
+// grants access to adult season captains (team_captains) in scope.
+const CAPTAIN_OPTION = "captain" as AppRole;
 const ROLE_OPTIONS: { value: AppRole; label: string }[] = [
   { value: "league_admin", label: "League Admins" },
   { value: "committee_member", label: "Committee" },
   { value: "team_admin", label: "Team Admins" },
   { value: "coach", label: "Coaches" },
+  { value: CAPTAIN_OPTION, label: "Captains" },
   { value: "parent", label: "Parents" },
   { value: "player", label: "Players" },
 ];
@@ -206,6 +210,8 @@ export default function CreateGroupDialog({
           seen.get(r.role)!.add(r.user_id);
         });
         seen.forEach((set, role) => { counts[role] = set.size; });
+        const { data: caps } = await (supabase as any).from("team_captains").select("user_id").eq("team_id", scopeTeamId);
+        counts[CAPTAIN_OPTION] = new Set(((caps as any[]) || []).map((c) => c.user_id).filter(Boolean)).size;
         return counts;
       }
 
@@ -248,6 +254,10 @@ export default function CreateGroupDialog({
         seen.get(r.role)!.add(r.user_id);
       });
       seen.forEach((set, role) => { counts[role] = set.size; });
+      if (teamIds.length > 0) {
+        const { data: caps } = await (supabase as any).from("team_captains").select("user_id").in("team_id", teamIds);
+        counts[CAPTAIN_OPTION] = new Set(((caps as any[]) || []).map((c) => c.user_id).filter(Boolean)).size;
+      }
       return counts;
     },
     enabled: isOpen && !!(clubInfo?.clubId || teamId || miniLeagueId),
@@ -294,14 +304,22 @@ export default function CreateGroupDialog({
     queryFn: async () => {
       if (selectedRoles.length === 0) return 0;
       const scopeTeamId = teamId || selectedTeamId || null;
+      const wantCaptains = selectedRoles.includes(CAPTAIN_OPTION);
+      const selectedRoles_ = selectedRoles;
+      const selectedRolesNoCap = selectedRoles_.filter((r) => r !== CAPTAIN_OPTION);
+      const captainIds = async (ids: string[]) => {
+        if (!wantCaptains || ids.length === 0) return [] as string[];
+        const { data } = await (supabase as any).from("team_captains").select("user_id").in("team_id", ids);
+        return ((data as any[]) || []).map((c) => c.user_id as string).filter(Boolean);
+      };
 
       if (scopeTeamId) {
         const { data } = await supabase
           .from("user_roles")
           .select("user_id")
           .eq("team_id", scopeTeamId)
-          .in("role", selectedRoles as any);
-        return new Set((data || []).map(r => r.user_id)).size;
+          .in("role", selectedRolesNoCap as any);
+        return new Set([...(data || []).map(r => r.user_id), ...(await captainIds([scopeTeamId]))]).size;
       }
       if (miniLeagueId) {
         const { data } = await (supabase as any)
@@ -314,7 +332,7 @@ export default function CreateGroupDialog({
       if (!clubInfo?.clubId) return 0;
 
       const [{ data: clubRows }, { data: teams }] = await Promise.all([
-        supabase.from("user_roles").select("user_id").eq("club_id", clubInfo.clubId).in("role", selectedRoles as any),
+        supabase.from("user_roles").select("user_id").eq("club_id", clubInfo.clubId).in("role", selectedRolesNoCap as any),
         supabase.from("teams").select("id").eq("club_id", clubInfo.clubId),
       ]);
       const teamIds = (teams || []).map(t => t.id);
@@ -324,11 +342,11 @@ export default function CreateGroupDialog({
           .from("user_roles")
           .select("user_id")
           .in("team_id", teamIds)
-          .in("role", selectedRoles as any);
+          .in("role", selectedRolesNoCap as any);
         teamRows = data || [];
       }
       return new Set(
-        [...(clubRows || []), ...teamRows].map((r: any) => r.user_id)
+        [...[...(clubRows || []), ...teamRows].map((r: any) => r.user_id), ...(await captainIds(teamIds))]
       ).size;
     },
     enabled: isOpen && selectedRoles.length > 0,
@@ -376,7 +394,8 @@ export default function CreateGroupDialog({
           team_id: finalTeamId,
           mini_league_id: finalMiniLeagueId,
           // Category-only groups: no role-based fanout, no allowed_roles.
-          allowed_roles: categoryOnlyClubScope ? [] : selectedRoles,
+          allowed_roles: categoryOnlyClubScope ? [] : selectedRoles.filter((r) => r !== CAPTAIN_OPTION),
+          include_captains: !categoryOnlyClubScope && !finalMiniLeagueId && selectedRoles.includes(CAPTAIN_OPTION),
           membership_mode: categoryOnlyClubScope ? "manual" : undefined,
           created_by: user.id,
           // Only meaningful for club-scoped groups — it drives the parent
