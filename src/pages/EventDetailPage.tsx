@@ -3161,6 +3161,7 @@ export default function EventDetailPage() {
               </div>
             </div>
           ) : null}
+          <DutyTeamBadge dutyTeamId={(event as any).duty_team_id ?? null} />
           {event.type === "game" && event.opponent && (
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-primary" />
@@ -4654,6 +4655,24 @@ export default function EventDetailPage() {
         );
       })()}
 
+    </div>
+  );
+}
+
+function DutyTeamBadge({ dutyTeamId }: { dutyTeamId: string | null }) {
+  const { data: name } = useQuery({
+    queryKey: ["duty-team-name", dutyTeamId],
+    enabled: !!dutyTeamId,
+    queryFn: async () => {
+      const { data } = await supabase.from("teams").select("name").eq("id", dutyTeamId!).maybeSingle();
+      return (data as any)?.name ?? null;
+    },
+  });
+  if (!dutyTeamId || !name) return null;
+  return (
+    <div className="flex items-center gap-3">
+      <ClipboardCheck className="h-5 w-5 text-primary" />
+      <Badge variant="secondary">On duty: {name}</Badge>
     </div>
   );
 }
