@@ -760,6 +760,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           id: string
+          include_captains: boolean
           join_policy: string
           last_message_at: string | null
           last_message_author_id: string | null
@@ -787,6 +788,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          include_captains?: boolean
           join_policy?: string
           last_message_at?: string | null
           last_message_author_id?: string | null
@@ -814,6 +816,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          include_captains?: boolean
           join_policy?: string
           last_message_at?: string | null
           last_message_author_id?: string | null
@@ -11807,6 +11810,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_group_captain_user_ids: {
+        Args: { _group_id: string }
+        Returns: string[]
+      }
       get_inbox_latest_club_messages: {
         Args: { _club_ids: string[] }
         Returns: {
@@ -12299,6 +12306,10 @@ export type Database = {
       }
       is_eligible_competition_owner: {
         Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_group_captain_member: {
+        Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
       is_group_member: {
