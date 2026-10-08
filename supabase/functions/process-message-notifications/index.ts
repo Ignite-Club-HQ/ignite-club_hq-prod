@@ -291,7 +291,7 @@ Deno.serve(async (req) => {
 
       const { data: groupData } = await supabase
         .from('chat_groups')
-        .select('name, club_id, team_id, mini_league_id, allowed_roles, membership_mode')
+        .select('id, name, club_id, team_id, mini_league_id, allowed_roles, membership_mode, include_captains')
         .eq('id', groupId)
         .maybeSingle();
 
@@ -351,8 +351,16 @@ Deno.serve(async (req) => {
         // Scoped group in ROLE mode (club or team).
         // Guard: in role mode, an empty allowed_roles means nobody has access —
         // never fan out to the entire club.
+        const captainIds: string[] = [];
+        if ((groupData as any).include_captains === true) {
+          const { data: caps } = await supabase.rpc('get_group_captain_user_ids', { _group_id: groupId });
+          for (const c of (caps as any[]) || []) {
+            const cid = typeof c === 'string' ? c : c?.get_group_captain_user_ids;
+            if (cid && cid !== authorId) captainIds.push(cid);
+          }
+        }
         if (!groupData.allowed_roles || groupData.allowed_roles.length === 0) {
-          memberIds = [];
+          memberIds = [...new Set(captainIds)];
         } else {
           let query = supabase
             .from('user_roles')
@@ -367,7 +375,7 @@ Deno.serve(async (req) => {
           }
 
           const { data: members } = await query;
-          memberIds = [...new Set((members || []).map(m => m.user_id))];
+          memberIds = [...new Set([...(members || []).map(m => m.user_id), ...captainIds])];
         }
       }
 

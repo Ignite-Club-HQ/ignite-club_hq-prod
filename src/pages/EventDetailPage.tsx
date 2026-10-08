@@ -927,14 +927,26 @@ export default function EventDetailPage() {
 
   // Fetch team/club members for duty assignment and not responded list (with roles)
   const { data: membersWithRoles } = useQuery({
-    queryKey: ["event-members-with-roles", event?.club_id, event?.team_id],
+    queryKey: ["event-members-with-roles", event?.club_id, event?.team_id, (event as any)?.competition_id, id],
     queryFn: async () => {
       const query = supabase
         .from("user_roles")
         .select("user_id, role, team_id, profiles:user_id (id, display_name, avatar_url)");
 
+      const isCompetitionWide = !!(event as any)?.competition_id && !event?.team_id;
       if (event?.team_id) {
         query.eq("team_id", event.team_id);
+      } else if (isCompetitionWide) {
+        // Competition-wide events invite only people on the entered teams
+        // (plus their parents/guardians) — never the whole organising club.
+        const { data: audience, error: audErr } = await supabase.rpc(
+          "get_competition_event_recipients" as any,
+          { p_event_id: id! },
+        );
+        if (audErr) throw audErr;
+        const ids = ((audience as any[]) || []).map((r: any) => (typeof r === "string" ? r : r?.get_competition_event_recipients ?? r?.user_id)).filter(Boolean);
+        if (ids.length === 0) return [];
+        query.in("user_id", ids);
       } else {
         query.eq("club_id", event!.club_id);
       }
@@ -3170,7 +3182,7 @@ export default function EventDetailPage() {
               </div>
             </div>
           ) : null}
-          <DutyTeamBadge dutyTeamId={(event as any).duty_team_id ?? null} />
+          <DutyTeamBadge dutyTeamId={(event as any).duty_team_id ?? null} label={(event as any).duty_team_label ?? null} />
           {event.type === "game" && event.opponent && (
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-primary" />
@@ -4668,7 +4680,7 @@ export default function EventDetailPage() {
   );
 }
 
-function DutyTeamBadge({ dutyTeamId }: { dutyTeamId: string | null }) {
+function DutyTeamBadge({ dutyTeamId, label }: { dutyTeamId: string | null; label?: string | null }) {
   const { data: name } = useQuery({
     queryKey: ["duty-team-name", dutyTeamId],
     enabled: !!dutyTeamId,
@@ -4681,7 +4693,7 @@ function DutyTeamBadge({ dutyTeamId }: { dutyTeamId: string | null }) {
   return (
     <div className="flex items-center gap-3">
       <ClipboardCheck className="h-5 w-5 text-primary" />
-      <Badge variant="secondary">On duty: {name}</Badge>
+      <Badge variant="secondary">On duty: {name}{label?.trim() ? ` — ${label.trim()}` : ""}</Badge>
     </div>
   );
 }

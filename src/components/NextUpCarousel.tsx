@@ -1,3 +1,4 @@
+import { MyTeamDutyTag } from "@/components/events/MyTeamDutyTag";
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -249,6 +250,7 @@ function useChildrenForEvent(
       ((event as any).target_team_ids ?? []).join(","),
       ((event as any).restricted_to_roles ?? []).join(","),
       (event as any).rsvp_audience,
+      (event as any).competition_id,
       userId,
     ],
     queryFn: async () => {
@@ -297,6 +299,7 @@ function useChildrenForEvent(
           rsvp_audience: ((event as any).rsvp_audience ?? null) as string | null,
           adults_only: ((event as any).adults_only ?? null) as boolean | null,
           restricted_to_roles: ((event as any).restricted_to_roles ?? null) as string[] | null,
+          competition_id: ((event as any).competition_id ?? null) as string | null,
         },
         userId,
       });
@@ -950,6 +953,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
         </div>
 
 
+        <MyTeamDutyTag event={event} />
         {myDuties && myDuties.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 pt-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-0.5">
@@ -1516,6 +1520,7 @@ function CompactCard({ event }: { event: EventItem }) {
 
 
         {/* RSVP Status */}
+        <MyTeamDutyTag event={event} />
         {myDuties && myDuties.length > 0 && (
           <div className="flex flex-wrap items-center gap-1">
             {myDuties.map((d: any) => {

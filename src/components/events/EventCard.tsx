@@ -1,3 +1,4 @@
+import { MyTeamDutyTag } from "@/components/events/MyTeamDutyTag";
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDeleteEvent } from "@/hooks/useDeleteEvent";
@@ -798,6 +799,7 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
         </div>
 
 
+        <MyTeamDutyTag event={event} />
         {myDuties && myDuties.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 pt-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-0.5">

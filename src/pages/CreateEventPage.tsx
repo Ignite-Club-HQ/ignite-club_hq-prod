@@ -1,3 +1,4 @@
+import { useOrganisableCompetitions, useCompetitionAcceptedCount } from "@/components/competitions/CompetitionEventPicker";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -119,6 +120,9 @@ export default function CreateEventPage() {
 
   // End time / duration state
   const [endTime, setEndTime] = useState("");
+  const [competitionId, setCompetitionId] = useState("");
+  const { data: organisableCompetitions = [] } = useOrganisableCompetitions();
+  const { data: competitionTeamCount = 0 } = useCompetitionAcceptedCount(competitionId);
   const [duration, setDuration] = useState("");
   const [endTimeMode, setEndTimeMode] = useState<"end_time" | "duration">("duration");
 
@@ -156,6 +160,7 @@ export default function CreateEventPage() {
   // Subset targeting for club-wide games/socials/trainings: null = all club, [...] = only those teams
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
   const [dutyTeamId, setDutyTeamId] = useState<string | null>(null);
+  const [dutyTeamLabel, setDutyTeamLabel] = useState("");
   useEffect(() => { setDutyTeamId(null); }, [clubId]);
 
   // Types that support a club-wide ("All Club") scope and therefore team targeting.
@@ -752,6 +757,35 @@ export default function CreateEventPage() {
       return;
     }
 
+    // Competition-wide event: one event, invites everyone on entered teams.
+    if (competitionId && type !== "mini_league") {
+      setSaving(true);
+      const start = new Date(eventDateTime);
+      const { data, error } = await supabase.rpc("create_competition_event" as any, {
+        p_competition_id: competitionId,
+        p_title: title.trim(),
+        p_type: type === "game" || type === "training" ? type : "social",
+        p_event_date: start.toISOString(),
+        p_location: address.trim() || null,
+        p_description: description.trim() || null,
+        p_end_time: timeToTimestamp(endTime, start),
+      });
+      setSaving(false);
+      if (error) {
+        toast({ title: "Couldn't create event", description: error.message, variant: "destructive" });
+        return;
+      }
+      const n = Number(data ?? 0);
+      toast({
+        title: "Competition event created",
+        description: n > 0 ? `${n} ${n === 1 ? "person has" : "people have"} been invited.` : "No one to invite yet.",
+      });
+      refreshEventCaches(queryClient, user!.id);
+      queryClient.invalidateQueries({ queryKey: ["competition-events", competitionId] });
+      navigate("/events");
+      return;
+    }
+
     // Require mini league selection for mini league events
     if (type === "mini_league" && !miniLeagueId) {
       toast({
@@ -842,6 +876,7 @@ export default function CreateEventPage() {
           ? targetTeamIds
           : null,
         duty_team_id: dutyTeamId,
+        duty_team_label: dutyTeamId && dutyTeamLabel.trim() ? dutyTeamLabel.trim() : null,
 
     } as any;
 
@@ -1209,8 +1244,13 @@ export default function CreateEventPage() {
                     supportsClubWideScope={supportsClubWideScope}
                     disabled={!clubId}
                     defaultMode="team"
+                    competitions={!isFromMiniLeague ? organisableCompetitions : undefined}
+                    competitionId={competitionId}
+                    onCompetitionIdChange={setCompetitionId}
+                    competitionTeamCount={competitionTeamCount}
                   />
                 )}
+
 
                 
 
@@ -1320,7 +1360,7 @@ export default function CreateEventPage() {
                 onRestrictedRolesChange={setRestrictedRoles}
                 extraSummary={[...(type === "social" && allowGuests ? ["Guests allowed"] : []), ...(dutyTeamId ? ["Team on duty set"] : [])]}
               >
-                <DutyTeamPicker clubId={clubId} value={dutyTeamId} onChange={setDutyTeamId} />
+                <DutyTeamPicker clubId={clubId} value={dutyTeamId} onChange={setDutyTeamId} label={dutyTeamLabel} onLabelChange={setDutyTeamLabel} />
                 {/* Guest settings - only for social events, only for club admins */}
                 {type === "social" && isClubAdminForSelectedClub && (
                   <div className="space-y-3">

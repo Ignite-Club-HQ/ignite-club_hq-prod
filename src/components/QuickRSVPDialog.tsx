@@ -81,7 +81,7 @@ export function QuickRSVPDialog({
       const [{ data: ev }, teamRes] = await Promise.all([
         supabase
           .from("events")
-          .select("team_id, club_id, target_team_ids, rsvp_audience, adults_only, restricted_to_roles")
+          .select("team_id, club_id, target_team_ids, rsvp_audience, adults_only, restricted_to_roles, competition_id")
           .eq("id", eventId)
           .maybeSingle(),
         teamId
