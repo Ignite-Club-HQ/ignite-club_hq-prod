@@ -249,6 +249,7 @@ function useChildrenForEvent(
       ((event as any).target_team_ids ?? []).join(","),
       ((event as any).restricted_to_roles ?? []).join(","),
       (event as any).rsvp_audience,
+      (event as any).competition_id,
       userId,
     ],
     queryFn: async () => {
@@ -297,6 +298,7 @@ function useChildrenForEvent(
           rsvp_audience: ((event as any).rsvp_audience ?? null) as string | null,
           adults_only: ((event as any).adults_only ?? null) as boolean | null,
           restricted_to_roles: ((event as any).restricted_to_roles ?? null) as string[] | null,
+          competition_id: ((event as any).competition_id ?? null) as string | null,
         },
         userId,
       });
