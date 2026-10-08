@@ -90,7 +90,7 @@ export function CompetitionAdminsCard({
 
   // Member search scoped to the organiser club (consistent with other
   // club-scoped invite searches in the app).
-  const { data: searchResults = [], isLoading: isSearching } = useQuery({
+  const { data: rawSearchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["competition-admin-search", competitionId, debouncedSearch],
     enabled: debouncedSearch.trim().length >= 2,
     queryFn: async () => {
@@ -100,7 +100,7 @@ export function CompetitionAdminsCard({
         _club_id: organizerClubId ?? null,
       });
       if (error) throw error;
-      return (data ?? []).filter((p) => !existingUserIds.has(p.id));
+      return data ?? [];
     },
   });
 
@@ -152,6 +152,7 @@ export function CompetitionAdminsCard({
     },
   });
 
+  const searchResults = rawSearchResults.filter((p) => !existingUserIds.has(p.id));
   const owners = roles.filter((r) => r.role === "owner");
   const admins = roles.filter((r) => r.role === "admin");
 
@@ -247,7 +248,7 @@ export function CompetitionAdminsCard({
                 </div>
               ) : searchResults.length === 0 ? (
                 <p className="p-3 text-sm text-muted-foreground">
-                  No members found. They may already be an admin, or may need to join the club first.
+                  No members found. They may already be an owner or admin, or may need to join the club first.
                 </p>
               ) : (
                 searchResults.map((p) => (
