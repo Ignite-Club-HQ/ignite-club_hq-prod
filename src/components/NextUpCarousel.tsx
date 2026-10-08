@@ -1,3 +1,4 @@
+import { MyTeamDutyTag } from "@/components/events/MyTeamDutyTag";
 import React, { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -952,6 +953,7 @@ function HeroCard({ event, fullWidth, onNeedsRsvpChange, onReadyChange }: { even
         </div>
 
 
+        <MyTeamDutyTag event={event} />
         {myDuties && myDuties.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 pt-1">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-0.5">
@@ -1518,6 +1520,7 @@ function CompactCard({ event }: { event: EventItem }) {
 
 
         {/* RSVP Status */}
+        <MyTeamDutyTag event={event} />
         {myDuties && myDuties.length > 0 && (
           <div className="flex flex-wrap items-center gap-1">
             {myDuties.map((d: any) => {
