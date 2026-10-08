@@ -457,6 +457,8 @@ export default function EventsPage() {
           mini_league_id,
           target_team_ids,
           competition_id,
+          duty_team_id,
+          duty_team_label,
           is_cancelled,
           is_bye,
           is_recurring,
