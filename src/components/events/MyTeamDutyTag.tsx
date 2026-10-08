@@ -37,11 +37,49 @@ export function useMyDutyTeamIds() {
   });
 }
 
+export function useMyLeagueAdminClubIds() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["my-league-admin-club-ids", user?.id],
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("club_id")
+        .eq("user_id", user!.id)
+        .eq("role", "league_admin");
+      return (data ?? []).map((r: any) => r.club_id).filter(Boolean) as string[];
+    },
+  });
+}
+
 export function MyTeamDutyTag({ event }: { event: any }) {
   const dutyTeamId: string | null = event?.duty_team_id ?? null;
   const { data: myTeams } = useMyDutyTeamIds();
-  if (!dutyTeamId || !myTeams?.includes(dutyTeamId)) return null;
+  const { data: leagueClubs } = useMyLeagueAdminClubIds();
+  const isOnDuty = !!dutyTeamId && !!myTeams?.includes(dutyTeamId);
+  const isLeagueAdmin = !!dutyTeamId && !!event?.club_id && !!leagueClubs?.includes(event.club_id);
+  const { data: teamName } = useQuery({
+    queryKey: ["duty-team-name", dutyTeamId],
+    enabled: isLeagueAdmin && !isOnDuty,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase.from("teams").select("name").eq("id", dutyTeamId!).maybeSingle();
+      return data?.name ?? null;
+    },
+  });
+  if (!dutyTeamId) return null;
   const label = String(event?.duty_team_label ?? "").trim();
+  if (!isOnDuty) {
+    if (!isLeagueAdmin || !teamName) return null;
+    return (
+      <div className="flex items-center gap-1.5 pt-1 text-xs font-medium text-muted-foreground">
+        <ClipboardCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span>On duty: {teamName}{label ? ` — ${label}` : ""}</span>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-1.5 pt-1 text-xs font-medium text-primary">
       <ClipboardCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
