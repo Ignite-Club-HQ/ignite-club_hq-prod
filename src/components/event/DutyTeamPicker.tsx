@@ -7,6 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const NONE = "__none__";
@@ -33,10 +34,14 @@ export function DutyTeamPicker({
   clubId,
   value,
   onChange,
+  label,
+  onLabelChange,
 }: {
   clubId: string | null | undefined;
   value: string | null;
   onChange: (next: string | null) => void;
+  label?: string;
+  onLabelChange?: (next: string) => void;
 }) {
   const { data: teams } = useActiveClubTeams(clubId);
   if (!clubId) return null;
@@ -54,6 +59,18 @@ export function DutyTeamPicker({
           ))}
         </SelectContent>
       </Select>
+      {current !== NONE && onLabelChange && (
+        <div className="space-y-1.5 pt-1">
+          <Label htmlFor="duty-team-label" className="text-sm font-medium">Duty</Label>
+          <Input
+            id="duty-team-label"
+            value={label ?? ""}
+            maxLength={60}
+            placeholder="e.g. BBQ or Canteen 5–7pm"
+            onChange={(e) => onLabelChange(e.target.value)}
+          />
+        </div>
+      )}
       <p className="text-xs text-muted-foreground">
         The whole team (and players' parents) get a duty reminder, e.g. BBQ or canteen. Individual duties still work as usual.
       </p>

@@ -3182,7 +3182,7 @@ export default function EventDetailPage() {
               </div>
             </div>
           ) : null}
-          <DutyTeamBadge dutyTeamId={(event as any).duty_team_id ?? null} />
+          <DutyTeamBadge dutyTeamId={(event as any).duty_team_id ?? null} label={(event as any).duty_team_label ?? null} />
           {event.type === "game" && event.opponent && (
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-primary" />
@@ -4680,7 +4680,7 @@ export default function EventDetailPage() {
   );
 }
 
-function DutyTeamBadge({ dutyTeamId }: { dutyTeamId: string | null }) {
+function DutyTeamBadge({ dutyTeamId, label }: { dutyTeamId: string | null; label?: string | null }) {
   const { data: name } = useQuery({
     queryKey: ["duty-team-name", dutyTeamId],
     enabled: !!dutyTeamId,
@@ -4693,7 +4693,7 @@ function DutyTeamBadge({ dutyTeamId }: { dutyTeamId: string | null }) {
   return (
     <div className="flex items-center gap-3">
       <ClipboardCheck className="h-5 w-5 text-primary" />
-      <Badge variant="secondary">On duty: {name}</Badge>
+      <Badge variant="secondary">On duty: {name}{label?.trim() ? ` — ${label.trim()}` : ""}</Badge>
     </div>
   );
 }

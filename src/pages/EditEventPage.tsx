@@ -132,6 +132,7 @@ export default function EditEventPage() {
   const [rsvpGrouping, setRsvpGrouping] = useState<"" | "level" | "team">("");
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
   const [dutyTeamId, setDutyTeamId] = useState<string | null>(null);
+  const [dutyTeamLabel, setDutyTeamLabel] = useState("");
 
   // Types that support a club-wide ("All Club") scope and therefore team targeting.
   const supportsClubWideScope = type === "game" || type === "social" || type === "training";
@@ -559,6 +560,7 @@ export default function EditEventPage() {
       const tti = (event as any).target_team_ids;
       setTargetTeamIds(Array.isArray(tti) && tti.length > 0 ? (tti as string[]) : null);
       setDutyTeamId((event as any).duty_team_id ?? null);
+      setDutyTeamLabel((event as any).duty_team_label ?? "");
       
       const parsedEventDateTime = parseISO(event.event_date);
       setEventDateTime(format(parsedEventDateTime, "yyyy-MM-dd'T'HH:mm"));
@@ -710,6 +712,7 @@ export default function EditEventPage() {
             ? targetTeamIds
             : null,
         duty_team_id: dutyTeamId,
+        duty_team_label: dutyTeamId && dutyTeamLabel.trim() ? dutyTeamLabel.trim() : null,
 
       } as any;
 
@@ -1098,7 +1101,7 @@ export default function EditEventPage() {
                 onRestrictedRolesChange={setRestrictedRoles}
                 extraSummary={[...(type === "social" && allowGuests ? ["Guests allowed"] : []), ...(dutyTeamId ? ["Team on duty set"] : [])]}
               >
-                <DutyTeamPicker clubId={(event as any)?.club_id} value={dutyTeamId} onChange={setDutyTeamId} />
+                <DutyTeamPicker clubId={(event as any)?.club_id} value={dutyTeamId} onChange={setDutyTeamId} label={dutyTeamLabel} onLabelChange={setDutyTeamLabel} />
                 {/* Guest settings - only for social events */}
                 {type === "social" && (
                   <div className="space-y-3">
