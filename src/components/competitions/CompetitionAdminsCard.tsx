@@ -72,11 +72,25 @@ export function CompetitionAdminsCard({
     },
   });
 
-  const existingUserIds = useMemo(() => new Set(roles.map((r) => r.user_id)), [roles]);
+  // Only people who already hold Owner/Admin are hidden from the add search;
+  // other competition roles (Committee, Referee…) stay selectable.
+  const existingUserIds = useMemo(
+    () => new Set(roles.filter((r) => r.role === "owner" || r.role === "admin").map((r) => r.user_id)),
+    [roles],
+  );
+  const otherRolesByUser = useMemo(() => {
+    const labels: Record<string, string> = { committee: "Committee", referee: "Referee", scorer: "Scorer" };
+    const m = new Map<string, string[]>();
+    roles.forEach((r) => {
+      if (!labels[r.role]) return;
+      m.set(r.user_id, [...(m.get(r.user_id) ?? []), labels[r.role]]);
+    });
+    return m;
+  }, [roles]);
 
   // Member search scoped to the organiser club (consistent with other
   // club-scoped invite searches in the app).
-  const { data: searchResults = [], isLoading: isSearching } = useQuery({
+  const { data: rawSearchResults = [], isLoading: isSearching } = useQuery({
     queryKey: ["competition-admin-search", competitionId, debouncedSearch],
     enabled: debouncedSearch.trim().length >= 2,
     queryFn: async () => {
@@ -86,7 +100,7 @@ export function CompetitionAdminsCard({
         _club_id: organizerClubId ?? null,
       });
       if (error) throw error;
-      return (data ?? []).filter((p) => !existingUserIds.has(p.id));
+      return data ?? [];
     },
   });
 
@@ -138,6 +152,7 @@ export function CompetitionAdminsCard({
     },
   });
 
+  const searchResults = rawSearchResults.filter((p) => !existingUserIds.has(p.id));
   const owners = roles.filter((r) => r.role === "owner");
   const admins = roles.filter((r) => r.role === "admin");
 
@@ -233,7 +248,7 @@ export function CompetitionAdminsCard({
                 </div>
               ) : searchResults.length === 0 ? (
                 <p className="p-3 text-sm text-muted-foreground">
-                  No members found. They may already be an admin, or may need to join the club first.
+                  No members found. They may already be an owner or admin, or may need to join the club first.
                 </p>
               ) : (
                 searchResults.map((p) => (
@@ -246,6 +261,9 @@ export function CompetitionAdminsCard({
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{p.display_name ?? "Unknown user"}</p>
+                      {otherRolesByUser.get(p.id) && (
+                        <p className="text-xs text-muted-foreground truncate">Already {otherRolesByUser.get(p.id)!.join(", ")}</p>
+                      )}
                       {p.masked_email && (
                         <p className="text-xs text-muted-foreground truncate">{p.masked_email}</p>
                       )}
