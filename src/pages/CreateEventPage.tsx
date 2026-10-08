@@ -160,6 +160,7 @@ export default function CreateEventPage() {
   // Subset targeting for club-wide games/socials/trainings: null = all club, [...] = only those teams
   const [targetTeamIds, setTargetTeamIds] = useState<string[] | null>(null);
   const [dutyTeamId, setDutyTeamId] = useState<string | null>(null);
+  const [dutyTeamLabel, setDutyTeamLabel] = useState("");
   useEffect(() => { setDutyTeamId(null); }, [clubId]);
 
   // Types that support a club-wide ("All Club") scope and therefore team targeting.
@@ -875,6 +876,7 @@ export default function CreateEventPage() {
           ? targetTeamIds
           : null,
         duty_team_id: dutyTeamId,
+        duty_team_label: dutyTeamId && dutyTeamLabel.trim() ? dutyTeamLabel.trim() : null,
 
     } as any;
 
@@ -1358,7 +1360,7 @@ export default function CreateEventPage() {
                 onRestrictedRolesChange={setRestrictedRoles}
                 extraSummary={[...(type === "social" && allowGuests ? ["Guests allowed"] : []), ...(dutyTeamId ? ["Team on duty set"] : [])]}
               >
-                <DutyTeamPicker clubId={clubId} value={dutyTeamId} onChange={setDutyTeamId} />
+                <DutyTeamPicker clubId={clubId} value={dutyTeamId} onChange={setDutyTeamId} label={dutyTeamLabel} onLabelChange={setDutyTeamLabel} />
                 {/* Guest settings - only for social events, only for club admins */}
                 {type === "social" && isClubAdminForSelectedClub && (
                   <div className="space-y-3">

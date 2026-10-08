@@ -501,7 +501,7 @@ serve(async (req) => {
     // ============================================
     const { data: dutyTeamEvents, error: dutyTeamErr } = await supabase
       .from("events")
-      .select("id, title, event_date, club_id, reminder_hours_before, duty_team_id")
+      .select("id, title, event_date, club_id, reminder_hours_before, duty_team_id, duty_team_label")
       .not("duty_team_id", "is", null)
       .eq("is_cancelled", false)
       .gt("event_date", now.toISOString())
@@ -551,13 +551,16 @@ serve(async (req) => {
         )] as string[];
         if (recipients.length === 0) continue;
 
-        const prefix = `Reminder: ${team.name} is on duty at`;
+        const dutyLabel = String((ev as any).duty_team_label ?? "").trim().slice(0, 60);
+        const prefix = dutyLabel
+          ? `Reminder: ${team.name} is on ${dutyLabel} duty at`
+          : `Reminder: ${team.name} is on duty at`;
         const { data: already } = await supabase
           .from("notifications")
           .select("user_id")
           .eq("type", "event_reminder")
           .eq("related_id", ev.id)
-          .like("message", "Reminder: % is on duty at %")
+          .like("message", "Reminder: % duty at %")
           .in("user_id", recipients);
         const done = new Set((already || []).map((n: any) => n.user_id));
         const toSend = recipients.filter((u) => !done.has(u));
