@@ -1,19 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { Trophy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /**
- * Shown on the Create Event page: lets competition organisers (owners/admins,
- * league admins of the organising club) create one competition-wide event.
- * Renders nothing when the user can't organise any competition.
+ * Competitions the current user can organise a competition-wide event for
+ * (owners/admins, league admins of the organising club). Empty when none.
  */
-export function CompetitionEventPicker({ value: competitionId, onChange }: { value: string; onChange: (id: string) => void }) {
+export function useOrganisableCompetitions() {
   const { user } = useAuth();
-
-  const { data: competitions = [] } = useQuery({
+  return useQuery({
     queryKey: ["organisable-competitions", user?.id],
     enabled: !!user,
     queryFn: async () => {
@@ -34,8 +29,11 @@ export function CompetitionEventPicker({ value: competitionId, onChange }: { val
       return checks.filter(Boolean) as { id: string; name: string }[];
     },
   });
+}
 
-  const { data: teamCount = 0 } = useQuery({
+/** Number of accepted teams entered in a competition. */
+export function useCompetitionAcceptedCount(competitionId: string) {
+  return useQuery({
     queryKey: ["competition-accepted-count", competitionId],
     enabled: !!competitionId,
     queryFn: async () => {
@@ -47,29 +45,4 @@ export function CompetitionEventPicker({ value: competitionId, onChange }: { val
       return count ?? 0;
     },
   });
-
-  if (competitions.length === 0) return null;
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-      <Label className="flex items-center gap-2">
-        <Trophy className="h-4 w-4 text-primary" />
-        Event for a whole competition?
-      </Label>
-      <Select value={competitionId || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
-        <SelectTrigger><SelectValue placeholder="No – normal event" /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">No – normal event</SelectItem>
-          {competitions.map((c) => (
-            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {competitionId && (
-        <p className="text-xs text-muted-foreground">
-          One event for the whole competition. Everyone on the {teamCount} entered {teamCount === 1 ? "team" : "teams"} (and parents/guardians) will be invited. The team choice above is ignored.
-        </p>
-      )}
-    </div>
-  );
 }
