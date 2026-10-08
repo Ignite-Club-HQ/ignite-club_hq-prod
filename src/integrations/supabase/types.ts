@@ -4474,6 +4474,7 @@ export type Database = {
           created_by: string
           description: string | null
           duty_team_id: string | null
+          duty_team_label: string | null
           end_time: string | null
           event_date: string
           final_score_away: number | null
@@ -4533,6 +4534,7 @@ export type Database = {
           created_by: string
           description?: string | null
           duty_team_id?: string | null
+          duty_team_label?: string | null
           end_time?: string | null
           event_date: string
           final_score_away?: number | null
@@ -4592,6 +4594,7 @@ export type Database = {
           created_by?: string
           description?: string | null
           duty_team_id?: string | null
+          duty_team_label?: string | null
           end_time?: string | null
           event_date?: string
           final_score_away?: number | null
