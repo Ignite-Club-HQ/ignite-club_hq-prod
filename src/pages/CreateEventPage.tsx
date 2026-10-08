@@ -1,4 +1,4 @@
-import { CompetitionEventPicker } from "@/components/competitions/CompetitionEventPicker";
+import { useOrganisableCompetitions, useCompetitionAcceptedCount } from "@/components/competitions/CompetitionEventPicker";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -121,6 +121,8 @@ export default function CreateEventPage() {
   // End time / duration state
   const [endTime, setEndTime] = useState("");
   const [competitionId, setCompetitionId] = useState("");
+  const { data: organisableCompetitions = [] } = useOrganisableCompetitions();
+  const { data: competitionTeamCount = 0 } = useCompetitionAcceptedCount(competitionId);
   const [duration, setDuration] = useState("");
   const [endTimeMode, setEndTimeMode] = useState<"end_time" | "duration">("duration");
 
@@ -1240,10 +1242,13 @@ export default function CreateEventPage() {
                     supportsClubWideScope={supportsClubWideScope}
                     disabled={!clubId}
                     defaultMode="team"
+                    competitions={!isFromMiniLeague ? organisableCompetitions : undefined}
+                    competitionId={competitionId}
+                    onCompetitionIdChange={setCompetitionId}
+                    competitionTeamCount={competitionTeamCount}
                   />
                 )}
 
-                {type !== "mini_league" && !isFromMiniLeague && <CompetitionEventPicker value={competitionId} onChange={setCompetitionId} />}
 
                 
 
