@@ -72,7 +72,21 @@ export function CompetitionAdminsCard({
     },
   });
 
-  const existingUserIds = useMemo(() => new Set(roles.map((r) => r.user_id)), [roles]);
+  // Only people who already hold Owner/Admin are hidden from the add search;
+  // other competition roles (Committee, Referee…) stay selectable.
+  const existingUserIds = useMemo(
+    () => new Set(roles.filter((r) => r.role === "owner" || r.role === "admin").map((r) => r.user_id)),
+    [roles],
+  );
+  const otherRolesByUser = useMemo(() => {
+    const labels: Record<string, string> = { committee: "Committee", referee: "Referee", scorer: "Scorer" };
+    const m = new Map<string, string[]>();
+    roles.forEach((r) => {
+      if (!labels[r.role]) return;
+      m.set(r.user_id, [...(m.get(r.user_id) ?? []), labels[r.role]]);
+    });
+    return m;
+  }, [roles]);
 
   // Member search scoped to the organiser club (consistent with other
   // club-scoped invite searches in the app).
@@ -246,6 +260,9 @@ export function CompetitionAdminsCard({
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{p.display_name ?? "Unknown user"}</p>
+                      {otherRolesByUser.get(p.id) && (
+                        <p className="text-xs text-muted-foreground truncate">Already {otherRolesByUser.get(p.id)!.join(", ")}</p>
+                      )}
                       {p.masked_email && (
                         <p className="text-xs text-muted-foreground truncate">{p.masked_email}</p>
                       )}
