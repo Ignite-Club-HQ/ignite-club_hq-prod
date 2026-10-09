@@ -11032,6 +11032,10 @@ export type Database = {
         Args: { _drill_id: string; _user_id: string }
         Returns: boolean
       }
+      can_invite_players_to_team: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
       can_manage_competition_media: {
         Args: { _competition_id: string; _user_id: string }
