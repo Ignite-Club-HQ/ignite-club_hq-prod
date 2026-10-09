@@ -11531,6 +11531,7 @@ export type Database = {
         Returns: number
       }
       dm_attachments_disabled: { Args: { _user_id: string }; Returns: boolean }
+      dm_block_reason: { Args: { other_user_id: string }; Returns: string }
       duplicate_season_structure: {
         Args: {
           _copy_staff?: boolean
