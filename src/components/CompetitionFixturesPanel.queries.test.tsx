@@ -112,7 +112,7 @@ describe("CompetitionFixturesPanel — fixture read failures", () => {
   it("labels finals from a notes column and skips fixtures already imported", async () => {
     const blue = { status: "accepted", teams: { id: "blue", name: "Blue" } };
     queue("competition_matches", { data: [{
-      scheduled_at: new Date(2026, 2, 3, 18, 30).toISOString(), home_team_id: "blue", away_team_id: null, venue: null, pitch_number: null,
+      scheduled_at: new Date(2026, 2, 3, 18, 30).toISOString(), home_team_id: "blue", away_team_id: null, venue: null, pitch_number: null, notes: "Finals",
     }], error: null });
     wrap(<ImportFixturesSheet competitionId="c1" entries={[blue]} divisions={[]} open setOpen={vi.fn()} />);
     fireEvent.change(screen.getByRole("textbox"), { target: { value:

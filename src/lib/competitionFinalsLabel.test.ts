@@ -51,3 +51,10 @@ describe("fixture duplicate keys", () => {
       .toBe(competitionFixtureKey({ scheduledAt: at, homeId: "blue", awayId: null, finalsLabel: "finals match 1" }));
   });
 });
+
+import { isFinalsPlaceholderEvent } from "./competitionFinalsLabel";
+describe("finals placeholder events", () => {
+  it("flags a competition game vs TBD", () => expect(isFinalsPlaceholderEvent({ type: "game", opponent: "TBD", competition_match_id: "m" })).toBe(true));
+  it("ignores normal games", () => expect(isFinalsPlaceholderEvent({ type: "game", opponent: "Green", competition_match_id: "m" })).toBe(false));
+  it("ignores non-competition games vs TBD", () => expect(isFinalsPlaceholderEvent({ type: "game", opponent: "TBD", competition_match_id: null })).toBe(false));
+});
