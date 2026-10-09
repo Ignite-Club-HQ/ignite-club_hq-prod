@@ -1398,6 +1398,7 @@ function RoundSection({
 
 
 function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRoundBadge = false, source }: { match: any; isAdmin: boolean; competitionId: string; entries: any[]; divisions: any[]; hideRoundBadge?: boolean; source?: string }) {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState(false);
@@ -1508,7 +1509,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
       className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${linkedEventId && !editing ? "cursor-pointer" : ""} ${isCancelled ? "opacity-60" : ""}`}
       onClick={(e) => {
         if (!linkedEventId || editing) return;
-        if (shouldIgnoreFixtureCardClick(e.target as Element)) return;
+        if (shouldIgnoreFixtureCardClick(e.currentTarget, e.target as Element)) return;
         navigate(`/events/${linkedEventId}`);
       }}
     >
