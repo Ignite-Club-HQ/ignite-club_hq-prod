@@ -3872,7 +3872,10 @@ export default function EventDetailPage() {
             });
           }
           notResponded = membersToShow?.filter((m: any) =>
-            !respondedUserIds.has(m.id) && !parentIdsWithRespondedChildren.has(m.id)
+            // A parent who is also a player still owes their own RSVP, so a
+            // child's response only hides pure parents.
+            !respondedUserIds.has(m.id) &&
+            (m.roles?.includes("player") || !parentIdsWithRespondedChildren.has(m.id))
           ) || [];
 
           notRespondedChildren = allChildrenOnTeam?.filter((child: any) => !respondedChildIds.has(child.id)) || [];
@@ -3888,7 +3891,7 @@ export default function EventDetailPage() {
           ? (miniLeagueAdults || []).filter((adult: any) => !respondedUserIds.has(adult.id))
           : (reminderMembers?.filter((m: any) =>
               !respondedUserIds.has(m.id) &&
-              !(new Set<string>([
+              (m.roles?.includes("player") || !(new Set<string>([
                 ...((allChildrenOnTeam || [])
                   .filter((c: any) => respondedChildIds.has(c.id))
                   .map((c: any) => c.parent_id)
@@ -3897,7 +3900,7 @@ export default function EventDetailPage() {
                   .filter((cg: any) => respondedChildIds.has(cg.child_id))
                   .map((cg: any) => cg.guardian_id)
                   .filter(Boolean)),
-              ])).has(m.id)
+              ])).has(m.id))
             ) || []);
 
 
