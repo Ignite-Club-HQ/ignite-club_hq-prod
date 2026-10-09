@@ -129,20 +129,22 @@ export function ClubDaySummary({
       .sort((a: any, b: any) => (a.start_time || a.event_date).localeCompare(b.start_time || b.event_date));
   }, [myDayEvents, myTeamSet]);
 
+  // Intra-club games (e.g. competition fixtures between two of our teams)
+  // exist once per team with names reversed. Count/show each match once.
+  const clubEvents = useMemo(() => {
+    const seenGames = new Set<string>();
+    return (events || []).filter((e) => {
+      if (e.type !== "game" || !e.team_name || !e.opponent) return true;
+      const pair = [e.team_name, e.opponent].map((s) => s.trim().toLowerCase()).sort().join("|");
+      const key = `${e.start_time || e.event_date}|${pair}`;
+      if (seenGames.has(key)) return false;
+      seenGames.add(key);
+      return true;
+    });
+  }, [events]);
+
   const visible = useMemo(() => {
-    if (scope === "club") {
-      // Intra-club games (e.g. competition fixtures between two of our teams)
-      // exist once per team with names reversed. Show each match once.
-      const seenGames = new Set<string>();
-      return (events || []).filter((e) => {
-        if (e.type !== "game" || !e.team_name || !e.opponent) return true;
-        const pair = [e.team_name, e.opponent].map((s) => s.trim().toLowerCase()).sort().join("|");
-        const key = `${e.start_time || e.event_date}|${pair}`;
-        if (seenGames.has(key)) return false;
-        seenGames.add(key);
-        return true;
-      });
-    }
+    if (scope === "club") return clubEvents;
     // "My teams" = events for any team the user belongs to + club-wide events (no team_id)
     const fromMyDay = myVisibleEvents.map(fromEventCardEvent);
     const fromRpc = (events || []).filter((e) => !e.team_id || myTeamSet.has(e.team_id));
@@ -153,7 +155,7 @@ export function ClubDaySummary({
       const bt = b.start_time || b.event_date;
       return at.localeCompare(bt);
     });
-  }, [events, scope, myTeamSet, myVisibleEvents]);
+  }, [events, clubEvents, scope, myTeamSet, myVisibleEvents]);
 
   const games = visible.filter((e) => e.type === "game");
   const trainings = visible.filter((e) => e.type === "training");
@@ -177,7 +179,7 @@ export function ClubDaySummary({
     return Array.from(map.entries());
   }, [visible]);
 
-  const extraAcrossClub = scope === "my" && events ? Math.max(0, events.length - visible.length) : 0;
+  const extraAcrossClub = scope === "my" ? Math.max(0, clubEvents.length - visible.length) : 0;
   const primaryCount = games.length > 0 ? games.length : visible.length;
   const primaryLabel = games.length > 0
     ? `${primaryCount} game${primaryCount === 1 ? "" : "s"} today`
@@ -236,12 +238,12 @@ export function ClubDaySummary({
                 ? "Nothing scheduled for you on this day."
                 : "Nothing scheduled across the club on this day."}
             </p>
-            {scope === "my" && events && events.length > 0 && (
+            {scope === "my" && clubEvents.length > 0 && (
               <button
                 onClick={() => setScope("club")}
                 className="text-xs text-primary mt-2 underline"
               >
-                See {events.length} club-wide event{events.length === 1 ? "" : "s"}
+                See {clubEvents.length} club-wide event{clubEvents.length === 1 ? "" : "s"}
               </button>
             )}
           </CardContent>
