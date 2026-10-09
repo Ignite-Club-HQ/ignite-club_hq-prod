@@ -246,7 +246,7 @@ export default function EventsPage() {
       if (rolesErr) throw rolesErr;
       if (!roles) {
         diagLog("memberships:end-no-roles", { totalMs: Math.round(performance.now() - overall) });
-        return { roles: [], teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], isAppAdmin: false };
+        return { roles: [], teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], leagueCompetitionIds: [] as string[], miniLeagueIds: [], isAppAdmin: false };
       }
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
@@ -344,6 +344,20 @@ export default function EventsPage() {
         ...((adminLeaguesRes.data || []).map((l: any) => l.id).filter(Boolean) as string[]),
       ]));
       
+      // League admins see every fixture in competitions their club organises.
+      const leagueOnlyClubIds = roles
+        .filter((r) => r.role === "league_admin" && r.club_id)
+        .map((r) => r.club_id as string);
+      let leagueCompetitionIds: string[] = [];
+      if (leagueOnlyClubIds.length > 0) {
+        const { data: comps, error: compsErr } = await supabase
+          .from("competitions")
+          .select("id")
+          .in("organizer_club_id", leagueOnlyClubIds);
+        if (compsErr) throw compsErr;
+        leagueCompetitionIds = (comps || []).map((c: any) => c.id);
+      }
+
       diagLog("memberships:end", { totalMs: Math.round(performance.now() - overall), teamIds: teamIds.length, clubIds: clubIds.size, miniLeagueIds: miniLeagueIds.length });
       return { 
         roles,
@@ -351,6 +365,7 @@ export default function EventsPage() {
         clubIds: Array.from(clubIds), 
         clubAdminClubIds: Array.from(clubAdminClubIds),
         leagueAdminClubIds: Array.from(leagueAdminClubIds),
+        leagueCompetitionIds,
         miniLeagueIds,
         isAppAdmin,
       };
