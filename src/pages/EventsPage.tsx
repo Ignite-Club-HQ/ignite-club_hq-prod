@@ -1,3 +1,4 @@
+import { fetchViewableCompetitionIds, makeTeamEventVisibility } from "@/lib/competitionViewerScope";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useQueryClient, onlineManager } from "@tanstack/react-query";
