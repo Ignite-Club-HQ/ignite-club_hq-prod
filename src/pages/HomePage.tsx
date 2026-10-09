@@ -592,7 +592,7 @@ export default function HomePage() {
 
       type HomeEventRow = Event & { mini_league_id: string | null };
 
-      const scopedEventsQuery = (column: "club_id" | "team_id" | "competition_id", value: string, rowLimit: number) =>
+      const scopedEventsQuery = (column: "club_id" | "team_id", value: string, rowLimit: number) =>
         supabase
           .from("events")
           .select(sel(EVENT_SELECT))
@@ -614,9 +614,18 @@ export default function HomePage() {
         ...teamIds.map(
           (teamId) => () => scopedEventsQuery("team_id", teamId, TEAM_EVENTS_LIMIT),
         ),
-        ...viewableCompetitionIds.map(
-          (compId) => () => scopedEventsQuery("competition_id", compId, TEAM_EVENTS_LIMIT),
-        ),
+        ...(viewableCompetitionIds.length > 0
+          ? [() =>
+              supabase
+                .from("events")
+                .select(sel(EVENT_SELECT))
+                .not("team_id", "is", null)
+                .in("competition_match_id", viewableCompetitionIds)
+                .gte("event_date", eventsLowerBound)
+                .order("event_date", { ascending: true })
+                .limit(TEAM_EVENTS_LIMIT * 2)
+                .returns<HomeEventRow[]>()]
+          : []),
       ];
 
       const runEventQueries = async () => {

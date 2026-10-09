@@ -31,3 +31,14 @@ describe("competition fixture visibility", () => {
     expect(events.filter(vis).map((e) => e.id)).toEqual(["e2", "e3"]);
   });
 });
+
+describe("fixture events without competition_id", () => {
+  it("matches on competition match id", () => {
+    const evs = [
+      { id: "a", team_id: "red", competition_id: null, competition_match_id: "m9" },
+      { id: "b", team_id: "blue", competition_id: null, competition_match_id: "m9" },
+    ];
+    expect(evs.filter(makeTeamEventVisibility([], ["m9"], evs)).map((e) => e.id)).toEqual(["a"]);
+    expect(evs.filter(makeTeamEventVisibility([], ["other"], evs))).toHaveLength(0);
+  });
+});

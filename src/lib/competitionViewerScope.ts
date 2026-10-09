@@ -10,6 +10,19 @@ export async function fetchViewableCompetitionIds(
   userId: string,
   roles: { role: string; club_id: string | null }[],
 ): Promise<string[]> {
+  const scope = await fetchViewableFixtureScope(userId, roles);
+  return scope;
+}
+
+/**
+ * Same as above but each entry may be a competition id OR a competition
+ * match id — fixture team events carry `competition_match_id` and often a
+ * NULL `competition_id`, so visibility checks must match on either.
+ */
+async function fetchViewableFixtureScope(
+  userId: string,
+  roles: { role: string; club_id: string | null }[],
+): Promise<string[]> {
   const leagueClubIds = roles
     .filter((r) => r.role === "league_admin" && r.club_id)
     .map((r) => r.club_id as string);
@@ -25,12 +38,19 @@ export async function fetchViewableCompetitionIds(
   ]);
   if (crRes.error) throw crRes.error;
   if (compRes.error) throw compRes.error;
-  return Array.from(
+  const compIds = Array.from(
     new Set([
       ...(crRes.data || []).map((r: any) => r.competition_id as string),
       ...(compRes.data || []).map((c: any) => c.id as string),
     ]),
   );
+  if (compIds.length === 0) return [];
+  const { data: matches, error: mErr } = await supabase
+    .from("competition_matches")
+    .select("id")
+    .in("competition_id", compIds);
+  if (mErr) throw mErr;
+  return [...compIds, ...(matches || []).map((m: any) => m.id as string)];
 }
 
 type FixtureLike = {
@@ -53,7 +73,9 @@ export function makeTeamEventVisibility(teamIds: string[], viewableCompetitionId
   );
   return (e: FixtureLike): boolean => {
     if (e.team_id && teamSet.has(e.team_id)) return true;
-    if (!e.team_id || !e.competition_id || !compSet.has(e.competition_id)) return false;
+    if (!e.team_id) return false;
+    const inScope = (e.competition_id && compSet.has(e.competition_id)) || (e.competition_match_id && compSet.has(e.competition_match_id));
+    if (!inScope) return false;
     const key = e.competition_match_id || e.id;
     if (seen.has(key)) return false;
     seen.add(key);
