@@ -1,3 +1,4 @@
+import { fetchViewableCompetitionIds, makeTeamEventVisibility } from "@/lib/competitionViewerScope";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useQuery, useQueryClient, onlineManager } from "@tanstack/react-query";
@@ -344,19 +345,9 @@ export default function EventsPage() {
         ...((adminLeaguesRes.data || []).map((l: any) => l.id).filter(Boolean) as string[]),
       ]));
       
-      // League admins see every fixture in competitions their club organises.
-      const leagueOnlyClubIds = roles
-        .filter((r) => r.role === "league_admin" && r.club_id)
-        .map((r) => r.club_id as string);
-      let leagueCompetitionIds: string[] = [];
-      if (leagueOnlyClubIds.length > 0) {
-        const { data: comps, error: compsErr } = await supabase
-          .from("competitions")
-          .select("id")
-          .in("organizer_club_id", leagueOnlyClubIds);
-        if (compsErr) throw compsErr;
-        leagueCompetitionIds = (comps || []).map((c: any) => c.id);
-      }
+      // Competition Owners/Admins + organising-club league admins see every
+      // fixture in those competitions (read-only).
+      const leagueCompetitionIds = await fetchViewableCompetitionIds(user!.id, roles);
 
       diagLog("memberships:end", { totalMs: Math.round(performance.now() - overall), teamIds: teamIds.length, clubIds: clubIds.size, miniLeagueIds: miniLeagueIds.length });
       return { 
@@ -502,7 +493,9 @@ export default function EventsPage() {
       // Competition-wide events live under the organising club but are shown
       // to every entered-team member (RLS gates who can read them).
       if (clubFilter && !selectedTeamIdFilter && !selectedMiniLeagueId) {
-        query = query.or(`club_id.eq.${clubFilter},and(competition_id.not.is.null,team_id.is.null)`);
+        const viewComps: string[] = (userMemberships as any).leagueCompetitionIds || [];
+        const compClause = viewComps.length ? `,competition_id.in.(${viewComps.join(",")}),competition_match_id.in.(${viewComps.join(",")})` : "";
+        query = query.or(`club_id.eq.${clubFilter},and(competition_id.not.is.null,team_id.is.null)${compClause}`);
       } else if (clubFilter) query = query.eq("club_id", clubFilter);
       if (selectedTeamIdFilter) query = query.eq("team_id", selectedTeamIdFilter);
       if (selectedMiniLeagueId) query = query.eq("mini_league_id", selectedMiniLeagueId);
@@ -546,12 +539,10 @@ export default function EventsPage() {
       });
 
       const { clubAdminClubIds } = userMemberships;
-      const leagueCompSet = new Set<string>((userMemberships as any).leagueCompetitionIds || []);
-      // Pre-seed with matches the user already sees via their own team copy.
-      const seenLeagueMatches = new Set<string>(
-        filteredData
-          .filter((e: any) => e.team_id && teamIds.includes(e.team_id) && e.competition_match_id)
-          .map((e: any) => e.competition_match_id as string)
+      const isVisibleTeamEvent = makeTeamEventVisibility(
+        teamIds,
+        (userMemberships as any).leagueCompetitionIds || [],
+        filteredData as any[],
       );
       filteredData = filteredData.filter(event => {
         if (event.mini_league_id) {
@@ -562,16 +553,8 @@ export default function EventsPage() {
           if (selectedTeamIdFilter && selectedTeamIdFilter === event.team_id && clubAdminClubIds.includes(event.club_id)) {
             return true;
           }
-          if (teamIds.includes(event.team_id)) return true;
-          // League admin: every fixture in their competitions, shown once per match.
-          const compId = (event as any).competition_id;
-          if (compId && leagueCompSet.has(compId)) {
-            const matchKey = (event as any).competition_match_id || event.id;
-            if (seenLeagueMatches.has(matchKey)) return false;
-            seenLeagueMatches.add(matchKey);
-            return true;
-          }
-          return false;
+          // Own team, or (read-only) a fixture in a competition the user admins.
+          return isVisibleTeamEvent(event as any);
         } else if ((event as any).competition_id) {
           // Competition-wide event: RLS already limited rows to its audience.
           return true;

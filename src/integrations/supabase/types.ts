@@ -11078,6 +11078,10 @@ export type Database = {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
+      can_view_competition_match_event: {
+        Args: { _match_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_view_competition_wide_event: {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean

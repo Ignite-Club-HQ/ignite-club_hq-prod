@@ -1,3 +1,4 @@
+import { fetchViewableCompetitionIds, makeTeamEventVisibility } from "@/lib/competitionViewerScope";
 import { useState, lazy, Suspense, useMemo, useEffect, useRef } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useScheduleBroadcastListener } from "@/hooks/useScheduleBroadcastListener";
@@ -549,6 +550,8 @@ export default function HomePage() {
       // limit-50 cut-off would land before the quieter club's next event
       // (manifesting as an empty Next Up after switching club themes).
       const clubIdsFromRolesArr = Array.from(clubIds);
+      // Read-only fixture visibility for competition Owners/Admins + league admins.
+      const viewableCompetitionIds = await fetchViewableCompetitionIds(user!.id, roles as any);
 
       // PER-SCOPE FAN-OUT. A single `.or(club_id.in..., team_id.in...)` query
       // with one global `.limit()` starves quiet clubs: on a multi-club
@@ -573,7 +576,7 @@ export default function HomePage() {
       // (that is a known tsc blow-up). Row shape is pinned via .returns<T>().
       const sel = (s: string): string => s;
       const EVENT_SELECT =
-        "id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, target_team_ids, competition_id, duty_team_id, duty_team_label, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, adults_only, restricted_to_roles, rsvp_audience, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)";
+        "id, title, type, event_date, start_time, address, location_name, suburb, club_id, team_id, mini_league_id, target_team_ids, competition_id, competition_match_id, duty_team_id, duty_team_label, is_cancelled, is_bye, is_recurring, parent_event_id, amount, opponent, arrival_minutes_before, adults_only, restricted_to_roles, rsvp_audience, teams (name, default_match_arrival_minutes), clubs!club_id (name, sport)";
       // event_date is a TIMESTAMP. For users east of UTC (e.g. AU/NZ),
       // today's local-morning fixtures are stored as YESTERDAY's UTC date
       // (e.g. 9am Adelaide June 13 = 23:30 UTC June 12). Comparing against
@@ -611,6 +614,18 @@ export default function HomePage() {
         ...teamIds.map(
           (teamId) => () => scopedEventsQuery("team_id", teamId, TEAM_EVENTS_LIMIT),
         ),
+        ...(viewableCompetitionIds.length > 0
+          ? [() =>
+              supabase
+                .from("events")
+                .select(sel(EVENT_SELECT))
+                .not("team_id", "is", null)
+                .in("competition_match_id", viewableCompetitionIds)
+                .gte("event_date", eventsLowerBound)
+                .order("event_date", { ascending: true })
+                .limit(TEAM_EVENTS_LIMIT * 2)
+                .returns<HomeEventRow[]>()]
+          : []),
       ];
 
       const runEventQueries = async () => {
@@ -724,6 +739,7 @@ export default function HomePage() {
       // Step 3: Filter events client-side
       const clubIdsArr = Array.from(filteredClubIds);
       const nowMs = now.getTime();
+      const isVisibleTeamEvent = makeTeamEventVisibility(teamIds, viewableCompetitionIds, (eventsResult.data || []) as any[]);
       const filtered = ((eventsResult.data || []) as (Event & { mini_league_id: string | null })[]).filter(event => {
         // Defensive client-side past-date filter. The server query already
         // restricts to event_date >= today, but on iOS the React Query cache
@@ -734,7 +750,7 @@ export default function HomePage() {
         if (event.mini_league_id) {
           return miniLeagueIds.includes(event.mini_league_id);
         } else if (event.team_id) {
-          return teamIds.includes(event.team_id);
+          return isVisibleTeamEvent(event as any);
         } else {
           return clubIdsArr.includes(event.club_id);
         }
