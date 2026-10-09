@@ -10781,6 +10781,7 @@ export type Database = {
       }
     }
     Functions: {
+      _can_add_player_to_team: { Args: { p_team_id: string }; Returns: string }
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
       _provision_invite_children_internal: {
@@ -10797,6 +10798,10 @@ export type Database = {
         Returns: Json
       }
       acknowledge_ai_catch_up_disclosure: { Args: never; Returns: string }
+      add_existing_club_child_to_team: {
+        Args: { p_child_id: string; p_team_id: string }
+        Returns: string
+      }
       admin_get_user_emails: {
         Args: { user_ids: string[] }
         Returns: {
@@ -12757,6 +12762,17 @@ export type Database = {
           storage_bucket: string
           storage_path: string
           team_id: string
+        }[]
+      }
+      search_club_children_for_team: {
+        Args: { p_query: string; p_team_id: string }
+        Returns: {
+          child_id: string
+          guardian_names: string[]
+          name: string
+          on_this_team: boolean
+          team_names: string[]
+          year_of_birth: number
         }[]
       }
       search_competition_coordinator_candidates: {
