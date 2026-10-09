@@ -491,6 +491,7 @@ function TeamsByDivision({
   isAdmin: boolean;
 }) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [savingId, setSavingId] = useState<string | null>(null);
   const [moveConfirm, setMoveConfirm] = useState<{
@@ -643,8 +644,14 @@ function TeamsByDivision({
                 <Card key={e.id}>
                   <CardContent className="p-3 space-y-2">
                     <div className="flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate leading-tight">{e.teams?.name}</div>
+                      <div
+                        className={`flex-1 min-w-0 ${e.team_id && !e.teams?.is_shell ? "cursor-pointer" : ""}`}
+                        role={e.team_id && !e.teams?.is_shell ? "link" : undefined}
+                        onClick={() => {
+                          if (e.team_id && !e.teams?.is_shell) navigate(`/teams/${e.team_id}`);
+                        }}
+                      >
+                        <div className="font-medium truncate leading-tight hover:underline">{e.teams?.name}</div>
                         <div className="text-xs text-muted-foreground truncate leading-tight">
                           {e.teams?.clubs?.name || "—"}
                         </div>

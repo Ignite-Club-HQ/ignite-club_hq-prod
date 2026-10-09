@@ -246,7 +246,7 @@ export default function EventsPage() {
       if (rolesErr) throw rolesErr;
       if (!roles) {
         diagLog("memberships:end-no-roles", { totalMs: Math.round(performance.now() - overall) });
-        return { roles: [], teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], miniLeagueIds: [], isAppAdmin: false };
+        return { roles: [], teamIds: [], clubIds: [], clubAdminClubIds: [], leagueAdminClubIds: [], leagueCompetitionIds: [] as string[], miniLeagueIds: [], isAppAdmin: false };
       }
       
       const teamIds = roles.filter(r => r.team_id).map(r => r.team_id) as string[];
@@ -344,6 +344,20 @@ export default function EventsPage() {
         ...((adminLeaguesRes.data || []).map((l: any) => l.id).filter(Boolean) as string[]),
       ]));
       
+      // League admins see every fixture in competitions their club organises.
+      const leagueOnlyClubIds = roles
+        .filter((r) => r.role === "league_admin" && r.club_id)
+        .map((r) => r.club_id as string);
+      let leagueCompetitionIds: string[] = [];
+      if (leagueOnlyClubIds.length > 0) {
+        const { data: comps, error: compsErr } = await supabase
+          .from("competitions")
+          .select("id")
+          .in("organizer_club_id", leagueOnlyClubIds);
+        if (compsErr) throw compsErr;
+        leagueCompetitionIds = (comps || []).map((c: any) => c.id);
+      }
+
       diagLog("memberships:end", { totalMs: Math.round(performance.now() - overall), teamIds: teamIds.length, clubIds: clubIds.size, miniLeagueIds: miniLeagueIds.length });
       return { 
         roles,
@@ -351,6 +365,7 @@ export default function EventsPage() {
         clubIds: Array.from(clubIds), 
         clubAdminClubIds: Array.from(clubAdminClubIds),
         leagueAdminClubIds: Array.from(leagueAdminClubIds),
+        leagueCompetitionIds,
         miniLeagueIds,
         isAppAdmin,
       };
@@ -457,6 +472,7 @@ export default function EventsPage() {
           mini_league_id,
           target_team_ids,
           competition_id,
+          competition_match_id,
           duty_team_id,
           duty_team_label,
           is_cancelled,
@@ -530,6 +546,13 @@ export default function EventsPage() {
       });
 
       const { clubAdminClubIds } = userMemberships;
+      const leagueCompSet = new Set<string>((userMemberships as any).leagueCompetitionIds || []);
+      // Pre-seed with matches the user already sees via their own team copy.
+      const seenLeagueMatches = new Set<string>(
+        filteredData
+          .filter((e: any) => e.team_id && teamIds.includes(e.team_id) && e.competition_match_id)
+          .map((e: any) => e.competition_match_id as string)
+      );
       filteredData = filteredData.filter(event => {
         if (event.mini_league_id) {
           // When explicitly filtering by a mini-league, the SQL `eq` already restricted us.
@@ -539,7 +562,16 @@ export default function EventsPage() {
           if (selectedTeamIdFilter && selectedTeamIdFilter === event.team_id && clubAdminClubIds.includes(event.club_id)) {
             return true;
           }
-          return teamIds.includes(event.team_id);
+          if (teamIds.includes(event.team_id)) return true;
+          // League admin: every fixture in their competitions, shown once per match.
+          const compId = (event as any).competition_id;
+          if (compId && leagueCompSet.has(compId)) {
+            const matchKey = (event as any).competition_match_id || event.id;
+            if (seenLeagueMatches.has(matchKey)) return false;
+            seenLeagueMatches.add(matchKey);
+            return true;
+          }
+          return false;
         } else if ((event as any).competition_id) {
           // Competition-wide event: RLS already limited rows to its audience.
           return true;
