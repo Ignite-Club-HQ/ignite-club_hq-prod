@@ -90,6 +90,7 @@ export default function MemberDetailSheet({
   const navigate = useNavigate();
   const [startingDM, setStartingDM] = useState(false);
   const [canDM, setCanDM] = useState<boolean | null>(null);
+  const [dmReason, setDmReason] = useState<string | null>(null);
   const [manageRolesOpen, setManageRolesOpen] = useState(false);
   // When the parent provides full team context, the new unified dialog handles
   // both adding and removing roles (with confirmations). Otherwise we fall
@@ -116,6 +117,11 @@ export default function MemberDetailSheet({
           setCanDM(true);
         } else {
           setCanDM(data === true);
+          if (data !== true) {
+            fetchDmBlockReason(userId).then((r) => {
+              if (!cancelled) setDmReason(r);
+            });
+          }
         }
       });
     return () => {
@@ -252,7 +258,7 @@ export default function MemberDetailSheet({
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-[260px] text-xs">
-                        You can only message members who share a team, club, or group chat with you.
+                        {dmBlockMessage(dmReason)}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

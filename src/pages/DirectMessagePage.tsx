@@ -482,6 +482,12 @@ export default function DirectMessagePage() {
   const isParticipant = !!conversation && !!user?.id &&
     (conversation.participant_1 === user.id || conversation.participant_2 === user.id);
   const dmStartBlocked = canDM === false && !isParticipant;
+  const { data: dmBlockReason } = useQuery({
+    queryKey: ["dm-block-reason", otherUserId],
+    queryFn: () => fetchDmBlockReason(otherUserId!),
+    enabled: dmStartBlocked && !!otherUserId,
+    staleTime: 30 * 1000,
+  });
 
   // Memoize query key to prevent ChatMessage memo breaks
   const dmQueryKey = useMemo(() => ["dm-messages", conversationId], [conversationId]);
@@ -1467,12 +1473,15 @@ export default function DirectMessagePage() {
             </div>
             <div>
               <h3 className="font-semibold text-lg flex items-center justify-center gap-2">
-                <Crown className="h-5 w-5 text-primary" />
-                Pro Feature
+                {(dmBlockReason === "no_shared_pro_club" || !dmBlockReason) && (
+                  <Crown className="h-5 w-5 text-primary" />
+                )}
+                {dmBlockReason === "no_shared_pro_club" || !dmBlockReason
+                  ? "Pro Feature"
+                  : "Can't start this chat"}
               </h3>
               <p className="text-muted-foreground mt-1 max-w-md">
-                Direct messages require both users to be members of a Pro club. 
-                Upgrade your club to Pro to unlock this feature.
+                {dmBlockMessage(dmBlockReason)}
               </p>
             </div>
             <Button onClick={() => navigate("/messages")}>Back to Messages</Button>
