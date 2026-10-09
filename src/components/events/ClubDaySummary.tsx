@@ -332,6 +332,12 @@ function DayEventRow({ event, hideVenue = false }: { event: ClubDayEvent; hideVe
                   <span className="text-muted-foreground"> vs {event.opponent}</span>
                 ) : null}
               </p>
+              {!isTraining && (event.opponent ?? "").trim().toUpperCase() === "TBD" && (
+                <Badge variant="secondary" className="text-[10px] py-0 h-4 shrink-0 gap-1">
+                  <Trophy className="h-3 w-3" aria-hidden="true" />
+                  Finals
+                </Badge>
+              )}
               {event.is_cancelled && (
                 <Badge variant="destructive" className="text-[10px] py-0 h-4">
                   Cancelled
