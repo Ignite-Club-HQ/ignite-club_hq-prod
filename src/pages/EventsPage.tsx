@@ -493,7 +493,9 @@ export default function EventsPage() {
       // Competition-wide events live under the organising club but are shown
       // to every entered-team member (RLS gates who can read them).
       if (clubFilter && !selectedTeamIdFilter && !selectedMiniLeagueId) {
-        query = query.or(`club_id.eq.${clubFilter},and(competition_id.not.is.null,team_id.is.null)`);
+        const viewComps: string[] = (userMemberships as any).leagueCompetitionIds || [];
+        const compClause = viewComps.length ? `,competition_id.in.(${viewComps.join(",")})` : "";
+        query = query.or(`club_id.eq.${clubFilter},and(competition_id.not.is.null,team_id.is.null)${compClause}`);
       } else if (clubFilter) query = query.eq("club_id", clubFilter);
       if (selectedTeamIdFilter) query = query.eq("team_id", selectedTeamIdFilter);
       if (selectedMiniLeagueId) query = query.eq("mini_league_id", selectedMiniLeagueId);
