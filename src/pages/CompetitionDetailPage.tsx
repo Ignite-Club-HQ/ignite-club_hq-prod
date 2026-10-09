@@ -491,6 +491,7 @@ function TeamsByDivision({
   isAdmin: boolean;
 }) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [savingId, setSavingId] = useState<string | null>(null);
   const [moveConfirm, setMoveConfirm] = useState<{
