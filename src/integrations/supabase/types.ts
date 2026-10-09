@@ -11032,6 +11032,10 @@ export type Database = {
         Args: { _drill_id: string; _user_id: string }
         Returns: boolean
       }
+      can_invite_players_to_team: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
       can_manage_competition_media: {
         Args: { _competition_id: string; _user_id: string }
@@ -11531,6 +11535,7 @@ export type Database = {
         Returns: number
       }
       dm_attachments_disabled: { Args: { _user_id: string }; Returns: boolean }
+      dm_block_reason: { Args: { other_user_id: string }; Returns: string }
       duplicate_season_structure: {
         Args: {
           _copy_staff?: boolean
