@@ -1,3 +1,4 @@
+import { isFinalsPlaceholderEvent } from "@/lib/competitionFinalsLabel";
 import { MyTeamDutyTag } from "@/components/events/MyTeamDutyTag";
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
