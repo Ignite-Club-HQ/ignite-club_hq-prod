@@ -44,3 +44,8 @@ export function competitionFixtureKey(f: {
     : "";
   return `${minute}|${teams}${finals}${place}`;
 }
+
+/** Competition fixture event whose opponent is still TBD (finals placeholder). */
+export function isFinalsPlaceholderEvent(e: { type?: string | null; opponent?: string | null; competition_match_id?: string | null }): boolean {
+  return e.type === "game" && !!e.competition_match_id && (e.opponent ?? "").trim().toUpperCase() === "TBD";
+}

@@ -694,6 +694,11 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
                 <div className="flex items-center gap-1.5 text-[12px] min-w-0">
                   <TypeIcon className={`h-4 w-4 shrink-0 ${typeAccentClasses.text}`} aria-hidden="true" />
                   <span className={`font-medium ${typeAccentClasses.text}`}>{typeLabel}</span>
+                  {isFinalsPlaceholderEvent(event as any) && (
+                    <span className="shrink-0 rounded px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide bg-primary/15 text-primary">
+                      Finals
+                    </span>
+                  )}
                   {hasTeam && (
                     <>
                       <span className="text-border">·</span>
