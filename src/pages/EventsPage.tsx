@@ -547,7 +547,12 @@ export default function EventsPage() {
 
       const { clubAdminClubIds } = userMemberships;
       const leagueCompSet = new Set<string>((userMemberships as any).leagueCompetitionIds || []);
-      const seenLeagueMatches = new Set<string>();
+      // Pre-seed with matches the user already sees via their own team copy.
+      const seenLeagueMatches = new Set<string>(
+        filteredData
+          .filter((e: any) => e.team_id && teamIds.includes(e.team_id) && e.competition_match_id)
+          .map((e: any) => e.competition_match_id as string)
+      );
       filteredData = filteredData.filter(event => {
         if (event.mini_league_id) {
           // When explicitly filtering by a mini-league, the SQL `eq` already restricted us.
