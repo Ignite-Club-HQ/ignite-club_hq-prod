@@ -140,7 +140,7 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
     queryFn: async () => {
       const { data, error } = await supabase
         .from("competition_matches")
-        .select("*, home:home_team_id(id, name, logo_url), away:away_team_id(id, name, logo_url), competition_divisions:division_id(name)")
+        .select("*, home:home_team_id(id, name, logo_url), away:away_team_id(id, name, logo_url), competition_divisions:division_id(name), fixture_events:events!events_competition_match_id_fkey(id)")
         .eq("competition_id", competitionId)
         .order("round_number", { ascending: true, nullsFirst: false })
         .order("scheduled_at", { ascending: true, nullsFirst: false });
@@ -1504,7 +1504,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
 
 
   const isScheduled = !isCompleted && !isCancelled && !isPostponed && !isInProgress;
-  const linkedEventId: string | null = match.home_event_id ?? match.away_event_id ?? null;
+  const linkedEventId: string | null = match.home_event_id ?? match.away_event_id ?? match.fixture_events?.[0]?.id ?? null;
   return (
     <Card
       className={`overflow-hidden w-full box-border shadow-sm hover:shadow-md transition-shadow ${linkedEventId && !editing ? "cursor-pointer" : ""} ${isCancelled ? "opacity-60" : ""}`}
