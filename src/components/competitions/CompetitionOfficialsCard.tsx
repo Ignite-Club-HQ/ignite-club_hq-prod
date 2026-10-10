@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mail, Search, UserMinus, X } from "lucide-react";
 import { isPlausibleInvitableEmail } from "@/lib/inviteEmailDedupe";
+import { CompetitionRoleLinkPanel } from "./CompetitionRoleLinkPanel";
 
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -395,6 +396,19 @@ export function CompetitionOfficialsCard({
               )}
             </div>
           )}
+        </div>
+
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-sm font-medium">Share a link or QR code</p>
+          <p className="text-xs text-muted-foreground">
+            Anyone who opens it (after signing up or in) becomes a {ROLE_LABEL[pendingRole].toLowerCase()} and joins the chat.
+          </p>
+          <CompetitionRoleLinkPanel
+            key={pendingRole}
+            competitionId={competitionId}
+            competitionName={competitionName}
+            role={pendingRole}
+          />
         </div>
 
         <div className="space-y-2 border-t pt-4">
