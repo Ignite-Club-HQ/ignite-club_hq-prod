@@ -1,6 +1,26 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Search, UserMinus, X } from "lucide-react";
+import { Loader2, Mail, Search, UserMinus, X } from "lucide-react";
+import { isPlausibleInvitableEmail } from "@/lib/inviteEmailDedupe";
+import { CompetitionRoleLinkPanel } from "./CompetitionRoleLinkPanel";
+
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+function buildOfficialInviteHtml(p: { name: string; role: "referee" | "committee"; competitionName: string }) {
+  const roleText = p.role === "referee" ? "a referee" : "a committee member";
+  const comp = escapeHtml(p.competitionName);
+  const hello = p.name ? `Hi ${escapeHtml(p.name)},` : "Hi,";
+  return `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111">
+<p>${hello}</p>
+<p>You've been invited to join <strong>${comp}</strong> as ${roleText} on Ignite Club HQ.</p>
+<p>Download Ignite and sign up <strong>using this email address</strong>. You'll be given the role and added to the ${p.role === "referee" ? "referees" : "committee"} chat automatically.</p>
+<p><a href="https://apps.apple.com/au/app/ignite-club-hq/id6758928691" style="color:#10b981">Download for iPhone</a> &nbsp;·&nbsp;
+<a href="https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub" style="color:#10b981">Download for Android</a> &nbsp;·&nbsp;
+<a href="https://igniteclubhq.app/auth?mode=signup" style="color:#10b981">Sign up on the web</a></p>
+<p>— ${comp}</p></div>`;
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +69,8 @@ export function CompetitionOfficialsCard({
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [pendingRole, setPendingRole] = useState<OfficialRole>("referee");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
   const debouncedSearch = useDebounce(search, 300);
 
   const rolesQueryKey = ["competition-roles", competitionId];
@@ -167,6 +189,85 @@ export function CompetitionOfficialsCard({
     onError: (error: Error) => {
       toast({ title: "Could not remove", description: error.message, variant: "destructive" });
     },
+  });
+
+  const invitesKey = ["competition-role-invites", competitionId];
+  const { data: pendingInvites = [] } = useQuery({
+    queryKey: invitesKey,
+    enabled: !!competitionId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("competition_role_invites")
+        .select("id, email, invited_name, role")
+        .eq("competition_id", competitionId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as { id: string; email: string; invited_name: string | null; role: string }[];
+    },
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: async () => {
+      const role = pendingRole;
+      const email = inviteEmail.trim().toLowerCase();
+      const name = inviteName.trim();
+      const { data, error } = await (supabase as any).rpc("invite_competition_official", {
+        p_competition_id: competitionId,
+        p_email: email,
+        p_name: name,
+        p_role: role,
+      });
+      if (error) throw error;
+      const status = (data as { status: string })?.status;
+      let emailSent = true;
+      if (status === "invited") {
+        const { error: mailErr } = await supabase.functions.invoke("send-email", {
+          body: {
+            to: email,
+            senderName: competitionName,
+            subject: `You've been invited as a ${ROLE_LABEL[role].toLowerCase()} for ${competitionName}`,
+            html: buildOfficialInviteHtml({ name, role, competitionName }),
+          },
+        });
+        emailSent = !mailErr;
+      }
+      return { status, role, email, emailSent };
+    },
+    onSuccess: ({ status, role, email, emailSent }) => {
+      queryClient.invalidateQueries({ queryKey: rolesQueryKey });
+      queryClient.invalidateQueries({ queryKey: invitesKey });
+      queryClient.invalidateQueries({ queryKey: ["chat-groups"] });
+      setInviteEmail("");
+      setInviteName("");
+      if (status === "added") {
+        toast({
+          title: `${ROLE_LABEL[role]} added`,
+          description: `${email} already uses Ignite, so they've been added straight away.`,
+        });
+      } else if (!emailSent) {
+        toast({
+          title: "Invite saved, email not sent",
+          description: `They'll still get the role when they sign up with ${email}. Please let them know.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Invite sent", description: `Emailed ${email}.` });
+      }
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not invite", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const cancelInvite = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any).from("competition_role_invites").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: invitesKey }),
+    onError: (error: Error) =>
+      toast({ title: "Could not cancel", description: error.message, variant: "destructive" }),
   });
 
   return (
@@ -293,6 +394,81 @@ export function CompetitionOfficialsCard({
                   </div>
                 ))
               )}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-sm font-medium">Share a link or QR code</p>
+          <p className="text-xs text-muted-foreground">
+            Anyone who opens it (after signing up or in) becomes a {ROLE_LABEL[pendingRole].toLowerCase()} and joins the chat.
+          </p>
+          <CompetitionRoleLinkPanel
+            key={pendingRole}
+            competitionId={competitionId}
+            competitionName={competitionName}
+            role={pendingRole}
+          />
+        </div>
+
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-sm font-medium flex items-center gap-2">
+            <Mail className="h-4 w-4" /> Not on Ignite yet? Invite by email
+          </p>
+          <p className="text-xs text-muted-foreground">
+            They'll get an email to download Ignite. When they sign up with this email they become a{" "}
+            {ROLE_LABEL[pendingRole].toLowerCase()} and join the chat automatically.
+          </p>
+          <Input
+            value={inviteName}
+            onChange={(e) => setInviteName(e.target.value)}
+            placeholder="Their name"
+            aria-label="Invitee name"
+          />
+          <Input
+            type="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            placeholder="Their email"
+            aria-label="Invitee email"
+          />
+          <Button
+            size="sm"
+            className="w-full"
+            disabled={!isPlausibleInvitableEmail(inviteEmail) || inviteMutation.isPending}
+            onClick={() => inviteMutation.mutate()}
+          >
+            {inviteMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              `Invite as ${ROLE_LABEL[pendingRole].toLowerCase()}`
+            )}
+          </Button>
+
+          {pendingInvites.length > 0 && (
+            <div className="border rounded-md divide-y">
+              {pendingInvites.map((inv) => (
+                <div key={inv.id} className="flex items-center gap-3 p-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{inv.invited_name || inv.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {inv.email} · invited, not signed up yet
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0">
+                    {ROLE_LABEL[inv.role as OfficialRole] ?? inv.role}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    aria-label={`Cancel invite for ${inv.email}`}
+                    onClick={() => cancelInvite.mutate(inv.id)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
             </div>
           )}
         </div>
