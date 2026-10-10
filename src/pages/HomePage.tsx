@@ -550,8 +550,10 @@ export default function HomePage() {
       // limit-50 cut-off would land before the quieter club's next event
       // (manifesting as an empty Next Up after switching club themes).
       const clubIdsFromRolesArr = Array.from(clubIds);
-      // Read-only fixture visibility for competition Owners/Admins + league admins.
-      const viewableCompetitionIds = await fetchViewableCompetitionIds(user!.id, roles as any);
+      // Next Up is personal: competition Owners/Admins/league admins only see
+      // games for teams they are actually on. Read-only all-fixture visibility
+      // lives on Schedule and the competition page, never here.
+      const viewableCompetitionIds: string[] = [];
 
       // PER-SCOPE FAN-OUT. A single `.or(club_id.in..., team_id.in...)` query
       // with one global `.limit()` starves quiet clubs: on a multi-club
