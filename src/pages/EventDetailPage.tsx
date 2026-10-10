@@ -117,6 +117,7 @@ import { hasGameBoardSupport } from "@/lib/sportDetection";
 import { resolveEventRecipients, eventRecipientContext } from "@/features/events/eventRecipientPolicy";
 import { resolveReminderRecipients, applyReminderCooldown, normalizeRecipientIds } from "@/features/events/reminderRecipients";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
+import { useEventMembership } from "@/hooks/useEventMembership";
 
 type EventType = "game" | "training" | "social";
 type RsvpStatus = "going" | "maybe" | "not_going";
@@ -482,6 +483,15 @@ export default function EventDetailPage() {
   const attendanceUnavailable = !!rsvpsError && !rsvps;
   const attendanceInitialLoading = (rsvpsLoading || (rsvpsFetching && !rsvps)) && !rsvpsError;
   const attendanceActionsDisabled = attendanceUnavailable || attendanceInitialLoading;
+
+  // Competition fixtures are read-only for viewers who aren't on the team
+  // (e.g. competition Owners/Admins): they can see the game but never RSVP.
+  const { data: isFixtureTeamMember = true } = useEventMembership({
+    id: (event as any)?.id,
+    team_id: (event as any)?.team_id ?? null,
+    club_id: (event as any)?.club_id ?? "",
+  });
+  const hideFixtureRsvp = !!(event as any)?.competition_match_id && !!(event as any)?.team_id && !isFixtureTeamMember;
 
   const attendanceAlert = (
     <div
