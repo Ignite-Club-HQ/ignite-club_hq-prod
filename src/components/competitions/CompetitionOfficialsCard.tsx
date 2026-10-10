@@ -15,7 +15,7 @@ function buildOfficialInviteHtml(p: { name: string; role: "referee" | "committee
 <p>${hello}</p>
 <p>You've been invited to join <strong>${comp}</strong> as ${roleText} on Ignite Club HQ.</p>
 <p>Download Ignite and sign up <strong>using this email address</strong>. You'll be given the role and added to the ${p.role === "referee" ? "referees" : "committee"} chat automatically.</p>
-<p><a href="https://apps.apple.com/app/ignite-club-hq/id6753606738" style="color:#10b981">Download for iPhone</a> &nbsp;·&nbsp;
+<p><a href="https://apps.apple.com/au/app/ignite-club-hq/id6758928691" style="color:#10b981">Download for iPhone</a> &nbsp;·&nbsp;
 <a href="https://play.google.com/store/apps/details?id=app.lovable.igniteteamhub" style="color:#10b981">Download for Android</a> &nbsp;·&nbsp;
 <a href="https://igniteclubhq.app/auth?mode=signup" style="color:#10b981">Sign up on the web</a></p>
 <p>— ${comp}</p></div>`;
