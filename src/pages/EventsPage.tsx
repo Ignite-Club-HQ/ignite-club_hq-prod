@@ -545,6 +545,10 @@ export default function EventsPage() {
         filteredData as any[],
       );
       filteredData = filteredData.filter(event => {
+        // Club filter is fail-closed for every event type: competition
+        // fixtures fetched for read-only admin visibility must never leak
+        // another club's games into this club's schedule.
+        if (clubFilter && clubFilter !== "all" && event.club_id && event.club_id !== clubFilter) return false;
         if (event.mini_league_id) {
           // When explicitly filtering by a mini-league, the SQL `eq` already restricted us.
           if (selectedMiniLeagueId) return event.mini_league_id === selectedMiniLeagueId;
