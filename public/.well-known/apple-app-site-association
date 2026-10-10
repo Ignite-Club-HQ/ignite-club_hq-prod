@@ -11,6 +11,8 @@
           "/join-club/*",
           "/competitions/join",
           "/competitions/join*",
+          "/competitions/officials/join",
+          "/competitions/officials/join*",
           "/reset-password",
           "/reset-password*"
         ]
