@@ -3058,6 +3058,56 @@ export type Database = {
           },
         ]
       }
+      competition_role_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_user_id: string | null
+          competition_id: string
+          created_at: string
+          email: string
+          id: string
+          invited_by: string
+          invited_name: string | null
+          role: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          competition_id: string
+          created_at?: string
+          email: string
+          id?: string
+          invited_by: string
+          invited_name?: string | null
+          role: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          competition_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string
+          invited_name?: string | null
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_role_invites_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competition_roles: {
         Row: {
           competition_id: string
@@ -12248,6 +12298,15 @@ export type Database = {
       }
       internal_functions_base_url: { Args: never; Returns: string }
       internal_service_role_key: { Args: never; Returns: string }
+      invite_competition_official: {
+        Args: {
+          p_competition_id: string
+          p_email: string
+          p_name: string
+          p_role: string
+        }
+        Returns: Json
+      }
       invite_shell_team_to_competition: {
         Args: {
           p_club_name: string
