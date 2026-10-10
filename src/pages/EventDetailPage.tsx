@@ -3411,6 +3411,7 @@ export default function EventDetailPage() {
 
       {/* RSVP Section */}
       {(() => {
+        if (hideFixtureRsvp) return null;
         const audience = resolveRsvpAudience(
           (event as any)?.rsvp_audience,
           (event as any)?.teams?.default_rsvp_audience,
