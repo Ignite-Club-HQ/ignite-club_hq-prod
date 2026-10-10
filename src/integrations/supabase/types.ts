@@ -3108,6 +3108,41 @@ export type Database = {
           },
         ]
       }
+      competition_role_links: {
+        Row: {
+          competition_id: string
+          created_at: string
+          created_by: string
+          id: string
+          role: string
+          token: string
+        }
+        Insert: {
+          competition_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          role: string
+          token: string
+        }
+        Update: {
+          competition_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          role?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_role_links_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competition_roles: {
         Row: {
           competition_id: string
@@ -11184,6 +11219,10 @@ export type Database = {
         Args: { _child_id: string; _event_id: string }
         Returns: boolean
       }
+      claim_competition_role_link: {
+        Args: { p_token: string }
+        Returns: string
+      }
       claim_eoi_by_token: {
         Args: { _token: string }
         Returns: {
@@ -11799,6 +11838,14 @@ export type Database = {
       get_competition_join_token_status: {
         Args: { p_token: string }
         Returns: string
+      }
+      get_competition_role_link_info: {
+        Args: { p_token: string }
+        Returns: {
+          competition_id: string
+          competition_name: string
+          role: string
+        }[]
       }
       get_engagement_streak: {
         Args: { _club_id: string; _user_id: string }
