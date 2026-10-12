@@ -421,7 +421,7 @@ const App = () => {
 <Route path="/eoi-complete/:token" element={<EoiCompletePage />} />
 <Route path="/claim-team" element={<ClaimTeamPage />} />
 <Route path="/competitions/join" element={<CompetitionJoinPage />} />
-<Route path="/competitions/officials/join" element={<CompetitionOfficialJoinPage />} />
+<Route path="/competitions/officials/join" element={<NativeOnlyGate><WithDeepLinkGate><CompetitionOfficialJoinPage /></WithDeepLinkGate></NativeOnlyGate>} />
 
 
                 {/* Protected routes */}

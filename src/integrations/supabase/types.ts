@@ -3113,25 +3113,34 @@ export type Database = {
           competition_id: string
           created_at: string
           created_by: string
+          expires_at: string | null
           id: string
+          max_uses: number | null
           role: string
           token: string
+          use_count: number
         }
         Insert: {
           competition_id: string
           created_at?: string
           created_by: string
+          expires_at?: string | null
           id?: string
+          max_uses?: number | null
           role: string
           token: string
+          use_count?: number
         }
         Update: {
           competition_id?: string
           created_at?: string
           created_by?: string
+          expires_at?: string | null
           id?: string
+          max_uses?: number | null
           role?: string
           token?: string
+          use_count?: number
         }
         Relationships: [
           {
@@ -10873,6 +10882,14 @@ export type Database = {
         Args: { p_invite_id: string; p_user_id: string }
         Returns: Json
       }
+      accept_competition_role_link: {
+        Args: { p_token: string }
+        Returns: {
+          chat_group_id: string
+          competition_id: string
+          status: string
+        }[]
+      }
       accept_current_legal_terms: { Args: never; Returns: undefined }
       accept_guardian_parent_invite: {
         Args: { _invite_id: string }
@@ -11845,6 +11862,15 @@ export type Database = {
           competition_id: string
           competition_name: string
           role: string
+        }[]
+      }
+      get_competition_role_link_status: {
+        Args: { p_token: string }
+        Returns: {
+          competition_id: string
+          competition_name: string
+          role: string
+          status: string
         }[]
       }
       get_engagement_streak: {
