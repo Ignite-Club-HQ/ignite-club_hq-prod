@@ -1,3 +1,4 @@
+import { pollErrorMessage } from "@/lib/pollErrorMessage";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Crown, Loader2, Plus, Trash2, BarChart3 } from "lucide-react";
@@ -207,9 +208,9 @@ export function CreatePollDialog({ open, onOpenChange, chatType, chatId, onCreat
       onOpenChange(false);
     },
     onError: (error: any) => {
-      const message = error?.message || "Failed to create poll";
-      if (CLIENT_VALIDATION_MESSAGES.has(message)) return;
-      toast.error(message);
+      const raw = error?.message || "";
+      if (CLIENT_VALIDATION_MESSAGES.has(raw)) return;
+      toast.error(pollErrorMessage(error, "Failed to create poll"));
     },
   });
 

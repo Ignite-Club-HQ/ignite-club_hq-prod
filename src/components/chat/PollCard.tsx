@@ -1,3 +1,4 @@
+import { pollErrorMessage } from "@/lib/pollErrorMessage";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BarChart3, Check, Clock, Lock, Loader2, MoreVertical, Trash2 } from "lucide-react";
@@ -140,7 +141,7 @@ export function PollCard({ pollId }: PollCardProps) {
       refetch();
     },
     onError: (e: any) => {
-      toast.error(e?.message || "Failed to record vote");
+      toast.error(pollErrorMessage(e, "Failed to record vote"));
     },
     onSettled: () => setBusyOptionId(null),
   });
@@ -157,7 +158,7 @@ export function PollCard({ pollId }: PollCardProps) {
       toast.success("Poll closed");
       refetch();
     },
-    onError: (e: any) => toast.error(e?.message || "Failed to close poll"),
+    onError: (e: any) => toast.error(pollErrorMessage(e, "Failed to close poll")),
   });
 
   const deleteMutation = useMutation({
@@ -169,7 +170,7 @@ export function PollCard({ pollId }: PollCardProps) {
       toast.success("Poll deleted");
       qc.invalidateQueries({ queryKey: ["poll", pollId] });
     },
-    onError: (e: any) => toast.error(e?.message || "Failed to delete poll"),
+    onError: (e: any) => toast.error(pollErrorMessage(e, "Failed to delete poll")),
   });
 
   if (isLoading) {
