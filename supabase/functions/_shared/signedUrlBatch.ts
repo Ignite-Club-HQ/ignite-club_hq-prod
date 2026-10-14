@@ -41,7 +41,7 @@ export async function signAuthorizedBatch(
       continue;
     }
     // Pass through only URLs that are not pretending to be storage objects.
-    if (!/\/storage\/v1\/object\//.test(raw)) {
+    if (!/\/storage\/v1\/(object|render\/image)\//.test(raw)) {
       signedUrls[raw] = raw;
     }
   }

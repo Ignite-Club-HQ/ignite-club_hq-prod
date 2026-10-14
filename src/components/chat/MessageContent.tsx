@@ -1,5 +1,5 @@
 import { useMemo, memo, useState, useCallback, useRef, useEffect } from "react";
-import { Play } from "lucide-react";
+import { ImageOff, Play } from "lucide-react";
 import { LinkPreview } from "./LinkPreview";
 import { YouTubeEmbed, extractYouTubeId } from "./YouTubeEmbed";
 import { FullscreenImageViewer } from "./FullscreenImageViewer";
@@ -423,6 +423,12 @@ export const MessageContent = memo(function MessageContent({ text, imageUrl, sea
             Avoid per-image paint containment / compositor promotion here:
             Android WebView can flash newly mounted paint-contained image layers
             during fast upward virtualized scrolls before the layer rasterises. */}
+      {imageUrl && imageError && (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-4 text-xs text-muted-foreground">
+          <ImageOff className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Photo unavailable
+        </div>
+      )}
       {imageUrl && !imageError && (
         <div
           className="w-full"
