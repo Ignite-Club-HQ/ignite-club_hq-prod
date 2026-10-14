@@ -58,8 +58,10 @@ export function parseStorageObjectRef(
   // malicious external URL containing a matching path substring is rejected.
   if (url.origin !== origin.origin) return null;
 
+  // `url.pathname` already excludes ?query and #hash (e.g. ?w=960&h=1280),
+  // and image-transform URLs (/render/image/...) point at the same object.
   const match = url.pathname.match(
-    /^\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/,
+    /^\/storage\/v1\/(?:object|render\/image)\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/,
   );
   if (!match) return null;
 
