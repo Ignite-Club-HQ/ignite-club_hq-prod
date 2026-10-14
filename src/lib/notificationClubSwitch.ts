@@ -23,6 +23,33 @@ import { getJumpTarget, type ChatJumpKind } from "@/lib/pendingChatJump";
 import { resolveRouteClubScope } from "@/lib/routeClubScope";
 import { lookupRouteClubId } from "@/lib/clubScopeLookup";
 
+/**
+ * Owning club for a chat group. Competition and mini-league chats store no
+ * club_id/team_id, so notification taps fall back to the competition's
+ * organising club / the mini-league's club. Notification switching only —
+ * the route scope guard must NOT use this (participants from other clubs
+ * legitimately view competition chats under their own club filter).
+ */
+async function resolveGroupOwningClub(groupId: string): Promise<string | null> {
+  const { data: g } = await (supabase as any)
+    .from("chat_groups").select("club_id, team_id, competition_id, mini_league_id").eq("id", groupId).maybeSingle();
+  if (!g) return null;
+  if (g.club_id) return g.club_id as string;
+  if (g.team_id) {
+    const { data: t } = await supabase.from("teams").select("club_id").eq("id", g.team_id).maybeSingle();
+    if ((t as any)?.club_id) return (t as any).club_id;
+  }
+  if (g.competition_id) {
+    const { data: c } = await (supabase as any).from("competitions").select("organizer_club_id").eq("id", g.competition_id).maybeSingle();
+    if (c?.organizer_club_id) return c.organizer_club_id as string;
+  }
+  if (g.mini_league_id) {
+    const { data: m } = await (supabase as any).from("mini_leagues").select("club_id").eq("id", g.mini_league_id).maybeSingle();
+    if (m?.club_id) return m.club_id as string;
+  }
+  return null;
+}
+
 
 const SS_KEY = "ignite_pending_notification_club_switch";
 const APPLIED_KEY = "ignite_notification_club_switch_applied";
@@ -294,6 +321,14 @@ async function resolveClubIdFromUrl(url: string | null | undefined): Promise<str
 
   const scope = resolveRouteClubScope(pathname);
   if (scope.kind === "direct") return scope.clubId;
+  if (scope.kind === "membership") {
+    const { data: comp } = await (supabase as any)
+      .from("competitions").select("organizer_club_id").eq("id", scope.competitionId).maybeSingle();
+    return (comp?.organizer_club_id as string | null) ?? null;
+  }
+  if (scope.kind === "lookup" && scope.table === "chat_groups") {
+    return await resolveGroupOwningClub(scope.id);
+  }
   if (scope.kind === "lookup") {
     // Team-owned rows (team events, team photos, team groups) carry a NULL
     // club_id — `lookupRouteClubId` recovers the club via their team.
@@ -340,9 +375,7 @@ export async function resolveNotificationClubId(
     if (kind === "group") {
       const groupId = targetId || data?.group_id || data?.groupId;
       if (!groupId) return null;
-      const { data: group } = await supabase
-        .from("chat_groups").select("club_id").eq("id", groupId).maybeSingle();
-      return (group as any)?.club_id ?? null;
+      return await resolveGroupOwningClub(groupId);
     }
 
     if (kind === "club_admin" && targetId) {
@@ -432,8 +465,7 @@ export async function resolveClubIdForChatTarget(
       return (data as any)?.club_id ?? null;
     }
     if (kind === "group") {
-      const { data } = await supabase.from("chat_groups").select("club_id").eq("id", targetId).maybeSingle();
-      return (data as any)?.club_id ?? null;
+      return await resolveGroupOwningClub(targetId);
     }
     if (kind === "club_admin") {
       const { data } = await supabase
