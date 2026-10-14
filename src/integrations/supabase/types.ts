@@ -11171,6 +11171,10 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
       }
+      can_read_general_chat_attachment: {
+        Args: { _name: string; _user_id: string }
+        Returns: boolean
+      }
       can_rename_competition_chat: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
