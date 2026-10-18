@@ -2803,6 +2803,7 @@ export type Database = {
           external_id: string | null
           gender: string | null
           hide_ladder: boolean
+          hide_scores: boolean
           id: string
           max_entries: number | null
           name: string
@@ -2821,6 +2822,7 @@ export type Database = {
           external_id?: string | null
           gender?: string | null
           hide_ladder?: boolean
+          hide_scores?: boolean
           id?: string
           max_entries?: number | null
           name: string
@@ -2839,6 +2841,7 @@ export type Database = {
           external_id?: string | null
           gender?: string | null
           hide_ladder?: boolean
+          hide_scores?: boolean
           id?: string
           max_entries?: number | null
           name?: string
@@ -2922,11 +2925,45 @@ export type Database = {
           },
         ]
       }
+      competition_match_results: {
+        Row: {
+          away_score: number | null
+          created_at: string
+          entered_by: string | null
+          home_score: number | null
+          match_id: string
+          updated_at: string
+        }
+        Insert: {
+          away_score?: number | null
+          created_at?: string
+          entered_by?: string | null
+          home_score?: number | null
+          match_id: string
+          updated_at?: string
+        }
+        Update: {
+          away_score?: number | null
+          created_at?: string
+          entered_by?: string | null
+          home_score?: number | null
+          match_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_match_results_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: true
+            referencedRelation: "competition_matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competition_matches: {
         Row: {
           arrival_minutes_before: number | null
           away_event_id: string | null
-          away_score: number | null
           away_team_id: string | null
           away_team_name: string | null
           competition_id: string
@@ -2938,7 +2975,6 @@ export type Database = {
           external_home_team_id: string | null
           external_id: string | null
           home_event_id: string | null
-          home_score: number | null
           home_team_id: string | null
           home_team_name: string | null
           id: string
@@ -2956,7 +2992,6 @@ export type Database = {
         Insert: {
           arrival_minutes_before?: number | null
           away_event_id?: string | null
-          away_score?: number | null
           away_team_id?: string | null
           away_team_name?: string | null
           competition_id: string
@@ -2968,7 +3003,6 @@ export type Database = {
           external_home_team_id?: string | null
           external_id?: string | null
           home_event_id?: string | null
-          home_score?: number | null
           home_team_id?: string | null
           home_team_name?: string | null
           id?: string
@@ -2986,7 +3020,6 @@ export type Database = {
         Update: {
           arrival_minutes_before?: number | null
           away_event_id?: string | null
-          away_score?: number | null
           away_team_id?: string | null
           away_team_name?: string | null
           competition_id?: string
@@ -2998,7 +3031,6 @@ export type Database = {
           external_home_team_id?: string | null
           external_id?: string | null
           home_event_id?: string | null
-          home_score?: number | null
           home_team_id?: string | null
           home_team_name?: string | null
           id?: string
