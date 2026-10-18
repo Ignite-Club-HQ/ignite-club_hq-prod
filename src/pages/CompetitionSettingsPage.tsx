@@ -454,11 +454,19 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
         <div className="flex items-center justify-between gap-3 border rounded-md p-3">
           <div className="min-w-0">
             <div className="text-sm font-medium">Whole competition</div>
-            <div className="text-xs text-muted-foreground">Hide the ladder for everyone except competition admins.</div>
+            <div className="text-xs text-muted-foreground">Hide the ladder{divisions.length === 0 ? " and scores" : ""} for everyone except competition admins.</div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-muted-foreground">Hide ladder</span>
-            <Switch checked={!!competition?.hide_ladder} onCheckedChange={toggleWhole} />
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Hide ladder</span>
+              <Switch checked={!!competition?.hide_ladder} onCheckedChange={toggleWhole} />
+            </div>
+            {divisions.length === 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Hide scores</span>
+                <Switch checked={!!competition?.hide_scores} onCheckedChange={toggleWholeScores} />
+              </div>
+            )}
           </div>
         </div>
         {isLoading ? (
