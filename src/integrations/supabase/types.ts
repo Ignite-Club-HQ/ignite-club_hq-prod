@@ -3228,6 +3228,7 @@ export type Database = {
           external_id: string | null
           external_tenant: string | null
           hide_ladder: boolean
+          hide_scores: boolean
           id: string
           invite_email_message: string | null
           join_token: string | null
@@ -3262,6 +3263,7 @@ export type Database = {
           external_id?: string | null
           external_tenant?: string | null
           hide_ladder?: boolean
+          hide_scores?: boolean
           id?: string
           invite_email_message?: string | null
           join_token?: string | null
@@ -3296,6 +3298,7 @@ export type Database = {
           external_id?: string | null
           external_tenant?: string | null
           hide_ladder?: boolean
+          hide_scores?: boolean
           id?: string
           invite_email_message?: string | null
           join_token?: string | null

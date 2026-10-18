@@ -408,10 +408,10 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
     queryFn: async () => {
       const { data } = await supabase
         .from("competitions")
-        .select("hide_ladder")
+        .select("hide_ladder, hide_scores")
         .eq("id", competitionId)
         .maybeSingle();
-      return data as { hide_ladder: boolean } | null;
+      return data as { hide_ladder: boolean; hide_scores: boolean } | null;
     },
   });
 
@@ -429,6 +429,21 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
 
+  const toggleWholeScores = async (hide: boolean) => {
+    const { error } = await supabase
+      .from("competitions")
+      .update({ hide_scores: hide } as any)
+      .eq("id", competitionId);
+    if (error) {
+      toast({ title: "Could not update", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["competition-hide-ladder", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -439,11 +454,19 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
         <div className="flex items-center justify-between gap-3 border rounded-md p-3">
           <div className="min-w-0">
             <div className="text-sm font-medium">Whole competition</div>
-            <div className="text-xs text-muted-foreground">Hide the ladder for everyone except competition admins.</div>
+            <div className="text-xs text-muted-foreground">Hide the ladder{divisions.length === 0 ? " and scores" : ""} for everyone except competition admins.</div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-muted-foreground">Hide ladder</span>
-            <Switch checked={!!competition?.hide_ladder} onCheckedChange={toggleWhole} />
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Hide ladder</span>
+              <Switch checked={!!competition?.hide_ladder} onCheckedChange={toggleWhole} />
+            </div>
+            {divisions.length === 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Hide scores</span>
+                <Switch checked={!!competition?.hide_scores} onCheckedChange={toggleWholeScores} />
+              </div>
+            )}
           </div>
         </div>
         {isLoading ? (
