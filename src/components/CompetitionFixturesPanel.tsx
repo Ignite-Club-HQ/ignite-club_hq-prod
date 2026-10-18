@@ -145,7 +145,24 @@ export function CompetitionFixturesPanel({ competitionId, isAdmin, divisions, en
         .order("round_number", { ascending: true, nullsFirst: false })
         .order("scheduled_at", { ascending: true, nullsFirst: false });
       if (error) throw error;
-      return data ?? [];
+      const rows = data ?? [];
+      // Scores live in competition_match_results; RLS hides them for
+      // non-admins when the division has hide_scores on, in which case the
+      // merge simply leaves scores unset and the UI shows "vs".
+      const ids = rows.map((m: any) => m.id).filter(Boolean);
+      if (ids.length > 0) {
+        const { data: results } = await supabase
+          .from("competition_match_results")
+          .select("match_id, home_score, away_score")
+          .in("match_id", ids);
+        const byMatch = new Map((results ?? []).map((r: any) => [r.match_id, r]));
+        for (const m of rows as any[]) {
+          const r = byMatch.get(m.id);
+          m.home_score = r?.home_score ?? null;
+          m.away_score = r?.away_score ?? null;
+        }
+      }
+      return rows;
     },
   });
 
@@ -1437,7 +1454,7 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
     // manually_overridden_at, which the DB trigger uses to release the row
     // from future sync overwrites.
     const isExternal = match.source && match.source !== "manual";
-    const payload: Record<string, unknown> = { home_score: homeN, away_score: awayN, status: nextStatus };
+    const payload: Record<string, unknown> = { status: nextStatus };
     if (isExternal && !match.manually_overridden_at) {
       payload.manually_overridden_at = new Date().toISOString();
     }
@@ -1447,6 +1464,19 @@ function MatchRow({ match, isAdmin, competitionId, entries, divisions, hideRound
       .eq("id", match.id);
     if (error) {
       toast({ title: "Could not save", description: error.message, variant: "destructive" });
+      return;
+    }
+    // Scores live in their own table so hidden divisions are enforced by the
+    // database, not the app.
+    const { data: userData } = await supabase.auth.getUser();
+    const { error: scoreError } = await supabase
+      .from("competition_match_results")
+      .upsert(
+        { match_id: match.id, home_score: homeN, away_score: awayN, entered_by: userData.user?.id ?? null } as never,
+        { onConflict: "match_id" },
+      );
+    if (scoreError) {
+      toast({ title: "Could not save the score", description: scoreError.message, variant: "destructive" });
       return;
     }
     setStatus(nextStatus);
