@@ -229,10 +229,8 @@ Deno.serve(async (req) => {
         venue: g.venue,
         external_home_team_id: g.external_home_team_id,
         home_team_name: g.home_team_name,
-        home_score: g.home_score,
         external_away_team_id: g.external_away_team_id,
         away_team_name: g.away_team_name,
-        away_score: g.away_score,
         last_synced_at: new Date().toISOString(),
       }));
       const { error: mErr } = await supabase
@@ -240,6 +238,30 @@ Deno.serve(async (req) => {
         .upsert(rows, { onConflict: "source,external_id" });
       if (mErr) throw mErr;
       matchesUpserted = rows.length;
+
+      // 3b. Scores live in competition_match_results (hide-scores enforcement).
+      // Skip matches a comp admin has taken local control of.
+      const externalIds = games.map((g) => g.external_id).filter(Boolean);
+      const { data: synced } = await supabase
+        .from("competition_matches")
+        .select("id, external_id, manually_overridden_at")
+        .eq("source", "playhq")
+        .in("external_id", externalIds);
+      const byExternal = new Map((synced ?? []).map((m: any) => [m.external_id, m]));
+      const scoreRows = games
+        .map((g) => {
+          const m = byExternal.get(g.external_id);
+          if (!m || m.manually_overridden_at) return null;
+          if (g.home_score == null && g.away_score == null) return null;
+          return { match_id: m.id, home_score: g.home_score, away_score: g.away_score };
+        })
+        .filter((r): r is { match_id: string; home_score: number | null; away_score: number | null } => !!r);
+      if (scoreRows.length) {
+        const { error: rErr } = await supabase
+          .from("competition_match_results")
+          .upsert(scoreRows, { onConflict: "match_id" });
+        if (rErr) throw rErr;
+      }
     }
 
     // 4. Player stats stay in their dedicated table (claim flow is Phase 2)
