@@ -1,11 +1,11 @@
 # Roadmap
 
-## Competition scores hard-hiding (DEV only)
-- [ ] Audit all home_score/away_score readers & writers (frontend, RPCs, edge functions)
-- [ ] Migration: create competition_match_results, RLS (division hide_scores / comp admin), grants, migrate data, drop columns from competition_matches, add hide_scores to competition_divisions
-- [ ] Settings page: "Hide scores" switch per division (rename card "Ladder & score visibility")
-- [ ] Frontend: fixtures panel + public comp page fetch scores from new table, merge by match_id, show "vs" when hidden
-- [ ] Enter-score flow writes to new table
-- [ ] Ladder RPCs + analytics + PlayHQ sync read/write new table
-- [ ] Tests (a)-(k): admin visibility, fixture nav, finals placeholders, hide-scores enforcement incl. anon API
-- [ ] Typecheck + existing tests; verify in DEV with real accounts
+## Competition scores hard-hiding (DEV only) — DONE
+- [x] Audit all home_score/away_score readers & writers
+- [x] Migration: competition_match_results, RLS, grants, data move, columns dropped, hide_scores on divisions
+- [x] Ladder view + trigger rewrites; officials keep score-entry rights
+- [x] Settings: "Hide scores" switch per division, card renamed "Ladder & score visibility"
+- [x] Fixtures panel + public page merge scores from new table; enter-score writes there
+- [x] Analytics counts status='completed'; PlayHQ sync writes new table
+- [x] Verified in DEV: anon blocked (API-level), admin read/write OK, ladder hides/shows, toggle off restores event scores
+- [x] Typecheck + 22 competition tests pass; build OK
