@@ -12649,6 +12649,7 @@ export type Database = {
         Returns: undefined
       }
       mask_email: { Args: { _email: string }; Returns: string }
+      match_scores_hidden: { Args: { _match_id: string }; Returns: boolean }
       message_reads_compute_scope_key: {
         Args: { _row: Database["public"]["Tables"]["message_reads"]["Row"] }
         Returns: string
