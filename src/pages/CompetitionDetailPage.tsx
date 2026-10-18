@@ -300,7 +300,7 @@ export default function CompetitionDetailPage() {
 
         {canViewLadder && (
           <TabsContent value="ladder" className="space-y-2">
-            <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={canManage} />
+            <CompetitionLadderPanel competitionId={id!} divisions={divisions} isAdmin={canManage} hideScores={!!(competition as any)?.hide_scores} />
           </TabsContent>
         )}
 
