@@ -2343,7 +2343,7 @@ function AddMatchButton({ competitionId, entries, divisions, defaultOpen = false
 }
 
 
-export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = false }: { competitionId: string; divisions: any[]; isAdmin?: boolean }) {
+export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = false, hideScores = false }: { competitionId: string; divisions: any[]; isAdmin?: boolean; hideScores?: boolean }) {
   const { data: rows = [], isLoading, isError } = useQuery({
     queryKey: ["competition-ladder", competitionId],
     queryFn: async () => {
@@ -2419,7 +2419,7 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
       </Card>
     );
   }
-  if (!isAdmin && divisions.some((d: any) => d.hide_ladder)) {
+  if (!isAdmin && (hideScores || divisions.some((d: any) => d.hide_ladder || d.hide_scores))) {
     return (
       <Card className="border-dashed">
         <CardContent className="p-6 text-center space-y-2">
