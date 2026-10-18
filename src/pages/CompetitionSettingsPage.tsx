@@ -390,6 +390,19 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
 
+  const toggleScores = async (divisionId: string, hide: boolean) => {
+    const { error } = await supabase
+      .from("competition_divisions")
+      .update({ hide_scores: hide })
+      .eq("id", divisionId);
+    if (error) {
+      toast({ title: "Could not update", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["competition-divisions", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
+  };
+
   const { data: competition } = useQuery({
     queryKey: ["competition-hide-ladder", competitionId],
     queryFn: async () => {

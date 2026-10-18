@@ -1354,7 +1354,7 @@ function CompetitionPanel({ competitions, range }: { competitions: { id: string;
           .is("teams.deleted_at", null),
       ]);
       const totalMatches = matches.data?.length || 0;
-      const completed = (matches.data || []).filter((m: any) => m.home_score !== null && m.away_score !== null).length;
+      const completed = (matches.data || []).filter((m: any) => m.status === "completed").length;
       return {
         activeTeams: entries.count || 0,
         totalMatches,
