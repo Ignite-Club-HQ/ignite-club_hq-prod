@@ -408,10 +408,10 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
     queryFn: async () => {
       const { data } = await supabase
         .from("competitions")
-        .select("hide_ladder")
+        .select("hide_ladder, hide_scores")
         .eq("id", competitionId)
         .maybeSingle();
-      return data as { hide_ladder: boolean } | null;
+      return data as { hide_ladder: boolean; hide_scores: boolean } | null;
     },
   });
 
@@ -426,6 +426,21 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
     }
     qc.invalidateQueries({ queryKey: ["competition-hide-ladder", competitionId] });
     qc.invalidateQueries({ queryKey: ["competition", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
+  };
+
+  const toggleWholeScores = async (hide: boolean) => {
+    const { error } = await supabase
+      .from("competitions")
+      .update({ hide_scores: hide } as any)
+      .eq("id", competitionId);
+    if (error) {
+      toast({ title: "Could not update", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["competition-hide-ladder", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition", competitionId] });
+    qc.invalidateQueries({ queryKey: ["competition-matches", competitionId] });
     qc.invalidateQueries({ queryKey: ["competition-ladder", competitionId] });
   };
 
