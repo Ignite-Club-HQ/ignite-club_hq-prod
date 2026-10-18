@@ -47,7 +47,24 @@ export default function PublicCompetitionPage() {
         .select("*, home:home_team_id(id, name, logo_url), away:away_team_id(id, name, logo_url), competition_divisions:division_id(name)")
         .eq("competition_id", id!)
         .order("scheduled_at", { ascending: true, nullsFirst: false });
-      return data ?? [];
+      const rows = data ?? [];
+      // Scores come from competition_match_results; RLS omits them entirely
+      // for divisions with hide_scores on, so hidden scores never reach the
+      // browser — the UI just shows "vs".
+      const ids = rows.map((m: any) => m.id).filter(Boolean);
+      if (ids.length > 0) {
+        const { data: results } = await supabase
+          .from("competition_match_results")
+          .select("match_id, home_score, away_score")
+          .in("match_id", ids);
+        const byMatch = new Map((results ?? []).map((r: any) => [r.match_id, r]));
+        for (const m of rows as any[]) {
+          const r = byMatch.get(m.id);
+          m.home_score = r?.home_score ?? null;
+          m.away_score = r?.away_score ?? null;
+        }
+      }
+      return rows;
     },
   });
 

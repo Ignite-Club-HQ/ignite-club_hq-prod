@@ -1334,7 +1334,7 @@ function CompetitionPanel({ competitions, range }: { competitions: { id: string;
       const [matches, broadcasts, entries] = await Promise.all([
         supabase
           .from("competition_matches")
-          .select("id, home_score, away_score", { count: "exact", head: false })
+          .select("id, status", { count: "exact", head: false })
           .in("competition_id", compIds)
           .limit(2000),
         supabase
