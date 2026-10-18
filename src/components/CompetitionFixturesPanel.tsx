@@ -2419,6 +2419,19 @@ export function CompetitionLadderPanel({ competitionId, divisions, isAdmin = fal
       </Card>
     );
   }
+  if (!isAdmin && divisions.some((d: any) => d.hide_ladder)) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="p-6 text-center space-y-2">
+          <Trophy className="h-8 w-8 text-muted-foreground mx-auto" />
+          <h3 className="text-sm font-semibold">Ladder not available</h3>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            The competition organisers have chosen not to publish a ladder for this competition.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
   if (rows.length === 0) {
     return (
       <Card className="border-dashed">
