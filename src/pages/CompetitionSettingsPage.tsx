@@ -432,8 +432,8 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Ladder visibility</CardTitle>
-        <CardDescription>Choose which divisions or grades show a ladder. Fixtures and results stay visible.</CardDescription>
+        <CardTitle className="text-base">Ladder &amp; score visibility</CardTitle>
+        <CardDescription>Choose which divisions or grades show a ladder, and which hide scores from everyone except competition admins.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between gap-3 border rounded-md p-3">
@@ -460,12 +460,21 @@ function DivisionLadderVisibility({ competitionId }: { competitionId: string }) 
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-muted-foreground">Hide ladder</span>
-                  <Switch
-                    checked={!!d.hide_ladder}
-                    onCheckedChange={(v) => toggle(d.id, v)}
-                  />
+                 <div className="flex items-center gap-4 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Hide ladder</span>
+                    <Switch
+                      checked={!!d.hide_ladder}
+                      onCheckedChange={(v) => toggle(d.id, v)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Hide scores</span>
+                    <Switch
+                      checked={!!d.hide_scores}
+                      onCheckedChange={(v) => toggleScores(d.id, v)}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
