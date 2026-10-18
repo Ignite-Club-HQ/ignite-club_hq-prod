@@ -146,7 +146,11 @@ export default function PublicCompetitionPage() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Ladder</h2>
         {ladderByDivision.size === 0 ? (
-          <p className="text-sm text-muted-foreground">No ladder to display.</p>
+          <p className="text-sm text-muted-foreground">
+            {hasHiddenDivisionLadder
+              ? "The ladder isn't publicly available for this competition."
+              : "No ladder to display."}
+          </p>
         ) : (
           Array.from(ladderByDivision.entries()).map(([divId, list]) => {
             const div = divisions.find((d: any) => d.id === divId);
