@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { PollVotersDialog } from "@/components/chat/PollVotersDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +45,7 @@ export function PollCard({ pollId }: PollCardProps) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [busyOptionId, setBusyOptionId] = useState<string | null>(null);
+  const [votersOpen, setVotersOpen] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["poll", pollId],
@@ -54,6 +56,8 @@ export function PollCard({ pollId }: PollCardProps) {
         supabase.from("poll_votes").select("id, option_id, user_id").eq("poll_id", pollId),
       ]);
       if (pollRes.error) throw pollRes.error;
+      if (optsRes.error) throw optsRes.error;
+      if (votesRes.error) throw votesRes.error;
       if (!pollRes.data) return null;
       return {
         poll: pollRes.data as PollRow,
@@ -62,6 +66,7 @@ export function PollCard({ pollId }: PollCardProps) {
       };
     },
     staleTime: 15_000,
+    refetchOnMount: "always",
   });
 
   // Realtime: refresh on any vote change for this poll
@@ -205,7 +210,11 @@ export function PollCard({ pollId }: PollCardProps) {
           <BarChart3 className="h-4 w-4" strokeWidth={2.25} />
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
-          <p className="text-[15px] font-semibold leading-snug break-words">{poll.question}</p>
+          <Button variant="ghost" onClick={(event) => { event.stopPropagation(); setVotersOpen(true); }}
+            aria-label={`View votes: ${poll.question}`}
+            className="h-auto w-full justify-start p-0 text-left whitespace-normal hover:bg-transparent text-[15px] font-semibold leading-snug break-words">
+            {poll.question}
+          </Button>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             {poll.allow_multiple ? "Multiple choice" : "Single choice"}
             {isClosed && " · Closed"}
@@ -289,9 +298,10 @@ export function PollCard({ pollId }: PollCardProps) {
 
       {/* Footer */}
       <div className="mt-2.5 px-3.5 py-2 border-t border-border/60 flex items-center justify-between text-[11px] text-muted-foreground">
-        <span className="font-medium">
-          {totalVotes} {totalVotes === 1 ? "vote" : "votes"}
-        </span>
+        <Button variant="ghost" size="sm" onClick={(event) => { event.stopPropagation(); setVotersOpen(true); }}
+          aria-label="View poll votes" className="h-8 px-0 text-[11px] text-muted-foreground">
+          {totalVotes} {totalVotes === 1 ? "vote" : "votes"} · View votes
+        </Button>
         {closesIn && !isClosed && (
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3 w-3" />
@@ -305,6 +315,10 @@ export function PollCard({ pollId }: PollCardProps) {
           </span>
         )}
       </div>
+      {votersOpen && (
+        <PollVotersDialog pollId={pollId} question={poll.question} options={options} votes={data.votes}
+          open={votersOpen} onOpenChange={setVotersOpen} />
+      )}
     </div>
   );
 }
