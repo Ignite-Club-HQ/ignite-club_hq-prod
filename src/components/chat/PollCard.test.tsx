@@ -58,7 +58,8 @@ describe("Poll voter results", () => {
     renderPoll();
     expect(mocks.profiles).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole("button", { name: "View votes: Are you coming?" }));
-    expect(await within(screen.getByRole("region", { name: "Yes voters" })).findByText("Alice")).toBeInTheDocument();
+    const yesVoters = await screen.findByRole("region", { name: "Yes voters" });
+    expect(within(yesVoters).getByText("Alice")).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Yes voters" })).queryByText("Bob")).not.toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "No voters" })).getByText("Bob")).toBeInTheDocument();
     expect(mocks.write).not.toHaveBeenCalled();
