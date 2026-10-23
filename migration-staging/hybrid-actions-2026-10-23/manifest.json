@@ -1,0 +1,215 @@
+{
+  "source_repository": "Ignite-Club-HQ/ignite-club-hybrid",
+  "source_commit": "4f157414cefc9d65f0132b5af059649a2e3e1c7a",
+  "destination_repository": "Ignite-Club-HQ/ignite-club_hq-prod",
+  "destination_baseline_commit": "96642d0750e03d933b68957d61999de3ae983b9c",
+  "inactive": true,
+  "workflow_count": 36,
+  "workflows": [
+    {
+      "source_path": ".github/workflows/add-group.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/add-group.yml",
+      "git_blob_sha": "08f34e576f69b393d5fbbdeabdf117d1529788a6"
+    },
+    {
+      "source_path": ".github/workflows/backfill-club-home-countries.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/backfill-club-home-countries.yml",
+      "git_blob_sha": "0bdd2fba3ffa4af2fa3f240c99833aa1d62db54e"
+    },
+    {
+      "source_path": ".github/workflows/canister-health.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/canister-health.yml",
+      "git_blob_sha": "0c06ac26f418231324aee44fcbb78fac7ed3ab3c"
+    },
+    {
+      "source_path": ".github/workflows/ci.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/ci.yml",
+      "git_blob_sha": "fb38462f05c541a458edce11a8473039ac81ba47"
+    },
+    {
+      "source_path": ".github/workflows/configure-new-group.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/configure-new-group.yml",
+      "git_blob_sha": "f7abe68f029b6454a73d882a2618ae9744706896"
+    },
+    {
+      "source_path": ".github/workflows/delete-clubs-except.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/delete-clubs-except.yml",
+      "git_blob_sha": "49e41a98ded7cb4eb9e0efbc0c9bfbc535c1a7ee"
+    },
+    {
+      "source_path": ".github/workflows/deploy-frontend-canister.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/deploy-frontend-canister.yml",
+      "git_blob_sha": "4ed69ac65c12dba7bb5c6f3e943d19004fc03e66"
+    },
+    {
+      "source_path": ".github/workflows/deploy-icp-mainnet.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/deploy-icp-mainnet.yml",
+      "git_blob_sha": "8812793f1590246ea752002fbb3d0c6f4a9b50cb"
+    },
+    {
+      "source_path": ".github/workflows/enlarge-group1-photo-store.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/enlarge-group1-photo-store.yml",
+      "git_blob_sha": "dedba1d7af95e6e00209b79eb4a7c48fc5e02562"
+    },
+    {
+      "source_path": ".github/workflows/erase-duplicate-profiles.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/erase-duplicate-profiles.yml",
+      "git_blob_sha": "c46d313ba74854e6575dbc8c017e701abe6a2b3d"
+    },
+    {
+      "source_path": ".github/workflows/free-media-retention.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/free-media-retention.yml",
+      "git_blob_sha": "c9255cbd678eaed9041ac4d0dc0b92d836b38efc"
+    },
+    {
+      "source_path": ".github/workflows/fund-canisters-by-card.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/fund-canisters-by-card.yml",
+      "git_blob_sha": "c415639f495fb17a88245e1fff9637eb371236ca"
+    },
+    {
+      "source_path": ".github/workflows/fund-media-test-by-card.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/fund-media-test-by-card.yml",
+      "git_blob_sha": "c72a6f5e175974258cc63497a76be589cef90371"
+    },
+    {
+      "source_path": ".github/workflows/grant-app-admin.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/grant-app-admin.yml",
+      "git_blob_sha": "85cc91d974b4cefe1ed50cd9a87fde964d838e33"
+    },
+    {
+      "source_path": ".github/workflows/group-media-capacity-report.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/group-media-capacity-report.yml",
+      "git_blob_sha": "dcf3e4a02808d6b4d6bae89bcd8ee34dc0d793b2"
+    },
+    {
+      "source_path": ".github/workflows/icp-push-deliver.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/icp-push-deliver.yml",
+      "git_blob_sha": "9fb90e6d5def2a683113b992518fece1b145405b"
+    },
+    {
+      "source_path": ".github/workflows/install-new-group.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/install-new-group.yml",
+      "git_blob_sha": "cd4fa65d7663b50be6682b68c87559011f7947b5"
+    },
+    {
+      "source_path": ".github/workflows/migrate-repo-setup.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/migrate-repo-setup.yml",
+      "git_blob_sha": "8fb3eed77a1afe15ab2ca026d2a1b5eeffb57487"
+    },
+    {
+      "source_path": ".github/workflows/move-account.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/move-account.yml",
+      "git_blob_sha": "3ce20df60c092b9c420b71fe88e01595ac55fa9c"
+    },
+    {
+      "source_path": ".github/workflows/open-group-general.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/open-group-general.yml",
+      "git_blob_sha": "090284d18c3956bfe1763f2940c554b368fb5ecc"
+    },
+    {
+      "source_path": ".github/workflows/owner-group-opening.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/owner-group-opening.yml",
+      "git_blob_sha": "2c0cfe212dbdee263e748e6c86677c9b81ccaca6"
+    },
+    {
+      "source_path": ".github/workflows/prepare-group-capacity.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/prepare-group-capacity.yml",
+      "git_blob_sha": "0ce83143e6522314cf57339fb0022e2d9fde90ae"
+    },
+    {
+      "source_path": ".github/workflows/release-membership-lookup.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/release-membership-lookup.yml",
+      "git_blob_sha": "42f48ce518eae36d14c5f92eb3dfc0295580f0c1"
+    },
+    {
+      "source_path": ".github/workflows/remove-media-test-stores.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/remove-media-test-stores.yml",
+      "git_blob_sha": "dca8c1cfbb3bfe8885ee881e936f2d636584b7e0"
+    },
+    {
+      "source_path": ".github/workflows/repair-group2-account-access.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/repair-group2-account-access.yml",
+      "git_blob_sha": "9be2b9deb30241e841e52256e8e7d5709022d206"
+    },
+    {
+      "source_path": ".github/workflows/report-group-health.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/report-group-health.yml",
+      "git_blob_sha": "07c10929801d385f6a980f3b5bb47cc22f436fb0"
+    },
+    {
+      "source_path": ".github/workflows/scheduled-group-fuel.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/scheduled-group-fuel.yml",
+      "git_blob_sha": "79737e269c9572cfcc240b216c1b2851e6ac2eba"
+    },
+    {
+      "source_path": ".github/workflows/set-clubs-pro.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/set-clubs-pro.yml",
+      "git_blob_sha": "a74b057868688c70460ff222f8767d8f61ff21cc"
+    },
+    {
+      "source_path": ".github/workflows/stop-group2-placements.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/stop-group2-placements.yml",
+      "git_blob_sha": "d5cdd1d84b47e061be2d4099b5c8ca8731c54386"
+    },
+    {
+      "source_path": ".github/workflows/test-media-large-store-mainnet.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/test-media-large-store-mainnet.yml",
+      "git_blob_sha": "3a738fb818e0d8653446959574ce1e9ba837a347"
+    },
+    {
+      "source_path": ".github/workflows/topup-canister-cycles.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/topup-canister-cycles.yml",
+      "git_blob_sha": "1854270fd03c50f3a85dde60d14ce52cb5e7fbbc"
+    },
+    {
+      "source_path": ".github/workflows/upgrade-competition-history.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/upgrade-competition-history.yml",
+      "git_blob_sha": "55adfe462bfecc3620988a8bc70b52e915c7575b"
+    },
+    {
+      "source_path": ".github/workflows/upgrade-group2.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/upgrade-group2.yml",
+      "git_blob_sha": "4706a447aec33a44b1e41a7a51531bf3b8f79ff9"
+    },
+    {
+      "source_path": ".github/workflows/upgrade-media-paging.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/upgrade-media-paging.yml",
+      "git_blob_sha": "b2111d61cb9daffb79d409cc02bc0c29d4c48c13"
+    },
+    {
+      "source_path": ".github/workflows/upgrade-messaging.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/upgrade-messaging.yml",
+      "git_blob_sha": "cecaf66133296f8b2a6d0ee257520b15cf03720a"
+    },
+    {
+      "source_path": ".github/workflows/upgrade-subscriptions.yml",
+      "staged_path": "migration-staging/hybrid-actions-2026-10-23/workflows/upgrade-subscriptions.yml",
+      "git_blob_sha": "09db43484a10c62727b16e4993d3077d86652eb4"
+    }
+  ],
+  "source_repository_secret_names": [
+    "DEPLOYER_PEM",
+    "ICP_PUSH_WORKER_SEED"
+  ],
+  "workflow_secret_name_references": [
+    "DEPLOYER_PEM",
+    "FCM_SERVICE_ACCOUNT_JSON",
+    "FUEL_MONTHLY_CEILING_CYCLES",
+    "ICP_PUSH_WORKER_SEED",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_URL",
+    "TARGET_REPO_PAT"
+  ],
+  "secret_values_copied": false,
+  "existing_destination_secrets_unchanged": true,
+  "dependencies_not_copied": [
+    "scripts/",
+    "frontend/",
+    "backend/",
+    "deploy/",
+    "icp.yaml",
+    "Cargo.toml",
+    "mops.toml"
+  ],
+  "activation_requires_separate_approval": true
+}
