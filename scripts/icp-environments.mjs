@@ -47,7 +47,9 @@ export const UPGRADE_ORDER = Object.freeze([
 const SHARED_PATHS = [/^backend\/shared\//, /^backend\/migrations\//, /^mops\.(toml|lock)$/, /^Cargo\.(toml|lock)$/, /^deploy\/prod\/icp\.yaml$/];
 
 export function otherEnv(env) {
-  return env === "prod" ? "dev" : "dev" === env ? "prod" : (() => { throw new Error(`Unknown ICP environment: ${env}`); })();
+  if (env === "prod") return "dev";
+  if (env === "dev") return "prod";
+  throw new Error(`Unknown ICP environment: ${env}`);
 }
 
 export function resolveEnv(e = process.env) {

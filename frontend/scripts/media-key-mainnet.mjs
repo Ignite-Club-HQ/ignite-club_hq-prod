@@ -3,8 +3,8 @@ import { Principal } from '@icp-sdk/core/principal';
 
 /** Public-only derivation; other networks require their own verified source. */
 export function configuredMainnetPhotoKey({ deploymentId, environment, canisterId, keyName }) {
-  if (deploymentId !== 'mainnet' || environment !== 'ic' || keyName !== 'key_1') {
-    throw new Error('Canonical mainnet photo-key derivation requires mainnet/ic/key_1; other targets need their own verified key source');
+  if (!['mainnet', 'prod'].includes(deploymentId) || environment !== 'ic' || keyName !== 'key_1') {
+    throw new Error('Canonical mainnet photo-key derivation requires mainnet or prod/ic/key_1; other targets need their own verified key source');
   }
   return Buffer.from(MasterPublicKey.productionKey()
     .deriveCanisterKey(Principal.fromText(canisterId).toUint8Array())
