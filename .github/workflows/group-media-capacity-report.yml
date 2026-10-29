@@ -1,4 +1,4 @@
-name: [TEST] Group media capacity report
+name: "[TEST] Group media capacity report"
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: [REPO] Copy hybrid branch into prod repo
+name: "[REPO] Copy hybrid branch into prod repo"
 
 on:
   workflow_dispatch:

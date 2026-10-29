@@ -1,4 +1,4 @@
-name: [TEST] Upgrade Group 2 (closed)
+name: "[TEST] Upgrade Group 2 (closed)"
 on:
   workflow_dispatch:
     inputs:

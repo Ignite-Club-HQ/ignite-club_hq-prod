@@ -1,4 +1,4 @@
-name: [TEST] Upgrade subscriptions (all test groups)
+name: "[TEST] Upgrade subscriptions (all test groups)"
 on:
   workflow_dispatch:
     inputs:

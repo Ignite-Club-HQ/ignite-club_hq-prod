@@ -1,4 +1,4 @@
-name: [TEST] Deliver email jobs
+name: "[TEST] Deliver email jobs"
 on:
   workflow_dispatch:
 permissions:

@@ -15,7 +15,7 @@
 # Then: Actions tab → "[TEST] Deploy canisters (legacy base/Group 1)" → Run workflow.
 # Safe to re-run; the canister ID table is attached as an artifact.
 
-name: [TEST] Deploy canisters (legacy base/Group 1)
+name: "[TEST] Deploy canisters (legacy base/Group 1)"
 
 on:
   workflow_dispatch:

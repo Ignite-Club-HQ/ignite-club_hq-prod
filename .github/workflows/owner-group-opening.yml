@@ -1,4 +1,4 @@
-name: [TEST] Group 2 owner opening
+name: "[TEST] Group 2 owner opening"
 on:
   workflow_dispatch:
     inputs:

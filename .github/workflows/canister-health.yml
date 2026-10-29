@@ -13,7 +13,7 @@
 # Compare week to week to see the real cycle burn per canister; that replaces
 # the modelled cost estimates with measured ones.
 
-name: [TEST] Canister health report
+name: "[TEST] Canister health report"
 
 on:
   workflow_dispatch:

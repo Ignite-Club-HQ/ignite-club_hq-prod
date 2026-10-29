@@ -1,4 +1,4 @@
-name: [TEST] Upgrade competition events (Group 2)
+name: "[TEST] Upgrade competition events (Group 2)"
 on:
   workflow_dispatch:
     inputs:

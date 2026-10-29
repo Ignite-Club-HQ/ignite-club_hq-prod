@@ -1,4 +1,4 @@
-name: [REPO] Source checks (CI)
+name: "[REPO] Source checks (CI)"
 
 on:
   pull_request:

@@ -5,7 +5,7 @@
 # secrets needed. Default lookup name is "Paul Cranwell"; change the input
 # to grant a different Internet Identity user later.
 
-name: [TEST] Grant app admin
+name: "[TEST] Grant app admin"
 
 on:
   workflow_dispatch:

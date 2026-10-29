@@ -1,4 +1,4 @@
-name: [TEST] Enlarge group photo store
+name: "[TEST] Enlarge group photo store"
 
 on:
   workflow_dispatch:

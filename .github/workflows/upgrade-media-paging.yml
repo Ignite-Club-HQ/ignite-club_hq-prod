@@ -1,4 +1,4 @@
-name: [TEST] Upgrade photo loading (all test groups)
+name: "[TEST] Upgrade photo loading (all test groups)"
 on:
   workflow_dispatch:
     inputs:

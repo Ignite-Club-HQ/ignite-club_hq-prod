@@ -1,4 +1,4 @@
-name: [REPO] Copy repo setup to another repo
+name: "[REPO] Copy repo setup to another repo"
 on:
   workflow_dispatch:
     inputs:

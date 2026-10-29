@@ -1,4 +1,4 @@
-name: [TEST] Open Group 2 to everyone
+name: "[TEST] Open Group 2 to everyone"
 on:
   workflow_dispatch:
     inputs:

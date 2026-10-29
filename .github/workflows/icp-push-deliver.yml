@@ -1,4 +1,4 @@
-name: [TEST] Push delivery worker
+name: "[TEST] Push delivery worker"
 
 # Bridges the notification_queue canister outbox to FCM so ICP-mode (Internet
 # Identity) users receive push notifications. Claims a batch every 5 minutes,

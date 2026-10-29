@@ -1,6 +1,6 @@
 # Erase duplicate secure-sign-in profiles (same display name) on the blockchain
 # backend, keeping the principal(s) you list. Lists only unless confirm = yes.
-name: [TEST] Erase duplicate profiles
+name: "[TEST] Erase duplicate profiles"
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: [TEST] Repair Group 2 account access
+name: "[TEST] Repair Group 2 account access"
 on:
   workflow_dispatch:
     inputs:

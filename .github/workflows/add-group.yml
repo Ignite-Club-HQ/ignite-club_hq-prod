@@ -2,7 +2,7 @@
 # Creates the 13 services (200 GB photo store), configures, verifies, opens and
 # records the live approval so the published app uses it with no new release.
 # Re-run to resume after any stop; finished steps are skipped.
-name: [TEST] Add new group
+name: "[TEST] Add new group"
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: [TEST] Deliver signed name approval
+name: "[TEST] Deliver signed name approval"
 on:
   workflow_dispatch:
     inputs:

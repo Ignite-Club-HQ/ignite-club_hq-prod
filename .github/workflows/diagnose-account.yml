@@ -1,6 +1,6 @@
 # Read-only account check: shows which account each sign-in ID lands on and
 # what the original account holds. Changes nothing.
-name: [TEST] Check account (read-only)
+name: "[TEST] Check account (read-only)"
 
 on:
   workflow_dispatch:

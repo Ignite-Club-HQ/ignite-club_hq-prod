@@ -1,4 +1,4 @@
-name: [TEST] Test encrypted personal names (isolated)
+name: "[TEST] Test encrypted personal names (isolated)"
 
 on:
   workflow_dispatch:

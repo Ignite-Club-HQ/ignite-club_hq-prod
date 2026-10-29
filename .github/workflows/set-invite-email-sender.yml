@@ -2,7 +2,7 @@
 # send without the address ever being saved. Needs repository secret
 # RESEND_API_KEY (a key from your Resend account) plus DEPLOYER_PEM.
 
-name: [TEST] Set invite email sender
+name: "[TEST] Set invite email sender"
 
 on:
   workflow_dispatch:
