@@ -95,7 +95,10 @@ export async function readPrivateOwnProfileName(ctx: FeatureBackendContext, refe
     guard();
     const name = names.get(ref.subject);
     if (!name) throw new Error('Private display name could not be unlocked yet.');
-    if (ref.subject === caller) (await import('./ownPrivateName')).rememberOwnPrivateName(caller, name);
+    if (ref.subject === caller) {
+      (await import('./ownPrivateName')).rememberOwnPrivateName(caller, name);
+      scheduleOwnClubNameBackfill(ctx, caller, name);
+    }
     return name;
   } finally { retired = true; clearTimeout(timer); }
 }
