@@ -15,6 +15,7 @@ import { getLocalLabRoleRoster } from "@/lab/fixtureDataLayer";
 import { connectLocalIdentityAccessClient } from "@/lab/localIdentityAccess";
 import { roleLabels, type AppRole } from "@/features/membership/rolePresentation";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { writeOnce } from "@/live/clubScope";
 import { Principal } from "@icp-sdk/core/principal";
 import {
@@ -173,8 +174,9 @@ function SupabaseManageRolesPage() {
         // Provisional: account_id = Supabase user id; no profile/team joins on
         // the canister — verify against the deployed club_domain.
         icp: async (ctx) => {
+          // Names resolve in a separate query so the roster paints at once.
           const grants = await listLiveRoleGrants(ctx, clubId!);
-          const profiles = await roleMemberProfiles(grants.map(g => g.account_id), clubId);
+          const profiles = new Map<string, any>();
           return (grants as any[]).map((g) => ({
             id: `${g.account_id}-${g.role}-${g.team[0] ?? "club"}`,
             role: g.role,
@@ -211,10 +213,7 @@ function SupabaseManageRolesPage() {
             }),
           ]);
           const pendingJoins = joinRows.filter((r) => r.status === "pending");
-          const profiles = await roleMemberProfiles([
-            ...rows.filter(r => r.status === "pending").map(r => r.account_id),
-            ...pendingJoins.map((r) => r.user.toText()),
-          ], clubId);
+          const profiles = new Map<string, any>();
           const roleRows = (rows as any[])
             .filter((r) => r.status === "pending")
             .map((r) => ({
@@ -241,6 +240,19 @@ function SupabaseManageRolesPage() {
     staleTime: 0,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
+  });
+
+  // ICP: one shared name lookup for members and requests, loaded after the
+  // lists so slow name unlocks never hold the page.
+  const icpAccountIds = isFeatureRoutedToIcp("membership")
+    ? [...new Set([...(roles ?? []).map((r: any) => r.user_id), ...(requests ?? []).map((r: any) => r.user_id)])].sort()
+    : [];
+  const { data: icpNames } = useQuery({
+    queryKey: ["club-role-names", clubId, icpAccountIds],
+    queryFn: () => roleMemberProfiles(icpAccountIds, clubId),
+    enabled: !!clubId && icpAccountIds.length > 0,
+    staleTime: 5 * 60_000,
+    placeholderData: (prev) => prev,
   });
 
   const deleteRoleMutation = useMutation({
@@ -324,15 +336,20 @@ function SupabaseManageRolesPage() {
     },
   });
 
-  if (loadingClub) {
+  if (loadingClub && !roles) {
     return <RolePageLoading />;
   }
 
-  if (!club) {
+  if (!club && !roles) {
     return <div className="py-6 text-center text-muted-foreground">Club not found</div>;
   }
 
-  const userRoles = groupRoleRowsByUser(roles ?? []);
+  const withNames = <T extends { user_id: string }>(row: T, key: "profiles" | "requester"): T => {
+    if (!icpNames || (row as any)[key]) return row;
+    return { ...row, [key]: icpNames.get(row.user_id) ?? { id: row.user_id, display_name: "Loading…", avatar_url: null } };
+  };
+  const namedRequests = requests?.map((r: any) => withNames(r, "requester"));
+  const userRoles = groupRoleRowsByUser((roles ?? []).map((r: any) => withNames(r, "profiles")));
 
   const q = searchQuery.trim().toLowerCase();
   const filteredUserEntries = Object.entries(userRoles).filter(([, { profile }]) =>
@@ -341,7 +358,7 @@ function SupabaseManageRolesPage() {
 
   return (
     <div className="py-6 space-y-6">
-      <RoleManagementHeader subtitle={club.name} onBack={() => navigate(-1)} />
+      <RoleManagementHeader subtitle={club?.name ?? ""} onBack={() => navigate(-1)} />
       <RoleManagementTabs
         requestCount={requests?.length ?? 0}
         members={
@@ -382,7 +399,7 @@ function SupabaseManageRolesPage() {
                   label: roleLabels[role.role as AppRole],
                   className: `border ${roleColors[role.role as AppRole]}`,
                   variant: "outline" as const,
-                  scopeName: role.teams?.name || (role.club_id ? club.name : undefined),
+                  scopeName: role.teams?.name || (role.club_id ? club?.name : undefined),
                   removal:
                     userId === user?.id &&
                     (role.role === "club_admin" || role.role === "team_admin")
@@ -417,7 +434,7 @@ function SupabaseManageRolesPage() {
         }
         requests={
           <RoleRequestsList
-            requests={requests}
+            requests={namedRequests}
             isLoading={loadingRequests}
             error={requestError}
             isProcessing={handleRequestMutation.isPending}
