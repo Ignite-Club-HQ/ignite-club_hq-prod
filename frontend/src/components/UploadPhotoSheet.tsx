@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 import { compressImage, formatFileSize } from "@/lib/imageCompression";
 import { isVideoFile, validateVideo, generateVideoThumbnail } from "@/lib/videoUtils";
 import { useClubTheme } from "@/hooks/useClubTheme";
-import { creationClubChoices } from "@/lib/creationClubChoices";
 import { Capacitor } from "@capacitor/core";
 import { isCancelledSelectionError, getReadableUploadError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto, shouldUseNativePicker as shouldUseNativeIOSPicker, ensurePhotoLibraryPermission, PhotoPermissionDeniedError, isPhotoPermissionError } from "@/lib/nativePhotoPicker";
@@ -100,9 +99,6 @@ export function UploadPhotoSheet({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { activeClubFilter } = useClubTheme();
-  // Explicit chat/team upload links keep their own context; gallery/Home
-  // uploads follow the app's selected club.
-  const themeCreationClubId = defaultClubId || defaultTeamId ? null : activeClubFilter;
   
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
@@ -421,18 +417,20 @@ export function UploadPhotoSheet({
   }, [isAppAdmin, selectedClubId, userRoles, userTeams]);
 
   // Show all clubs; free ones are visually locked so users know they need Pro
-  const availableClubs = creationClubChoices(userClubs, themeCreationClubId);
+  const availableClubs = (() => {
+    let clubs = userClubs;
+    if (activeClubFilter && clubs?.some((club) => club.id === activeClubFilter)) {
+      clubs = clubs.filter(club => club.id === activeClubFilter);
+    }
+    return clubs;
+  })();
 
   // Auto-select filtered club when active
   useEffect(() => {
-    if (open && themeCreationClubId && selectedClubId !== themeCreationClubId) {
-      setSelectedClubId(themeCreationClubId);
-      setSelectedTeamId("");
-      setSelectedMiniLeagueId("");
-      setSelectedEventId("");
-      setSelectedCompetitionId("");
+    if (activeClubFilter && availableClubs?.some(c => c.id === activeClubFilter) && !selectedClubId) {
+      setSelectedClubId(activeClubFilter);
     }
-  }, [open, themeCreationClubId, selectedClubId]);
+  }, [activeClubFilter, availableClubs, selectedClubId]);
 
   // Auto-select first team for non-privileged users who can't post club-wide
   useEffect(() => {
@@ -547,11 +545,7 @@ export function UploadPhotoSheet({
             contentLength: file.size,
             blobRef: blobUpload.blobRef,
           });
-          await setLiveAssetScope(ctx, registered.id, { competitionId: competitionId || null, teamId: teamId || null,
-            miniLeagueId: miniLeagueId || null, eventId: eventId || null, caption: photoCaption || null, albumId });
-          const { copyGalleryAssetToVault } = await import('./media/galleryVaultCopy');
-          await copyGalleryAssetToVault(ctx, { assetId: registered.id, clubId, teamId: teamId || null, file, name: file.name })
-            .catch(() => toast.warning('Photo published; its Vault copy could not be saved.'));
+          if (competitionId) await setLiveAssetScope(ctx, registered.id, { competitionId });
           return { url: blobUpload.url, photoId: registered.id };
         },
       }, writeOnce({ clubId }));
@@ -560,7 +554,7 @@ export function UploadPhotoSheet({
 
     const { error: uploadError } = await uploadWithinClubMediaAllowance(clubId, file.size, () => supabase.storage
       .from("photos")
-      .upload(storagePath, file, { cacheControl: "31536000" }), supabase, teamId, { bucket: "photos", path: storagePath, file });
+      .upload(storagePath, file, { cacheControl: "31536000" }));
     if (uploadError) throw uploadError;
     const storageUrl = `${"REDACTED_LAB_VALUE"}/storage/v1/object/public/photos/${storagePath}`;
 
@@ -886,7 +880,7 @@ export function UploadPhotoSheet({
     // photo rows, albums, or gallery chat cards are written (those tables are
     // never read back on the ICP branch).
     const mediaOnIcp = !!clubId && isFeatureRoutedToIcp("media");
-    let albumId: string | null = mediaOnIcp ? crypto.randomUUID() : null;
+    let albumId: string | null = null;
     if (!mediaOnIcp && photosToUpload.length > 1) {
       const args = {
         _club_id: clubId || null,
@@ -982,15 +976,6 @@ export function UploadPhotoSheet({
     }
 
     // ---------------------------------------------------------------------
-    if (mediaOnIcp && uploadedPhotoIds.length) {
-      await withFeatureBackend('media', { supabase: async () => undefined, icp: async ctx => {
-        const { announceLiveGalleryAsset, publishLiveGalleryChatCard } = await import('@/live/features/media');
-        const first = uploadedPhotoIds[0];
-        if (first) await announceLiveGalleryAsset(ctx, first).catch(() => toast.warning('Photos published; notifications could not be confirmed.'));
-        if (teamId) await publishLiveGalleryChatCard(ctx, { clubId, teamId, eventId: eventId || null, assetIds: uploadedPhotoIds,
-          heroUrl: uploadedUrls[0] ?? '', receipt: `gallery-${albumId}` }).catch(() => toast.warning('Photos published; the chat announcement could not be confirmed.'));
-      } }, writeOnce({ clubId }));
-    }
     // Team Gallery → Chat Card
     // Trigger for batches uploaded to a TEAM gallery with ≥2 successful items.
     // Aggregation (10-min window) and message text are handled in the RPC.
@@ -1451,7 +1436,7 @@ export function UploadPhotoSheet({
                         <button
                           key={club.id}
                           type="button"
-                          disabled={uploading || !!themeCreationClubId || isLocked}
+                          disabled={uploading || !!activeClubFilter || isLocked}
                           onClick={() => {
                             if (isLocked) return;
                             setSelectedClubId(club.id);
@@ -1464,7 +1449,7 @@ export function UploadPhotoSheet({
                               ? "border-primary bg-primary/5"
                               : "border-border bg-card hover:border-muted-foreground/50",
                             isLocked && "opacity-60 cursor-not-allowed border-dashed",
-                            (uploading || !!themeCreationClubId) && "opacity-50 cursor-not-allowed"
+                            (uploading || !!activeClubFilter) && "opacity-50 cursor-not-allowed"
                           )}
                         >
                           <div className="flex items-center gap-3">

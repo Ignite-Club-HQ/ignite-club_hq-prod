@@ -1,6 +1,4 @@
 import { writeOnce } from "@/live/clubScope";
-import { resolveAuthBackend } from "@/live/authBackendMode";
-import { useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { Dispatch, SetStateAction } from "react";
 import type { BulkChild } from "@/components/members/ChildAndSecondGuardianFields";
@@ -74,12 +72,11 @@ export function useAddPendingTeamMemberMutation({
   setCustomEmail,
   setIsSendingNotification,
 }: Args) {
-  const familyOperation = useRef<{ fingerprint: string; requestId: string; children: { id: string; existing: boolean; name: string; yearOfBirth?: string; jerseyNumber?: string }[] } | null>(null);
   /**
    * ICP path: composes what club_domain actually supports —
    * `bulk_add_team_members` (role grant) for an existing-user match, or
-   * `create_pending_invite` for a fresh invite. Manual sharing is independent
-   * of the separately deferred email transport. Second-
+   * `create_pending_invite` for a fresh invite. Invite email delivery works
+   * here too (the send-email edge function is anon-key callable). Second-
    * parent linking uses `create_pending_invite` with kind "guardian" against
    * the first existing child id, so the invite itself always lands on the
    * canister. In-app notifications stay Supabase-only (push/notifications
@@ -87,11 +84,44 @@ export function useAddPendingTeamMemberMutation({
    */
   const mutationIcp = async (ctx: FeatureBackendContext) => {
     if (!nameInput.trim()) throw new Error("Please enter a name");
-    const childInputs = singleChildren.filter(c => c.name.trim() || c.existingChildId);
-    const hasSecond = !!selectedSecondParent || !!secondParentEmail.trim() || !!secondParentName.trim();
-    if (hasSecond && !childInputs.length) throw new Error("Add the children shared with the other parent");
-    if (childInputs.length && selectedRole !== "parent") throw new Error("Children require a parent invitation");
-    if (childInputs.length > 12) throw new Error("Invite up to 12 children at once");
+    const { Principal } = await import("@icp-sdk/core/principal");
+
+    const dedupeEmail = customEmail.trim().toLowerCase();
+    if (dedupeEmail) {
+      const { lookupInvitableUserByEmail } = await import("@/lib/inviteEmailDedupe");
+      const match = await lookupInvitableUserByEmail({
+        email: dedupeEmail,
+        clubId,
+        teamId,
+      });
+      if (match?.already_in_team && selectedRole !== "parent") {
+        throw new Error(`${match.display_name || dedupeEmail} is already on this team.`);
+      }
+      if (match) {
+        await bulkAddLiveTeamMembers(ctx, clubId, teamId, selectedRole, [
+          Principal.fromText(match.user_id),
+        ]);
+        return {
+          link: "",
+          shareLink: "",
+          email: "",
+          childrenCount: 0,
+          childrenNames: [] as string[],
+          secondParentLink: null as string | null,
+          secondParentEmail: "",
+          secondParentName: "",
+          secondParentAddedDirectly: false,
+          secondParentStatus: "skipped" as const,
+          secondParentLabel: null as string | null,
+          secondParentFailure: null as string | null,
+          existingUserAdded: {
+            name: match.display_name || dedupeEmail,
+            notificationFailed: false,
+            notificationError: null as string | null,
+          },
+        };
+      }
+    }
 
     // Dedupe against existing pending invites for the same email+club — the
     // ICP equivalent of the Supabase email dedupe. Account matching has no
@@ -109,67 +139,98 @@ export function useAddPendingTeamMemberMutation({
       }
     }
 
-    let secondaryId: string | null = null;
-    let invite;
-    let emailDelivery: unknown = "not_requested";
-    if (childInputs.length) {
-      const fingerprint = JSON.stringify({ clubId, teamId, childInputs, email: inviteEmail, second: selectedSecondParent?.id, secondParentEmail, hasSecond });
-      if (!familyOperation.current || familyOperation.current.fingerprint !== fingerprint) {
-        familyOperation.current = { fingerprint, requestId: crypto.randomUUID(), children: childInputs.map(c => ({
-          id: c.existingChildId || `child-${crypto.randomUUID()}`, existing: !!c.existingChildId, name: c.name.trim(), yearOfBirth: c.yearOfBirth, jerseyNumber: c.jerseyNumber,
-        })) };
-      }
-      const { createLiveFamilyInvite } = await import("@/live/features/club");
-      const result = await createLiveFamilyInvite(ctx, {
-        requestId: familyOperation.current.requestId, clubId, teamId, children: familyOperation.current.children,
-        second: hasSecond, boundSecondary: selectedSecondParent?.id, email: inviteEmail, secondaryEmail: secondParentEmail.trim(),
-      });
-      invite = result.invite;
-      emailDelivery = result.emailDelivery;
-      secondaryId = result.secondary[0]?.id ?? null;
-    } else {
-      ({ invite, emailDelivery } = await createLivePendingInvite(ctx, {
+    const { invite } = await createLivePendingInvite(ctx, {
       kind: "team",
       clubId,
       email: inviteEmail,
       teamId,
       role: selectedRole,
-      }));
-    }
+    });
     const link = `${window.location.origin}/join/p/${invite.id}`;
-    if (emailDelivery && typeof emailDelivery === "object" && "failed" in emailDelivery) {
-      const { toast } = await import("sonner");
-      toast.warning(`Invite created, but the email didn't send: ${(emailDelivery as { failed: string }).failed}`);
-    }
 
     // Short invite link, same as the Supabase path's short_code: shorter,
     // friendlier URL for sharing (email/internal still use the full link).
     let shareLink = link;
     try {
       const shortCode = await createLiveInviteShortCode(ctx, invite.id);
-      shareLink = `${window.location.origin}/j/${shortCode}`;
+      shareLink = `${window.location.origin}/i/${shortCode}`;
     } catch (err) {
       console.warn("[ICP invite] short code creation failed:", err);
     }
 
-    const secondParentLink = secondaryId ? `${window.location.origin}/join/p/${secondaryId}` : null;
-    const secondParentStatus = secondaryId ? "invited" as const : "skipped" as const;
-    const secondParentFailure = null;
+    // icp-guard: allow email delivery stays off-chain by design (send-email)
+    // Email delivery routes through the send-email edge function, which is
+    // anon-key callable so Internet Identity sessions can send too. Failure
+    // degrades to manual link sharing — the link is returned either way.
+    if (inviteEmail) {
+      try {
+        const { data: emailResult, error: funcError } = await supabase.functions.invoke("send-email", {
+          body: {
+            to: inviteEmail,
+            subject: `${clubBranding?.name || "Your club"}: You're invited to join ${teamName || "the team"}`,
+            template: "team-invite",
+            senderName: clubBranding?.name || undefined,
+            replyTo: clubBranding?.contact_email || undefined,
+            templateData: {
+              recipientName: nameInput.trim(),
+              invitedEmail: inviteEmail,
+              teamName: teamName || "",
+              clubName: clubBranding?.name || "",
+              roleName: selectedRole,
+              inviteLink: link,
+              clubLogoUrl: clubBranding?.logo_url || undefined,
+            },
+          },
+        });
+        if (funcError || !(emailResult?.verified && emailResult?.success)) {
+          console.warn(
+            "[ICP invite] email send failed:",
+            funcError?.message || emailResult?.error || "not verified",
+          );
+        }
+      } catch (err) {
+        console.warn("[ICP invite] email send threw:", err);
+      }
+    }
+    // Second-parent invite: club_domain has no dedicated "second parent" op,
+    // but a "guardian" kind pending invite against the (first) child id is
+    // the closest real equivalent — it lands a real, acceptable invite on
+    // the canister instead of silently dropping the second parent.
+    let secondParentLink: string | null = null;
+    let secondParentStatus: "skipped" | "invited" | "failed" = "skipped";
+    let secondParentFailure: string | null = null;
     const secondParentEmailTrimmed = secondParentEmail.trim().toLowerCase();
+    if (secondParentEmailTrimmed) {
+      try {
+        const { createLivePendingInvite: createLiveGuardianInvite } = await import("@/live/features/club");
+        const childId = singleChildren.find((c) => c.existingChildId)?.existingChildId || null;
+        const { invite: guardianInvite } = await createLiveGuardianInvite(ctx, {
+          kind: "guardian",
+          clubId,
+          email: secondParentEmailTrimmed,
+          childId,
+        });
+        secondParentLink = `${window.location.origin}/join/p/${guardianInvite.id}`;
+        secondParentStatus = "invited";
+      } catch (err) {
+        console.warn("[ICP invite] second parent guardian invite failed:", err);
+        secondParentFailure = secondParentName.trim() || secondParentEmailTrimmed;
+        secondParentStatus = "failed";
+      }
+    }
 
     return {
-      backend: "icp" as const,
       link,
       shareLink,
       email: customEmail.trim(),
-      childrenCount: childInputs.length,
-      childrenNames: childInputs.map(c => c.name.trim()),
+      childrenCount: 0,
+      childrenNames: [] as string[],
       secondParentLink,
       secondParentEmail: secondParentStatus === "invited" ? secondParentEmailTrimmed : "",
       secondParentName: secondParentStatus === "invited" ? secondParentName.trim() : "",
       secondParentAddedDirectly: false,
       secondParentStatus,
-      secondParentLabel: selectedSecondParent?.display_name ?? secondParentName.trim() ?? null,
+      secondParentLabel: null as string | null,
       secondParentFailure,
     };
   };
@@ -459,12 +520,6 @@ export function useAddPendingTeamMemberMutation({
       });
 
       secondParentOutcomeToast();
-
-      if (result.backend === "icp" || resolveAuthBackend() === "icp") {
-        setInviteSent(false);
-        void toastInviteSuccess({ title: "Invite created", description: "Share the invitation link." });
-        return;
-      }
 
       // Auto-send email notification if email was provided
       if (email) {

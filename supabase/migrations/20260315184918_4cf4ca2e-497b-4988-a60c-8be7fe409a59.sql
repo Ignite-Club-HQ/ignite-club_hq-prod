@@ -1,1 +1,0 @@
-ALTER TABLE public.clubs ADD COLUMN points_icon_url text DEFAULT NULL;

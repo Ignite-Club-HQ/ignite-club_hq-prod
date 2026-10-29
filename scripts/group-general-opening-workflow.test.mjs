@@ -104,8 +104,7 @@ test('snapshot hashes and emits lossless Nat64 removal revisions in both output 
   const files = new Map();
   runInNewContext(emission.replaceAll('import.meta.url', 'scriptUrl'), {
     createHash, URL, scriptUrl: new URL('../frontend/scripts/produce-routing-gates.ts', import.meta.url).href,
-    registry: { revision, configurationRevision: revision, groups: [], placements: [] },
-    groupApprovalConfiguration: () => "approved-config", host: 'https://icp-api.io', routerId: 'jcdfe-vqaaa-aaaal-qxloq-cai',
+    registry: { revision }, host: 'https://icp-api.io', routerId: 'jcdfe-vqaaa-aaaal-qxloq-cai',
     snapshotGroups: [{ id: 'g2', domains: [], photoStore: 'store', moduleHashes: {} }],
     wiring: { evidence: { revision, groupIds: ['g2'], checkedAtMs: 1792612440000 } },
     report: 'report.json', saveJson: (path, value) => files.set(path, JSON.stringify(value)),
@@ -114,8 +113,6 @@ test('snapshot hashes and emits lossless Nat64 removal revisions in both output 
   const report = JSON.parse(files.get('report.json'));
   assert.equal(report.routerCanisterId, 'jcdfe-vqaaa-aaaal-qxloq-cai');
   assert.equal(report.registryRevision, '18446744073709551615');
-  assert.equal(report.configurationRevision, '18446744073709551615');
-  assert.equal(report.approvedConfiguration, 'approved-config');
   assert.equal(report.removalWiring.revision, '18446744073709551615');
   assert.equal(report.removalWiring.checkedAtMs, 1792612440000);
   const generated = files.get(new URL('../frontend/src/live/generated/routingGates.ts', import.meta.url).pathname);
@@ -129,9 +126,8 @@ test('snapshot hashes and emits lossless Nat64 removal revisions in both output 
 test('opening runner confirms every mutation behind its exact phrase before any register call', () => {
   const firstRegister = opening.indexOf('router.register_group');
   assert.ok(firstRegister > 0);
-  // Phrases are templated by group (Group 2 keeps the exact original wording).
-  for (const phrase of ['`OPEN ${UPPER} TO EVERYONE`', '`CLOSE ${UPPER} TO NEW CLUBS`', '`REGISTER ${UPPER} CLOSED`']) {
-    const at = opening.indexOf(phrase);
+  for (const phrase of ['OPEN GROUP 2 TO EVERYONE', 'CLOSE GROUP 2 TO NEW CLUBS', 'REGISTER GROUP 2 CLOSED']) {
+    const at = opening.indexOf(`'${phrase}'`);
     assert.ok(at > -1 && at < firstRegister, phrase);
   }
   assert.match(opening, /reconcile manually/);
@@ -140,15 +136,13 @@ test('opening runner confirms every mutation behind its exact phrase before any 
 test('opening refuses an already-open group and requires recorded fingerprints', () => {
   assert.match(opening, /already open; run close first/);
   assert.match(opening, /no recorded module fingerprints/);
-  assert.match(opening, /is already open`\)/);
-  assert.match(opening, /ADD_GROUP_RESUME === '1'/);
+  assert.match(opening, /already open'/);
 });
 
 test('open requires removal wiring for every registered group before flipping admission', () => {
   assert.match(opening, /Removal wiring incomplete; fix before opening/);
   assert.match(opening, /verifyOwnerOpeningChecks\(spec, observed, group, placement\)/);
-  assert.match(opening, /record_group_health\(GROUP, largestHeap, lowestCycles/);
-  assert.match(opening, /const GROUP = spec\.groupId \?\? 'g2'/);
+  assert.match(opening, /record_group_health\('g2', largestHeap, lowestCycles/);
 });
 
 test('committed g2 approval budgets fit the router limits (heap 1..3 GiB, cycles > 0, clubs 1..100000)', () => {

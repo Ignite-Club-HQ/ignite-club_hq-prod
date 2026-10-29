@@ -4,7 +4,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import type { VaultExportAction, VaultExportPreviewData, VaultFolderExportData } from "@/features/vault/useVaultExport";
-import { VaultExportThumbnail } from "./VaultExportThumbnail";
 
 interface VaultExportDialogsProps {
   previewOpen: boolean;
@@ -128,7 +127,7 @@ export function VaultExportDialogs({
                       {folderData.photos.map((photo) => (
                         <div key={photo.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-accent/50 ${folderData.selectedPhotos.has(photo.id) ? "bg-accent/50" : ""}`} onClick={() => onTogglePhoto(photo.id)}>
                           <Checkbox checked={folderData.selectedPhotos.has(photo.id)} onCheckedChange={() => onTogglePhoto(photo.id)} />
-                          <VaultExportThumbnail url={photo.file_url} title={photo.title || "Photo"} />
+                          <img src={photo.file_url} alt={photo.title || "Photo"} className="h-10 w-10 object-cover rounded" />
                           <span className="text-sm truncate flex-1">{photo.title || "Untitled photo"}</span>
                         </div>
                       ))}

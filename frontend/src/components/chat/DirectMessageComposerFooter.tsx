@@ -124,6 +124,7 @@ export function DirectMessageComposerFooter({
                   <NewsAttachmentPreview
                     newsId={pendingNewsId}
                     onRemove={() => onPendingNewsIdChange(null)}
+                    disabled={isSending}
                   />
                 ) : undefined
               }
@@ -164,7 +165,6 @@ export function DirectMessageComposerFooter({
                 onSchedule={scheduleTarget ? () => onScheduleDialogOpenChange(true) : undefined}
                 disabled={!message.trim() && !imageUrl && !pendingNewsId}
                 loading={isSending}
-                allowConcurrentSend
                 canSend={!!message.trim() || !!imageUrl || !!pendingNewsId}
               />
             </ChatComposerShell>

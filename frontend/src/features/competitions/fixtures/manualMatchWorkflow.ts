@@ -1,8 +1,7 @@
 import { writeOnce } from "@/live/clubScope";
 import { supabase } from "@/integrations/supabase/client";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { createLiveFixture } from "@/live/features/competitions";
-import {reserveFixtureIntent,clearFixtureIntent,readFixtureIntent} from "./fixtureRecovery";
+import { recordLiveMatch } from "@/live/features/competitions";
 
 export interface ManualMatchInput {
   competitionId: string;
@@ -66,7 +65,7 @@ export function buildManualMatchRow({
   };
 }
 
-export async function createManualMatch(row: ManualMatchRow, operation = crypto.randomUUID()) {
+export async function createManualMatch(row: ManualMatchRow) {
   return withFeatureBackend("competitions", {
     supabase: async () => {
       const { error } = await supabase
@@ -75,37 +74,16 @@ export async function createManualMatch(row: ManualMatchRow, operation = crypto.
       return { error };
     },
     icp: async (ctx) => {
+      // Provisional mapping: the canister only records competition/home/away
+      // team ids — venue, pitch, round, duration, arrival and notes have no
+      // canister shape and are not persisted on this branch. Verify field
+      // mapping post-deploy.
       try {
-        const scope=[ctx.identity.getPrincipal().toText(),ctx.target.host,ctx.target.canisterIds.competition_domain,row.competition_id].join("|");
-        const intent=reserveFixtureIntent(window.localStorage,scope,row,()=>operation);
-        await createLiveFixture(ctx, intent.operation, row.competition_id, {
-          homeTeamId: row.home_team_id, awayTeamId: row.away_team_id,
-          divisionId: row.division_id, scheduledAtMs: new Date(row.scheduled_at),
-          venue: row.venue, pitchNumber: row.pitch_number, roundNumber: row.round_number,
-          durationMinutes: row.duration_minutes, arrivalMinutesBefore: row.arrival_minutes_before,
-          notes: row.notes,
-        });
-        clearFixtureIntent(window.localStorage,scope);
+        await recordLiveMatch(ctx, row.competition_id, row.home_team_id, row.away_team_id);
         return { error: null };
       } catch (e) {
         return { error: { message: e instanceof Error ? e.message : String(e) } };
       }
     },
   }, writeOnce({ competitionId: row.competition_id }));
-}
-
-export async function recoverManualMatch(competitionId:string) {
-  return withFeatureBackend("competitions",{supabase:async()=>false,icp:async ctx=>{
-    const scope=[ctx.identity.getPrincipal().toText(),ctx.target.host,ctx.target.canisterIds.competition_domain,competitionId].join("|");
-    const intent=readFixtureIntent<ManualMatchRow>(window.localStorage,scope);if(!intent)return false;
-    const [{connectLiveCompetitionDomain},{unwrapCandid}]=await Promise.all([import("@/live/domains"),import("@/live/features/candid")]);
-    const {actor}=await connectLiveCompetitionDomain(ctx.target,ctx.identity);
-    const found=await unwrapCandid(actor.read_fixture_operation(intent.operation),"Recover original fixture");
-    if(found[0])await unwrapCandid(actor.materialize_match_events(found[0].match_id),"Recover fixture events");
-    else {
-      const r=intent.input;
-      await createLiveFixture(ctx,intent.operation,competitionId,{homeTeamId:r.home_team_id,awayTeamId:r.away_team_id,divisionId:r.division_id,scheduledAtMs:new Date(r.scheduled_at),venue:r.venue,pitchNumber:r.pitch_number,roundNumber:r.round_number,durationMinutes:r.duration_minutes,arrivalMinutesBefore:r.arrival_minutes_before,notes:r.notes});
-    }
-    clearFixtureIntent(window.localStorage,scope);return true;
-  }},{competitionId});
 }

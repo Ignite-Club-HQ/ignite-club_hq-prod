@@ -1,1 +1,0 @@
-REVOKE EXECUTE ON FUNCTION public.refresh_competition_event_titles_on_team_rename() FROM PUBLIC, anon, authenticated;

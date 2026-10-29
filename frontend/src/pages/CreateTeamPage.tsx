@@ -1,4 +1,3 @@
-import { effectiveTeamLimit } from "@/lib/subscriptionPlans";
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -49,7 +48,7 @@ export default function CreateTeamPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const useIcpLab = resolveLocalAuthMode(window.location.search, true);
-  const providerKey = useIcpLab || isFeatureRoutedToIcp("membership") ? "icp" : "supabase";
+  const providerKey = useIcpLab ? "icp" : "supabase";
 
   const [name, setName] = useState("");
   const [levelAge, setLevelAge] = useState("");
@@ -169,8 +168,7 @@ export default function CreateTeamPage() {
       const { count, error } = await supabase
         .from("teams")
         .select("*", { count: "exact", head: true })
-        .eq("club_id", clubId!)
-        .is("deleted_at", null);
+        .eq("club_id", clubId!);
       if (error) throw error;
       return count || 0;
     },
@@ -188,7 +186,7 @@ export default function CreateTeamPage() {
           icp: async (ctx) => {
             const sub = await getLiveClubSubscription(ctx, clubId!);
             return sub
-              ? { plan: sub.plan, team_limit: sub.team_limit.length ? Number(sub.team_limit[0]) : null, is_pro: sub.is_pro, is_pro_football: sub.is_pro_football, admin_pro_override: sub.admin_pro_override, admin_pro_football_override: sub.admin_pro_football_override, expires_at: sub.expires_at_ms[0] == null ? null : new Date(Number(sub.expires_at_ms[0])).toISOString(), is_trial: sub.is_trial, trial_ends_at: sub.trial_ends_at_ms[0] == null ? null : new Date(Number(sub.trial_ends_at_ms[0])).toISOString() }
+              ? { team_limit: sub.team_limit.length ? Number(sub.team_limit[0]) : null }
               : null;
           },
         }, { clubId: clubId! });
@@ -239,7 +237,9 @@ export default function CreateTeamPage() {
   });
 
   // Check if team limit is exceeded
-  const teamLimitExceeded = !isPersonalIcp && teamCount >= effectiveTeamLimit(clubSubscription);
+  const teamLimitExceeded = clubSubscription?.team_limit !== null && 
+    clubSubscription?.team_limit !== undefined &&
+    teamCount >= clubSubscription.team_limit;
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
@@ -286,10 +286,6 @@ export default function CreateTeamPage() {
       return;
     }
 
-    if (isClubAdmin && teamLimitExceeded) {
-      navigate(`/clubs/${clubId}/upgrade`);
-      return;
-    }
     setSaving(true);
 
     if (isPersonalIcp) {
@@ -1065,7 +1061,7 @@ export default function CreateTeamPage() {
           <Button
             className="w-full h-12 text-base font-semibold shadow-lg"
             onClick={handleSubmit}
-            disabled={saving || !name.trim() || isCheckingAdmin}
+            disabled={saving || !name.trim() || (isClubAdmin && teamLimitExceeded)}
           >
             {saving ? (
               <Loader2 className="h-5 w-5 animate-spin" />

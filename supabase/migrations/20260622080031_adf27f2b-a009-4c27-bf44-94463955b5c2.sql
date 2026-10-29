@@ -1,1 +1,0 @@
-ALTER TABLE public.clubs ADD COLUMN IF NOT EXISTS events_sponsor_strip_enabled boolean NOT NULL DEFAULT false;

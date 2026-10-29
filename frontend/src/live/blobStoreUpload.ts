@@ -110,13 +110,15 @@ export async function getLiveClubMediaBytes(
   clubId: string,
 ): Promise<ClubMediaBytes> {
   const out: ClubMediaBytes = { finalized: 0, pending: 0 };
-  const keys = listBlobStoreKeys(target);
-  if (!keys.length) throw new Error("Club storage cannot be measured: no store configured");
-  for (const key of keys) {
-    const { actor } = await connectLiveBlobStore(target, identity, key);
-    const r = await actor.get_club_media_bytes(clubId);
-    out.finalized += Number(r.finalized);
-    out.pending += Number(r.pending);
+  for (const key of listBlobStoreKeys(target)) {
+    try {
+      const { actor } = await connectLiveBlobStore(target, identity, key);
+      const r = await actor.get_club_media_bytes(clubId);
+      out.finalized += Number(r.finalized);
+      out.pending += Number(r.pending);
+    } catch {
+      // Store not upgraded yet / unreachable — skip it.
+    }
   }
   return out;
 }
@@ -159,21 +161,18 @@ export async function uploadBytesToBlobStore(
   path: string,
   bytes: Uint8Array,
   mime: string,
-  beforeUpload?: (ref: LiveBlobRef) => Promise<void>,
 ): Promise<BlobStoreUploadResult> {
   const keys = orderBlobStoresForPath(target, path);
   if (keys.length === 0) throw new Error("No photo store is configured.");
-  // Journaled private uploads never change their pinned store, even after a full refusal.
-  const candidates = beforeUpload ? keys.slice(0, 1) : keys.filter((k) => !knownFull(target.canisterIds[k]));
+  const candidates = keys.filter((k) => !knownFull(target.canisterIds[k]));
   let lastError: unknown = null;
   for (const key of candidates.length > 0 ? candidates : keys) {
     try {
-      return await uploadToStore(target, identity, key, path, bytes, mime, beforeUpload);
+      return await uploadToStore(target, identity, key, path, bytes, mime);
     } catch (error) {
       const friendly = freeLimitMessage(error);
       if (friendly) throw new Error(friendly);
       if (!isStoreFullError(error)) throw error;
-      if (beforeUpload) throw error;
       fullStores.set(target.canisterIds[key], Date.now());
       lastError = error;
     }
@@ -188,12 +187,10 @@ async function uploadToStore(
   path: string,
   bytes: Uint8Array,
   mime: string,
-  beforeUpload?: (ref: LiveBlobRef) => Promise<void>,
 ): Promise<BlobStoreUploadResult> {
   const { actor, canisterId } = await connectLiveBlobStore(target, identity, storeKey);
   const canister = canisterId.toText();
   const expectedHash = await sha256Hex(bytes);
-  await beforeUpload?.({ canister, path, content_hash: expectedHash });
 
   // A reservation response may be lost after success. Retry identical terms
   // against the same store/path; never fail over an unknown operation.

@@ -1,2 +1,0 @@
-DROP TRIGGER IF EXISTS trg_sync_competition_match_events_iu ON public.competition_matches;
-CREATE TRIGGER trg_sync_competition_match_events_iu BEFORE UPDATE ON public.competition_matches FOR EACH ROW EXECUTE FUNCTION public.sync_competition_match_events();

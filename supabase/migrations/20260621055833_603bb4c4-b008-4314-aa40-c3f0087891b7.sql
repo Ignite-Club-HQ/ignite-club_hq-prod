@@ -1,1 +1,0 @@
-CREATE INDEX idx_group_messages_group_created_at ON group_messages(group_id, created_at DESC);

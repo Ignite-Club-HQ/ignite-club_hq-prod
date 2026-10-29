@@ -17,8 +17,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { resolveAuthBackend } from "@/live/authBackendMode";
-import { deleteMediaComment, listMediaCommentReactions } from "@/features/media/mediaEngagementRepository";
 import { toast } from "sonner";
 import { useBlockedUsers } from "@/hooks/useBlockedUsers";
 import { BlockUserDialog } from "@/components/BlockUserDialog";
@@ -103,14 +101,17 @@ export const PhotoComment = memo(function PhotoComment({
     preventIfGuarded,
   } = useLongPressDismissGuard();
 
-  // The ICP media canister has no reactions-on-comments API, so ICP mode
-  // skips the reactions query and hides the reaction UI entirely.
-  const isIcp = resolveAuthBackend() === "icp";
-
   const { data: reactions = [] } = useQuery({
     queryKey: ["comment-reactions", id],
-    queryFn: () => listMediaCommentReactions(id),
-    enabled: !isIcp,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("photo_comment_reactions")
+        .select("id, user_id, reaction_type")
+        .eq("comment_id", id);
+
+      if (error) throw error;
+      return data as CommentReaction[];
+    },
   });
 
   const isInteracting = showMenu || showReactionPicker || showActionSheet;
@@ -319,7 +320,11 @@ export const PhotoComment = memo(function PhotoComment({
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await deleteMediaComment({ commentId: id });
+      const { error } = await supabase
+        .from("photo_comments")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-photo-comments"] });
@@ -526,35 +531,31 @@ export const PhotoComment = memo(function PhotoComment({
                 </span>
               )}
             </p>
-            {!isIcp && (
-              <MessageReactionsPopover
-                reactions={optimisticReactions}
-                currentUserId={currentUserId}
-                onReact={handleReactionClick}
-                onRemove={handleRemoveReaction}
-                isMutating={reactionMutation.isPending}
-                isOpen={showReactionPicker}
-                preventIfGuarded={preventIfGuarded}
-                onOpenChange={(open) => {
-                  if (open) {
-                    setShowMenu(true);
-                    setShowReactionPicker(true);
-                    return;
-                  }
-                  closeInteraction();
-                }}
-                isOwnMessage={isOwn}
-                anchorRef={commentRef}
-              />
-            )}
-          </div>
-          {!isIcp && (
-            <CommentReactionsDisplay
+            <MessageReactionsPopover
               reactions={optimisticReactions}
               currentUserId={currentUserId}
-              onReactionClick={handleReactionClick}
+              onReact={handleReactionClick}
+              onRemove={handleRemoveReaction}
+              isMutating={reactionMutation.isPending}
+              isOpen={showReactionPicker}
+              preventIfGuarded={preventIfGuarded}
+              onOpenChange={(open) => {
+                if (open) {
+                  setShowMenu(true);
+                  setShowReactionPicker(true);
+                  return;
+                }
+                closeInteraction();
+              }}
+              isOwnMessage={isOwn}
+              anchorRef={commentRef}
             />
-          )}
+          </div>
+          <CommentReactionsDisplay
+            reactions={optimisticReactions}
+            currentUserId={currentUserId}
+            onReactionClick={handleReactionClick}
+          />
         </div>
       </div>
 
@@ -570,7 +571,7 @@ export const PhotoComment = memo(function PhotoComment({
         }}
         isOwn={isOwn}
         canReply={!!onReply}
-        canEdit={isOwn && !isIcp}
+        canEdit={isOwn}
         canDelete={isOwn}
         isSystemMessage={false}
         onReply={() => onReply?.(id, displayName || "Unknown")}

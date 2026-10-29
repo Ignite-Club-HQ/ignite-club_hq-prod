@@ -1,5 +1,9 @@
+import { writeOnce } from "@/live/clubScope";
 import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import { withFeatureBackend } from "@/live/featureRouter";
+import type { FeatureBackendContext } from "@/live/featureRouter";
+import { createLiveVaultFolder, listLiveVaultFolders, registerLiveVaultFile } from "@/live/features/vault";
 
 /**
  * One-way sync: media gallery photo upload → vault_files.
@@ -35,7 +39,7 @@ export async function syncGalleryPhotoToVault({
   miniLeagueId?: string | null;
 }) {
   if (isFeatureRoutedToIcp("vault")) {
-    console.warn("galleryVaultSync: ICP mirrors require an authorized asset and separate encrypted bytes");
+    await syncGalleryPhotoToVaultIcp({ fileUrl, fileName, fileSize, fileType, userId, clubId, teamId });
     return;
   }
   try {
@@ -90,8 +94,7 @@ async function getOrCreateGalleryFolder(
   teamId: string | null
 ): Promise<string | null> {
   const cacheKey = `${clubId}:${teamId || "club"}:gallery-uploads`;
-  const cachedFolder = folderCache.get(cacheKey);
-  if (cachedFolder) return cachedFolder;
+  if (folderCache.has(cacheKey)) return folderCache.get(cacheKey)!;
 
   const folderName = "Gallery Uploads";
 
@@ -133,3 +136,73 @@ async function getOrCreateGalleryFolder(
   return newFolder.id;
 }
 
+/**
+ * ICP counterpart of `syncGalleryPhotoToVault`: writes through the typed
+ * vault_domain wrappers instead of the Supabase vault_files table. The
+ * Pro-gate and dedupe checks are Supabase-only (club_subscriptions,
+ * vault_files lookup) and have no canister read yet, so this best-effort
+ * mirror always registers — a harmless provisional duplicate at worst,
+ * never a block on the gallery upload that already succeeded.
+ */
+async function syncGalleryPhotoToVaultIcp({
+  fileUrl,
+  fileName,
+  fileSize,
+  fileType,
+  userId: _userId,
+  clubId,
+  teamId,
+}: {
+  fileUrl: string;
+  fileName: string;
+  fileSize?: number | null;
+  fileType?: string | null;
+  userId: string;
+  clubId: string;
+  teamId?: string | null;
+}): Promise<void> {
+  try {
+    if (!clubId || !fileUrl) return;
+    await withFeatureBackend("vault", {
+      supabase: async () => {
+        throw new Error("unreachable: vault routing checked by the caller");
+      },
+      icp: async (ctx: FeatureBackendContext) => {
+        const folderName = "Gallery Uploads";
+        const scopedTeamId = teamId || null;
+        const folders = await listLiveVaultFolders(ctx, clubId, scopedTeamId);
+        // Only reuse a root folder in the exact same scope (team vs club).
+        let folder = folders.find((f: any) =>
+          f.name === folderName &&
+          !f.parent_id?.[0] &&
+          ((Array.isArray(f.team) ? f.team[0] : f.team) ?? null) === scopedTeamId);
+        if (!folder) {
+          folder = await createLiveVaultFolder(
+            ctx,
+            crypto.randomUUID(),
+            clubId,
+            teamId || null,
+            null,
+            folderName,
+            [],
+          );
+        }
+        await registerLiveVaultFile(
+          ctx,
+          crypto.randomUUID(),
+          folder.id,
+          clubId,
+          teamId || null,
+          fileName,
+          fileUrl,
+          Math.max(0, Math.round(Number(fileSize ?? 0)) || 0),
+          fileType || "image/jpeg",
+          false,
+          null,
+        );
+      },
+    }, writeOnce({ clubId }));
+  } catch (err) {
+    console.warn("galleryVaultSync (ICP) error:", err);
+  }
+}

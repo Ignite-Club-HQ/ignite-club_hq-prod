@@ -98,4 +98,3 @@ jobs:
           fi
           echo "::error::70% reached and a closed preparation request was queued (${{ steps.alert.outputs.summary }}). A GitHub issue was opened; next step when you approve it is the 'Install new group (closed)' workflow."
           exit 1
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_PREPARE_GROUP_CAPACITY_ENABLED == 'true') }}

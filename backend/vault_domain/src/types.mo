@@ -102,12 +102,4 @@ module {
     folder_count : Nat;
     file_count : Nat;
   };
-  public type BackupPage = {
-    summary : BackupSummary;
-    folders : [VaultFolder];
-    files : [VaultFile];
-    offset : Nat;
-    next : ?Nat;
-    revision : Nat;
-  };
 };

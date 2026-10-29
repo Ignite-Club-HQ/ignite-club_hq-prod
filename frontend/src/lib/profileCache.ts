@@ -53,8 +53,6 @@ let pendingResolvers = new Map<
   Array<(p: CachedProfile | null) => void>
 >();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
-let generation = 0;
-const activeBatches = new Set<Map<string, Array<(p: CachedProfile | null) => void>>>();
 
 function notify(id: string) {
   for (const cb of updateListeners) {
@@ -74,8 +72,6 @@ async function flushBatch() {
   pendingIds = new Set();
   pendingResolvers = new Map();
   if (ids.length === 0) return;
-  const captured = generation;
-  activeBatches.add(resolvers);
 
   try {
     const rows = await withFeatureBackend("membership", {
@@ -89,7 +85,7 @@ async function flushBatch() {
       },
       icp: async (ctx) => {
         const { listLiveProfilesByIds } = await import("@/live/features/identityAccessClient");
-        const profiles = await listLiveProfilesByIds(ctx, ids, { hydratePrivateNames: false });
+        const profiles = await listLiveProfilesByIds(ctx, ids);
         return profiles.map((p): CachedProfile => ({
           id: p.account_id,
           display_name: p.display_name,
@@ -97,8 +93,6 @@ async function flushBatch() {
         }));
       },
     }, { shared: 'person' });
-
-    if (captured !== generation) return;
 
     const now = Date.now();
     const byId = new Map<string, CachedProfile>();
@@ -113,7 +107,6 @@ async function flushBatch() {
       for (const cb of cbs) cb(profile);
     }
   } catch (err) {
-    if (captured !== generation) return;
     for (const id of ids) {
       inFlight.delete(id);
       const cbs = resolvers.get(id) ?? [];
@@ -121,8 +114,6 @@ async function flushBatch() {
     }
     // eslint-disable-next-line no-console
     console.warn("[profileCache] batch fetch failed", err);
-  } finally {
-    activeBatches.delete(resolvers);
   }
 }
 
@@ -234,18 +225,11 @@ export function updateProfileCache(profile: Partial<CachedProfile> & { id: strin
 
 /** Clear the whole cache (called on sign-out / cross-user switch). */
 export function clearProfileCache() {
-  generation++;
-  const changed = [...cache.keys()];
-  for (const callbacks of [pendingResolvers, ...activeBatches]) {
-    for (const resolvers of callbacks.values()) for (const resolve of resolvers) resolve(null);
-  }
-  activeBatches.clear();
   cache.clear();
   inFlight.clear();
   pendingIds = new Set();
   pendingResolvers = new Map();
   if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-  for (const id of changed) notify(id);
 }
 
 /** Subscribe to per-id cache updates. Returns unsubscribe. */
@@ -267,7 +251,6 @@ export async function fetchProfilesWithCache(
   opts: { allowStale?: boolean; timeout?: number } = {},
 ): Promise<Map<string, CachedProfile>> {
   const { allowStale = false, timeout = DEFAULT_TIMEOUT_MS } = opts;
-  const captured = generation;
   const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
   if (uniqueIds.length === 0) return new Map();
 
@@ -286,8 +269,7 @@ export async function fetchProfilesWithCache(
   });
 
   // Fallback returns whatever we have cached so UI never hangs on slow network.
-  const result = await withTimeout(fetchPromise, timeout, cached);
-  return captured === generation ? result : new Map();
+  return withTimeout(fetchPromise, timeout, cached);
 }
 
 /** Convenience: fetch one profile through the cache. */
@@ -331,48 +313,3 @@ export async function selectCachedProfileById(
 }
 
 
-
-// ---------- Club-scoped names ----------
-// Other people's protected names unlock only through a club both people share.
-// Those names are kept out of the shared cache above (memory-only, per club).
-
-/** Like fetchProfilesWithCache, but fills protected names through `clubId`. */
-export async function fetchClubProfilesWithCache(
-  clubId: string | null | undefined,
-  ids: readonly string[],
-  opts: { allowStale?: boolean; timeout?: number } = {},
-): Promise<Map<string, CachedProfile>> {
-  const base = await fetchProfilesWithCache(ids, opts);
-  if (!clubId) return base;
-  const unnamed = Array.from(new Set(ids.filter(Boolean))).filter((id) => !base.get(id)?.display_name);
-  if (unnamed.length === 0) return base;
-  try {
-    const rows = await withTimeout(withFeatureBackend("membership", {
-      supabase: async () => [] as Array<{ account_id: string; display_name: string | null; avatar_ref: [] | [string] }>,
-      icp: async (ctx) => {
-        const { listLiveProfilesByIds } = await import("@/live/features/identityAccessClient");
-        return listLiveProfilesByIds(ctx, unnamed, { clubId });
-      },
-    }, { clubId }), opts.timeout ?? DEFAULT_TIMEOUT_MS, []);
-    const merged = new Map(base);
-    for (const row of rows) {
-      if (!row.display_name) continue;
-      const prev = merged.get(row.account_id);
-      merged.set(row.account_id, { id: row.account_id, display_name: row.display_name, avatar_url: prev?.avatar_url ?? row.avatar_ref?.[0] ?? null });
-    }
-    return merged;
-  } catch {
-    return base;
-  }
-}
-
-/** Club-scoped variant of selectCachedProfilesByIds. */
-export async function selectCachedClubProfilesByIds(
-  clubId: string | null | undefined,
-  ids: readonly (string | null | undefined)[],
-): Promise<CachedProfileResult<CachedProfile[]>> {
-  const clean = ids.filter((v): v is string => typeof v === "string" && v.length > 0);
-  if (clean.length === 0) return { data: [], error: null };
-  const map = await fetchClubProfilesWithCache(clubId, clean);
-  return { data: Array.from(map.values()), error: null };
-}

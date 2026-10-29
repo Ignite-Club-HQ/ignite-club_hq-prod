@@ -40,8 +40,6 @@ interface PointsActivityFeedProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loading: boolean;
-  error?: boolean;
-  onRetry?: () => void;
   items: PointsActivityItem[];
   balance: number;
   earned: number;
@@ -102,8 +100,6 @@ export function PointsActivityFeed({
   open,
   onOpenChange,
   loading,
-  error,
-  onRetry,
   items,
   balance,
   earned,
@@ -209,12 +205,7 @@ export function PointsActivityFeed({
               </div>
             )}
 
-            {error && items.length === 0 ? (
-              <div className="space-y-3 py-6 text-center">
-                <p className="text-sm text-muted-foreground">Couldn’t load points history.</p>
-                <Button variant="outline" onClick={onRetry}>Try again</Button>
-              </div>
-            ) : loading && items.length === 0 ? (
+            {loading ? (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>

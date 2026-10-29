@@ -95,20 +95,13 @@ async function sendQueuedMessage(message: QueuedMessage): Promise<boolean> {
     if (isFeatureRoutedToIcp("messaging")) {
       try {
         const { getCurrentInternetIdentityConfirmed } = await import("@/live/internetIdentityAuth");
-        const { withFeatureBackend } = await import("@/live/featureRouter");
+        const { getActiveIcpTarget } = await import("@/live/targetRegistry");
         const { sendLiveMessage } = await import("@/live/features/messaging");
         const identity = await getCurrentInternetIdentityConfirmed(3, 1000);
         if (!identity) return false;
+        const ctx = { identity, target: getActiveIcpTarget() };
         const attachment = message.imageUrl ? { kind: "image", refId: message.id, url: message.imageUrl } : null;
-        const scope = message.type === 'team' ? { teamId: message.targetId }
-          : message.type === 'club' ? { clubId: message.targetId }
-          : message.type === 'dm' ? { shared: 'person' as const }
-          : message.type === 'broadcast' ? { shared: 'app' as const }
-          : { conversationId: message.targetId };
-        await withFeatureBackend('messaging', {
-          supabase: () => { throw new Error('Internet Identity message cannot replay into Supabase'); },
-          icp: ctx => sendLiveMessage(ctx, message.targetId, message.text, message.id, attachment, message.replyToId ?? null),
-        }, { ...scope, writeKey: message.id, attempts: 1 });
+        await sendLiveMessage(ctx, message.targetId, message.text, message.id, attachment, message.replyToId ?? null);
         return true;
       } catch (err) {
         console.error("[messageQueue] ICP replay failed", err);

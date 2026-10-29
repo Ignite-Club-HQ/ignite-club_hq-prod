@@ -30,7 +30,6 @@ type EoiConfig = {
   ask_availability: boolean;
   ask_skill_level: boolean;
   ask_position: boolean;
-  icpTarget?: import("@/live/targetRegistry").IcpTargetConfig;
 };
 
 export default function PublicEoiFormPage() {
@@ -130,7 +129,7 @@ function SupabasePublicEoiFormPage() {
     if (isFeatureRoutedToIcp("membership")) {
       try {
         const isEmbed = typeof window !== "undefined" && window.parent !== window;
-        await submitIcpPublicEoi(config.icpTarget, {
+        await submitIcpPublicEoi({
           club_id: config.club_id,
           season_id: config.season_id,
           parent_name: parentName,
@@ -575,14 +574,9 @@ async function anonActors() {
 async function loadIcpPublicEoiConfig(clubSlug: string, seasonSlug: string): Promise<EoiConfig | null> {
   const { target, identity, domains } = await anonActors();
   const { unwrapCandid } = await import("@/live/features/candid");
-  const { readUniquePublicGroup } = await import("@/live/publicGroupReads");
-  const located = await readUniquePublicGroup(target, async scoped => {
-    const { actor } = await domains.connectLiveClubDomain(scoped, identity);
-    const res = await unwrapCandid(actor.get_public_eoi_config(clubSlug, seasonSlug), "Load form");
-    const row = res[0];
-    return row ? { row, target: scoped } : null;
-  });
-  const row = located?.row;
+  const { actor } = await domains.connectLiveClubDomain(target, identity);
+  const res = (await unwrapCandid(actor.get_public_eoi_config(clubSlug, seasonSlug), "Load form")) as any;
+  const row = Array.isArray(res) ? res[0] : res;
   if (!row) return null;
   const rawJson = Array.isArray(row.config_json) ? row.config_json[0] : row.config_json;
   let c: Record<string, any> = {};
@@ -592,7 +586,6 @@ async function loadIcpPublicEoiConfig(clubSlug: string, seasonSlug: string): Pro
   const closes = c.eoi_closes_at ? Date.parse(c.eoi_closes_at) : null;
   const isOpen = !!c.eoi_enabled && (opens == null || opens <= now) && (closes == null || closes >= now);
   return {
-    icpTarget: located?.target,
     season_id: row.season_id,
     season_name: row.season_name,
     club_id: row.club_id,
@@ -613,16 +606,15 @@ async function loadIcpPublicEoiConfig(clubSlug: string, seasonSlug: string): Pro
   };
 }
 
-async function submitIcpPublicEoi(owner: import("@/live/targetRegistry").IcpTargetConfig | undefined, f: {
+async function submitIcpPublicEoi(f: {
   club_id: string; season_id: string; parent_name: string; parent_email: string; parent_mobile: string | null;
   player_name: string; player_dob: string | null; player_gender: string | null; preferred_teammates: string | null;
   preferred_position: string | null; skill_level: number | null; training_days: string[]; game_days: string[];
   notes: string | null; source: string;
 }) {
-  const { identity, domains } = await anonActors();
+  const { target, identity, domains } = await anonActors();
   const { unwrapCandid } = await import("@/live/features/candid");
-  if (!owner) throw new Error("Reload the form before submitting");
-  const { actor } = await domains.connectLiveCompetitionDomain(owner, identity);
+  const { actor } = await domains.connectLiveCompetitionDomain(target, identity);
   const o = (v: string | null) => (v ? [v] : []) as [] | [string];
   await unwrapCandid(
     actor.submit_public_eoi(

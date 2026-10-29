@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { ArrowLeft, Save, Play } from "lucide-react";
@@ -14,7 +14,6 @@ import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { toast } from "sonner";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { readAdminPhotoReminderSettings, saveAdminPhotoReminderSettings, runAdminPhotoReminders } from "@/live/adminMessagingOperations";
 
 const SETTING_KEY = "chat_photo_gallery_reminders";
 
@@ -51,11 +50,16 @@ export default function AdminChatPhotoRemindersPage() {
   const { isAppAdmin, isLoading: roleLoading } = useIsAppAdmin();
 
   const { data: settingRow, isLoading: settingsLoading, error: settingsError } = useQuery({
-    queryKey: ["app_setting", SETTING_KEY, isIcp, user?.id],
+    queryKey: ["app_setting", SETTING_KEY, isIcp],
     queryFn: async () => {
       if (isIcp) {
-        const policies = await readAdminPhotoReminderSettings();
-        return { value: policies[0]?.policy ?? null, mixed: policies.some(p => JSON.stringify(p.policy) !== JSON.stringify(policies[0]?.policy)) };
+        return withFeatureBackend("messaging", {
+          supabase: async () => { throw new Error("Internet Identity connection required"); },
+          icp: async (ctx) => {
+            const { getLiveChatPhotoReminderSettings } = await import("@/live/features/messaging");
+            return { value: await getLiveChatPhotoReminderSettings(ctx) };
+          },
+        }, { shared: "app" });
       }
       const { data, error } = await supabase
         .from("app_settings")
@@ -71,8 +75,6 @@ export default function AdminChatPhotoRemindersPage() {
   const [form, setForm] = useState<Settings>(DEFAULTS);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
-  const inFlight = useRef(false);
-  const [unconfirmed, setUnconfirmed] = useState(false);
 
   useEffect(() => {
     if (settingRow?.value) {
@@ -103,18 +105,21 @@ export default function AdminChatPhotoRemindersPage() {
   };
 
   const handleSave = async () => {
-    if (inFlight.current || settingsError || settingsLoading || unconfirmed) return;
     const err = validate();
     if (err) {
       toast.error(err);
       return;
     }
     setSaving(true);
-    inFlight.current = true;
-    const submitted = { ...form };
     try {
       if (isIcp) {
-        await saveAdminPhotoReminderSettings(submitted);
+        await withFeatureBackend("messaging", {
+          supabase: async () => { throw new Error("Internet Identity connection required"); },
+          icp: async (ctx) => {
+            const { setLiveChatPhotoReminderSettings } = await import("@/live/features/messaging");
+            await setLiveChatPhotoReminderSettings(ctx, form);
+          },
+        }, { shared: "app" });
       } else {
         const { error } = await supabase
           .from("app_settings")
@@ -125,25 +130,19 @@ export default function AdminChatPhotoRemindersPage() {
       toast.success("Settings saved");
       qc.invalidateQueries({ queryKey: ["app_setting", SETTING_KEY] });
     } catch (e) {
-      if (isIcp) setUnconfirmed(true);
       toast.error("Failed to save: " + (e as Error).message);
     } finally {
       setSaving(false);
-      inFlight.current = false;
     }
   };
 
   const handleRunNow = async () => {
-    if (inFlight.current || settingsError || settingsLoading || unconfirmed) return;
-    if (settingRow && "mixed" in settingRow && settingRow.mixed) { toast.error("Save a consistent policy before running reminders."); return; }
     const err = validate();
     if (err) { toast.error(err); return; }
     setRunning(true);
-    inFlight.current = true;
-    const submitted = { ...form };
     let data: { scanned?: number; posted?: number; skipped?: number } | null = null;
     try {
-      data = isIcp ? await runAdminPhotoReminders(submitted) : await withFeatureBackend("messaging", {
+      data = await withFeatureBackend("messaging", {
         supabase: async () => {
           const { data, error } = await supabase.functions.invoke("chat-photo-gallery-reminders", { body: {} });
           if (error) throw error;
@@ -158,14 +157,11 @@ export default function AdminChatPhotoRemindersPage() {
         },
       }, { everyGroup: true, merge: (parts: Array<{ scanned?: number; posted?: number; skipped?: number } | null>) => parts.reduce((t, p) => ({ scanned: (t.scanned ?? 0) + (p?.scanned ?? 0), posted: (t.posted ?? 0) + (p?.posted ?? 0), skipped: (t.skipped ?? 0) + (p?.skipped ?? 0) }), { scanned: 0, posted: 0, skipped: 0 }) });
     } catch (e) {
-      if (isIcp) setUnconfirmed(true);
       setRunning(false);
-      inFlight.current = false;
       toast.error("Run failed: " + (e as Error).message);
       return;
     }
     setRunning(false);
-    inFlight.current = false;
     toast.success(
       `Done — scanned ${data?.scanned ?? 0}, queued ${data?.posted ?? 0}, skipped ${data?.skipped ?? 0}`,
     );
@@ -184,8 +180,6 @@ export default function AdminChatPhotoRemindersPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {settingsError && <p role="alert" className="text-destructive">Could not load settings: {settingsError.message}</p>}
-          {settingRow && "mixed" in settingRow && settingRow.mixed && <p role="alert" className="text-sm text-destructive">Groups have different policies. Saving applies these settings to every group.</p>}
-          {unconfirmed && <p role="alert" className="text-sm text-destructive">An operation is unconfirmed. Further actions are paused to prevent repeats.</p>}
           {settingsLoading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : (
@@ -246,11 +240,11 @@ export default function AdminChatPhotoRemindersPage() {
               </div>
 
               <div className="flex gap-2 pt-2">
-                <Button onClick={handleSave} disabled={saving || running || !!settingsError || unconfirmed} className="flex-1">
+                <Button onClick={handleSave} disabled={saving} className="flex-1">
                   <Save className="h-4 w-4 mr-2" />
                   {saving ? "Saving…" : "Save settings"}
                 </Button>
-                <Button variant="outline" onClick={handleRunNow} disabled={saving || running || !!settingsError || unconfirmed || !!(settingRow && "mixed" in settingRow && settingRow.mixed)}>
+                <Button variant="outline" onClick={handleRunNow} disabled={running}>
                   <Play className="h-4 w-4 mr-2" />
                   {running ? "Running…" : "Run now"}
                 </Button>

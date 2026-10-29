@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { lookupInvitableUserByEmail } from "@/lib/inviteEmailDedupe";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { resolveAuthBackend } from "@/live/authBackendMode";
-import { createLivePendingInvite, getLiveClubBranding, readLiveSeasonTeams } from "@/live/features/club";
+import { createLivePendingInvite } from "@/live/features/club";
 
 type InviteRole = "player" | "parent" | "coach" | "team_admin";
 
@@ -66,10 +66,6 @@ export function SeasonInviteStep({ clubId, targetSeasonId, seasonName }: Props) 
   const { data: club } = useQuery({
     queryKey: ["season-invite-club", clubId],
     queryFn: async () => {
-      if (isIcp) return withFeatureBackend("membership", { supabase: async () => null, icp: async ctx => {
-        const b = await getLiveClubBranding(ctx, clubId);
-        return { name: b.name, logo_url: b.logo_url[0] ?? null, contact_email: b.contact_email[0] ?? null };
-      } }, { clubId });
       const { data, error } = await supabase
         .from("clubs")
         .select("name, logo_url, contact_email")
@@ -78,14 +74,13 @@ export function SeasonInviteStep({ clubId, targetSeasonId, seasonName }: Props) 
       if (error) throw error;
       return data;
     },
-    enabled: !!clubId,
+    enabled: !isIcp,
   });
 
   const { data: teams = [] } = useQuery({
     queryKey: ["season-target-teams", targetSeasonId],
-    enabled: !!targetSeasonId,
+    enabled: !!targetSeasonId && !isIcp,
     queryFn: async () => {
-      if (isIcp) return withFeatureBackend("membership", { supabase: async () => [], icp: async ctx => (await readLiveSeasonTeams(ctx, targetSeasonId ?? "")).map(t => ({ id: t.id, name: t.name })) }, { clubId });
       const { data, error } = await supabase
         .from("teams")
         .select("id, name")
@@ -99,6 +94,13 @@ export function SeasonInviteStep({ clubId, targetSeasonId, seasonName }: Props) 
 
   const sentCount = useMemo(() => rows.filter((r) => r.status === "sent").length, [rows]);
 
+  if (isIcp) {
+    return (
+      <div role="status" className="rounded-md border p-4 text-sm text-muted-foreground">
+        Email invites for new season members are not available in ICP yet. No invite data was sent.
+      </div>
+    );
+  }
 
   const patch = (tempId: string, next: Partial<DraftInvite>) =>
     setRows((prev) => prev.map((r) => (r.tempId === tempId ? { ...r, ...next } : r)));
@@ -112,7 +114,7 @@ export function SeasonInviteStep({ clubId, targetSeasonId, seasonName }: Props) 
     patch(row.tempId, { status: "sending", errorMsg: undefined });
 
     try {
-      if (!isIcp && row.email.trim()) {
+      if (row.email.trim()) {
         const match = await lookupInvitableUserByEmail({
           email: row.email.trim(),
           clubId,
@@ -186,9 +188,8 @@ export function SeasonInviteStep({ clubId, targetSeasonId, seasonName }: Props) 
         // send flow on the canister side yet, so the invite is created and a
         // join link is returned without the Supabase "send-email" step.
         icp: async (ctx) => {
-          if (!row.email.trim()) throw new Error("Enter an email address for this invitation.");
           const result = (await createLivePendingInvite(ctx, {
-            kind: row.teamId ? "team" : "club",
+            kind: "team",
             clubId,
             email: row.email.trim(),
             teamId: row.teamId,
@@ -196,7 +197,6 @@ export function SeasonInviteStep({ clubId, targetSeasonId, seasonName }: Props) 
           })) as { invite?: { id?: string } };
           const inviteId = result.invite?.id;
           const inviteLink = inviteId ? `${window.location.origin}/join/p/${inviteId}` : "";
-          if (!inviteId) throw new Error("Invite was not acknowledged");
           return { link: inviteLink, emailFailed: false, emailErrorMsg: undefined as string | undefined };
         },
       }, writeOnce({ clubId }));
@@ -210,7 +210,7 @@ export function SeasonInviteStep({ clubId, targetSeasonId, seasonName }: Props) 
       }
 
       patch(row.tempId, { status: "sent", link });
-      toast.success(isIcp ? "Invite link ready" : row.email.trim() ? "Invite sent" : "Invite link ready");
+      toast.success(row.email.trim() ? "Invite sent" : "Invite link ready");
     } catch (e) {
       patch(row.tempId, { status: "error", errorMsg: (e as Error).message });
       toast.error((e as Error).message);

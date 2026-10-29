@@ -1,4 +1,4 @@
-import { CheckCircle2, Mail, Copy } from "lucide-react";
+import { CheckCircle2, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ResponsiveDialog,
@@ -15,7 +15,6 @@ interface TeamAdminInviteDialogProps {
   teamName: string;
   inviteName: string;
   inviteEmail: string;
-  inviteLink?: string;
   onDone: () => void;
 }
 
@@ -25,7 +24,6 @@ export function TeamAdminInviteDialog({
   teamName,
   inviteName,
   inviteEmail,
-  inviteLink,
   onDone,
 }: TeamAdminInviteDialogProps) {
   const handleDone = () => {
@@ -44,7 +42,7 @@ export function TeamAdminInviteDialog({
             <div>
               <ResponsiveDialogTitle>Team Created!</ResponsiveDialogTitle>
               <ResponsiveDialogDescription>
-                {inviteLink ? "Team Admin invitation created" : "Invite sent to the new Team Admin"}
+                Invite sent to the new Team Admin
               </ResponsiveDialogDescription>
             </div>
           </div>
@@ -56,10 +54,9 @@ export function TeamAdminInviteDialog({
             <p className="font-medium mb-1">{inviteName}</p>
             <p className="text-sm text-muted-foreground flex items-center gap-1.5">
               <Mail className="h-3.5 w-3.5" />
-              {inviteLink ? `Invitation for ${inviteEmail}` : `Invite sent to ${inviteEmail}`}
+              Invite sent to {inviteEmail}
             </p>
           </div>
-          {inviteLink && <Button variant="outline" className="w-full gap-2" onClick={() => navigator.clipboard.writeText(inviteLink)}><Copy className="h-4 w-4" />Copy invitation link</Button>}
 
           <p className="text-sm text-muted-foreground text-center">
             When they accept the invite, they'll be added as Team Admin for <strong>{teamName}</strong>.

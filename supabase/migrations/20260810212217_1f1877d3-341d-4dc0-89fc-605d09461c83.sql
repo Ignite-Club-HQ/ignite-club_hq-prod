@@ -1,2 +1,0 @@
-ALTER TABLE public.clubs DROP CONSTRAINT IF EXISTS clubs_invite_email_style_check;
-ALTER TABLE public.clubs ADD CONSTRAINT clubs_invite_email_style_check CHECK (invite_email_style = ANY (ARRAY['detailed'::text, 'simple'::text, 'discover'::text]));

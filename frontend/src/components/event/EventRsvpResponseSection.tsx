@@ -179,7 +179,7 @@ export function EventRsvpResponseSection({
                       size="sm"
                       className="flex flex-col h-auto py-2"
                       onClick={() => childRsvpMutation.mutate({ childId: child.id, status: value, childName: child.name })}
-                      disabled={(childRsvpMutation.isPending && childRsvpMutation.variables?.childId === child.id) || attendanceActionsDisabled}
+                      disabled={childRsvpMutation.isPending || attendanceActionsDisabled}
                     >
                       <span>{icon}</span>
                       <span className="text-xs">{label}</span>
@@ -361,7 +361,7 @@ export function EventRsvpResponseSection({
                           size="sm"
                           className="flex flex-col h-auto py-2"
                           onClick={() => parentLeaguePlayerRsvpMutation.mutate({ playerId: player.id, status: value })}
-                          disabled={(parentLeaguePlayerRsvpMutation.isPending && parentLeaguePlayerRsvpMutation.variables?.playerId === player.id) || attendanceActionsDisabled}
+                          disabled={parentLeaguePlayerRsvpMutation.isPending || attendanceActionsDisabled}
                         >
                           <span>{icon}</span>
                           <span className="text-xs">{label}</span>
@@ -380,7 +380,6 @@ export function EventRsvpResponseSection({
         <EventGuestsManager
           eventId={event.id}
           clubId={event.club_id}
-          teamId={event.team_id ?? null}
           maxGuestsPerMember={event.max_guests_per_member || 2}
           isAdmin={canManageEvent}
         />

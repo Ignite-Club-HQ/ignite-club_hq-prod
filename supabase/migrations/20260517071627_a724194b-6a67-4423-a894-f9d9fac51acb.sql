@@ -1,1 +1,0 @@
-ALTER TABLE public.competition_divisions ADD COLUMN IF NOT EXISTS hide_ladder boolean NOT NULL DEFAULT false;

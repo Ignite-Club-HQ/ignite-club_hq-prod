@@ -1,1 +1,0 @@
-ALTER TABLE public.clubs ADD COLUMN points_display_name text DEFAULT 'Ignite Points';

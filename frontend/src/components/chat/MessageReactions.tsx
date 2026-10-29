@@ -10,12 +10,6 @@ import { withFeatureBackend } from "@/live/featureRouter";
 import { listLiveProfilesByIds } from "@/live/features/identityAccessClient";
 import { armReactionInteractionGuard } from "@/lib/reactionInteractionGuard";
 import { hapticSelectionTick } from "@/lib/haptics";
-import { usePrivateChatProfiles } from "@/hooks/usePrivateChatProfiles";
-import { useAuth } from "@/hooks/useAuth";
-import { privateProfileSearchRehearsalEnabled } from "@/live/privateProfileSearchMode";
-import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
-import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
-import { currentChatScope } from "@/live/chatScope";
 
 const REACTION_EMOJIS = [
   { type: "thumbsup", emoji: "👍" },
@@ -332,7 +326,6 @@ export const MessageReactionsPopover = memo(function MessageReactionsPopover({
 });
 
 interface MessageReactionsDisplayProps {
-  messageId?: string;
   reactions?: Reaction[];
   currentUserId?: string;
   onReactionClick: (type: string, reactionId?: string) => void;
@@ -340,7 +333,6 @@ interface MessageReactionsDisplayProps {
 }
 
 export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
-  messageId,
   reactions = [],
   currentUserId,
   onReactionClick,
@@ -424,7 +416,6 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
 
       </PopoverTrigger>
       <AllReactionsContent
-        messageId={messageId}
         reactions={committed}
         allUserIds={allUserIds}
         currentUserId={currentUserId}
@@ -437,7 +428,6 @@ export const MessageReactionsDisplay = memo(function MessageReactionsDisplay({
 });
 
 interface AllReactionsContentProps {
-  messageId?: string;
   reactions: Reaction[];
   allUserIds: string[];
   currentUserId?: string;
@@ -447,7 +437,6 @@ interface AllReactionsContentProps {
 }
 
 const AllReactionsContent = memo(function AllReactionsContent({
-  messageId,
   reactions,
   allUserIds,
   currentUserId,
@@ -455,19 +444,10 @@ const AllReactionsContent = memo(function AllReactionsContent({
   onClose,
   isOpen,
 }: AllReactionsContentProps) {
-  const { user } = useAuth();
-  const clubThread = typeof window !== 'undefined' && !window.location.pathname.startsWith('/messages/dm/') && window.location.pathname !== '/messages/broadcast';
-  const privateNames = (privateProfileSearchRehearsalEnabled() || (clubThread && privateClubNameDisplaysEnabled())) && isFeatureRoutedToIcp("messaging");
-  const chatScope = currentChatScope();
-  const conversationId = chatScope && ('conversationId' in chatScope ? chatScope.conversationId
-    : 'teamId' in chatScope ? chatScope.teamId : 'clubId' in chatScope ? chatScope.clubId : 'shared' in chatScope && chatScope.shared === 'app' ? 'broadcast' : undefined);
-  const directChat = typeof window !== 'undefined' && window.location.pathname.startsWith('/messages/dm/');
-  const getPrivateProfile = usePrivateChatProfiles(conversationId, user?.id, allUserIds, privateNames && isOpen, directChat ? 'direct' : 'group', conversationId === 'broadcast' ? messageId : undefined);
   // Seed from in-memory profile cache so names render instantly when available;
   // avoids the brief "Unknown" flash before the async fetch resolves.
   const initialUsers = (() => {
     const seeded: Array<{ id: string; display_name: string | null }> = [];
-    if (privateNames) return seeded;
     for (const id of allUserIds) {
       const p = getProfileFromCache(id);
       const displayName = normalizeDisplayName(p?.display_name);
@@ -515,9 +495,9 @@ const AllReactionsContent = memo(function AllReactionsContent({
         display_name: normalizeDisplayName(map.get(id)?.display_name),
       }));
     },
-    enabled: !privateNames && isOpen && allUserIds.length > 0,
+    enabled: isOpen && allUserIds.length > 0,
     staleTime: 60_000,
-    initialData: !privateNames && initialUsers.length === allUserIds.length && allUserIds.length > 0 ? initialUsers : undefined,
+    initialData: initialUsers.length === allUserIds.length && allUserIds.length > 0 ? initialUsers : undefined,
   });
 
   const reactionsByType = reactions.reduce((acc, r) => {
@@ -537,7 +517,6 @@ const AllReactionsContent = memo(function AllReactionsContent({
   }, [isOpen]);
 
   const getUserName = (userId: string) => {
-    if (privateNames) return normalizeDisplayName(getPrivateProfile(userId)?.display_name) || "";
     return normalizeDisplayName(users.find(u => u.id === userId)?.display_name)
       || normalizeDisplayName(getProfileFromCache(userId)?.display_name)
       || "";

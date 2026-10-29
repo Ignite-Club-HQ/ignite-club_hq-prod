@@ -9,7 +9,6 @@ import { prepareVaultLargeFileDeletion, sortVaultLargeFileItems, type VaultLarge
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { listLiveVaultClubFiles } from "@/live/features/vault";
-import { vaultDeletionCandidates } from "./vaultDeletionCandidates";
 
 /** Same final cap the Supabase path applies in `buildVaultLargeFileItems`. */
 const LARGE_FILES_LIMIT = 50;
@@ -97,7 +96,7 @@ export function useVaultLargeFiles({ currentClubId, queryClient, formatStorageSi
         ? await permanentlyDeleteVaultItems({ fileIds: [...deletion.photoIds, ...deletion.fileIds] })
         : await permanentlyDeleteVaultItems({ photoIds: deletion.photoIds, fileIds: deletion.fileIds });
       const summary = summarizeVaultDeletion(
-        vaultDeletionCandidates(deletion.items, isFeatureRoutedToIcp("vault")),
+        deletion.items.map(item => ({ id: item.id, type: item.type, size: item.size })),
         result,
       );
       const { outcome, message } = buildVaultDeleteMessage(summary, formatStorageSize);

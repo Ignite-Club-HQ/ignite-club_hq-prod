@@ -1,10 +1,6 @@
-import PrivateNameWriterWindow "../../shared/PrivateNameWriterWindow";
-import PrivateNameWriterEndpoints "../../shared/PrivateNameWriterEndpoints";
 import AccountAdmission "../../shared/AccountAdmission";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
-import PrivateNameReleaseFence "../../shared/PrivateNameReleaseFence";
-import PrivateNameCleanup "../../shared/PrivateNameCleanup";
 import Error "mo:core/Error";
 import PrimMem "mo:⛔";
 /// PII Access Control Canister
@@ -62,10 +58,6 @@ persistent actor class Main(governorInit : Principal) = this {
   var removal_active : Map.Map<Principal, Nat>;
   transient let removalReceiver = RemovalReceiver.Gate(accountAdmissionEnabled, accountAdmissionAuthority, removal_intents, removal_subjects, removal_active);
   transient let accountAdmission = AccountAdmission.Gate(accountAdmissionEnabled, accountAdmissionAuthority);
-  var private_name_writer_intents : Map.Map<Text, PrivateNameWriterWindow.Intent>;
-  transient let privateNameWriterGate = PrivateNameWriterWindow.Gate(Runtime.envVar<system>("IGNITE_PRIVATE_NAME_WRITER_REHEARSAL") == ?"1", accountAdmissionAuthority, private_name_writer_intents, 4096);
-  include PrivateNameWriterEndpoints(privateNameWriterGate, Principal.fromActor(this));
-
   func admitAccount(subject : Principal) : async () {
     if (removalReceiver.denied(subject)) throw Error.reject("Account removal fenced");
     let eligible = await accountAdmission.eligible(subject);
@@ -93,20 +85,6 @@ persistent actor class Main(governorInit : Principal) = this {
 
 
   // ==================== Types ====================
-  // Own-name saving does not release club audiences, conversion or cleanup.
-  transient let secureAdultNameSave = Runtime.envVar<system>("IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE") == ?"1";
-  transient let secureAdultNameIdentity = Runtime.envVar<system>("IGNITE_SECURE_ADULT_NAME_IDENTITY");
-  public shared ({ caller }) func verify_secure_profile_name(subject : Principal) : async { #Ok : Bool; #Err : Text } {
-    if (not secureAdultNameSave or caller.isAnonymous() or subject.isAnonymous()) return #Err("Secure own-name verification is not released");
-    switch (secureAdultNameIdentity) {
-      case null return #Err("Secure name identity is not configured");
-      case (?id) { if (caller.toText() != id) return #Err("Configured identity required") }
-    };
-    switch (pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == "display_name")) {
-      case null #Ok(false);
-      case (?r) #Ok(r.domain_owner == subject and r.master_key_id == vetkeySchemeId() and r.ciphertext.size() > 0 and r.ciphertext.size() <= 4096)
-    }
-  };
 
   public type EncryptedPii = {
     pii_id : Text;
@@ -165,16 +143,6 @@ persistent actor class Main(governorInit : Principal) = this {
     children : [Text]; // pii_id set
   };
 
-  // Display-only guardian metadata preserved from the source system during
-  // migration (e.g. "parent"/"guardian", primary-contact flag). Sidecar to
-  // GuardianRelationship so the stored relationship shape stays untouched;
-  // never gates access — only the children set does.
-  public type GuardianLabel = {
-    guardian : Principal;
-    rel_label : ?Text;
-    is_primary : ?Bool;
-  };
-
   // A club-scoped read grant: members of `club_id` (per club_domain) may
   // read the (pii_id, field_id) record via the decrypt methods.
   public type ClubReadGrant = {
@@ -218,7 +186,7 @@ persistent actor class Main(governorInit : Principal) = this {
   // The shared photo identity is accessible ONLY through its membership
   // relay. Generic records must never alias it, even with separator injection.
   func reservedMediaIdentity(pii_id : Text, field_id : Text) : Bool {
-    Text.startsWith(pii_id, #text "clubmedia:") or Text.startsWith(pii_id, #text "clubnames:") or Text.startsWith(field_id, #text "club_display_name:") or Text.contains(pii_id, #char '\u{1F}') or Text.contains(field_id, #char '\u{1F}')
+    Text.startsWith(pii_id, #text "clubmedia:") or Text.contains(pii_id, #char '\u{1F}') or Text.contains(field_id, #char '\u{1F}')
   };
 
   // ==================== State ====================
@@ -240,8 +208,6 @@ persistent actor class Main(governorInit : Principal) = this {
   // grant_pii_read authorization. Seeded empty, populated via
   // add_guardian_relationship.
   var guardian_relationships : [GuardianRelationship];
-  // Display-only guardian metadata sidecar (migration 20261110_000000).
-  var guardianLabels : [GuardianLabel];
 
   // Club-scoped read grants: any principal holding a role in `club_id`
   // (verified via club_domain's has_club_staff_role at read time) may read
@@ -287,26 +253,19 @@ persistent actor class Main(governorInit : Principal) = this {
     not transferFences.any(func(c) = fenceBlobHas(arg, c))
   };
   public shared ({ caller }) func set_transfer_fence(club : Text, fenced : Bool) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not fenceGov(caller)) return #Err("Governor required");
     mediaAuthEpoch += 1;
     transferFences := transferFences.filter(func(c) = c != club);
     if (fenced) transferFences := transferFences.concat([club]);
     #Ok
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
-  type FenceSnapshot = { grants : [ClubReadGrant]; records : [PiiRecord]; guardians : [GuardianRelationship]; guardian_labels : ?[GuardianLabel] };
+  type FenceSnapshot = { grants : [ClubReadGrant]; records : [PiiRecord]; guardians : [GuardianRelationship] };
   func fenceSnapshot(c : Text) : FenceSnapshot {
     let rootG = club_read_grants.filter(func(x) = x.club_id == c);
     let inG = func(k : Text) : Bool = rootG.any(func(x) = x.pii_id == k);
-    let gs = guardian_relationships.filter(func(x) = x.children.any(inG));
     { grants = club_read_grants.filter(func(x) = x.club_id == c);
-      records = pii_records.filter(func(x) = inG(x.pii_id) and not reservedMediaIdentity(x.pii_id, x.field_id));
-      guardians = gs;
-      guardian_labels = ?guardianLabels.filter(func(x) = gs.any(func(g) = g.guardian.equal(x.guardian))) }
+      records = pii_records.filter(func(x) = inG(x.pii_id));
+      guardians = guardian_relationships.filter(func(x) = x.children.any(inG)) }
   };
   func fenceDrop(c : Text) {
     let rootG = club_read_grants.filter(func(x) = x.club_id == c);
@@ -322,9 +281,6 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(to_candid (fenceSnapshot(club)))
   };
   public shared ({ caller }) func import_club_snapshot(club : Text, snapshot : Blob) : async { #Ok : Nat; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not fenceGov(caller)) return #Err("Governor required");
     if (not isFenced(club)) return #Err("Club must be fenced before import");
     let decoded : ?FenceSnapshot = from_candid (snapshot);
@@ -336,8 +292,6 @@ persistent actor class Main(governorInit : Principal) = this {
         or s.records.any(func(x) = reservedMediaIdentity(x.pii_id, x.field_id))
         or s.records.any(func(x) = not (inG(x.pii_id)))
         or s.guardians.any(func(x) = not (x.children.any(inG)))) return #Err("Snapshot contains foreign records");
-    let incomingLabels = s.guardian_labels ?? [];
-    if (incomingLabels.any(func(x) = not s.guardians.any(func(g) = g.guardian.equal(x.guardian)))) return #Err("Guardian label without a relationship");
     if (s.records.any(func(e) = pii_records.any(func(x) = x.pii_id == e.pii_id and x.field_id == e.field_id and x.ciphertext != e.ciphertext))) return #Err("Snapshot id collides with another club");
     fenceDrop(club); // idempotent replace
     mediaAuthEpoch += 1;
@@ -349,32 +303,16 @@ persistent actor class Main(governorInit : Principal) = this {
       let kids = g.children.filter(inG);
       mediaAuthEpoch += 1;
       guardian_relationships := switch (guardian_relationships.find(func(y) = y.guardian.equal(g.guardian))) {
-        // Existing destination entry stays authoritative for label/primary;
-        // only the child set merges.
         case (?cur) guardian_relationships.map(func(y) = if (y.guardian.equal(g.guardian)) { { y with children = y.children.concat(kids.filter(func(k) = not y.children.any(func(z) = z == k))) } } else y);
         case null guardian_relationships.concat([{ g with children = kids }]);
       };
     };
-    // Display-only labels: an existing destination entry stays authoritative.
-    for (l in incomingLabels.values()) {
-      if (not guardianLabels.any(func(y) = y.guardian.equal(l.guardian))) {
-        mediaAuthEpoch += 1;
-        guardianLabels := guardianLabels.concat([l]);
-      };
-    };
     #Ok(s.grants.size())
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func purge_club_snapshot(club : Text) : async { #Ok : Nat; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not fenceGov(caller)) return #Err("Governor required");
     if (not isFenced(club)) return #Err("Club must be fenced before purge");
     let n = fenceSnapshot(club).grants.size(); fenceDrop(club); #Ok(n)
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   func now_ns() : Nat64 {
@@ -632,327 +570,6 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(caller) };
   };
 
-  type PrivateNameScope = { kind : Text; authority : Principal; resource : Text; profile_revision : Nat64 };
-  type PrivateNameRow = { account_id : Text; principal : Principal; display_name : Text; avatar_ref : ?Text };
-
-  // Explicit local configuration only. Neither scope nor PII references can
-  // choose the trusted identity verifier; no new permanent reader grants.
-  transient let privateNamesRehearsal = Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") == ?"1";
-  transient let privateClubNameDisplays = Runtime.envVar<system>("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") == ?"1";
-  transient let privateNamesIdentity = Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_IDENTITY");
-  var private_name_release_intents : Map.Map<Text, PrivateNameReleaseFence.Intent>;
-  var private_name_release_epoch : Nat;
-  var private_name_cleanup_receipts : Map.Map<Text, { caller : Principal; receipt : PrivateNameCleanup.Receipt }>;
-  func privateNameVerifier() : ?Principal {
-    if (not privateNamesRehearsal and not privateClubNameDisplays) return null;
-    switch (privateNamesIdentity) {
-      case null null;
-      case (?id) { let p = Principal.fromText(id); if (p.isAnonymous() or p == Principal.fromText("aaaaa-aa")) null else ?p }
-    }
-  };
-  transient let privateNameReleaseFence = PrivateNameReleaseFence.Gate(privateNamesRehearsal, privateNameVerifier(), private_name_release_intents, 4096);
-  func canReleasePrivateName(captured : Nat, scope : PrivateNameScope) : Bool {
-    (privateNamesRehearsal or (privateClubNameDisplays and scope.kind == "club")) and privateNameVerifier() != null and captured == private_name_release_epoch and not privateNameReleaseFence.blocked()
-  };
-  // Sink acknowledgements certify only this receiver. The coordinator must
-  // fence the COMPLETE original-PII inventory before acknowledging revocation.
-  public shared ({ caller }) func prepare_private_name_release_fence(request : PrivateNameReleaseFence.Request) : async { #Ok : PrivateNameReleaseFence.Receipt; #Err : Text } {
-    switch (privateNameReleaseFence.prepare(caller, request)) {
-      case (#Err(e)) #Err(e);
-      case (#Ok(changed)) {
-        if (changed) private_name_release_epoch += 1;
-        privateNameReleaseFence.receipt(caller, request, Principal.fromActor(this), private_name_release_epoch)
-      }
-    }
-  };
-  public shared ({ caller }) func read_private_name_release_fence(request : PrivateNameReleaseFence.Request) : async { #Ok : PrivateNameReleaseFence.Receipt; #Err : Text } {
-    privateNameReleaseFence.receipt(caller, request, Principal.fromActor(this), private_name_release_epoch)
-  };
-  public shared ({ caller }) func complete_private_name_release_fence(request : PrivateNameReleaseFence.Request) : async { #Ok : PrivateNameReleaseFence.Receipt; #Err : Text } {
-    switch (privateNameReleaseFence.complete(caller, request)) {
-      case (#Err(e)) #Err(e);
-      case (#Ok(changed)) {
-        if (changed) private_name_release_epoch += 1;
-        privateNameReleaseFence.receipt(caller, request, Principal.fromActor(this), private_name_release_epoch)
-      }
-    }
-  };
-  func authorizePrivateNames(caller : Principal, ids : [Text], scope : PrivateNameScope) : async [PrivateNameRow] {
-    let verifier = privateNameVerifier() ?? throw Error.reject("Private name audiences are not released or configured");
-    if (ids.size() > 25 or ids.any(func id = id == "" or id.size() > 63) or scope.resource == "" or scope.resource.size() > 128) throw Error.reject("Bounded exact private-name audience required");
-    let subjects = ids.map(func id = Principal.fromText(id));
-    if (subjects.any(func p = p.isAnonymous() or p.toText() == "aaaaa-aa") or subjects.size() != ids.filter(func id = ids.filter(func x = x == id).size() == 1).size()) throw Error.reject("Distinct active private-name subjects required");
-    let identity : actor { read_private_profile_name_authorization : shared (Principal, [Principal], PrivateNameScope) -> async { #Ok : [PrivateNameRow]; #Err : Text } } = actor(verifier.toText());
-    let epoch = mediaAuthEpoch;
-    let reply = await (with timeout = 10) identity.read_private_profile_name_authorization(caller, subjects, scope);
-    if (epoch != mediaAuthEpoch or privateNameVerifier() != ?verifier or removalReceiver.denied(caller)) throw Error.reject("Private-name authority changed");
-    let rows = switch (reply) { case (#Err(e)) throw Error.reject(e); case (#Ok(rows)) rows };
-    if (rows.size() != ids.size()) throw Error.reject("Incomplete private-name authorization");
-    for (i in ids.keys()) {
-      let row = rows[i];
-      if (row.principal != subjects[i] or row.display_name != "pii-display-name:v1:" # Principal.fromActor(this).toText() # ":" # ids[i]) throw Error.reject("Original private-name reference changed");
-      let record = pii_records.find(func r = r.pii_id == ids[i] and r.field_id == "display_name") ?? throw Error.reject("Private name not found");
-      if (record.domain_owner != subjects[i]) throw Error.reject("Private-name owner changed");
-    };
-    rows
-  };
-
-  // Field is fixed: guardian/family/member scopes NEVER unlock email/media.
-  public shared ({ caller }) func get_private_profile_names_batch(ids : [Text], scope : PrivateNameScope) : async { #Ok : [EncryptedPii]; #Err : Text } {
-    let releaseEpoch = private_name_release_epoch;
-    if (not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name release fenced or not configured");
-    if (not removalReceiver.enter(caller)) return #Err("Account removal fenced");
-    try {
-      await admitAccount(caller); auth(caller);
-      let epoch = mediaAuthEpoch;
-      let first = await authorizePrivateNames(caller, ids, scope);
-      await admitAccount(caller);
-      let final = await authorizePrivateNames(caller, ids, scope);
-      if (epoch != mediaAuthEpoch or first != final or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
-      var out : [EncryptedPii] = [];
-      for (id in ids.values()) {
-        let r = pii_records.find(func r = r.pii_id == id and r.field_id == "display_name") ?? return #Err("Private name not found");
-        let selected = if (scope.kind == "club") {
-          pii_records.find(func row = row.pii_id == id and row.field_id == clubNameField(scope.resource)) ?? r
-        } else r;
-        log_audit(caller, id, "display_name", "private_name_read", true, scope.kind);
-        out := out.concat([{ pii_id = id; field_id = "display_name"; ciphertext = selected.ciphertext; nonce = selected.nonce; master_key_id = selected.master_key_id }]);
-      };
-      #Ok(out)
-    } catch (e) { #Err(Error.message(e)) } finally { removalReceiver.leave(caller) }
-  };
-  public shared ({ caller }) func get_private_profile_name_vetkeys_batch(ids : [Text], scope : PrivateNameScope, transport : Blob) : async { #Ok : [?Blob]; #Err : Text } {
-    let releaseEpoch = private_name_release_epoch;
-    if (not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name release fenced or not configured");
-    if (not removalReceiver.enter(caller)) return #Err("Account removal fenced");
-    try {
-      await admitAccount(caller); auth(caller);
-      if (transport.size() != 48) return #Err("Invalid transport key");
-      let epoch = mediaAuthEpoch;
-      let first = await authorizePrivateNames(caller, ids, scope);
-      var out : [?Blob] = [];
-      for (id in ids.values()) {
-        let key = await ManagementCanister.vetKdDeriveKey(ibeIdentity(id, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
-        if (epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
-        out := out.concat([?key]);
-      };
-      // One whole-batch closing authorization AFTER all derivations.
-      await admitAccount(caller);
-      let final = await authorizePrivateNames(caller, ids, scope);
-      if (epoch != mediaAuthEpoch or first != final or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
-      for (id in ids.values()) { log_audit(caller, id, "display_name", "private_name_vetkey", true, scope.kind) };
-      #Ok(out)
-    } catch (e) { #Err(Error.message(e)) } finally { removalReceiver.leave(caller) }
-  };
-
-  // ==================== Rehearsal-only club adult-name replicas ====================
-  // Original per-person ciphertext remains for restricted audiences. Club
-  // replicas never enter generic grants, snapshots or key endpoints.
-  func clubNameField(club : Text) : Text { "club_display_name:" # club };
-  func clubNameScheme(club : Text) : Text { "vetkey-club-names-v1:" # club };
-
-  func cleanupReceiptKey(caller : Principal, id : Text) : Text { caller.toText() # "\u{1f}" # id };
-  transient let cleanupReleased = Runtime.envVar<system>("IGNITE_PRIVATE_NAME_CLEANUP_REHEARSAL") == ?"1" or Runtime.envVar<system>("IGNITE_PRIVATE_NAME_CLEANUP_RELEASE") == ?"1";
-  func cleanupVerifier() : ?Principal {
-    if (not cleanupReleased) return null;
-    switch (privateNamesIdentity) { case null null; case (?id) { let p = Principal.fromText(id); if (p.isAnonymous() or p == Principal.fromText("aaaaa-aa")) null else ?p } }
-  };
-  // Identity checks every registered sink before declaring an unconverted
-  // account a cleanup no-op. This reveals no names or ciphertext.
-  public shared ({ caller }) func read_private_name_cleanup_absence(subjects : [Principal], club : ?Text) : async { #Ok : Bool; #Err : Text } {
-    if (cleanupVerifier() != ?caller or caller.isAnonymous() or subjects.size() == 0 or subjects.size() > 8) return #Err("Configured cleanup identity required");
-    switch (club) { case (?c) { if (not validMediaClub(c)) return #Err("Exact cleanup club required") }; case null {} };
-    #Ok(not pii_records.any(func r = subjects.any(func p = r.pii_id == p.toText()) and (switch (club) { case (?c) r.field_id == clubNameField(c); case null Text.startsWith(r.field_id, #text "club_display_name:") })))
-  };
-  public shared ({ caller }) func read_removed_private_club_name_receipt(id : Text, club : Text, subject : Principal) : async { #Ok : ?PrivateNameCleanup.Receipt; #Err : Text } {
-    if (cleanupVerifier() == null or caller.isAnonymous() or id.size() > 256) return #Err("Approved cleanup configuration required");
-    switch (private_name_cleanup_receipts.get(cleanupReceiptKey(caller, id))) {
-      case null #Ok(null);
-      case (?saved) { if (saved.caller != caller or saved.receipt.club != club or saved.receipt.subject != subject) return #Err("Cleanup receipt binding changed"); #Ok(?saved.receipt) }
-    }
-  };
-  public shared ({ caller }) func purge_removed_private_club_name(id : Text, club : Text, subject : Principal) : async { #Ok : PrivateNameCleanup.Receipt; #Err : Text } {
-    if (caller.isAnonymous() or id == "" or id.size() > 256 or not validMediaClub(club)) return #Err("Exact approved cleanup required");
-    let verifier = cleanupVerifier() ?? return #Err("Configured cleanup identity required");
-    let key = cleanupReceiptKey(caller, id);
-    if (private_name_cleanup_receipts.containsKey(key)) return #Err("Read retained cleanup receipt; never replay purge");
-    if (private_name_cleanup_receipts.size() >= 4096) return #Err("Cleanup receipt capacity reached; retain intent");
-    let lease = switch (privateNameWriterGate.enter()) { case (#Ok(value)) value; case (#Err(e)) return #Err(e) };
-    try {
-      let original = pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == "display_name") ?? return #Err("Original private name required");
-      if (original.domain_owner != subject or original.master_key_id != vetkeySchemeId()) return #Err("Original cleanup binding changed");
-      let field = clubNameField(club);
-      let replica = pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == field);
-      switch (replica) { case (?r) { if (r.domain_owner != subject or r.master_key_id != clubNameScheme(club)) return #Err("Replica binding changed") }; case null {} };
-      let identity : actor { authorize_private_name_removal : shared (Principal, Text, Principal, Text) -> async { #Ok : PrivateNameCleanup.Account; #Err : Text } } = actor(verifier.toText());
-      var first : ?PrivateNameCleanup.Account = null;
-      for (_ in [0, 1].values()) {
-        let account = switch (await (with timeout = 10) identity.authorize_private_name_removal(caller, club, subject, id)) { case (#Ok(value)) value; case (#Err(e)) return #Err(e) };
-        if (cleanupVerifier() != ?verifier or (first != null and first != ?account)) return #Err("Cleanup authorization changed");
-        first := ?account;
-      };
-      // Exact saved original and replica checks, purge and tombstone commit form
-      // one synchronous segment. The club retains its membership-write lock.
-      if (private_name_cleanup_receipts.containsKey(key) or private_name_cleanup_receipts.size() >= 4096 or pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == "display_name") != ?original or pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == field) != replica) return #Err("Name generation changed; retain cleanup intent");
-      pii_records := pii_records.filter(func r = not (r.pii_id == subject.toText() and r.field_id == field));
-      mediaAuthEpoch += 1;
-      let receipt = { id; club; subject; original_retained = true; replica_absent = true };
-      private_name_cleanup_receipts.add(key, { caller; receipt });
-      log_audit(caller, subject.toText(), field, "club_name_removal", true, "Authorized retained member removal");
-      #Ok(receipt)
-    } catch (e) { #Err(Error.message(e)) } finally { privateNameWriterGate.leave(lease) }
-  };
-
-  // Lifecycle readbacks distinguish confirmed absence from denied/unavailable
-  // reads. These synchronous owner/governor methods never issue a shared key.
-  public shared ({ caller }) func read_private_club_name_lifecycle(subject : Principal, club : Text, expectedOriginal : ?[Nat8]) : async { #Ok : ?EncryptedPii; #Err : Text } {
-    if ((not privateNamesRehearsal and not privateClubNameDisplays) or not validMediaClub(club) or subject.isAnonymous() or subject == Principal.fromText("aaaaa-aa")) return #Err("Exact released name target required");
-    if (not privateNamesRehearsal and caller != subject) return #Err("Name owner required");
-    if (not isGovernor(caller) and caller != subject) return #Err("Name owner required");
-    switch (expectedOriginal) {
-      case null {};
-      case (?bytes) {
-        if (bytes.size() == 0 or bytes.size() > 4096) return #Err("Bounded saved original bytes required");
-        let original = pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == "display_name") ?? return #Err("Original private name required");
-        if (original.domain_owner != subject or original.master_key_id != vetkeySchemeId() or original.ciphertext != bytes) return #Err("Original name changed; retain lifecycle lock")
-      }
-    };
-    switch (pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == clubNameField(club))) {
-      case null #Ok(null);
-      case (?r) {
-        if (r.domain_owner != subject or r.master_key_id != clubNameScheme(club)) return #Err("Name replica binding changed");
-        #Ok(?{ pii_id = subject.toText(); field_id = "display_name"; ciphertext = r.ciphertext; nonce = []; master_key_id = r.master_key_id })
-      }
-    }
-  };
-
-  // Create-only refresh pins the ORIGINAL saved bytes, not just a subject or
-  // sampled timestamp. Check and commit have no await boundary.
-  public shared ({ caller }) func refresh_private_club_name_lifecycle(subject : Principal, club : Text, originalCiphertext : [Nat8], ciphertext : [Nat8]) : async { #Ok; #Err : Text } {
-    if ((not privateNamesRehearsal and not privateClubNameDisplays) or not validMediaClub(club) or subject.isAnonymous() or subject == Principal.fromText("aaaaa-aa")) return #Err("Exact released name target required");
-    if (not privateNamesRehearsal and caller != subject) return #Err("Name owner required");
-    if (not isGovernor(caller) and caller != subject) return #Err("Name owner required");
-    let lease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(e)) return #Err(e) };
-    try {
-      if (originalCiphertext.size() == 0 or originalCiphertext.size() > 4096 or ciphertext.size() == 0 or ciphertext.size() > 4096) return #Err("Bounded saved name bytes required");
-      let original = pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == "display_name") ?? return #Err("Original private name required");
-      if (original.domain_owner != subject or original.master_key_id != vetkeySchemeId() or original.ciphertext != originalCiphertext) return #Err("Original name changed; retain lifecycle lock");
-      let field = clubNameField(club);
-      switch (pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == field)) {
-        case (?r) {
-          if (r.domain_owner != subject or r.master_key_id != clubNameScheme(club) or r.ciphertext != ciphertext) return #Err("Conflicting replica retained; never overwrite");
-          return #Ok
-        };
-        case null {}
-      };
-      pii_records := pii_records.concat([{ original with field_id = field; ciphertext; nonce = []; master_key_id = clubNameScheme(club); readers = [] }]);
-      mediaAuthEpoch += 1;
-      log_audit(caller, subject.toText(), field, "club_name_refresh", true, "Exact saved name bytes");
-      #Ok
-    } finally { privateNameWriterGate.leave(lease) }
-  };
-
-  // Exact-byte purge cannot delete a newer refresh after delayed delivery.
-  public shared ({ caller }) func purge_private_club_name_lifecycle(subject : Principal, club : Text, expectedCiphertext : [Nat8]) : async { #Ok; #Err : Text } {
-    if (not privateNamesRehearsal or not validMediaClub(club) or subject.isAnonymous() or subject == Principal.fromText("aaaaa-aa")) return #Err("Exact rehearsal name target required");
-    if (not isGovernor(caller) and caller != subject) return #Err("Name owner required");
-    let lease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(e)) return #Err(e) };
-    try {
-      if (expectedCiphertext.size() == 0 or expectedCiphertext.size() > 4096) return #Err("Bounded saved name bytes required");
-      let field = clubNameField(club);
-      switch (pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == field)) {
-        case null return #Ok;
-        case (?r) { if (r.domain_owner != subject or r.master_key_id != clubNameScheme(club) or r.ciphertext != expectedCiphertext) return #Err("Replica changed; retain lifecycle lock") }
-      };
-      pii_records := pii_records.filter(func r = not (r.pii_id == subject.toText() and r.field_id == field));
-      mediaAuthEpoch += 1;
-      log_audit(caller, subject.toText(), field, "club_name_purge", true, "Exact saved name bytes");
-      #Ok
-    } finally { privateNameWriterGate.leave(lease) }
-  };
-
-  // Only identity's signed exact-row relay can enter this window. Public
-  // register_pii/register_private_club_name remain ordinary locked writers.
-  public shared ({ caller }) func register_conversion_name(request : PrivateNameReleaseFence.Request, subject : Principal, club : ?Text, ciphertext : [Nat8]) : async { #Ok; #Err : Text } {
-    if (not privateNamesRehearsal) return #Err("Private-name conversion is not released");
-    let lease = switch (privateNameWriterGate.enterConversion(caller, request)) { case (#Ok(key)) key; case (#Err(e)) return #Err(e) };
-    try {
-      if (subject.isAnonymous() or subject == Principal.fromText("aaaaa-aa") or ciphertext.size() == 0 or ciphertext.size() > 4096) return #Err("Invalid approved name ciphertext");
-      let id = subject.toText();
-      let field = switch (club) { case null "display_name"; case (?c) { if (not validMediaClub(c)) return #Err("Invalid approved club"); clubNameField(c) } };
-      let prior = pii_records.find(func r = r.pii_id == id and r.field_id == field);
-      switch (prior) { case (?r) { if (r.ciphertext != ciphertext or r.domain_owner != subject) return #Err("Existing name ciphertext differs; retain conversion lock"); return #Ok }; case null {} };
-      let original = switch (club) {
-        case null null;
-        case (?_) { let r = pii_records.find(func r = r.pii_id == id and r.field_id == "display_name") ?? return #Err("Original private name required"); if (r.domain_owner != subject) return #Err("Original name owner changed"); ?r }
-      };
-      let scheme = switch (club) { case null vetkeySchemeId(); case (?c) clubNameScheme(c) };
-      let record : PiiRecord = switch (original) {
-        case (?r) { { r with field_id = field; ciphertext; nonce = []; master_key_id = scheme; readers = [] } };
-        case null { { pii_id = id; field_id = field; ciphertext; nonce = []; master_key_id = scheme; created_at = now_ns(); last_accessed = now_ns(); access_count = 0; domain_owner = subject; readers = [] } }
-      };
-      mediaAuthEpoch += 1;
-      pii_records := pii_records.concat([record]);
-      #Ok
-    } finally { privateNameWriterGate.leave(lease) }
-  };
-
-  public shared ({ caller }) func register_private_club_name(subject : Principal, club : Text, ciphertext : [Nat8]) : async { #Ok : EncryptedPii; #Err : Text } {
-    if (not privateNamesRehearsal or not validMediaClub(club)) return #Err("Club names are not released or club is invalid");
-    let lease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(e)) return #Err(e) };
-    try {
-      if (not removalReceiver.enter(caller)) return #Err("Account removal fenced");
-      try {
-        await admitAccount(caller); auth(caller);
-        if (subject.isAnonymous() or ciphertext.size() == 0 or ciphertext.size() > 4096) return #Err("Invalid adult name replica");
-        if (not isGovernor(caller) and caller != subject) return #Err("Name owner required");
-        let original = pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == "display_name") ?? return #Err("Original private name required");
-        if (original.domain_owner != subject) return #Err("Original name owner changed");
-        let field = clubNameField(club);
-        let record : PiiRecord = { original with field_id = field; ciphertext; nonce = []; master_key_id = clubNameScheme(club); readers = [] };
-        mediaAuthEpoch += 1;
-        pii_records := pii_records.filter(func r = not (r.pii_id == subject.toText() and r.field_id == field)).concat([record]);
-        log_audit(caller, subject.toText(), field, "club_name_register", true, "Rehearsal adult name replica");
-        #Ok({ pii_id = subject.toText(); field_id = "display_name"; ciphertext; nonce = []; master_key_id = record.master_key_id })
-      } catch (e) { #Err(Error.message(e)) } finally { removalReceiver.leave(caller) }
-    } finally { privateNameWriterGate.leave(lease) }
-  };
-
-  // Owner/governor ciphertext readback only. No shared key is issued here.
-  public shared ({ caller }) func read_private_club_name_preparation(subject : Principal, club : Text) : async { #Ok : EncryptedPii; #Err : Text } {
-    if (not privateNamesRehearsal or not validMediaClub(club)) return #Err("Club names are not released or club is invalid");
-    if (not removalReceiver.enter(caller)) return #Err("Account removal fenced");
-    try {
-      await admitAccount(caller); auth(caller);
-      if (not isGovernor(caller) and caller != subject) return #Err("Name owner required");
-      let r = pii_records.find(func r = r.pii_id == subject.toText() and r.field_id == clubNameField(club)) ?? return #Err("Club name replica not found");
-      if (r.domain_owner != subject) return #Err("Name owner changed");
-      #Ok({ pii_id = subject.toText(); field_id = "display_name"; ciphertext = r.ciphertext; nonce = []; master_key_id = r.master_key_id })
-    } catch (e) { #Err(Error.message(e)) } finally { removalReceiver.leave(caller) }
-  };
-
-  public shared ({ caller }) func get_private_profile_club_name_vetkey(ids : [Text], scope : PrivateNameScope, transport : Blob) : async { #Ok : Blob; #Err : Text } {
-    let releaseEpoch = private_name_release_epoch;
-    if (scope.kind != "club" or not validMediaClub(scope.resource) or ids.size() == 0 or transport.size() != 48) return #Err("Exact club adult-name audience required");
-    if (not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name release fenced or not configured");
-    if (not removalReceiver.enter(caller)) return #Err("Account removal fenced");
-    try {
-      await admitAccount(caller); auth(caller);
-      let epoch = mediaAuthEpoch;
-      let first = await authorizePrivateNames(caller, ids, scope);
-      for (id in ids.values()) {
-        let r = pii_records.find(func r = r.pii_id == id and r.field_id == clubNameField(scope.resource)) ?? return #Err("Club name replica not found");
-        if (r.master_key_id != clubNameScheme(scope.resource) or r.domain_owner.toText() != id) return #Err("Invalid club name replica");
-      };
-      let key = await ManagementCanister.vetKdDeriveKey(ibeIdentity("clubnames:" # scope.resource, "display_name"), vetkdContext(), vetkdKeyId<system>(), transport);
-      await admitAccount(caller);
-      let final = await authorizePrivateNames(caller, ids, scope);
-      if (first != final or epoch != mediaAuthEpoch or not canReleasePrivateName(releaseEpoch, scope)) return #Err("Private-name authorization changed");
-      log_audit(caller, "clubnames:" # scope.resource, "display_name", "club_name_vetkey", true, scope.kind);
-      #Ok(key)
-    } catch (e) { #Err(Error.message(e)) } finally { removalReceiver.leave(caller) }
-  };
-
   // ==================== Per-club photo key ====================
 
   // Club photos are IBE-encrypted to ONE identity per club
@@ -980,9 +597,6 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(privateMediaAuthorities.get(club) ?? ({ competition = null; revision = 0; move_id = "" }))
   };
   public shared ({ caller }) func set_private_media_authority(club : Text, competition : ?Principal, move_id : Text, expected : Nat) : async { #Ok : { competition : ?Principal; revision : Nat; move_id : Text }; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not isGovernor(caller)) return #Err("Governor required");
     if (not validMediaClub(club) or not isFenced(club) or move_id == "" or move_id.size() > 128) return #Err("Fenced valid private-media binding required");
     switch (competition) { case (?p) { if (p.equal(Principal.anonymous())) return #Err("Invalid competition authority") }; case null {} };
@@ -990,8 +604,6 @@ persistent actor class Main(governorInit : Principal) = this {
     if (previous.revision != expected) return #Err("Private media authority revision changed");
     let next = { competition; move_id; revision = previous.revision + 1 };
     privateMediaAuthorities.add(club, next); mediaAuthEpoch += 1; #Ok(next)
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   // Only changes authorization. The original canister continues deriving
   // the original IBE identity; no key, ciphertext or PII grants are copied.
@@ -999,9 +611,6 @@ persistent actor class Main(governorInit : Principal) = this {
   public shared ({ caller }) func set_club_media_authority(
     club : Text, authority : ?Principal, move_id : Text, expected_revision : Nat
   ) : async { #Ok : ClubMediaAuthority; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not isGovernor(caller)) return #Err("Governor required");
     if (not validMediaClub(club) or move_id.size() == 0 or move_id.size() > 128) return #Err("Invalid media authority binding");
     if (not isFenced(club)) return #Err("Club must be fenced before changing media authority");
@@ -1012,8 +621,6 @@ persistent actor class Main(governorInit : Principal) = this {
     clubMediaAuthorities.add(club, next);
     mediaAuthEpoch += 1;
     #Ok(next)
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func get_club_media_vetkey(
@@ -1065,55 +672,15 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(caller) };
   };
 
-  // Shared audience keys for children's names (club), guest/fill-in/POTM
-  // names (team) and role-restricted Vault files. The club service decides
-  // membership; checked before derivation and again after it.
-  public shared ({ caller }) func get_shared_audience_vetkey(
-    kind : Text, scope : Text, transport_public_key : Blob
-  ) : async { #Ok : Blob; #Err : Text } {
-    if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
-    try {
-    await admitAccount(caller);
-    auth(caller);
-    let prefix = if (kind == "clubchildren") "clubchildren:" else if (kind == "teamnames") "teamnames:" else if (kind == "vaultrole") "vaultrole:" else return #Err("Invalid audience");
-    if (scope == "" or scope.size() > 512) return #Err("Invalid audience scope");
-    if (transport_public_key.size() != 48) return #Err("Invalid transport key");
-    let configured = club_domain_canister;
-    let cid = switch (configured) { case (?id) id; case null return #Err("Club authority unavailable") };
-    let clubDomain : actor { read_has_pii_audience : shared (Principal, Text, Text) -> async Bool } = actor (cid.toText());
-    let ask = func() : async Bool {
-      if (isGovernor(caller)) return true;
-      try { await (with timeout = 10) clubDomain.read_has_pii_audience(caller, kind, scope) } catch (_) { false }
-    };
-    let pii_id = prefix # scope;
-    let allowed = await ask();
-    log_audit(caller, pii_id, "shared", "vetkey_derive", allowed, "Shared audience vetKey derivation");
-    if (not allowed or club_domain_canister != configured) return #Err("Not in this audience");
-    let encryptedKey = await ManagementCanister.vetKdDeriveKey(
-      ibeIdentity(pii_id, "shared"), vetkdContext(), vetkdKeyId<system>(), transport_public_key
-    );
-    await admitAccount(caller);
-    if (not (await ask())) return #Err("Audience membership changed");
-    if (club_domain_canister != configured) return #Err("Club authority changed");
-    #Ok(encryptedKey)
-    } finally { removalReceiver.leave(caller) };
-  };
-
-
   // ==================== Public Methods ====================
 
   public shared ({ caller }) func transfer_governorship(new_governor : Principal) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     auth(caller);
     if (not isGovernor(caller)) return #Err("Only governor can transfer governorship");
     if (new_governor.equal(Principal.anonymous())) return #Err("New governor cannot be anonymous");
     mediaAuthEpoch += 1;
     governor := new_governor;
     #Ok
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Stores a client-encrypted PII field. The caller encrypts offline (IBE
@@ -1127,9 +694,6 @@ persistent actor class Main(governorInit : Principal) = this {
     ciphertext : [Nat8],
     domain_owner : Principal
   ) : async { #Ok : EncryptedPii; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1170,7 +734,7 @@ persistent actor class Main(governorInit : Principal) = this {
     // Remove existing if any, then append
     mediaAuthEpoch += 1;
     pii_records := Array.filter<PiiRecord>(pii_records, func(r) {
-      not (r.pii_id == pii_id and (r.field_id == field_id or (field_id == "display_name" and Text.startsWith(r.field_id, #text "club_display_name:"))))
+      not (r.pii_id == pii_id and r.field_id == field_id)
     }).concat([record]);
 
     log_audit(caller, pii_id, field_id, "register", true, "PII Registration");
@@ -1184,8 +748,6 @@ persistent actor class Main(governorInit : Principal) = this {
     })
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Batch read of encrypted PII fields. The canister returns ciphertext only
@@ -1203,7 +765,6 @@ persistent actor class Main(governorInit : Principal) = this {
     await admitAccount(caller);
     auth(caller);
     if (pii_ids.size() > 100) return #Err("Batch too large");
-    if (pii_ids.any(func(id) = reservedMediaIdentity(id, field_id))) return #Err("Reserved or invalid PII identity");
     let epoch = mediaAuthEpoch;
     let allowedClubs = await resolveAllowedClubs(caller, pii_ids, field_id);
     let allowedCompetitions = await resolveAllowedCompetitions(caller, pii_ids, field_id);
@@ -1244,9 +805,6 @@ persistent actor class Main(governorInit : Principal) = this {
   // lets a verified guardian extend read access (e.g. to a co-guardian)
   // without needing domain-owner rights over the whole id space.
   public shared ({ caller }) func grant_pii_read(pii_id : Text, field_id : Text, reader : Principal) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1269,8 +827,6 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Registers a verified guardian relationship: `guardian` may thereafter
@@ -1280,9 +836,6 @@ persistent actor class Main(governorInit : Principal) = this {
   // guardian (self-registration — a caller can never claim guardianship on
   // another principal's behalf).
   public shared ({ caller }) func add_guardian_relationship(guardian : Principal, child_id : Text) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1312,17 +865,12 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Removes a guardian relationship. Callable by the governor, or by the
   // guardian themself (a guardian may always revoke their own standing
   // link, e.g. after a custody change).
   public shared ({ caller }) func remove_guardian_relationship(guardian : Principal, child_id : Text) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1335,16 +883,10 @@ persistent actor class Main(governorInit : Principal) = this {
       guardian_relationships.map(func(g) = if (g.guardian.equal(guardian)) { { g with children = g.children.filter(func(c) = c != child_id) } } else { g }),
       func(g) = g.children.size() > 0
     );
-    // Drop the display-only label when the guardian has no children left.
-    if (not guardian_relationships.any(func(g) = g.guardian.equal(guardian))) {
-      guardianLabels := guardianLabels.filter(func(l) = not l.guardian.equal(guardian));
-    };
     log_audit(caller, child_id, "guardian_relationship", "remove", true, "Guardian relationship removed");
     #Ok
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Lists the pii_ids (children) the caller is a verified guardian of.
@@ -1363,9 +905,6 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func revoke_pii_read(pii_id : Text, field_id : Text, reader : Principal) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1382,45 +921,30 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Sets the club_domain canister used to verify club membership for
   // club-scoped read grants. Governor only; must be called by the deploy
   // script after all canisters are created.
   public shared ({ caller }) func set_club_domain_canister(canister : Principal) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor only");
     if (canister.equal(Principal.anonymous())) return #Err("Invalid canister");
     club_domain_canister := ?canister;
     mediaAuthEpoch += 1;
     #Ok
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_competition_domain_canister(canister : Principal) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor only");
     if (canister.equal(Principal.anonymous())) return #Err("Invalid canister");
     mediaAuthEpoch += 1;
     competition_domain_canister := ?canister;
     #Ok
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func grant_pii_read_competition(pii_id : Text, field_id : Text, competition_id : Text) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1463,14 +987,9 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func revoke_pii_read_competition(pii_id : Text, field_id : Text, competition_id : Text) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1487,17 +1006,12 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Grants every member of `club_id` (verified via club_domain at read
   // time) read access to one record — e.g. a child's name so coaches can
   // render event rosters. Governor or the record's domain owner only.
   public shared ({ caller }) func grant_pii_read_club(pii_id : Text, field_id : Text, club_id : Text) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1518,15 +1032,10 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Removes a club-scoped read grant. Governor or domain owner only.
   public shared ({ caller }) func revoke_pii_read_club(pii_id : Text, field_id : Text, club_id : Text) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1544,8 +1053,6 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Removes every club-scoped read grant for a permanently deleted club.
@@ -1555,9 +1062,6 @@ persistent actor class Main(governorInit : Principal) = this {
   // event-creator-owned, not club-owned — but without a grant no club
   // member can ever derive a vetKey for them again.
   public shared ({ caller }) func purge_club_grants(club_id : Text) : async { #Ok : Nat32; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (isFenced(club_id)) return #Err("Club is temporarily locked for a transfer");
     switch (club_domain_canister) {
       case null { return #Err("club_domain canister not configured") };
@@ -1567,24 +1071,18 @@ persistent actor class Main(governorInit : Principal) = this {
     let before = club_read_grants.size();
     mediaAuthEpoch += 1;
     club_read_grants := club_read_grants.filter(func(g) = g.club_id != club_id);
-    pii_records := pii_records.filter(func r = r.field_id != clubNameField(club_id));
     privateMediaAuthorities.remove(club_id);
     // Permanent deletion is not a transfer: neither authority may survive
     // identifier reuse. Existing owner records remain independently owned.
     clubMediaAuthorities.remove(club_id);
     log_audit(caller, club_id, "*", "purge_club_grants", true, "Club read grants purged for deleted club");
     #Ok(Nat.toNat32(before - club_read_grants.size()))
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func delete_pii(
     pii_id : Text,
     field_id : Text
   ) : async { #Ok : PiiDeleteResult; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1601,7 +1099,7 @@ persistent actor class Main(governorInit : Principal) = this {
         // Remove the record (cryptographic erasure)
         mediaAuthEpoch += 1;
         pii_records := Array.filter<PiiRecord>(pii_records, func(rec) {
-          not (rec.pii_id == pii_id and (rec.field_id == field_id or (field_id == "display_name" and Text.startsWith(rec.field_id, #text "club_display_name:"))))
+          not (rec.pii_id == pii_id and rec.field_id == field_id)
         });
 
         let now = now_ns();
@@ -1618,8 +1116,6 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared query ({ caller }) func audit_access(filter : AuditFilter) : async [AuditRecord] {
@@ -1653,9 +1149,6 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func emergency_shutdown() : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     auth(caller);
     if (not isGovernor(caller)) { return #Err("Governor only") };
 
@@ -1674,8 +1167,6 @@ persistent actor class Main(governorInit : Principal) = this {
 
     log_audit(caller, "system", "emergency", "shutdown", true, "Emergency shutdown executed");
     #Ok
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Governor-only: moves every stored reference of one user's sign-in ID (old) to a new one.
@@ -1688,29 +1179,18 @@ persistent actor class Main(governorInit : Principal) = this {
   // (canister wiring), ClubReadGrant.club_id / PiiRecord.pii_id / field_id /
   // GuardianRelationship.children (content/club ids, not user identities).
   public shared ({ caller }) func rekey_principal(old : Principal, new : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     rekeyImpl(caller, old, new, dry_run, false)
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Same as rekey_principal, but allowed when the new sign-in ID already has data:
   // both IDs' records end up under the new one (keyed duplicates keep the new row).
   public shared ({ caller }) func merge_principal(old : Principal, new : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     rekeyImpl(caller, old, new, dry_run, true)
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   func rekeyImpl(caller : Principal, old : Principal, new : Principal, dry_run : Bool, allowMerge : Bool) : { #ok : Nat; #err : Text } {
     auth(caller);
     if (not isGovernor(caller)) return #err("Forbidden");
-    if (private_name_cleanup_receipts.values().any(func saved = saved.receipt.subject == old or saved.receipt.subject == new)) return #err("Name cleanup receipts bind exact identifiers; rekey requires separately verified recovery");
     if (old.equal(Principal.anonymous()) or new.equal(Principal.anonymous())) return #err("Invalid principal");
     if (removalReceiver.denied(old) or removalReceiver.denied(new)) return #err("Removed identity cannot be rekeyed or merged");
     if (old.equal(new)) return #err("old and new principal must differ");
@@ -1776,27 +1256,12 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { guardian_relationships };
     };
 
-    // Display-only guardian labels follow the rekey; an existing label on the
-    // new principal stays authoritative.
-    let newGuardianLabels = switch (guardianLabels.find(func(l : GuardianLabel) : Bool = l.guardian.equal(old))) {
-      case (?ol) {
-        changed += 1;
-        if (guardianLabels.any(func(l : GuardianLabel) : Bool = l.guardian.equal(new))) {
-          guardianLabels.filter(func(l : GuardianLabel) : Bool = not l.guardian.equal(old))
-        } else {
-          guardianLabels.map(func(l : GuardianLabel) : GuardianLabel = if (l.guardian.equal(old)) { { l with guardian = new } } else l)
-        };
-      };
-      case null { guardianLabels };
-    };
-
     if (not dry_run) {
       mediaAuthEpoch += 1;
       pii_records := newPiiRecords;
       audit_log := newAuditLog;
       mediaAuthEpoch += 1;
       guardian_relationships := newGuardianRelationships;
-      guardianLabels := newGuardianLabels;
     };
 
     #ok(changed)
@@ -1804,9 +1269,6 @@ persistent actor class Main(governorInit : Principal) = this {
 
   // Protected consensus reads for the opt-in local account-removal rehearsal.
   public shared ({ caller }) func read_account_my_guardian_children() : async [Text] {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1822,14 +1284,9 @@ persistent actor class Main(governorInit : Principal) = this {
     out
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_audit_access(filter : AuditFilter) : async [AuditRecord] {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     if (not removalReceiver.enter(caller)) Runtime.trap("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1861,37 +1318,20 @@ persistent actor class Main(governorInit : Principal) = this {
     })
   
     } finally { removalReceiver.leave(caller) };
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   
   public shared ({ caller }) func prepare_account_removal(request : RemovalReceiver.Request) : async { #Ok; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     let fresh = removal_intents.get(request.account_id) == null;
     switch (removalReceiver.prepare(caller, request)) {
       case (#Err(message)) #Err(message);
       case (#Ok) { if (fresh) mediaAuthEpoch += 1; #Ok }
     }
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func read_account_removal_drain(request : RemovalReceiver.Request) : async { #Ok : RemovalReceiver.Receipt; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     removalReceiver.receipt(caller, request, Principal.fromActor(this), 0)
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func seal_account_removal(request : RemovalReceiver.Request) : async { #Ok : RemovalReceiver.Receipt; #Err : Text } {
-    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
-    try {
-
     removalReceiver.seal(caller, request, Principal.fromActor(this), 0)
-  
-    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 };

@@ -1,10 +1,8 @@
 import AccountAdmission "../../shared/AccountAdmission";
-import BroadcastErasure "../../shared/BroadcastErasure";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
 import Map "mo:core/Map";
 import Error "mo:core/Error";
-import Iter "mo:core/Iter";
 import PrimMem "mo:⛔";
 import Cycles "mo:core/Cycles";
 import Array "mo:core/Array";
@@ -64,10 +62,6 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   var items : [Types.Notification];
-  var competitionBroadcastReceipts : Map.Map<Text, { club : Text; related : Text; body : Text; count : Nat16 }>;
-  var competitionBroadcastAudiences : Map.Map<Text, [Text]>;
-  var broadcastErasureSubjects : Map.Map<Principal, [Principal]>;
-  var erasedCompetitionBroadcasts : Map.Map<Text, Bool>;
   var leases : [Types.Lease];
   var governor : ?Principal;
 
@@ -149,16 +143,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   };
   func scheduledFenced(id : Text) : Bool = transferFences.size() > 0 and scheduled.any(func(x) = x.id == id and (switch (x.club_id) { case (?c) isFenced(c); case null false }));
-  type BroadcastReceipt = { club : Text; related : Text; body : Text; count : Nat16 };
-  type FenceSnapshot = { broadcast_proofs : ?[(Text, BroadcastReceipt, [Text])]; items : [Types.Notification]; scheduled : [Types.ScheduledMessage] };
+  type FenceSnapshot = { items : [Types.Notification]; scheduled : [Types.ScheduledMessage] };
   func fenceSnapshot(c : Text) : FenceSnapshot {
 
-    { broadcast_proofs = ?Map.entries(competitionBroadcastReceipts).filter(func pair = pair.1.club == c).map(func pair = (pair.0, pair.1, Map.get(competitionBroadcastAudiences, Text.compare, pair.0) ?? [])).toArray(); items = items.filter(func(x) = x.club == c);
+    { items = items.filter(func(x) = x.club == c);
       scheduled = scheduled.filter(func(x) = x.club_id == ?c) }
   };
   func fenceDrop(c : Text) {
     if (items.any(func(x) = x.club == c and x.status == #Processing)) Runtime.trap("Unsettled delivery must be retained");
-    for ((key, r) in Map.entries(competitionBroadcastReceipts).toArray().values()) if (r.club == c) { Map.remove(competitionBroadcastReceipts, Text.compare, key); Map.remove(competitionBroadcastAudiences, Text.compare, key) };
     items := items.filter(func(x) = not (x.club == c));
     scheduled := scheduled.filter(func(x) = not (x.club_id == ?c));
   };
@@ -174,12 +166,6 @@ persistent actor class Main(governorInit : Principal) = this {
     let decoded : ?FenceSnapshot = from_candid (snapshot);
     let s = switch (decoded) { case (?x) x; case null return #Err("Invalid snapshot") };
     let c = club;
-    let proofs = s.broadcast_proofs ?? [];
-    if (proofs.any(func pair = erasedCompetitionBroadcasts.get(pair.0) != null)) return #Err("Snapshot restores terminal broadcast proof");
-    if (proofs.any(func pair = switch (Map.get(competitionBroadcastReceipts, Text.compare, pair.0)) { case (?old) old != pair.1 or Map.get(competitionBroadcastAudiences, Text.compare, pair.0) != ?pair.2; case null false })) return #Err("Snapshot must not replace original broadcast proof");
-    if (s.broadcast_proofs == null and Map.entries(competitionBroadcastReceipts).any(func pair = pair.1.club == club)) return #Err("Legacy snapshot omits broadcast proof");
-    if (proofs.any(func pair = pair.1.club != club or pair.2.any(recipientFenced))) return #Err("Foreign or fenced broadcast proof");
-    if (proofs.any(func pair = switch (Map.get(competitionBroadcastReceipts, Text.compare, pair.0)) { case (?r) r.club != club; case null false })) return #Err("Broadcast proof key collision");
 
     if (s.items.any(func(x) = not (x.club == c))
         or s.scheduled.any(func(x) = not (x.club_id == ?c))) return #Err("Snapshot contains foreign records");
@@ -189,7 +175,6 @@ persistent actor class Main(governorInit : Principal) = this {
     fenceDrop(club); // idempotent replace
     items := items.concat(s.items);
     scheduled := scheduled.concat(s.scheduled);
-    for ((key, r, audience) in proofs.values()) { Map.add(competitionBroadcastReceipts, Text.compare, key, r); Map.add(competitionBroadcastAudiences, Text.compare, key, audience) };
     #Ok(s.items.size())
   };
   public shared ({ caller }) func purge_club_snapshot(club : Text) : async { #Ok : Nat; #Err : Text } {
@@ -253,8 +238,8 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (clubDomainCanister) {
       case null { #Err("club_domain canister not configured") };
       case (?cd) {
-        let clubDomain = actor (Principal.toText(cd)) : actor { read_account_is_app_admin : shared (Principal) -> async Bool };
-        let isAdmin = try { await (with timeout = 20) clubDomain.read_account_is_app_admin(caller) } catch (_) { false };
+        let clubDomain = actor (Principal.toText(cd)) : actor { is_app_admin : shared query (Principal) -> async Bool };
+        let isAdmin = try { await clubDomain.is_app_admin(caller) } catch (_) { false };
         if (isAdmin) { #Ok } else { #Err("App admin required") };
       };
     };
@@ -429,7 +414,6 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   func recipientAllowed(user : Text, kind : Text) : Bool {
-    if (recipientFenced(user)) return false;
     switch (findPreference(user)) {
       case (?prefs) { categoryAllowed(prefs, kind) };
       case null { true };
@@ -468,8 +452,6 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     let trustedService = clubDomainCanister == ?caller or messagingDomainCanister == ?caller;
-    if (kind == "competition_broadcast") return #Err("Use trusted competition broadcast relay");
-    if ((kind == "photo_uploaded" or kind == "photo_comment" or kind == "photo_reaction" or kind == "comment_reply") and clubDomainCanister != ?caller) return #Err("Trusted gallery relay required");
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (isFenced(club)) return #Err("Club is temporarily locked for a transfer");
     authenticated(caller);
@@ -529,8 +511,6 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     let trustedService = clubDomainCanister == ?caller or messagingDomainCanister == ?caller;
-    if (kind == "competition_broadcast") return #Err("Use trusted competition broadcast relay");
-    if ((kind == "photo_uploaded" or kind == "photo_comment" or kind == "photo_reaction" or kind == "comment_reply") and clubDomainCanister != ?caller) return #Err("Trusted gallery relay required");
     if (not trustedService) do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (isFenced(club)) return #Err("Club is temporarily locked for a transfer");
     authenticated(caller);
@@ -609,88 +589,6 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(created)
   
     } finally { removalReceiver.leave(caller) };
-  };
-
-  public shared ({ caller }) func enqueue_competition_broadcast(users : [Text], club : Text, related : Text, body : Text, key : Text) : async { #Ok : Nat16; #Err : Text } {
-    if (clubDomainCanister != ?caller or isFenced(club)) return #Err("Trusted club relay required");
-    if (users.size() > 500 or body.size() > 4000 or not valid(club) or not valid(related) or key.size() > 512) return #Err("Invalid broadcast scope");
-    let receiptKey = club # "\u{1f}" # key;
-    if (erasedCompetitionBroadcasts.get(receiptKey) != null) return #Err("Broadcast proof terminally erased; no replay");
-    if (users.any(recipientFenced)) return #Err("Broadcast recipient cleanup pending");
-    let audience = users.sort(Text.compare);
-    if (audience.any(func user = not valid(user))) return #Err("Invalid broadcast recipient");
-    switch (Map.get(competitionBroadcastReceipts, Text.compare, receiptKey)) {
-      case (?r) {
-        if (r.club != club or r.related != related or r.body != body) return #Err("Broadcast receipt conflict");
-        if (Map.get(competitionBroadcastAudiences, Text.compare, receiptKey) != ?audience) return #Err("Broadcast audience receipt conflict");
-        return #Ok(r.count)
-      };
-      case null {}
-    };
-    if (users.any(func user = not valid(user))) return #Err("Invalid broadcast recipient");
-    var count : Nat16 = 0;
-    let stamp = Nat64.fromIntWrap(Time.now() / 1_000_000);
-    // No await between the dedup check, queue writes and permanent receipt.
-    for (user in users.values()) {
-      let id = receiptKey # "-" # user;
-      if (recipientAllowed(user, "competition_broadcast") and get(id) == null) {
-        let item : Types.Notification = { id; user; club; kind = "competition_broadcast"; body; idempotency_key = key; status = #Pending; attempts = 0; next_attempt_ms = 0; read = false; related_id = ?related; created_at_ms = stamp };
-        items := items.concat([item]);
-        count += 1
-      }
-    };
-    Map.add(competitionBroadcastReceipts, Text.compare, receiptKey, { club; related; body; count });
-    Map.add(competitionBroadcastAudiences, Text.compare, receiptKey, audience);
-    #Ok(count)
-  };
-  public shared ({caller}) func read_competition_broadcast_receipt(club:Text,key:Text) : async {#Ok:?{club:Text;related:Text;body:Text;count:Nat16;audience:[Text]};#Err:Text} {
-    if(clubDomainCanister!=?caller)return #Err("Trusted club authority required");
-    let receiptKey=club # "\u{1f}" # key;
-    if (erasedCompetitionBroadcasts.get(receiptKey) != null) return #Err("Broadcast proof terminally erased");
-    let r=Map.get(competitionBroadcastReceipts,Text.compare,receiptKey)??return #Ok(null);
-    let audience=Map.get(competitionBroadcastAudiences,Text.compare,receiptKey)??return #Err("Broadcast audience evidence missing");
-    #Ok(?{club=r.club;related=r.related;body=r.body;count=r.count;audience})
-  };
-
-  // Only the original club relay can retire exact settled proof. Unknown worker
-  // claims remain untouched; a terminal marker prevents enqueue/reconciliation replay.
-  public shared ({ caller }) func retire_competition_broadcast(club : Text, key : Text, audience : [Text], count : Nat16) : async { #Ok; #Err : Text } {
-    if (clubDomainCanister != ?caller) return #Err("Trusted club authority required");
-    let receiptKey = club # "\u{1f}" # key;
-    if (erasedCompetitionBroadcasts.get(receiptKey) != null) return #Ok;
-    let r = competitionBroadcastReceipts.get(receiptKey) ?? return #Err("Original queue proof missing");
-    if (r.count != count or competitionBroadcastAudiences.get(receiptKey) != ?audience) return #Err("Original queue proof differs");
-    if (items.any(func n = n.club == club and n.idempotency_key == key and n.status == #Processing)) return #Err("Worker delivery must settle before erasure");
-    erasedCompetitionBroadcasts.add(receiptKey, true);
-    competitionBroadcastAudiences.remove(receiptKey);
-    #Ok
-  };
-  public shared ({ caller }) func prepare_my_broadcast_erasure() : async { #Ok; #Err : Text } {
-    authenticated(caller);
-    if (fenceGov(caller)) return #Err("Governor erasure forbidden");
-    if (broadcastErasureSubjects.get(caller) != null) return #Ok;
-    let configured = identityAccessCanister;
-    let account = await AccountAdmission.Gate(true, configured).account(caller);
-    if (configured != identityAccessCanister) return #Err("Identity authority changed");
-    let a = account ?? return #Err("Authoritative account aliases unavailable");
-    if (a.principals.size() == 0 or a.principals.size() > 8 or a.principals.any(fenceGov)) return #Err("Invalid erasure account");
-    for (p in a.principals.values()) broadcastErasureSubjects.add(p, a.principals);
-    #Ok
-  };
-  public shared ({ caller }) func purge_my_data() : async { #Ok : Nat; #Err : Text } {
-    authenticated(caller);
-    let subjects = broadcastErasureSubjects.get(caller) ?? return #Err("Prepare broadcast cleanup first");
-    if (items.any(func n = BroadcastErasure.matches(subjects, n.user) and n.status == #Processing)) return #Err("Worker delivery must settle before erasure");
-    if (competitionBroadcastAudiences.entries().any(func pair = pair.1.any(func u = BroadcastErasure.matches(subjects, u)))) return #Err("Original club relay cleanup required before queue erasure");
-    let removed = items.filter(func n = BroadcastErasure.matches(subjects, n.user));
-    for (n in removed.values()) clearLease(n.id);
-    items := items.filter(func n = not BroadcastErasure.matches(subjects, n.user));
-    scheduled := scheduled.filter(func n = not BroadcastErasure.matches(subjects, n.author));
-    preferences := preferences.filter(func n = not BroadcastErasure.matches(subjects, n.user));
-    device_tokens := device_tokens.filter(func n = not BroadcastErasure.matches(subjects, n.user));
-    deviceVersions := deviceVersions.filter(func n = not BroadcastErasure.matches(subjects, n.user));
-    digests := digests.map(func n = { n with mentions = n.mentions.filter(func u = not BroadcastErasure.matches(subjects, u)) });
-    #Ok(removed.size())
   };
 
   // ---- Browser inbox surface ----
@@ -1429,12 +1327,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
 
     do { let removalReply = await admitAccount(caller); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
-    switch (await appAdminOnly(caller)) {
-      case (#Err(e)) throw Error.reject(e);
-      case (#Ok) {};
-    };
-    if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced");
-    if (input.failure_threshold_percent > 100 or input.check_window_hours == 0 or input.cooldown_hours > 8760) throw Error.reject("Invalid alert settings");
+    governorOnly(caller);
     let updated : Types.PushAlertSettings = {
       input with
       updated_at_ms = Nat64.fromIntWrap(Time.now() / 1_000_000);
@@ -1544,19 +1437,6 @@ persistent actor class Main(governorInit : Principal) = this {
     let end = Nat.min(start + Nat32.toNat(boundedLimit), preferences.size());
     let page = Array.tabulate<Types.Preferences>(end - start, func(i) = preferences[start + i]);
     #Ok({ items = page; total = Nat.toNat32(preferences.size()) })
-  };
-
-  public shared ({ caller }) func list_admin_preferences(limit : Nat32, offset : Nat32) : async Types.PreferencesPageResult {
-    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced");
-    try {
-      await admitAccount(caller);
-      switch (await appAdminOnly(caller)) { case (#Err(e)) return #Err(e); case (#Ok) {} };
-      if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced");
-      if (limit == 0 or limit > 500) return #Err("Invalid page size");
-      let start = Nat.min(Nat32.toNat(offset), preferences.size());
-      let end = Nat.min(start + Nat32.toNat(limit), preferences.size());
-      #Ok({ items = Array.tabulate<Types.Preferences>(end - start, func i = preferences[start + i]); total = Nat.toNat32(preferences.size()) })
-    } finally { removalReceiver.leave(caller) }
   };
 
   // ======================================================================
@@ -1765,20 +1645,9 @@ persistent actor class Main(governorInit : Principal) = this {
     conflicts += scheduled.filter(func(s : Types.ScheduledMessage) : Bool = s.author == newText).size();
     conflicts += digests.filter(func(d : Types.DigestItem) : Bool = d.mentions.any(func(m : Text) : Bool = m == newText)).size();
     conflicts += switch (push_settings) { case (?p) { if (p.updated_by == ?newText) { 1 } else { 0 } }; case null { 0 } };
-    for ((_, audience) in Map.entries(competitionBroadcastAudiences)) if (audience.any(func user = user == newText)) conflicts += 1;
     if (conflicts > 0 and not allowMerge) return #err("New sign-in ID already has " # Nat.toText(conflicts) # " record(s) in notification_queue");
 
     var changed = 0;
-    let broadcastAudienceUpdates = Iter.toArray(Map.entries(competitionBroadcastAudiences)).map(func pair {
-      let (key, audience) = pair;
-      if (audience.any(func user = user == oldText)) changed += 1;
-      var canonical : [Text] = [];
-      for (user in audience.values()) {
-        let mapped = if (user == oldText) newText else user;
-        if (not canonical.any(func existing = existing == mapped)) canonical := canonical.concat([mapped]);
-      };
-      (key, canonical.sort(Text.compare))
-    });
 
     let newItems = items.map(func(n : Types.Notification) : Types.Notification {
       if (n.user == oldText) { changed += 1; { n with user = newText } } else { n }
@@ -1848,7 +1717,6 @@ persistent actor class Main(governorInit : Principal) = this {
       device_tokens := dedupedDeviceTokens;
       preferences := newPreferences;
       deviceVersions := newDeviceVersions;
-      for ((key, audience) in broadcastAudienceUpdates.values()) Map.add(competitionBroadcastAudiences, Text.compare, key, audience);
     };
 
     #ok(changed)
@@ -1944,9 +1812,6 @@ persistent actor class Main(governorInit : Principal) = this {
     } finally { removalReceiver.leave(caller) };
   };
   func recipientFenced(user : Text) : Bool {
-    for ((subject, _) in broadcastErasureSubjects.entries()) {
-      if (subject.toText() == user or "principal:" # subject.toText() == user) return true;
-    };
     for ((subject, _) in removal_subjects.entries()) {
       if (subject.toText() == user or "principal:" # subject.toText() == user) return true;
     };

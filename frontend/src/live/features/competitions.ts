@@ -131,21 +131,6 @@ export async function listLiveCompetitions(ctx: FeatureBackendContext, clubId: s
   return unwrapCandid(actor.list_competitions(clubId), "List competitions");
 }
 
-/** Each destination verifies live membership before returning participant cards. */
-export async function listLiveCompetitionCards(ctx: FeatureBackendContext) {
-  const { actor } = await connectLiveCompetitionDomain(ctx.target, ctx.identity);
-  const cards = await unwrapCandid(actor.read_my_competition_cards(), "Read my competitions");
-  return cards.map(({ competition: c, entries }) => ({
-    id: c.id, name: c.name, sport: null, season: c.season, status: c.status,
-    visibility: c.visibility, starts_on: null, ends_on: null,
-    organizer_club_id: c.club_id, source: null, last_synced_at: null, clubs: null,
-    competition_entries: entries.map(e => ({
-      id: `${e.competition_id}:${e.team_id}`, team_id: e.team_id, status: e.status,
-      competition_id: e.competition_id, teams: { club_id: e.club_id, deleted_at: null },
-    })),
-  }));
-}
-
 export async function updateLiveCompetitionSettings(
   ctx: FeatureBackendContext,
   competitionId: string,
@@ -225,18 +210,6 @@ export interface LiveMatchDetailsInput {
   expectedRevision: number;
 }
 
-export async function createLiveFixture(ctx: FeatureBackendContext, operation: string, competitionId: string, input: Omit<LiveMatchDetailsInput, "expectedRevision">) {
-  const { actor } = await connectLiveCompetitionDomain(ctx.target, ctx.identity);
-  const match = await unwrapCandid(actor.create_fixture(operation, {
-    competition_id: competitionId, home_team: input.homeTeamId, away_team: input.awayTeamId,
-    division_id: candidOpt(input.divisionId), scheduled_at_ms: candidOpt(input.scheduledAtMs == null ? null : toNat64(input.scheduledAtMs)),
-    venue: candidOpt(input.venue), pitch_number: candidOpt(input.pitchNumber), round_number: candidOpt(input.roundNumber),
-    duration_minutes: candidOpt(input.durationMinutes), arrival_minutes_before: candidOpt(input.arrivalMinutesBefore), notes: candidOpt(input.notes),
-  }), "Create fixture");
-  if (match.scheduled_at_ms.length) await unwrapCandid(actor.materialize_match_events(match.id), "Synchronize existing fixture events");
-  return match;
-}
-
 /**
  * Fixture detail edit (teams, schedule, venue, division, notes) — the
  * counterpart of the edit-match dialog's Supabase update. Scores stay under
@@ -280,12 +253,6 @@ export async function assignLiveDivision(
     actor.assign_division(competitionId, teamId, candidOpt(divisionId)),
     "Assign division",
   );
-}
-
-export async function moveLiveTeamDivision(ctx: FeatureBackendContext, competitionId: string, teamId: string,
-  expectedDivision: string | null, divisionId: string | null, clearFixtures: boolean) {
-  const { actor } = await connectLiveCompetitionDomain(ctx.target, ctx.identity);
-  return Number(await unwrapCandid(actor.move_team_division(competitionId, teamId, candidOpt(expectedDivision), candidOpt(divisionId), clearFixtures), "Move team division"));
 }
 
 /** Counterpart of the Supabase duplicate_season_structure RPC. */
@@ -421,24 +388,6 @@ export async function registerLiveCompetitionWelcomeJob(
 ) {
   const { actor } = await connectLiveCompetitionDomain(ctx.target, ctx.identity);
   return unwrapCandid(actor.register_competition_welcome_job(token, to), "Register competition welcome email");
-}
-
-/**
- * Registers a pending welcome email for an existing member (e.g. after
- * their team accepts a competition entry). ICP accounts carry no email, so
- * the member supplies their own address; the canister verifies their
- * competition membership and keeps one job per member per competition.
- * The token must be a fresh browser-generated unguessable id — it is the
- * capability the delivery edge function reads the job back with.
- */
-export async function registerLiveMemberWelcomeJob(
-  ctx: FeatureBackendContext,
-  competitionId: string,
-  token: string,
-  to: string,
-) {
-  const { actor } = await connectLiveCompetitionDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.register_member_welcome_job(competitionId, token, to), "Register member welcome email");
 }
 
 export async function setLiveCompetitionChatSettings(
@@ -692,8 +641,8 @@ export async function trimLiveCompetitionRounds(
 /**
  * EOI (expression-of-interest) submissions — competition_domain's
  * eoiSubmissions entity, counterpart of the Supabase eoi_submissions table
- * and its RPCs. Email requests and delivery receipts stay on ICP;
- * only the provider transport is external.
+ * and its RPCs. Resend/bulk-resend email delivery stays on Supabase; only
+ * the bookkeeping (invite_sent_at/count) lives here.
  */
 
 export async function listLiveEoiSubmissions(
@@ -896,7 +845,7 @@ export async function sendLiveCompetitionBroadcast(ctx: FeatureBackendContext, c
 
 export async function listLiveCompetitionBroadcasts(ctx: FeatureBackendContext, competitionId: string) {
   const { actor } = await connectLiveCompetitionDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.read_account_list_competition_broadcasts(competitionId), "List broadcasts");
+  return unwrapCandid(actor.list_competition_broadcasts(competitionId), "List broadcasts");
 }
 
 /**
@@ -990,7 +939,7 @@ export async function syncLiveOfficialChats(
   ]);
   for (const role of ["referee", "committee"] as OfficialRole[]) {
     const scope = OFFICIAL_CHAT_SCOPE[role];
-    const holders = grants.filter((g) => g.role === role || (role === "committee" && g.role === "committee_member")).map((g) => g.user.toText());
+    const holders = grants.filter((g) => g.role === role).map((g) => g.user.toText());
     if (holders.length === 0) continue;
     const existing = chats.find((c) => c.scope === scope);
     const label = role === "referee" ? "Referees" : "Committee";
@@ -1044,25 +993,10 @@ export async function fetchLivePublicCompetitionPage(competitionId: string) {
       import("../domains"),
     ]);
   const target = getActiveIcpTarget();
-  const { readUniquePublicGroup } = await import("../publicGroupReads");
-  const value = await readUniquePublicGroup(target, async scoped => {
-    const { actor } = await connectLiveCompetitionDomain(scoped, new AnonymousIdentity());
-    const result = await actor.get_public_competition_page(competitionId);
-    if ("Err" in result) {
-      if (result.Err === "Competition not found") return null;
-      throw new Error(result.Err);
-    }
-    return result.Ok;
-  });
-  if (!value) throw new Error("Competition not found");
-  return value;
-}
-
-export async function fetchLivePublicRoleLinkPreview(token: string) {
-  const [{ AnonymousIdentity }, { getActiveIcpTarget }, { readUniquePublicGroup }] = await Promise.all([
-    import("@icp-sdk/core/agent"), import("../targetRegistry"), import("../publicGroupReads"),
-  ]);
-  return readUniquePublicGroup(getActiveIcpTarget(), target => getLiveRoleLinkPreview({ target, identity: new AnonymousIdentity() }, token));
+  const { actor } = await connectLiveCompetitionDomain(target, new AnonymousIdentity());
+  const result = await actor.get_public_competition_page(competitionId);
+  if (result.__kind__ === "Err") throw new Error(result.Err);
+  return result.Ok;
 }
 
 export async function getLiveScorePrivacy(ctx: FeatureBackendContext, competitionId: string) {

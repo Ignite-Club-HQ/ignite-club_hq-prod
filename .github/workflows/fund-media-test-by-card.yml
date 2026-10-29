@@ -12,7 +12,7 @@ on:
       scenario:
         description: 'Test you plan to fund'
         type: choice
-        options: [ smoke, mixed, tiny ]
+        options: [smoke, mixed, tiny]
         default: smoke
       budget_t:
         description: 'Same whole T funding ceiling as your test (2–20), including creation fee'
@@ -79,4 +79,3 @@ jobs:
           path: ${{ runner.temp }}/media-card-report/
           if-no-files-found: warn
           retention-days: 90
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_FUND_MEDIA_TEST_BY_CARD_ENABLED == 'true') }}

@@ -10,10 +10,6 @@ const aiCatchUpSource = readFileSync(
   resolve(process.cwd(), "src/pages/AdminAICatchUpPage.tsx"),
   "utf8",
 );
-const reminderOperations = readFileSync(
-  resolve(process.cwd(), "src/live/adminMessagingOperations.ts"),
-  "utf8",
-);
 
 describe("AdminChatPhotoRemindersPage ICP wiring", () => {
   it("no longer gates the page behind IcpUnavailablePage", () => {
@@ -24,14 +20,11 @@ describe("AdminChatPhotoRemindersPage ICP wiring", () => {
   it("reads the scheduler-owned settings instead of an unrelated settings store", () => {
     expect(chatPhotoSource).toContain('withFeatureBackend("messaging"');
     expect(chatPhotoSource).toContain('await import("@/live/features/messaging")');
-    expect(chatPhotoSource).toContain("readAdminPhotoReminderSettings()");
-    expect(reminderOperations).toContain("getLiveChatPhotoReminderSettings(ctx)");
-    expect(reminderOperations).toContain("everyGroup: true, requireComplete: true");
+    expect(chatPhotoSource).toContain("getLiveChatPhotoReminderSettings(ctx)");
   });
 
   it("writes the scheduler-owned settings", () => {
-    expect(chatPhotoSource).toContain("saveAdminPhotoReminderSettings(");
-    expect(reminderOperations).toContain("setLiveChatPhotoReminderSettings(ctx, { ...policy })");
+    expect(chatPhotoSource).toContain("setLiveChatPhotoReminderSettings(ctx, form)");
   });
 });
 

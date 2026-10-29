@@ -146,30 +146,6 @@ export interface EoiTeamSuggestion {
   'submission_ids' : Array<string>,
   'age_group' : string,
 }
-export interface Input {
-  'round_number' : [] | [number],
-  'venue' : [] | [string],
-  'duration_minutes' : [] | [number],
-  'home_team' : string,
-  'notes' : [] | [string],
-  'pitch_number' : [] | [string],
-  'scheduled_at_ms' : [] | [bigint],
-  'away_team' : string,
-  'division_id' : [] | [string],
-  'arrival_minutes_before' : [] | [number],
-  'competition_id' : string,
-}
-export interface Job {
-  'id' : string,
-  'resource' : string,
-  'ciphertext' : string,
-  'attempt' : bigint,
-  'kind' : string,
-  'provider_id' : string,
-  'created_at_ms' : bigint,
-  'state' : string,
-  'worker' : [] | [Principal],
-}
 export interface JoinLinkPreview {
   'competition_status' : string,
   'name' : string,
@@ -204,11 +180,6 @@ export interface Main {
     { 'Ok' : RoleGrant } |
       { 'Err' : string }
   >,
-  'activate_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'addBulkAccessPrincipal' : ActorMethod<
     [Principal],
     { 'Ok' : null } |
@@ -240,26 +211,6 @@ export interface Main {
       { 'Err' : string }
   >,
   'can_invite_players_to_team' : ActorMethod<[string], boolean>,
-  'check_my_broadcast_erasure' : ActorMethod<
-    [],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'claim_email_job' : ActorMethod<
-    [],
-    {
-        'Ok' : [] | [
-          {
-            'to' : string,
-            'job' : Job,
-            'token' : string,
-            'subject' : string,
-            'body' : string,
-          }
-        ]
-      } |
-      { 'Err' : string }
-  >,
   'claim_eoi_by_token' : ActorMethod<
     [string],
     { 'Ok' : EoiSubmission } |
@@ -273,11 +224,6 @@ export interface Main {
   'claim_playhq_player' : ActorMethod<
     [string, string, string],
     { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'compact_email_jobs' : ActorMethod<
-    [[] | [string], bigint],
-    { 'Ok' : { 'scanned' : bigint, 'next_cursor' : [] | [string] } } |
       { 'Err' : string }
   >,
   'competition_engagement_summary' : ActorMethod<
@@ -320,11 +266,6 @@ export interface Main {
     { 'Ok' : CompetitionJoinLink } |
       { 'Err' : string }
   >,
-  'create_fixture' : ActorMethod<
-    [string, Input],
-    { 'Ok' : Match } |
-      { 'Err' : string }
-  >,
   'create_personal_competition' : ActorMethod<
     [string, string],
     { 'Ok' : Competition } |
@@ -362,21 +303,6 @@ export interface Main {
       { 'Err' : string }
   >,
   'export_state' : ActorMethod<[], { 'Ok' : State } | { 'Err' : string }>,
-  'finish_email_job' : ActorMethod<
-    [string, bigint, string, string],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'finish_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'freeze_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'get_chat_settings' : ActorMethod<
     [string],
     { 'Ok' : ChatSettings } |
@@ -421,19 +347,6 @@ export interface Main {
   'get_join_link_preview' : ActorMethod<
     [string],
     { 'Ok' : JoinLinkPreview } |
-      { 'Err' : string }
-  >,
-  'get_member_welcome_email_job' : ActorMethod<
-    [string],
-    {
-        'Ok' : {
-          'to' : string,
-          'subject' : string,
-          'competition_name' : string,
-          'message' : string,
-          'competition_id' : string,
-        }
-      } |
       { 'Err' : string }
   >,
   'get_my_pending_eois' : ActorMethod<
@@ -516,11 +429,6 @@ export interface Main {
     { 'Ok' : TeamEntry } |
       { 'Err' : string }
   >,
-  'link_playhq_competition' : ActorMethod<
-    [string, string, string, string, string, [] | [string]],
-    { 'Ok' : Competition } |
-      { 'Err' : string }
-  >,
   'listBulkAccessPrincipals' : ActorMethod<
     [],
     { 'Ok' : Array<Principal> } |
@@ -601,15 +509,6 @@ export interface Main {
     { 'Ok' : Array<OfficialChat> } |
       { 'Err' : string }
   >,
-  'list_playhq_competitions' : ActorMethod<
-    [string],
-    {
-        'Ok' : Array<
-          { 'link' : PlayHQCompetitionLink, 'competition' : Competition }
-        >
-      } |
-      { 'Err' : string }
-  >,
   'list_public_competitions' : ActorMethod<
     [],
     { 'Ok' : Array<Competition> } |
@@ -629,40 +528,14 @@ export interface Main {
     [],
     { 'memory_bytes' : bigint, 'stable_bytes' : bigint, 'heap_bytes' : bigint }
   >,
-  'move_team_division' : ActorMethod<
-    [string, string, [] | [string], [] | [string], boolean],
-    { 'Ok' : bigint } |
-      { 'Err' : string }
-  >,
-  'open_private_name_writer_window' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'prepare_account_removal' : ActorMethod<
-    [Request__1],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'prepare_my_broadcast_erasure' : ActorMethod<
-    [],
+    [Request],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
   'purge_club_snapshot' : ActorMethod<
     [string],
     { 'Ok' : bigint } |
-      { 'Err' : string }
-  >,
-  'purge_my_data' : ActorMethod<[], { 'Ok' : bigint } | { 'Err' : string }>,
-  'queue_competition_broadcast' : ActorMethod<
-    [string, string, Array<string>, string, string],
-    { 'Ok' : bigint } |
-      { 'Err' : string }
-  >,
-  'queue_official_invite_email' : ActorMethod<
-    [string, string],
-    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'read_account_can_invite_players_to_team' : ActorMethod<[string], boolean>,
@@ -741,23 +614,13 @@ export interface Main {
       { 'Err' : string }
   >,
   'read_account_removal_drain' : ActorMethod<
-    [Request__1],
+    [Request],
     { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
   'read_competition_club' : ActorMethod<
     [string],
     { 'Ok' : [] | [string] } |
-      { 'Err' : string }
-  >,
-  'read_competition_welcome_message' : ActorMethod<
-    [string],
-    { 'Ok' : [] | [{ 'subject' : string, 'message' : string }] } |
-      { 'Err' : string }
-  >,
-  'read_fixture_operation' : ActorMethod<
-    [string],
-    { 'Ok' : [] | [Receipt__2] } |
       { 'Err' : string }
   >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
@@ -782,15 +645,6 @@ export interface Main {
     { 'Ok' : boolean } |
       { 'Err' : string }
   >,
-  'read_my_competition_cards' : ActorMethod<
-    [],
-    {
-        'Ok' : Array<
-          { 'entries' : Array<TeamEntry>, 'competition' : Competition }
-        >
-      } |
-      { 'Err' : string }
-  >,
   'read_playhq_stats' : ActorMethod<
     [string],
     {
@@ -800,47 +654,6 @@ export interface Main {
           >,
           'stats' : Array<PlayHQStat>,
           'matches' : Array<PlayHQMatchMeta>,
-        }
-      } |
-      { 'Err' : string }
-  >,
-  'read_private_admin_thread_participants' : ActorMethod<
-    [Principal, string],
-    { 'Ok' : Array<Principal> } |
-      { 'Err' : string }
-  >,
-  'read_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : Receipt__1 } |
-      { 'Err' : string }
-  >,
-  'read_private_name_writer_window' : ActorMethod<
-    [Request],
-    { 'Ok' : Receipt__1 } |
-      { 'Err' : string }
-  >,
-  'read_profile_admin_thread_batch' : ActorMethod<
-    [Principal, string, Principal, Array<Principal>, [] | [bigint]],
-    {
-        'Ok' : {
-          'requester' : Principal,
-          'members' : Array<boolean>,
-          'subjects' : Array<Principal>,
-          'club' : string,
-          'revision' : bigint,
-        }
-      } |
-      { 'Err' : string }
-  >,
-  'read_profile_audience_batch' : ActorMethod<
-    [Principal, string, Array<Principal>, [] | [bigint]],
-    {
-        'Ok' : {
-          'requester' : Principal,
-          'members' : Array<boolean>,
-          'subjects' : Array<Principal>,
-          'club' : string,
-          'revision' : bigint,
         }
       } |
       { 'Err' : string }
@@ -855,11 +668,6 @@ export interface Main {
     { 'Ok' : [] | [string] } |
       { 'Err' : string }
   >,
-  'reconcile_email_job' : ActorMethod<
-    [string, bigint, string],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'record_match' : ActorMethod<
     [string, string, string],
     { 'Ok' : Match } |
@@ -867,11 +675,6 @@ export interface Main {
   >,
   'register_competition_welcome_job' : ActorMethod<
     [string, string],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'register_member_welcome_job' : ActorMethod<
-    [string, string, string],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -931,13 +734,8 @@ export interface Main {
       { 'Err' : string }
   >,
   'seal_account_removal' : ActorMethod<
-    [Request__1],
-    { 'Ok' : Receipt } |
-      { 'Err' : string }
-  >,
-  'seal_private_name_writer_window' : ActorMethod<
     [Request],
-    { 'Ok' : null } |
+    { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
   'send_competition_broadcast' : ActorMethod<
@@ -967,11 +765,6 @@ export interface Main {
   'set_division_hide_ladder' : ActorMethod<
     [string, string, boolean],
     { 'Ok' : DivisionSetting } |
-      { 'Err' : string }
-  >,
-  'set_email_workers' : ActorMethod<
-    [Array<Principal>],
-    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'set_events_domain_canister' : ActorMethod<
@@ -1154,14 +947,6 @@ export interface OfficialChat {
   'scope' : string,
   'competition_id' : string,
 }
-export interface PlayHQCompetitionLink {
-  'grade_id' : string,
-  'last_synced_at_ms' : [] | [bigint],
-  'sport' : [] | [string],
-  'tenant' : string,
-  'competition_id' : string,
-  'club_id' : string,
-}
 export interface PlayHQMatchMeta {
   'grade_id' : string,
   'home_id' : string,
@@ -1186,27 +971,10 @@ export interface PlayHQStat {
 }
 export interface Receipt {
   'outstanding' : bigint,
-  'request' : Request__1,
-  'receiver' : Principal,
-}
-export interface Receipt__1 {
-  'active' : bigint,
   'request' : Request,
-  'sealed' : boolean,
-  'closing' : boolean,
   'receiver' : Principal,
-}
-export interface Receipt__2 {
-  'creator' : Principal,
-  'input' : Input,
-  'match_id' : string,
 }
 export interface Request {
-  'inventory_digest' : Uint8Array,
-  'generation' : bigint,
-  'operation_id' : string,
-}
-export interface Request__1 {
   'account_id' : string,
   'inventory_digest' : Uint8Array,
   'subjects' : Array<Principal>,

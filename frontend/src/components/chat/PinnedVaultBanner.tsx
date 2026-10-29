@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { hapticSelectionTick } from "@/lib/haptics";
 import type { PinnedVaultRecord } from "@/hooks/useChatPinnedVault";
-import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import { resolveAuthBackend } from "@/live/authBackendMode";
 
 interface PinnedVaultBannerProps {
   record: PinnedVaultRecord | null;
@@ -22,7 +22,7 @@ interface ResolvedTarget {
 }
 
 async function resolveTarget(record: PinnedVaultRecord): Promise<ResolvedTarget | null> {
-  if (isFeatureRoutedToIcp('vault')) {
+  if (resolveAuthBackend() === "icp") {
     const { withFeatureBackend } = await import("@/live/featureRouter");
     if (record.vault_file_id) {
       return withFeatureBackend("vault", {

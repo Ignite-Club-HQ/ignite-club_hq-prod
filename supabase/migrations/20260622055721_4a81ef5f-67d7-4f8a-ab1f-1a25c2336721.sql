@@ -1,1 +1,0 @@
-ALTER TABLE public.clubs ADD COLUMN IF NOT EXISTS media_sponsors_enabled boolean NOT NULL DEFAULT false;

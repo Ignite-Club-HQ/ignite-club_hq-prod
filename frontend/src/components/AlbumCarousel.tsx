@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Images } from "lucide-react";
 import { LazyImage } from "@/components/LazyImage";
 import { cn } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export interface AlbumCarouselPhoto {
   id: string;
@@ -10,8 +9,6 @@ export interface AlbumCarouselPhoto {
   image_url?: string | null;
   title?: string | null;
   caption?: string | null;
-  /** Retrieval/decryption has not completed; not an absent photo. */
-  loading?: boolean;
 }
 
 interface AlbumCarouselProps {
@@ -147,11 +144,11 @@ export function AlbumCarousel({
             className="relative shrink-0 w-full snap-center aspect-square bg-muted cursor-pointer"
             style={{ scrollSnapAlign: "center", scrollSnapStop: "always", minWidth: "100%" }}
           >
-            {p.loading ? <Skeleton className="absolute inset-0 h-full w-full rounded-none" aria-label="Photo loading" /> : <LazyImage
+            <LazyImage
               src={p.file_url || p.image_url}
               alt={p.title || p.caption || "Photo"}
               priority={priority && i === 0}
-            />}
+            />
           </div>
         ))}
       </div>

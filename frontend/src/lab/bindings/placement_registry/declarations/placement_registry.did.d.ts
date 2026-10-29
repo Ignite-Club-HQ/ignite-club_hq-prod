@@ -10,7 +10,7 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface AuditEvent {
+export interface audit_event {
   'id' : bigint,
   'action' : string,
   'at_ns' : bigint,
@@ -19,113 +19,107 @@ export interface AuditEvent {
   'caller' : Principal,
   'club_id' : [] | [string],
 }
-export interface AuditPage {
+export interface audit_page {
   'next' : [] | [bigint],
-  'events' : Array<AuditEvent>,
+  'events' : Array<audit_event>,
 }
-export interface Availability {
+export interface availability {
   'icp_enabled' : boolean,
   'version' : bigint,
   'supabase_enabled' : boolean,
 }
-export type Backend = { 'Icp' : { 'canister' : Principal } } |
+export type backend = { 'Icp' : { 'canister' : Principal } } |
   { 'Supabase' : { 'environment' : string } };
-export type BackendKind = { 'Icp' : null } |
+export type backend_kind = { 'Icp' : null } |
   { 'Supabase' : null };
-export interface Decision {
+export interface decision {
   'writable' : boolean,
-  'placement' : Placement,
+  'placement' : placement,
   'country_allowed' : boolean,
   'backend_enabled' : boolean,
   'reason' : string,
 }
-export interface Init { 'governor' : Principal }
-export interface MemoryStats {
-  'memory_bytes' : bigint,
-  'stable_bytes' : bigint,
-  'heap_bytes' : bigint,
+export interface init { 'governor' : Principal }
+export interface operator_record {
+  'user' : Principal,
+  'roles' : Array<operator_role>,
 }
-export interface Operator { 'user' : Principal, 'roles' : Array<OperatorRole> }
-export type OperatorRole = { 'Auditor' : null } |
+export type operator_role = { 'Auditor' : null } |
   { 'PlacementAdmin' : null } |
   { 'SecurityAdmin' : null } |
   { 'InfrastructureAdmin' : null } |
   { 'MigrationOperator' : null };
-export interface Page {
-  'placements' : Array<Placement>,
+export interface page {
+  'placements' : Array<placement>,
   'next' : [] | [string],
   'registry_version' : bigint,
 }
-export interface Placement {
+export interface placement {
   'country' : string,
   'version' : bigint,
-  'state' : PlacementState,
+  'state' : placement_state,
   'club_id' : string,
-  'backend' : Backend,
+  'backend' : backend,
 }
-export type PlacementState = { 'Blocked' : null } |
+export type placement_state = { 'Blocked' : null } |
   { 'Active' : null } |
   { 'ReadOnly' : null } |
   { 'MigrationRequired' : null };
-export interface Policy {
+export interface policy {
   'country' : string,
   'icp_enabled' : boolean,
   'version' : bigint,
   'supabase_enabled' : boolean,
 }
-export interface ResidencyAssignment {
+export interface residency_assignment {
   'version' : bigint,
   'target_alias' : string,
   'club_id' : string,
   'profile' : string,
 }
-export interface ResidencyPolicy {
+export interface residency_policy {
   'country' : string,
   'allowed_profiles' : Array<string>,
   'version' : bigint,
 }
-export type Result = { 'Ok' : null } |
+export type result_audit_page = { 'Ok' : audit_page } |
   { 'Err' : string };
-export type Result_1 = { 'Ok' : [] | [Decision] } |
+export type result_availability = { 'Ok' : availability } |
   { 'Err' : string };
-export type Result_10 = { 'Ok' : AuditPage } |
+export type result_bool = { 'Ok' : boolean } |
   { 'Err' : string };
-export type Result_11 = { 'Ok' : Page } |
+export type result_decision = { 'Ok' : [] | [decision] } |
   { 'Err' : string };
-export type Result_12 = { 'Ok' : WriterReceipt } |
+export type result_operator = { 'Ok' : operator_record } |
   { 'Err' : string };
-export type Result_13 = { 'Ok' : Availability } |
+export type result_opt_placement = { 'Ok' : [] | [placement] } |
   { 'Err' : string };
-export type Result_14 = { 'Ok' : Placement } |
+export type result_opt_residency = { 'Ok' : [] | [residency_assignment] } |
   { 'Err' : string };
-export type Result_15 = { 'Ok' : ResidencyAssignment } |
+export type result_opt_target = { 'Ok' : [] | [target] } |
   { 'Err' : string };
-export type Result_16 = { 'Ok' : SiteAvailability } |
+export type result_page = { 'Ok' : page } |
   { 'Err' : string };
-export type Result_17 = { 'Ok' : Target } |
+export type result_placement = { 'Ok' : placement } |
   { 'Err' : string };
-export type Result_2 = { 'Ok' : [] | [Operator] } |
+export type result_policy = { 'Ok' : policy } |
   { 'Err' : string };
-export type Result_3 = { 'Ok' : [] | [Placement] } |
+export type result_residency = { 'Ok' : residency_assignment } |
   { 'Err' : string };
-export type Result_4 = { 'Ok' : Policy } |
+export type result_residency_policy = { 'Ok' : residency_policy } |
   { 'Err' : string };
-export type Result_5 = { 'Ok' : [] | [ResidencyAssignment] } |
+export type result_site_availability = { 'Ok' : site_availability } |
   { 'Err' : string };
-export type Result_6 = { 'Ok' : ResidencyPolicy } |
+export type result_target = { 'Ok' : target } |
   { 'Err' : string };
-export type Result_7 = { 'Ok' : boolean } |
+export type result_unit = { 'Ok' : null } |
   { 'Err' : string };
-export type Result_8 = { 'Ok' : [] | [Target] } |
-  { 'Err' : string };
-export type Result_9 = { 'Ok' : Operator } |
-  { 'Err' : string };
-export interface SiteAvailability {
+export interface site_availability {
   'version' : bigint,
   'enabled' : boolean,
   'site_id' : string,
 }
-export interface Target {
+export interface target {
   'alias' : string,
   'deployment_class' : string,
   'healthy' : boolean,
@@ -133,64 +127,60 @@ export interface Target {
   'enabled' : boolean,
   'site_id' : [] | [string],
   'profile' : string,
-  'backend' : Backend,
-}
-export interface WriterReceipt {
-  'active' : bigint,
-  'request' : WriterRequest,
-  'sealed' : boolean,
-  'closing' : boolean,
-  'receiver' : Principal,
-}
-export interface WriterRequest {
-  'inventory_digest' : Uint8Array,
-  'generation' : bigint,
-  'operation_id' : string,
+  'backend' : backend,
 }
 export interface _SERVICE {
-  'activate_private_name_preparation' : ActorMethod<[WriterRequest], Result>,
-  /**
-   * Public: remaining cycles (shown in admin settings).
-   */
   'cycles_balance' : ActorMethod<[], bigint>,
-  'finish_private_name_preparation' : ActorMethod<[WriterRequest], Result>,
-  'freeze_private_name_preparation' : ActorMethod<[WriterRequest], Result>,
-  'get_availability' : ActorMethod<[], Availability>,
-  'get_decision' : ActorMethod<[string], Result_1>,
-  'get_operator' : ActorMethod<[Principal], Result_2>,
-  'get_placement' : ActorMethod<[string], Result_3>,
-  'get_policy' : ActorMethod<[string], Result_4>,
-  'get_residency' : ActorMethod<[string], Result_5>,
-  'get_residency_policy' : ActorMethod<[string], Result_6>,
-  'get_site_availability' : ActorMethod<[string], Result_7>,
-  'get_target' : ActorMethod<[string], Result_8>,
-  'grant_operator' : ActorMethod<[Principal, Array<OperatorRole>], Result_9>,
-  'list_audit' : ActorMethod<[[] | [bigint], number], Result_10>,
-  'list_placements' : ActorMethod<[[] | [string], number], Result_11>,
-  /**
-   * Public: live memory reading for the admin health page.
-   */
-  'memory_stats' : ActorMethod<[], MemoryStats>,
-  'open_private_name_writer_window' : ActorMethod<[WriterRequest], Result>,
-  'read_private_name_preparation' : ActorMethod<[WriterRequest], Result_12>,
-  'read_private_name_writer_window' : ActorMethod<[WriterRequest], Result_12>,
-  'revoke_operator' : ActorMethod<[Principal], Result>,
-  'seal_private_name_writer_window' : ActorMethod<[WriterRequest], Result>,
-  'set_availability' : ActorMethod<[BackendKind, boolean, bigint], Result_13>,
-  'set_placement' : ActorMethod<[string, string, Backend, bigint], Result_14>,
-  'set_policy' : ActorMethod<[string, boolean, boolean, bigint], Result_4>,
-  'set_residency' : ActorMethod<[string, string, string, bigint], Result_15>,
+  'get_availability' : ActorMethod<[], availability>,
+  'get_decision' : ActorMethod<[string], result_decision>,
+  'get_operator' : ActorMethod<[Principal], result_operator>,
+  'get_placement' : ActorMethod<[string], result_opt_placement>,
+  'get_policy' : ActorMethod<[string], result_policy>,
+  'get_residency' : ActorMethod<[string], result_opt_residency>,
+  'get_residency_policy' : ActorMethod<[string], result_residency_policy>,
+  'get_site_availability' : ActorMethod<[string], result_bool>,
+  'get_target' : ActorMethod<[string], result_opt_target>,
+  'grant_operator' : ActorMethod<
+    [Principal, Array<operator_role>],
+    result_operator
+  >,
+  'list_audit' : ActorMethod<[[] | [bigint], number], result_audit_page>,
+  'list_placements' : ActorMethod<[[] | [string], number], result_page>,
+  'memory_stats' : ActorMethod<
+    [],
+    { 'memory_bytes' : bigint, 'stable_bytes' : bigint, 'heap_bytes' : bigint }
+  >,
+  'revoke_operator' : ActorMethod<[Principal], result_unit>,
+  'set_availability' : ActorMethod<
+    [backend_kind, boolean, bigint],
+    result_availability
+  >,
+  'set_placement' : ActorMethod<
+    [string, string, backend, bigint],
+    result_placement
+  >,
+  'set_policy' : ActorMethod<[string, boolean, boolean, bigint], result_policy>,
+  'set_residency' : ActorMethod<
+    [string, string, string, bigint],
+    result_residency
+  >,
   'set_residency_policy' : ActorMethod<
     [string, Array<string>, bigint],
-    Result_6
+    result_residency_policy
   >,
-  'set_site_availability' : ActorMethod<[string, boolean, bigint], Result_16>,
-  'set_state' : ActorMethod<[string, PlacementState, bigint], Result_14>,
+  'set_site_availability' : ActorMethod<
+    [string, boolean, bigint],
+    result_site_availability
+  >,
+  'set_state' : ActorMethod<
+    [string, placement_state, bigint],
+    result_placement
+  >,
   'set_target' : ActorMethod<
-    [string, [] | [string], string, Backend, string, boolean, bigint],
-    Result_17
+    [string, [] | [string], string, backend, string, boolean, bigint],
+    result_target
   >,
-  'set_target_health' : ActorMethod<[string, boolean, bigint], Result_17>,
+  'set_target_health' : ActorMethod<[string, boolean, bigint], result_target>,
   'version' : ActorMethod<[], bigint>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;

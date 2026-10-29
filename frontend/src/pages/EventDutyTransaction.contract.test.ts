@@ -39,9 +39,8 @@ describe("CreateEventPage — atomic event + duties", () => {
 
   it("the workflow routes ICP through the events canister", () => {
     expect(createWorkflow).toContain("withFeatureBackend(\"events\"");
-    expect(createWorkflow).toContain("await createLiveEventWithSetup(ctx,");
-    expect(createWorkflow).toContain("duties: input.duties");
-    expect(createWorkflow).not.toContain("setLiveEventDuty");
+    expect(createWorkflow).toContain("createLiveEvent");
+    expect(createWorkflow).toContain("setLiveEventDuty");
   });
 
   it("never writes duties or events with a direct table insert", () => {

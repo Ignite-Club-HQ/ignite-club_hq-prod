@@ -6,9 +6,7 @@ import { routingActive } from "./generalActivation";
 import { clubDispatch } from "./groupDispatch";
 import type { GroupDomain } from "./groupRouting";
 import { getActiveIcpTarget, type IcpTargetConfig } from "./targetRegistry";
-import { readOwnerTestRouteCached, nextOwnerTestClubId } from './ownerTestRouting';
-import { hasInternetIdentitySessionStored, readAuthChoice } from "./authBackendMode";
-import { reportBlockedFallback } from "./strictIcpTransport";
+import { readOwnerTestRoute, nextOwnerTestClubId } from './ownerTestRouting';
 
 /**
  * Runtime dispatcher that connects feature repositories to the hybrid
@@ -56,8 +54,7 @@ export type ClubScope = ({ clubId: string } | { photoId: string } | { galleryCar
   /** Spans the caller's clubs (inbox, unread counts, "my events"): asked of
    * the shared canisters and every group the caller belongs to at the same
    * time, then combined with merge. Reads only. */
-  | { everyGroup: true; merge: (parts: unknown[]) => unknown; requireComplete?: boolean }
-  | { memberGroups: true; merge: (parts: unknown[]) => unknown }
+  | { everyGroup: true; merge: (parts: any[]) => any }
 ) & { writeKey?: string; attempts?: number; /** internal: club not moved, use shared canisters */ legacy?: true };
 /** Combine list results from several groups (one array per group). */
 export const mergeLists = <T,>(parts: T[][]): T[] => parts.flat();
@@ -68,17 +65,6 @@ export async function withFeatureBackend<T>(
   scope?: ClubScope,
 ): Promise<T> {
   if (isSignedInWithEmail()) return providers.supabase();
-  const knownIcpSession = hasInternetIdentitySessionStored() || readAuthChoice() === "icp";
-  if (knownIcpSession) {
-    const target = tryGetActiveIcpTarget();
-    if (!target || !isFeatureCanisterConfigured(target, feature)) {
-      reportBlockedFallback(`coverage ${feature}`);
-      throw new Error(`The ${feature} connection is not configured. Please report this problem to Ignite.`);
-    }
-    const identity = await getCurrentInternetIdentityConfirmed(3, 1000);
-    if (!identity) throw new Error("No active Internet Identity session. Sign in again to continue.");
-    return dispatchIcp(feature, providers, { identity, target }, scope);
-  }
   if (getEffectiveBackendForFeature(feature) !== "icp") {
     // An Internet Identity user has no Supabase account or data: if routing
     // momentarily resolves to Supabase (club-membership pin not loaded yet,
@@ -117,23 +103,16 @@ async function dispatchIcp<T>(feature: FeatureArea, providers: FeatureBackendPro
   // Group routing switch-on lock: shipped off, so every club uses the shared
   // canisters. If ever switched on without the club-scoped dispatcher, fail
   // closed instead of silently sending a moved club to the old group.
-  // Person/app-wide data always lives on the shared canisters: answer it
-  // without waiting on group routing checks (typing, DMs, notifications).
-  if (scope && 'shared' in scope && !scope.legacy) return providers.icp(context);
-  if (!scope?.legacy && (await routingActive(context) || Boolean(await readOwnerTestRouteCached(context)))) {
+  if (!scope?.legacy && (await routingActive(context) || Boolean(await readOwnerTestRoute(context)))) {
     const domain = FEATURE_GROUP_DOMAIN[feature];
     if (scope && 'shared' in scope) return providers.icp(context);
     if (scope && 'newClubId' in scope) return clubDispatch.forNewClub(feature, scope.newClubId, async ctx => providers.icp(ctx));
     if (scope && 'inviteToken' in scope) return clubDispatch.forInvite(feature, scope.inviteToken, async ctx => providers.icp(ctx));
     if (scope && domain && 'everyGroup' in scope) {
       if (scope.writeKey) throw new Error(`"${feature}" writes must name one club; group routing cannot fan them out.`);
-      return clubDispatch.readAcross(feature, domain, async ctx => providers.icp(ctx), scope.merge, scope.requireComplete) as Promise<T>;
+      return clubDispatch.readAcross(feature, domain, async ctx => providers.icp(ctx), scope.merge) as Promise<T>;
     }
-    if (scope && domain && 'memberGroups' in scope) {
-      if (scope.writeKey) throw new Error(`"${feature}" writes must name one club.`);
-      return clubDispatch.readMemberGroups(feature, domain, async ctx => providers.icp(ctx), scope.merge) as Promise<T>;
-    }
-    if (scope && domain && !('shared' in scope) && !('everyGroup' in scope) && !('memberGroups' in scope) && !('inviteToken' in scope) && !('newClubId' in scope)) {
+    if (scope && domain && !('shared' in scope) && !('everyGroup' in scope) && !('inviteToken' in scope) && !('newClubId' in scope)) {
       return scope.writeKey
         ? clubDispatch.writeFor(feature, scope, domain, scope.writeKey, async ctx => providers.icp(ctx), scope.attempts)
         : clubDispatch.readFor(feature, scope, domain, async ctx => providers.icp(ctx));

@@ -20,7 +20,6 @@ import { useEventCancellationRecipients } from "@/hooks/useEventCancellationReci
 interface RecurringCancelEventDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  eventId?: string;
   eventTitle: string;
   teamId: string | null;
   clubId: string;
@@ -35,7 +34,6 @@ export function RecurringCancelEventDialog({
   open,
   onOpenChange,
   eventTitle,
-  eventId,
   teamId,
   clubId,
   miniLeagueId,
@@ -49,7 +47,6 @@ export function RecurringCancelEventDialog({
   const keyboardBottomInset = useNativeKeyboardBottomInset();
   const { memberCount, isLoading, recipientLookupFailed } = useEventCancellationRecipients({
     open,
-    eventId,
     teamId,
     clubId,
     miniLeagueId,

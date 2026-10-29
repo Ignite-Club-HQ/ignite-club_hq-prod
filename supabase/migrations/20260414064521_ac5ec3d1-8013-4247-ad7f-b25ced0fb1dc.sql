@@ -1,1 +1,0 @@
-DELETE FROM pending_invites WHERE id = 'ca94e018-40dd-42ec-8a6a-cc15cdc2fc15';

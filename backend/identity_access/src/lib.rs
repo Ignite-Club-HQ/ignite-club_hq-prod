@@ -9,61 +9,9 @@ use ic_stable_structures::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
-const PRIVATE_NAME_WRITER_MEMORY: u8 = 30;
-#[path = "../../shared/private_name_writer_window.rs"]
-mod private_name_writer_window;
-use private_name_writer_window::{WriterRequest, WriterReceipt};
-#[ic_cdk::update]
-fn freeze_private_name_preparation(request: WriterRequest) -> Result<(), String> { private_name_writer_window::freeze(request) }
-#[ic_cdk::update]
-fn read_private_name_preparation(request: WriterRequest) -> Result<WriterReceipt, String> { private_name_writer_window::preparation_receipt(request) }
-#[ic_cdk::update]
-fn finish_private_name_preparation(request: WriterRequest) -> Result<(), String> { private_name_writer_window::finish_preparation(request) }
-#[ic_cdk::update]
-fn activate_private_name_preparation(request: WriterRequest) -> Result<(), String> { private_name_writer_window::activate_preparation(request) }
-#[ic_cdk::update]
-fn open_private_name_writer_window(request: WriterRequest) -> Result<(), String> { private_name_writer_window::open(request) }
-#[ic_cdk::update]
-fn seal_private_name_writer_window(request: WriterRequest) -> Result<(), String> { private_name_writer_window::seal(request) }
-#[ic_cdk::update]
-fn read_private_name_writer_window(request: WriterRequest) -> Result<WriterReceipt, String> { private_name_writer_window::receipt(request) }
-
 mod group_inventory;
 mod removal_barrier;
 mod deletion_timing;
-mod admission;
-mod membership_directory;
-mod membership_directory_store;
-mod membership_materializer;
-mod membership_updates;
-mod membership_private_lookup;
-mod membership_namespace;
-mod membership_coordinator;
-mod membership_propagation;
-mod membership_transport;
-mod membership_runtime;
-mod membership_locations;
-mod membership_wire;
-mod membership_acceptance;
-mod admin_accounts;
-mod guardian_search;
-mod private_name_audience;
-mod private_name_conversion;
-mod private_name_account_inventory;
-mod private_name_cleanup;
-use private_name_cleanup::CleanupAccount;
-use private_name_account_inventory::{AccountInventoryCursor, AccountInventoryPage};
-mod private_name_conversion_approval;
-use private_name_conversion_approval::{SignedApproval,ApprovalReceipt};
-mod private_name_coordination;
-mod private_name_write_coordinator;
-use private_name_write_coordinator::WriteWindow;
-use group_inventory::RemovalInventory;
-use private_name_coordination::Intent;
-use private_name_conversion::{ConversionPage, ConversionProfileRow};
-mod private_profile_reference;
-mod secure_name_save;
-mod club_profiles;
 use deletion_timing::Ticket;
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
@@ -105,18 +53,6 @@ const MEM_REMOVAL_INTENTS: u8 = 13;
 const MEM_REMOVAL_SUBJECTS: u8 = 14;
 const MEM_REMOVAL_RECEIPTS: u8 = 15;
 const MEM_DELETION_TICKETS: u8 = 16;
-const MEM_GROUP2_ADMISSION: u8 = 17;
-// Directory-specific additive storage: never share lifecycle/admission maps.
-const MEM_DIRECTORY_POOL_META:u8=18;
-const MEM_DIRECTORY_POOL_BLOCKS:u8=19;
-const MEM_DIRECTORY_COORDINATOR:u8=20;
-const MEM_DIRECTORY_UPDATES:u8=21;
-const MEM_DIRECTORY_WORKER:u8=22;
-const MEM_DIRECTORY_SESSIONS:u8=23;
-const MEM_DIRECTORY_CONFIG:u8=24;
-// Additive traversal revision. Any account/link/profile write invalidates
-// guardian candidate continuations; no copied name index or new key material.
-const MEM_PROFILE_SEARCH_REVISION:u8=25;
 // Stable B-tree rows grow independently of heap snapshots. Reserve a conservative
 // 8 KiB per account (including eight denial rows) within 32 GiB stable memory.
 const MAX_ACCOUNTS: usize = (32u64 * 1024 * 1024 * 1024 / 8192) as usize;
@@ -230,13 +166,6 @@ pub struct ProfileSearchResult {
     pub principal: Principal,
     pub display_name: String,
     pub avatar_ref: Option<String>,
-}
-#[derive(Clone, Debug, CandidType, Deserialize)]
-pub struct GuardianProfilePage {
-    pub revision: u64,
-    pub rows: Vec<ProfileSearchResult>,
-    pub scanned: u16,
-    pub next: Option<guardian_search::Cursor>,
 }
 /// A Pro entitlement granted to a principal from an IAP (App Store) receipt
 /// or a governor/verifier write. `transaction_id` is the Apple transaction
@@ -422,7 +351,7 @@ struct PrincipalEligibility {
     denied_through_version: Option<u64>,
 }
 fn principal_eligibility(subject: Principal) -> PrincipalEligibility {
-    let account = account_for_write(subject).ok().filter(|a| !DELETION_TICKETS.with(|m| m.borrow().contains_key(&a.id)));
+    let account = account_for_write(subject).ok();
     PrincipalEligibility {
         subject,
         decision: if account.is_some() { EligibilityDecision::Eligible } else { EligibilityDecision::Denied },
@@ -431,10 +360,8 @@ fn principal_eligibility(subject: Principal) -> PrincipalEligibility {
     }
 }
 fn authority_eligibilities(caller: Principal, subjects: Vec<Principal>) -> Outcome<Vec<PrincipalEligibility>> {
-    let production = group2_admission();
-    if !account_group_rehearsal_enabled() && !production.enabled { return Err("Cross-group eligibility not released".into()); }
-    let legacy = account_group_rehearsal_enabled() && (link_lifecycle().authorities.contains(&caller) || service_authorities().contains(&caller));
-    if !legacy && !(production.enabled && production.readers.contains(&caller)) { return Err("Configured authority required".into()); }
+    if !account_group_rehearsal_enabled() { return Err("Cross-group eligibility not released".into()); }
+    if !link_lifecycle().authorities.contains(&caller) && !service_authorities().contains(&caller) { return Err("Configured authority required".into()); }
     if subjects.is_empty() || subjects.len() > 200 { return Err("Eligibility batch must contain 1 to 200 subjects".into()); }
     let mut distinct = subjects.clone(); distinct.sort(); distinct.dedup();
     if distinct.len() != subjects.len() { return Err("Duplicate eligibility subject".into()); }
@@ -464,8 +391,6 @@ fn validate_service_authorities(authorities: &[Principal]) -> Outcome<()> {
 }
 #[ic_cdk::update]
 fn set_service_authorities(authorities: Vec<Principal>) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     if !account_group_rehearsal_enabled() { return Err("Service admission not released".into()); }
     require_governor(&state(), ic_cdk::api::msg_caller())?;
     if removal_pending() { return Err("Removal barrier pending".into()); }
@@ -479,9 +404,7 @@ fn set_service_authorities(authorities: Vec<Principal>) -> Outcome<()> {
 fn service_account(caller: Principal, subject: Principal) -> Outcome<Account> {
     if !account_group_rehearsal_enabled() { return Err("Service admission not released".into()); }
     if !service_authorities().contains(&caller) { return Err("Configured service reader required".into()); }
-    let account = effective_account(account_for_write(subject)?, &link_lifecycle());
-    if !account.principals.contains(&subject) { return Err("Identity revocation pending".into()); }
-    Ok(account)
+    account_for_write(subject)
 }
 /// Subject-bound consensus ownership read; never implicitly registers an account.
 #[ic_cdk::update]
@@ -524,7 +447,6 @@ thread_local! {
         RefCell::new(StableBTreeMap::init(memory(MEM_PRINCIPAL_INDEX)));
     static PROFILES: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> =
         RefCell::new(StableBTreeMap::init(memory(MEM_PROFILES)));
-    static PROFILE_SEARCH_REVISION: RefCell<StableCell<u64, Memory>> = RefCell::new(StableCell::init(memory(MEM_PROFILE_SEARCH_REVISION), 0));
     static ENTITLEMENTS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> =
         RefCell::new(StableBTreeMap::init(memory(MEM_ENTITLEMENTS)));
     static LINK_LIFECYCLE: RefCell<StableCell<Vec<u8>, Memory>> =
@@ -548,401 +470,8 @@ thread_local! {
     static REMOVAL_SUBJECTS: RefCell<StableBTreeMap<String, String, Memory>> =
         RefCell::new(StableBTreeMap::init(memory(MEM_REMOVAL_SUBJECTS)));
     static DELETION_TICKETS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> = RefCell::new(StableBTreeMap::init(memory(MEM_DELETION_TICKETS)));
-    static GROUP2_ADMISSION: RefCell<StableCell<Vec<u8>, Memory>> = RefCell::new(StableCell::init(memory(MEM_GROUP2_ADMISSION), Vec::new()));
     static REMOVAL_RECEIPTS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> =
         RefCell::new(StableBTreeMap::init(memory(MEM_REMOVAL_RECEIPTS)));
-    static DIRECTORY_CONFIG:RefCell<StableCell<Vec<u8>,Memory>>=RefCell::new(StableCell::init(memory(MEM_DIRECTORY_CONFIG),Vec::new()));
-    static DIRECTORY_COORDINATOR:RefCell<membership_coordinator::Coordinator<Memory>>=RefCell::new(
-        membership_coordinator::Coordinator::open(memory(MEM_DIRECTORY_COORDINATOR),
-            membership_namespace::Pool::open(memory(MEM_DIRECTORY_POOL_META),memory(MEM_DIRECTORY_POOL_BLOCKS),16384,8192).expect("Directory namespace budget"),memory(MEM_DIRECTORY_UPDATES)));
-    static DIRECTORY_WORKER:RefCell<membership_propagation::Worker<Memory>>=RefCell::new(membership_propagation::Worker::open(memory(MEM_DIRECTORY_WORKER)));
-    static DIRECTORY_SESSIONS:RefCell<membership_private_lookup::Sessions<Memory>>=RefCell::new(membership_private_lookup::Sessions::open(memory(MEM_DIRECTORY_SESSIONS)));
-    static DIRECTORY_TIMER_BUSY:RefCell<bool>=const{RefCell::new(false)};
-}
-fn directory_config()->Outcome<membership_runtime::Config>{
-    DIRECTORY_CONFIG.with(|m|if m.borrow().get().is_empty(){Err("Membership directory unconfigured".into())}else{Ok(decode(m.borrow().get()))})
-}
-fn save_directory_config(config:&membership_runtime::Config){DIRECTORY_CONFIG.with(|m|m.borrow_mut().set(encode(config)));}
-async fn directory_lifecycle(binding:&group_inventory::Binding,sources:&[(String,Principal)])->Outcome<Vec<membership_acceptance::Lifecycle>>{
-    directory_lifecycle_checked(binding,sources,||Ok(())).await
-}
-async fn directory_lifecycle_checked(binding:&group_inventory::Binding,sources:&[(String,Principal)],recheck:impl Fn()->Outcome<()>)->Outcome<Vec<membership_acceptance::Lifecycle>>{
-    if sources.len()>100{return Err("Directory lifecycle budget exceeded".into());}
-    let mut targets=vec![ic_cdk::api::canister_self(),binding.registry];targets.extend(sources.iter().map(|(_,p)|*p));
-    let mut result=vec![];
-    for target in targets{
-        let info=ic_cdk::management_canister::canister_info(&ic_cdk::management_canister::CanisterInfoArgs{canister_id:target,num_requested_changes:Some(0)}).await.map_err(|_|"Replica directory lifecycle unavailable")?;
-        recheck()?;
-        result.push(membership_acceptance::Lifecycle{canister:target,changes:info.total_num_changes,module_hash:info.module_hash.ok_or("Directory module missing")?});
-    }
-    Ok(result)
-}
-fn recheck_directory(config:&membership_runtime::Config)->Outcome<()> {
-    let current=directory_config()?;
-    // Pending notifications may advance during awaits; they never alter the
-    // captured authority inventory and must not be overwritten by callbacks.
-    if !current.enabled || !current.same_configuration(config) { return Err("Directory configuration changed".into()); }
-    Ok(())
-}
-/// Configures transport only. Does not enable a public reader or certify
-/// legacy club ownership, source freshness, recovery or directory cutover.
-#[ic_cdk::update]
-async fn configure_membership_directory(binding:group_inventory::Binding,authorities:Vec<Principal>,generation:u64)->Outcome<Vec<membership_transport::SourceBinding>>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    require_governor(&state(),ic_cdk::api::msg_caller())?;
-    admission_configuration_clear()?;
-    let pinned=group_inventory_binding().ok_or("Existing deployment registry pin required")?;
-    let mut expected=pinned.clone();expected.registry_revision=binding.registry_revision;
-    if expected!=binding || binding.registry_revision<pinned.registry_revision {return Err("Pinned directory deployment required".into());}
-    let prior=directory_config().ok();
-    let recheck=||->Outcome<()>{
-        admission_configuration_clear()?;
-        let current=directory_config().ok();
-        let unchanged=match (&prior,&current){(None,None)=>true,(Some(a),Some(b))=>a.same_configuration(b),_=>false};
-        if group_inventory_binding().as_ref()!=Some(&pinned)||!unchanged{Err("Directory configuration changed during verification".into())}else{Ok(())}
-    };
-    let first=read_registry_pages(&binding,recheck).await?;
-    let second=read_registry_pages(&binding,recheck).await?;
-    if first!=second{return Err("Directory registry changed".into());}
-    // Original G1 predates registry registration. Trust only the existing
-    // deployment pin AND these immutable original mainnet identities; never
-    // derive a legacy writer from caller names, missing assignments or a new
-    // lifecycle grant. This changes inventory, not club ownership/readiness.
-    let verified=if let Some(original)=membership_coordinator::original_mainnet_writer(&binding,ic_cdk::api::canister_self()){
-        membership_coordinator::verify_inventory_with_original(&first,&binding,&authorities,generation,original)?
-    }else{membership_coordinator::verify_inventory(&first,&binding,&authorities,generation)?};
-    let digest=verified.digest().to_vec();let sources=verified.source_bindings();
-    // Pin independent replica history BEFORE any source build. Restored
-    // application counters or a same-Wasm snapshot cannot replay this pin.
-    let lifecycle=directory_lifecycle(&binding,&sources).await?;
-    let lifecycle_after=directory_lifecycle(&binding,&sources).await?;
-    membership_acceptance::check_lifecycle(&lifecycle,&lifecycle_after)?;
-    recheck()?;
-    let config=match directory_config(){
-        Ok(existing)=>{
-            if existing.binding!=binding||existing.generation!=generation||existing.inventory_digest!=digest||existing.sources!=sources||!existing.enabled{return Err("Directory replacement requires fenced recovery; not released".into());}
-            membership_acceptance::check_lifecycle(&existing.lifecycle,&lifecycle)?;existing
-        },
-        Err(_)=>membership_runtime::Config{binding,generation,inventory_digest:digest,sources,pending:Default::default(),enabled:true,next_source:0,lifecycle,release:None},
-    };
-    DIRECTORY_COORDINATOR.with(|m|m.borrow_mut().bind_inventory(verified))?;
-    let grants=config.sources.iter().map(|(id,_)|config.source_binding(ic_cdk::api::canister_self(),id)).collect::<Outcome<Vec<_>>>()?;
-    save_directory_config(&config);arm_directory_timer();Ok(grants)
-}
-#[ic_cdk::update]
-fn disable_membership_directory()->Outcome<()>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-require_governor(&state(),ic_cdk::api::msg_caller())?;let mut c=directory_config()?;c.enabled=false;save_directory_config(&c);Ok(())}
-/// Exact operator readback of the separate directory configuration. Does not
-/// return memberships, grant lifecycle readers, or certify currentness.
-#[derive(CandidType,Deserialize)]
-struct DirectoryConfigurationReadback { binding:group_inventory::Binding,generation:u64,inventory_digest:Vec<u8>,sources:Vec<(String,Principal)>,enabled:bool,app_enabled:bool }
-#[ic_cdk::update]
-fn read_membership_directory_configuration()->Outcome<DirectoryConfigurationReadback>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    require_governor(&state(),ic_cdk::api::msg_caller())?;
-    let c=directory_config()?;
-    Ok(DirectoryConfigurationReadback{binding:c.binding,generation:c.generation,inventory_digest:c.inventory_digest,sources:c.sources,enabled:c.enabled,app_enabled:c.release.is_some()})
-}
-/// Caller-private diagnostic, not the release/current reader. The actor never
-/// accepts another account ID or aliases. Source/ownership and fresh account
-/// checks precede every persisted page/replay, with no intervening await.
-#[ic_cdk::update]
-fn read_my_membership_directory_diagnostic(consumer:u64,token:Option<membership_wire::Token>)->Outcome<membership_wire::Reply>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    let caller=ic_cdk::api::msg_caller();
-    let viewer=membership_lookup_viewer(caller)?;
-    let config=directory_config()?;recheck_directory(&config)?;
-    let (page,next)=DIRECTORY_COORDINATOR.with(|c|DIRECTORY_SESSIONS.with(|s|c.borrow().private_page(&mut s.borrow_mut(),caller,viewer.clone(),consumer,membership_wire::continuation(token),ic_cdk::api::time())))?;
-    Ok(membership_wire::diagnostic(caller,&viewer,config.generation,config.binding.registry_revision,config.inventory_digest,page,next))
-}
-/// Only the exact configured source may notify; never accepts raw edges.
-#[ic_cdk::update]
-fn invalidate_membership_directory_source(binding:membership_transport::SourceBinding,revision:candid::Nat)->membership_transport::UnitReply {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    let result=(||->Outcome<()>{
-        let mut c=directory_config()?;let revision=membership_transport::number(&revision)?;
-        // Validate against a local config copy first. Coordinator validation
-        // precedes all writes; no await can interleave the two durable saves.
-        c.invalidate(ic_cdk::api::canister_self(),ic_cdk::api::msg_caller(),&binding,revision)?;
-        let digest:[u8;32]=binding.inventory_digest.as_slice().try_into().map_err(|_|"Invalid directory inventory digest")?;
-        let observed=membership_materializer::Binding{authority:ic_cdk::api::msg_caller(),generation:binding.generation,revision:c.pending.get(&binding.group).copied().unwrap_or(revision),inventory_digest:digest};
-        DIRECTORY_COORDINATOR.with(|m|m.borrow_mut().observe_invalidation(&binding.group,&observed))?;
-        save_directory_config(&c);Ok(())
-    })();
-    match result{Ok(())=>membership_transport::UnitReply::Ok,Err(e)=>membership_transport::UnitReply::Err(e)}
-}
-async fn directory_source_status(config:&membership_runtime::Config,source:&str,authority:Principal)->Outcome<(u64,u64,bool)>{
-    let grant=config.source_binding(ic_cdk::api::canister_self(),source)?;recheck_directory(config)?;
-    let reply=ic_cdk::call::Call::bounded_wait(authority,"read_directory_membership_status").with_arg(&grant).await.map_err(|_|"Directory source status unavailable")?;
-    recheck_directory(config)?;
-    let status:membership_transport::Reply<membership_transport::Status>=reply.candid().map_err(|_|"Invalid directory source status reply")?;
-    let result=status.result()?.checked()?;
-    directory_config()?.check_watermark(source,result.0)?;
-    let digest:[u8;32]=config.inventory_digest.as_slice().try_into().map_err(|_|"Invalid directory inventory digest")?;
-    let observed=membership_materializer::Binding{authority,generation:config.generation,revision:result.0,inventory_digest:digest};
-    DIRECTORY_COORDINATOR.with(|m|{
-        let mut coordinator=m.borrow_mut();
-        coordinator.check_observed_watermark(source,&observed)?;
-        coordinator.observe_invalidation(source,&observed)
-    })?;
-    Ok(result)
-}
-/// One exact source and one bounded unit per invocation; retries preserve
-/// requests/publications. Governor-only until live worker acceptance passes.
-#[ic_cdk::update]
-async fn advance_membership_directory_source(source:String)->Outcome<membership_runtime::Progress>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    require_governor(&state(),ic_cdk::api::msg_caller())?;
-    advance_directory_source(source).await
-}
-async fn advance_directory_source(source:String)->Outcome<membership_runtime::Progress>{
-    let config=directory_config()?;let authority=config.sources.iter().find(|(id,_)|id==&source).ok_or("Unknown directory source")?.1;
-    let (revision,_,_)=directory_source_status(&config,&source,authority).await?;
-    DIRECTORY_COORDINATOR.with(|c|DIRECTORY_WORKER.with(|w|w.borrow_mut().resume_or_start(&mut c.borrow_mut(),&source,authority,revision)))?;
-    let phase=DIRECTORY_WORKER.with(|w|w.borrow().phase(&source))?.0;
-    let mut scanned=0;
-    match phase {
-        "pull"=>{
-            let (captured,cursor)=DIRECTORY_WORKER.with(|w|w.borrow().request(&source))?;
-            let grant=config.source_binding(ic_cdk::api::canister_self(),&source)?;
-            // Pin the first capture too: a mutation between status and first
-            // page must retry, never silently capture a different generation.
-            let wire_cursor=Some(membership_transport::WireCursor::from(cursor.clone().unwrap_or(membership_propagation::Cursor{revision:captured.revision,phase:0,offset:0,nested:0})));
-            let reply=ic_cdk::call::Call::bounded_wait(authority,"read_directory_membership_source_page").with_args(&(grant,wire_cursor)).await.map_err(|_|"Directory source page unavailable; request retained")?;
-            recheck_directory(&config)?;
-            let wire:membership_transport::Reply<membership_transport::WirePage>=reply.candid().map_err(|_|"Invalid directory source page")?;
-            let wire=match wire.result(){
-                Ok(page)=>page,
-                Err(error) if error=="Retained source start changed"&&cursor.is_none()=>{
-                    // No snapshot was acquired: retry the exact first request
-                    // against a freshly observed revision, not an old cursor.
-                    let (latest,_,_)=directory_source_status(&config,&source,authority).await?;
-                    let unchanged=DIRECTORY_WORKER.with(|w|w.borrow().request(&source))?;
-                    if unchanged!=(captured.clone(),cursor.clone()){return Err("Source propagation callback changed".into());}
-                    DIRECTORY_COORDINATOR.with(|c|DIRECTORY_WORKER.with(|w|w.borrow_mut().start(&mut c.borrow_mut(),&source,authority,latest)))?;
-                    return Err("Membership changed before snapshot capture; exact start refreshed".into());
-                },
-                Err(error)=>return Err(error),
-            };
-            let page=wire.checked()?;scanned=page.scanned as u64;
-            // Positive source Club edges are checked against the existing
-            // router location API. Missing legacy assignments remain unproven
-            // and cannot enable a public directory; publication stays local.
-            let mut unresolved_location=false;
-            for edge in &page.edges{
-                if let membership_materializer::Edge::Club{id,deleted:false}=edge{
-                    let reply=ic_cdk::call::Call::bounded_wait(config.binding.registry,"read_hosted_club_assignment").with_args(&(id.clone(),config.binding.target_alias.clone(),config.binding.registry_revision)).await.map_err(|_|"Club ownership check unavailable; source page retained")?;
-                    recheck_directory(&config)?;
-                    let location:membership_transport::Reply<membership_locations::Assignment>=reply.candid().map_err(|_|"Invalid club ownership reply")?;
-                    match location{
-                        membership_transport::Reply::Ok(assignment)=>membership_locations::verify(id,&source,authority,&assignment,&config.sources,config.binding.registry_revision)?,
-                        membership_transport::Reply::Err(error) if error=="Missing club assignment"=>unresolved_location=true,
-                        membership_transport::Reply::Err(error)=>return Err(error),
-                    }
-                }
-            }
-            let terminal=page.next.is_none();
-            DIRECTORY_COORDINATOR.with(|c|DIRECTORY_WORKER.with(|w|w.borrow_mut().accept(&mut c.borrow_mut(),&source,&captured,&cursor,page)))?;
-            // Only the accepted exact request may change coverage. A delayed
-            // callback rejected by the worker must not poison a newer page.
-            if unresolved_location{DIRECTORY_COORDINATOR.with(|m|m.borrow_mut().unresolved_location(&source,&captured))?;}
-            if terminal{DIRECTORY_COORDINATOR.with(|m|m.borrow_mut().finish_location_checks(&source,&captured))?;}
-        },
-        "materialize"=>{scanned=DIRECTORY_COORDINATOR.with(|c|DIRECTORY_WORKER.with(|w|w.borrow_mut().advance(&mut c.borrow_mut(),&source)))? as u64;},
-        "published"|"acknowledged"=>{
-            let captured=DIRECTORY_WORKER.with(|w|w.borrow().published(&source))?;
-            let grant=config.source_binding(ic_cdk::api::canister_self(),&source)?;
-            // Source acknowledgement is idempotent. Never clear local work on
-            // a lost response; exact consensus status readback is mandatory.
-            let reply=ic_cdk::call::Call::bounded_wait(authority,"acknowledge_directory_membership_source").with_args(&(grant,candid::Nat::from(captured.revision))).await.map_err(|_|"Source acknowledgement unknown; publication retained")?;
-            recheck_directory(&config)?;
-            let ack:membership_transport::UnitReply=reply.candid().map_err(|_|"Invalid source acknowledgement")?;
-            if let membership_transport::UnitReply::Err(e)=ack{return Err(e);}
-            let (current,acknowledged,pending)=directory_source_status(&config,&source,authority).await?;
-            // Live changes remain observed and unreadable, but cannot starve
-            // completion of the finite retained generation.
-            if current<captured.revision||acknowledged!=captured.revision||pending!=(current!=acknowledged){return Err("Source acknowledgement readback changed; publication retained".into());}
-            DIRECTORY_COORDINATOR.with(|c|DIRECTORY_WORKER.with(|w|w.borrow_mut().acknowledge_readback(&mut c.borrow_mut(),&source,&captured,acknowledged)))?;
-        },
-        _=>return Err("Unknown directory worker phase".into()),
-    }
-    let (phase,revision)=DIRECTORY_WORKER.with(|w|w.borrow().phase(&source))?;
-    Ok(membership_runtime::Progress{source,phase:phase.into(),revision,scanned})
-}
-#[derive(CandidType,Deserialize)]
-struct DirectoryCleanup { scanned:u64, complete:bool }
-#[derive(CandidType,Deserialize)]
-struct DirectoryAcceptanceCheck {snapshot_verified:bool,restoration_guard_verified:bool,source_revisions:Vec<(String,u64)>,verified_current:bool,app_enabled:bool}
-/// Governor-only real acceptance check. Two separated complete consensus
-/// revision scans bracket a shared snapshot instant; independent management
-/// history rejects upgrade/restore ABA, including restoration of identity.
-#[ic_cdk::update]
-async fn check_membership_directory_acceptance()->Outcome<DirectoryAcceptanceCheck>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    require_governor(&state(),ic_cdk::api::msg_caller())?;
-    let config=directory_config()?;recheck_directory(&config)?;
-    let (_,expected,_)=verify_directory_snapshot(&config,||recheck_directory(&config)).await?;
-    Ok(DirectoryAcceptanceCheck{snapshot_verified:true,restoration_guard_verified:true,source_revisions:expected,verified_current:false,app_enabled:config.release.is_some()})
-}
-/// Shared by release AND every private page, including reply replays. The
-/// caller-specific recheck runs after each await, not only at final delivery.
-async fn verify_directory_snapshot(config:&membership_runtime::Config,recheck:impl Fn()->Outcome<()>)->Outcome<(group_inventory::Snapshot,Vec<(String,u64)>,Vec<(String,Option<Principal>)>)>{
-    recheck()?;
-    let before=directory_lifecycle_checked(&config.binding,&config.sources,&recheck).await?;
-    membership_acceptance::check_lifecycle(&config.lifecycle,&before)?;
-    recheck()?;
-    let registry_before=read_registry_pages(&config.binding,&recheck).await?;
-    let photos_before=read_directory_photo_stores(&config.binding,&recheck).await?;
-    let captured=DIRECTORY_COORDINATOR.with(|c|{let c=c.borrow();c.accepted_ownership()?;c.sources()})?;
-    let expected=captured.iter().map(|s|(s.id.clone(),s.binding.revision)).collect::<Vec<_>>();
-    let mut scans=vec![];
-    for _ in 0..2{
-        let mut stamps=vec![];
-        for (source,authority) in &config.sources{
-            let (revision,acknowledged,pending)=directory_source_status(&config,source,*authority).await?;
-            recheck()?;
-            stamps.push(membership_acceptance::Stamp{source:source.clone(),revision,acknowledged,pending});
-        }
-        scans.push(stamps);
-    }
-    membership_acceptance::check_collect(&expected,&scans[0],&scans[1])?;
-    let registry_after=read_registry_pages(&config.binding,&recheck).await?;
-    let photos_after=read_directory_photo_stores(&config.binding,&recheck).await?;
-    if photos_before!=photos_after||photos_after.iter().map(|(id,_)|id).collect::<Vec<_>>()!=registry_after.groups.iter().map(|g|&g.id).collect::<Vec<_>>(){return Err("Directory photo-store inventory changed".into());}
-    if registry_before!=registry_after{return Err("Directory registry changed during acceptance".into());}
-    let after=directory_lifecycle_checked(&config.binding,&config.sources,&recheck).await?;
-    membership_acceptance::check_lifecycle(&config.lifecycle,&after)?;
-    recheck()?;
-    let final_sources=DIRECTORY_COORDINATOR.with(|c|{let c=c.borrow();c.accepted_ownership()?;c.sources()})?;
-    if expected!=final_sources.iter().map(|s|(s.id.clone(),s.binding.revision)).collect::<Vec<_>>(){return Err("Directory builds changed during acceptance".into());}
-    Ok((registry_after,expected,photos_after))
-}
-async fn read_directory_photo_stores(binding:&group_inventory::Binding,recheck:impl Fn()->Outcome<()>)->Outcome<Vec<(String,Option<Principal>)>>{
-    let mut cursor:Option<String>=None;let mut stores=vec![];
-    loop{
-        recheck()?;
-        let reply=ic_cdk::call::Call::bounded_wait(binding.registry,"read_group_registry_page").with_args(&(&binding.target_alias,Some(binding.registry_revision),&cursor,64u32)).await.map_err(|_|"Directory photo registry unavailable")?;
-        recheck()?;
-        let page:Outcome<membership_wire::PhotoRegistryPage>=reply.candid().map_err(|_|"Invalid directory photo registry")?;let page=page?;
-        if page.revision!=binding.registry_revision||page.groups.len()>64||stores.len()+page.groups.len()>100||page.next_cursor.as_ref().is_some_and(|n|cursor.as_ref().is_some_and(|c|n<=c)){return Err("Directory photo registry changed".into());}
-        stores.extend(page.groups.into_iter().map(|g|(g.id,g.photo_store)));
-        match page.next_cursor{None=>return Ok(stores),Some(next)=>cursor=Some(next)}
-    }
-}
-/// Release permission is identity-owned, not a browser flag or saved report.
-/// Repeating an acknowledged release is safe; a different release is refused.
-#[ic_cdk::update]
-async fn enable_membership_directory(release:String)->Outcome<DirectoryAcceptanceCheck>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    require_governor(&state(),ic_cdk::api::msg_caller())?;
-    if release.len()!=40||!release.bytes().all(|v|v.is_ascii_digit()||(b'a'..=b'f').contains(&v)){return Err("Exact release commit required".into());}
-    let config=directory_config()?;
-    if config.release.as_ref().is_some_and(|prior|prior!=&release){return Err("Different lookup release already enabled".into());}
-    let (_,expected,_)=verify_directory_snapshot(&config,||recheck_directory(&config)).await?;
-    let mut current=directory_config()?;recheck_directory(&config)?;
-    current.release=Some(release);save_directory_config(&current);
-    Ok(DirectoryAcceptanceCheck{snapshot_verified:true,restoration_guard_verified:true,source_revisions:expected,verified_current:false,app_enabled:true})
-}
-#[ic_cdk::update]
-async fn read_my_membership_directory(consumer:u64,token:Option<membership_wire::Token>)->Outcome<membership_wire::ReleasedReply>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    let caller=ic_cdk::api::msg_caller();let viewer=membership_lookup_viewer(caller)?;
-    let config=directory_config()?;let release=config.release.clone().ok_or("Membership lookup not released; existing discovery required")?;
-    let recheck=||->Outcome<()>{
-        recheck_directory(&config)?;
-        if membership_lookup_viewer(caller)?!=viewer{return Err("Lookup caller account changed during verification".into());}Ok(())
-    };
-    let (registry,_,photo_stores)=verify_directory_snapshot(&config,&recheck).await?;recheck()?;
-    // No await from the last eligibility/source checks through session commit.
-    let (page,next,instance)=DIRECTORY_COORDINATOR.with(|c|DIRECTORY_SESSIONS.with(|s|{
-        let mut sessions=s.borrow_mut();
-        let (page,next)=c.borrow().private_page(&mut sessions,caller,viewer.clone(),consumer,membership_wire::continuation(token),ic_cdk::api::time())?;
-        let instance=sessions.instance(caller,consumer)?;Ok::<_,String>((page,next,instance))
-    }))?;
-    let mut page=membership_wire::diagnostic(caller,&viewer,config.generation,config.binding.registry_revision,config.inventory_digest,page,next);
-    // Current means the independently verified snapshot interval of this page,
-    // never permanent freshness or authorization to read club resources.
-    page.verified_current=true;
-    Ok(membership_wire::ReleasedReply{page,instance,release,registry,photo_stores})
-}
-/// Governor-only bounded ownership acceptance. Every live source status and
-/// complete registry is checked before local acceptance; no observer supplies
-/// club claims or proofs. This never enables the verified-current reader.
-#[ic_cdk::update]
-async fn advance_membership_directory_ownership()->Outcome<membership_coordinator::OwnershipProgress>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    require_governor(&state(),ic_cdk::api::msg_caller())?;
-    advance_directory_ownership().await
-}
-async fn advance_directory_ownership()->Outcome<membership_coordinator::OwnershipProgress>{
-    let config=directory_config()?;recheck_directory(&config)?;
-    if config.sources.len()>100{return Err("Ownership source-status budget exceeded".into());}
-    let check=||recheck_directory(&config);
-    let first=read_registry_pages(&config.binding,check).await?;
-    let required=config.sources.iter().map(|(_,p)|*p).collect::<Vec<_>>();
-    let original=membership_coordinator::original_mainnet_writer(&config.binding,ic_cdk::api::canister_self());
-    let inventory=if let Some(p)=original{membership_coordinator::verify_inventory_with_original(&first,&config.binding,&required,config.generation,p)?}
-        else{membership_coordinator::verify_inventory(&first,&config.binding,&required,config.generation)?};
-    if inventory.digest().as_slice()!=config.inventory_digest.as_slice()||inventory.source_bindings()!=config.sources{return Err("Ownership inventory changed".into());}
-    let captured=DIRECTORY_COORDINATOR.with(|c|c.borrow().sources())?;
-    for (source,authority) in &config.sources{
-        let (current,acknowledged,pending)=directory_source_status(&config,source,*authority).await?;
-        if pending||current!=acknowledged||captured.iter().find(|s|&s.id==source).is_none_or(|s|s.binding.revision!=current){return Err("Ownership source has pending membership changes or changed revision".into());}
-    }
-    let second=read_registry_pages(&config.binding,check).await?;
-    if first!=second{return Err("Ownership registry changed".into());}recheck_directory(&config)?;
-    let after=DIRECTORY_COORDINATOR.with(|c|c.borrow().sources())?;
-    if captured.iter().map(|s|(&s.id,&s.binding)).collect::<Vec<_>>()!=after.iter().map(|s|(&s.id,&s.binding)).collect::<Vec<_>>(){return Err("Ownership build changed during status checks".into());}
-    DIRECTORY_COORDINATOR.with(|c|c.borrow_mut().advance_ownership(original))
-}
-// Independent of start: an exhausted pool must still be reclaimable.
-#[ic_cdk::update]
-fn reclaim_membership_directory()->Outcome<DirectoryCleanup>{
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    require_governor(&state(),ic_cdk::api::msg_caller())?;
-    let (scanned,complete)=DIRECTORY_COORDINATOR.with(|c|c.borrow_mut().reclaim_retired())?;
-    Ok(DirectoryCleanup{scanned:scanned as u64,complete})
-}
-// Native system timer: no public caller can trigger unbounded fan-out. Rotate
-// one source per tick, preserve position across upgrade, and poll even when a
-// notification was lost. Re-arm before awaiting so failures remain retryable.
-fn arm_directory_timer(){
-    if directory_config().is_ok_and(|c|c.enabled){
-        if let Some(at)=ic_cdk::api::time().checked_add(30_000_000_000){ic_cdk::api::global_timer_set(at);}
-    }
-}
-struct DirectoryTimerGuard;
-impl Drop for DirectoryTimerGuard{fn drop(&mut self){DIRECTORY_TIMER_BUSY.with(|b|*b.borrow_mut()=false);}}
-#[export_name="canister_global_timer"]
-extern "C" fn membership_directory_global_timer(){
-    if private_name_writer_window::enabled() { return; }
-    arm_directory_timer();
-    let entered=DIRECTORY_TIMER_BUSY.with(|b|{let mut b=b.borrow_mut();if *b{false}else{*b=true;true}});
-    if !entered{return;}
-    ic_cdk::futures::internals::in_executor_context(||ic_cdk::futures::spawn(async {
-        let _guard=DirectoryTimerGuard;
-        let Ok(mut config)=directory_config() else{return;};
-        if !config.enabled||config.sources.is_empty(){return;}
-        let at=config.next_source%config.sources.len();let source=config.sources[at].0.clone();
-        config.next_source=(at+1)%config.sources.len();save_directory_config(&config);
-        // Cleanup is bounded and happens independently of allocation success.
-        let _=DIRECTORY_COORDINATOR.with(|c|c.borrow_mut().reclaim_retired());
-        match advance_directory_source(source).await{
-            Ok(progress) if progress.phase=="acknowledged"=>{let _=advance_directory_ownership().await;},
-            Err(error)=>ic_cdk::println!("Directory refresh deferred: {}",error),_=>{},
-        }
-    }));
 }
 fn removal_intent(account_id: &str) -> Option<removal_barrier::Intent> {
     REMOVAL_INTENTS.with(|m| m.borrow().get(&account_id.to_string())).map(|bytes| decode(&bytes))
@@ -973,8 +502,6 @@ fn persist_removal_intent(account: &Account, inventory: group_inventory::Removal
 }
 #[ic_cdk::update]
 async fn begin_account_removal(account_id: String, expected_history_revision: u64) -> Outcome<removal_barrier::Intent> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     // Unknown outcomes retry the original immutable intent, not today's registry.
     if let Some(intent) = removal_intent(&account_id) { return Ok(intent); }
@@ -989,8 +516,6 @@ async fn begin_account_removal(account_id: String, expected_history_revision: u6
 }
 #[ic_cdk::update]
 fn read_account_removal_intent(account_id: String) -> Outcome<removal_barrier::Intent> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     removal_intent(&account_id).ok_or("Removal intent missing".into())
 }
@@ -998,8 +523,6 @@ fn read_account_removal_intent(account_id: String) -> Outcome<removal_barrier::I
 // Stored receipts are recovery evidence, never cached permission to complete.
 #[ic_cdk::update]
 async fn advance_account_removal_receiver(account_id: String, target: Principal) -> Outcome<removal_barrier::Receipt> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
     if !intent.targets.contains(&target) { return Err("Receiver outside frozen removal inventory".into()); }
@@ -1023,8 +546,6 @@ async fn advance_account_removal_receiver(account_id: String, target: Principal)
 /// data, release registry locks, restore histories or activate a group.
 #[ic_cdk::update]
 async fn verify_account_removal_seals(account_id: String) -> Outcome<Vec<removal_barrier::Receipt>> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     let intent = removal_intent(&account_id).ok_or("Removal intent missing")?;
     let request = intent.request();
@@ -1044,88 +565,6 @@ async fn verify_account_removal_seals(account_id: String) -> Outcome<Vec<removal
 fn group_inventory_binding() -> Option<group_inventory::Binding> {
     GROUP_INVENTORY_BINDING.with(|m| if m.borrow().get().is_empty() { None } else { Some(decode(m.borrow().get())) })
 }
-fn group2_admission() -> admission::Config {
-    GROUP2_ADMISSION.with(|m| if m.borrow().get().is_empty() { admission::Config::default() } else { decode(m.borrow().get()) })
-}
-fn admission_configuration_clear() -> Outcome<()> {
-    if removal_pending() || DELETION_TICKETS.with(|m| !m.borrow().is_empty()) || !link_lifecycle().pending.is_empty() {
-        return Err("Account removal or unlink pending".into());
-    }
-    Ok(())
-}
-/// Governor-only production repair. Derive readers from the pinned router,
-/// never from a browser-supplied principal list. No lifecycle gate is released.
-#[ic_cdk::update]
-async fn authorize_group2_admission(binding: group_inventory::Binding) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    authorize_group_admission_inner("g2".into(), binding).await
-}
-/// Governor-only. Adds one new group's exact 12 readers (derived from two
-/// pinned router reads) to the existing set; never removes or replaces readers.
-/// Re-running for an already-authorized group is a no-op on the reader set.
-#[ic_cdk::update]
-async fn authorize_group_admission(group_id: String, binding: group_inventory::Binding) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    authorize_group_admission_inner(group_id, binding).await
-}
-async fn authorize_group_admission_inner(group_id: String, binding: group_inventory::Binding) -> Outcome<()> {
-    require_governor(&state(), ic_cdk::api::msg_caller())?;
-    if !admission::valid_group_id(&group_id) { return Err("New group id (g2 or later) required".into()); }
-    admission_configuration_clear()?;
-    let pinned = group_inventory_binding().ok_or("Deletion registry not pinned")?;
-    let mut expected = pinned.clone(); expected.registry_revision = binding.registry_revision;
-    if expected != binding || binding.registry_revision < pinned.registry_revision || !bound_deletion_released() {
-        return Err("Pinned mainnet account connection required".into());
-    }
-    let history = removal_history_revision();
-    let prior = group2_admission();
-    let prior_bytes = encode(&prior);
-    let recheck = || -> Outcome<()> {
-        admission_configuration_clear()?;
-        if group_inventory_binding().as_ref() != Some(&pinned) || removal_history_revision() != history || encode(&group2_admission()) != prior_bytes {
-            return Err("Account configuration changed during authorization".into());
-        }
-        Ok(())
-    };
-    let mut observed = None;
-    for _ in 0..2 {
-        let mut groups = Vec::new(); let mut placements = Vec::new(); let mut cursor: Option<String> = None;
-        loop {
-            recheck()?;
-            let reply = ic_cdk::call::Call::bounded_wait(binding.registry, "read_group_registry_page")
-                .with_args(&(&binding.target_alias, Some(binding.registry_revision), &cursor, 64u32))
-                .await.map_err(|_| "Admission registry unavailable".to_string())?;
-            recheck()?;
-            let page: Outcome<admission::Page> = reply.candid().map_err(|_| "Invalid admission registry reply".to_string())?;
-            let page = page?;
-            if page.revision != binding.registry_revision || page.groups.len() > 64 || page.groups.len() != page.placements.len() ||
-                page.next_cursor.as_ref().is_some_and(|n| cursor.as_ref().is_some_and(|c| n <= c)) { return Err("Admission registry drift".into()); }
-            groups.extend(page.groups); placements.extend(page.placements);
-            if groups.len() > 4096 { return Err("Admission inventory bound exceeded".into()); }
-            match page.next_cursor { None => break, Some(next) => cursor=Some(next) }
-        }
-        if observed.as_ref().is_some_and(|p| p != &(groups.clone(),placements.clone())) { return Err("Admission inventory changed".into()); }
-        observed=Some((groups,placements));
-    }
-    let (groups,placements)=observed.ok_or("Admission inventory missing")?;
-    let group_readers=admission::group_readers(&group_id,&groups,&placements,&binding)?;
-    let readers=admission::merge(&prior.readers,&group_readers);
-    recheck()?;
-    GROUP2_ADMISSION.with(|m| m.borrow_mut().set(encode(&admission::Config { enabled:true,readers })));
-    bump_removal_history();
-    Ok(())
-}
-#[ic_cdk::update]
-fn disable_group2_admission() -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    require_governor(&state(), ic_cdk::api::msg_caller())?;
-    let mut config=group2_admission(); config.enabled=false;
-    GROUP2_ADMISSION.with(|m|m.borrow_mut().set(encode(&config)));
-    bump_removal_history(); Ok(())
-}
 fn store_group_inventory_binding(binding: group_inventory::Binding, expected_history_revision: u64) -> Outcome<()> {
     if removal_pending() { return Err("Removal barrier pending".into()); }
     if DELETION_TICKETS.with(|m|m.borrow().len())>0 { return Err("Deletion reservation pending".into()); }
@@ -1143,8 +582,6 @@ fn store_group_inventory_binding(binding: group_inventory::Binding, expected_his
 }
 #[ic_cdk::update]
 fn set_group_inventory_binding(binding: group_inventory::Binding, expected_history_revision: u64) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     store_group_inventory_binding(binding, expected_history_revision)
 }
@@ -1201,8 +638,6 @@ fn supplemental_inventory() -> Vec<group_inventory::Supplemental> {
 }
 #[ic_cdk::update]
 fn set_removal_supplemental_inventory(entries: Vec<group_inventory::Supplemental>, expected_history_revision: u64) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     if removal_pending() { return Err("Removal barrier pending".into()); }
     if removal_history_revision() != expected_history_revision || !link_lifecycle().pending.is_empty() { return Err("History changed or unlink pending".into()); }
@@ -1303,8 +738,6 @@ fn history_manifest() -> RemovalHistoryManifest {
 /// a complete deployment inventory or an in-flight drain acknowledgement.
 #[ic_cdk::update]
 fn read_removal_history_manifest() -> Outcome<RemovalHistoryManifest> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     Ok(history_manifest())
 }
@@ -1378,8 +811,6 @@ fn history_page(revision: u64, cursor: RemovalHistoryCursor, limit: u16) -> Outc
 }
 #[ic_cdk::update]
 fn read_removal_history_page(revision: u64, cursor: RemovalHistoryCursor, limit: u16) -> Outcome<RemovalHistoryPage> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     history_access(account_group_rehearsal_enabled(), state().governor, ic_cdk::api::msg_caller())?;
     history_page(revision, cursor, limit)
 }
@@ -1415,24 +846,14 @@ fn bound_deletion_released() -> bool {
 fn read_group_opening_configuration() -> Outcome<Vec<(String, String)>> {
     require_governor(&state(), ic_cdk::api::msg_caller())?;
     let binding = group_inventory_binding().ok_or("Deletion registry not pinned")?;
-    let mut rows = vec![("registry".into(), binding.registry.to_text()), ("target_alias".into(), binding.target_alias),
+    Ok(vec![("registry".into(), binding.registry.to_text()), ("target_alias".into(), binding.target_alias),
         ("deployment_id".into(), binding.deployment_id), ("host".into(), binding.host),
-        ("network_kind".into(), binding.network_kind), ("bound_deletion_released".into(), bound_deletion_released().to_string()),
-        ("account_admission_released".into(), (account_group_rehearsal_enabled() || group2_admission().enabled).to_string())];
-    // Read-only evidence; neither registers readers nor releases the lifecycle.
-    let mut authorities = if account_group_rehearsal_enabled() { let mut a=link_lifecycle().authorities; a.extend(service_authorities()); a } else { vec![] };
-    let production=group2_admission();
-    if production.enabled { authorities.extend(production.readers); }
-    authorities.sort(); authorities.dedup();
-    rows.extend(authorities.into_iter().map(|p| ("eligibility_authority".into(), p.to_text())));
-    Ok(rows)
+        ("network_kind".into(), binding.network_kind), ("bound_deletion_released".into(), bound_deletion_released().to_string())])
 }
 /// Separate governor-only trust pin for the already-released deletion timing
 /// protocol. Existing history/lifecycle gates remain unchanged.
 #[ic_cdk::update]
 fn pin_owner_test_deletion_registry(binding: group_inventory::Binding) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_governor(&state(), ic_cdk::api::msg_caller())?;
     if !bound_deletion_released() || binding.network_kind != "public_mainnet" { return Err("Bound deletion mainnet release required".into()); }
     store_group_inventory_binding(binding, removal_history_revision())
@@ -1441,8 +862,6 @@ fn pin_owner_test_deletion_registry(binding: group_inventory::Binding) -> Outcom
 /// narrow predicate neither registers a reader nor releases global admission.
 #[ic_cdk::update]
 fn read_owner_test_creation_eligible(subject: Principal) -> Outcome<bool> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let binding = group_inventory_binding().ok_or("Deletion registry not pinned")?;
     if ic_cdk::api::msg_caller() != binding.registry || !bound_deletion_released() { return Err("Pinned router and bound deletion release required".into()); }
     let account = match account_for_write(subject) { Ok(a) => a, Err(_) => return Ok(false) };
@@ -1451,8 +870,6 @@ fn read_owner_test_creation_eligible(subject: Principal) -> Outcome<bool> {
 
 #[ic_cdk::update]
 fn set_club_authorities(authorities: Vec<Principal>) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     if !account_group_rehearsal_enabled() { return Err("Cross-group account lifecycle not released".into()); }
     require_governor(&state(), ic_cdk::api::msg_caller())?;
     if removal_pending() { return Err("Removal barrier pending".into()); }
@@ -1500,11 +917,9 @@ fn get_account(id: &str) -> Option<Account> {
     ACCOUNTS.with(|m| m.borrow().get(&id.to_string())).map(|b| decode(&b))
 }
 fn put_account(account: &Account) {
-    bump_profile_search_revision();
     ACCOUNTS.with(|m| m.borrow_mut().insert(account.id.clone(), encode(account)));
 }
 fn remove_account(id: &str) -> Option<Account> {
-    bump_profile_search_revision();
     ACCOUNTS.with(|m| m.borrow_mut().remove(&id.to_string())).map(|b| decode(&b))
 }
 fn account_count() -> u64 {
@@ -1526,7 +941,6 @@ fn get_profile_entry(account_id: &str) -> Option<Profile> {
     PROFILES.with(|m| m.borrow().get(&account_id.to_string())).map(|b| decode(&b))
 }
 fn put_profile_entry(profile: &Profile) {
-    bump_profile_search_revision();
     PROFILES.with(|m| m.borrow_mut().insert(profile.account_id.clone(), encode(profile)));
 }
 /// The caller's profile, or a blank default (not yet persisted) when none
@@ -1544,161 +958,10 @@ fn get_or_init_profile(account_id: &str) -> Profile {
     })
 }
 fn remove_profile_entry(account_id: &str) {
-    bump_profile_search_revision();
     PROFILES.with(|m| m.borrow_mut().remove(&account_id.to_string()));
 }
 fn all_profiles() -> Vec<Profile> {
     PROFILES.with(|m| m.borrow().iter().map(|e| decode(&e.value())).collect())
-}
-fn profile_search_revision() -> u64 { PROFILE_SEARCH_REVISION.with(|cell| *cell.borrow().get()) }
-fn bump_profile_search_revision() {
-    PROFILE_SEARCH_REVISION.with(|cell| { let mut value=cell.borrow_mut(); let next=value.get().checked_add(1).expect("Profile revision exhausted"); value.set(next); });
-}
-fn bounded_guardian_profile_rows(after: Option<String>) -> Vec<Profile> {
-    PROFILES.with(|store| {
-        let store=store.borrow();
-        let bounds=after.map(|key|(std::ops::Bound::Excluded(key),std::ops::Bound::Unbounded))
-            .unwrap_or((std::ops::Bound::Unbounded,std::ops::Bound::Unbounded));
-        store.range(bounds).take(guardian_search::SCAN_LIMIT).map(|entry|decode(&entry.value())).collect()
-    })
-}
-fn guardian_search_binding(caller: Principal, viewer: &membership_private_lookup::Viewer, authority: Principal, child: &str, config: &membership_runtime::Config) -> Vec<u8> {
-    // Encode configuration fields only (worker progress is not a repin).
-    Sha256::digest(encode(&(caller, &viewer.account, viewer.version, &viewer.aliases, authority, child,
-        &config.binding, config.generation, &config.inventory_digest, &config.sources, config.enabled, &config.lifecycle, &config.release))).to_vec()
-}
-async fn verify_guardian_search(caller: Principal, authority: Principal, child: &str, viewer: &membership_private_lookup::Viewer, config: &membership_runtime::Config) -> Outcome<()> {
-    let reply=ic_cdk::call::Call::bounded_wait(authority,"read_has_child_guardian")
-        .with_args(&(caller,child.to_string())).await.map_err(|_|"Guardian verification unavailable")?;
-    let guardian: bool=reply.candid().map_err(|_|"Invalid guardian verification")?;
-    guardian_search::permit_disclosure(guardian,membership_lookup_viewer(caller)?==*viewer,config.same_configuration(&directory_config()?))
-}
-
-/// Exact-child bounded directory traversal for device-side encrypted matching.
-/// Rehearsal only until the PII guardian audience and release acceptance pass.
-#[ic_cdk::update]
-async fn read_guardian_profile_candidates(authority: Principal, child: String, cursor: Option<guardian_search::Cursor>) -> Outcome<GuardianProfilePage> {
-    if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1") { return Err("Private guardian search is not released".into()); }
-    let caller=ic_cdk::api::msg_caller();
-    let viewer=membership_lookup_viewer(caller)?;
-    let config=directory_config()?;
-    guardian_search::validate_scope(authority,&config.sources.iter().map(|(_,p)|*p).collect::<Vec<_>>(),&child)?;
-    let binding=guardian_search_binding(caller,&viewer,authority,&child,&config);
-    let revision=profile_search_revision();
-    if let Some(ref c)=cursor { guardian_search::validate_cursor(c,revision,&binding,ic_cdk::api::time())?; }
-    verify_guardian_search(caller,authority,&child,&viewer,&config).await?;
-    if profile_search_revision()!=revision { return Err("Guardian directory changed".into()); }
-    let after=cursor.as_ref().map(|c|c.after.clone());
-    let profiles=bounded_guardian_profile_rows(after);
-    let mut scanned=0u16; let mut rows=Vec::new(); let mut last=None;
-    for profile in profiles {
-        scanned+=1; last=Some(profile.account_id.clone());
-        let account=match get_account(&profile.account_id){Some(a)=>a,None=>continue};
-        let principal=match account.principals.iter().copied().find(|p| *p!=caller && membership_lookup_viewer(*p).is_ok()){Some(p)=>p,None=>continue};
-        if profile.display_name.trim().is_empty(){continue;}
-        // A private reference belongs to its original alias, not necessarily
-        // the first/current alias returned by the historical search endpoint.
-        let principal=if profile.display_name.starts_with("pii-display-name:") {
-            if !private_profile_reference::valid(&profile.display_name,&account.principals){continue;}
-            match profile.display_name.rsplit(':').next().and_then(|s|Principal::from_text(s).ok()) {Some(p) if membership_lookup_viewer(p).is_ok()=>p,_=>continue}
-        } else {principal};
-        rows.push(ProfileSearchResult{account_id:profile.account_id,principal,display_name:profile.display_name,avatar_ref:profile.avatar_ref});
-        if rows.len()==guardian_search::RESULT_LIMIT{break;}
-    }
-    let has_next=last.as_ref().is_some_and(|last|PROFILES.with(|store|store.borrow().range((std::ops::Bound::Excluded(last.clone()),std::ops::Bound::Unbounded)).next().is_some()));
-    verify_guardian_search(caller,authority,&child,&viewer,&config).await?;
-    if profile_search_revision()!=revision {return Err("Guardian directory changed".into());}
-    rows.retain(|row|membership_lookup_viewer(row.principal).is_ok());
-    let next=if has_next {last.map(|after|guardian_search::Cursor{after,revision,binding,expires_at_ns:cursor.map(|c|c.expires_at_ns).unwrap_or(ic_cdk::api::time()+300_000_000_000)})} else {None};
-    Ok(GuardianProfilePage{revision,rows,scanned,next})
-}
-
-/// Service-delegated name permission only. Registry placement authenticates
-/// both the ORIGINAL PII caller and owning audience service; location alone
-/// never admits a human. References must name this precise original PII caller.
-#[ic_cdk::update]
-async fn read_private_profile_name_authorization(viewer_principal: Principal, subjects: Vec<Principal>, scope: private_name_audience::Scope) -> Outcome<Vec<ProfileSearchResult>> {
-    if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1") && !(scope.kind == "club" && private_club_name_displays_released()) { return Err("Private name audiences are not released".into()); }
-    private_name_audience::validate(viewer_principal, &subjects, &scope)?;
-    let service = ic_cdk::api::msg_caller();
-    if !service_authorities().contains(&service) { return Err("Configured private-name service required".into()); }
-    let viewer = membership_lookup_viewer(viewer_principal)?;
-    let config = directory_config()?;
-    let history = removal_history_revision();
-    let revision = profile_search_revision();
-    let active = || -> Outcome<()> {
-        if membership_lookup_viewer(viewer_principal)? != viewer || !config.same_configuration(&directory_config()?)
-            || history != removal_history_revision() || revision != profile_search_revision() {
-            return Err("Private-name audience changed".into());
-        }
-        Ok(())
-    };
-    let inventory = read_registry_pages(&config.binding, active).await?;
-    active()?;
-    let registry_clubs = inventory.groups.iter().flat_map(|g| g.domains.iter().filter(|d| d.domain == "club_domain").map(|d| d.canister)).collect::<Vec<_>>();
-    group_inventory::validate(&inventory, &config.binding, &registry_clubs, &[])?;
-    if !inventory.groups.iter().any(|g| g.domains.iter().any(|d| d.domain == "pii_access_control" && d.canister == service)) {
-        return Err("Original private-name service is not registered".into());
-    }
-    let domain = match scope.kind.as_str() { "competition" => "competition_domain", "league" => "mini_league_domain", "direct" | "broadcast" | "competition_admin" => "messaging_domain", _ => "club_domain" };
-    if !inventory.groups.iter().any(|g| g.domains.iter().any(|d| d.domain == domain && d.canister == scope.authority)) {
-        return Err("Private-name audience authority is not registered".into());
-    }
-    let mut rows = Vec::new();
-    for subject in &subjects {
-        let account = membership_lookup_viewer(*subject)?;
-        let profile = get_profile_entry(&account.account).ok_or("Private profile not found")?;
-        let expected = format!("pii-display-name:v1:{}:{}", service.to_text(), subject.to_text());
-        if profile.display_name != expected { return Err("Original private-name binding changed".into()); }
-        rows.push(ProfileSearchResult { account_id: profile.account_id, principal: *subject, display_name: profile.display_name, avatar_ref: profile.avatar_ref });
-    }
-    if scope.kind == "guardian_search" {
-        if scope.profile_revision != revision { return Err("Guardian directory changed".into()); }
-        verify_guardian_search(viewer_principal, scope.authority, &scope.resource, &viewer, &config).await?;
-        active()?;
-        verify_guardian_search(viewer_principal, scope.authority, &scope.resource, &viewer, &config).await?;
-        active()?;
-    } else {
-        let method = match scope.kind.as_str() { "club" => "read_profile_membership_batch", "family" => "read_profile_family_batch", "competition" | "league" => "read_profile_audience_batch", "direct" => "read_profile_direct_batch", "broadcast" => "read_profile_broadcast_batch", "competition_admin" => "read_profile_competition_admin_batch", _ => return Err("Invalid audience".into()) };
-        let mut retained: Option<club_profiles::MembershipBatch> = None;
-        for _ in 0..2 {
-            let expected = retained.as_ref().map(|r| r.revision.clone());
-            let reply = ic_cdk::call::Call::bounded_wait(scope.authority, method)
-                .with_args(&(viewer_principal, scope.resource.clone(), subjects.clone(), expected.clone())).await
-                .map_err(|_| "Private-name relationship verification unavailable")?;
-            active()?;
-            let batch: Outcome<club_profiles::MembershipBatch> = reply.candid().map_err(|_| "Invalid private-name relationship reply")?;
-            let batch = batch?;
-            club_profiles::verify_batch(&batch, viewer_principal, &scope.resource, &subjects, expected.as_ref())?;
-            if batch.members.iter().any(|member| !member) || retained.as_ref().is_some_and(|prior| prior != &batch) { return Err("Private-name relationship denied or changed".into()); }
-            retained = Some(batch);
-        }
-    }
-    // No await after these final subject/reference and caller rechecks.
-    active()?;
-    for row in &rows {
-        let account = membership_lookup_viewer(row.principal)?;
-        if account.account != row.account_id || get_profile_entry(&account.account).map(|p| p.display_name) != Some(row.display_name.clone()) { return Err("Private-name subject changed".into()); }
-    }
-    Ok(rows)
-}
-
-/// Final retained-match readback, without rescanning or deriving keys twice.
-#[ic_cdk::update]
-async fn read_guardian_profiles(authority: Principal, child: String, subjects: Vec<Principal>, revision: u64) -> Outcome<Vec<ProfileSearchResult>> {
-    if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1"){return Err("Private guardian search is not released".into());}
-    if subjects.len()>25 || subjects.iter().any(|p|*p==Principal::anonymous()) || subjects.iter().collect::<std::collections::BTreeSet<_>>().len()!=subjects.len(){return Err("Bounded distinct guardian candidates required".into());}
-    let caller=ic_cdk::api::msg_caller(); let viewer=membership_lookup_viewer(caller)?; let config=directory_config()?;
-    guardian_search::validate_scope(authority,&config.sources.iter().map(|(_,p)|*p).collect::<Vec<_>>(),&child)?;
-    verify_guardian_search(caller,authority,&child,&viewer,&config).await?;
-    if profile_search_revision()!=revision{return Err("Guardian directory changed".into());}
-    verify_guardian_search(caller,authority,&child,&viewer,&config).await?;
-    if profile_search_revision()!=revision{return Err("Guardian directory changed".into());}
-    Ok(subjects.into_iter().filter_map(|principal| {
-        let subject=membership_lookup_viewer(principal).ok()?;
-        let profile=get_profile_entry(&subject.account)?;
-        Some(ProfileSearchResult{account_id:profile.account_id,principal,display_name:profile.display_name,avatar_ref:profile.avatar_ref})
-    }).collect())
 }
 
 // ---- Entitlements ----
@@ -1782,15 +1045,6 @@ fn account_for_write(principal: Principal) -> Outcome<Account> {
     }
     Ok(account)
 }
-// No public reader until exact source binding/propagation is released. This
-// adapter uses identity-owned aliases freshly on every bounded lookup page.
-fn membership_lookup_viewer(caller: Principal) -> Outcome<membership_private_lookup::Viewer> {
-    let account=account_for_write(caller)?;
-    if DELETION_TICKETS.with(|m|m.borrow().contains_key(&account.id)){return Err("Account deletion pending".into());}
-    let account=effective_account(account,&link_lifecycle());
-    if !account.principals.contains(&caller){return Err("Identity revocation pending".into());}
-    Ok(membership_private_lookup::Viewer{account:account.id,version:account.version,aliases:account.principals})
-}
 fn valid_id(value: &str) -> bool {
     !value.trim().is_empty() && value.len() <= 128
 }
@@ -1809,108 +1063,21 @@ fn account_id(principal: Principal) -> String {
         &hex[20..]
     )
 }
-/// The account id is SHA-256 of the creating principal, so the derived
-/// account was provably created by this principal. Every legitimate removal
-/// of a sign-in ID (revoke, rekey) leaves a durable denial, and erasure /
-/// removal / deletion leave their own markers. If none of those exist, the
-/// principal was never legitimately removed and may re-attach to its original
-/// account (restoring profile, clubs and roles) instead of being locked out.
-fn reclaimable_original_account(principal: Principal) -> Option<Account> {
-    let derived = account_id(principal);
-    let existing = get_account(&derived)?;
-    if existing.principals.contains(&principal) { return Some(existing); }
-    if principal_denial(principal).is_some() || account_is_erased(&derived) || removal_intent(&derived).is_some()
-        || link_lifecycle().pending.iter().any(|job| job.account_id == derived)
-        || DELETION_TICKETS.with(|m| m.borrow().contains_key(&derived))
-        || existing.principals.len() >= MAX_PRINCIPALS {
-        return None;
-    }
-    Some(existing)
-}
-fn reattach_original_account(principal: Principal, mut existing: Account) -> Outcome<String> {
-    if !existing.principals.contains(&principal) {
-        existing.principals.push(principal);
-        existing.version = existing.version.checked_add(1).ok_or("Account version exhausted")?;
-        put_account(&existing);
-    }
-    index_principal(principal, &existing.id);
-    account_for(principal)?;
-    Ok(existing.id)
-}
-/// A duplicate created by an earlier recovery attempt: only this sign-in ID,
-/// no roles, families, exclusions, bindings or purchases. A draft profile is
-/// discarded in favour of the original account's profile.
-fn is_bare_duplicate(state: &CoreState, account: &Account, principal: Principal) -> bool {
-    let id = &account.id;
-    account.principals == vec![principal]
-        && !state.roles.iter().any(|g| &g.account_id == id)
-        && !state.families.iter().any(|f| &f.account_id == id)
-        && !state.exclusions.iter().any(|e| &e.account_id == id)
-        && !state.external_bindings.iter().any(|b| &b.account_id == id)
-        && !all_entitlements().iter().any(|e| e.principal == principal)
-        && !account_is_erased(id) && removal_intent(id).is_none()
-        && !DELETION_TICKETS.with(|m| m.borrow().contains_key(id))
-        && !link_lifecycle().pending.iter().any(|job| &job.account_id == id)
-}
 fn ensure_account(principal: Principal) -> Outcome<String> {
     authenticated(principal)?;
     if principal_is_denied(principal) { return Err("Identity revoked; surviving-account relink required".into()); }
     if let Some(account) = find_account_by_principal(principal) {
-        // Earlier recovery may have parked this sign-in on a fresh, empty
-        // account while the original still exists: move it back.
-        if account.id != account_id(principal) {
-            if let Some(original) = reclaimable_original_account(principal) {
-                let mut state = state();
-                if !original.principals.contains(&principal) && is_bare_duplicate(&state, &account, principal) {
-                    let dup = account.id.clone();
-                    remove_account(&dup);
-                    PROFILES.with(|m| m.borrow_mut().remove(&dup));
-                    state.privacy_consents.retain(|c| c.account_id != dup);
-                    state.terms_acceptances.retain(|t| t.account_id != dup);
-                    state.challenges.retain(|c| c.account_id != dup);
-                    store(&state);
-                    return reattach_original_account(principal, original);
-                }
-            }
-        }
         account_for(principal)?;
         return Ok(account.id);
     }
     if principal_denial(principal).is_some() { return Err("Previous identity authorization requires surviving account".into()); }
-    let derived = account_id(principal);
-    if let Some(original) = reclaimable_original_account(principal) {
-        return reattach_original_account(principal, original);
-    }
     if account_count() >= MAX_ACCOUNTS as u64 {
         return Err("Account quota reached".into());
     }
-    // The derived slot belongs to another live account (the caller was
-    // unlinked from it). Never join it; give this unindexed, undenied
-    // principal its own fresh account under a salted deterministic id.
-    let id = if get_account(&derived).is_none() && !account_is_erased(&derived) { derived } else {
-        let mut chosen = None;
-        for n in 1u8..=16 {
-            let mut hasher = Sha256::new();
-            hasher.update(b"ignite-account-salt");
-            hasher.update([n]);
-            hasher.update(principal.as_slice());
-            let digest = hasher.finalize();
-            let hex: String = digest[..16].iter().map(|b| format!("{b:02x}")).collect();
-            let candidate = format!("{}-{}-{}-{}-{}", &hex[..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..]);
-            if let Some(found) = get_account(&candidate) {
-                if found.principals.contains(&principal) {
-                    index_principal(principal, &candidate);
-                    account_for(principal)?;
-                    return Ok(candidate);
-                }
-                continue;
-            }
-            if account_is_erased(&candidate) { continue; }
-            chosen = Some(candidate);
-            break;
-        }
-        chosen.ok_or("Account ID collision")?
-    };
+    let id = account_id(principal);
+    if get_account(&id).is_some() {
+        return Err("Account ID collision".into());
+    }
     put_account(&Account {
         id: id.clone(),
         principals: vec![principal],
@@ -2030,7 +1197,6 @@ fn init(init: Init) {
         next_challenge: 0,
     };
     store(&state);
-    arm_directory_timer();
 }
 
 /// Splits a legacy full-blob `State` (schema 1..4, accounts/profiles/
@@ -2091,7 +1257,6 @@ fn post_upgrade() {
         deny_unlinked_principal(job.principal, &job.account_id, job.version).expect("Invalid pending principal denial; upgrade refused");
     }
     store_link_lifecycle(&lifecycle);
-    arm_directory_timer();
 }
 
 #[ic_cdk::query]
@@ -2101,8 +1266,6 @@ fn whoami() -> Outcome<Account> {
 
 #[ic_cdk::update]
 fn register_account() -> Outcome<Account> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let account_id = ensure_account(caller)?;
     get_account(&account_id).ok_or("Account unavailable".into())
@@ -2115,72 +1278,17 @@ fn valid_display_name(value: &str) -> bool {
 
 /// Sets (or replaces) the caller's profile. The account must already exist —
 /// sign-in provisioning calls register_account first.
-fn secure_name_save_released() -> bool {
-    #[cfg(target_arch = "wasm32")]
-    { ic_cdk::api::env_var_name_exists("IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE") && ic_cdk::api::env_var_value("IGNITE_SECURE_ADULT_NAME_SAVE_RELEASE") == "1" }
-    #[cfg(not(target_arch = "wasm32"))]
-    { false }
-}
-fn private_club_name_displays_released() -> bool {
-    #[cfg(target_arch = "wasm32")]
-    { ic_cdk::api::env_var_name_exists("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") && ic_cdk::api::env_var_value("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") == "1" }
-    #[cfg(not(target_arch = "wasm32"))]
-    { false }
-}
-fn secure_name_authority(caller: Principal, existing: Option<&Profile>) -> Outcome<Principal> {
-    #[cfg(target_arch = "wasm32")]
-    let configured = if ic_cdk::api::env_var_name_exists("IGNITE_SECURE_ADULT_NAME_PII") { Some(ic_cdk::api::env_var_value("IGNITE_SECURE_ADULT_NAME_PII")) } else { None };
-    #[cfg(not(target_arch = "wasm32"))]
-    let configured: Option<String> = None;
-    secure_name_save::authority(secure_name_save_released(), configured.as_deref(), existing.map(|p|p.display_name.as_str()), caller)
-}
-/// Authenticated consensus capability: returns only the operator-pinned own-name
-/// authority, never a browser-selected sink or authorization for other people.
 #[ic_cdk::update]
-fn read_secure_name_authority() -> Outcome<Principal> {
-    let caller=ic_cdk::api::msg_caller();
-    let account=account_for_write(caller)?;
-    secure_name_authority(caller, get_profile_entry(&account.id).as_ref())
-}
-#[ic_cdk::update]
-async fn set_profile(display_name: String, avatar_ref: Option<String>) -> Outcome<Profile> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
+fn set_profile(display_name: String, avatar_ref: Option<String>) -> Outcome<Profile> {
     let caller = ic_cdk::api::msg_caller();
-    let account = account_for_write(caller)?;
-    let account_id = account.id.clone();
-    let valid_name = if display_name.starts_with("pii-display-name:") {
-        private_profile_reference::valid(&display_name, &account.principals)
-    } else { valid_display_name(&display_name) };
-    if !valid_name {
+    let account_id = account_for_write(caller)?.id;
+    if !valid_display_name(&display_name) {
         return Err("Display name must be 1-80 characters".into());
     }
     if avatar_ref.as_deref().is_some_and(|a| a.len() > 512) {
         return Err("Avatar reference must be at most 512 characters".into());
     }
     let existing = get_profile_entry(&account_id);
-    if !private_profile_reference::preserves_private_name(
-        existing.as_ref().map(|profile| profile.display_name.as_str()),
-        &display_name,
-    ) {
-        return Err("Encrypted name must be updated at its original private-name authority".into());
-    }
-    if secure_name_save_released() {
-        let authority=secure_name_authority(caller, existing.as_ref())?;
-        if !secure_name_save::reference_matches(&display_name, authority, caller) {
-            return Err("Save your personal name encrypted before updating the profile".into());
-        }
-        let revision=profile_search_revision();
-        let history=removal_history_revision();
-        let reply=ic_cdk::call::Call::bounded_wait(authority,"verify_secure_profile_name")
-            .with_args(&(caller,)).await.map_err(|_|"Encrypted personal-name verification unavailable")?;
-        let verified: Outcome<bool>=reply.candid().map_err(|_|"Invalid encrypted-name verification reply")?;
-        if !verified? { return Err("Encrypted personal name is not saved".into()); }
-        if account_for_write(caller)? != account || profile_search_revision()!=revision || removal_history_revision()!=history
-            || get_profile_entry(&account_id)!=existing || secure_name_authority(caller,existing.as_ref())?!=authority {
-            return Err("Profile changed during secure saving; check before retrying".into());
-        }
-    }
     let profile = Profile {
         account_id: account_id.clone(),
         display_name: display_name.trim().to_string(),
@@ -2198,8 +1306,6 @@ async fn set_profile(display_name: String, avatar_ref: Option<String>) -> Outcom
 /// never called `set_profile`.
 #[ic_cdk::update]
 fn set_theme_preference(theme: Option<String>) -> Outcome<Profile> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let account_id = account_for_write(caller)?.id;
     if let Some(value) = theme.as_deref() {
@@ -2219,8 +1325,6 @@ fn set_theme_preference(theme: Option<String>) -> Outcome<Profile> {
 /// caller has never called `set_profile`.
 #[ic_cdk::update]
 fn set_club_switcher_hint_seen() -> Outcome<Profile> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let account_id = account_for_write(caller)?.id;
     let mut profile = get_or_init_profile(&account_id);
@@ -2277,89 +1381,6 @@ fn search_profiles(query: String, limit: u16) -> Outcome<Vec<ProfileSearchResult
         });
         if results.len() >= cap {
             break;
-        }
-    }
-    Ok(results)
-}
-
-/// Purpose-bound full search. Browser-supplied authority IDs are locations,
-/// never permissions: only pinned membership sources may verify this child.
-#[ic_cdk::update]
-async fn search_guardian_profiles(authority: Principal, child: String, query: String, limit: u16) -> Outcome<Vec<ProfileSearchResult>> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    let caller = ic_cdk::api::msg_caller();
-    let account = account_for_write(caller)?;
-    let config = directory_config()?;
-    let sources: Vec<Principal> = config.sources.iter().map(|(_, p)| *p).collect();
-    let (needle, cap) = guardian_search::validate_request(authority, &sources, &child, &query, limit)?;
-    let reply = ic_cdk::call::Call::bounded_wait(authority, "read_has_child_guardian")
-        .with_args(&(caller, child.clone())).await.map_err(|_| "Guardian verification unavailable")?;
-    let guardian: bool = reply.candid().map_err(|_| "Invalid guardian verification")?;
-    guardian_search::permit_disclosure(guardian, account_for_write(caller)? == account, config.same_configuration(&directory_config()?))?;
-    // Retain active principals only; a UUID is never used as a role principal.
-    let retained_revision = profile_search_revision();
-    let mut results = Vec::new();
-    for profile in all_profiles() {
-        if !profile.display_name.to_lowercase().contains(&needle) { continue; }
-        let principal = match get_account(&profile.account_id).and_then(|a| a.principals.into_iter().find(|p| account_for_write(*p).is_ok())) {
-            Some(p) if p != caller => p,
-            _ => continue,
-        };
-        results.push(ProfileSearchResult { account_id: profile.account_id, principal, display_name: profile.display_name, avatar_ref: profile.avatar_ref });
-        if results.len() >= cap { break; }
-    }
-    // Last consensus relationship check precedes disclosure, so a removal
-    // processed while searching cannot use the original successful reply.
-    let reply = ic_cdk::call::Call::bounded_wait(authority, "read_has_child_guardian")
-        .with_args(&(caller, child)).await.map_err(|_| "Guardian verification unavailable")?;
-    let guardian: bool = reply.candid().map_err(|_| "Invalid guardian verification")?;
-    guardian_search::permit_disclosure(guardian, account_for_write(caller)? == account, config.same_configuration(&directory_config()?))?;
-    guardian_search::permit_profile_revision(retained_revision, profile_search_revision())?;
-    results.retain(|result| account_for_write(result.principal).is_ok());
-    Ok(results)
-}
-
-/// Additive candidate reader for scoped client-side name matching. It does not
-/// enable a privacy cutover or use the unreleased membership directory index.
-#[ic_cdk::update]
-async fn read_club_profiles(authority: Principal, club: String, subjects: Vec<Principal>) -> Outcome<Vec<ProfileSearchResult>> {
-    if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != Some("1") {
-        return Err("Private profile candidate reads are not released".into());
-    }
-    let caller = ic_cdk::api::msg_caller();
-    let viewer = membership_lookup_viewer(caller)?;
-    let config = directory_config()?;
-    let sources: Vec<Principal> = config.sources.iter().map(|(_, p)| *p).collect();
-    let subjects = club_profiles::validate(authority, &sources, &club, &subjects)?;
-    let check = |expected: Option<candid::Nat>| {
-        let club = club.clone();
-        let subjects = subjects.clone();
-        async move {
-            let reply = ic_cdk::call::Call::bounded_wait(authority, "read_profile_membership_batch")
-                .with_args(&(caller, club, subjects, expected)).await.map_err(|_| "Club membership verification unavailable")?;
-            reply.candid::<Outcome<club_profiles::MembershipBatch>>().map_err(|_| "Invalid club membership verification")?
-        }
-    };
-    let first = check(None).await?;
-    club_profiles::permit(true, membership_lookup_viewer(caller)? == viewer, config.same_configuration(&directory_config()?))?;
-    club_profiles::verify_batch(&first, caller, &club, &subjects, None)?;
-    let candidates: Vec<_> = subjects.iter().zip(&first.members).filter_map(|(subject,member)| {
-        if !member { return None; }
-        account_for_write(*subject).ok().map(|account| (*subject,account))
-    }).collect();
-    // Two calls regardless of candidate count; expected revision rejects any
-    // role/family/removal change across observations. No boolean-only fallback.
-    let final_batch = check(Some(first.revision.clone())).await?;
-    club_profiles::permit(true, membership_lookup_viewer(caller)? == viewer, config.same_configuration(&directory_config()?))?;
-    club_profiles::verify_batch(&final_batch, caller, &club, &subjects, Some(&first.revision))?;
-    if final_batch.members != first.members { return Err("Profile membership changed without revision".into()); }
-    // Read profiles after the final await, not from a suspended plaintext copy.
-    let mut results = Vec::new();
-    for (subject, subject_account) in candidates {
-        if account_for_write(subject).ok().as_ref() != Some(&subject_account) { continue; }
-        if let Some(profile) = get_profile_entry(&subject_account.id) {
-            results.push(ProfileSearchResult { account_id: profile.account_id, principal: subject, display_name: profile.display_name, avatar_ref: profile.avatar_ref });
         }
     }
     Ok(results)
@@ -2444,16 +1465,6 @@ fn export_state() -> Outcome<State> {
     })
 }
 
-/// Bounded authenticated admin directory; full export stays governor-only.
-#[ic_cdk::update]
-fn list_admin_accounts(query: String, after: Option<String>, limit: u16) -> Outcome<admin_accounts::AdminAccountPage> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
-    let core = state();
-    admin_accounts::authorize(&core, ic_cdk::api::msg_caller())?;
-    admin_accounts::page(&core, query, after, limit)
-}
-
 #[ic_cdk::query]
 fn get_external_bindings(account_id: String) -> Outcome<Vec<ExternalSiteBinding>> {
     let caller = ic_cdk::api::msg_caller();
@@ -2488,8 +1499,6 @@ fn get_privacy_consent(account_id: String, purpose: String) -> Outcome<bool> {
 
 #[ic_cdk::update]
 fn begin_link(target: Principal) -> Outcome<LinkChallenge> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     let account = account_for_write(caller)?;
@@ -2531,8 +1540,6 @@ fn begin_link(target: Principal) -> Outcome<LinkChallenge> {
 }
 #[ic_cdk::update]
 fn accept_link(id: u64) -> Outcome<Account> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     let index = state
@@ -2580,8 +1587,6 @@ fn accept_link(id: u64) -> Outcome<Account> {
 }
 #[ic_cdk::update]
 async fn revoke(principal: Principal, expected_version: u64) -> Outcome<Account> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     if !account_group_rehearsal_enabled() { return Err("Cross-group identity revocation not released".into()); }
     let caller = ic_cdk::api::msg_caller();
     // A self-unlink may only be resumed by a surviving sign-in identity.
@@ -2652,8 +1657,6 @@ fn bind_external_site(
     site_id: String,
     external_user_id: String,
 ) -> Outcome<ExternalSiteBinding> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     require_governor(&state, caller)?;
@@ -2698,8 +1701,6 @@ fn set_privacy_consent(
     purpose: String,
     granted: bool,
 ) -> Outcome<PrivacyConsent> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     let account = account_for(caller)?;
@@ -2739,8 +1740,6 @@ fn set_privacy_consent(
 /// never roll the recorded acceptance backwards.
 #[ic_cdk::update]
 fn set_terms_acceptance(terms_version: u32) -> Outcome<TermsAcceptance> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     let account_id = account_for_write(caller)?.id;
@@ -2802,8 +1801,6 @@ fn my_terms_acceptance() -> Outcome<Option<TermsAcceptance>> {
 
 #[ic_cdk::update]
 fn erase_account(account_id: String) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     if group_inventory_binding().is_some() { return Err("Bound deletion required".into()); }
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
@@ -2874,8 +1871,6 @@ fn erase_account_core(state: &mut CoreState, account: &Account) -> Outcome<()> {
 /// Any NEW stored principal / principal-text field must be added here.
 #[ic_cdk::update]
 fn rekey_principal(old: Principal, new: Principal, dry_run: bool) -> Outcome<u64> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     require_governor(&state, caller)?;
@@ -3015,8 +2010,6 @@ fn grant_role(
     club: Option<String>,
     team: Option<String>,
 ) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     grant_role_scoped(account_id, role, None, club, team)
 }
 
@@ -3028,8 +2021,6 @@ fn grant_role_scoped(
     club: Option<String>,
     team: Option<String>,
 ) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     require_governor(&state, caller)?;
@@ -3070,8 +2061,6 @@ fn grant_role_scoped(
 /// Mirrors `grant_role`'s auth (governor-only).
 #[ic_cdk::update]
 fn revoke_role(account_id: String, role: String, club: Option<String>, team: Option<String>) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     revoke_role_scoped(account_id, role, None, club, team)
 }
 
@@ -3084,8 +2073,6 @@ fn revoke_role_scoped(
     club: Option<String>,
     team: Option<String>,
 ) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     require_governor(&state, caller)?;
@@ -3118,16 +2105,14 @@ fn revoke_role_scoped(
 /// admin-gated writes on their behalf keep working.
 #[ic_cdk::update]
 fn set_account_status(account_id: String, status: AccountStatus) -> Outcome<Account> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let state = state();
-    admin_accounts::authorize(&state, caller)?;
-    let mut account = get_account(&account_id).ok_or("Unknown account")?;
-    if private_name_coordination::pending(&account_id) { return Err("Private-name suspension recovery pending".into()); }
-    if option_env!("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") == Some("1") && status == AccountStatus::Suspended && !private_name_writer_window::enabled() {
-        return Err("Use coordinated private-name suspension".into());
+    let caller_account = account_for(caller)?;
+    let is_app_admin = account_has_role(&state, &caller_account.id, "app_admin", None, None, None);
+    if state.governor != caller && !is_app_admin {
+        return Err("Forbidden".into());
     }
+    let mut account = get_account(&account_id).ok_or("Unknown account")?;
     if DELETION_TICKETS.with(|m|m.borrow().contains_key(&account.id)) { return Err("Deletion reservation pending".into()); }
     if status == AccountStatus::Suspended && account.principals.contains(&state.governor) {
         return Err("Governor account cannot be suspended".into());
@@ -3139,8 +2124,6 @@ fn set_account_status(account_id: String, status: AccountStatus) -> Outcome<Acco
 
 #[ic_cdk::update]
 fn set_family(account_id: String, child_id: String) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     require_governor(&state, caller)?;
@@ -3170,8 +2153,6 @@ fn set_family(account_id: String, child_id: String) -> Outcome<()> {
 
 #[ic_cdk::update]
 fn set_exclusion(account_id: String, club: String, team: Option<String>) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     set_exclusion_scoped(account_id, None, club, team)
 }
 
@@ -3182,8 +2163,6 @@ fn set_exclusion_scoped(
     club: String,
     team: Option<String>,
 ) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     require_governor(&state, caller)?;
@@ -3329,8 +2308,6 @@ fn upsert_entitlement(
 /// identity, once one is established).
 #[ic_cdk::update]
 fn add_verifier(verifier: Principal) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     require_governor(&state, caller)?;
@@ -3348,8 +2325,6 @@ fn add_verifier(verifier: Principal) -> Outcome<()> {
 /// Governor-only: revokes a verifier principal.
 #[ic_cdk::update]
 fn remove_verifier(verifier: Principal) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     require_governor(&state, caller)?;
@@ -3363,8 +2338,6 @@ fn remove_verifier(verifier: Principal) -> Outcome<()> {
 /// session-free IAP verification endpoint (`APPLE_ATTESTATION_HMAC_SECRET`).
 #[ic_cdk::update]
 fn set_attestation_secret(secret: Vec<u8>) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let mut state = state();
     require_governor(&state, caller)?;
@@ -3387,8 +2360,6 @@ fn set_entitlement(
     expires_at_ms: u64,
     source: String,
 ) -> Outcome<Entitlement> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     let state = state();
     if state.governor != caller && !state.verifiers.contains(&caller) {
@@ -3418,8 +2389,6 @@ fn redeem_entitlement(
     source: String,
     signature_hex: String,
 ) -> Outcome<Entitlement> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     let caller = ic_cdk::api::msg_caller();
     authenticated(caller)?;
     let state = state();
@@ -3488,41 +2457,6 @@ fn check_field_access(account_id: String, section: String) -> Outcome<bool> {
 mod tests {
     use super::*;
     #[test]
-    fn guardian_storage_traversal_is_bounded_ordered_and_preserves_private_references() {
-        for n in 0..130 {
-            put_profile_entry(&Profile{account_id:format!("guardian-storage-{n:03}"),display_name:"pii-display-name:v1:opaque".into(),avatar_ref:None,updated_at_ns:1,theme_preference:None,club_switcher_hint_seen_at:None});
-        }
-        let first=bounded_guardian_profile_rows(Some("guardian-storage-".into()));
-        assert_eq!(first.len(),100);
-        assert_eq!(first[0].account_id,"guardian-storage-000");
-        assert_eq!(first[99].account_id,"guardian-storage-099");
-        let second=bounded_guardian_profile_rows(Some(first[99].account_id.clone()));
-        assert_eq!(second.len(),30);
-        assert_eq!(second[0].account_id,"guardian-storage-100");
-        assert!(second.iter().all(|row|row.display_name=="pii-display-name:v1:opaque"));
-    }
-    #[test]
-    fn guardian_profile_revision_invalidates_on_profile_and_account_mutations() {
-        let opening=profile_search_revision();
-        let account=Account{id:"guardian-revision-account".into(),principals:vec![Principal::from_slice(&[230,1])],version:1,status:AccountStatus::Active};
-        put_account(&account);assert!(profile_search_revision()>opening);
-        let prior=profile_search_revision();remove_account(&account.id);assert!(profile_search_revision()>prior);
-        let prior=profile_search_revision();put_profile_entry(&Profile{account_id:account.id.clone(),display_name:"Name".into(),avatar_ref:None,updated_at_ns:1,theme_preference:None,club_switcher_hint_seen_at:None});assert!(profile_search_revision()>prior);
-        let prior=profile_search_revision();remove_profile_entry(&account.id);assert!(profile_search_revision()>prior);
-    }
-    #[test]
-    fn private_lookup_resolves_verified_aliases_and_fails_on_lifecycle_changes(){
-        let caller=Principal::from_slice(&[51,1]);let alias=Principal::from_slice(&[52,1]);
-        let id=ensure_account(caller).unwrap();let mut account=get_account(&id).unwrap();
-        account.principals.push(alias);account.version=2;put_account(&account);index_principal(alias,&id);
-        let viewer=membership_lookup_viewer(caller).unwrap();assert_eq!(viewer.aliases,vec![caller,alias]);assert_eq!(viewer.version,2);
-        account.status=AccountStatus::Suspended;put_account(&account);assert!(membership_lookup_viewer(caller).is_err());
-        account.status=AccountStatus::Active;put_account(&account);
-        deny_principals(&[alias],&id,3,DenialReason::Unlinked).unwrap();assert_eq!(membership_lookup_viewer(caller).unwrap().aliases,vec![caller]);assert!(membership_lookup_viewer(alias).is_err());
-        account.principals=vec![alias];put_account(&account);assert!(membership_lookup_viewer(caller).is_err());
-        account.principals=vec![caller];put_account(&account);ERASED_ACCOUNTS.with(|m|m.borrow_mut().insert(id,3));assert!(membership_lookup_viewer(caller).is_err());
-    }
-    #[test]
     fn history_retains_beyond_old_lifetime_caps() {
         assert!(MAX_ACCOUNTS > 10_001);
         for i in 0..80_001u32 {
@@ -3547,74 +2481,6 @@ mod tests {
         assert_eq!(account_count(), 10_001);
         assert_eq!(account_for(principal_at(10_000)).unwrap().id, account_id(principal_at(10_000)));
         assert!(ensure_account(Principal::anonymous()).is_err());
-    }
-    #[test]
-    fn lost_principal_index_self_heals_only_for_listed_owner() {
-        let owner = principal(170);
-        let id = ensure_account(owner).unwrap();
-        deindex_principal(owner);
-        assert!(account_for(owner).is_err());
-        assert_eq!(ensure_account(owner).unwrap(), id);
-        assert_eq!(account_for(owner).unwrap().id, id);
-        // Original account still has another alias but silently lost the
-        // creator (no denial/erasure/removal): the creator gets it back, with
-        // the alias kept, and repeat sign-ins are stable.
-        let creator = principal(171);
-        let original = Account { id: account_id(creator), principals: vec![principal(172)], version: 3, status: AccountStatus::Active };
-        put_account(&original);
-        let mut profile = get_or_init_profile(&original.id); profile.display_name = "Paul".into(); put_profile_entry(&profile);
-        assert_eq!(ensure_account(creator).unwrap(), original.id);
-        assert_eq!(get_account(&original.id).unwrap().principals, vec![principal(172), creator]);
-        assert_eq!(get_account(&original.id).unwrap().version, 4);
-        assert_eq!(ensure_account(creator).unwrap(), original.id);
-        deindex_principal(creator);
-        assert_eq!(ensure_account(creator).unwrap(), original.id);
-        assert_eq!(get_profile_entry(&original.id).unwrap().display_name, "Paul");
-        // Orphaned derived account (no logins left) is reclaimed by its owner.
-        let orphan_owner = principal(173);
-        let orphan_id = ensure_account(orphan_owner).unwrap();
-        let mut orphan = get_account(&orphan_id).unwrap();
-        orphan.principals.clear(); put_account(&orphan); deindex_principal(orphan_owner);
-        assert_eq!(ensure_account(orphan_owner).unwrap(), orphan_id);
-        assert_eq!(get_account(&orphan_id).unwrap().principals, vec![orphan_owner]);
-    }
-    #[test]
-    fn sign_in_parked_on_empty_duplicate_moves_back_to_original() {
-        init(Init { governor: principal(190) });
-        let user = principal(174);
-        let original = Account { id: account_id(user), principals: vec![principal(175)], version: 2, status: AccountStatus::Active };
-        put_account(&original);
-        let mut profile = get_or_init_profile(&original.id); profile.display_name = "Original".into(); put_profile_entry(&profile);
-        // Simulate the earlier recovery that parked the sign-in on a fresh account.
-        let dup = Account { id: "parked-duplicate".into(), principals: vec![user], version: 0, status: AccountStatus::Active };
-        put_account(&dup); index_principal(user, &dup.id);
-        let mut draft = get_or_init_profile(&dup.id); draft.display_name = "Draft".into(); put_profile_entry(&draft);
-        assert_eq!(ensure_account(user).unwrap(), original.id);
-        assert!(get_account(&dup.id).is_none());
-        assert!(get_profile_entry(&dup.id).is_none());
-        assert_eq!(account_for(user).unwrap().id, original.id);
-        assert_eq!(get_profile_entry(&original.id).unwrap().display_name, "Original");
-        // A duplicate that already holds roles is never discarded.
-        let other = principal(176);
-        let orig2 = Account { id: account_id(other), principals: vec![principal(177)], version: 1, status: AccountStatus::Active };
-        put_account(&orig2);
-        let busy = Account { id: "busy-duplicate".into(), principals: vec![other], version: 0, status: AccountStatus::Active };
-        put_account(&busy); index_principal(other, &busy.id);
-        let mut s = state();
-        s.roles.push(RoleGrant { account_id: busy.id.clone(), role: "member".into(), site_id: None, club: Some("c".into()), team: None });
-        store(&s);
-        assert_eq!(ensure_account(other).unwrap(), busy.id);
-        assert!(get_account(&busy.id).is_some());
-    }
-    #[test]
-    fn erased_original_never_reattaches() {
-        let user = principal(178);
-        let original = Account { id: account_id(user), principals: vec![principal(179)], version: 1, status: AccountStatus::Active };
-        put_account(&original);
-        ERASED_ACCOUNTS.with(|m| m.borrow_mut().insert(original.id.clone(), 1));
-        let fresh = ensure_account(user).unwrap();
-        assert_ne!(fresh, original.id);
-        assert_eq!(get_account(&original.id).unwrap().principals, vec![principal(179)]);
     }
     #[test]
     fn removal_intent_survives_restored_accounts_and_cannot_complete_without_receivers() {
@@ -3756,40 +2622,6 @@ mod tests {
     #[test]
     fn eligibility_transport_remains_unreleased() {
         assert_eq!(authority_eligibilities(principal(98), vec![principal(99)]), Err("Cross-group eligibility not released".into()));
-    }
-    #[test]
-    fn production_admission_releases_only_exact_readers_not_lifecycle() {
-        let reader=principal(98); let user=principal(99);
-        let account=Account { id:"production-reader".into(),principals:vec![user],version:1,status:AccountStatus::Active };
-        put_account(&account); index_principal(user,&account.id);
-        GROUP2_ADMISSION.with(|m|m.borrow_mut().set(encode(&admission::Config {enabled:true,readers:vec![reader]})));
-        assert_eq!(authority_eligibilities(reader,vec![user]).unwrap()[0].decision,EligibilityDecision::Eligible);
-        assert_eq!(authority_eligibilities(user,vec![user]),Err("Configured authority required".into()));
-        assert!(authority_eligibilities(reader,vec![]).is_err());
-        assert!(authority_eligibilities(reader,vec![user,user]).is_err());
-        assert!(authority_eligibilities(reader,(0..201u32).map(|i|Principal::self_authenticating(i.to_be_bytes())).collect()).is_err());
-        assert!(!account_group_rehearsal_enabled());
-        assert_eq!(service_account(reader,user),Err("Service admission not released".into()));
-        assert_eq!(set_club_authorities(vec![reader]),Err("Cross-group account lifecycle not released".into()));
-        let restored:admission::Config=decode(&encode(&group2_admission()));
-        assert!(restored.enabled); assert_eq!(restored.readers,vec![reader]);
-    }
-    #[test]
-    fn production_admission_keeps_suspension_erasure_and_deletion_denied() {
-        let reader=principal(96);let user=principal(95);
-        GROUP2_ADMISSION.with(|m|m.borrow_mut().set(encode(&admission::Config {enabled:true,readers:vec![reader]})));
-        let mut account=Account {id:"production-denial".into(),principals:vec![user],version:2,status:AccountStatus::Active};
-        put_account(&account);index_principal(user,&account.id);
-        assert_eq!(authority_eligibilities(reader,vec![principal(94)]).unwrap()[0].decision,EligibilityDecision::Denied);
-        account.status=AccountStatus::Suspended;put_account(&account);
-        assert_eq!(authority_eligibilities(reader,vec![user]).unwrap()[0].decision,EligibilityDecision::Denied);
-        account.status=AccountStatus::Active;put_account(&account);
-        DELETION_TICKETS.with(|m|m.borrow_mut().insert(account.id.clone(),vec![0]));
-        assert!(admission_configuration_clear().is_err());
-        assert_eq!(authority_eligibilities(reader,vec![user]).unwrap()[0].decision,EligibilityDecision::Denied);
-        DELETION_TICKETS.with(|m|m.borrow_mut().remove(&account.id));
-        erase_account_core(&mut empty_core_state(principal(93)),&account).unwrap();
-        assert_eq!(authority_eligibilities(reader,vec![user]).unwrap()[0].decision,EligibilityDecision::Denied);
     }
     #[test]
     fn service_readers_remain_separate_and_unreleased() {
@@ -4671,10 +3503,6 @@ mod tests {
         }
         let checked_in = include_str!("../identity_access.did");
         let exported = candid_interface();
-        if std::env::var_os("IGNITE_EXPORT_CANDID").is_some() {
-            std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/identity_access.did"), &exported).expect("write candid");
-            return;
-        }
         assert_eq!(
             methods(checked_in),
             methods(&exported),

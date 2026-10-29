@@ -1,2 +1,0 @@
-ALTER TABLE public.team_subscriptions ADD COLUMN IF NOT EXISTS cancelled_at timestamptz DEFAULT NULL;
-ALTER TABLE public.club_subscriptions ADD COLUMN IF NOT EXISTS cancelled_at timestamptz DEFAULT NULL;

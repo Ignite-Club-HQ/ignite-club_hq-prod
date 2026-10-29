@@ -18,13 +18,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveAuthBackend } from "@/live/authBackendMode";
-import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { getLiveClubProfile, getLiveClubKind } from "@/live/features/club";
-import { readIcpAssociationPlayhq, linkIcpAssociationPlayhq, syncIcpAssociationPlayhq } from "@/lib/associationPlayhqRepository";
-import { playhqGradeId } from "@/lib/playhqLinkInput";
 
-const isIcpPageMode = () => isFeatureRoutedToIcp("competitions") || resolveAuthBackend() === "icp";
+const isIcpPageMode = () => resolveAuthBackend() === "icp";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { AssociationEventsPanel } from "@/components/AssociationEventsPanel";
 
@@ -536,7 +533,7 @@ function BroadcastsPanel({ associationId, clubs }: { associationId: string; club
   );
 }
 
-export function PlayHQPanel({ associationId, isAdmin }: { associationId: string; isAdmin: boolean }) {
+function PlayHQPanel({ associationId, isAdmin }: { associationId: string; isAdmin: boolean }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -548,13 +545,10 @@ export function PlayHQPanel({ associationId, isAdmin }: { associationId: string;
   const [sport, setSport] = useState("");
   const [season, setSeason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState<string | null>(null);
-  const isIcp = isIcpPageMode();
 
-  const { data: comps = [], isLoading, error: loadError } = useQuery({
-    queryKey: ["association-playhq-comps", associationId, user?.id, isIcp],
+  const { data: comps = [], isLoading } = useQuery({
+    queryKey: ["association-playhq-comps", associationId],
     queryFn: async () => {
-      if (isIcp) return readIcpAssociationPlayhq(associationId);
       const { data } = await supabase
         .from("competitions")
         .select("id, name, sport, season, status, external_tenant, last_synced_at")
@@ -583,29 +577,16 @@ export function PlayHQPanel({ associationId, isAdmin }: { associationId: string;
   };
 
   const handleLink = async () => {
-    if (saving) return;
     if (!user || !name.trim() || !url.trim() || !tenant.trim()) {
       toast({ title: "Missing details", description: "Name, PlayHQ URL and tenant are required.", variant: "destructive" });
       return;
     }
-    const extId = isIcp ? playhqGradeId(url) : parseExternalId(url);
+    const extId = parseExternalId(url);
     if (!extId) {
       toast({ title: "Couldn't read PlayHQ URL", variant: "destructive" });
       return;
     }
     setSaving(true);
-    if (isIcp) {
-      try {
-        const linked = await linkIcpAssociationPlayhq({ clubId: associationId, name, season, tenant, gradeId: extId, sport: sport.trim() || null });
-        toast({ title: "PlayHQ competition linked" });
-        setName(""); setUrl(""); setTenant(""); setSport(""); setSeason(""); setOpen(false);
-        await qc.invalidateQueries({ queryKey: ["association-playhq-comps", associationId] });
-        navigate(`/competitions/${linked.id}`);
-      } catch (error) {
-        toast({ title: "Could not confirm PlayHQ link", description: error instanceof Error ? error.message : "Refresh the linked competitions before trying again.", variant: "destructive" });
-      } finally { setSaving(false); }
-      return;
-    }
     const { data, error } = await supabase
       .from("competitions")
       .insert({
@@ -685,17 +666,14 @@ export function PlayHQPanel({ associationId, isAdmin }: { associationId: string;
         </CardContent>
       </Card>
 
-      {loadError ? (
-        <p role="alert" className="text-sm text-destructive">Could not load linked competitions. Please try again.</p>
-      ) : isLoading ? (
-        null
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : comps.length === 0 ? (
         <p className="text-sm text-muted-foreground">No PlayHQ competitions linked yet.</p>
       ) : (
         <div className="space-y-2">
           {comps.map((c: any) => (
-            <div key={c.id}>
-            <Link to={`/competitions/${c.id}`} className="block">
+            <Link key={c.id} to={`/competitions/${c.id}`} className="block">
               <Card className="hover:border-primary transition-colors">
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
@@ -708,13 +686,6 @@ export function PlayHQPanel({ associationId, isAdmin }: { associationId: string;
                 </CardContent>
               </Card>
             </Link>
-            {isIcp && isAdmin && <Button size="sm" variant="ghost" disabled={syncing !== null} onClick={async () => {
-              setSyncing(c.id);
-              try { await syncIcpAssociationPlayhq(associationId, c.id, c.external_tenant, c.external_id); await qc.invalidateQueries({ queryKey: ["association-playhq-comps", associationId] }); toast({ title: "PlayHQ synchronized" }); }
-              catch (error) { toast({ title: "Could not synchronize PlayHQ", description: error instanceof Error ? error.message : "Try again later", variant: "destructive" }); }
-              finally { setSyncing(null); }
-            }}>{syncing === c.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sync PlayHQ"}</Button>}
-            </div>
           ))}
         </div>
       )}

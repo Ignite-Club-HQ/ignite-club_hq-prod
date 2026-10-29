@@ -15,18 +15,17 @@
 # Then: Actions tab → "Deploy ICP canisters (mainnet)" → Run workflow.
 # Safe to re-run; the canister ID table is attached as an artifact.
 
-name: Deploy ICP canisters (mainnet — base/Group 1 only)
+name: Deploy ICP canisters (mainnet)
 
 on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "LEGACY base/Group 1 ONLY. Use Upgrade backend (all mainnet groups) for synchronized feature releases. Router remains isolated."
+        description: "Upgrade scope (History only leaves media and scaling untouched)"
         type: choice
         required: true
         default: history
         options:
-          - router
           - history
           - all
 
@@ -109,8 +108,8 @@ jobs:
             echo "==> This MUST match the principal whose account address you funded."
             echo "key_source=secret" >> "$GITHUB_ENV"
           else
-            if [ "$DEPLOY_SCOPE" != all ]; then
-              echo "::error::Scoped upgrades require the existing DEPLOYER_PEM; refusing to create a replacement identity."
+            if [ "$DEPLOY_SCOPE" = history ]; then
+              echo "::error::History upgrades require the existing DEPLOYER_PEM; refusing to create a replacement identity."
               exit 1
             fi
             icp identity new ignite-governor --storage plaintext \
@@ -132,7 +131,7 @@ jobs:
           icp cycles balance -n ic || true
 
       - name: Convert available ICP to cycles
-        if: inputs.scope == 'all'
+        if: inputs.scope != 'history'
         run: |
           set -euo pipefail
           # Outside the checkout — see "Show funding address and balances" above.
@@ -166,7 +165,7 @@ jobs:
             | xargs -r sed -i "s|$SENTINEL|$GOVERNOR|g"
 
       - name: Verify cycles are ready for deploy
-        if: inputs.scope == 'all'
+        if: inputs.scope != 'history'
         run: |
           set -uo pipefail
           # Outside the checkout — see "Show funding address and balances" above.
@@ -279,4 +278,3 @@ jobs:
             ${{ env.ICP_HOME }}/identity/keys/ignite-governor.pem
             ${{ env.ICP_HOME }}/identity/keys/ignite-governor.seed.txt
           if-no-files-found: error
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_DEPLOY_ICP_MAINNET_ENABLED == 'true') }}

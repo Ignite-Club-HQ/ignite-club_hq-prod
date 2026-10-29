@@ -31,7 +31,6 @@ import { tryUploadMediaToBlobStore } from "@/live/mediaUpload";
 import { slugifyClubName } from "@/lib/eoiUtils";
 import { ISO_COUNTRY_CODES, countryName } from "@/lib/countries";
 import { getCurrentCountry } from "@/live/userCountry";
-import { clubCreationErrorMessage } from "@/lib/clubCreationError";
 
 const SPORTS = Object.keys(SPORT_EMOJIS);
 
@@ -182,9 +181,8 @@ export default function CreateClubPage() {
     }
     if (!sport) {
       toast({
-        title: "Almost there — pick a sport",
-        description:
-          "Choose your club's sport below so we can set up the right teams and events for you.",
+        title: "Please select a sport",
+        description: "Sport is required so we can tailor your club setup.",
         variant: "destructive",
       });
       setMoreOpen(true);
@@ -207,9 +205,6 @@ export default function CreateClubPage() {
             sport || null,
             homeCountry,
           );
-          // Independent follow-up steps run together instead of one after another.
-          await Promise.all([
-            (async () => {
           try {
             await setLiveClubGeneralSettings(ctx, profile.id, {
               classModeEnabled: isClassModeSport(sport),
@@ -220,8 +215,6 @@ export default function CreateClubPage() {
           } catch (err) {
             console.warn("[CreateClub] class mode setting failed", err);
           }
-            })(),
-            (async () => {
           if (logoFile) {
             try {
               const { compressImage } = await import("@/lib/imageCompression");
@@ -240,16 +233,12 @@ export default function CreateClubPage() {
               console.warn("[CreateClub] logo upload failed", err);
             }
           }
-            })(),
-            (async () => {
           try {
             const { ensureLiveDefaultClubChats } = await import("@/live/defaultClubChats");
             await ensureLiveDefaultClubChats(ctx, profile.id, { force: true });
           } catch (err) {
             console.warn("[CreateClub] default chats failed", err);
           }
-            })(),
-          ]);
           return profile.id;
         },
         supabase: async () => {
@@ -337,7 +326,7 @@ export default function CreateClubPage() {
       }, creationScope);
 
       setSaving(false);
-      void import("@/live/roleGrantsMemo").then(m => { m.clearRoleGrantsMemo(); void queryClient.invalidateQueries(); });
+      void queryClient.invalidateQueries();
       // A selected club theme filters lists to that one club — clear it so
       // the new club is visible under Clubs & Teams straight away.
       if (activeClubFilter && activeClubFilter !== clubId) setActiveClubTheme(null);
@@ -349,8 +338,8 @@ export default function CreateClubPage() {
       // leaves club-creation failures undiagnosable.
       console.error("[CreateClub] failed", error);
       toast({
-        title: "We couldn't create your club",
-        description: clubCreationErrorMessage(error),
+        title: "Error",
+        description: error?.message || "Failed to create club. Please try again.",
         variant: "destructive",
       });
     }

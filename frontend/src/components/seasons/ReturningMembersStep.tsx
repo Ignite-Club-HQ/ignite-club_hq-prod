@@ -126,8 +126,7 @@ export function ReturningMembersStep({
         // Canister teams have no season_id (they aren't season-scoped), so
         // the target-season team picker just lists the club's active teams.
         icp: async (ctx) => {
-          const { readLiveSeasonTeams } = await import("@/live/features/club");
-          const teams = (await readLiveSeasonTeams(ctx, targetSeasonId ?? "")) as Array<{
+          const teams = (await listLiveTeams(ctx, clubId!)) as Array<{
             id: string;
             name: string;
             is_active: boolean;

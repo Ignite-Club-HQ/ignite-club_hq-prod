@@ -1,2 +1,0 @@
-REVOKE EXECUTE ON FUNCTION public.tg_user_roles_sync_contact_chats() FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.tg_competition_entries_sync_contact_chats() FROM PUBLIC, anon, authenticated;

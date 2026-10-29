@@ -22,7 +22,6 @@ import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
 import { CompetitionAdminsCard } from "@/components/competitions/CompetitionAdminsCard";
 import { CompetitionOfficialsCard } from "@/components/competitions/CompetitionOfficialsCard";
-import { CompetitionOfficialJoinLinksCard } from "@/components/competitions/CompetitionOfficialJoinLinksCard";
 import { CompetitionChatsCard } from "@/components/competitions/CompetitionChatsCard";
 import { InviteMessageDefaultCard } from "@/components/invite/InviteMessageDefaultCard";
 import { CompetitionWelcomeEmailCard } from "@/components/competitions/CompetitionWelcomeEmailCard";
@@ -301,11 +300,13 @@ function LiveIcpCompetitionSettingsPage() {
 
       <CompetitionMemberChatCard competitionId={id!} />
 
-      <CompetitionOfficialJoinLinksCard competitionId={id ?? ""} competitionName={competition.name} />
-
       <CompetitionChatsCard competitionId={id!} />
 
-      <WelcomeEmailSettingsCard scopeKind="competition" scopeId={id ?? ""} />
+      <CompetitionOfficialsCard
+        competitionId={id!}
+        competitionName={competition.name}
+        organizerClubId={competition.club_id || null}
+      />
 
       <div
         className={cn(

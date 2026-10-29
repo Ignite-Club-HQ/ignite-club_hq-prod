@@ -66,7 +66,6 @@ export interface GroupPlacement {
 export interface GroupRegistryPage {
   'groups' : Array<ShardGroup>,
   'placements' : Array<GroupPlacement>,
-  'configuration_revision' : [] | [bigint],
   'next_cursor' : [] | [string],
   'revision' : bigint,
 }
@@ -74,17 +73,6 @@ export interface GroupRegistrySnapshot {
   'groups' : Array<ShardGroup>,
   'placements' : Array<GroupPlacement>,
   'revision' : bigint,
-}
-export interface HttpRequest {
-  'url' : string,
-  'method' : string,
-  'body' : Uint8Array,
-  'headers' : Array<[string, string]>,
-}
-export interface HttpResponse {
-  'body' : Uint8Array,
-  'headers' : Array<[string, string]>,
-  'status_code' : number,
 }
 export interface Init { 'governor' : Principal }
 export interface MemoryStats {
@@ -117,15 +105,6 @@ export interface Page {
   'routes' : Array<Route>,
   'revision' : bigint,
 }
-export interface PublicGroupPage {
-  'groups' : Array<PublicGroupTarget>,
-  'configuration_revision' : bigint,
-  'next_cursor' : [] | [string],
-}
-export interface PublicGroupTarget {
-  'id' : string,
-  'domains' : Array<DomainCanister>,
-}
 export type Result = { 'Ok' : bigint } |
   { 'Err' : string };
 export type Result_1 = { 'Ok' : DeletionLock } |
@@ -150,29 +129,21 @@ export type Result_18 = { 'Ok' : GroupRegistryPage } |
   { 'Err' : string };
 export type Result_19 = { 'Ok' : Array<GroupAssignment> } |
   { 'Err' : string };
-export type Result_2 = { 'Ok' : null } |
+export type Result_2 = { 'Ok' : AssignResult } |
   { 'Err' : string };
 export type Result_20 = { 'Ok' : [] | [OwnerOpening] } |
   { 'Err' : string };
 export type Result_21 = { 'Ok' : boolean } |
   { 'Err' : string };
-export type Result_22 = { 'Ok' : WriterReceipt } |
+export type Result_3 = { 'Ok' : AssignDomainResult } |
   { 'Err' : string };
-export type Result_23 = { 'Ok' : PublicGroupPage } |
+export type Result_4 = { 'Ok' : GroupAssignment } |
   { 'Err' : string };
-export type Result_24 = { 'Ok' : [] | [RoutingApproval] } |
+export type Result_5 = { 'Ok' : DomainMigration } |
   { 'Err' : string };
-export type Result_25 = { 'Ok' : RoutingApproval } |
+export type Result_6 = { 'Ok' : Migration } |
   { 'Err' : string };
-export type Result_3 = { 'Ok' : AssignResult } |
-  { 'Err' : string };
-export type Result_4 = { 'Ok' : AssignDomainResult } |
-  { 'Err' : string };
-export type Result_5 = { 'Ok' : GroupAssignment } |
-  { 'Err' : string };
-export type Result_6 = { 'Ok' : DomainMigration } |
-  { 'Err' : string };
-export type Result_7 = { 'Ok' : Migration } |
+export type Result_7 = { 'Ok' : null } |
   { 'Err' : string };
 export type Result_8 = { 'Ok' : [] | [DomainMigration] } |
   { 'Err' : string };
@@ -182,26 +153,6 @@ export interface Route {
   'shard' : Principal,
   'revision' : bigint,
   'club_id' : string,
-}
-export interface RoutingApproval {
-  /**
-   * Exact configuration revision the governor verified.
-   */
-  'configuration_revision' : bigint,
-  'removal_checked_at_ms' : bigint,
-  /**
-   * Lowercase hex SHA-256 of the canonical approved configuration text.
-   */
-  'approved_configuration_sha256' : string,
-  'target_alias' : string,
-  /**
-   * Every registered group for the target, all with verified removal wiring.
-   */
-  'removal_wiring_group_ids' : Array<string>,
-  /**
-   * Lowercase hex SHA-256 of the full off-chain evidence report.
-   */
-  'evidence_sha256' : string,
 }
 export interface ShardGroup {
   'id' : string,
@@ -221,36 +172,23 @@ export interface ShardGroup {
   'min_cycles' : bigint,
   'heap_bytes' : bigint,
 }
-export interface WriterReceipt {
-  'active' : bigint,
-  'request' : WriterRequest,
-  'sealed' : boolean,
-  'closing' : boolean,
-  'receiver' : Principal,
-}
-export interface WriterRequest {
-  'inventory_digest' : Uint8Array,
-  'generation' : bigint,
-  'operation_id' : string,
-}
 export interface _SERVICE {
   'abort_domain_migration' : ActorMethod<[string, string, bigint], Result>,
   'abort_migration' : ActorMethod<[string, bigint], Result>,
   'acquire_deletion_lock' : ActorMethod<[string, bigint], Result_1>,
-  'activate_private_name_preparation' : ActorMethod<[WriterRequest], Result_2>,
-  'assign' : ActorMethod<[AssignRequest], Result_3>,
-  'assign_domain' : ActorMethod<[AssignDomainRequest], Result_4>,
-  'assign_new_club_group' : ActorMethod<[string, string, bigint], Result_5>,
+  'assign' : ActorMethod<[AssignRequest], Result_2>,
+  'assign_domain' : ActorMethod<[AssignDomainRequest], Result_3>,
+  'assign_new_club_group' : ActorMethod<[string, string, bigint], Result_4>,
   'begin_domain_migration' : ActorMethod<
     [string, string, Principal, bigint],
-    Result_6
+    Result_5
   >,
-  'begin_migration' : ActorMethod<[string, Principal, bigint], Result_7>,
-  'commit_domain_migration' : ActorMethod<[string, string, bigint], Result_4>,
-  'commit_migration' : ActorMethod<[string, bigint], Result_3>,
+  'begin_migration' : ActorMethod<[string, Principal, bigint], Result_6>,
+  'commit_domain_migration' : ActorMethod<[string, string, bigint], Result_3>,
+  'commit_migration' : ActorMethod<[string, bigint], Result_2>,
   'configure_group_media_growth' : ActorMethod<
     [string, bigint, bigint, bigint, Array<[string, bigint]>, bigint],
-    Result_2
+    Result_7
   >,
   'configure_store_media_growth' : ActorMethod<
     [
@@ -262,23 +200,17 @@ export interface _SERVICE {
       bigint,
       bigint,
     ],
-    Result_2
+    Result_7
   >,
   /**
    * Public: remaining cycles (shown in admin settings).
    */
   'cycles_balance' : ActorMethod<[], bigint>,
-  'finish_private_name_preparation' : ActorMethod<[WriterRequest], Result_2>,
-  'freeze_private_name_preparation' : ActorMethod<[WriterRequest], Result_2>,
   'get_domain_migration' : ActorMethod<[string, string], Result_8>,
   'get_domain_route' : ActorMethod<[string, string], Result_9>,
   'get_group_assignment' : ActorMethod<[string], Result_10>,
   'get_migration' : ActorMethod<[string], Result_11>,
   'get_route' : ActorMethod<[string], Result_12>,
-  /**
-   * Public club-website resolver: redirects /club?id=..&scope=.. to the owning group.
-   */
-  'http_request' : ActorMethod<[HttpRequest], HttpResponse>,
   'list_groups' : ActorMethod<[], Result_13>,
   'list_routes' : ActorMethod<[[] | [string], number], Result_14>,
   /**
@@ -290,12 +222,11 @@ export interface _SERVICE {
    * global admission, membership, recovery release or general accepting status.
    */
   'open_owner_test_group' : ActorMethod<[OwnerOpeningApproval], Result_15>,
-  'open_private_name_writer_window' : ActorMethod<[WriterRequest], Result_2>,
   /**
    * Any signed-in user creating a club asks for its group here; the router picks
    * the healthiest accepting group. Capped per principal; retries are free.
    */
-  'place_my_new_club' : ActorMethod<[string, string], Result_5>,
+  'place_my_new_club' : ActorMethod<[string, string], Result_4>,
   'read_group_opening_configuration' : ActorMethod<[], Result_16>,
   'read_group_registry' : ActorMethod<[string], Result_17>,
   'read_group_registry_page' : ActorMethod<
@@ -304,7 +235,7 @@ export interface _SERVICE {
   >,
   'read_hosted_club_assignment' : ActorMethod<
     [string, string, bigint],
-    Result_5
+    Result_4
   >,
   'read_my_group_assignments' : ActorMethod<
     [Array<string>, string, bigint],
@@ -315,7 +246,7 @@ export interface _SERVICE {
    */
   'read_my_new_club_placement' : ActorMethod<
     [string, string, bigint],
-    Result_5
+    Result_4
   >,
   /**
    * Caller-scoped consensus discovery, including after stopping new placements.
@@ -334,43 +265,15 @@ export interface _SERVICE {
    * the complete group inventory, even when they have no test-club membership.
    */
   'read_owner_test_deletion_required' : ActorMethod<[string], Result_21>,
-  'read_private_name_preparation' : ActorMethod<[WriterRequest], Result_22>,
-  'read_private_name_writer_window' : ActorMethod<[WriterRequest], Result_22>,
-  /**
-   * Anonymous infrastructure discovery only: never memberships, placements,
-   * controller details or a grant to read/write any destination resource.
-   */
-  'read_public_group_targets' : ActorMethod<
-    [string, [] | [bigint], [] | [string], number],
-    Result_23
-  >,
-  /**
-   * Consensus read for signed-in clients; infrastructure metadata only.
-   */
-  'read_routing_approval' : ActorMethod<[string], Result_24>,
   'record_group_health' : ActorMethod<[string, bigint, bigint, bigint], Result>,
-  /**
-   * Governor-only. Binds the exact configuration revision and approved digest;
-   * any later group/placement/policy change makes clients fail closed again.
-   */
-  'record_routing_approval' : ActorMethod<[RoutingApproval, bigint], Result_25>,
   'register_group' : ActorMethod<[ShardGroup, bigint], Result>,
   'register_group_placement' : ActorMethod<[GroupPlacement, bigint], Result>,
-  'release_deletion_lock' : ActorMethod<[string, bigint], Result_2>,
+  'release_deletion_lock' : ActorMethod<[string, bigint], Result_7>,
   'reserve_group_media_growth' : ActorMethod<
     [string, string, string, bigint],
     Result
   >,
-  'seal_private_name_writer_window' : ActorMethod<[WriterRequest], Result_2>,
-  'set_deletion_authority' : ActorMethod<[Principal], Result_2>,
-  /**
-   * Governor-only: club_domain serving clubs that have no group assignment.
-   */
-  'set_website_default_club_domain' : ActorMethod<[Principal], Result_2>,
-  /**
-   * Governor-only stop for general and trial admission. Never removes assignments
-   * or changes membership, service endpoints, media, or opening authorization.
-   */
+  'set_deletion_authority' : ActorMethod<[Principal], Result_7>,
   'stop_group_new_placements' : ActorMethod<[string, string, bigint], Result>,
   'stop_owner_test_group' : ActorMethod<[string, bigint], Result_15>,
   'version' : ActorMethod<[], bigint>,

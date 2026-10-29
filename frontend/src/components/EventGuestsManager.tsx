@@ -17,7 +17,6 @@ import { UserPlus, Trash2, Loader2, Users } from "lucide-react";
 interface EventGuestsManagerProps {
   eventId: string;
   clubId: string;
-  teamId?: string | null;
   maxGuestsPerMember: number;
   isAdmin?: boolean;
 }
@@ -33,7 +32,6 @@ interface EventGuest {
 export function EventGuestsManager({
   eventId,
   clubId,
-  teamId,
   maxGuestsPerMember,
   isAdmin = false,
 }: EventGuestsManagerProps) {
@@ -114,7 +112,7 @@ export function EventGuestsManager({
           // can render the roster, and store only the reference on
           // events_domain (the canister treats the value as opaque text).
           const piiRef = `guest:${eventId}:${crypto.randomUUID()}`;
-          await registerLivePiiText(ctx, piiRef, "guest_name", guestName.trim(), teamId ? { kind: "teamnames", scope: teamId, club: clubId } : undefined);
+          await registerLivePiiText(ctx, piiRef, "guest_name", guestName.trim());
           await grantLiveClubPiiRead(ctx, piiRef, "guest_name", clubId);
           await addLiveEventGuest(ctx, eventId, piiRef);
           return true;

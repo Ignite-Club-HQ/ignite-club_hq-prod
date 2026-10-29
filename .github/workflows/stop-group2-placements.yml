@@ -7,7 +7,7 @@ on:
         type: choice
         required: true
         default: check
-        options: [ check, stop ]
+        options: [check, stop]
       expected_revision:
         description: Revision printed by check (required for stop)
         required: false
@@ -56,4 +56,3 @@ jobs:
           name: group-2-stop-report
           path: ${{ runner.temp }}/group-stop-report.json
           if-no-files-found: ignore
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_STOP_GROUP2_PLACEMENTS_ENABLED == 'true') }}

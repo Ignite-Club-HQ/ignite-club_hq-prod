@@ -537,7 +537,6 @@ async function syncChatAttachmentToVaultIcp({
   clubId,
   teamId,
   chatGroupName,
-  chatGroupAllowedRoles,
   isClubAdminChat,
 }: {
   imageUrl: string | null;
@@ -574,8 +573,7 @@ async function syncChatAttachmentToVaultIcp({
       },
       icp: async (ctx: FeatureBackendContext) => {
         const folders = await listLiveVaultFolders(ctx, clubId, teamId || null);
-        const restrictions = isClubAdminChat ? ["club_admin"] : (chatGroupAllowedRoles ?? []);
-        let folder = folders.find((f) => f.name === folderName && !f.parent_id?.[0] && JSON.stringify(f.restricted_roles) === JSON.stringify(restrictions));
+        let folder = folders.find((f) => f.name === folderName && !f.parent_id?.[0]);
         if (!folder) {
           folder = await createLiveVaultFolder(
             ctx,
@@ -584,27 +582,10 @@ async function syncChatAttachmentToVaultIcp({
             teamId || null,
             null,
             folderName,
-            restrictions,
+            [],
           );
         }
         for (const entry of entries) {
-          let blobRef = null;
-          let savedUrl = entry.url;
-          let size = 0;
-          if (!entry.isExternalLink) {
-            const { resolveIcpBlobObjectUrl } = await import("@/live/mediaDecrypt");
-            const { tryUploadMediaToBlobStore } = await import("@/live/mediaUpload");
-            const unlocked = await resolveIcpBlobObjectUrl(entry.url);
-            if (!unlocked) throw new Error("Chat attachment could not be unlocked");
-            const response = await fetch(unlocked);
-            if (!response.ok) throw new Error("Chat attachment could not be read");
-            const bytes = await response.blob();
-            const uploaded = await tryUploadMediaToBlobStore({ context: ctx, storagePath: `clubs/${clubId}/vault/${teamId ? `teams/${teamId}/` : ""}chat-${crypto.randomUUID()}`, file: bytes, mime: bytes.type || "application/octet-stream", lock: "own" });
-            if (!uploaded) throw new Error("Private Vault copy could not be saved");
-            blobRef = uploaded.blobRef;
-            savedUrl = uploaded.url;
-            size = bytes.size;
-          }
           await registerLiveVaultFile(
             ctx,
             crypto.randomUUID(),
@@ -612,11 +593,11 @@ async function syncChatAttachmentToVaultIcp({
             clubId,
             teamId || null,
             entry.name,
-            savedUrl,
-            size,
+            entry.url,
+            0,
             entry.isExternalLink ? "link/external" : "application/octet-stream",
             entry.isExternalLink,
-            blobRef,
+            null,
           );
         }
       },

@@ -1,1 +1,0 @@
-ALTER TABLE public.member_referrals ADD COLUMN referred_role TEXT DEFAULT 'player';

@@ -1,1 +1,0 @@
-ALTER TABLE public.events ADD COLUMN IF NOT EXISTS is_bye boolean NOT NULL DEFAULT false;

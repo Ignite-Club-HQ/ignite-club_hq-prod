@@ -46,13 +46,6 @@ export async function ensureLiveClubConversations(
   return unwrapCandid(actor.ensure_club_conversations(clubId), "Ensure club conversations");
 }
 
-/** Absence evidence only; a refused/failed read must never authorize repair. */
-export async function isLiveConversationAbsent(ctx: FeatureBackendContext, conversationId: string): Promise<boolean> {
-  const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  const owner = await unwrapCandid(actor.read_conversation_club(conversationId), "Locate conversation");
-  return owner.length === 0;
-}
-
 export async function listLiveMessages(
   ctx: FeatureBackendContext,
   conversationId: string,
@@ -63,32 +56,6 @@ export async function listLiveMessages(
     conversationId,
     candidOpt(afterMs === null || afterMs === undefined ? undefined : BigInt(afterMs)),
   );
-}
-
-/** Exact caller-authorized DM identity, including empty conversations. */
-export async function getLiveDirectConversation(ctx: FeatureBackendContext, conversationId: string) {
-  const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  const conversation = await unwrapCandid(actor.get_direct_conversation(conversationId), "Get direct conversation");
-  if (conversation.id !== conversationId || conversation.participants.length !== 2 ||
-      !conversation.participants.some(p => p.toText() === ctx.identity.getPrincipal().toText())) {
-    throw new Error("Direct conversation identity mismatch");
-  }
-  return { id: conversation.id, participant_1: conversation.participants[0].toText(), participant_2: conversation.participants[1].toText() };
-}
-
-export async function getLiveMessageWindow(ctx: FeatureBackendContext, conversationId: string, messageId: string) {
-  const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  const page = await unwrapCandid(actor.get_message_window(conversationId, messageId), "Get message window");
-  if (!page.messages.some(m => m.id === messageId) || page.messages.some(m => m.conversation_id !== conversationId)) {
-    throw new Error("Message window identity mismatch");
-  }
-  return page;
-}
-
-export async function listLiveConversationOnlineUsers(ctx: FeatureBackendContext, conversationId: string): Promise<string[]> {
-  const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  const users = await unwrapCandid(actor.list_conversation_online_users(conversationId), "List conversation online users");
-  return users.map(p => p.toText());
 }
 
 export async function listLiveMessagesPage(
@@ -122,71 +89,16 @@ export async function listLiveMessagesPage(
 // predates open_conversation (fall back to separate calls).
 let openConversationSupported: boolean | null = null;
 const OPEN_BUNDLE_TTL_MS = 10_000;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
-const openBundleCache = new Map<string, { at: number; reactions: LiveReaction[] | null; pins: any[] | null; polls: Map<string, unknown> | null }>();
+const openBundleCache = new Map<string, { at: number; reactions: LiveReaction[] | null; pins: any[] | null }>();
 function takeBundled<K extends "reactions" | "pins">(conversationId: string, key: K) {
   const entry = openBundleCache.get(conversationId);
   if (!entry || Date.now() - entry.at > OPEN_BUNDLE_TTL_MS) return null;
   const value = entry[key];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
   entry[key] = null as any;
   return value;
 }
 
-/**
- * Poll results that rode along with open_conversation, taken once per poll so
- * poll cards render without their own canister round trip. null = not bundled
- * (older canister, expired, or already consumed) — the caller fetches then.
- */
-export function takeBundledPollResult(conversationId: string, pollId: string): unknown | null {
-  const entry = openBundleCache.get(conversationId);
-  if (!entry || Date.now() - entry.at > OPEN_BUNDLE_TTL_MS || !entry.polls) return null;
-  const value = entry.polls.get(pollId) ?? null;
-  entry.polls.delete(pollId);
-  return value;
-}
-
-// Short-lived warm cache for the newest page of a conversation, filled in the
-// background from the inbox so the first open of a chat skips the canister wait.
-const WARM_PAGE_TTL_MS = 20_000;
-const warmLatestPages = new Map<string, { at: number; page: Promise<unknown> }>();
-function warmKey(ctx: FeatureBackendContext, conversationId: string, limit: number): string {
-  let who = "anon";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- identity shape varies by provider
-  try { who = (ctx.identity as any)?.getPrincipal?.().toText() ?? "anon"; } catch { /* ignore */ }
-  return `${who}|${conversationId}|${limit}`;
-}
-/** Background-load the newest page so a later open of this chat returns at once. */
-export function warmLiveLatestMessagesPage(ctx: FeatureBackendContext, conversationId: string, limit: number): Promise<unknown> {
-  const key = warmKey(ctx, conversationId, limit);
-  const hit = warmLatestPages.get(key);
-  if (hit && Date.now() - hit.at < WARM_PAGE_TTL_MS) return hit.page;
-  const page = readLatestMessagesPage(ctx, conversationId, null, limit);
-  warmLatestPages.set(key, { at: Date.now(), page });
-  if (warmLatestPages.size > 50) warmLatestPages.delete(warmLatestPages.keys().next().value as string);
-  page.catch(() => warmLatestPages.delete(key));
-  return page;
-}
-export function clearWarmLiveLatestPages(): void { warmLatestPages.clear(); }
-
 export async function listLiveLatestMessagesPage(
-  ctx: FeatureBackendContext,
-  conversationId: string,
-  before: number | null,
-  limit: number,
-) {
-  if (before === null) {
-    const key = warmKey(ctx, conversationId, limit);
-    const hit = warmLatestPages.get(key);
-    warmLatestPages.delete(key);
-    if (hit && Date.now() - hit.at < WARM_PAGE_TTL_MS) {
-      try { return (await hit.page) as Awaited<ReturnType<typeof readLatestMessagesPage>>; } catch { /* fall through to a fresh read */ }
-    }
-  }
-  return readLatestMessagesPage(ctx, conversationId, before, limit);
-}
-
-async function readLatestMessagesPage(
   ctx: FeatureBackendContext,
   conversationId: string,
   before: number | null,
@@ -196,26 +108,15 @@ async function readLatestMessagesPage(
   if (before === null && openConversationSupported !== false) {
     try {
       const bundle = await unwrapCandid(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
         (actor as any).open_conversation(conversationId, limit),
         "Open conversation",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
       ) as any;
       openConversationSupported = true;
       const pins = Array.isArray(bundle.pins) && bundle.pins.length > 0 ? bundle.pins[0] : null;
-      // Poll results bundled with the page (absent on canisters deployed
-      // before the bundle included them — cards then fetch individually).
-      const bundledPolls = new Map<string, unknown>();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
-      for (const pr of (bundle.polls ?? []) as any[]) {
-        if (pr?.poll?.id) bundledPolls.set(pr.poll.id, pr);
-      }
       openBundleCache.set(conversationId, {
         at: Date.now(),
         reactions: bundle.reactions as LiveReaction[],
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped candid actor
         pins: pins as any[] | null,
-        polls: bundledPolls,
       });
       return bundle.page;
     } catch (err) {
@@ -301,36 +202,6 @@ export async function sendLiveMessage(
   );
   kickIcpPush();
   return sent;
-}
-
-/** Explicit canister refusals that mean the club/team chat or its member list is not provisioned yet. Nothing was written. */
-export function isChatProvisioningRefusal(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return /Conversation access forbidden|Conversation not found|Unknown conversation|Chat access required|not a participant/i.test(message);
-}
-
-/**
- * Send to a club or team chat without waiting on the club-wide chat setup
- * (one sequential service call per team) before every message. Setup runs
- * only after an explicit "not provisioned" refusal, then the same send key is
- * retried once. Network/unknown outcomes are never retried.
- */
-export async function sendLiveClubScopedMessage(
-  ctx: FeatureBackendContext,
-  clubId: string | null | undefined,
-  conversationId: string,
-  body: string,
-  idempotencyKey: string,
-  attachment?: LiveMessageAttachment | null,
-  replyToId?: string | null,
-) {
-  try {
-    return await sendLiveMessage(ctx, conversationId, body, idempotencyKey, attachment, replyToId);
-  } catch (err) {
-    if (!clubId || !isChatProvisioningRefusal(err)) throw err;
-    await ensureLiveClubConversations(ctx, clubId);
-    return sendLiveMessage(ctx, conversationId, body, idempotencyKey, attachment, replyToId);
-  }
 }
 
 /**
@@ -684,21 +555,6 @@ export async function createLiveGroupWithRoles(
   return unwrapCandid(
     actor.create_group_with_roles(clubId, candidOpt(teamId), name, kind, roleEntries),
     "Create group",
-  );
-}
-
-/** Canister-owned standard identity; never fall back to a create-only call. */
-export async function ensureLiveStandardClubChat(
-  ctx: FeatureBackendContext,
-  clubId: string,
-  key: string,
-  existingId: string | null,
-  roleEntries: Array<[Principal, string]>,
-) {
-  const { actor } = await connectLiveMessagingDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
-    actor.ensure_default_club_chat(clubId, key, candidOpt(existingId), roleEntries),
-    "Ensure standard chat",
   );
 }
 
@@ -1367,19 +1223,6 @@ export interface LiveReadReceipt {
   messageId: string;
   read: boolean;
   user: Principal;
-}
-
-/** The owning service resolves stored read frontiers to exact displayed messages. */
-export async function listLiveBroadcastMessageReaders(ctx: FeatureBackendContext, messageIds: readonly string[]): Promise<LiveReadReceipt[]> {
-  const ids = [...new Set(messageIds)];
-  if (!ids.length) return [];
-  if (ids.length > 100 || ids.some(id => !id || id.length > 128)) throw new Error('Exact bounded broadcast messages required');
-  const identity = ctx.identity, principal = identity.getPrincipal().toText(), target = JSON.stringify(ctx.target);
-  const { actor } = await connectLiveMessagingDomain(ctx.target, identity);
-  const raw = await unwrapCandid(actor.list_broadcast_message_readers(ids), 'Read broadcast message readers');
-  if (identity !== ctx.identity || identity.getPrincipal().toText() !== principal || target !== JSON.stringify(ctx.target)) throw new Error('Broadcast reader account changed');
-  if (raw.length > 2500 || raw.some(r => r.conversation_id !== 'broadcast' || !ids.includes(r.message_id) || !r.read)) throw new Error('Broadcast reader message mismatch');
-  return raw.map(r => ({ conversationId: r.conversation_id, messageId: r.message_id, read: r.read, user: r.user }));
 }
 
 /** Per-conversation read receipts — the canister counterpart of the Supabase `message_reads` table read. */

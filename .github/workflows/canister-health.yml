@@ -2,9 +2,7 @@
 #
 # Every canister pays for its own reads, writes and storage out of its cycle
 # balance, and each one has a memory ceiling. This workflow prints every
-# deployed canister's real fuel and memory across Group 1, shared services and
-# every deploy/groups/*/provision.json inventory (including photo stores), once
-# a week (and on demand from the
+# deployed canister's real fuel and memory once a week (and on demand from the
 # Actions tab) by asking each service directly through its own public query, so
 # it needs no deploy key and cannot be fooled by management-canister settings.
 # It warns when a balance drops under 1T cycles (≈ US$1.30) or memory passes
@@ -49,4 +47,3 @@ jobs:
         run: |
           set -euo pipefail
           HEALTH_JSON_OUT="$RUNNER_TEMP/health.json" node scripts/canister-health.mjs
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_CANISTER_HEALTH_ENABLED == 'true') }}

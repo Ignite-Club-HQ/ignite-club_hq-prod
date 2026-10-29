@@ -14,8 +14,6 @@ interface ChatSendButtonProps {
   onSchedule?: () => void;
   disabled?: boolean;
   loading?: boolean;
-  /** The composer clears submitted drafts; pending delivery belongs to the message, not the next draft. */
-  allowConcurrentSend?: boolean;
   /** Set true when there's something to send — affects the "send count" tracking. */
   canSend?: boolean;
   className?: string;
@@ -33,11 +31,9 @@ export function ChatSendButton({
   onSchedule,
   disabled,
   loading,
-  allowConcurrentSend = false,
   canSend = true,
   className,
 }: ChatSendButtonProps) {
-  const composerBusy = loading && !allowConcurrentSend;
   const timerRef = useRef<number | null>(null);
   const longPressedRef = useRef(false);
   // Tracks whether the current gesture has already fired onSend, so the
@@ -86,7 +82,7 @@ export function ChatSendButton({
 
   const fireSend = () => {
     if (firedThisGestureRef.current) return;
-    if (disabled || composerBusy || !canSend) return;
+    if (disabled || loading) return;
     firedThisGestureRef.current = true;
     // Fire a tiny selection-tick haptic synchronously inside the user gesture
     // (Light/Medium felt too heavy on send — Messenger/WhatsApp use a barely
@@ -123,7 +119,7 @@ export function ChatSendButton({
     pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
     setPressing(true);
     cancelTimer();
-    if (!onSchedule || disabled || composerBusy || !canSend) return;
+    if (!onSchedule || disabled || loading) return;
     timerRef.current = window.setTimeout(() => {
       longPressedRef.current = true;
       setPressing(false);
@@ -189,7 +185,7 @@ export function ChatSendButton({
         onPointerLeave={() => endLongPress()}
         onPointerCancel={() => endLongPress()}
         onContextMenu={handleContextMenu}
-        disabled={disabled || composerBusy || !canSend}
+        disabled={disabled || loading}
         aria-label={onSchedule ? "Send message (hold to schedule)" : "Send message"}
         title={onSchedule ? "Send · Hold to schedule" : "Send"}
         className={cn(
@@ -209,7 +205,7 @@ export function ChatSendButton({
             pressing && canSend && "scale-110 ring-2 ring-primary/40 ring-offset-1 ring-offset-background",
           )}
         >
-          {composerBusy && canSend ? (
+          {loading && canSend ? (
             <Loader2 className="h-[18px] w-[18px] animate-spin" strokeWidth={2.4} />
           ) : (
             <Send

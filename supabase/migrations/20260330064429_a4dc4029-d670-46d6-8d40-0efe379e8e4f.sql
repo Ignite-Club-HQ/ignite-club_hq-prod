@@ -1,1 +1,0 @@
-ALTER TABLE public.role_requests ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;

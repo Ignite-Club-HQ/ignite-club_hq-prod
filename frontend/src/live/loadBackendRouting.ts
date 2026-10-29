@@ -19,8 +19,7 @@ import {
 import { isFeatureCanisterConfigured, resolveFeatureBackend, type FeatureArea } from "./featureBackend";
 import { getActiveIcpTarget, registerIcpEngineResolver, type IcpTargetConfig } from "./targetRegistry";
 import { getCurrentCountry } from "./userCountry";
-import { isSignedInWithEmail, isIcpProviderMounted } from "./authBackendMode";
-import { shouldBootstrapFromIcp } from "./icpBootstrap";
+import { isSignedInWithEmail } from "./authBackendMode";
 
 export { isSignedInWithEmail };
 
@@ -62,12 +61,6 @@ function decodeOnChain(raw: string | null): unknown {
 const ON_CHAIN_WAIT_WITH_ROW_MS = 1500;
 
 export async function fetchStoredBackendRoutingConfig(): Promise<BackendRoutingConfig | null> {
-  // Restored II sessions must not depend on a Supabase row at startup.
-  // Email users retain the existing dual-provider precedence.
-  if (shouldBootstrapFromIcp()) {
-    const onChain = decodeOnChain(await readLiveAppConfig(BACKEND_ROUTING_CONFIG_KEY));
-    return onChain ? parseBackendRoutingConfig(onChain) : null;
-  }
   let row: unknown = null;
   let rowError: unknown = null;
   // Read both copies in parallel (they used to run back to back, adding a
@@ -107,7 +100,7 @@ export async function loadBackendRoutingConfig(): Promise<void> {
     }
   } catch (error) {
     console.warn(
-      "[backend-routing] Could not load routing config; trying build-time configuration.",
+      "[backend-routing] Could not load routing config from Supabase; trying build-time configuration.",
       error,
     );
   }
@@ -188,7 +181,7 @@ export function tryGetActiveIcpTarget(): IcpTargetConfig | null {
  */
 export function getEffectiveBackend(): BackendProvider {
   if (isSignedInWithEmail()) return "supabase";
-  if (hasStoredInternetIdentitySession()) return "icp";
+  if (hasStoredInternetIdentitySession()) return isIcpAvailable() ? "icp" : "supabase";
   const config = getBackendRoutingConfig();
   const { country } = getCurrentCountry();
   return resolveBackendForCountry(config, country, isIcpAvailable());
@@ -217,8 +210,9 @@ export function getEffectiveBackendForFeature(feature: FeatureArea): BackendProv
   // isFeatureRoutedToIcp() returned true for email users and Messages/Media
   // went to the canisters (blank).
   if (isSignedInWithEmail()) return "supabase";
-  if (isIcpProviderMounted() || hasStoredInternetIdentitySession()) {
-    return "icp";
+  if (hasStoredInternetIdentitySession()) {
+    const target = tryGetActiveIcpTarget();
+    return target && isFeatureCanisterConfigured(target, feature) ? "icp" : "supabase";
   }
   const config = getBackendRoutingConfig();
   const { country } = getCurrentCountry();
@@ -243,7 +237,7 @@ export function isFeatureRoutedToIcp(feature: FeatureArea): boolean {
   return !!target && isFeatureCanisterConfigured(target, feature);
 }
 
-export function hasStoredInternetIdentitySession(): boolean {
+function hasStoredInternetIdentitySession(): boolean {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem("ignite_icp_internet_identity_session") : null;
     const parsed = raw ? (JSON.parse(raw) as { principal?: unknown }) : null;

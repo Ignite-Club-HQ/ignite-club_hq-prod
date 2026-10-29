@@ -1258,7 +1258,6 @@ export function EventCard({ event, isAdmin, hasViewed = true, stackIndex = 0 }: 
       <div onClick={(e) => e.stopPropagation()}>
         {isRecurring ? (
           <RecurringCancelEventDialog
-          eventId={event.id}
             open={cancelDialogOpen}
             onOpenChange={setCancelDialogOpen}
             eventTitle={event.title}

@@ -34,18 +34,15 @@
 // non-user-scoped, and destroying them would break the very sign-in flow
 // that triggers this sweep.
 
-import { clearAllMessageCaches } from "./messageCache";
 import { clearMediaCache } from "./mediaCache";
 import { clearProfileCache } from "./profileCache";
 import { clearRolesCache } from "./rolesCache";
 import { clearClubTeamCache } from "./clubTeamCache";
 import { clearMessagesPageCache } from "./messagesPageCache";
-import { clearChatThreadLabelCache } from "./chatThreadLabelCache";
 import { clearPendingNotificationLaunchState } from "./notificationLaunchHandler";
 import { clearPendingWebPushNav } from "./webNotificationLaunchHandler";
 import { clearPendingChatJumpState } from "./pendingChatJump";
 import { clearAllFromNotificationFlags } from "./notificationPreload";
-import { retirePrivateProfileSession } from '@/live/privateProfileSession';
 
 const IGNITE_PREFIX = "ignite_";
 
@@ -132,18 +129,15 @@ function runSafe(fn: () => void): void {
 }
 
 export function clearUserScopedCaches(): void {
-  retirePrivateProfileSession();
   // 1. In-memory mirrors held by individual cache modules. Each call is
   //    wrapped so a single throw doesn't abort the rest of the sweep —
   //    that's important because this runs during sign-out and a partial
   //    cleanup is worse than a slightly-slower complete cleanup.
-  runSafe(clearAllMessageCaches);
   runSafe(clearMediaCache);
   runSafe(clearProfileCache);
   runSafe(clearRolesCache);
   runSafe(clearClubTeamCache);
   runSafe(clearMessagesPageCache);
-  runSafe(clearChatThreadLabelCache);
 
   // 2. Module-level pending navigation / jump / notification state that
   //    mirrors sessionStorage in JS variables. Deleting the session key

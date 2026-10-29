@@ -40,7 +40,7 @@ export interface PublishChatImageResult {
 }
 
 const PHOTOS_BUCKET = "photos";
-const SUPABASE_URL = "https://yabcfiuntwqjwvschnji.supabase.co";
+const SUPABASE_URL = "REDACTED_LAB_VALUE";
 
 function inferExtension(blob: Blob, fallback = "jpg"): string {
   const fromMime = blob.type?.split("/")?.[1];
@@ -126,7 +126,7 @@ async function publishChatImageToGallerySupabase(
       contentType: blob.type || `image/${ext}`,
       upsert: false,
       cacheControl: "31536000",
-    }), supabase, teamId, { bucket: PHOTOS_BUCKET, path: storagePath, file: blob });
+    }));
   if (uploadError) {
     console.error("[publishChatImageToGallery] upload failed", uploadError);
     throw new Error("Could not save image to the gallery");
@@ -235,11 +235,6 @@ async function publishChatImageToGalleryIcp(
     throw err;
   }
 
-  const { copyGalleryAssetToVault } = await import('@/components/media/galleryVaultCopy');
-  await copyGalleryAssetToVault(ctx, { assetId: asset.id, clubId, teamId: teamId || null, file: blob,
-    name: `Chat photo.${inferExtension(blob)}` }).catch(() => undefined);
-  const { announceLiveGalleryAsset } = await import('@/live/features/media');
-  await announceLiveGalleryAsset(ctx, asset.id).catch(() => undefined);
   return { photoId: asset.id, alreadyPublished: false };
 }
 

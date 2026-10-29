@@ -2,13 +2,11 @@ name: Report group health to the router
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/15 * * * *'
 permissions:
   contents: write
-# Own queue: health readings never change the registry revision, so they must
-# not wait behind long deploy/repair runs (that let readings go stale).
 concurrency:
-  group: ignite-group-health-report
+  group: ignite-mainnet-governor-deployment
   cancel-in-progress: false
 jobs:
   report-health:
@@ -43,4 +41,3 @@ jobs:
           name: group-health-report
           path: ${{ runner.temp }}/group-health-report.json
           if-no-files-found: ignore
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_REPORT_GROUP_HEALTH_ENABLED == 'true') }}

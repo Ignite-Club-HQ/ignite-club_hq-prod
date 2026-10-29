@@ -100,8 +100,8 @@ export function ClubTeamFilter({
   };
 
   const clearFilters = () => {
-    if (showClubOption) onClubChange("all");
-    if (showTeamOption) onTeamChange("all");
+    onClubChange("all");
+    onTeamChange("all");
   };
 
   // If no filters are visible, don't render anything

@@ -50,18 +50,11 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
-    retry: 1,
     queryFn: async () => {
       if (isFeatureRoutedToIcp("membership")) {
         return withFeatureBackend("membership", {
           supabase: async () => { throw new Error("Internet Identity required"); },
-          icp: async ctx => {
-            // Never hold the sheet open indefinitely on a slow service.
-            const read = (await import("@/live/leagueInviteTargets")).readLiveInviteTargets(ctx);
-            const timeout = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error("Invite places took too long to load.")), 25_000));
-            return Promise.race([read, timeout]);
-          },
+          icp: async ctx => (await import("@/live/leagueInviteTargets")).readLiveInviteTargets(ctx),
         }, { shared: "person" });
       }
       const { data: roles } = await supabase
@@ -119,7 +112,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
           // round trip — no canister equivalent for that shape. ICP-routed
           // sessions see no scoped leagues rather than a partial result.
           icp: async () => [] as string[],
-        }, { shared: "person" }),
+        }, { everyGroup: true, merge: (parts: string[][]) => [...new Set(parts.flat())] }),
         supabase
           .from("competition_roles")
           .select("competition_id")
@@ -151,14 +144,13 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
               },
               icp: async (ctx) => {
                 const { getLiveTeam, getLiveClubProfile } = await import("@/live/features/club");
-                const read = (await import("@/live/contentRouting")).readContentInScope;
-                const teamOpts = await Promise.all(teamIds.map((id) => read(ctx, "membership", { teamId: id }, (s) => getLiveTeam(s, id)).catch(() => [] as any)));
+                const teamOpts = await Promise.all(teamIds.map((id) => getLiveTeam(ctx, id)));
                 const teams = teamOpts
                   .map((opt) => (opt.length ? opt[0] : null))
                   .filter((t): t is NonNullable<typeof t> => !!t && t.is_active);
                 const clubIds = [...new Set(teams.map((t: any) => t.club_id).filter(Boolean))] as string[];
                 const clubProfiles = clubIds.length
-                  ? await Promise.all(clubIds.map((id) => read(ctx, "membership", { clubId: id }, (s) => getLiveClubProfile(s, id)).catch(() => [] as any)))
+                  ? await Promise.all(clubIds.map((id) => getLiveClubProfile(ctx, id)))
                   : [];
                 const clubNameMap = new Map<string, string>();
                 clubProfiles.forEach((opt, i) => {
@@ -176,7 +168,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                   })),
                 };
               },
-            }, { shared: "person" })
+            }, { everyGroup: true, merge: (parts) => ({ data: [...new Map(parts.flatMap((part) => part.data ?? []).map((row) => [row.id, row])).values()] }) })
           : Promise.resolve({ data: [] as any[] }),
         allClubIds.length
           ? withFeatureBackend("membership", {
@@ -186,8 +178,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
               },
               icp: async (ctx) => {
                 const { getLiveClubProfile } = await import("@/live/features/club");
-                const read = (await import("@/live/contentRouting")).readContentInScope;
-                const profiles = await Promise.all(allClubIds.map((id) => read(ctx, "membership", { clubId: id }, (s) => getLiveClubProfile(s, id)).catch(() => [] as any)));
+                const profiles = await Promise.all(allClubIds.map((id) => getLiveClubProfile(ctx, id)));
                 return {
                   data: profiles
                     .map((opt) => (opt.length ? opt[0] : null))
@@ -195,7 +186,7 @@ export default function HomeInviteFlow({ open, onOpenChange }: HomeInviteFlowPro
                     .map((c) => ({ id: c.id, name: c.name })),
                 };
               },
-            }, { shared: "person" })
+            }, { everyGroup: true, merge: (parts) => ({ data: [...new Map(parts.flatMap((part) => part.data ?? []).map((row) => [row.id, row])).values()] }) })
           : Promise.resolve({ data: [] as any[] }),
         leagueAdminClubIds.length
           ? withFeatureBackend("mini_leagues", {

@@ -9,8 +9,6 @@ import {
   listLiveEvents,
   getLiveGameResult,
   getLivePlayerStatsReport,
-  listLiveDetailedGamePlayerStats,
-  readLiveEventHonours,
 } from "@/live/features/events";
 
 /**
@@ -76,11 +74,6 @@ export interface PlayerHonours {
   gkMatches: number;
   gkAppointed: number;
   gkSeconds: number;
-}
-
-/** Production reports count appointments when recorded goalkeeper appearances are absent. */
-export function reportedGoalkeeperMatches(honours: Pick<PlayerHonours, "gkMatches" | "gkAppointed">): number {
-  return Math.max(honours.gkMatches, honours.gkAppointed);
 }
 
 export interface ReportExtras {
@@ -207,7 +200,7 @@ async function fetchReportExtrasIcp(
         honours[key] = {
           captain: Number(row.captain_count) || 0,
           pom: Number(row.mvp_count) || 0,
-          gkMatches: 0,
+          gkMatches: Number(row.goalkeeper_count) || 0,
           gkAppointed: Number(row.goalkeeper_count) || 0,
           gkSeconds: 0,
         };
@@ -216,31 +209,10 @@ async function fetchReportExtrasIcp(
       const matches: ReportMatch[] = [];
       const scorersByPlayer: Record<string, ScorerAgg> = {};
       for (const event of scopedEvents as any[]) {
-        const [result,assignments,stats] = await Promise.all([getLiveGameResult(ctx,event.id),readLiveEventHonours(ctx,event.id),listLiveDetailedGamePlayerStats(ctx,event.id)]);
-        const {listLiveProfilesByIds}=await import("@/live/features/identityAccessClient");
-        const accountIds=[...assignments.captains,...assignments.goalkeepers].flatMap(a=>a.ref_kind==="account"?[a.ref_id]:[]);
-        const profiles=await listLiveProfilesByIds(ctx,accountIds);
-        const names=new Map(profiles.map(p=>[p.account_id,p.display_name]));
-        const {resolveLivePiiTextBatch}=await import("@/live/features/vault");
-        const childNames=await resolveLivePiiTextBatch(ctx,[...assignments.captains,...assignments.goalkeepers].flatMap(a=>a.ref_kind==="child"?[a.ref_id]:[]),"name","competition_report_honours","Authorized report honours");
-        const nameFor=(a:(typeof assignments.captains)[number])=>a.ref_kind==="account"?names.get(a.ref_id)??"Player":childNames.get(a.ref_id)??"Player";
-        const goalkeeperPlayers = new Set<PlayerKey>();
-        for(const stat of stats) {
-          const key=playerKey(stat.user_id[0],stat.child_id);if(!key)continue;
-          const gkSeconds=Object.entries(stat.position_minutes??{}).reduce((total,[position,seconds])=>total+(isGoalkeeperPosition(position)?seconds:0),0);
-          if(gkSeconds>0)bump(honours,key,"gkSeconds",gkSeconds);
-          if(gkSeconds>0 || stat.positions_played.some(isGoalkeeperPosition)) goalkeeperPlayers.add(key);
-        }
-        for (const key of goalkeeperPlayers) bump(honours, key, "gkMatches");
+        const result = await getLiveGameResult(ctx, event.id);
         const gr = result && result.length ? result[0] : null;
-        const homeScore = gr?.scores_hidden || gr?.home_score[0] == null ? null : Number(gr.home_score[0]);
-        const awayScore = gr?.scores_hidden || gr?.away_score[0] == null ? null : Number(gr.away_score[0]);
-        const parseArray=(text:unknown):unknown[]=>{if(typeof text!=="string")return [];try{const row:unknown=JSON.parse(text);return Array.isArray(row)?row:[]}catch{return []}};
-        const scorers:ReportScorer[]=gr?.scores_hidden?[]:parseArray(gr?.player_stats_json).flatMap(raw=>{
-          if(!raw || typeof raw!=="object")return [];const r=raw as Record<string,unknown>;
-          return typeof r.id==="string" && r.id!=="__own__" && typeof r.name==="string" && typeof r.goals==="number" && Number.isFinite(r.goals) && r.goals>0?[{id:r.id,name:r.name,goals:r.goals}]:[];
-        });
-        for(const scorer of scorers){const previous=scorersByPlayer[scorer.id];scorersByPlayer[scorer.id]={name:scorer.name,goals:(previous?.goals??0)+scorer.goals,games:(previous?.games??0)+1}}
+        const homeScore = gr?.home_score == null ? null : Number(gr.home_score);
+        const awayScore = gr?.away_score == null ? null : Number(gr.away_score);
         const outcome =
           homeScore == null || awayScore == null
             ? null
@@ -259,12 +231,12 @@ async function fetchReportExtrasIcp(
           homeScore,
           awayScore,
           result: outcome as ReportMatch["result"],
-          periodScores: gr?.scores_hidden?[]:normalisePeriods(parseArray(gr?.period_scores_json)),
-          captainNames: assignments.captains.map(nameFor),
+          periodScores: [],
+          captainNames: [],
           pomNames: gr?.mvp_player_name?.[0] ? [gr.mvp_player_name[0]] : [],
-          goalkeeperNames: assignments.goalkeepers.map(nameFor),
-          playerGoals: gr?.scores_hidden?0:stats.reduce((total,s)=>total+Number(s.goals_scored),0),
-          scorers,
+          goalkeeperNames: [],
+          playerGoals: 0,
+          scorers: [],
         });
       }
 

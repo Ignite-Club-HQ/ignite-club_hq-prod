@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
-import { googleDriveRedirectUri } from "@/lib/googleDriveRedirect";
 import { HardDrive, Folder, FileText, Image, Loader2, ChevronRight, Check, ArrowLeft, RefreshCw, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -77,7 +76,10 @@ export function GoogleDriveImportDialog({
   // Get the redirect URI based on current origin
   // On native platforms, use production URL since the system browser handles OAuth
   const getRedirectUri = useCallback(() => {
-    return googleDriveRedirectUri(Capacitor.isNativePlatform(), window.location.origin);
+    if (Capacitor.isNativePlatform()) {
+      return 'https://reference.invalid';
+    }
+    return `${window.location.origin}/vault`;
   }, []);
 
   // Check for stored access token on open (from redirect flow)
@@ -678,11 +680,11 @@ export function GoogleDriveImportDialog({
             </ResponsiveDialogTitle>
           </ResponsiveDialogHeader>
           <div className="py-6 space-y-3 text-center">
-            <p className="font-medium">Direct Google Drive import isn't supported for this vault.</p>
+            <p className="font-medium">Google Drive import isn't available for this vault yet</p>
             <p className="text-sm text-muted-foreground">
-              Download or export your files from Google Drive, then upload them from your device.
-              For Google Docs, Sheets or Slides, export a file format first.
-              You can also save a shortcut with Add Link; it does not copy the file into Vault.
+              Drive import stays Supabase-only until the vault canister/blob store exists on
+              Internet Identity. Ask an admin to switch this vault's backend to Supabase, or
+              check back once ICP vault storage ships.
             </p>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Close

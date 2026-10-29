@@ -1,4 +1,4 @@
-const APP_URL = "https://igniteclubhq.app";
+const APP_URL = "https://reference.invalid";
 
 /**
  * Generates a share URL that serves OG meta tags for rich previews,

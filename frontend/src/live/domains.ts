@@ -2,7 +2,7 @@ import type { Identity } from "@icp-sdk/core/agent";
 import type { Principal } from "@icp-sdk/core/principal";
 import { createLiveActor } from "./icpAgent";
 import { IDL } from '@icp-sdk/core/candid';
-import { adaptLocalAccountReads, adaptRemoteAccountReads, isLoopbackRehearsalHost } from './accountReadAdapter.mjs';
+import { adaptLocalAccountReads, isLoopbackRehearsalHost } from './accountReadAdapter.mjs';
 import type { IcpTargetConfig } from "./targetRegistry";
 
 import { idlFactory as clubDomainIdl } from "../lab/bindings/club_domain/declarations/club_domain.did.js";
@@ -88,28 +88,11 @@ async function connect<T>(
   idlFactory: Parameters<typeof createLiveActor<T>>[4],
 ): Promise<LiveDomainConnection<T>> {
   const connection = await createLiveActor<T>(target, identity, domainKey, DOMAIN_LABELS[domainKey] ?? domainKey, idlFactory);
-  if (typeof connection.actor !== 'object' || connection.actor === null) throw new Error('Invalid actor');
-  // Public bearer previews must not inherit a device's account-read decisions.
-  // Their deliberately public query verifies only the unguessable capability.
-  if (identity.getPrincipal().isAnonymous()) return connection;
-  // Local rehearsal: strict direct mapping to the protected consensus reads.
-  if (import.meta.env.DEV && isLoopbackRehearsalHost(target.host)) {
-    return { ...connection, actor: adaptLocalAccountReads(connection.actor, idlFactory({ IDL }), target.host) };
-  }
-  // Live groups with account admission enabled refuse legacy account-scoped
-  // queries; the adapter retries exactly those calls through their
-  // exact-signature read_account_ consensus twins and leaves every other
-  // canister (shared services, groups without the gate) untouched.
-  const canisterId = typeof connection.canisterId === 'string' ? connection.canisterId : connection.canisterId.toText();
-  // The actor is reused per agent+canister, so wrap it once too (the wrapper
-  // compares ~60 method signatures — heavy UI-thread work if done per call).
-  const cached = adaptedActors.get(connection.actor as object);
-  if (cached) return { ...connection, actor: cached as T };
-  const actor = adaptRemoteAccountReads(connection.actor, idlFactory({ IDL }), canisterId);
-  adaptedActors.set(connection.actor as object, actor);
-  return { ...connection, actor };
+  // No live UI flag: remote targets and published builds retain original actors.
+  if (!import.meta.env.DEV || !isLoopbackRehearsalHost(target.host)) return connection;
+  if (typeof connection.actor !== 'object' || connection.actor === null) throw new Error('Invalid local rehearsal actor');
+  return { ...connection, actor: adaptLocalAccountReads(connection.actor, idlFactory({ IDL }), target.host) };
 }
-const adaptedActors = new WeakMap<object, unknown>();
 
 export const connectLiveClubDomain = (target: IcpTargetConfig, identity: Identity) =>
   connect<ClubDomainActor>(target, identity, "club_domain", clubDomainIdl);

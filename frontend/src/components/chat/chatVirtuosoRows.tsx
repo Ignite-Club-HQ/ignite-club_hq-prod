@@ -1,4 +1,4 @@
-import { createContext, forwardRef, memo, useContext, useLayoutEffect, useRef, type ComponentProps } from "react";
+import { forwardRef, memo, useLayoutEffect, useRef, type ComponentProps } from "react";
 import { debugLogMeasure, debugTrackRender, isChatVirtDebugEnabled, classifyChatRow, type ChatRowType } from "./chatVirtDebug";
 import { setCachedRowHeight } from "./chatRowHeightCache";
 import { getLastChatScrollAt, runWhenChatScrollIdle } from "@/lib/chatScrollActivity";
@@ -291,10 +291,6 @@ type ChatRowAdapterProps = {
   currentUserIdRef: React.MutableRefObject<string | null | undefined>;
 };
 
-// Private labels are mounted state, not message properties/signatures. Context
-// invalidates memoized rows on disclosure/revocation without persisting names.
-export const ChatPrivateProfileRevision = createContext<unknown>(undefined);
-
 export const ChatRowAdapter = memo(
   function ChatRowAdapter({
     message,
@@ -304,7 +300,6 @@ export const ChatRowAdapter = memo(
     indexByIdRef,
     currentUserIdRef,
   }: ChatRowAdapterProps) {
-    useContext(ChatPrivateProfileRevision);
     const idx = indexByIdRef.current.get(message.id);
     if (idx === undefined) return null;
     const rows = uniqueMessagesRef.current;

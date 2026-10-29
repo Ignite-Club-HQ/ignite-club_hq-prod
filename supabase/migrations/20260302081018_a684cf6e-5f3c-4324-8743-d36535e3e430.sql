@@ -1,1 +1,0 @@
-ALTER TABLE public.game_summaries ADD COLUMN IF NOT EXISTS half_duration integer;

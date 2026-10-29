@@ -10,31 +10,27 @@ const loaders: Record<string, Loader> = {
   "/messages": () => import("@/pages/MessagesPage"),
   "/events": () => import("@/pages/EventsPage"),
   "/media": () => import("@/pages/MediaPage"),
-  "/clubs/upgrade": () => import("@/pages/ClubUpgradePage"),
 };
 
-const started = new Map<string, Promise<unknown>>();
+const started = new Set<string>();
 
 export function prefetchRoute(path: string) {
-  if (/^\/clubs\/[^/]+\/upgrade$/.test(path)) path = "/clubs/upgrade";
   const loader = loaders[path];
-  if (!loader) return Promise.resolve();
-  const existing = started.get(path);
-  if (existing) return existing;
+  if (!loader || started.has(path)) return;
+  started.add(path);
   // Fire-and-forget; ignore failures (network offline, etc.) — the normal
   // lazy import will retry when the user actually navigates.
-  const pending = loader().catch(() => {
+  loader().catch(() => {
     started.delete(path);
   });
-  started.set(path, pending);
-  return pending;
 }
 
 /**
  * Warm all bottom-tab route chunks during browser idle time after boot.
  * Called once from the app shell so that by the time the user taps
  * Messages/Schedule/Media the JS chunk is already parsed — this removes
- * the route chunk fetch from the tap's critical path where possible.
+ * ~800–1500ms from cold `/messages` opens on Android where the route
+ * chunk fetch previously happened on the critical path.
  *
  * Sequenced (not parallel) so the initial paint isn't starved of bandwidth
  * on slow networks. Messages first because it's the most-visited tab and
@@ -47,18 +43,16 @@ export function warmMainRoutes() {
   const order = ["/messages", "/events", "/", "/media"];
   const runNext = (i: number) => {
     if (i >= order.length) return;
-    // Wait only in the background warmer, never in navigation. Slow imports
-    // must not overlap all four chunks and compete with the visible page.
-    void prefetchRoute(order[i]).finally(() => {
-      window.setTimeout(() => runNext(i + 1), 200);
-    });
+    prefetchRoute(order[i]);
+    // Chain the next one after a short delay so we don't saturate.
+    window.setTimeout(() => runNext(i + 1), 400);
   };
   const w = window as any;
   const schedule = (cb: () => void) => {
     if (typeof w.requestIdleCallback === "function") {
-      w.requestIdleCallback(cb, { timeout: 1000 });
+      w.requestIdleCallback(cb, { timeout: 4000 });
     } else {
-      window.setTimeout(cb, 500);
+      window.setTimeout(cb, 2500);
     }
   };
   schedule(() => runNext(0));

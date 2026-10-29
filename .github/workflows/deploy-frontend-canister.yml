@@ -14,8 +14,8 @@ name: Deploy web app (ICP frontend canister)
 on:
   workflow_dispatch: {}
   push:
-    branches: [ main ]
-    paths: [ "frontend/**", "deploy/frontend/**", "!frontend/scripts/**", "!frontend/**/*.test.*", "!frontend/**/*.md" ]
+    branches: [main]
+    paths: ["frontend/**", "deploy/frontend/**", "!frontend/scripts/**", "!frontend/**/*.test.*", "!frontend/**/*.md"]
 
 concurrency:
   group: deploy-frontend-canister
@@ -46,13 +46,10 @@ jobs:
         working-directory: frontend
         env:
           IGNITE_LIVE_BUILD: "1"
-          IGNITE_LIVE_SUPABASE_URL: ${{ (github.repository == 'Ignite-Club-HQ/ignite-club_hq-prod' && github.ref == 'refs/heads/main' && vars.IGNITE_MAIN_DEV_SUPABASE_URL) || ((github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod') && (vars.IGNITE_LIVE_SUPABASE_URL || 'https://cdrxmelhysdqrccttsjg.supabase.co')) }}
-          IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ (github.repository == 'Ignite-Club-HQ/ignite-club_hq-prod' && github.ref == 'refs/heads/main' && vars.IGNITE_MAIN_DEV_SUPABASE_ANON_KEY) || ((github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod') && (vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkcnhtZWxoeXNkcXJjY3R0c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NzIxMTMsImV4cCI6MjEwNjE0ODExM30.vRVXXZuoh-9VliT7vt6lw2nANooLwlgOeyfBTFLQjXw')) }}
+          IGNITE_LIVE_SUPABASE_URL: ${{ vars.IGNITE_LIVE_SUPABASE_URL || 'https://ecsdwrarzfexssxtrymj.supabase.co' }}
+          IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0' }}
         run: |
           set -euo pipefail
-          if [ "$GITHUB_REPOSITORY" = "Ignite-Club-HQ/ignite-club_hq-prod" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            IGNITE_BUILD_TARGET=hybrid IGNITE_EXPECTED_SUPABASE_URL=https://ecsdwrarzfexssxtrymj.supabase.co node --input-type=module -e "import { resolveProdHybridEnv } from '../scripts/prod-hybrid-build.mjs'; resolveProdHybridEnv(process.env)"
-          fi
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(cat ../deploy/mainnet/.icp/data/mappings/ic.ids.json | tr -d '\n ')"
           npm ci --ignore-scripts --no-fund --no-audit
           node ../scripts/sync-canister-ids.mjs || true
@@ -121,31 +118,10 @@ jobs:
             if icp canister top-up frontend --amount "$A" -e ic; then TOPPED="$A"; echo "Topped up $A"; break; fi
           done
           [ -n "$TOPPED" ] || echo "::warning::Top-up skipped — the deploy account needs more cycles (send ICP to it)."
-          # Sync calls require a running canister. A prior failed deploy left it
-          # stopped, and a stopped canister refuses every call — start it first
-          # and prove it is running before uploading. Never reinstall: that would
-          # wipe the stored site.
+          # Sync calls require a running canister. A prior interrupted upgrade
+          # may have left it stopped; start existing instances without wiping assets.
           if [ -f .icp/data/mappings/ic.ids.json ] && jq -e '.frontend // empty' .icp/data/mappings/ic.ids.json >/dev/null; then
-            echo "Ensuring frontend canister is running..."
-            # "already running" is fine; only a real rejection matters.
-            icp canister start frontend -e ic || true
-            sleep 5
-            STATUS_JSON="$(icp canister status frontend -e ic --json 2>/dev/null || true)"
-            echo "Status after start: $STATUS_JSON"
-            if echo "$STATUS_JSON" | grep -qi stopped; then
-              # Start is rejected while the balance sits below the freezing
-              # threshold; top up once and retry.
-              echo "::warning::Canister still stopped — topping up 1T and retrying start."
-              icp canister top-up frontend --amount 1T -e ic || true
-              icp canister start frontend -e ic || true
-              sleep 5
-              STATUS_JSON="$(icp canister status frontend -e ic --json 2>/dev/null || true)"
-              echo "Status after retry: $STATUS_JSON"
-            fi
-            if echo "$STATUS_JSON" | grep -qi stopped; then
-              echo "::error::Frontend canister is stopped and would not start. Top it up with more cycles (Top up canister cycles workflow) and rerun this workflow."
-              exit 1
-            fi
+            icp canister start frontend -e ic
           fi
           # Never reinterpret a sync failure as permission to erase stored files.
           icp deploy -e ic frontend --mode auto --yes --cycles 1000000000000
@@ -171,4 +147,3 @@ jobs:
             sleep 5
           done
           exit 1
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_DEPLOY_FRONTEND_CANISTER_ENABLED == 'true') }}

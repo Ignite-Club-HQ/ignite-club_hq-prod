@@ -54,4 +54,3 @@ jobs:
           # upgrades/wiring; this does not activate group routing in the app.
           ICP_PUSH_QUEUE_IDS_JSON: ${{ vars.ICP_PUSH_QUEUE_IDS_JSON }}
         run: node scripts/icp-push-deliver.mjs
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_ICP_PUSH_DELIVER_ENABLED == 'true') }}

@@ -16,7 +16,6 @@ import {
   type LiveTeamSubscription,
 } from "./club";
 import { fetchIcpEntitlements } from "@/live/identityEntitlements";
-import { readMembershipInScope } from '../membershipRouting';
 
 export interface LiveProFlags {
   is_pro: boolean;
@@ -76,7 +75,7 @@ export async function listLiveTeamSubscriptions(
   teamIds: readonly string[],
 ): Promise<Map<string, LiveTeamSubscription | null>> {
   const unique = [...new Set(teamIds)];
-  const rows = await Promise.all(unique.map((id) => readMembershipInScope(ctx, { teamId: id }, scoped => getLiveTeamSubscription(scoped, id)).catch(() => null)));
+  const rows = await Promise.all(unique.map((id) => getLiveTeamSubscription(ctx, id).catch(() => null)));
   return new Map(unique.map((id, index) => [id, rows[index] ?? null]));
 }
 
@@ -86,22 +85,11 @@ export async function listLiveClubSubscriptions(
   clubIds: readonly string[],
 ): Promise<Map<string, LiveClubSubscription | null>> {
   const unique = [...new Set(clubIds)];
-  const rows = await Promise.all(unique.map((id) => readMembershipInScope(ctx, { clubId: id }, scoped => getLiveClubSubscription(scoped, id)).catch(() => null)));
+  const rows = await Promise.all(unique.map((id) => getLiveClubSubscription(ctx, id).catch(() => null)));
   return new Map(unique.map((id, index) => [id, rows[index] ?? null]));
 }
 
 /** Maps a canister team subscription onto the Supabase `team_subscriptions` row shape. */
-export async function listLiveClubSubscriptionsStrict(ctx: FeatureBackendContext, clubIds: readonly string[]) {
-  const result = new Map<string, LiveClubSubscription | null>();
-  const ids = [...new Set(clubIds)];
-  for (let offset = 0; offset < ids.length; offset += 8) {
-    await Promise.all(ids.slice(offset, offset + 8).map(async id => {
-      result.set(id, await readMembershipInScope(ctx, { clubId: id }, scoped => getLiveClubSubscription(scoped, id)));
-    }));
-  }
-  return result;
-}
-
 export function mapLiveTeamSubscriptionToRow(sub: LiveTeamSubscription) {
   return {
     team_id: sub.team_id,

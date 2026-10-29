@@ -256,11 +256,6 @@ export const idlFactory = ({ IDL }) => {
         [Result],
         [],
       ),
-    'enqueue_competition_broadcast' : IDL.Func(
-        [IDL.Vec(IDL.Text), IDL.Text, IDL.Text, IDL.Text, IDL.Text],
-        [IDL.Variant({ 'Ok' : IDL.Nat16, 'Err' : IDL.Text })],
-        [],
-      ),
     'export_club_snapshot' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Vec(IDL.Nat8), 'Err' : IDL.Text })],
@@ -418,24 +413,6 @@ export const idlFactory = ({ IDL }) => {
     'read_account_removal_drain' : IDL.Func(
         [Request],
         [IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text })],
-        [],
-      ),
-    'read_competition_broadcast_receipt' : IDL.Func(
-        [IDL.Text, IDL.Text],
-        [
-          IDL.Variant({
-            'Ok' : IDL.Opt(
-              IDL.Record({
-                'body' : IDL.Text,
-                'club' : IDL.Text,
-                'count' : IDL.Nat16,
-                'related' : IDL.Text,
-                'audience' : IDL.Vec(IDL.Text),
-              })
-            ),
-            'Err' : IDL.Text,
-          }),
-        ],
         [],
       ),
     'read_group_opening_configuration' : IDL.Func(

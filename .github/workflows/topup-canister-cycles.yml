@@ -155,4 +155,3 @@ jobs:
           echo ""
           echo "==> Done. The photo-access canister can unlock photos again; the"
           echo "==> Canister balances panel in Placement Settings shows the new figures."
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_TOPUP_CANISTER_CYCLES_ENABLED == 'true') }}

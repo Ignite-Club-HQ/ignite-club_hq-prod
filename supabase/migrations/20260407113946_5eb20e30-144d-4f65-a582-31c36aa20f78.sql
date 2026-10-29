@@ -1,1 +1,0 @@
-ALTER TABLE public.clubs ADD COLUMN IF NOT EXISTS bot_user_id UUID REFERENCES auth.users(id) DEFAULT NULL;

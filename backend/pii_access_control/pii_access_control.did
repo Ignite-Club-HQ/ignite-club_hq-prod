@@ -1,51 +1,15 @@
-type Request__1 = 
+type Request = 
  record {
    account_id: text;
    generation: nat64;
    inventory_digest: blob;
    subjects: vec principal;
  };
-type Request = 
- record {
-   generation: nat64;
-   inventory_digest: blob;
-   operation_id: text;
- };
-type Receipt__3 = 
- record {
-   completed: bool;
-   receiver: principal;
-   release_epoch: nat;
-   request: Request;
- };
-type Receipt__2 = 
- record {
-   active: nat;
-   closing: bool;
-   receiver: principal;
-   request: Request;
-   sealed: bool;
- };
-type Receipt__1 = 
- record {
-   club: text;
-   id: text;
-   original_retained: bool;
-   replica_absent: bool;
-   subject: principal;
- };
 type Receipt = 
  record {
    outstanding: nat;
    receiver: principal;
-   request: Request__1;
- };
-type PrivateNameScope = 
- record {
-   authority: principal;
-   kind: text;
-   profile_revision: nat64;
-   resource: text;
+   request: Request;
  };
 type PiiDeleteResult = 
  record {
@@ -54,11 +18,6 @@ type PiiDeleteResult =
  };
 type Main = 
  service {
-   activate_private_name_preparation: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    add_guardian_relationship: (guardian: principal, child_id: text) ->
     (variant {
        Err: text;
@@ -66,11 +25,6 @@ type Main =
      });
    audit_access: (filter: AuditFilter) -> (vec AuditRecord) query;
    club_media_lock_version: () -> (nat) query;
-   complete_private_name_release_fence: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok: Receipt__3;
-     });
    /// Public: remaining cycles (shown in admin settings).
    cycles_balance: () -> (nat) query;
    delete_pii: (pii_id: text, field_id: text) ->
@@ -87,16 +41,6 @@ type Main =
        Err: text;
        Ok: blob;
      }) query;
-   finish_private_name_preparation: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
-   freeze_private_name_preparation: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    get_club_media_vetkey: (club_id: text, transport_public_key: blob) ->
     (variant {
        Err: text;
@@ -111,27 +55,6 @@ type Main =
     transport_public_key: blob) -> (variant {
                                       Err: text;
                                       Ok: vec opt blob;
-                                    });
-   get_private_profile_club_name_vetkey: (ids: vec text, scope:
-    PrivateNameScope, transport: blob) -> (variant {
-                                             Err: text;
-                                             Ok: blob;
-                                           });
-   get_private_profile_name_vetkeys_batch: (ids: vec text, scope:
-    PrivateNameScope, transport: blob) ->
-    (variant {
-       Err: text;
-       Ok: vec opt blob;
-     });
-   get_private_profile_names_batch: (ids: vec text, scope:
-    PrivateNameScope) -> (variant {
-                            Err: text;
-                            Ok: vec EncryptedPii;
-                          });
-   get_shared_audience_vetkey: (kind: text, scope: text,
-    transport_public_key: blob) -> (variant {
-                                      Err: text;
-                                      Ok: blob;
                                     });
    grant_pii_read: (pii_id: text, field_id: text, reader: principal) ->
     (variant {
@@ -165,22 +88,11 @@ type Main =
        ok: nat;
      });
    my_guardian_children: () -> (vec text) composite_query;
-   open_private_name_writer_window: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    pii_vetkey_verification_key: () -> (blob);
-   prepare_account_removal: (request: Request__1) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
-   prepare_private_name_release_fence: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok: Receipt__3;
-     });
+   prepare_account_removal: (request: Request) -> (variant {
+                                                     Err: text;
+                                                     Ok;
+                                                   });
    purge_club_grants: (club_id: text) -> (variant {
                                             Err: text;
                                             Ok: nat32;
@@ -189,19 +101,9 @@ type Main =
                                            Err: text;
                                            Ok: nat;
                                          });
-   purge_private_club_name_lifecycle: (subject: principal, club: text,
-    expectedCiphertext: vec nat8) -> (variant {
-                                        Err: text;
-                                        Ok;
-                                      });
-   purge_removed_private_club_name: (id: text, club: text, subject:
-    principal) -> (variant {
-                     Err: text;
-                     Ok: Receipt__1;
-                   });
    read_account_audit_access: (filter: AuditFilter) -> (vec AuditRecord);
    read_account_my_guardian_children: () -> (vec text);
-   read_account_removal_drain: (request: Request__1) ->
+   read_account_removal_drain: (request: Request) ->
     (variant {
        Err: text;
        Ok: Receipt;
@@ -215,17 +117,6 @@ type Main =
                                                   text;
                                                   text;
                                                 });
-   read_private_club_name_lifecycle: (subject: principal, club: text,
-    expectedOriginal: opt vec nat8) ->
-    (variant {
-       Err: text;
-       Ok: opt EncryptedPii;
-     });
-   read_private_club_name_preparation: (subject: principal, club: text) ->
-    (variant {
-       Err: text;
-       Ok: EncryptedPii;
-     });
    read_private_media_authority: (club: text) ->
     (variant {
        Err: text;
@@ -235,52 +126,11 @@ type Main =
              revision: nat;
            };
      });
-   read_private_name_cleanup_absence: (subjects: vec principal, club:
-    opt text) -> (variant {
-                    Err: text;
-                    Ok: bool;
-                  });
-   read_private_name_preparation: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok: Receipt__2;
-     });
-   read_private_name_release_fence: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok: Receipt__3;
-     });
-   read_private_name_writer_window: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok: Receipt__2;
-     });
-   read_removed_private_club_name_receipt: (id: text, club: text, subject:
-    principal) -> (variant {
-                     Err: text;
-                     Ok: opt Receipt__1;
-                   });
-   refresh_private_club_name_lifecycle: (subject: principal, club: text,
-    originalCiphertext: vec nat8, ciphertext: vec nat8) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
-   register_conversion_name: (request: Request, subject: principal, club:
-    opt text, ciphertext: vec nat8) -> (variant {
-                                          Err: text;
-                                          Ok;
-                                        });
    register_pii: (pii_id: text, field_id: text, ciphertext: vec nat8,
     domain_owner: principal) -> (variant {
                                    Err: text;
                                    Ok: EncryptedPii;
                                  });
-   register_private_club_name: (subject: principal, club: text, ciphertext:
-    vec nat8) -> (variant {
-                    Err: text;
-                    Ok: EncryptedPii;
-                  });
    rekey_principal: (old: principal, new: principal, dry_run: bool) ->
     (variant {
        err: text;
@@ -306,15 +156,10 @@ type Main =
                                 Err: text;
                                 Ok;
                               });
-   seal_account_removal: (request: Request__1) ->
+   seal_account_removal: (request: Request) ->
     (variant {
        Err: text;
        Ok: Receipt;
-     });
-   seal_private_name_writer_window: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
      });
    set_club_domain_canister: (canister: principal) ->
     (variant {
@@ -351,11 +196,6 @@ type Main =
     (variant {
        Err: text;
        Ok;
-     });
-   verify_secure_profile_name: (subject: principal) ->
-    (variant {
-       Err: text;
-       Ok: bool;
      });
  };
 type EncryptedPii = 

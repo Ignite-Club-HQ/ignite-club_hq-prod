@@ -79,7 +79,6 @@ export function ChatAttachmentPickers({
             open={boardPickerOpen}
             onOpenChange={onBoardPickerOpenChange}
             onSelectBoard={onSelectBoard}
-            teamId={teamId}
           />
         </Suspense>
       )}

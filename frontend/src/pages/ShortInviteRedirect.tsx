@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import igniteIcon from "@/assets/ignite-icon.png";
 import { resolveAuthBackend } from "@/live/authBackendMode";
-import { Button } from "@/components/ui/button";
 
 export default function ShortInviteRedirect() {
   const useIcpLab = resolveAuthBackend() === "icp";
@@ -15,13 +14,10 @@ function IcpShortInviteRedirect() {
   const { code } = useParams<{ code: string }>();
   const [inviteId, setInviteId] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     setInviteId(null);
     setNotFound(false);
-    setFailed(false);
 
     if (!code) {
       setNotFound(true);
@@ -33,21 +29,24 @@ function IcpShortInviteRedirect() {
 
     const resolve = async () => {
       try {
-        const [{ getActiveIcpTarget }, { resolvePublicInviteCode }] = await Promise.all([
+        const [{ AnonymousIdentity }, { getActiveIcpTarget }, { resolveLiveInviteShortCode }] = await Promise.all([
+          import("@icp-sdk/core/agent"),
           import("@/live/targetRegistry"),
-          import("@/live/invitePublicRead"),
+          import("@/live/features/club"),
         ]);
-        const id = await resolvePublicInviteCode(getActiveIcpTarget(), resolvingCode);
+        const id = await resolveLiveInviteShortCode(
+          { identity: new AnonymousIdentity(), target: getActiveIcpTarget() },
+          resolvingCode,
+        );
         if (cancelled || resolvingCode !== code) return;
         if (!id) {
           setNotFound(true);
           return;
         }
         setInviteId(id);
-      } catch (error) {
+      } catch {
         if (cancelled || resolvingCode !== code) return;
-        if (error instanceof Error && /Invite not found|Short code not found/.test(error.message)) setNotFound(true);
-        else setFailed(true);
+        setNotFound(true);
       }
     };
 
@@ -56,9 +55,7 @@ function IcpShortInviteRedirect() {
     return () => {
       cancelled = true;
     };
-  }, [code, attempt]);
-
-  if (failed) return <div className="min-h-screen flex flex-col items-center justify-center gap-4"><p>Couldn’t open this invitation.</p><Button onClick={() => setAttempt(a => a + 1)}>Try again</Button></div>;
+  }, [code]);
 
   if (notFound) {
     return <Navigate to="/auth" replace />;

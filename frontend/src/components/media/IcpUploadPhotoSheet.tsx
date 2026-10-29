@@ -1,7 +1,5 @@
 import { writeOnce } from "@/live/clubScope";
 import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from '@tanstack/react-query';
-import { beginGalleryUpload, acknowledgeGalleryUpload, finishGalleryUpload } from './pendingGalleryUploads';
 import { Check, ImagePlus, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -12,12 +10,9 @@ import { compressImage } from "@/lib/imageCompression";
 import { localUploadPreviews } from "./localUploadPreviews";
 import { cn } from "@/lib/utils";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { announceLiveGalleryAsset, registerLiveAsset, setLiveAssetScope } from "@/live/features/media";
+import { registerLiveAsset, setLiveAssetScope } from "@/live/features/media";
 import { tryUploadMediaToBlobStore } from "@/live/mediaUpload";
 import { mimeToExtension } from "@/lib/binaryUtils";
-import { useClubTheme } from "@/hooks/useClubTheme";
-import { creationClubChoices } from "@/lib/creationClubChoices";
-import { recordTestingIssue } from '@/lib/testingIssues';
 
 export interface IcpUploadClubOption {
   id: string;
@@ -43,7 +38,6 @@ export interface IcpPendingUploadPreview {
 }
 
 interface IcpUploadPhotoSheetProps {
-  principal?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUploaded: () => unknown;
@@ -55,7 +49,6 @@ interface IcpUploadPhotoSheetProps {
   competitions: IcpUploadNamedOption[];
   defaultClubId?: string;
   defaultCompetitionId?: string;
-  defaultEventId?: string;
 }
 
 const preparedFiles = new WeakMap<File, Promise<{ file: File | Blob }>>();
@@ -73,7 +66,6 @@ function prepareFile(raw: File): Promise<{ file: File | Blob }> {
 const SCOPE_UNSUPPORTED = /set_asset_scope|has no update method|not found/i;
 
 export function IcpUploadPhotoSheet({
-  principal,
   open,
   onOpenChange,
   onUploaded,
@@ -83,12 +75,8 @@ export function IcpUploadPhotoSheet({
   competitions,
   defaultClubId,
   defaultCompetitionId,
-  defaultEventId,
   onPendingChange,
 }: IcpUploadPhotoSheetProps) {
-  const queryClient = useQueryClient();
-  const { activeClubFilter } = useClubTheme();
-  const availableClubs = creationClubChoices(clubs, activeClubFilter) ?? [];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [caption, setCaption] = useState("");
@@ -101,16 +89,9 @@ export function IcpUploadPhotoSheet({
 
   useEffect(() => {
     if (!open) return;
-    if (activeClubFilter && clubId !== activeClubFilter) {
-      setClubId(activeClubFilter);
-      setTeamId("");
-      setMiniLeagueId("");
-      setCompetitionId("");
-    } else if (!clubId) {
-      setClubId(defaultClubId || availableClubs[0]?.id || "");
-    }
+    setClubId((prev) => prev || defaultClubId || clubs[0]?.id || "");
     if (defaultCompetitionId) setCompetitionId(defaultCompetitionId);
-  }, [open, defaultClubId, defaultCompetitionId, availableClubs, activeClubFilter, clubId]);
+  }, [open, defaultClubId, defaultCompetitionId, clubs]);
 
   useEffect(() => {
     if (!open) {
@@ -131,11 +112,14 @@ export function IcpUploadPhotoSheet({
     if (!open || !clubId) return;
     void (async () => {
       try {
-        const { encryptClubMedia } = await import("@/live/piiVetKeys");
-        await withFeatureBackend('media', {
-          supabase: async () => undefined,
-          icp: ctx => encryptClubMedia(ctx, clubId, new Uint8Array(1)),
-        }, { clubId });
+        const [{ getActiveIcpTarget }, { getCurrentInternetIdentity }, { encryptClubMedia }] = await Promise.all([
+          import("@/live/targetRegistry"),
+          import("@/live/internetIdentityAuth"),
+          import("@/live/piiVetKeys"),
+        ]);
+        const identity = await getCurrentInternetIdentity();
+        if (!identity) return;
+        await encryptClubMedia({ target: getActiveIcpTarget(), identity } as never, clubId, new Uint8Array(1));
       } catch {
         // Best-effort warm-up only.
       }
@@ -173,10 +157,6 @@ export function IcpUploadPhotoSheet({
       toast.error("Pick a club");
       return;
     }
-    if (!principal) {
-      toast.error('Please wait for sign-in to finish before uploading.');
-      return;
-    }
     setUploading(true);
     setProgress({ done: 0, total: files.length });
     // Show the photos in the feed instantly (like chat); no "shared" toast.
@@ -190,22 +170,15 @@ export function IcpUploadPhotoSheet({
         : competitionId
           ? competitions.find((c) => c.id === competitionId)?.name ?? null
           : null;
-    const batchId = crypto.randomUUID();
-    const previews = files.map((f, index) => ({ id: `${batchId}:${index}`, batchId,
-      src: URL.createObjectURL(f), clubId, teamId: teamId || null, competitionId: competitionId || null,
-      clubName, scopeName, isVideo: f.type.startsWith('video/') }));
-    beginGalleryUpload(queryClient, principal, previews);
+    const previews = files
+      .filter((f) => f.type.startsWith("image/"))
+      .map((f) => ({ src: URL.createObjectURL(f), clubName, scopeName }));
     onPendingChange?.(previews);
     onOpenChange(false);
     // Multi-photo uploads form one album post, like the Supabase gallery.
     const albumId = files.length > 1 ? crypto.randomUUID() : null;
     const trimmedCaption = caption.trim() || null;
     let scopePending = false;
-    let vaultCopyFailed = false;
-    let noticeStatus = 'queued';
-    let chatCardFailed = false;
-    let heroUrl = "";
-    const registeredAssetIds: string[] = [];
     try {
       await withFeatureBackend("media", {
         supabase: async () => {
@@ -214,7 +187,6 @@ export function IcpUploadPhotoSheet({
         icp: async (ctx) => {
           let done = 0;
           let nextIndex = 0;
-          const vaultCopies: Promise<unknown>[] = [];
           const uploadOne = async (i: number) => {
             const raw = files[i];
             const isVideo = raw.type.startsWith("video/");
@@ -240,7 +212,6 @@ export function IcpUploadPhotoSheet({
             }
             // Show the photo from the phone straight away instead of
             // downloading and unlocking what we just sent.
-            if (!heroUrl) heroUrl = uploaded.url;
             localUploadPreviews.set(uploaded.url, URL.createObjectURL(prepared.file));
             const asset = await registerLiveAsset(ctx, {
               clubId,
@@ -252,20 +223,15 @@ export function IcpUploadPhotoSheet({
               contentLength: prepared.file.size,
               blobRef: uploaded.blobRef,
             });
-            // Retain the actual registration ID even if scope acknowledgement
-            // is refused/unknown; never mistake it for complete publication.
-            acknowledgeGalleryUpload(queryClient, principal, previews[i].id, asset.id);
-            let scopeConfirmed = false;
             try {
               await setLiveAssetScope(ctx, asset.id, {
                 teamId: teamId || null,
                 miniLeagueId: miniLeagueId || null,
                 competitionId: competitionId || null,
-                eventId: defaultEventId ?? null,
+                eventId: null,
                 caption: trimmedCaption,
                 albumId,
               });
-              scopeConfirmed = true;
             } catch (err) {
               if (SCOPE_UNSUPPORTED.test(String(err))) {
                 // Deployed canister predates set_asset_scope; tags apply
@@ -275,18 +241,6 @@ export function IcpUploadPhotoSheet({
                 throw err;
               }
             }
-            if (scopeConfirmed) {
-              acknowledgeGalleryUpload(queryClient, principal, previews[i].id, asset.id, {
-                albumId, miniLeagueId: miniLeagueId || null, eventId: defaultEventId ?? null,
-                caption: trimmedCaption, createdAtMs: Number(asset.created_at_ms),
-              });
-              // The photo is published now; show it in the feed straight away
-              // and let the Vault copy finish behind the scenes.
-              registeredAssetIds.push(asset.id);
-              vaultCopies.push(import('./galleryVaultCopy').then(({ copyGalleryAssetToVault }) =>
-                copyGalleryAssetToVault(ctx, { assetId: asset.id, clubId, teamId: teamId || null,
-                  file: prepared.file, name: raw.name || 'Gallery photo' })).catch(() => { vaultCopyFailed = true; }));
-            }
             done += 1;
             setProgress({ done, total: files.length });
           };
@@ -294,24 +248,7 @@ export function IcpUploadPhotoSheet({
           const worker = async () => {
             while (nextIndex < files.length) await uploadOne(nextIndex++);
           };
-          const results = await Promise.allSettled(Array.from({ length: Math.min(3, files.length) }, worker));
-          const failed = results.find(result => result.status === 'rejected');
-          if (failed?.status === 'rejected') throw failed.reason;
-          // Every photo is published: end the "Uploading" state before the
-          // chat card, notifications and Vault copies run.
-          onPendingChange?.([]);
-          const chat = async () => {
-            if (!teamId || !registeredAssetIds.length) return;
-            const { publishLiveGalleryChatCard } = await import('@/live/features/media');
-            await publishLiveGalleryChatCard(ctx, { clubId, teamId, eventId: defaultEventId, assetIds: registeredAssetIds,
-              heroUrl, receipt: `gallery-${batchId}` }).catch(() => { chatCardFailed = true; });
-          };
-          const notify = async () => {
-            if (!registeredAssetIds[0]) return;
-            const notice = await announceLiveGalleryAsset(ctx, registeredAssetIds[0]).catch(() => "unknown");
-            noticeStatus = ['queued', 'not_configured', 'refused', 'denied', 'capacity'].includes(notice) ? notice : 'unknown';
-          };
-          await Promise.all([Promise.all(vaultCopies), chat(), notify()]);
+          await Promise.all(Array.from({ length: Math.min(3, files.length) }, worker));
         },
       }, writeOnce({ clubId }));
       if (scopePending) {
@@ -319,15 +256,11 @@ export function IcpUploadPhotoSheet({
           "Tags and captions will appear after the media backend update is deployed.",
         );
       }
-      if (vaultCopyFailed) toast.warning('Photos published; some Vault copies could not be saved.');
-      if (chatCardFailed) toast.warning('Photos published; the team chat announcement could not be confirmed.');
-      if (noticeStatus !== 'queued') recordTestingIssue(`gallery_notice ${noticeStatus}`, window.location.pathname);
       // Keep the local copies on screen until the refreshed feed has them.
       await Promise.resolve(onUploaded()).catch(() => undefined);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      await finishGalleryUpload(queryClient, principal, batchId).catch(() => undefined);
       onPendingChange?.([]);
       setUploading(false);
     }
@@ -401,11 +334,11 @@ export function IcpUploadPhotoSheet({
               Select Club <span className="text-destructive">*</span>
             </Label>
             <div className="grid gap-2">
-              {availableClubs.map((club) => (
+              {clubs.map((club) => (
                 <button
                   key={club.id}
                   type="button"
-                  disabled={uploading || !!activeClubFilter}
+                  disabled={uploading}
                   onClick={() => {
                     setClubId(club.id);
                     setTeamId("");

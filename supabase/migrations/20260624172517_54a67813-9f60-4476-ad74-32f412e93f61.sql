@@ -1,1 +1,0 @@
-ALTER TABLE public.clubs ADD COLUMN IF NOT EXISTS ai_catch_up_enabled boolean NOT NULL DEFAULT true;

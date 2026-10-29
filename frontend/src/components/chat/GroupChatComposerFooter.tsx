@@ -131,8 +131,8 @@ export function GroupChatComposerFooter({
               preview={
                 (pendingPollId || pendingNewsId) && !editingMessage ? (
                   <div className="space-y-1.5">
-                    {pendingPollId && <PollAttachmentPreview pollId={pendingPollId} onRemove={() => onPendingPollIdChange(null)} />}
-                    {pendingNewsId && <NewsAttachmentPreview newsId={pendingNewsId} onRemove={() => onPendingNewsIdChange(null)} />}
+                    {pendingPollId && <PollAttachmentPreview pollId={pendingPollId} onRemove={() => onPendingPollIdChange(null)} disabled={isSending} />}
+                    {pendingNewsId && <NewsAttachmentPreview newsId={pendingNewsId} onRemove={() => onPendingNewsIdChange(null)} disabled={isSending} />}
                   </div>
                 ) : undefined
               }
@@ -176,7 +176,6 @@ export function GroupChatComposerFooter({
                 onSchedule={scheduleTarget ? () => onScheduleDialogOpenChange(true) : undefined}
                 disabled={!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId}
                 loading={isSending}
-                allowConcurrentSend
                 canSend={!!message.trim() || !!imageUrl || !!pendingPollId || !!pendingNewsId}
               />
             </ChatComposerShell>

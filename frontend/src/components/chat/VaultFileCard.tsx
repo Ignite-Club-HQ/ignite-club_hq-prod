@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   FileText,
   FileSpreadsheet,
@@ -12,9 +12,7 @@ import {
   Download,
   
 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-import { chatVaultLocation, readChatVaultCard } from "@/features/messaging/thread/chatVaultCardRead";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
@@ -66,18 +64,14 @@ function getColorForFile(name: string, fileType: string | null): string {
 
 export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, rootScope, rootId }: VaultFileCardProps) {
   const navigate = useNavigate();
-  const { user, initialized } = useAuth();
-  const queryClient = useQueryClient();
-  const { pathname } = useLocation();
   const vaultIcp = isFeatureRoutedToIcp("vault");
-  const location = vaultIcp ? chatVaultLocation(queryClient, user?.id, pathname) : undefined;
 
   // Folder card
   const folderQuery = useQuery({
-    queryKey: ["vault-folder-card", folderId, vaultIcp, user?.id],
+    queryKey: ["vault-folder-card", folderId, vaultIcp],
     queryFn: async () => {
       if (!folderId) return null;
-      return readChatVaultCard(location, { vaultFolderId: folderId }, (scope) => withFeatureBackend("vault", {
+      return withFeatureBackend("vault", {
         supabase: async () => {
           const { data, error } = await supabase
             .from("vault_folders")
@@ -94,18 +88,18 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
           const team = (f as { team?: string[] }).team;
           return { id: f.id, name: f.name, club_id: f.club, team_id: team?.[0] ?? null };
         },
-      }, scope));
+      }, { vaultFolderId: folderId });
     },
-    enabled: !!folderId && initialized && !!user,
+    enabled: !!folderId,
     staleTime: 60 * 1000,
   });
 
   // File card
   const fileQuery = useQuery({
-    queryKey: ["vault-file-card", fileId, vaultIcp, user?.id],
+    queryKey: ["vault-file-card", fileId, vaultIcp],
     queryFn: async () => {
       if (!fileId) return null;
-      return readChatVaultCard(location, { vaultFileId: fileId }, (scope) => withFeatureBackend("vault", {
+      return withFeatureBackend("vault", {
         supabase: async () => {
           const { data, error } = await supabase
             .from("vault_files")
@@ -133,15 +127,15 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
             deleted_at: null,
           };
         },
-      }, scope));
+      }, { vaultFileId: fileId });
     },
-    enabled: !!fileId && initialized && !!user,
+    enabled: !!fileId,
     staleTime: 60 * 1000,
   });
 
   // Root card (entire team or club vault)
   const rootQuery = useQuery({
-    queryKey: ["vault-root-card", rootScope, rootId, vaultIcp, user?.id],
+    queryKey: ["vault-root-card", rootScope, rootId],
     queryFn: async () => {
       if (!rootScope || !rootId) return null;
       return withFeatureBackend("membership", {
@@ -175,7 +169,7 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
         },
       }, rootScope === 'team' ? { teamId: rootId } : { clubId: rootId });
     },
-    enabled: !!rootScope && !!rootId && initialized && !!user,
+    enabled: !!rootScope && !!rootId,
     staleTime: 60 * 1000,
   });
 
@@ -258,8 +252,7 @@ export const VaultFileCard = memo(function VaultFileCard({ fileId, folderId, roo
       // Use the canonical folder deep-link route so VaultPage resolves
       // the full breadcrumb path (including parents) and lands inside
       // the actual subfolder rather than the club/team root.
-      // The club is only a routing hint; VaultPage still re-reads with access checks.
-      navigate(`/vault/folder/${folder.id}`, { state: { fromChat: true, vaultClubHint: folder.club_id } });
+      navigate(`/vault/folder/${folder.id}`);
     };
     return (
       <button

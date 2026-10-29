@@ -104,10 +104,7 @@ export function evaluateChatJumpRevealGate(
     if (rect.bottom < rootRect.top) return "target-outside-viewport";
   }
 
-  // Neighbouring photos/avatars may still load independently. They must not
-  // hide a correctly aligned selected message behind the whole-thread mask.
-  const targetRow = targetId ? findChatRow(root, targetId) : null;
-  const rows = targetRow ? [targetRow] : visibleRows(root, bottomInset);
+  const rows = visibleRows(root, bottomInset);
   if (rows.length === 0) return targetId ? "no-visible-rows" : "";
 
   for (const row of rows) {

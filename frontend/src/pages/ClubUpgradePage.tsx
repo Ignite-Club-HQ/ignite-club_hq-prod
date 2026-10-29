@@ -1,10 +1,7 @@
-import { assertPurchaseCatalogReady } from "@/lib/subscriptionPlans";
 import { useState, useEffect } from "react";
-import { CLUB_PRICING as APPROVED_CLUB_PRICING, CLUB_PLAN_ORDER, CLUB_PLAN_NAMES, clubQuote, recommendedClubPlan, type ClubPlan } from "@/lib/subscriptionPlans";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isNativePlatform } from "@/lib/nativePush";
-import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { ClubUpgradePending } from "@/components/subscription/ClubUpgradePending";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Crown, Loader2, Target, ArrowDown, Calendar, AlertCircle, Building2, Users, Heart, ExternalLink, Flame } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { isPast, parseISO, format, addMonths, addYears } from "date-fns";
@@ -40,6 +37,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import {
   UpgradeAccessDeniedState,
+  UpgradeLoadingState,
   UpgradeNotFoundState,
   UpgradeOfferCard,
   UpgradeTrialBanner,
@@ -50,19 +48,17 @@ import { useDesktopUpgradeGate } from "@/hooks/useDesktopUpgradeGate";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { getLiveMyRoleGrants } from "@/live/features/membership";
-import { getLiveClubProfile, listLiveSponsors, listLiveTeams } from "@/live/features/club";
+import { getLiveClubProfile, getLiveClubSubscription, listLiveTeams } from "@/live/features/club";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { getLocalLabClubDetail, getLocalLabTeamList } from "@/lab/fixtureDataLayer";
 import { useInAppPurchase } from "@/hooks/useInAppPurchase";
-import { readUpgradeClubSubscription } from "@/lib/upgradeSubscriptionReader";
-import { isIcpProviderMounted, hasInternetIdentitySessionStored, readAuthChoice } from "@/live/authBackendMode";
 
 
 const PRO_FEATURES = [
   "Club Chat (club-wide messaging)",
   "DMs & custom groups",
-  "No monthly photo count limit within storage allowance",
-  "3 GB shared gallery, chat and Vault storage (Free: 250 MB)",
+  "Unlimited photo & media uploads (Free: 10/month)",
+  "Unlimited file storage (Free: 10 files / 25 MB)",
   "Unlimited polls (Free: 2/month)",
   "Scheduled messages",
   "Pinned vault files in chat",
@@ -83,7 +79,19 @@ const PRO_FOOTBALL_FEATURES = [
   "Automated Substitutions",
 ];
 
-const CLUB_PRICING = APPROVED_CLUB_PRICING;
+// Club pricing in AUD
+const CLUB_PRICING = {
+  pro: {
+    starter: { monthly: 89.99, annual: 949.99, teamLimit: 10 },
+    standard: { monthly: 149.99, annual: 1449.99, teamLimit: 20 },
+    unlimited: { monthly: 199, annual: null, teamLimit: null },
+  },
+  proFootball: {
+    starter: { monthly: 149, annual: null, teamLimit: 10 },
+    standard: { monthly: 229.99, annual: null, teamLimit: 20 },
+    unlimited: { monthly: 299, annual: null, teamLimit: null },
+  },
+};
 
 // Check if club sport is soccer/football
 const isSoccerClub = (sport: string | null | undefined): boolean => {
@@ -92,7 +100,7 @@ const isSoccerClub = (sport: string | null | undefined): boolean => {
   return lowerSport.includes("soccer") || lowerSport.includes("football") || lowerSport.includes("futsal");
 };
 
-type PlanTier = ClubPlan;
+type PlanTier = "starter" | "standard" | "unlimited";
 type UpgradeClub = Pick<
   Database["public"]["Tables"]["clubs"]["Row"],
   "id" | "name" | "sport" | "class_mode_enabled"
@@ -101,9 +109,6 @@ type UpgradeTeam = Pick<Database["public"]["Tables"]["teams"]["Row"], "id" | "na
 
 export default function ClubUpgradePage() {
   const { clubId } = useParams<{ clubId: string }>();
-  const { state } = useLocation();
-  const label = state?.upgradeClubLabel;
-  const entryName = label?.id === clubId && typeof label?.name === "string" ? label.name : undefined;
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -113,18 +118,17 @@ export default function ClubUpgradePage() {
   const useIcpLab = resolveLocalAuthMode(window.location.search, true);
   // Real ICP routing (live build): resolveLocalAuthMode is always false there,
   // so canister reads key off the placement routing instead.
-  const isIcpRouted = isFeatureRoutedToIcp("membership") || isIcpProviderMounted() || hasInternetIdentitySessionStored() || readAuthChoice() === "icp";
+  const isIcpRouted = isFeatureRoutedToIcp("membership");
   const providerKey = useIcpLab || isIcpRouted ? "icp" : "supabase";
   const [promoCode, setPromoCode] = useState("");
   const [promoCodeFootball, setPromoCodeFootball] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [selectedTab, setSelectedTab] = useState("pro");
-  const [selectedPlan, setSelectedPlan] = useState<PlanTier>("small");
-  const [selectedPlanFootball, setSelectedPlanFootball] = useState<PlanTier>("small");
+  const [selectedPlan, setSelectedPlan] = useState<PlanTier>("starter");
+  const [selectedPlanFootball, setSelectedPlanFootball] = useState<PlanTier>("starter");
   const [isAnnualPro, setIsAnnualPro] = useState(false);
   const [isAnnualProFootball, setIsAnnualProFootball] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [extraTeams, setExtraTeams] = useState(0);
   const [teamSelectOpen, setTeamSelectOpen] = useState(false);
   const { showIfDesktop, dialog: desktopUpgradeDialog } = useDesktopUpgradeGate();
   const { purchaseProduct } = useInAppPurchase();
@@ -142,8 +146,8 @@ export default function ClubUpgradePage() {
     const paymentStatus = searchParams.get('payment');
     if (paymentStatus === 'success') {
       toast({
-        title: "Payment returned",
-        description: "We’re checking your subscription. Paid features appear after verification.",
+        title: "Payment Successful!",
+        description: "Your club subscription is now active.",
       });
       queryClient.invalidateQueries({ queryKey: ["club-subscription", clubId] });
       invalidateProAccessQueries(queryClient);
@@ -286,11 +290,35 @@ export default function ClubUpgradePage() {
   });
 
   const { data: subscription } = useQuery({
-    queryKey: ["club-subscription", clubId, providerKey, user?.id],
+    queryKey: ["club-subscription", clubId, providerKey],
     queryFn: async () => {
       if (useIcpLab) return null;
-      if (!clubId) return null;
-      return readUpgradeClubSubscription(clubId);
+      if (isIcpRouted) {
+        return withFeatureBackend("membership", {
+          supabase: async () => { throw new Error("unreachable"); },
+          icp: async (ctx) => {
+            const row = await getLiveClubSubscription(ctx, clubId!);
+            if (!row) return null;
+            // Map the canister subscription onto the club_subscriptions row
+            // shape this page renders (millisecond timestamps → ISO strings).
+            return {
+              is_pro: row.is_pro || row.admin_pro_override,
+              is_pro_football: row.is_pro_football || row.admin_pro_football_override,
+              expires_at: row.expires_at_ms.length ? new Date(Number(row.expires_at_ms[0])).toISOString() : null,
+              plan: row.plan || null,
+              team_limit: row.team_limit.length ? Number(row.team_limit[0]) : null,
+              is_trial: row.is_trial,
+              trial_ends_at: row.trial_ends_at_ms.length ? new Date(Number(row.trial_ends_at_ms[0])).toISOString() : null,
+            };
+          },
+        }, { clubId: clubId! });
+      }
+      const { data } = await supabase
+        .from("club_subscriptions")
+        .select("*")
+        .eq("club_id", clubId!)
+        .maybeSingle();
+      return data;
     },
     enabled: !!clubId,
   });
@@ -318,17 +346,6 @@ export default function ClubUpgradePage() {
     queryKey: ["club-active-sponsors", clubId, providerKey],
     queryFn: async () => {
       if (useIcpLab) return [];
-      if (isIcpRouted) {
-        return withFeatureBackend("membership", {
-          supabase: async () => { throw new Error("unreachable"); },
-          icp: async (ctx) => {
-            const rows = await listLiveSponsors(ctx, clubId!);
-            return rows
-              .filter((s) => s.is_active)
-              .map((s) => ({ id: s.id, name: s.name, logo_url: s.logo_url[0] ?? null, is_active: s.is_active }));
-          },
-        }, { clubId: clubId! });
-      }
       const { data } = await supabase
         .from("sponsors")
         .select("id, name, logo_url, is_active")
@@ -372,7 +389,11 @@ export default function ClubUpgradePage() {
   };
 
   // Determine recommended plan based on team count
-  const getRecommendedPlan = recommendedClubPlan;
+  const getRecommendedPlan = (count: number): PlanTier => {
+    if (count <= 10) return "starter";
+    if (count <= 20) return "standard";
+    return "unlimited";
+  };
 
   const recommendedPlan = getRecommendedPlan(teamCount);
 
@@ -392,7 +413,7 @@ export default function ClubUpgradePage() {
       isAnnual: boolean;
     }) => {
       // NEEDS-CANISTER: promo codes not yet on canister
-      if (useIcpLab || isIcpRouted) throw new Error("Promo codes are not yet available for Internet Identity accounts.");
+      if (useIcpLab || isFeatureRoutedToIcp("membership")) throw new Error("Promo codes are not yet available for Internet Identity accounts.");
       // Validate promo code
       const { data: promoData, error: promoError } = await supabase
         .from("promo_codes")
@@ -495,7 +516,7 @@ export default function ClubUpgradePage() {
   const cancelTrialMutation = useMutation({
     mutationFn: async () => {
       // NEEDS-CANISTER: cancel-subscription not yet available on canister
-      if (useIcpLab || isIcpRouted) throw new Error("Manage this subscription through the service where it was purchased.");
+      if (useIcpLab || isFeatureRoutedToIcp("membership")) throw new Error("Subscription management is not yet available for Internet Identity accounts.");
       const { data, error } = await supabase.functions.invoke('cancel-subscription', {
         body: { subscription_type: 'club', entity_id: clubId },
       });
@@ -515,9 +536,6 @@ export default function ClubUpgradePage() {
 
   const downgradeMutation = useMutation({
     mutationFn: async (targetTier: "free" | "pro") => {
-      // Club subscription writes require verified provider fulfillment; never
-      // turn an ICP club-admin click into a Supabase write or self-paid grant.
-      if (useIcpLab || isIcpRouted) throw new Error("Manage this subscription through the service where it was purchased.");
       if (targetTier === "free") {
         // Check if there's a paid-up subscription still in effect.
         const { data: currentSub } = await supabase
@@ -584,7 +602,7 @@ export default function ClubUpgradePage() {
   const handleApplyPromo = async (tier: "pro" | "pro_football") => {
     const code = tier === "pro" ? promoCode : promoCodeFootball;
     const plan = tier === "pro" ? selectedPlan : selectedPlanFootball;
-    const annualDisabled = false;
+    const annualDisabled = tier === "pro_football" || (tier === "pro" && plan === "unlimited");
     const isAnnual = annualDisabled ? false : (tier === "pro" ? isAnnualPro : isAnnualProFootball);
     if (!code.trim()) return;
     setIsValidating(true);
@@ -603,12 +621,11 @@ export default function ClubUpgradePage() {
   };
 
   const handleStripeCheckout = async (tier: "pro" | "pro_football", withTrial: boolean = false) => {
-    try { assertPurchaseCatalogReady("ignite_v2_club", []); } catch (error) {
-      toast({ title: "New plans are being prepared", description: error instanceof Error ? error.message : "Purchase unavailable", variant: "destructive" });
+    // Block if already subscribed to this tier
+    if ((tier === "pro" && isProActive && !isExpired) || (tier === "pro_football" && isProFootballActive && !isExpired)) {
+      toast({ title: "Already Subscribed", description: "You already have an active subscription for this plan." });
       return;
     }
-
-    // Upgrading a band or buying additional team capacity is allowed.
     if (isNativePlatform()) {
       // On native, use In-App Purchases
       handleNativeIAP(tier, withTrial);
@@ -626,7 +643,7 @@ export default function ClubUpgradePage() {
       return;
     }
     const plan = tier === "pro" ? selectedPlan : selectedPlanFootball;
-    const annualDisabledCheckout = false;
+    const annualDisabledCheckout = tier === "pro_football" || (tier === "pro" && plan === "unlimited");
     const isAnnual = annualDisabledCheckout ? false : (tier === "pro" ? isAnnualPro : isAnnualProFootball);
     setIsCheckingOut(true);
 
@@ -637,9 +654,6 @@ export default function ClubUpgradePage() {
           entityId: clubId,
           tier: tier,
           plan: plan,
-          pricingVersion: "usd_v2",
-          extraTeams: plan === "standard" ? extraTeams : 0,
-          currency: "USD",
           isAnnual: isAnnual,
           withTrial: withTrial,
           successUrl: `${window.location.origin}/clubs/${clubId}/upgrade?payment=success`,
@@ -664,19 +678,18 @@ export default function ClubUpgradePage() {
   };
 
   const handleNativeIAP = async (tier: "pro" | "pro_football", _withTrial: boolean = false) => {
-    const { getClubUpgradeProductId } = await import("@/hooks/useInAppPurchase");
+    const { useInAppPurchase, getClubUpgradeProductId } = await import("@/hooks/useInAppPurchase");
     // We can't use hooks dynamically, so we'll handle it inline
     const { Capacitor } = await import("@capacitor/core");
     if (!Capacitor.isNativePlatform()) return;
 
     const plan = tier === "pro" ? selectedPlan : selectedPlanFootball;
-    const annualDisabledIAP = false;
+    const annualDisabledIAP = tier === "pro_football" || (tier === "pro" && plan === "unlimited");
     const isAnnual = annualDisabledIAP ? false : (tier === "pro" ? isAnnualPro : isAnnualProFootball);
-    const productId = getClubUpgradeProductId(tier, plan, isAnnual, plan === "standard" ? extraTeams : 0);
+    const productId = getClubUpgradeProductId(tier, plan, isAnnual);
 
     setIsCheckingOut(true);
     try {
-      assertPurchaseCatalogReady(productId, []);
       if (useIcpLab || isIcpRouted) {
         // Session-free path: verify-iap-receipt-icp mints an attestation and
         // the entitlement is redeemed on the identity_access canister.
@@ -755,7 +768,7 @@ export default function ClubUpgradePage() {
   });
 
   if (clubLoading || loadingAdminCheck) {
-    return <ClubUpgradePending name={club?.name ?? entryName} onBack={() => navigate(-1)} />;
+    return <UpgradeLoadingState />;
   }
 
   if (!club) {
@@ -856,18 +869,17 @@ export default function ClubUpgradePage() {
       <div className="space-y-3 mb-4">
         <Label className="text-sm font-medium">Select Plan</Label>
         <div className="grid gap-2">
-          {CLUB_PLAN_ORDER.map((p) => {
+          {(["starter", "standard", "unlimited"] as PlanTier[]).map((p) => {
             const planPricing = pricing[p];
             const isRecommended = p === recommendedPlan;
-            const isDisabled = p !== "standard" && teamCount > planPricing.teamLimit;
+            const isDisabled = planPricing.teamLimit !== null && teamCount > planPricing.teamLimit;
 
             return (
-              <Button
-                variant="outline"
+              <button
                 key={p}
                 onClick={() => !isDisabled && setPlan(p)}
                 disabled={isDisabled}
-                className={`w-full h-auto whitespace-normal p-3 rounded-lg border text-left transition-colors ${
+                className={`w-full p-3 rounded-lg border text-left transition-colors ${
                   plan === p
                     ? "border-primary bg-primary/10"
                     : isDisabled
@@ -875,9 +887,9 @@ export default function ClubUpgradePage() {
                     : "border-border hover:border-primary/50"
                 }`}
               >
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                  <div className="flex flex-wrap items-center gap-2 min-w-0">
-                    <span className="font-medium">{CLUB_PLAN_NAMES[p]}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium capitalize">{p}</span>
                     {isRecommended && !isDisabled && (
                       <Badge variant="secondary" className="text-xs">Recommended</Badge>
                     )}
@@ -887,12 +899,12 @@ export default function ClubUpgradePage() {
                       </Badge>
                     )}
                   </div>
-                  <span className="font-bold shrink-0">US${planPricing.monthly}/mo</span>
+                  <span className="font-bold">${planPricing.monthly}/mo</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {`Up to ${planPricing.teamLimit} teams${p === "standard" ? " • additional teams paid separately" : ""}`}
+                  {planPricing.teamLimit ? `Up to ${planPricing.teamLimit} teams` : "Unlimited teams"}
                 </p>
-              </Button>
+              </button>
             );
           })}
         </div>
@@ -1000,7 +1012,7 @@ export default function ClubUpgradePage() {
           )}
 
           <div className="flex flex-col gap-2">
-            {isOnTrial && !isIcpRouted && !useIcpLab && (
+            {isOnTrial && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10">
@@ -1028,7 +1040,7 @@ export default function ClubUpgradePage() {
                 </AlertDialogContent>
               </AlertDialog>
             )}
-            {!isOnTrial && tier === "pro_football" && !isIcpRouted && !useIcpLab && (
+            {!isOnTrial && tier === "pro_football" && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-muted-foreground">
@@ -1056,7 +1068,7 @@ export default function ClubUpgradePage() {
                 </AlertDialogContent>
               </AlertDialog>
             )}
-            {!isOnTrial && !isIcpRouted && !useIcpLab && (
+            {!isOnTrial && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
@@ -1101,10 +1113,10 @@ export default function ClubUpgradePage() {
     const setIsAnnual = isPro ? setIsAnnualPro : setIsAnnualProFootball;
     const code = isPro ? promoCode : promoCodeFootball;
     const setCode = isPro ? setPromoCode : setPromoCodeFootball;
-    const annualDisabled = false;
+    const annualDisabled = !isPro || plan === "unlimited";
     const effectiveIsAnnual = annualDisabled ? false : isAnnual;
-    const monthlyPrice = clubQuote(tier, plan, plan === "standard" ? extraTeams : 0, false).amount;
-    const annualPrice = clubQuote(tier, plan, plan === "standard" ? extraTeams : 0, true).amount;
+    const monthlyPrice = pricing[plan].monthly;
+    const annualPrice = pricing[plan].annual;
     const annualSavings = annualPrice ? Math.round(monthlyPrice * 12 - annualPrice) : undefined;
 
     return (
@@ -1122,12 +1134,6 @@ export default function ClubUpgradePage() {
               <span>Your club: {teamCount} teams</span>
             </div>
             {renderPlanSelector(plan, setPlan, isPro ? "pro" : "proFootball")}
-            {plan === "standard" && <div className="space-y-2 text-left mb-4">
-              <Label htmlFor={`extra-teams-${tier}`}>Additional teams above 20</Label>
-              <Input id={`extra-teams-${tier}`} type="number" min={Math.max(0, teamCount - 20)} max={99980} step={1}
-                value={extraTeams} onChange={event => setExtraTeams(Math.min(99980, Math.max(0, teamCount - 20, Math.floor(Number(event.target.value) || 0))))} />
-              <p className="text-sm text-muted-foreground">US${isPro ? "10/month or 120/year" : "15/month or 180/year"} per additional team. Capacity activates after payment verification.</p>
-            </div>}
           </>
         }
         appearance={{
@@ -1198,7 +1204,7 @@ export default function ClubUpgradePage() {
       {renderTeamCountBanner()}
 
       {/* Trial Banner */}
-      {isOnTrial && trialEndsAt && !isIcpRouted && !useIcpLab && (
+      {isOnTrial && trialEndsAt && (
         <UpgradeTrialBanner
           trialEndsAt={trialEndsAt}
           cancelDescription="Your trial will remain active until the expiry date. After that, Pro features will be removed from all teams and no payment will be taken."
@@ -1221,7 +1227,7 @@ export default function ClubUpgradePage() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-base">Try Club Pro free for 30 days</h3>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  Unlock sponsors, branding, 3 GB shared media storage, scheduled messages and more. No charge for 30 days — cancel anytime before the trial ends and you won't be billed.
+                  Unlock sponsors, branding, unlimited storage, scheduled messages and more. No charge for 30 days — cancel anytime before the trial ends and you won't be billed.
                 </p>
               </div>
             </div>
@@ -1293,8 +1299,7 @@ export default function ClubUpgradePage() {
                   </DialogHeader>
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
                     {teams.map((t) => (
-                      <Button
-                        variant="outline"
+                      <button
                         key={t.id}
                         onClick={() => {
                           setTeamSelectOpen(false);
@@ -1314,7 +1319,7 @@ export default function ClubUpgradePage() {
                             <p className="text-xs text-muted-foreground">{t.level_age}</p>
                           )}
                         </div>
-                      </Button>
+                      </button>
                     ))}
                   </div>
                 </DialogContent>

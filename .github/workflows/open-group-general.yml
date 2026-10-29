@@ -7,7 +7,7 @@ on:
         required: true
         type: choice
         default: check
-        options: [ settings, prepare-hashes, snapshot, register-closed, check, open, close ]
+        options: [settings, prepare-hashes, snapshot, register-closed, check, open, close]
       approval_file:
         description: Committed Group 2 general-opening approval JSON
         required: false
@@ -90,4 +90,3 @@ jobs:
           name: group-general-opening-report
           path: ${{ runner.temp }}/*-report.json
           if-no-files-found: ignore
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_OPEN_GROUP_GENERAL_ENABLED == 'true') }}

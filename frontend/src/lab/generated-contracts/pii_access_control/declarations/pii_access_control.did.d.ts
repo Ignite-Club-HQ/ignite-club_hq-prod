@@ -39,11 +39,6 @@ export interface EncryptedPii {
   'field_id' : string,
 }
 export interface Main {
-  'activate_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'add_guardian_relationship' : ActorMethod<
     [Principal, string],
     { 'Ok' : null } |
@@ -51,11 +46,6 @@ export interface Main {
   >,
   'audit_access' : ActorMethod<[AuditFilter], Array<AuditRecord>>,
   'club_media_lock_version' : ActorMethod<[], bigint>,
-  'complete_private_name_release_fence' : ActorMethod<
-    [Request],
-    { 'Ok' : Receipt__3 } |
-      { 'Err' : string }
-  >,
   /**
    * / Public: remaining cycles (shown in admin settings).
    */
@@ -71,16 +61,6 @@ export interface Main {
     { 'Ok' : Uint8Array } |
       { 'Err' : string }
   >,
-  'finish_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'freeze_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'get_club_media_vetkey' : ActorMethod<
     [string, Uint8Array],
     { 'Ok' : Uint8Array } |
@@ -94,26 +74,6 @@ export interface Main {
   'get_encrypted_pii_vetkeys_batch' : ActorMethod<
     [Array<string>, string, Uint8Array],
     { 'Ok' : Array<[] | [Uint8Array]> } |
-      { 'Err' : string }
-  >,
-  'get_private_profile_club_name_vetkey' : ActorMethod<
-    [Array<string>, PrivateNameScope, Uint8Array],
-    { 'Ok' : Uint8Array } |
-      { 'Err' : string }
-  >,
-  'get_private_profile_name_vetkeys_batch' : ActorMethod<
-    [Array<string>, PrivateNameScope, Uint8Array],
-    { 'Ok' : Array<[] | [Uint8Array]> } |
-      { 'Err' : string }
-  >,
-  'get_private_profile_names_batch' : ActorMethod<
-    [Array<string>, PrivateNameScope],
-    { 'Ok' : Array<EncryptedPii> } |
-      { 'Err' : string }
-  >,
-  'get_shared_audience_vetkey' : ActorMethod<
-    [string, string, Uint8Array],
-    { 'Ok' : Uint8Array } |
       { 'Err' : string }
   >,
   'grant_pii_read' : ActorMethod<
@@ -146,20 +106,10 @@ export interface Main {
       { 'err' : string }
   >,
   'my_guardian_children' : ActorMethod<[], Array<string>>,
-  'open_private_name_writer_window' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'pii_vetkey_verification_key' : ActorMethod<[], Uint8Array>,
   'prepare_account_removal' : ActorMethod<
-    [Request__1],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'prepare_private_name_release_fence' : ActorMethod<
     [Request],
-    { 'Ok' : Receipt__3 } |
+    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'purge_club_grants' : ActorMethod<
@@ -172,20 +122,10 @@ export interface Main {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
-  'purge_private_club_name_lifecycle' : ActorMethod<
-    [Principal, string, Uint8Array],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'purge_removed_private_club_name' : ActorMethod<
-    [string, string, Principal],
-    { 'Ok' : Receipt__1 } |
-      { 'Err' : string }
-  >,
   'read_account_audit_access' : ActorMethod<[AuditFilter], Array<AuditRecord>>,
   'read_account_my_guardian_children' : ActorMethod<[], Array<string>>,
   'read_account_removal_drain' : ActorMethod<
-    [Request__1],
+    [Request],
     { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
@@ -195,16 +135,6 @@ export interface Main {
       { 'Err' : string }
   >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
-  'read_private_club_name_lifecycle' : ActorMethod<
-    [Principal, string, [] | [Uint8Array]],
-    { 'Ok' : [] | [EncryptedPii] } |
-      { 'Err' : string }
-  >,
-  'read_private_club_name_preparation' : ActorMethod<
-    [Principal, string],
-    { 'Ok' : EncryptedPii } |
-      { 'Err' : string }
-  >,
   'read_private_media_authority' : ActorMethod<
     [string],
     {
@@ -216,48 +146,8 @@ export interface Main {
       } |
       { 'Err' : string }
   >,
-  'read_private_name_cleanup_absence' : ActorMethod<
-    [Array<Principal>, [] | [string]],
-    { 'Ok' : boolean } |
-      { 'Err' : string }
-  >,
-  'read_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : Receipt__2 } |
-      { 'Err' : string }
-  >,
-  'read_private_name_release_fence' : ActorMethod<
-    [Request],
-    { 'Ok' : Receipt__3 } |
-      { 'Err' : string }
-  >,
-  'read_private_name_writer_window' : ActorMethod<
-    [Request],
-    { 'Ok' : Receipt__2 } |
-      { 'Err' : string }
-  >,
-  'read_removed_private_club_name_receipt' : ActorMethod<
-    [string, string, Principal],
-    { 'Ok' : [] | [Receipt__1] } |
-      { 'Err' : string }
-  >,
-  'refresh_private_club_name_lifecycle' : ActorMethod<
-    [Principal, string, Uint8Array, Uint8Array],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'register_conversion_name' : ActorMethod<
-    [Request, Principal, [] | [string], Uint8Array],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'register_pii' : ActorMethod<
     [string, string, Uint8Array, Principal],
-    { 'Ok' : EncryptedPii } |
-      { 'Err' : string }
-  >,
-  'register_private_club_name' : ActorMethod<
-    [Principal, string, Uint8Array],
     { 'Ok' : EncryptedPii } |
       { 'Err' : string }
   >,
@@ -287,13 +177,8 @@ export interface Main {
       { 'Err' : string }
   >,
   'seal_account_removal' : ActorMethod<
-    [Request__1],
-    { 'Ok' : Receipt } |
-      { 'Err' : string }
-  >,
-  'seal_private_name_writer_window' : ActorMethod<
     [Request],
-    { 'Ok' : null } |
+    { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
   'set_club_domain_canister' : ActorMethod<
@@ -332,53 +217,17 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
-  'verify_secure_profile_name' : ActorMethod<
-    [Principal],
-    { 'Ok' : boolean } |
-      { 'Err' : string }
-  >,
 }
 export interface PiiDeleteResult {
   'shredded_at' : bigint,
   'key_destroyed' : boolean,
 }
-export interface PrivateNameScope {
-  'resource' : string,
-  'kind' : string,
-  'authority' : Principal,
-  'profile_revision' : bigint,
-}
 export interface Receipt {
   'outstanding' : bigint,
-  'request' : Request__1,
-  'receiver' : Principal,
-}
-export interface Receipt__1 {
-  'id' : string,
-  'subject' : Principal,
-  'club' : string,
-  'original_retained' : boolean,
-  'replica_absent' : boolean,
-}
-export interface Receipt__2 {
-  'active' : bigint,
   'request' : Request,
-  'sealed' : boolean,
-  'closing' : boolean,
-  'receiver' : Principal,
-}
-export interface Receipt__3 {
-  'request' : Request,
-  'completed' : boolean,
-  'release_epoch' : bigint,
   'receiver' : Principal,
 }
 export interface Request {
-  'inventory_digest' : Uint8Array,
-  'generation' : bigint,
-  'operation_id' : string,
-}
-export interface Request__1 {
   'account_id' : string,
   'inventory_digest' : Uint8Array,
   'subjects' : Array<Principal>,

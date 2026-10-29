@@ -1,6 +1,6 @@
 import { acrossLists } from "@/live/featureScopes";
 import { mergeLists } from "@/live/featureRouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { readHomeSectionSnapshot, writeHomeSectionSnapshot } from "@/lib/homeSectionSnapshot";
@@ -9,8 +9,6 @@ import { getLocalLabNewsPost, getLocalLabNewsPosts, getLocalLabTeamList } from "
 import { withFeatureBackend } from "@/live/featureRouter";
 import { listLiveNews, listLiveNewsMulti, listLiveTeams, getLiveTeam } from "@/live/features/club";
 import { getLiveMyRoleGrants, listLiveMembershipClubs } from "@/live/features/membership";
-import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
-import { newsPostKey, NEWS_POST_FRESH_MS } from "./newsQueryKeys";
 
 const opt = <T,>(v: [] | [T] | null | undefined): T | null =>
   v && v.length ? v[0] : null;
@@ -98,12 +96,10 @@ const isLiveClubDeleted = (club: { deleted_at_ms?: [] | [bigint] }) =>
   (club.deleted_at_ms?.length ?? 0) > 0;
 
 export function useClubNewsFeed(clubId?: string | null, limit = 50) {
-  const { user } = useAuth();
-  const isIcp = isFeatureRoutedToIcp("news");
   const snapshotScope = `${clubId ?? "all"}_${limit}`;
   const useIcpLab = resolveLocalAuthMode(window.location.search, true);
   return useQuery<ClubNewsRow[]>({
-    queryKey: ["club-news", clubId ?? "all", limit, user?.id, isIcp],
+    queryKey: ["club-news", clubId ?? "all", limit],
     queryFn: async () => {
       if (useIcpLab) {
         return getLocalLabNewsPosts(clubId ?? "club-icp-001").slice(0, limit) as ClubNewsRow[];
@@ -194,31 +190,13 @@ export function useLatestClubNews(clubId?: string | null) {
   return { ...feed, latest: feed.data?.[0] ?? null };
 }
 
-export function useClubNewsPost(newsId?: string | null, clubIdHint?: string | null) {
-  const { user } = useAuth();
-  const isIcp = isFeatureRoutedToIcp("news");
+export function useClubNewsPost(newsId?: string | null) {
   const useIcpLab = resolveLocalAuthMode(window.location.search, true);
-  const queryClient = useQueryClient();
-  // Only fresh fetched feed data for this caller/provider seeds a detail.
-  // Persisted placeholders and legacy caches remain routing hints only.
-  const freshFeed = queryClient.getQueryCache().findAll({ queryKey: ["club-news"] })
-    .filter((query) => query.queryKey[3] === user?.id && query.queryKey[4] === isIcp &&
-      !query.state.isInvalidated && query.state.status === "success" &&
-      Date.now() - query.state.dataUpdatedAt < NEWS_POST_FRESH_MS)
-    .map((query) => ({ post: (query.state.data as ClubNewsRow[] | undefined)?.find((row) => row.id === newsId), updatedAt: query.state.dataUpdatedAt }))
-    .find((entry) => entry.post);
   return useQuery<ClubNewsRow | null>({
-    queryKey: newsPostKey(newsId, user?.id, isIcp),
+    queryKey: ["club-news-post", newsId],
     queryFn: async () => {
       if (!newsId) return null;
       if (useIcpLab) return getLocalLabNewsPost(newsId) as ClubNewsRow | null;
-      // Home/archive already know the actual post's club, and share tokens may
-      // carry one ([news:clubId:newsId]). Use either as a routing hint, not as
-      // authorization: the owning canister still checks the audience.
-      const knownPost = queryClient.getQueriesData<ClubNewsRow[]>({ queryKey: ["club-news"] })
-        .flatMap(([, rows]) => rows ?? [])
-        .find((row) => row.id === newsId);
-      const routeClubId = knownPost?.club_id ?? clubIdHint ?? null;
       return withFeatureBackend("news", {
         supabase: async () => {
           const { data, error } = await supabase
@@ -230,13 +208,8 @@ export function useClubNewsPost(newsId?: string | null, clubIdHint?: string | nu
           return (data as ClubNewsRow | null) ?? null;
         },
         icp: async (ctx) => {
-          if (routeClubId) {
-            const posts = await listLiveNews(ctx, routeClubId);
-            const post = posts.find((row) => row.id === newsId);
-            return post ? liveNewsPostToRow(post) : null;
-          }
-          // Cold deep links retain caller-authorized owner discovery. Competition
-          // audiences may be visible without an ordinary club membership.
+          // The canister has no get-by-id; resolve the post via the caller's
+          // clubs (role grants) and filter. Provisional — verify post-deploy.
           const [{ listLiveMembershipClubs }, { listMyLiveMiniLeagues }] = await Promise.all([
             import("@/live/features/membership"),
             import("@/live/features/miniLeagues"),
@@ -249,17 +222,15 @@ export function useClubNewsPost(newsId?: string | null, clubIdHint?: string | nu
             ...clubs.filter((c) => !isLiveClubDeleted(c)).map((c) => c.id),
             ...miniLeagues.map((league: any) => league.club_id),
           ]));
+          if (clubIds.length === 0) return null;
           const posts = await listLiveNewsMulti(ctx, clubIds);
           const post = (posts as Array<Parameters<typeof liveNewsPostToRow>[0]>)
             .find((p) => p.id === newsId);
           return post ? liveNewsPostToRow(post) : null;
         },
-      }, routeClubId ? { clubId: routeClubId } : { newsId });
+      }, { newsId: newsId });
     },
-    enabled: !!user && !!newsId,
-    initialData: freshFeed?.post,
-    initialDataUpdatedAt: freshFeed?.updatedAt,
-    staleTime: NEWS_POST_FRESH_MS,
+    enabled: !!newsId,
   });
 }
 
@@ -455,11 +426,11 @@ export function useNewsPublishableCompetitions() {
  * always name the targeted teams, even before/without the club team list
  * (e.g. an article opened by deep link before `club_id` teams have loaded).
  */
-export function useTeamNamesByIds(teamIds?: string[] | null, clubIdHint?: string | null) {
+export function useTeamNamesByIds(teamIds?: string[] | null) {
   const ids = Array.from(new Set((teamIds || []).filter(Boolean)));
   const useIcpLab = resolveLocalAuthMode(window.location.search, true);
   return useQuery<Array<{ id: string; name: string }>>({
-    queryKey: ["news-team-names", ids.slice().sort().join(","), clubIdHint ?? null],
+    queryKey: ["news-team-names", ids.slice().sort().join(",")],
     queryFn: async () => {
       if (useIcpLab) {
         return getLocalLabTeamList()
@@ -478,7 +449,7 @@ export function useTeamNamesByIds(teamIds?: string[] | null, clubIdHint?: string
           const teams = await Promise.all(ids.map(id => getLiveTeam(ctx, id)));
           return teams.flatMap(t => t[0] ? [{ id: t[0].id, name: t[0].name }] : []);
         }
-      }, clubIdHint ? { clubId: clubIdHint } : { everyGroup: true, merge: (parts) => [...new Map(parts.flat().map((row) => [row.id, row])).values()] });
+      }, { everyGroup: true, merge: (parts) => [...new Map(parts.flat().map((row) => [row.id, row])).values()] });
     },
     enabled: ids.length > 0,
     staleTime: 5 * 60 * 1000,

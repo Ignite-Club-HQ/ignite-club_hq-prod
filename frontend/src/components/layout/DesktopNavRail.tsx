@@ -13,7 +13,7 @@ import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { cn } from "@/lib/utils";
-import { useNavMessagesBadgeCount } from "@/hooks/useNavMessagesBadgeCount";
+import { useAuth } from "@/hooks/useAuth";
 import { LogoImage } from "@/components/ui/logo-image";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { useDesktopNavAccess, useNextPitchBoardTarget } from "@/hooks/useDesktopNavAccess";
@@ -48,7 +48,7 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
  * keeps the existing BottomNav untouched.
  */
 export function DesktopNavRail() {
-  const unreadMessagesCount = useNavMessagesBadgeCount();
+  const { unreadMessagesCount } = useAuth();
   const { activeThemeData } = useClubTheme();
   const navigate = useNavigate();
   const { hasClubs, canAccessVault, canPitchBoard, teamIds, boardTeams } = useDesktopNavAccess();

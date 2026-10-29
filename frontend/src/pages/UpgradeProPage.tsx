@@ -1,5 +1,3 @@
-import { assertPurchaseCatalogReady } from "@/lib/subscriptionPlans";
-import { TEAM_PRICING } from "@/lib/subscriptionPlans";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isNativePlatform } from "@/lib/nativePush";
@@ -56,8 +54,8 @@ import { useInAppPurchase } from "@/hooks/useInAppPurchase";
 const PRO_FEATURES = [
   "Team & club chat (club-wide messaging)",
   "DMs & custom groups",
-  "No monthly photo count limit within storage allowance",
-  "1 GB team media storage (shared 3 GB if the club subscribes)",
+  "Unlimited photo & media uploads (Free: 10/month)",
+  "Unlimited file storage (Free: 10 files / 25 MB)",
   "Unlimited polls (Free: 2/month)",
   "Scheduled messages",
   "Pinned vault files in chat",
@@ -78,7 +76,16 @@ const PRO_FOOTBALL_FEATURES = [
 ];
 
 // Pricing in AUD
-const PRICING = TEAM_PRICING;
+const PRICING = {
+  pro: {
+    monthly: 24.99,
+    annual: 239.00,
+  },
+  proFootball: {
+    monthly: 39.99,
+    annual: 379.99,
+  },
+};
 
 // Check if club sport is soccer/football
 const isSoccerClub = (sport: string | null | undefined): boolean => {
@@ -457,11 +464,6 @@ function SupabaseUpgradeProPage() {
   };
 
   const handleStripeCheckout = async (tier: "pro" | "pro_football", withTrial: boolean = false) => {
-    try { assertPurchaseCatalogReady("ignite_v2_team", []); } catch (error) {
-      toast({ title: "New plans are being prepared", description: error instanceof Error ? error.message : "Purchase unavailable", variant: "destructive" });
-      return;
-    }
-
     // Block if already subscribed to this tier
     if ((tier === "pro" && isProActive && !isExpired) || (tier === "pro_football" && isProFootballActive && !isExpired)) {
       toast({ title: "Already Subscribed", description: "You already have an active subscription for this plan." });
@@ -520,7 +522,6 @@ function SupabaseUpgradeProPage() {
 
     setIsCheckingOut(true);
     try {
-      assertPurchaseCatalogReady(productId, []);
       if (isIcp) {
         // Session-free path: verify-iap-receipt-icp mints an attestation and
         // the entitlement is redeemed on the identity_access canister.

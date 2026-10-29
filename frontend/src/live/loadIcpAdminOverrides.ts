@@ -4,9 +4,6 @@ import {
   applyIcpAdminOverrides,
   parseIcpAdminOverrides,
 } from "./icpAdminOverrides";
-import { readLiveAppConfig } from "./appConfig";
-import { isSignedInWithEmail, hasStoredInternetIdentitySession } from "./loadBackendRouting";
-import { shouldBootstrapFromIcp } from "./icpBootstrap";
 
 /**
  * Loads the app-admin ICP canister configuration from `public.app_settings`
@@ -19,13 +16,6 @@ import { shouldBootstrapFromIcp } from "./icpBootstrap";
  */
 export async function loadIcpAdminOverrides(): Promise<void> {
   try {
-    if ((!isSignedInWithEmail() && hasStoredInternetIdentitySession()) || shouldBootstrapFromIcp()) {
-      const raw = await readLiveAppConfig(ICP_CANISTER_CONFIG_KEY);
-      // The anonymous helper returns null on outage as well as absence. Keep
-      // an applied target on ambiguous reads; an explicit empty object clears.
-      if (raw !== null) applyIcpAdminOverrides(await parseIcpAdminOverrides(JSON.parse(raw)));
-      return;
-    }
     const { data, error } = await supabase
       .from("app_settings")
       .select("value")

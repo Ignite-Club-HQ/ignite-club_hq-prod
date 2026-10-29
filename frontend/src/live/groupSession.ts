@@ -5,28 +5,18 @@ import type { FeatureBackendContext } from './featureRouter';
 import type { GroupDescriptor, ClubAssignment, GroupDomain } from './groupRouting';
 import { GROUP_DOMAINS } from './groupRouting';
 import { resolveDeploymentClubDomain, groupRouteScope, type GroupDeployment, type GroupDeploymentBinding, type DeploymentBoundTable } from './groupDeployment';
-import { readCompleteMembershipDirectory, type DirectoryPage, type DirectoryContinuation } from './membershipDirectoryDiscovery';
 
 export type GroupRegistry = { revision: bigint; groups: GroupDescriptor[]; deployment: GroupDeployment; bindings: GroupDeploymentBinding[] };
 export type GroupSessionTransport = {
   readRegistry(): Promise<GroupRegistry>;
-  /** Explicit opt-in only after source propagation is verified.
-   * Absence, failure or uncertainty keeps complete Stage A discovery. */
-  readMembershipDirectory?(ctx: FeatureBackendContext, continuation: DirectoryContinuation | null, registryFingerprint: string): Promise<DirectoryPage>;
   readMemberships(ctx: FeatureBackendContext, offset: bigint, limit: number): Promise<{ clubs: string[]; next: bigint | null; aclRevision: bigint }>;
   readAssignments(clubs: string[], revision: bigint): Promise<ClubAssignment[]>;
-  /** Required only where original shared clubs are not registered as a group. */
-  readLegacyMemberships?(ctx: FeatureBackendContext, offset: bigint, limit: number): Promise<{ clubs: string[]; next: bigint | null; aclRevision: bigint }>;
   /** Original creator's consensus receipt, not membership or permission. */
   readNewClubPlacement?(clubId: string, revision: bigint): Promise<ClubAssignment>;
   /** Faster cursor pager (cost scales with the caller's own clubs). Throws APP_WIDE_INDEX_ERROR for app-wide accounts, which use the scan pager. */
   readMembershipsIndexed?(ctx: FeatureBackendContext, after: string | null, limit: number): Promise<{ clubs: string[]; next: string | null; aclRevision: bigint }>;
   /** Group of a club the caller may not belong to (e.g. a competition host). Returns location only; destinations keep their own access rules. */
   readHostedAssignment?(clubId: string, revision: bigint): Promise<ClubAssignment>;
-  /** On-chain deployment name the registry groups carry, when it differs from
-   * the frontend's own target alias (a local name for the same deployment).
-   * Read after readRegistry(); the session binds routing to this name. */
-  deploymentAlias?(): string | undefined;
 };
 /** A group's clubs use only that group's photo store: shared stores answer to
  * another group's club service and would refuse (or misjudge) its clubs. */
@@ -40,13 +30,6 @@ export const APP_WIDE_INDEX_ERROR = /app-wide accounts/i;
 const MAX_CLUBS = 1000;
 const MAX_PAGES = 500;
 
-/** How long one confirmed registry/assignment check is reused. */
-export const RECHECK_WINDOW_MS = 15_000;
-/** Ordinary member reads reuse a confirmed registry/assignment check for longer:
- * each re-check is several consensus calls in series before the page's own read,
- * and every destination canister still enforces access on each call. Writes,
- * hosted lookups and creation keep the strict window above. */
-export const READ_RECHECK_WINDOW_MS = 5 * 60_000;
 export async function openGroupSession(context: FeatureBackendContext, transport: GroupSessionTransport) {
   const principal = context.identity.getPrincipal().toText();
   if (!principal || principal === '2vxsx-fae') throw new Error('Authenticated group session required');
@@ -55,9 +38,8 @@ export async function openGroupSession(context: FeatureBackendContext, transport
   const registryFingerprint = (value: GroupRegistry) => JSON.stringify(value, (_key, v) => typeof v === 'bigint' ? v.toString() : v);
   const initialRegistry = registryFingerprint(registry);
   sameIdentity();
-  const expectedAlias = transport.deploymentAlias?.() ?? context.target.alias;
   if (registry.revision < 1n || registry.groups.length < 1 || registry.groups.length > 4096 ||
-      registry.deployment.alias !== expectedAlias || registry.deployment.networkKind !== context.target.networkKind ||
+      registry.deployment.alias !== context.target.alias || registry.deployment.networkKind !== context.target.networkKind ||
       new URL(registry.deployment.host).origin !== new URL(context.target.host).origin ||
       registry.bindings.length !== registry.groups.length || new Set(registry.groups.map(g => g.id)).size !== registry.groups.length ||
       new Set(registry.bindings.map(b => b.groupId)).size !== registry.bindings.length) throw new Error('Invalid authoritative group registry');
@@ -118,49 +100,13 @@ export async function openGroupSession(context: FeatureBackendContext, transport
       after = page.next;
     }
   };
-  const legacyClubs = new Set<string>();
-  let directoryUsed = false;
-  const discoveryStartedAt = Date.now();
-  if (transport.readMembershipDirectory) {
-    try {
-      const directory = await readCompleteMembershipDirectory(principal, initialRegistry,
-        continuation => transport.readMembershipDirectory?.(context, continuation, initialRegistry) ?? Promise.reject(new Error('Directory unavailable')), sameIdentity);
-      // Validate the entire result before modifying any routing inventory.
-      if (directory.assignments.some(row => !routing.groups.has(row.groupId) || row.revision > registry.revision)) throw new Error('Foreign directory assignment');
-      for (const row of directory.assignments) claim(row.clubId, row.groupId);
-      for (const club of directory.legacyClubs) legacyClubs.add(club);
-      directoryUsed = true;
-    } catch {
-      sameIdentity();
-      clubs.clear(); routing.assignments.clear(); legacyClubs.clear();
-      console.info('[Membership discovery]', { path: 'lookup-fallback', elapsedMs: Date.now() - discoveryStartedAt });
-    }
-  }
-  // Without a complete verified directory, every source must answer. Failures
-  // never turn a partial discovery into a successful empty membership list.
-  if (!directoryUsed) await Promise.all(registry.groups.map(group => transport.readMembershipsIndexed
-    ? indexedGroup(group, transport.readMembershipsIndexed.bind(transport))
-    : scanGroup(group)));
-  const sharedRegistered = registry.groups.some(g => g.domains.some(d => d.domain === 'club_domain' && d.canisterId === context.target.canisterIds.club_domain));
-  if (!directoryUsed && !sharedRegistered && transport.readLegacyMemberships) {
-    let offset = 0n;
-    for (let pageCount = 0; ; pageCount++) {
-      if (pageCount >= MAX_PAGES) throw new Error('Legacy membership scan exceeds budget');
-      const page = await transport.readLegacyMemberships(context, offset, 100);
-      sameIdentity();
-      if (page.clubs.length > 100 || page.clubs.some(id => !id || id.length > 64 || clubs.has(id) || legacyClubs.has(id)) ||
-        (page.next !== null && page.next <= offset)) throw new Error('Invalid legacy membership page');
-      for (const id of page.clubs) legacyClubs.add(id);
-      if (legacyClubs.size + clubs.size > MAX_CLUBS) throw new Error('Membership discovery exceeds club budget');
-      if (page.next === null) break;
-      offset = page.next;
-    }
+  for (const group of registry.groups) {
+    if (transport.readMembershipsIndexed) await indexedGroup(group, transport.readMembershipsIndexed.bind(transport));
+    else await scanGroup(group);
   }
   const validateAssignments = async (requested: readonly string[]) => {
-    const chunks: string[][] = [];
-    for (let offset = 0; offset < requested.length; offset += 20) chunks.push(requested.slice(offset, offset + 20));
-    // Chunks are independent consensus reads; ask them together.
-    await Promise.all(chunks.map(async chunk => {
+    for (let offset = 0; offset < requested.length; offset += 20) {
+      const chunk = requested.slice(offset, offset + 20);
       const rows = await transport.readAssignments([...chunk], registry.revision);
       sameIdentity();
       if (rows.length !== chunk.length || new Set(rows.map(r => r.clubId)).size !== rows.length) throw new Error('Incomplete group assignments');
@@ -169,104 +115,26 @@ export async function openGroupSession(context: FeatureBackendContext, transport
         if (!chunk.includes(row.clubId) || !previous || row.groupId !== previous.groupId || row.revision < 1n || row.revision > registry.revision) throw new Error('Foreign or stale club assignment');
         routing.assignments.set(row.clubId, row);
       }
-    }));
+    }
   };
   await validateAssignments([...clubs]);
-  console.info('[Membership discovery]', { path: directoryUsed ? 'permanent-lookup' : 'source-scan', elapsedMs: Date.now() - discoveryStartedAt, groupCount: registry.groups.length });
-  const openedAt = Date.now();
   let disposed = false;
   const live = () => { if (disposed || context.identity.getPrincipal().toText() !== principal) throw new Error('Group session changed or disposed'); };
-  // A registry check is two full consensus reads (seconds). Consecutive calls
-  // within a short window share one confirmed check; canisters still enforce
-  // access on every call. Creation passes fresh=true and always re-reads.
-  // The registry was just read while opening: seed the window.
-  let registryCheckedAt = openedAt; let registryCheck: Promise<void> | null = null;
-  // strict: writes and hosted lookups never rely on the open-time read alone.
-  const assertRegistryUnchanged = async (fresh = false, strict = false, windowMs = RECHECK_WINDOW_MS) => {
+  const assertRegistryUnchanged = async () => {
     live();
-    if (!fresh && !(strict && registryCheckedAt === openedAt) && Date.now() - registryCheckedAt < windowMs) return;
-    if (!fresh && registryCheck) return registryCheck;
-    const run = (async () => {
-      const current = await transport.readRegistry();
-      live();
-      if (registryFingerprint(current) !== initialRegistry) throw new Error('Group registry changed; reopen session');
-      registryCheckedAt = Date.now();
-    })();
-    if (!fresh) registryCheck = run;
-    try { await run; } finally { if (registryCheck === run) registryCheck = null; }
-  };
-  // Post-read confirmation shared by concurrent all-group reads. A read may
-  // join a check only if that check's registry read starts after the read's
-  // replies arrived (monotonic tick), so the in-flight guarantee is unchanged;
-  // a page firing several all-group reads pays one confirmation, not one each.
-  let checkTick = 0;
-  let pendingFresh: { tick: number; run: Promise<void> } | null = null;
-  const confirmUnchangedAfter = (after: number): Promise<void> => {
+    const current = await transport.readRegistry();
     live();
-    if (pendingFresh && pendingFresh.tick > after) return pendingFresh.run;
-    const entry: { tick: number; run: Promise<void> } = { tick: Number.POSITIVE_INFINITY, run: Promise.resolve() };
-    entry.run = (async () => {
-      // Let siblings whose replies land in the same turn join this check.
-      await Promise.resolve(); await Promise.resolve();
-      entry.tick = ++checkTick;
-      const current = await transport.readRegistry();
-      live();
-      if (registryFingerprint(current) !== initialRegistry) throw new Error('Group registry changed; reopen session');
-      registryCheckedAt = Date.now();
-    })().finally(() => { if (pendingFresh === entry) pendingFresh = null; });
-    pendingFresh = entry;
-    return entry.run;
+    if (registryFingerprint(current) !== initialRegistry) throw new Error('Group registry changed; reopen session');
   };
-  // Opening validated every discovered club; seed their check time.
-  const assignmentCheckedAt = new Map<string, number>([...clubs].map(id => [id, openedAt]));
-  const assignmentInflight = new Map<string, Promise<void>>();
-  const checkStale = async (requested: readonly string[], fresh: boolean, strict = false, windowMs = RECHECK_WINDOW_MS) => {
-    await assertRegistryUnchanged(fresh, strict, windowMs);
-    const now = Date.now();
-    const checkedAt = (id: string) => { const t = assignmentCheckedAt.get(id) ?? 0; return strict && t === openedAt ? 0 : t; };
-    const unique = [...new Set(requested)];
-    // Concurrent asks for the same club share one in-flight check.
-    const waiting = fresh ? [] : unique.map(id => assignmentInflight.get(id)).filter((p): p is Promise<void> => !!p);
-    const stale = unique.filter(id => (fresh || now - checkedAt(id) >= windowMs) && (fresh || !assignmentInflight.has(id)));
-    if (stale.length) {
-      const run = validateAssignments(stale).then(() => { for (const id of stale) assignmentCheckedAt.set(id, Date.now()); });
-      for (const id of stale) assignmentInflight.set(id, run);
-      try { await run; } finally { for (const id of stale) if (assignmentInflight.get(id) === run) assignmentInflight.delete(id); }
-    }
-    await Promise.all(waiting);
-  };
-  const revalidate = async (requested: readonly string[], fresh = false, strict = false, windowMs = RECHECK_WINDOW_MS) => {
+  const revalidate = async (requested: readonly string[]) => {
     live();
     if (requested.length > MAX_CLUBS || requested.some(id => !clubs.has(id))) throw new Error('Club outside discovered membership');
-    await checkStale(requested, fresh, strict, windowMs);
-    live();
-  };
-  /** Member reads: gated on a confirmed check within the read window. Once that
-   * check is half-way stale, refresh it in the background so a later page
-   * open does not pay the consensus round trips in front of its own read.
-   * Background failure changes nothing: the next read re-checks in front. */
-  const revalidateForRead = async (requested: readonly string[]) => {
-    await revalidate(requested, false, false, READ_RECHECK_WINDOW_MS);
-    if (!disposed) void checkStale(requested, false, false, READ_RECHECK_WINDOW_MS / 2).catch(() => undefined);
+    await assertRegistryUnchanged();
+    await validateAssignments([...new Set(requested)]); live();
   };
   const inflight = new Map<string, Promise<unknown>>();
   const api = {
     clubIds: [...clubs].sort(),
-    memberClubIds: [...clubs, ...legacyClubs].sort(),
-    isLegacyMember(clubId: string) { return legacyClubs.has(clubId); },
-    /** Ordinary member-content reads never query groups with no member clubs. */
-    async readMemberGroups<T>(domain: GroupDomain, read: (ctx: FeatureBackendContext) => Promise<readonly T[]>, maxRows = 1000): Promise<T[]> {
-      if (!GROUP_DOMAINS.includes(domain)) throw new Error('Unknown group domain');
-      await revalidateForRead([...clubs]);
-      const memberGroups = new Set([...clubs].map(id => routing.assignments.get(id)?.groupId));
-      const reads = registry.groups.filter(g => memberGroups.has(g.id)).map(g => read(targetFor(g.id)));
-      if (legacyClubs.size) reads.push(read(context));
-      const parts = await Promise.all(reads);
-      live();
-      const rows = parts.flat();
-      if (rows.length > maxRows) throw new Error('Member-group read exceeds row budget');
-      return rows;
-    },
     /** True when this member's club has a group assignment in the registry. */
     isAssigned(clubId: string) { return clubs.has(clubId); },
     dispose() { disposed = true; },
@@ -275,7 +143,7 @@ export async function openGroupSession(context: FeatureBackendContext, transport
     deletionRegistryRevision: registry.revision,
     async readClub<T>(clubId: string, domain: GroupDomain, read: (ctx: FeatureBackendContext) => Promise<T>): Promise<T> {
       if (!GROUP_DOMAINS.includes(domain)) throw new Error('Unknown group domain');
-      await revalidateForRead([clubId]);
+      await revalidate([clubId]);
       const route = resolveDeploymentClubDomain(table, registry.deployment, clubId, domain);
       groupRouteScope(route, principal);
       const result = await read(targetFor(route.groupId)); live(); return result;
@@ -293,7 +161,7 @@ export async function openGroupSession(context: FeatureBackendContext, transport
       const run = (async () => {
         let pinned: string | undefined; let uncertain = false;
         for (let attempt = 1; ; attempt++) {
-          try { await revalidate([clubId], attempt > 1, true); }
+          try { await revalidate([clubId]); }
           catch (e) { if (uncertain) throw new Error(`Write outcome uncertain; ${(e as Error).message}`); throw e; }
           const route = resolveDeploymentClubDomain(table, registry.deployment, clubId, domain);
           if (pinned && pinned !== route.groupId) throw new Error('Write group changed during retry');
@@ -320,7 +188,7 @@ export async function openGroupSession(context: FeatureBackendContext, transport
       if (!hostClubId || hostClubId.length > 64) throw new Error('Invalid host club');
       if (clubs.has(hostClubId)) return api.readClub(hostClubId, domain, read);
       if (!transport.readHostedAssignment) throw new Error('Hosted club lookup unavailable');
-      await assertRegistryUnchanged(false, true);
+      await assertRegistryUnchanged();
       const row = await transport.readHostedAssignment(hostClubId, registry.revision); live();
       if (row.clubId !== hostClubId || !routing.groups.has(row.groupId) || row.revision < 1n || row.revision > registry.revision) throw new Error('Foreign or stale club assignment');
       routing.assignments.set(hostClubId, row);
@@ -339,11 +207,11 @@ export async function openGroupSession(context: FeatureBackendContext, transport
       if (!placement.clubId || clubs.has(placement.clubId) || placement.revision < 1n || placement.revision > registry.revision ||
           !registry.groups.some(g => g.id === placement.groupId)) throw new Error('Invalid new club placement');
       if (!transport.readNewClubPlacement) throw new Error('Creator placement verification unavailable');
-      await assertRegistryUnchanged(true);
+      await assertRegistryUnchanged();
       const current = await transport.readNewClubPlacement(placement.clubId, registry.revision);
       live();
       if (current.clubId !== placement.clubId || current.groupId !== placement.groupId || current.revision !== placement.revision) throw new Error('Creator placement changed');
-      await assertRegistryUnchanged(true);
+      await assertRegistryUnchanged();
       // Exactly one attempt. Unknown creation outcomes require readback, not replay.
       const result = await write(targetFor(placement.groupId)); live(); return result;
     },
@@ -353,11 +221,9 @@ export async function openGroupSession(context: FeatureBackendContext, transport
     async readEveryGroup<T>(domain: GroupDomain, read: (ctx: FeatureBackendContext) => Promise<readonly T[]>, maxRows = 1000): Promise<T[]> {
       if (!GROUP_DOMAINS.includes(domain)) throw new Error('Unknown group domain');
       live();
-      await assertRegistryUnchanged(false, false, READ_RECHECK_WINDOW_MS);
+      await assertRegistryUnchanged();
       const parts = await Promise.all(registry.groups.map(g => read(targetFor(g.id))));
-      // Fresh: a registry change while replies were in flight must discard them.
-      // Sibling reads that finished before one fresh check started share it.
-      await confirmUnchangedAfter(++checkTick);
+      await assertRegistryUnchanged();
       const rows = parts.flat();
       if (rows.length > maxRows) throw new Error('Cross-group read exceeds row budget');
       return rows;
@@ -365,7 +231,7 @@ export async function openGroupSession(context: FeatureBackendContext, transport
     async readClubs<T>(requested: readonly string[], domain: GroupDomain,
       read: (ctx: FeatureBackendContext, clubIds: readonly string[]) => Promise<readonly T[]>): Promise<T[]> {
       if (!GROUP_DOMAINS.includes(domain)) throw new Error('Unknown group domain');
-      await revalidateForRead(requested);
+      await revalidate(requested);
       const batches = new Map<string, { ids: string[]; indices: number[] }>();
       requested.forEach((id, index) => {
         const route = resolveDeploymentClubDomain(table, registry.deployment, id, domain);

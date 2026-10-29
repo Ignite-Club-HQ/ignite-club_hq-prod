@@ -77,4 +77,3 @@ jobs:
           DISPLAY_NAME: ${{ inputs.display_name }}
           ONLY_PRINCIPAL: ${{ inputs.principal }}
         run: bash scripts/grant-app-admin.sh "$DISPLAY_NAME"
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_GRANT_APP_ADMIN_ENABLED == 'true') }}

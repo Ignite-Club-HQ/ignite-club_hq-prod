@@ -9,8 +9,6 @@ import { isChatJumpActive, setChatJumpActive } from "@/lib/chatJumpActive";
 import { resolveChatScrollViewport } from "@/lib/chatScroll";
 import { isViewportUserActive } from "@/lib/chatScrollIntent";
 import { debugLogEvent } from "@/components/chat/chatVirtDebug";
-import { ChatPrivateProfileRevision } from "./chatVirtuosoRows";
-import { useVisibleChatMessageIds } from "@/hooks/useVisibleChatMessageIds";
 
 
 /**
@@ -29,8 +27,6 @@ interface ChatMessagesScrollerProps<TMessage extends { id: string }> {
   isLoadingOlder: boolean;
   onLoadOlder: () => void;
   renderRow: (msg: TMessage, index: number, arr: TMessage[]) => ReactNode;
-  onVisibleMessageIds?: (ids: readonly string[]) => void;
-  privateProfileRevision?: unknown;
 
   // Layout / behaviour
   isPinned: boolean;
@@ -210,7 +206,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
   );
   const safeComposer = Math.max(layoutComposerHeight, 56); // floor for first paint before measure
   const { ref: mountBoxRef, settled: mountBoxSettled } = useSettledChatMountBox(260);
-  useVisibleChatMessageIds(mountBoxRef, props.onVisibleMessageIds);
   const [measuredBottomClearance, setMeasuredBottomClearance] = useState<number | null>(null);
 
   const syncBottomClearance = useCallback(() => {
@@ -659,7 +654,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
       style={{ marginBottom: scrollerBottomClearance }}
     >
       {messages.length === 0 || virtualReady || hasMountedListRef.current ? (
-        <ChatPrivateProfileRevision.Provider value={props.privateProfileRevision}>
         <VirtualizedChatMessageList
           ref={virtualHandleRef}
           messages={messages}
@@ -677,7 +671,6 @@ export function ChatMessagesScroller<TMessage extends { id: string }>(
           initialTargetMessageId={initialTargetMessageId}
           currentUserId={currentUserId}
         />
-        </ChatPrivateProfileRevision.Provider>
       ) : null}
     </div>
   );

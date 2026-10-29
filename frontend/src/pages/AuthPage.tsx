@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { Navigate, Link, useSearchParams } from "react-router-dom";
-import { AppSplash } from "@/components/AppSplash";
 import { Flame, Mail, Lock, Loader2, Eye, EyeOff, Fingerprint, CheckCircle2, Circle, XCircle, WifiOff } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,7 @@ import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 import { resolveKeyboardCssHeight } from "@/lib/keyboardCssHeight";
-import { isAuthChoiceOverrideOrigin, isIcpAuthAvailable, useIcpAuthScreen } from "@/live/authBackendMode";
+import { isIcpAuthAvailable, useIcpAuthScreen } from "@/live/authBackendMode";
 import { GOOGLE_SIGN_IN_ENABLED } from "@/lib/authProviderFlags";
 import { describeIcpSignInError } from "@/lib/internetIdentitySignInHelp";
 import { IcpSignInScreen } from "@/components/IcpSignInScreen";
@@ -149,11 +148,7 @@ export default function AuthPage() {
   // the Internet Identity screen and re-cache the hint on sign-in. Only
   // honoured when canisters are actually configured.
   const authParam = new URLSearchParams(window.location.search).get("auth");
-  // Must match the app's sign-in system picker (readAuthChoice): showing the
-  // passkey screen where the override is not honoured ran email/Google
-  // sign-in behind it and bounced straight back to this page.
-  const icpOverrideAllowed = isIcpAuthAvailable() && isAuthChoiceOverrideOrigin();
-  const forceIcpAuth = authParam === "icp" && icpOverrideAllowed;
+  const forceIcpAuth = authParam === "icp" && isIcpAuthAvailable();
   // `?auth=email` is the opposite hatch: show the email/Google screen even
   // when routing would pick Internet Identity (e.g. on the on-chain copy of
   // the app, where a single ICP-pinned club otherwise decides for every new
@@ -581,7 +576,10 @@ export default function AuthPage() {
 
   if (authLoading) {
     return (
-      <AppSplash message={useIcpLab ? "Signing you in…" : "Checking authentication..."} />
+      <div className="flex flex-col items-center justify-center bg-background gap-3" style={authShellStyle}>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">{useIcpLab ? "Signing you in…" : "Checking authentication..."}</p>
+      </div>
     );
   }
 
@@ -589,7 +587,10 @@ export default function AuthPage() {
 
   if (shouldHoldAuthenticatedRedirect) {
     return (
-      <AppSplash message={useIcpLab ? "Signing you in…" : "Finishing sign in..."} />
+      <div className="flex flex-col items-center justify-center bg-background gap-3" style={authShellStyle}>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">{useIcpLab ? "Signing you in…" : "Finishing sign in..."}</p>
+      </div>
     );
   }
 
@@ -603,7 +604,10 @@ export default function AuthPage() {
     // the very next render will pick a target. Show the "Finishing sign in"
     // loader instead of rendering the sign-in form to a logged-in user.
     return (
-      <AppSplash message={useIcpLab ? "Signing you in…" : "Finishing sign in..."} />
+      <div className="flex flex-col items-center justify-center bg-background gap-3" style={authShellStyle}>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">{useIcpLab ? "Signing you in…" : "Finishing sign in..."}</p>
+      </div>
     );
   }
 
@@ -1102,7 +1106,7 @@ export default function AuthPage() {
                       but the cached hint was lost, the screen defaults to
                       email — offer a way back to the Internet Identity
                       screen. Only shown when canisters are configured. */}
-                  {icpOverrideAllowed && (
+                  {isIcpAuthAvailable() && (
                     <button
                       type="button"
                       className="w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline pt-1"

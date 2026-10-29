@@ -122,32 +122,9 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
   const clubRotationSponsors = sponsors?.filter(s => s.is_active && !s.is_team_only) || [];
   // Team-only sponsors (can still be allocated to teams)
   const teamOnlySponsors = sponsors?.filter(s => s.is_team_only) || [];
-  const isIcpSponsors = resolveAuthBackend() === "icp";
-  const effectivePrimarySponsorId = isIcpSponsors
-    ? clubRotationSponsors[0]?.id ?? null
-    : currentPrimarySponsorId;
 
   const updatePrimarySponsorMutation = useMutation({
     mutationFn: async (sponsorId: string | null) => {
-      if (isIcpSponsors) {
-        // ICP has no primary_sponsor_id column: the primary is the first
-        // club-rotation sponsor by sort order, so move the chosen one to the front.
-        if (!sponsorId) return;
-        await withFeatureBackend("membership", {
-          supabase: async () => { throw new Error("Internet Identity session required"); },
-          icp: async (ctx) => {
-            const rows = [...(await listLiveSponsors(ctx, clubId))]
-              .sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
-            const ordered = [...rows.filter((r) => r.id === sponsorId), ...rows.filter((r) => r.id !== sponsorId)];
-            for (let i = 0; i < ordered.length; i++) {
-              const r = ordered[i];
-              if (Number(r.sort_order) === i) continue;
-              await saveLiveSponsor(ctx, { ...r, sort_order: typeof r.sort_order === "bigint" ? BigInt(i) : (i as any) });
-            }
-          },
-        }, { clubId: clubId! });
-        return;
-      }
       const { error } = await supabase
         .from("clubs")
         .update({ primary_sponsor_id: sponsorId })
@@ -156,7 +133,6 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
       if (error) throw error;
     },
     onSuccess: () => {
-      invalidateSponsorQueries();
       queryClient.invalidateQueries({ queryKey: ["club", clubId] });
       onPrimaryChange?.();
       toast({ title: "Primary sponsor updated" });
@@ -169,7 +145,7 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
   const rotateSponsor = () => {
     if (clubRotationSponsors.length === 0) return;
     
-    const candidates = clubRotationSponsors.filter(s => s.id !== effectivePrimarySponsorId);
+    const candidates = clubRotationSponsors.filter(s => s.id !== currentPrimarySponsorId);
     if (candidates.length === 0) return;
     
     const selected = selectWeightedSponsor(candidates);
@@ -554,7 +530,7 @@ export function SponsorsManager({ clubId, currentPrimarySponsorId, onPrimaryChan
       ) : (
         <div className="space-y-2">
           {sponsors?.map((sponsor) => {
-            const isPrimary = sponsor.id === effectivePrimarySponsorId;
+            const isPrimary = sponsor.id === currentPrimarySponsorId;
             const canSetPrimary = sponsor.is_active && !sponsor.is_team_only && !isPrimary;
             return (
               <Card 

@@ -64,7 +64,6 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-vi.mock('@/live/authBackendMode', () => ({ resolveAuthBackend: () => 'supabase' }));
 import { findNearbyGameEvent } from "./useNearbyGameEvent";
 
 const TEAM_ID = "team-1";

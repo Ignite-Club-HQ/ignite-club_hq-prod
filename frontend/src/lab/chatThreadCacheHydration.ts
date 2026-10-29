@@ -26,16 +26,13 @@ export function selectHistoryChatPlaceholderSource({
   hasPrevious,
   cachedMessageCount,
   openedFromNotification,
-  cachedComplete = false,
 }: {
   hasPrevious: boolean;
   cachedMessageCount: number;
   openedFromNotification: boolean;
-  /** Saved copy came from a real read: usable even with 0 or 1 message. */
-  cachedComplete?: boolean;
 }): ChatPlaceholderSource {
   if (openedFromNotification && cachedMessageCount >= 5) return "cache";
   if (hasPrevious) return "previous";
-  if (cachedMessageCount >= 2 || cachedComplete) return "cache";
+  if (cachedMessageCount >= 2) return "cache";
   return "none";
 }

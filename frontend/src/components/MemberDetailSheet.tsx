@@ -1,5 +1,4 @@
 import { useState, useEffect, Suspense } from "react";
-import { dmBlockMessage, fetchDmBlockReason } from "@/lib/dmBlockReason";
 import { useNavigate } from "react-router-dom";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -94,7 +93,6 @@ export default function MemberDetailSheet({
   const navigate = useNavigate();
   const [startingDM, setStartingDM] = useState(false);
   const [canDM, setCanDM] = useState<boolean | null>(null);
-  const [dmReason, setDmReason] = useState<string | null>(null);
   const [manageRolesOpen, setManageRolesOpen] = useState(false);
   // When the parent provides full team context, the new unified dialog handles
   // both adding and removing roles (with confirmations). Otherwise we fall
@@ -123,14 +121,7 @@ export default function MemberDetailSheet({
               return canLiveDmUser(ctx, Principal.fromText(userId));
             },
           }, { shared: "person" });
-          if (!cancelled) {
-            setCanDM(allowed !== false);
-            if (allowed === false) {
-              fetchDmBlockReason(userId).then((r) => {
-                if (!cancelled) setDmReason(r);
-              });
-            }
-          }
+          if (!cancelled) setCanDM(allowed !== false);
         } catch {
           // Fail open — the canister enforces can_dm_user on send either way.
           if (!cancelled) setCanDM(true);
@@ -149,11 +140,6 @@ export default function MemberDetailSheet({
           setCanDM(true);
         } else {
           setCanDM(data === true);
-          if (data !== true) {
-            fetchDmBlockReason(userId).then((r) => {
-              if (!cancelled) setDmReason(r);
-            });
-          }
         }
       });
     return () => {
@@ -309,7 +295,7 @@ export default function MemberDetailSheet({
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-[260px] text-xs">
-                        {dmBlockMessage(dmReason)}
+                        You can only message members who share a team, club, or group chat with you.
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

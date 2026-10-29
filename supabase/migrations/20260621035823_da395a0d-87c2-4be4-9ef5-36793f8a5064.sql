@@ -1,1 +1,0 @@
-ALTER TABLE public.game_results ADD COLUMN IF NOT EXISTS notes text;

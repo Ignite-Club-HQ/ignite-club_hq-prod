@@ -61,8 +61,10 @@ export function renameVaultFolder(
   return withFeatureBackend("vault", {
     supabase: () => updateName("vault_folders", folderId, newName, client),
     icp: async (ctx) => {
-      // A rename must preserve the folder's access restrictions.
-      await updateLiveVaultFolder(ctx, folderId, newName);
+      // Provisional mapping: restricted_roles are not tracked by this
+      // Supabase-side rename call, so the canister folder's role list is
+      // reset to empty here — verify against the live canister post-deploy.
+      await updateLiveVaultFolder(ctx, folderId, newName, []);
     },
   }, writeOnce({ vaultFolderId: folderId }));
 }
@@ -105,7 +107,7 @@ export async function moveVaultFile(
       // Provisional mapping: the canister adopts the target folder's team
       // scope, so targetTeamId has no canister parameter; the vault root is
       // the empty folder id. Verify against the live canister post-deploy.
-      await moveLiveVaultFile(ctx, options.fileId, options.targetFolderId ?? "", options.targetTeamId);
+      await moveLiveVaultFile(ctx, options.fileId, options.targetFolderId ?? "");
     },
   }, writeOnce({ vaultFileId: options.fileId }));
 }
@@ -143,7 +145,7 @@ export async function createVaultFolder(
       // Provisional mapping: mini-league views pass a placeholder club id
       // (the canister scopes by mini_league_id) — verify the club/team id
       // mapping against the live canister post-deploy.
-      const clubId = options.view.type !== "root"
+      const clubId = options.view.type === "club" || options.view.type === "team" || options.view.type === "competition"
         ? options.view.clubId
         : "";
       const teamId = options.view.type === "team" ? options.view.teamId : null;
@@ -203,7 +205,7 @@ export async function createVaultLinkFile(
       // Provisional mapping: mini-league views pass a placeholder club id
       // (the canister scopes by mini_league_id) — verify against the live
       // canister post-deploy, matching createVaultFolder's convention above.
-      const clubId = options.view.type !== "root"
+      const clubId = options.view.type === "club" || options.view.type === "team" || options.view.type === "competition"
         ? options.view.clubId
         : "";
       const teamId = options.view.type === "team" ? options.view.teamId : null;

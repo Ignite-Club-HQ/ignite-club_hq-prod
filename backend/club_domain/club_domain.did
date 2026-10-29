@@ -232,25 +232,19 @@ type Reservation =
    store: principal;
    token: text;
  };
-type Request__2 = 
+type Request__1 = 
  record {
    club: text;
    expected_revision: nat64;
    operation: Operation__1;
    request_id: text;
  };
-type Request__1 = 
+type Request = 
  record {
    account_id: text;
    generation: nat64;
    inventory_digest: blob;
    subjects: vec principal;
- };
-type Request = 
- record {
-   generation: nat64;
-   inventory_digest: blob;
-   operation_id: text;
  };
 type RemovedMember = 
  record {
@@ -258,13 +252,6 @@ type RemovedMember =
    removed_at_ms: nat64;
    removed_by: principal;
    user: principal;
- };
-type Registration = 
- record {
-   email_hint: text;
-   expires_ms: nat64;
-   source_user: text;
-   token_hash: text;
  };
 type Reference = 
  record {
@@ -274,24 +261,11 @@ type Reference =
    store: opt text;
    url: text;
  };
-type Receipt__1 = 
- record {
-   active: nat;
-   closing: bool;
-   receiver: principal;
-   request: Request;
-   sealed: bool;
- };
 type Receipt = 
  record {
    outstanding: nat;
    receiver: principal;
-   request: Request__1;
- };
-type Proof = 
- record {
-   intent: Intent;
-   members: vec bool;
+   request: Request;
  };
 type PromoCode = 
  record {
@@ -380,26 +354,12 @@ type ParentInvite =
    invited_by: principal;
    team_id: opt text;
  };
-type Page__2 = 
+type Page = 
  record {
    next: opt nat;
    references: vec Reference;
    revision: nat;
    scanned: nat;
- };
-type Page__1 = 
- record {
-   edges: vec Edge;
-   next: opt Cursor__1;
-   revision: nat;
-   scanned: nat;
- };
-type Page = 
- record {
-   next: opt Cursor;
-   revision: nat;
-   scanned: nat;
-   subjects: vec principal;
  };
 type Operation__1 = 
  variant {
@@ -509,11 +469,6 @@ type Main =
        Err: text;
        Ok: TeamInviteLink;
      });
-   acknowledge_directory_membership_source: (binding: Binding, revision:
-    nat) -> (variant {
-               Err: text;
-               Ok;
-             });
    acknowledge_retained_media: (token: text) -> (variant {
                                                    Err: text;
                                                    Ok;
@@ -526,11 +481,6 @@ type Main =
                                            Err: text;
                                            Ok;
                                          });
-   activate_private_name_preparation: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    add_role_grant: (user: principal, club: text, role: text, team:
     opt text) -> (variant {
                     Err: text;
@@ -573,14 +523,6 @@ type Main =
                                   Err: text;
                                   Ok: ClubTeam;
                                 });
-   assign_returning_season_players: (source_id: text, target_id: text,
-    placements: vec record {
-                      member_id: text;
-                      team_id: text;
-                    }) -> (variant {
-                             Err: text;
-                             Ok: nat;
-                           });
    begin_identity_link: (target: principal) ->
     (variant {
        Err: text;
@@ -591,7 +533,6 @@ type Main =
                          Err: text;
                          Ok: nat;
                        });
-   can_accept_public_eoi: (club_id: text, season_id: text) -> (bool);
    cancel_media_quota: (token: text, club_id: text, category: text, bytes:
     nat, cycle: nat) -> (Result);
    cancel_retained_media: (token: text, club: text, path: text, bytes:
@@ -600,28 +541,11 @@ type Main =
    /// (the frontend asset canister adds club_domain as a controller at deploy
    /// time so admin settings can show its balance too).
    canister_cycles: (canister_id: principal) -> (nat);
-   carry_over_season_players: (source_id: text, target_id: text, members:
-    vec text) -> (variant {
-                    Err: text;
-                    Ok: nat;
-                  });
    check_team_name_unique: (club_id: text, name: text) ->
     (variant {
        Err: text;
        Ok: bool;
      }) query;
-   claim_email_job: () ->
-    (variant {
-       Err: text;
-       Ok:
-        opt record {
-              body: text;
-              job: Job;
-              subject: text;
-              to: text;
-              token: text;
-            };
-     });
    claim_shell_team: (token: text) -> (variant {
                                          Err: text;
                                          Ok: ClubTeam;
@@ -633,14 +557,6 @@ type Main =
      });
    commit_media_quota: (token: text) -> (Result);
    commit_retained_media: (token: text) -> (Result__1);
-   compact_email_jobs: (cursor: opt text, limit: nat) ->
-    (variant {
-       Err: text;
-       Ok: record {
-             next_cursor: opt text;
-             scanned: nat;
-           };
-     });
    configure_media_growth: (usable: nat, unassigned: nat, free_bytes: 
     nat, clubs: vec text) -> (variant {
                                 Err: text;
@@ -651,11 +567,6 @@ type Main =
                 Err: text;
                 Ok;
               });
-   configure_membership_directory_source: (binding: Binding) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    create_child_for_parent_in_club: (club_id: text, parent: principal) ->
     (variant {
        Err: text;
@@ -671,20 +582,6 @@ type Main =
                            Err: text;
                            Ok: ClubProfile;
                          });
-   create_family_invite: (request_id: text, club_id: text, team_id: text,
-    children: vec record {
-                    existing: bool;
-                    id: text;
-                  }, second: bool, bound_secondary: opt principal) ->
-    (variant {
-       Err: text;
-       Ok:
-        record {
-          child_ids: vec text;
-          invite: PendingInvite;
-          secondary: opt PendingInvite;
-        };
-     });
    create_invite_short_code: (invite_id: text) ->
     (variant {
        Err: text;
@@ -776,15 +673,6 @@ type Main =
                                            Err: text;
                                            Ok;
                                          });
-   disable_membership_directory_source: () -> (variant {
-                                                 Err: text;
-                                                 Ok;
-                                               });
-   duplicate_season_structure: (operation: text, source_id: text, name: 
-    text, copy_staff: bool) -> (variant {
-                                  Err: text;
-                                  Ok: Season;
-                                });
    enrol_in_class: (club_id: text, term_id: text, class_id: text, member_id:
     text) -> (variant {
                 Err: text;
@@ -804,11 +692,6 @@ type Main =
                                  Ok;
                                });
    execute: (input: text) -> (Result__2) query;
-   export_account_claims: (club: text, offset: nat, limit: nat) ->
-    (variant {
-       Err: text;
-       Ok: vec Claimed;
-     }) query;
    export_acl: () -> (variant {
                         Err: text;
                         Ok: Config;
@@ -836,16 +719,6 @@ type Main =
        Err: text;
        Ok: opt PendingInviteEmailHash;
      }) query;
-   finish_email_job: (id: text, attempt: nat, outcome: text, provider_id:
-    text) -> (variant {
-                Err: text;
-                Ok;
-              });
-   finish_private_name_preparation: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    free_usage_counters: (club_id: text) ->
     (variant {
        Err: text;
@@ -861,11 +734,6 @@ type Main =
                                                Err: text;
                                                Ok: nat64;
                                              });
-   freeze_private_name_preparation: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    getApiDoc: () -> (text) query;
    get_app_config: (key: text) -> (opt text) query;
    get_club_branding: (club_id: text) ->
@@ -954,17 +822,6 @@ type Main =
                               Err: text;
                               Ok: Listing;
                             }) query;
-   get_media_allowance: (club_id: text, team_id: opt text) ->
-    (variant {
-       Err: text;
-       Ok:
-        record {
-          base_bytes: nat;
-          limit_bytes: nat;
-          premium: bool;
-          team_scoped: bool;
-        };
-     }) query;
    get_my_accessibility_prefs: () ->
     (variant {
        Err: text;
@@ -1098,12 +955,6 @@ type Main =
        Err: text;
        Ok;
      });
-   invite_email_sender_status: () ->
-    (record {
-       app_url: text;
-       configured: bool;
-       from: text;
-     }) query;
    invite_stats: (club_id: text, since_ms: nat64, until_ms: nat64) ->
     (variant {
        Err: text;
@@ -1113,14 +964,6 @@ type Main =
    is_club_member: (user: principal, club_id: text) -> (bool) query;
    is_member_removed: (club: text, user: principal) -> (bool) query;
    is_user_on_any_team: (team_ids: vec text, user: principal) -> (bool) query;
-   /// Owner-approved (2026-10-28) one-time link of the original Group 1 club
-   /// service to the shared account service, used only so private club-name
-   /// displays can confirm membership. Set-once; does not release lifecycle sync.
-   link_display_identity_authority: (id: principal) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    link_guardian: (child_id: text, user: principal) ->
     (variant {
        Err: text;
@@ -1384,32 +1227,19 @@ type Main =
                              Err: text;
                              Ok: SeasonTeamAssignment;
                            });
-   mutate: (req: Request__2) -> (variant {
+   mutate: (req: Request__1) -> (variant {
                                    Err: text;
                                    Ok: Mutation;
                                  });
    my_role_grants: () -> (vec RoleGrant) query;
-   open_private_name_writer_window: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
-   /// Read-only: which private-details service this club service trusts.
-   /// Used by the upgrade workflow to confirm the link before release.
-   pii_canister_status: () -> (opt principal) query;
-   prepare_account_removal: (request: Request__1) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
+   prepare_account_removal: (request: Request) -> (variant {
+                                                     Err: text;
+                                                     Ok;
+                                                   });
    prepare_deleted_retained_media: (token: text, entry: Object) ->
     (Result__1);
    prepare_media_quota_reservation: (store: principal, token: text, club_id:
     text, category: text, bytes: nat) -> (Result);
-   prepare_my_broadcast_erasure: () -> (variant {
-                                          Err: text;
-                                          Ok;
-                                        });
    profile_team_history: (profile_id: text) ->
     (vec ProfileTeamHistoryEntry) query;
    publish_season: (season_id: text) -> (variant {
@@ -1424,15 +1254,6 @@ type Main =
                                      Err: text;
                                      Ok: nat32;
                                    });
-   purge_my_broadcast_data: () -> (variant {
-                                     Err: text;
-                                     Ok: nat;
-                                   });
-   queue_pending_invite_email: (id: text, ciphertext: text) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    read_account_execute: (input: text) -> (Result__2);
    read_account_find_pending_invite_by_email_hash: (club_id: text, hash:
     text) -> (variant {
@@ -1728,7 +1549,7 @@ type Main =
        Err: text;
        Ok: opt text;
      });
-   read_account_removal_drain: (request: Request__1) ->
+   read_account_removal_drain: (request: Request) ->
     (variant {
        Err: text;
        Ok: Receipt;
@@ -1740,7 +1561,7 @@ type Main =
    read_club_media_references: (club: text, offset: nat, expected:
     opt nat) -> (variant {
                    Err: text;
-                   Ok: Page__2;
+                   Ok: Page;
                  });
    read_club_retained_media_bytes: (club_id: text) ->
     (variant {
@@ -1756,58 +1577,6 @@ type Main =
        club_id: opt text;
        is_member: bool;
      }) query;
-   read_directory_membership_source_page: (binding: Binding, cursor:
-    opt Cursor__1) -> (variant {
-                         Err: text;
-                         Ok: Page__1;
-                       });
-   read_directory_membership_status: (binding: Binding) ->
-    (variant {
-       Err: text;
-       Ok: record {
-             acknowledged: nat;
-             pending: bool;
-             revision: nat;
-           };
-     });
-   read_event_notification_membership: (club: text) ->
-    (variant {
-       Err: text;
-       Ok:
-        record {
-          children:
-           vec record {
-                 id: text;
-                 parent: opt principal;
-                 teams: vec text;
-               };
-          guardians: vec record {
-                           child_id: text;
-                           user: principal;
-                         };
-          roles:
-           vec
-            record {
-              club_id: text;
-              role: text;
-              team_id: opt text;
-              user: principal;
-            };
-        };
-     });
-   read_family_invite_receipt: (id: text) ->
-    (variant {
-       Err: text;
-       Ok:
-        record {
-          accepted_at_ms: nat64;
-          accepted_by: principal;
-          already_accepted: bool;
-          child_ids: vec text;
-          club_id: text;
-          team_id: opt text;
-        };
-     });
    /// Bounded consensus configuration evidence; never changes or grants access.
    read_group_opening_configuration: () -> (vec record {
                                                   text;
@@ -1816,8 +1585,6 @@ type Main =
    read_has_child_guardian: (user: principal, child_id: text) -> (bool);
    read_has_club_membership: (user: principal, club_id: text) -> (bool);
    read_has_club_staff_role: (user: principal, club_id: text) -> (bool);
-   read_has_pii_audience: (user: principal, kind: text, scope: text) ->
-    (bool);
    read_media_quota_store_registry: () ->
     (variant {
        Err: text;
@@ -1827,28 +1594,6 @@ type Main =
            };
      });
    read_media_retained_ready: () -> (bool);
-   read_membership_directory_source_binding: () ->
-    (variant {
-       Err: text;
-       Ok: record {
-             binding: opt Binding;
-             enabled: bool;
-           };
-     });
-   read_membership_discovery_status: () ->
-    (variant {
-       Err: text;
-       Ok: record {
-             acknowledged: nat;
-             pending: bool;
-             revision: nat;
-           };
-     });
-   read_membership_source_page: (cursor: opt Cursor__1) ->
-    (variant {
-       Err: text;
-       Ok: Page__1;
-     });
    read_my_club_memberships: (offset: nat, limit: nat16) ->
     (variant {
        Err: text;
@@ -1867,48 +1612,6 @@ type Main =
              next: opt text;
            };
      });
-   read_private_name_cleanup_pending: () ->
-    (variant {
-       Err: text;
-       Ok: vec Intent;
-     });
-   read_private_name_preparation: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok: Receipt__1;
-     });
-   read_private_name_removal_proof: (id: text) ->
-    (variant {
-       Err: text;
-       Ok: Proof;
-     });
-   read_private_name_writer_window: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok: Receipt__1;
-     });
-   read_profile_candidates: (club_id: text, cursor: opt Cursor) ->
-    (variant {
-       Err: text;
-       Ok: Page;
-     });
-   read_profile_family_batch: (requester: principal, child_id: text,
-    subjects: vec principal, expected: opt nat) ->
-    (variant {
-       Err: text;
-       Ok: Batch;
-     });
-   read_profile_membership_batch: (requester: principal, club_id: text,
-    subjects: vec principal, expected: opt nat) ->
-    (variant {
-       Err: text;
-       Ok: Batch;
-     });
-   read_profile_remote_revision: (subjects: vec principal, expected:
-    opt nat) -> (variant {
-                   Err: text;
-                   Ok: nat;
-                 });
    read_removal_media_registry: () ->
     (variant {
        Err: text;
@@ -1921,31 +1624,10 @@ type Main =
                                       Err: text;
                                       Ok: opt text;
                                     }) query;
-   read_season_teams: (season_id: text) ->
-    (variant {
-       Err: text;
-       Ok: vec ClubTeam;
-     });
-   read_vault_erasure_scope: (club: text, team: opt text) -> (bool) query;
-   reconcile_competition_broadcast: (club: text, key: text) ->
-    (variant {
-       Err: text;
-       Ok: opt nat16;
-     });
-   reconcile_email_job: (id: text, attempt: nat, provider_id: text) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    record_presence_heartbeat: () -> (variant {
                                        Err: text;
                                        Ok;
                                      });
-   redeem_account_claim: (token: text) ->
-    (variant {
-       Err: text;
-       Ok: record {club_id: text;};
-     });
    /// Redeems a storage promo code for a club. Returns the new add-on total (GB).
    redeem_club_storage_promo_code: (code: text, club_id: text) ->
     (variant {
@@ -1959,11 +1641,6 @@ type Main =
                 Err: text;
                 Ok: nat64;
               });
-   register_account_claims: (club: text, rows: vec Registration) ->
-    (variant {
-       Err: text;
-       Ok: nat;
-     });
    register_media_quota_store: (store: principal) ->
     (variant {
        Err: text;
@@ -1990,28 +1667,6 @@ type Main =
        err: text;
        ok: nat;
      });
-   relay_competition_broadcast: (user: principal, club: text, competition:
-    text, team_ids: vec text, officials: vec principal, body: text, key:
-    text) -> (variant {
-                Err: text;
-                Ok: nat16;
-              });
-   relay_event_notice: (users: vec text, club: text, kind: text, body: 
-    text, key: text, event_id: text) -> (variant {
-                                           Err: text;
-                                           Ok: nat16;
-                                         });
-   relay_gallery_notice: (user: principal, club: text, team: opt text, owner:
-    principal, parent: opt principal, kind: text, key: text, asset_id:
-    text) -> (variant {
-                Err: text;
-                Ok: nat16;
-              });
-   relay_group_pitch_alert: (users: vec text, club: text, kind: text, body:
-    text, key: text, related: text) -> (variant {
-                                          Err: text;
-                                          Ok: nat16;
-                                        });
    remove_member: (club: text, user: principal) -> (variant {
                                                       Err: text;
                                                       Ok;
@@ -2081,10 +1736,6 @@ type Main =
                                   Err: text;
                                   Ok: ClubTeam;
                                 });
-   resume_private_name_cleanup: () -> (variant {
-                                         Err: text;
-                                         Ok: nat;
-                                       });
    retire_media_quota_records: (reservation_cursor: text, usage_cursor:
     text) ->
     (variant {
@@ -2203,26 +1854,16 @@ type Main =
        Ok: TeamSubscription;
      });
    schema: () -> (text) query;
-   seal_account_removal: (request: Request__1) ->
+   seal_account_removal: (request: Request) ->
     (variant {
        Err: text;
        Ok: Receipt;
-     });
-   seal_private_name_writer_window: (request: Request) ->
-    (variant {
-       Err: text;
-       Ok;
      });
    send_fee_reminders: (club_id: text, payment_period: text, payment_type:
     text, message: text) -> (variant {
                                Err: text;
                                Ok: nat16;
                              });
-   send_invite_email: (invite_id: text, email: text) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    set_accessibility_prefs: (prefs_json: text) -> (variant {
                                                      Err: text;
                                                      Ok;
@@ -2310,18 +1951,10 @@ type Main =
        Err: text;
        Ok;
      });
-   set_email_workers: (workers: vec principal) -> (variant {
-                                                     Err: text;
-                                                     Ok;
-                                                   });
    set_events_domain_canister: (id: principal) -> (variant {
                                                      Err: text;
                                                      Ok;
                                                    });
-   set_gallery_media_authority: (id: principal) -> (variant {
-                                                      Err: text;
-                                                      Ok;
-                                                    });
    set_guardian_relationship: (child_id: text, user: principal,
     relationship_type: text, is_primary: bool) -> (variant {
                                                      Err: text;
@@ -2331,11 +1964,6 @@ type Main =
                                                        Err: text;
                                                        Ok;
                                                      });
-   set_invite_email_sender: (key: text, from: text, app_url: text) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    set_messaging_domain_canister: (id: principal) ->
     (variant {
        Err: text;
@@ -2525,18 +2153,6 @@ type Link =
    id: text;
    sort_order: nat32;
  };
-type Job = 
- record {
-   attempt: nat;
-   ciphertext: text;
-   created_at_ms: nat64;
-   id: text;
-   kind: text;
-   provider_id: text;
-   resource: text;
-   state: text;
-   worker: opt principal;
- };
 type InviteStats = 
  record {
    accepted: nat;
@@ -2552,14 +2168,6 @@ type InviteMessageDefault =
  record {
    club_id: text;
    message: text;
- };
-type Intent = 
- record {
-   account: opt Account__1;
-   club: text;
-   id: text;
-   submitted: bool;
-   user: principal;
  };
 type HttpResponse = 
  record {
@@ -2602,38 +2210,6 @@ type Exclusion =
    club: text;
    user: principal;
  };
-type Edge = 
- variant {
-   ChildTeam: record {
-                child: text;
-                team: text;
-              };
-   Club: record {
-           deleted: bool;
-           id: text;
-         };
-   Excluded: record {
-               club: text;
-               subject: principal;
-             };
-   Guardian: record {
-               child: text;
-               subject: principal;
-             };
-   Parent: record {
-             child: text;
-             subject: principal;
-           };
-   Role: record {
-           club: opt text;
-           subject: principal;
-         };
-   Team: record {
-           club: text;
-           deleted: bool;
-           id: text;
-         };
- };
 type Draft = 
  record {
    icon: text;
@@ -2642,19 +2218,6 @@ type Draft =
    subtitle: opt text;
    title: text;
    url: text;
- };
-type Cursor__1 = 
- record {
-   nested: nat;
-   offset: nat;
-   phase: nat;
-   revision: nat;
- };
-type Cursor = 
- record {
-   offset: nat;
-   phase: nat;
-   revision: nat;
  };
 type Config = 
  record {
@@ -2804,12 +2367,6 @@ type ClassEnrolment =
    term_id: text;
    updated_at_ms: nat64;
  };
-type Claimed = 
- record {
-   claimed_ms: nat64;
-   "principal": principal;
-   source_user: text;
- };
 type Child = 
  record {
    club_id: opt text;
@@ -2832,32 +2389,6 @@ type Cell =
    name: text;
    value: Value;
  };
-type Binding = 
- record {
-   deployment: text;
-   generation: nat64;
-   group: text;
-   identity: principal;
-   inventory_digest: blob;
-   router: principal;
- };
-type Batch = 
- record {
-   club: text;
-   members: vec bool;
-   requester: principal;
-   revision: nat;
-   subjects: vec principal;
- };
-type Authority = 
- variant {
-   Existing: record {
-               sink: principal;
-               subject: principal;
-             };
-   NoName;
-   Unresolved;
- };
 type Acl = 
  record {
    children: vec Child;
@@ -2866,14 +2397,6 @@ type Acl =
    guardians: vec Guardian;
    roles: vec RoleGrant;
    teams: vec Team;
- };
-type Account__1 = 
- record {
-   account_id: text;
-   account_version: nat64;
-   original_authority: Authority;
-   principals: vec principal;
-   revision: nat64;
  };
 type AccountRole = 
  record {

@@ -1,2 +1,0 @@
--- Revert pitch board email default back to true (only messages and media should default to disabled)
-ALTER TABLE public.notification_preferences ALTER COLUMN email_pitch_board_enabled SET DEFAULT true;

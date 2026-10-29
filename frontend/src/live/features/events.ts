@@ -5,19 +5,12 @@ import { batched, groupBy } from "./batching";
 
 type EventsActor = Awaited<ReturnType<typeof connectLiveEventsDomain>>["actor"];
 const eventsConn = (ctx: FeatureBackendContext) => () => connectLiveEventsDomain(ctx.target, ctx.identity);
-import type { SharedAudience } from "../piiVetKeys";
 import { grantLiveClubPiiRead, registerLivePiiText, resolveLivePiiTextBatch } from "./vault";
-import { maskSharedPitchNames, sharedPitchNameRefs, resolveSharedPitchNames } from '@/lib/sharedPitchPrivacy';
 
 // Team ids are canister-generated as "team-<club_id>-<n>-<ns>", so the club
 // id can be recovered by stripping the two trailing segments. Used to seed
 // club-scoped PII read grants without threading clubId through every caller.
 // Returns null when the id doesn't match the expected shape (best effort).
-function teamAudience(teamId: string | null | undefined, clubId?: string | null): SharedAudience | undefined {
-  const club = clubId || (teamId ? clubIdFromTeamId(teamId) : null);
-  return teamId && club ? { kind: "teamnames", scope: teamId, club } : undefined;
-}
-
 function clubIdFromTeamId(teamId: string): string | null {
   if (!teamId.startsWith("team-")) return null;
   const rest = teamId.slice(5);
@@ -39,7 +32,7 @@ async function registerFillInNameRef(
   name: string,
 ): Promise<string> {
   const ref = `fillin:${eventId}:${crypto.randomUUID()}`;
-  await registerLivePiiText(ctx, ref, "name", name, teamAudience(teamId));
+  await registerLivePiiText(ctx, ref, "name", name);
   const clubId = clubIdFromTeamId(teamId);
   if (clubId) await grantLiveClubPiiRead(ctx, ref, "name", clubId);
   return ref;
@@ -51,7 +44,7 @@ async function registerMvpNameRef(
   name: string,
 ): Promise<string> {
   const ref = `mvp:${input.eventId ?? `${input.teamId}:${crypto.randomUUID()}`}`;
-  await registerLivePiiText(ctx, ref, "name", name, teamAudience(input.teamId));
+  await registerLivePiiText(ctx, ref, "name", name);
   const clubId = clubIdFromTeamId(input.teamId);
   if (clubId) await grantLiveClubPiiRead(ctx, ref, "name", clubId);
   return ref;
@@ -105,40 +98,6 @@ export async function listLiveEvents(
   clubId?: string | null,
   teamId?: string | null,
 ) {
-  const rows = await listLiveEventsRaw(ctx, clubId, teamId);
-  rememberLiveEvents(rows);
-  // Each listed event's club is known here: record it so opening the event
-  // goes straight to its group instead of asking every group first.
-  // Fire-and-forget; location only — the destination still checks access.
-  if (rows.length) void import("@/live/groupDispatch").then(({ clubDispatch }) =>
-    clubDispatch.remember("event", rows.map((e) => [e.id, e.club_id] as const))).catch(() => undefined);
-  return rows;
-}
-
-// Events already listed this session (Schedule, Next Up, Home), so opening one
-// can show it at once and refresh only its own club. Session memory only;
-// it is a display hint, never an access decision.
-type ListedLiveEvent = Awaited<ReturnType<typeof listLiveEventsRaw>>[number];
-const listedEvents = new Map<string, ListedLiveEvent>();
-function rememberLiveEvents(rows: readonly ListedLiveEvent[]) {
-  for (const row of rows) {
-    listedEvents.delete(row.id);
-    listedEvents.set(row.id, row);
-  }
-  while (listedEvents.size > 2000) listedEvents.delete(listedEvents.keys().next().value as string);
-}
-export function getListedLiveEvent(eventId: string): ListedLiveEvent | null {
-  return listedEvents.get(eventId) ?? null;
-}
-export function clearListedLiveEvents() {
-  listedEvents.clear();
-}
-
-async function listLiveEventsRaw(
-  ctx: FeatureBackendContext,
-  clubId?: string | null,
-  teamId?: string | null,
-) {
   // Exactly one scope -> coalesce with sibling calls into list_events_multi.
   if (!!clubId !== !!teamId) {
     const key = clubId ? `c:${clubId}` : `t:${teamId}`;
@@ -162,31 +121,6 @@ async function listLiveEventsRaw(
   }
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
   return actor.list_events(candidOpt(clubId), candidOpt(teamId));
-}
-
-/**
- * Fixture-card tap-to-event: resolves the per-team event ids materialized
- * for a competition match. The ICP Match record carries no event ids, so
- * the client looks them up on events_domain; the canister requires the
- * caller to belong to at least one linked club. Returns [] when the match
- * has no materialized events yet.
- */
-export async function getLiveMatchEventIds(
-  ctx: FeatureBackendContext,
-  matchId: string,
-): Promise<Array<{ team_id: string; event_id: string }>> {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  try {
-    return await unwrapCandid(actor.get_match_event_ids(matchId), "Get fixture events");
-  } catch (error) {
-    if ((error as Error)?.message?.includes("No fixture events")) return [];
-    throw error;
-  }
-}
-
-export async function listLiveCompetitionEvents(ctx: FeatureBackendContext, competitionId: string) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.read_competition_events(competitionId), "Read competition events");
 }
 
 export async function listLiveEventDutyTeams(
@@ -1304,7 +1238,8 @@ export async function removeLiveMatchCaptain(
 }
 
 export async function listLiveMatchCaptains(ctx: FeatureBackendContext, eventId: string) {
-  return (await readLiveEventHonours(ctx, eventId)).captains;
+  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.list_match_captains(eventId), "List match captains");
 }
 
 export async function setLiveMatchGoalkeeper(
@@ -1334,7 +1269,8 @@ export async function removeLiveMatchGoalkeeper(
 }
 
 export async function listLiveMatchGoalkeepers(ctx: FeatureBackendContext, eventId: string) {
-  return (await readLiveEventHonours(ctx, eventId)).goalkeepers;
+  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.list_match_goalkeepers(eventId), "List match goalkeepers");
 }
 
 /**
@@ -1772,8 +1708,6 @@ export interface LiveGamePlayerStatInput {
   substitutionsCount: number;
   startedOnPitch: boolean;
   goalsScored: number;
-  childId?: string | null;
-  positionSeconds?: Record<string, number> | null;
 }
 
 export async function saveLiveGamePlayerStats(
@@ -1794,7 +1728,7 @@ export async function saveLiveGamePlayerStats(
     })),
   );
   return unwrapCandid(
-    actor.save_detailed_game_player_stats(
+    actor.save_game_player_stats(
       eventId,
       teamId,
       withRefs.map((s) => ({
@@ -1807,7 +1741,6 @@ export async function saveLiveGamePlayerStats(
         started_on_pitch: s.startedOnPitch,
         goals_scored: s.goalsScored,
       })),
-      withRefs.map(s => ({ user_id: candidOpt(s.userId), child_id: candidOpt(s.childId), position_seconds: candidOpt(s.positionSeconds == null ? null : Object.entries(s.positionSeconds).map(([position, seconds]) => [position, Math.floor(seconds)] as [string, number])) })),
     ),
     "Save game player stats",
   );
@@ -1815,7 +1748,7 @@ export async function saveLiveGamePlayerStats(
 
 export async function listLiveGamePlayerStats(ctx: FeatureBackendContext, eventId: string) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  const stats = await unwrapCandid(actor.list_game_player_stats(eventId), "List game player stats") as unknown as Array<{
+  const stats = unwrapCandid(actor.list_game_player_stats(eventId), "List game player stats") as unknown as Array<{
     fill_in_player_name: [] | [string];
     [key: string]: unknown;
   }>;
@@ -1831,29 +1764,6 @@ export async function listLiveGamePlayerStats(ctx: FeatureBackendContext, eventI
     if (!raw || !raw.startsWith("fillin:")) return s;
     return { ...s, fill_in_player_name: [names.get(raw) ?? "Fill-in player"] as [string] };
   });
-}
-
-export async function listLiveDetailedGamePlayerStats(ctx: FeatureBackendContext, eventId: string) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  const rows = await unwrapCandid(actor.read_detailed_game_player_stats(eventId), "Read detailed game player stats");
-  const refs = rows.flatMap(row => row.stat.fill_in_player_name).filter(ref => ref.startsWith("fillin:"));
-  const names = await resolveNameRefs(ctx,refs,"Read detailed game player stats");
-  return rows.map(row => {const positions=row.detail[0]?.position_seconds[0];return {...row.stat, fill_in_player_name: row.stat.fill_in_player_name.map(raw => raw.startsWith("fillin:") ? names.get(raw) ?? "Fill-in player" : raw), child_id: row.detail[0]?.child_id[0] ?? null, position_minutes: positions == null ? null : Object.fromEntries(positions.map(([key,value]) => [key,Number(value)])) }});
-}
-// Captain and goalkeeper widgets/RSVP markers can mount together. Share only
-// in-flight authorized replies from the exact actor (identity + target), never
-// a resolved cross-account result or a failed request.
-const eventHonoursReads = new WeakMap<object, Map<string, ReturnType<EventsActor['read_event_honours']>>>();
-export async function readLiveEventHonours(ctx: FeatureBackendContext,eventId:string) {
-  const { actor } = await connectLiveEventsDomain(ctx.target,ctx.identity);
-  let pending = eventHonoursReads.get(actor);
-  if (!pending) { pending = new Map(); eventHonoursReads.set(actor, pending); }
-  const existing = pending.get(eventId);
-  if (existing) return unwrapCandid(existing, "Read exact event honours");
-  const request = actor.read_event_honours(eventId);
-  pending.set(eventId, request);
-  try { return await unwrapCandid(request, "Read exact event honours"); }
-  finally { if (pending.get(eventId) === request) pending.delete(eventId); }
 }
 
 export interface LiveGameResultInput {
@@ -1889,7 +1799,7 @@ async function registerJsonNameRefs(
   await Promise.all(
     entries.map(async ({ key, name }) => {
       const ref = `${prefix}${scope}:${key}`;
-      await registerLivePiiText(ctx, ref, "name", name, teamAudience(teamId, clubId));
+      await registerLivePiiText(ctx, ref, "name", name);
       if (clubId) await grantLiveClubPiiRead(ctx, ref, "name", clubId);
       refs.set(key, ref);
     }),
@@ -2041,26 +1951,12 @@ export async function syncLiveActiveGame(
     timerStateJson: string;
     pitchStateJson: string;
     boardSessionId: string;
-    sharedBoard?: { clubId: string; expected: bigint | null };
   },
 ) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
   // Player names embedded in the pitch-state JSON are PII: mask them with
   // opaque references before they cross to events_domain.
   let pitchStateJson = input.pitchStateJson;
-  if (input.sharedBoard && input.teamId) {
-    const masked = maskSharedPitchNames(JSON.parse(pitchStateJson), `${PITCH_NAME_REF_PREFIX}${input.teamId}:`);
-    const account = ctx.identity?.getPrincipal().toText() ?? '';
-    const namespace = `${account}:${JSON.stringify(ctx.target.canisterIds)}`;
-    await Promise.all([...masked.names].map(async ([ref, name]) => {
-      const cacheKey = `${namespace}:${ref}`;
-      if (pitchNameRegistrations.get(cacheKey) === name) return;
-      await registerLivePiiText(ctx, ref, 'name', name, teamAudience(input.teamId, input.sharedBoard?.clubId));
-      await grantLiveClubPiiRead(ctx, ref, 'name', input.sharedBoard?.clubId ?? '');
-      pitchNameRegistrations.set(cacheKey, name);
-    }));
-    pitchStateJson = JSON.stringify(masked.pitch);
-  } else {
   try {
     const doc = JSON.parse(input.pitchStateJson) as { players?: Array<{ id?: unknown; name?: unknown }> };
     const players = Array.isArray(doc?.players) ? doc.players : [];
@@ -2069,13 +1965,13 @@ export async function syncLiveActiveGame(
         typeof p?.id === "string" && typeof p?.name === "string" && p.name.trim().length > 0,
     );
     if (named.length > 0 && input.teamId) {
-      const clubId = input.sharedBoard?.clubId ?? clubIdFromTeamId(input.teamId);
+      const clubId = clubIdFromTeamId(input.teamId);
       const refs = new Map<string, string>();
       await Promise.all(
         named.map(async (p) => {
           const ref = `${PITCH_NAME_REF_PREFIX}${input.teamId}:${p.id}`;
           if (pitchNameRegistrations.get(ref) !== p.name.trim()) {
-            await registerLivePiiText(ctx, ref, "name", p.name.trim(), teamAudience(input.teamId, clubId));
+            await registerLivePiiText(ctx, ref, "name", p.name.trim());
             if (clubId) await grantLiveClubPiiRead(ctx, ref, "name", clubId);
             pitchNameRegistrations.set(ref, p.name.trim());
           }
@@ -2084,13 +1980,11 @@ export async function syncLiveActiveGame(
       );
       pitchStateJson = JSON.stringify({ ...doc, players: substituteNameRefs(players, refs) });
     }
-  } catch (error) {
-    if (input.sharedBoard) throw error;
+  } catch {
     // Non-JSON or unexpected shape: pass through untouched (legacy behavior).
   }
-  }
   return unwrapCandid(
-    input.sharedBoard ? actor.sync_shared_board(input.sharedBoard.clubId, input.teamId ?? '', candidOpt(input.sharedBoard.expected), pitchStateJson, input.boardSessionId) : actor.sync_active_game(
+    actor.sync_active_game(
       candidOpt(input.teamId),
       input.timerStateJson,
       pitchStateJson,
@@ -2098,29 +1992,6 @@ export async function syncLiveActiveGame(
     ),
     "Sync active game",
   );
-}
-
-export async function readLiveSharedBoard(ctx: FeatureBackendContext, clubId: string, teamId: string) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  const [row] = await unwrapCandid(actor.read_shared_board(clubId, teamId), 'Read shared pitch board');
-  if (!row) return null;
-  let pitch = JSON.parse(row.pitch_state_json) as Record<string, unknown>;
-  const refs = sharedPitchNameRefs(pitch);
-  if (refs.length) {
-    const names = await resolveNameRefs(ctx, refs, 'Read shared pitch board');
-    pitch = resolveSharedPitchNames(pitch, names) as Record<string, unknown>;
-  }
-  return { revision: row.updated_at_ms, pitch };
-}
-
-export async function writeLiveSharedBoard(ctx: FeatureBackendContext, clubId: string, teamId: string, expected: bigint | null, pitch: Record<string, unknown>, session: string) {
-  const row = await syncLiveActiveGame(ctx, { teamId, timerStateJson: '{}', pitchStateJson: JSON.stringify(pitch), boardSessionId: session, sharedBoard: { clubId, expected } });
-  return { revision: row.updated_at_ms, pitch };
-}
-
-export async function notifyLiveGroupPitch(ctx: FeatureBackendContext, groupId: string, action: string, detail: string, key: string) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.notify_group_pitch(groupId, action, detail, key), 'Notify match duty holders');
 }
 
 export async function deactivateLiveActiveGame(
@@ -2133,7 +2004,7 @@ export async function deactivateLiveActiveGame(
 
 export async function getLiveActiveGame(ctx: FeatureBackendContext, teamId?: string | null) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  const result = await unwrapCandid(actor.get_active_game(candidOpt(teamId)), "Get active game") as unknown as
+  const result = unwrapCandid(actor.get_active_game(candidOpt(teamId)), "Get active game") as unknown as
     | []
     | [{ pitch_state_json?: string; [key: string]: unknown }];
   if (result.length === 0) return result;
@@ -2159,7 +2030,7 @@ export async function getLiveActiveGame(ctx: FeatureBackendContext, teamId?: str
     ...(doc as Record<string, unknown>),
     players: resolveNameRefsInDoc(players, PITCH_NAME_REF_PREFIX, names),
   };
-  return [{ ...row, pitch_state_json: JSON.stringify(resolved) }] as [{ pitch_state_json?: string; [key: string]: unknown }];
+  return [{ ...row, pitch_state_json: JSON.stringify(resolved) }];
 }
 
 /**
@@ -2313,7 +2184,7 @@ export async function getLiveEventAutoReminder(ctx: FeatureBackendContext, event
 }
 export async function getLiveEventDutyTeam(ctx: FeatureBackendContext, eventId: string) {
   const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  const result = await unwrapCandid(actor.get_event_duty_team(eventId), "Get event duty team");
+  const result = unwrapCandid(actor.get_event_duty_team(eventId), "Get event duty team");
   return result[0]?.team_id ?? null;
 }
 
@@ -2449,36 +2320,4 @@ export async function getLivePlayHQConfigStatus(ctx: FeatureBackendContext) {
     baseUrl: r.base_url[0] ?? null,
     updatedAt: r.updated_at_ms.length ? new Date(Number(r.updated_at_ms[0])).toISOString() : null,
   };
-}
-
-export async function createLiveEventWithSetup(ctx: FeatureBackendContext, input: Omit<LiveEventInput, 'startsAtMs' | 'endsAtMs'> & {
-  requestId: string; occurrences: Array<{ startsAtMs: number; endsAtMs: number }>;
-  duties: Array<{ name: string; assigned_to: string | null }>; dutyTeamId: string | null; reminderHours: number | null;
-}) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.create_event_with_setup({
-    request_id: input.requestId, club_id: input.clubId, team_id: candidOpt(input.teamId), title: input.title, description: input.description,
-    event_type: input.eventType, location: candidOpt(input.location), opponent: candidOpt(input.opponent), address: candidOpt(input.address),
-    mini_league_id: candidOpt(input.miniLeagueId), rsvp_audience: candidOpt(input.rsvpAudience), adults_only: input.adultsOnly ?? false,
-    restricted_to_roles: candidOpt(input.restrictedToRoles), target_team_ids: candidOpt(input.targetTeamIds),
-    occurrences: input.occurrences.map(d => ({ starts_at_ms: toNat64(d.startsAtMs), ends_at_ms: toNat64(d.endsAtMs) })),
-    duties: input.duties.map(d => ({ duty: d.name, account_id: candidOpt(d.assigned_to?.replace(/^principal:/, '')) })),
-    duty_team_id: candidOpt(input.dutyTeamId), reminder_hours: candidOpt(input.reminderHours),
-  }), 'Create complete event setup');
-}
-export async function sendLiveIndividualEventReminder(ctx: FeatureBackendContext, eventId: string, userId?: string, childId?: string) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.send_individual_event_reminder(eventId, candidOpt(userId?.replace(/^principal:/, '')), candidOpt(childId)), 'Queue RSVP reminder');
-}
-export async function readLiveEventCancellationAudience(ctx: FeatureBackendContext, eventId: string) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return Number(await unwrapCandid(actor.read_event_cancellation_audience(eventId), 'Verify cancellation audience'));
-}
-export async function notifyLiveEventAudience(ctx: FeatureBackendContext, eventId: string, kind: 'event_invite' | 'event_cancelled') {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.notify_event_audience(eventId, kind), 'Queue event notice');
-}
-export async function notifyLiveDutyCompletion(ctx: FeatureBackendContext, eventId: string, accountId: string) {
-  const { actor } = await connectLiveEventsDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.notify_duty_completion(eventId, accountId.replace(/^principal:/, '')), 'Queue duty completion');
 }

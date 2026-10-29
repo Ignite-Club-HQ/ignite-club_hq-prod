@@ -51,15 +51,9 @@ export interface Comment {
   'id' : string,
   'deleted' : boolean,
   'body' : string,
-  'reply_to_id' : [] | [string],
   'author' : Principal,
   'created_at_ms' : bigint,
   'asset_id' : string,
-}
-export interface Cursor {
-  'before' : string,
-  'revision' : bigint,
-  'club_id' : string,
 }
 export interface GalleryChatCard {
   'id' : string,
@@ -88,24 +82,9 @@ export interface Main {
     { 'Ok' : Comment } |
       { 'Err' : string }
   >,
-  'add_comment_reply' : ActorMethod<
-    [string, string, [] | [string]],
-    { 'Ok' : Comment } |
-      { 'Err' : string }
-  >,
   'add_reaction' : ActorMethod<
     [string, string, bigint],
     { 'Ok' : Reaction } |
-      { 'Err' : string }
-  >,
-  'announce_gallery_asset' : ActorMethod<
-    [string],
-    { 'Ok' : string } |
-      { 'Err' : string }
-  >,
-  'build_asset_page_index' : ActorMethod<
-    [],
-    { 'Ok' : { 'scanned' : bigint, 'complete' : boolean } } |
       { 'Err' : string }
   >,
   /**
@@ -152,7 +131,6 @@ export interface Main {
       { 'Err' : string }
   >,
   'list_assets' : ActorMethod<[string], Array<Asset>>,
-  'list_assets_page' : ActorMethod<[string, [] | [Cursor], bigint], Result>,
   'list_comments' : ActorMethod<[string], Array<Comment>>,
   'list_gallery_chat_cards' : ActorMethod<
     [string, string],
@@ -184,10 +162,6 @@ export interface Main {
     [] | [GalleryChatCard]
   >,
   'read_account_list_assets' : ActorMethod<[string], Array<Asset>>,
-  'read_account_list_assets_page' : ActorMethod<
-    [string, [] | [Cursor], bigint],
-    Result
-  >,
   'read_account_list_comments' : ActorMethod<[string], Array<Comment>>,
   'read_account_list_gallery_chat_cards' : ActorMethod<
     [string, string],
@@ -204,22 +178,7 @@ export interface Main {
     { 'Ok' : Page } |
       { 'Err' : string }
   >,
-  'read_gallery_asset_for_service' : ActorMethod<
-    [Principal, string],
-    { 'Ok' : Asset } |
-      { 'Err' : string }
-  >,
-  'read_gallery_view_counts' : ActorMethod<
-    [Array<string>],
-    { 'Ok' : Array<[string, bigint]> } |
-      { 'Err' : string }
-  >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
-  'record_gallery_view' : ActorMethod<
-    [string],
-    { 'Ok' : bigint } |
-      { 'Err' : string }
-  >,
   'register_asset' : ActorMethod<
     [string, string, string, string, string, string, bigint],
     { 'Ok' : Asset } |
@@ -233,11 +192,6 @@ export interface Main {
   'removeBulkAccessPrincipal' : ActorMethod<
     [Principal],
     { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'remove_gallery_asset' : ActorMethod<
-    [string, string],
-    { 'Ok' : { 'vault_updated' : boolean } } |
       { 'Err' : string }
   >,
   'remove_reaction' : ActorMethod<
@@ -285,11 +239,6 @@ export interface Main {
     { 'Ok' : Asset } |
       { 'Err' : string }
   >,
-  'set_gallery_authorities' : ActorMethod<
-    [Principal, Principal],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'set_transfer_fence' : ActorMethod<
     [string, boolean],
     { 'Ok' : null } |
@@ -306,11 +255,6 @@ export interface Page {
   'next' : [] | [bigint],
   'scanned' : bigint,
   'revision' : bigint,
-}
-export interface Page__1 {
-  'next' : [] | [Cursor],
-  'assets' : Array<Asset>,
-  'scanned' : bigint,
 }
 export interface Reaction {
   'kind' : string,
@@ -336,8 +280,6 @@ export interface Request {
   'subjects' : Array<Principal>,
   'generation' : bigint,
 }
-export type Result = { 'Ok' : Page__1 } |
-  { 'Err' : string };
 export interface RoleGrant {
   'role' : string,
   'user' : Principal,

@@ -2,8 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
-import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
-
 type IgniteSupabaseClient = SupabaseClient<Database>;
 
 const DRIVE_IMPORT_ALLOWED_CLUB_IDS = new Set<string>([
@@ -28,7 +26,7 @@ export async function resolveVaultDriveTitles(
   clubId: string,
   client: IgniteSupabaseClient = supabase,
 ): Promise<VaultDriveTitleSummary | undefined> {
-  if (isFeatureRoutedToIcp("vault")) throw new Error("Google Drive authorization is not configured for this Vault");
+  // icp-guard: allow Google Drive import stays Supabase-only by design (no canister shape)
   const { data, error } = await client.functions.invoke("resolve-drive-titles", {
     body: { clubId },
   });
@@ -50,7 +48,6 @@ export async function exchangeVaultDriveOAuthCode(
   options: { code: string; redirectUri: string },
   client: IgniteSupabaseClient = supabase,
 ): Promise<VaultDriveOAuthTokens> {
-  if (isFeatureRoutedToIcp("vault")) throw new Error("Google Drive authorization is not configured for this Vault");
   const { data, error } = await client.functions.invoke(
     "google-drive-import?action=exchange-code",
     { body: options },

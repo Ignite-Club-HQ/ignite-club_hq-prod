@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { format, isValid } from "date-fns";
+import { format } from "date-fns";
 import { MapPin, Clock, Dumbbell, Users, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,24 +49,6 @@ interface ClubDayEvent {
 }
 
 const dayKey = (d: Date) => format(d, "yyyy-MM-dd");
-
-/**
- * Format a time-only string ("HH:mm" or "HH:mm:ss") as e.g. "6:30pm".
- * `new Date("18:30")` is an Invalid Date and date-fns format() throws on it,
- * so time-only values must be parsed by hand. Returns null instead of
- * throwing for missing or unparseable values.
- */
-function formatTimeOnly(value: string | null): string | null {
-  if (!value) return null;
-  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value.trim());
-  if (m) {
-    const d = new Date();
-    d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-    return format(d, "h:mma").toLowerCase();
-  }
-  const d = new Date(value);
-  return isValid(d) ? format(d, "h:mma").toLowerCase() : null;
-}
 
 function venueLabel(e: ClubDayEvent): string {
   return (
@@ -138,51 +120,50 @@ export function ClubDaySummary({
           return all;
         },
         icp: async (ctx) => {
-          // Each club is read from its own group, all at once; one slow or
-          // refusing club no longer blanks the day. Team names in parallel.
-          // Suburb stays null: the canister record has one address string.
-          const { readContentInScope } = await import("@/live/contentRouting");
-          const { readMembershipInScope } = await import("@/live/membershipRouting");
-          const settled = await Promise.allSettled(clubIds.map((clubId) =>
-            readContentInScope(ctx, "events", { clubId }, (scoped) => listLiveEvents(scoped, clubId, null))));
-          if (settled.length && settled.every((r) => r.status === "rejected")) throw (settled[0] as PromiseRejectedResult).reason;
-          const dayEvents = settled.flatMap((r) => (r.status === "fulfilled" ? (r.value as any[]) : []))
-            .filter((ev) => {
-              if (ev.deleted) return false;
+          // Suburb stays null: the canister record has a single address
+          // string, no suburb column.
+          const all: ClubDayEvent[] = [];
+          const teamNameCache = new Map<string, string | null>();
+          for (const clubId of clubIds) {
+            const events = await listLiveEvents(ctx, clubId, null);
+            for (const ev of events as any[]) {
+              if (ev.deleted) continue;
               const start = new Date(Number(ev.starts_at_ms));
-              return isValid(start) && format(start, "yyyy-MM-dd") === dKey;
-            });
-          const teamIds = [...new Set(dayEvents.map((ev) => (ev.team_id?.[0] ?? null) as string | null).filter(Boolean))] as string[];
-          const names = new Map<string, string | null>(await Promise.all(teamIds.map(async (teamId) => {
-            try {
-              const teamOpt = await readMembershipInScope(ctx, { teamId }, (scoped) => getLiveTeam(scoped, teamId));
-              return [teamId, (teamOpt as any)?.[0]?.name ?? null] as [string, string | null];
-            } catch {
-              return [teamId, null] as [string, string | null];
+              if (format(start, "yyyy-MM-dd") !== dKey) continue;
+              const end = new Date(Number(ev.ends_at_ms));
+              const teamId = (ev.team_id?.[0] ?? null) as string | null;
+              let teamName: string | null = null;
+              if (teamId) {
+                if (!teamNameCache.has(teamId)) {
+                  try {
+                    const teamOpt = await getLiveTeam(ctx, teamId);
+                    teamNameCache.set(teamId, (teamOpt as any)?.[0]?.name ?? null);
+                  } catch {
+                    teamNameCache.set(teamId, null);
+                  }
+                }
+                teamName = teamNameCache.get(teamId) ?? null;
+              }
+              all.push({
+                id: ev.id,
+                title: ev.title,
+                type: ev.event_type,
+                event_date: format(start, "yyyy-MM-dd"),
+                start_time: format(start, "HH:mm"),
+                end_time: format(end, "HH:mm"),
+                location_name: (ev.location?.[0] ?? null) as string | null,
+                address: (ev.address?.[0] ?? null) as string | null,
+                suburb: null,
+                team_id: teamId,
+                team_name: teamName,
+                opponent: (ev.opponent?.[0] ?? null) as string | null,
+                is_cancelled: !!ev.cancelled,
+              });
             }
-          })));
-          return dayEvents.map((ev): ClubDayEvent => {
-            const start = new Date(Number(ev.starts_at_ms));
-            const end = new Date(Number(ev.ends_at_ms));
-            const teamId = (ev.team_id?.[0] ?? null) as string | null;
-            return {
-              id: ev.id,
-              title: ev.title,
-              type: ev.event_type,
-              event_date: isValid(start) ? format(start, "yyyy-MM-dd") : dKey,
-              start_time: isValid(start) ? format(start, "HH:mm") : null,
-              end_time: isValid(end) ? format(end, "HH:mm") : null,
-              location_name: (ev.location?.[0] ?? null) as string | null,
-              address: (ev.address?.[0] ?? null) as string | null,
-              suburb: null,
-              team_id: teamId,
-              team_name: teamId ? names.get(teamId) ?? null : null,
-              opponent: (ev.opponent?.[0] ?? null) as string | null,
-              is_cancelled: !!ev.cancelled,
-            };
-          });
+          }
+          return all;
         },
-      }, { shared: "person" }).then((all) =>
+      }, { everyGroup: true, merge: (parts: ClubDayEvent[][]) => parts.flat() }).then((all) =>
         all.sort((a, b) => {
           const at = a.start_time || a.event_date;
           const bt = b.start_time || b.event_date;
@@ -283,7 +264,7 @@ export function ClubDaySummary({
         </ToggleGroupItem>
       </ToggleGroup>
 
-      {isLoading && (scope === "club" || visible.length === 0) ? (
+      {isLoading ? (
         <div className="space-y-2">
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
@@ -350,7 +331,9 @@ export function ClubDaySummary({
 
 function DayEventRow({ event, hideVenue = false }: { event: ClubDayEvent; hideVenue?: boolean }) {
   const navigate = useNavigate();
-  const time = formatTimeOnly(event.start_time);
+  const time = event.start_time
+    ? format(new Date(event.start_time), "h:mma").toLowerCase()
+    : null;
   const venue = hideVenue ? null : venueLabel(event);
   const isTraining = event.type === "training";
 

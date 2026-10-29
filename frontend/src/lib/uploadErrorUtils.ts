@@ -1,39 +1,10 @@
-const FRIENDLY_NETWORK_MESSAGE =
-  "Couldn't reach the server — check your internet connection and try again.";
-
-// Raw connectivity errors from fetch / Android WebView / OkHttp that should
-// never be shown to users verbatim (e.g. "Unable to resolve host ...").
-const NETWORK_ERROR_PATTERNS = [
-  /unable to resolve host/i,
-  /failed to fetch/i,
-  /network ?error/i,
-  /network request failed/i,
-  /err_internet_disconnected/i,
-  /err_network_changed/i,
-  /err_name_not_resolved/i,
-  /err_address_unreachable/i,
-  /dns/i,
-  /no address associated with hostname/i,
-  /connection (refused|reset|aborted|timed out)/i,
-  /socket (closed|timeout)/i,
-  /timeout/i,
-  /offline/i,
-];
-
-const toFriendlyIfNetworkError = (message: string): string => {
-  if (!message) return message;
-  return NETWORK_ERROR_PATTERNS.some((pattern) => pattern.test(message))
-    ? FRIENDLY_NETWORK_MESSAGE
-    : message;
-};
-
-const extractRawMessage = (error: unknown): string => {
+export const getReadableUploadError = (error: unknown): string => {
   if (error instanceof Error) {
     if (error.message) return error.message;
 
     const cause = (error as Error & { cause?: unknown }).cause;
     if (cause !== undefined) {
-      const causeMessage = extractRawMessage(cause);
+      const causeMessage = getReadableUploadError(cause);
       if (causeMessage) return causeMessage;
     }
 
@@ -70,12 +41,8 @@ const extractRawMessage = (error: unknown): string => {
   return "";
 };
 
-export const getReadableUploadError = (error: unknown): string =>
-  toFriendlyIfNetworkError(extractRawMessage(error));
-
 export const isCancelledSelectionError = (error: unknown): boolean => {
-  // Use the raw message so the network rewrite can't mask cancellation text.
-  const message = extractRawMessage(error).toLowerCase();
+  const message = getReadableUploadError(error).toLowerCase();
   return (
     message.includes("cancel") ||
     message.includes("cancelled") ||

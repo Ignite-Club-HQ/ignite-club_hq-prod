@@ -87,14 +87,8 @@ export function AddSecondParentDialog({
   };
 
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["second-parent-search", user?.id, miniLeagueId, playerId, childId, debouncedSearch, clubId],
-    queryFn: async ({ signal }): Promise<ExistingUser[]> => withFeatureBackend("membership", {
-      icp: async ctx => {
-        const { searchLiveInvitableProfiles } = await import("@/live/features/membership");
-        const rows = await searchLiveInvitableProfiles(ctx, debouncedSearch, 6, { clubId, signal });
-        return rows.filter(row => row.id !== user?.id).map(row => ({ id: row.id, display_name: row.display_name, avatar_url: row.avatar_ref }));
-      },
-      supabase: async (): Promise<ExistingUser[]> => {
+    queryKey: ["second-parent-search", debouncedSearch, clubId],
+    queryFn: async (): Promise<ExistingUser[]> => {
       if (debouncedSearch.length < 2) return [];
 
       if (isEmailSearch) {
@@ -116,8 +110,7 @@ export function AddSecondParentDialog({
       }
 
       return await searchClubProfiles(debouncedSearch);
-      },
-    }, { clubId }),
+    },
     enabled: open && debouncedSearch.length >= 2 && !selectedUser,
   });
 
@@ -146,7 +139,7 @@ export function AddSecondParentDialog({
         const child = await createLiveChildForParentInClub(ctx, clubId, parentPrincipal);
         // Names live on pii_access_control, not club_domain — register the
         // player name and grant the parent read access (best effort).
-        await registerLiveChildNamePii(ctx, child.id, playerName, parentPrincipal, clubId);
+        await registerLiveChildNamePii(ctx, child.id, playerName, parentPrincipal);
         // Club-scoped read grant so club members can render the name.
         await grantLiveClubChildNameRead(ctx, child.id, clubId);
         return child.id;

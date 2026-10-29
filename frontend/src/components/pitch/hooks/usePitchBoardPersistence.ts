@@ -60,7 +60,7 @@ export function usePitchBoardPersistence({
   // initialization). Debounced to avoid excessive saves during drag.
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
-    if (!hasInitialized || readOnly) return;
+    if (!hasInitialized) return;
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -96,7 +96,7 @@ export function usePitchBoardPersistence({
   }, [
     hasInitialized, teamId, players, teamSize, selectedFormation, ballPosition,
     autoSubPlan, autoSubActive, autoSubPaused, mockMode, linkedEventId, goals,
-    isEventGroup, forceEventGroupSync, touchDragPlayer, draggedPlayer, readOnly,
+    isEventGroup, forceEventGroupSync, touchDragPlayer, draggedPlayer,
   ]);
 
   // Mirror auto-sub plan + roster into active_games.pitch_state whenever the
@@ -106,7 +106,7 @@ export function usePitchBoardPersistence({
   // `pending_sub` push because `pitch_state.autoSubPlan` stays empty.
   const lastPlanSyncRef = useRef<string>("");
   useEffect(() => {
-    if (!hasInitialized || readOnly || !userId || !teamId || isEventGroup || resolveAuthBackend() === 'icp') return;
+    if (!hasInitialized || !userId || !teamId || isEventGroup) return;
     if (!autoSubActive) return;
 
     const signature = JSON.stringify({
@@ -136,12 +136,29 @@ export function usePitchBoardPersistence({
             .eq("is_active", true);
           if (error) console.warn("[PitchBoard] auto-sub plan sync failed", error);
         },
-        // Shared ICP snapshots belong only to the revision-CAS owner.
-        icp: async () => {},
+        // Wired: events_domain.sync_active_game mirrors the auto-sub plan +
+        // roster so GlobalSubMonitor's ICP-mode equivalent can read it back
+        // (board_session_id is a local random token — each device syncs its
+        // own in-progress plan; the canister keeps the latest write per team).
+        icp: async (ctx) => {
+          const { syncLiveActiveGame } = await import("@/live/features/events");
+          await syncLiveActiveGame(ctx, {
+            teamId,
+            timerStateJson: "{}",
+            pitchStateJson: JSON.stringify({
+              sport: "soccer",
+              autoSubActive,
+              autoSubPlan,
+              players,
+              linkedEventId,
+            }),
+            boardSessionId: `pitch-${teamId}`,
+          });
+        },
       }, writeOnce({ teamId })).catch((error) => console.warn("[PitchBoard] auto-sub plan sync failed", error));
     }, 800);
     return () => clearTimeout(t);
-  }, [hasInitialized, readOnly, userId, teamId, isEventGroup, autoSubActive, autoSubPlan, players, linkedEventId]);
+  }, [hasInitialized, userId, teamId, isEventGroup, autoSubActive, autoSubPlan, players, linkedEventId]);
 
   // Durable per-event lineup mirror (`event_lineups`). Unlike the localStorage
   // copy, this follows the coach to any device and survives cache clears.

@@ -1,13 +1,5 @@
-import { prefetchMessagePolls } from "@/lib/pollReadRepository";
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import { confirmPendingSend } from "@/lib/pendingSendKeeper";
-import { applyConfirmedInboxPreview } from "@/features/messaging/inbox/confirmedInboxPreview";
-import {
-  applyPendingInboxPreview,
-  discardPendingInboxPreview,
-  settlePendingInboxPreview,
-} from "@/features/messaging/inbox/pendingInboxPreview";
-import { recordOwnSentConversation } from "@/features/messaging/inbox/ownSendBump";
 import { resolveChatUploadUrl } from "@/lib/pendingChatUploads";
 import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
 import React, { Suspense, useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
@@ -26,7 +18,6 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { buildNewsShareToken } from "@/features/news/newsShareToken";
 import { ArrowLeft, Building2, Search } from "lucide-react";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
@@ -41,11 +32,9 @@ import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
-import { useChatSearchResultJump } from "@/hooks/useChatSearchResultJump";
 import { createChatHistorySearchFetcher } from "@/features/messaging/thread/chatHistorySearchFetcher";
 import { CLUB_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import { getCachedClub } from "@/lib/clubTeamCache";
-import { getChatThreadLabel } from "@/lib/chatThreadLabelCache";
 import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
 
 import { PageLoading } from "@/components/ui/page-loading";
@@ -102,10 +91,7 @@ import { useMarkVisibleChatMessagesRead } from "@/hooks/useMarkVisibleChatMessag
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
-import { usePrivateChatProfiles } from "@/hooks/usePrivateChatProfiles";
-import { useChatProfileWorkset } from "@/hooks/useChatProfileWorkset";
-import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
-import { getCachedMessages, cacheMessages, shouldRefetchMessages, isCachedThreadComplete } from "@/lib/messageCache";
+import { getCachedMessages, cacheMessages, shouldRefetchMessages } from "@/lib/messageCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -120,10 +106,8 @@ import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { assertReadNotAborted, withReadDeadline } from "@/live/readDeadline";
-import { readIcpThreadPage } from "@/features/messaging/thread/icpThreadRead";
 import { writeOnce } from "@/live/clubScope";
-import { ensureLiveClubConversations, isLiveConversationAbsent, listLiveLatestMessagesPage, listLiveReactions, sendLiveClubScopedMessage, updateLiveMessage } from "@/live/features/messaging";
+import { ensureLiveClubConversations, listLiveLatestMessagesPage, listLiveReactions, sendLiveMessage, updateLiveMessage } from "@/live/features/messaging";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { recordLiveMessageSent } from "@/live/features/insights";
 import { getLiveClubProfile, getLiveClubSubscription } from "@/live/features/club";
@@ -349,31 +333,37 @@ export default function ClubChatPage() {
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
 
-  const handleSearchResultClick = useChatSearchResultJump<Message>({
-    scopeKey: `club:${user?.id}:${clubId}`,
-    getMessages: () => localMessagesRef.current ?? [],
-    closeSearch: () => {
-      setHighlightQuery(searchQuery);
-      setSearchQuery("");
-      setSearchOpen(false);
-    },
-    jump: handleJumpToMessage,
-    loadContext: async (target) => {
-      if (!target.created_at || !clubId || useIcpLab || resolveAuthBackend() === "icp") return [];
-      return fetchMessagesAround({
+  const handleSearchResultClick = async (mid: string) => {
+    const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
+    setHighlightQuery(searchQuery);
+    setSearchQuery("");
+    setSearchOpen(false);
+    if (target?.created_at && clubId) {
+      if (useIcpLab || resolveAuthBackend() === "icp") {
+        requestAnimationFrame(() => handleJumpToMessage(mid));
+        return;
+      }
+      try {
+        const ctx = await fetchMessagesAround({
           table: "club_messages",
           scope: { club_id: clubId },
           createdAt: target.created_at,
           selectColumns:
             "id, text, image_url, created_at, edited_at, author_id, club_id, reply_to_id, forwarded_from_user_id, forwarded_at, forwarded_source_label",
-      });
-    },
-    mergeContext: (rows) => setLocalMessages((prev) => {
-      const existing = new Set((prev ?? []).map((m) => m.id));
-      const adds = rows.filter((m) => !existing.has(m.id));
-      return adds.length ? [...(prev ?? []), ...adds] : prev;
-    }),
-  });
+        });
+        if (ctx.length) {
+          setLocalMessages((prev) => {
+            const existing = new Set((prev || []).map((m) => m.id));
+            const adds = ctx.filter((m) => !existing.has(m.id));
+            return adds.length ? [...(prev || []), ...adds] : prev;
+          });
+        }
+      } catch {
+        // best-effort
+      }
+    }
+    requestAnimationFrame(() => handleJumpToMessage(mid));
+  };
 
   // Get club info
   const { data: club } = useQuery({
@@ -518,17 +508,14 @@ export default function ClubChatPage() {
 
   // Canister rows → the app's club-message shape. Shared by the first page
   // load and by scroll-back paging so both render identically.
-  const mapLiveClubRows = async (ctx: any, rows: any[], onReady?: (messages: Message[]) => void, signal?: AbortSignal): Promise<Message[]> => {
-    assertReadNotAborted(signal);
+  const mapLiveClubRows = async (ctx: any, rows: any[]): Promise<Message[]> => {
     const authorIds = [...new Set(rows.map((m: any) => m.sender.toText() as string))];
-    const privateNames = privateClubNameDisplaysEnabled();
-    let profilesMap = privateNames ? new Map() : getProfilesFromCache(authorIds).cached;
-    const profilesRead = privateNames ? Promise.resolve(new Map()) : withReadDeadline(fetchProfilesWithCache(authorIds), "Chat profiles", 8_000, signal).catch(() => profilesMap);
+    const profilesMap = await fetchProfilesWithCache(authorIds);
     // Reactions persist on the canister; restore them on every refetch.
     // Tolerate older canisters that lack list_reactions.
     const reactionsByMessage = new Map<string, any[]>();
-    const reactionsRead = (async () => { try {
-      const liveReactions = await withReadDeadline(listLiveReactions(ctx, clubId ?? ""), "Chat reactions", 8_000, signal);
+    try {
+      const liveReactions = await listLiveReactions(ctx, clubId!);
       for (const r of liveReactions) {
         const uid = r.user.toText();
         const list = reactionsByMessage.get(r.message_id) ?? [];
@@ -540,12 +527,12 @@ export default function ClubChatPage() {
         });
         reactionsByMessage.set(r.message_id, list);
       }
-    } catch { /* optional reactions retain the readable thread */ } })();
+    } catch { /* canister without list_reactions — reactions stay empty until redeploy */ }
     // Reply quotes persist on the canister as reply_to_id; resolve the quoted
     // snippet from messages in the same page (reply targets outside the loaded
     // page render without a quote, same as a deleted target).
     const rawById = new Map<string, any>(rows.map((m: any) => [m.id, m]));
-    const mapRows = () => rows
+    return rows
       .slice()
       .sort((a: any, b: any) => Number(b.sequence - a.sequence))
       .map((m: any) => {
@@ -573,17 +560,12 @@ export default function ClubChatPage() {
             : null,
         };
       }) as unknown as Message[];
-    onReady?.(mapRows());
-    profilesMap = await profilesRead;
-    await reactionsRead;
-    assertReadNotAborted(signal);
-    return mapRows();
   };
 
   const { data: messagesData, isLoading } = useQuery({
 
     queryKey: ["club-messages", clubId],
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       markChatFetch();
       if (useIcpLab && clubId && user?.id) {
         return { messages: fixtureData.getLocalLabClubMessages(clubId, user.id) as unknown as Message[], hasOlderMessages: false, reactions: [], fromCache: true };
@@ -597,21 +579,11 @@ export default function ClubChatPage() {
         return await withFeatureBackend("messaging", {
           supabase: async () => { throw new Error("unreachable: messaging routed to ICP"); },
           icp: async (ctx) => {
+            try { await ensureLiveClubConversations(ctx, clubId); } catch { /* best-effort self-heal */ }
             // Newest-first page: the canister returns the newest MESSAGES_PER_PAGE
             // rows plus a backward cursor when older history remains.
-            const page = await readIcpThreadPage(
-              () => withReadDeadline(listLiveLatestMessagesPage(ctx, clubId, null, MESSAGES_PER_PAGE), "Club messages", 20_000, signal),
-              () => ensureLiveClubConversations(ctx, clubId),
-              () => isLiveConversationAbsent(ctx, clubId),
-            );
-            assertReadNotAborted(signal);
-            prefetchMessagePolls(queryClient, page.messages, user.id, { clubId }, true, ctx);
-            const messages = await mapLiveClubRows(ctx, page.messages, ready => {
-              assertReadNotAborted(signal);
-              const key = ["club-messages", clubId];
-              const current = queryClient.getQueryData<{ messages: Message[] }>(key);
-              if (!current?.messages?.length) queryClient.setQueryData(key, { messages: ready, hasOlderMessages: page.next_sequence.length > 0, fromCache: false });
-            }, signal);
+            const page = await listLiveLatestMessagesPage(ctx, clubId, null, MESSAGES_PER_PAGE);
+            const messages = await mapLiveClubRows(ctx, page.messages);
             const olderCursor =
               Array.isArray(page.next_sequence) && page.next_sequence.length > 0
                 ? Number(page.next_sequence[0])
@@ -661,7 +633,6 @@ export default function ClubChatPage() {
       }
 
       const { items: messagesToDisplay, hasMore } = splitPageWindow(rawMessages, MESSAGES_PER_PAGE);
-      if (user?.id && clubId) prefetchMessagePolls(queryClient, messagesToDisplay, user.id, { clubId }, false);
 
       const messageIds = messagesToDisplay.map((m) => m.id);
       const replyToIds = messagesToDisplay
@@ -757,7 +728,6 @@ export default function ClubChatPage() {
         hasPrevious: !!prev,
         cachedMessageCount: cachedMessages.length,
         openedFromNotification: !!openedFromNotificationRef.current,
-        cachedComplete: isCachedThreadComplete("club", clubId),
       });
       if (source === "previous") return prev;
       if (source === "none") return undefined;
@@ -787,10 +757,8 @@ export default function ClubChatPage() {
   const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() => {
     if (!clubId) return undefined;
     const cached = getCachedClubMessages(clubId);
-    return cached.length >= 2 || isCachedThreadComplete("club", clubId) ? cached : undefined;
+    return cached.length >= 2 ? cached : undefined;
   });
-  // A saved copy from a real read (even an empty chat) paints straight away.
-  const [savedThreadComplete] = useState(() => !!clubId && isCachedThreadComplete("club", clubId));
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
   const reactionQueryKey = useMemo(() => ["club-messages", clubId], [clubId]);
@@ -801,7 +769,7 @@ export default function ClubChatPage() {
     queryKey: reactionQueryKey,
     setLocalMessages,
   });
-  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2 || (savedThreadComplete && localMessages !== undefined);
+  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
   const showLoadingRaw =
     (!authReady && !hasMeaningfulLocal) ||
     (isLoading && !messagesData && !hasMeaningfulLocal);
@@ -841,13 +809,9 @@ export default function ClubChatPage() {
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
-    return [...new Set((localMessages || []).flatMap(m => [m.author_id, ...(m.reactions ?? []).map(r => r.user_id)]).filter(Boolean))];
+    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
   }, [localMessages]);
-  const privateChatNames = privateClubNameDisplaysEnabled() && isFeatureRoutedToIcp("messaging");
-  const { getProfile: getLegacyProfile } = useProfiles(privateChatNames ? [] : authorIds);
-  const privateWorkset = useChatProfileWorkset(localMessages ?? [], clubId, user?.id);
-  const getPrivateProfile = usePrivateChatProfiles(clubId, user?.id, privateWorkset.ids, privateChatNames);
-  const getProfile = privateChatNames ? getPrivateProfile : getLegacyProfile;
+  const { getProfile } = useProfiles(authorIds);
   
   // Reset scroll state when clubId changes
   useEffect(() => {
@@ -995,7 +959,6 @@ export default function ClubChatPage() {
 
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
-    if (privateChatNames) return;
     if (!localMessages?.length) return;
     
     // Find messages with missing profile data
@@ -1024,7 +987,7 @@ export default function ClubChatPage() {
         return updated ? newMessages : prev;
       });
     });
-  }, [localMessages, privateChatNames]);
+  }, [localMessages]);
 
   useEffect(() => {
     if (messagesData && !Array.isArray(messagesData)) {
@@ -1532,7 +1495,6 @@ export default function ClubChatPage() {
         return queuedSend();
       }
       
-      const sendKey = crypto.randomUUID();
       const confirmedMessage = await withFeatureBackend("messaging", {
         supabase: async () => {
           const { data, error } = await supabase.from("club_messages").insert({
@@ -1548,35 +1510,31 @@ export default function ClubChatPage() {
         icp: async (ctx) => {
           // Club id doubles as the conversation id (deterministic on the
           // messaging canister). Reply threading is Supabase-only.
+          try { await ensureLiveClubConversations(ctx, clubId!); } catch { /* best-effort self-heal */ }
           const attachment = image_url
             ? { kind: "image", refId: image_url, url: image_url }
             : (() => {
                 const poll = /\[poll:([^\]]+)\]/.exec(text);
                 if (poll) return { kind: "poll", refId: poll[1], url: null };
-                const news = /\[news:(?:[0-9a-fA-F-]{36}:)?([^\]]+)\]/.exec(text);
+                const news = /\[news:([^\]]+)\]/.exec(text);
                 if (news) return { kind: "news", refId: news[1], url: null };
                 return null;
               })();
-          const saved = await sendLiveClubScopedMessage(ctx, clubId, clubId ?? '', text, sendKey, attachment, reply_to_id);
+          const saved = await sendLiveMessage(ctx, clubId!, text, `${clubId}:${user!.id}:${Date.now()}`, attachment, reply_to_id);
           void recordLiveMessageSent(ctx, clubId!, user!.id).catch(() => { /* best-effort engagement counter */ });
           return { id: saved.id, text: saved.body, image_url, created_at: new Date(Number(saved.created_at_ms)).toISOString() };},
-      }, { clubId: clubId ?? '', writeKey: sendKey, attempts: 1 });
+      }, { clubId: clubId! });
       return deliveredSend(confirmedMessage ?? undefined);
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
-      // Do not defer composer clearing until a cancelled read settles.
-      void queryClient.cancelQueries({ queryKey: ["club-messages", clubId] });
+      await queryClient.cancelQueries({ queryKey: ["club-messages", clubId] });
 
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
       const sentAtMs = Date.now();
       const previousReplyingTo = replyingTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
-
-      // Inbox preview + row float show the message while it is still sending.
-      applyPendingInboxPreview(queryClient, "club", user?.id, clubId, { text, image_url: image_url ?? null });
-      if (clubId) recordOwnSentConversation(`club-${clubId}`);
 
       const optimisticMessage: Message = {
         id: tempId,
@@ -1634,9 +1592,6 @@ export default function ClubChatPage() {
         return;
       }
 
-      // The send left the pending preview state either way from here on.
-      settlePendingInboxPreview(queryClient, "club", user?.id, clubId);
-
       // Succeeded-but-errored: the row already arrived via realtime.
       const currentData = queryClient.getQueryData<{ messages: Message[] }>(["club-messages", clubId]);
       if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
@@ -1655,7 +1610,6 @@ export default function ClubChatPage() {
         });
         setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
       }
-      discardPendingInboxPreview(queryClient, "club", user?.id, clubId);
 
       restoreFailedSendComposer({
         context,
@@ -1673,11 +1627,6 @@ export default function ClubChatPage() {
     },
 
     onSuccess: (result, variables, context) => {
-      settlePendingInboxPreview(queryClient, "club", user?.id, clubId);
-      if (result?.confirmedMessage) {
-        applyConfirmedInboxPreview(queryClient, "club", user?.id, clubId, result.confirmedMessage);
-        if (clubId) recordOwnSentConversation(`club-${clubId}`);
-      }
       if (result?.confirmedMessage && context?.tempId) {
         confirmPendingSend(queryClient, ["club-messages", clubId], context.tempId, result.confirmedMessage);
         setLocalMessages((prev) => prev?.filter((row) => row.id !== context.tempId));
@@ -1764,8 +1713,7 @@ export default function ClubChatPage() {
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
       : baseText;
     if (pendingNewsId) {
-      const newsToken = buildNewsShareToken(queryClient, pendingNewsId);
-      finalText = finalText ? `${finalText} ${newsToken}` : newsToken;
+      finalText = finalText ? `${finalText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`;
     }
     const hadImage = !!imageUrl;
     sendMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
@@ -1861,13 +1809,7 @@ export default function ClubChatPage() {
     : "Club chat";
 
   if (isLoadingClubSubscription && !club) {
-    return (
-      <ChatPageSkeleton
-        title={clubDisplayName || getChatThreadLabel(user?.id, "club", clubId)?.title}
-        subtitle={clubHeaderSublabel}
-        avatarType="club"
-      />
-    );
+    return <ChatPageSkeleton title={clubDisplayName || undefined} />;
   }
 
   // Block access for non-Pro users - show full page blocker
@@ -2032,7 +1974,7 @@ export default function ClubChatPage() {
               <Skeleton key={i} className="h-16 w-3/4" />
             ))}
           </div>
-        ) : (!!searchQuery.trim() && !filteredMessages?.length && (isSearchFetching || !searchCanShowEmpty)) ? (
+        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState
@@ -2053,8 +1995,6 @@ export default function ClubChatPage() {
             composerHeight={composerHeight}
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
-            onVisibleMessageIds={privateChatNames ? privateWorkset.onVisibleMessageIds : undefined}
-            privateProfileRevision={privateChatNames ? getPrivateProfile : undefined}
             initialBottomPinned={!targetMessageId}
             initialTargetMessageId={targetMessageId}
             renderRow={(msg, index, arr) => {
@@ -2084,8 +2024,8 @@ export default function ClubChatPage() {
                       text={msg.text}
                       imageUrl={msg.image_url}
                       authorId={msg.author_id}
-                      authorName={getProfile(msg.author_id)?.display_name || (privateChatNames ? null : msg.profiles?.display_name) || null}
-                      authorAvatar={getProfile(msg.author_id)?.avatar_url || (privateChatNames ? null : msg.profiles?.avatar_url) || null}
+                      authorName={getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
                       timestamp={formatTimestamp(msg.created_at)}
                       isOwn={msg.author_id === user?.id}
                       isAdmin={isClubAdmin || isAppAdmin || false}
@@ -2095,9 +2035,7 @@ export default function ClubChatPage() {
                       queryKey={queryKeyMemo}
                       replyToMessage={
                         msg.reply_to
-                          ? { text: msg.reply_to.text, authorName: privateChatNames
-                            ? getProfile(localMessages?.find(row => row.id === msg.reply_to_id)?.author_id ?? "")?.display_name ?? null
-                            : msg.reply_to.profiles?.display_name || null }
+                          ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
                           : null
                       }
                       hasReply={!!msg.reply_to_id}

@@ -1,6 +1,5 @@
 import { readContentInScope } from "@/live/contentRouting";
-import { assertReadNotAborted, withReadDeadline } from "@/live/readDeadline";
-import { settleAll } from "@/live/crossGroupClubs";
+import { acrossLists } from "@/live/featureScopes";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -41,9 +40,9 @@ export async function fetchGalleryCardPhotoIds(
 }
 
 export async function fetchMediaFeedPage(
-  options: MediaFeedFilters & { offset: number; pageSize: number; signal?: AbortSignal; onProgress?: (page: { photos: any[]; nextCursor: number | undefined; incomplete?: boolean }) => void },
+  options: MediaFeedFilters & { offset: number; pageSize: number },
   client: IgniteSupabaseClient = supabase,
-): Promise<{ photos: any[]; nextCursor: number | undefined; incomplete?: boolean }> {
+): Promise<{ photos: any[]; nextCursor: number | undefined }> {
   if (options.cardId && (options.cardPhotoIds?.length ?? 0) === 0) {
     return { photos: [], nextCursor: undefined };
   }
@@ -74,16 +73,12 @@ export async function fetchMediaFeedPage(
     },
     icp: async (ctx) => {
       const clubIds = options.clubId ? [options.clubId] : await (async () => {
-        // Club ids from role grants (every group), not one group's club list.
-        const { getLiveMyRoleGrants } = await import("@/live/features/membership");
-        const { grantClubId } = await import("@/live/crossGroupClubs");
-        const grants = await getLiveMyRoleGrants(ctx) as unknown as Parameters<typeof grantClubId>[0][];
-        return [...new Set(grants.map(grantClubId).filter((c): c is string => !!c))];
+        const { listLiveMembershipClubs } = await import("@/live/features/membership");
+        const clubs = await readContentInScope(ctx, "membership", acrossLists, listLiveMembershipClubs);
+        return [...new Set(clubs.filter(c => !c.deleted_at_ms?.length).map(c => c.id))];
       })();
-      // Each club's photos come from its own group; one failing club never empties the feed.
-      const loaded = new Map<string, Awaited<ReturnType<typeof listLiveAssets>>>();
-      const mapPage = (incomplete: boolean) => {
-      const assets = [...new Map([...loaded.values()].flat().map(asset => [asset.id, asset])).values()];
+      const parts = await Promise.all(clubIds.map(clubId => readContentInScope(ctx, "media", { clubId }, scoped => listLiveAssets(scoped, clubId))));
+      const assets = [...new Map(parts.flat().map(asset => [asset.id, asset])).values()];
       const photos = assets
         .filter(asset => !asset.deleted && (!options.cardId || options.cardPhotoIds?.includes(asset.id)))
         .filter(asset => !options.teamId || asset.team_id?.[0] === options.teamId)
@@ -107,25 +102,9 @@ export async function fetchMediaFeedPage(
         .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
       const page = photos.slice(options.offset, options.offset + options.pageSize);
       return {
-        photos: page, incomplete,
+        photos: page,
         nextCursor: page.length === options.pageSize ? options.offset + options.pageSize : undefined,
       };
-      };
-      const settled = await settleAll(clubIds.map(clubId => withReadDeadline(readContentInScope(ctx, "media", { clubId }, scoped => listLiveAssets(scoped, clubId).then(assets => {
-        // Photos to show: start this club's photo key now, in parallel with
-        // rendering and downloads, instead of after the first download.
-        if (assets.some(asset => !asset.deleted && liveAssetSource(asset).kind === "icp-blob")) {
-          void import("@/live/piiVetKeys").then(m => m.prewarmClubMediaKey(scoped, clubId)).catch(() => {});
-        }
-        return assets;
-      })), "Club photos", 20_000, options.signal).then(assets => {
-        assertReadNotAborted(options.signal);
-        loaded.set(clubId, assets);
-        options.onProgress?.(mapPage(true));
-        return assets;
-      })));
-      assertReadNotAborted(options.signal);
-      return mapPage(settled.failed > 0);
     },
   }, options.clubId ? { clubId: options.clubId } : options.competitionId ? { competitionId: options.competitionId } : options.eventId ? { eventId: options.eventId } : options.teamId ? { teamId: options.teamId } : { shared: "person" });
 }
@@ -220,7 +199,7 @@ export async function fetchMediaComments(
           photo_id: comment.asset_id,
           user_id: comment.author.toText(),
           text: comment.body,
-          reply_to_id: comment.reply_to_id?.[0] ?? null,
+          reply_to_id: null,
           reply_to: null,
           created_at: new Date(Number(comment.created_at_ms)).toISOString(),
           profiles: null,

@@ -30,20 +30,21 @@ describe("inbox first-reveal latch", () => {
   it("keeps ordering readiness separate from the permanent render decision", () => {
     expect(messages).toMatch(/const freshSortDataReady = !isOnline \|\|/);
     expect(messages).toMatch(/const initialRevealBlocked =\s*\n?\s*isOnline &&/);
-    expect(messages).toMatch(/loading: isLoadingFreshData, orderReady: freshSortDataReady/);
+    expect(messages).toMatch(/isLoadingFreshData \|\| !freshSortDataReady/);
   });
 
-  it("keeps the session latch and passes scoped cached rows to the ICP reveal policy", () => {
+  it("never blocks a warm re-entry reveal (session latch, not a cache bypass)", () => {
     expect(messages).toMatch(/let sessionRevealedInboxUserId: string \| null = null;/);
-    // ICP can reveal saved rows on first entry; Supabase ordering is retained
-    // by the separately tested reveal policy.
+    // Warm re-entry is released by the session-scoped latch. The cached-data
+    // bypass must NOT appear in the first-reveal gate itself: cached rows carry
+    // stale ordering timestamps, and releasing on them produced the Android
+    // reload/resume stale-order jolt.
     const gate = messages.slice(
       messages.indexOf("const initialRevealBlocked ="),
       messages.indexOf("useEffect(() => {\n    if (hasRevealedStableInboxRef.current) return;"),
     );
-    expect(gate).toMatch(/shouldBlockInboxReveal/);
-    expect(gate).toMatch(/icp: useIcpLab/);
-    expect(gate).toMatch(/hasRows: !!hasCachedData \|\| hasAnyDisplayData/);
+    expect(gate).not.toMatch(/!hasCachedData/);
+    expect(gate).not.toMatch(/!hasAnyDisplayData/);
     // The cache is still consulted for the *loading* half of the gate, so a
     // cached inbox never waits on query loading state.
     expect(messages).toMatch(

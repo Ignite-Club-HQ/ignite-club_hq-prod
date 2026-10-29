@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Capacitor } from "@capacitor/core";
-import { googleDriveRedirectUri } from "@/lib/googleDriveRedirect";
 import { useMutation, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { resolveDriveTitlesForClub } from "@/features/vault/driveTitleResolution";
@@ -123,7 +121,8 @@ export function useVaultDriveLinkWorkflow({
 
       const exchangeCode = async () => {
         try {
-          const redirectUri = googleDriveRedirectUri(Capacitor.isNativePlatform(), window.location.origin);
+          const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.();
+          const redirectUri = isNative ? 'https://reference.invalid' : `${window.location.origin}/vault`;
           console.log("[GoogleDrive OAuth] Exchanging code with redirectUri:", redirectUri);
 
           const { data, error: exchangeError } = await invokeFunction('google-drive-import?action=exchange-code', {

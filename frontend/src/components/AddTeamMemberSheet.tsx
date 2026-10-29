@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { UserPlus, Search, Loader2, Mail, X, Check, Send, Users, Plus, Upload, Baby, MessageSquare, AlertTriangle, Share2, Pencil } from "lucide-react";
 import TeamJoinLinkCard from "@/components/invite/TeamJoinLinkCard";
-import { canManageTeamInviteLinks } from "@/features/membership/inviteFlowRules";
 import { parseRecipients, looksLikeMultiRecipient } from "@/components/invite/recipientParser";
 const MemberCSVImportDialog = lazyWithRetry(() => import("@/components/MemberCSVImportDialog").then(m => ({ default: m.MemberCSVImportDialog })));
 import { Button } from "@/components/ui/button";
@@ -117,8 +116,6 @@ interface AddTeamMemberSheetProps {
   externalOpen?: boolean;
   /** Callback when open state changes externally */
   onExternalOpenChange?: (open: boolean) => void;
-  /** Restrict invitations to players/parents only (competition owners, season captains) */
-  playersOnly?: boolean;
 }
 
 const allRoleOptions: { value: TeamRole; label: string; description: string; color: string; icon?: string; juniorOnly?: boolean; seniorOnly?: boolean }[] = [
@@ -128,10 +125,9 @@ const allRoleOptions: { value: TeamRole; label: string; description: string; col
   { value: "team_admin", label: "Team Admin", description: "Full admin access", color: "bg-blue-500/20 text-blue-600 border-blue-500/30" },
 ];
 
-export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default", externalOpen, onExternalOpenChange, playersOnly = false }: AddTeamMemberSheetProps) {
+export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType = "mixed", isClubAdminOnly = false, canBulkInvite = true, triggerVariant = "default", externalOpen, onExternalOpenChange }: AddTeamMemberSheetProps) {
   // Filter role options based on team type
   const roleOptions = allRoleOptions.filter(opt => {
-    if (playersOnly && opt.value !== "player" && opt.value !== "parent") return false;
     if (teamType === "junior") {
       // Junior teams: no adult players
       return !opt.seniorOnly;
@@ -165,17 +161,12 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
     async (opts: { title: string; description?: string; variant?: "default" | "destructive" }) => {
       let pendingCount = 0;
       try {
-        pendingCount = await withFeatureBackend("membership", {
-          icp: async ctx => {
-            const { listLivePendingInvitesByClub } = await import("@/live/features/club");
-            return (await listLivePendingInvitesByClub(ctx, clubId)).filter(i => i.team_id[0] === teamId && (i.status === "pending" || i.status === "resent")).length;
-          },
-          supabase: async () => {
-            const { count, error } = await supabase.from("pending_invites").select("id", { count: "exact", head: true }).eq("team_id", teamId).eq("status", "pending");
-            if (error) throw error;
-            return count ?? 0;
-          },
-        }, { clubId });
+        const { count } = await supabase
+          .from("pending_invites")
+          .select("id", { count: "exact", head: true })
+          .eq("team_id", teamId)
+          .eq("status", "pending");
+        pendingCount = count ?? 0;
       } catch {
         // ignore — fall back to a count-less link
       }
@@ -199,7 +190,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
         ) : undefined,
       });
     },
-    [teamId, clubId, toast, navigate, location.pathname],
+    [teamId, toast, navigate, location.pathname],
   );
 
   const [internalOpen, setInternalOpen] = useState(false);
@@ -395,10 +386,6 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
   const discoverEmailStyle = (clubBranding as { invite_email_style?: string } | null | undefined)?.invite_email_style === 'discover';
 
   const {
-    clubPeople,
-    clubPeopleLoading,
-    clubPeopleError,
-    refetchClubPeople,
     filteredResults,
     filteredPendingResults,
     identityMap,
@@ -838,9 +825,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 <TeamJoinLinkCard
                   teamId={teamId}
                   teamName={teamName}
-                  clubId={clubId}
                   teamType={teamType}
-                  managerOverride={canManageTeamInviteLinks(canBulkInvite, playersOnly)}
                   autoCreateLink
                 />
                 <div className="flex items-center gap-3 pt-1">
@@ -922,48 +907,7 @@ export default function AddTeamMemberSheet({ teamId, teamName, clubId, teamType 
                 </div>
                 <p className="text-[11px] text-muted-foreground">You can paste multiple names.</p>
 
-                {!nameInput.trim() && clubPeopleLoading && (
-                  <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading club members…
-                  </div>
-                )}
-                {!nameInput.trim() && clubPeopleError && !clubPeopleLoading && (
-                  <div className="flex items-center justify-between gap-2 py-2 text-sm text-muted-foreground">
-                    <span>Couldn't load club members just now.</span>
-                    <Button type="button" variant="outline" size="sm" onClick={() => void refetchClubPeople()}>Try again</Button>
-                  </div>
-                )}
-                {!nameInput.trim() && !clubPeopleLoading && clubPeople.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">People in this club</p>
-                    <div className="space-y-1 max-h-64 overflow-y-auto rounded-lg border bg-muted/30 p-2">
-                      {clubPeople.map((person) => (
-                        <button
-                          key={person.id}
-                          type="button"
-                          onClick={() => { setSelectedUser(person); setNameInput(""); }}
-                          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-background transition-colors text-left"
-                        >
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={person.avatar_url || undefined} />
-                            <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                              {person.display_name?.[0]?.toUpperCase() || "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-medium truncate">{person.display_name || "Unknown"}</span>
-                            {existingMembers?.includes(person.id) && (
-                              <span className="text-[11px] text-muted-foreground truncate">Already on this team — pick to add a child</span>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {isSearching && debouncedNameInput.length >= 2 && (
+                {isSearching && (
                   <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Searching...

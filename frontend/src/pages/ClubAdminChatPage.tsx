@@ -38,7 +38,6 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChatStuckWatchdog, createChatFetchBudget } from "@/lib/chatStuckWatchdog";
 import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
-import { getChatThreadLabel, rememberChatThreadLabel } from "@/lib/chatThreadLabelCache";
 import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
 import { toast } from "sonner";
 import { ClubAdminChatComposerFooter } from "@/components/chat/ClubAdminChatComposerFooter";
@@ -73,10 +72,6 @@ import {
   NOTIFICATION_PRELOAD_FLAG,
 } from "@/lib/chatThreadLoadState";
 import { useProfiles } from "@/hooks/useProfiles";
-import { usePrivateChatProfiles } from "@/hooks/usePrivateChatProfiles";
-import { useChatProfileWorkset } from "@/hooks/useChatProfileWorkset";
-import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
-import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { useMessageReads } from "@/hooks/useMessageReads";
 import {
   CHAT_READ_EXCLUDED_WITH_QUEUED_ID_PREFIXES,
@@ -188,7 +183,6 @@ function SupabaseClubAdminChatPage() {
   const { user, profile, initialized } = useAuth();
   const queryClient = useQueryClient();
   const authReady = !!user && initialized;
-  const privateChatNames = privateClubNameDisplaysEnabled() && isFeatureRoutedToIcp("messaging");
   const openedFromNotificationRef = useRef<number | null>(
     conversationId ? consumeFromNotificationFlag("club_admin", conversationId) : null,
   );
@@ -295,10 +289,10 @@ function SupabaseClubAdminChatPage() {
         return await withFeatureBackend("membership", {
           supabase: async () => null,
           icp: async (ctx) => {
-            const [profile] = await getLiveClubProfile(ctx, icpClubId);
-            return profile ? { id: profile.id, name: profile.name, logo_url: profile.logo_url[0] ?? null } : null;
+            const profile: any = await getLiveClubProfile(ctx, icpClubId);
+            return profile ? { id: icpClubId, name: profile.name ?? null, logo_url: null } : null;
           },
-        }, { clubId: icpClubId });
+        }, { clubId: icpClubId! });
       }
 
       const clubId = conversation?.club_id;
@@ -337,14 +331,12 @@ function SupabaseClubAdminChatPage() {
       if (error) throw error;
       return data;
     },
-    enabled: !privateChatNames && !!conversation?.member_user_id && authReady,
+    enabled: !!conversation?.member_user_id && authReady,
     staleTime: 5 * 60 * 1000,
   });
 
   // Determine if current user is the member or an admin
   const isMember = conversation?.member_user_id === user?.id;
-  const getPrivateMemberProfile = usePrivateChatProfiles(conversationId, user?.id,
-    conversation?.member_user_id ? [conversation.member_user_id] : [], privateChatNames);
 
   // Seed the header (name + avatar) from the already-loaded admin inbox cache
   // or the shared profile cache, so the chat opens with the member's actual
@@ -374,11 +366,11 @@ function SupabaseClubAdminChatPage() {
   }, [conversation?.member_user_id]);
 
   const resolvedMemberName =
-    privateChatNames ? getPrivateMemberProfile(conversation?.member_user_id ?? "")?.display_name ?? null : memberProfile?.display_name ||
+    memberProfile?.display_name ||
     cachedMemberProfile?.display_name ||
     (inboxFallback?.name && inboxFallback.name !== "Member" ? inboxFallback.name : null);
   const resolvedMemberAvatar =
-    privateChatNames ? getPrivateMemberProfile(conversation?.member_user_id ?? "")?.avatar_url ?? null : memberProfile?.avatar_url ||
+    memberProfile?.avatar_url ||
     cachedMemberProfile?.avatar_url ||
     inboxFallback?.avatar ||
     null;
@@ -616,8 +608,7 @@ function SupabaseClubAdminChatPage() {
       setRecoveryExhausted(false);
       return;
     }
-    // Empty is only suspicious when the inbox shows a message in this chat.
-    const needsRecovery = messagesIsError || (fetchedCount === 0 && !!inboxFallback?.hasMessage);
+    const needsRecovery = messagesIsError || fetchedCount === 0;
     if (!needsRecovery) return;
     if (recoveryTimerRef.current) return; // never overlap retry timers
 
@@ -645,7 +636,6 @@ function SupabaseClubAdminChatPage() {
     messagesIsError,
     messagesFetchStatus,
     refetchMessages,
-    inboxFallback?.hasMessage,
   ]);
 
   useEffect(
@@ -773,12 +763,9 @@ function SupabaseClubAdminChatPage() {
 
 
   const authorIds = useMemo(() => {
-    return [...new Set((localMessages || []).flatMap(m => [m.author_id, ...(m.reactions ?? []).map(r => r.user_id)]).filter(Boolean))];
+    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
   }, [localMessages]);
-  const { getProfile: getLegacyProfile } = useProfiles(privateChatNames ? [] : authorIds);
-  const privateWorkset = useChatProfileWorkset(localMessages ?? [], conversationId, user?.id);
-  const getPrivateProfile = usePrivateChatProfiles(conversationId, user?.id, privateWorkset.ids, privateChatNames);
-  const getProfile = privateChatNames ? getPrivateProfile : getLegacyProfile;
+  const { getProfile } = useProfiles(authorIds);
 
   // Reset local cache view when conversation changes
   useEffect(() => {
@@ -928,7 +915,7 @@ function SupabaseClubAdminChatPage() {
             : (() => {
                 const poll = /\[poll:([^\]]+)\]/.exec(text);
                 if (poll) return { kind: "poll", refId: poll[1], url: null };
-                const news = /\[news:(?:[0-9a-fA-F-]{36}:)?([^\]]+)\]/.exec(text);
+                const news = /\[news:([^\]]+)\]/.exec(text);
                 if (news) return { kind: "news", refId: news[1], url: null };
                 return null;
               })();
@@ -1360,35 +1347,6 @@ function SupabaseClubAdminChatPage() {
   // a full-page loader would replace the chat tree mid-mount and force Virtuoso
   // to re-pin against a fresh layout, causing a visible jolt. Render the shell
   // immediately when we have cached content; only show the skeleton on true cold load.
-  // The inbox already named this thread, so the header can carry a real title
-  // from the first frame instead of skeleton bars for the whole cold read.
-  const rememberedThreadLabel = getChatThreadLabel(user?.id, "admin_group", conversationId);
-
-  useEffect(() => {
-    if (!user?.id || !conversationId || !conversation?.id) return;
-    if (privateChatNames && !isMember) return;
-    // Only store a title that is actually authoritative for this account — a
-    // placeholder ("Club Admin" / "Member") must not become the remembered name.
-    const authoritative = isMember ? !!club?.name : !!resolvedMemberName;
-    if (!authoritative) return;
-    rememberChatThreadLabel(user.id, "admin_group", conversationId, {
-      title: chatTitle,
-      subtitle: chatSubtitle,
-      avatarUrl: isMember ? club?.logo_url : resolvedMemberAvatar,
-    });
-  }, [
-    user?.id,
-    conversationId,
-    conversation?.id,
-    isMember,
-    chatTitle,
-    chatSubtitle,
-    club?.name,
-    club?.logo_url,
-    resolvedMemberName,
-    resolvedMemberAvatar,
-  ]);
-
   const conversationMetadataState = resolveChatMetadataState({
     data: conversation,
     isLoading: conversationLoading,
@@ -1402,14 +1360,7 @@ function SupabaseClubAdminChatPage() {
     conversationMetadataState === "loading" &&
     !(localMessages && localMessages.length > 0)
   ) {
-    return (
-      <ChatPageSkeleton
-        title={rememberedThreadLabel?.title}
-        subtitle={rememberedThreadLabel?.subtitle}
-        avatarUrl={rememberedThreadLabel?.avatarUrl}
-        avatarType={isMember ? "club" : "dm"}
-      />
-    );
+    return <ChatPageSkeleton />;
   }
 
   if (conversationMetadataState === "unreachable" && !conversation) {
@@ -1434,15 +1385,7 @@ function SupabaseClubAdminChatPage() {
   // Same escape hatch as the metadata gate above: if we already have messages in
   // hand, a transient `undefined` conversation (refetch / cache eviction) must
   // not swap the painted thread back to a full-page skeleton.
-  if (!conversation && !(localMessages && localMessages.length > 0))
-    return (
-      <ChatPageSkeleton
-        title={rememberedThreadLabel?.title}
-        subtitle={rememberedThreadLabel?.subtitle}
-        avatarUrl={rememberedThreadLabel?.avatarUrl}
-        avatarType={isMember ? "club" : "dm"}
-      />
-    );
+  if (!conversation && !(localMessages && localMessages.length > 0)) return <ChatPageSkeleton />;
 
 
 
@@ -1519,10 +1462,10 @@ function SupabaseClubAdminChatPage() {
               Retry
             </Button>
           </div>
-        ) : (!!searchQuery.trim() && !filteredMessages?.length && (isSearchFetching || !searchCanShowEmpty)) ? (
+        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
-          <ChatEmptyState title={isMember ? `Send a message to ${club?.name || "club"} admins` : `Start a conversation with ${resolvedMemberName || "this member"}`} />
+          <ChatEmptyState title={isMember ? `Send a message to ${club?.name || "club"} admins` : `Start a conversation with ${memberProfile?.display_name || "this member"}`} />
         ) : (
           <ChatMessagesScroller
             messages={filteredMessages || []}
@@ -1535,8 +1478,6 @@ function SupabaseClubAdminChatPage() {
             composerHeight={composerHeight}
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
-            onVisibleMessageIds={privateChatNames ? privateWorkset.onVisibleMessageIds : undefined}
-            privateProfileRevision={privateChatNames ? getPrivateProfile : undefined}
             initialBottomPinned={!targetMessageId}
             renderRow={(msg, index, arr) => {
               const prevMessage = index > 0 ? arr[index - 1] : null;
@@ -1561,8 +1502,8 @@ function SupabaseClubAdminChatPage() {
                       text={msg.text}
                       imageUrl={msg.image_url}
                       authorId={msg.author_id}
-                      authorName={getProfile(msg.author_id)?.display_name || (privateChatNames ? null : msg.author?.display_name) || null}
-                      authorAvatar={getProfile(msg.author_id)?.avatar_url || (privateChatNames ? null : msg.author?.avatar_url) || null}
+                      authorName={getProfile(msg.author_id)?.display_name || msg.author?.display_name || null}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
                       timestamp={format(new Date(msg.created_at), "h:mm a")}
                       isOwn={msg.author_id === user?.id}
                       isAdmin={false}
@@ -1574,9 +1515,7 @@ function SupabaseClubAdminChatPage() {
                       contextId={conversationId || ""}
                       replyToMessage={
                         msg.reply_to
-                          ? { text: msg.reply_to.text, authorName: privateChatNames
-                            ? getProfile(localMessages?.find(row => row.id === msg.reply_to_id)?.author_id ?? "")?.display_name ?? null
-                            : msg.reply_to.author?.display_name || null }
+                          ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
                           : null
                       }
                       hasReply={!!msg.reply_to_id}

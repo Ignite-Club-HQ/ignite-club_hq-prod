@@ -1,9 +1,4 @@
-import { readIcpPitchRoster } from '@/lib/pitchEntryRoster';
-import { readGoingGameRsvps } from '@/lib/gameEventReads';
-import { readDiscoveredMiniLeagues } from "@/live/accountDiscovery";
 import { readMiniLeagueInScope } from "@/live/miniLeagueRouting";
-import { readMembershipInScope } from '@/live/membershipRouting';
-import { readContentInScope } from '@/live/contentRouting';
 import { mergeMiniLeagueRows } from "@/live/miniLeagueRouting";
 import { mergeLists } from "@/live/featureRouter";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -47,7 +42,7 @@ import {
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
 import { getLiveClubProfile, getLiveTeam, listLiveClubs, listLiveTeams } from "@/live/features/club";
-import { requestLiveRole, listLiveRoleRequests } from "@/live/features/membership";
+import { requestLiveRole } from "@/live/features/membership";
 import { getLiveMyRoleGrants } from "@/live/features/membership";
 import { isLiveAppAdmin } from "@/live/features/insights";
 import {
@@ -60,7 +55,7 @@ import {
 } from "@/live/features/proAccess";
 import { getLiveClubPointsSettings } from "@/live/features/points";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
-import { listLiveMiniLeaguesByClub, listLivePublicMiniLeagues } from "@/live/features/miniLeagues";
+import { listMyLiveMiniLeagues, listLiveMiniLeaguesByClub, listLivePublicMiniLeagues } from "@/live/features/miniLeagues";
 import {
   fetchLiveHomeChildren,
   fetchLiveHomeFeed,
@@ -69,13 +64,13 @@ import {
 import { eventKeys } from "@/lab/eventQueryKeys";
 import { completeHomeAccountRecovery } from "@/features/home/accountRecoveryCompletion";
 import {
+  fetchAvailableHomeRewardsForBackend,
+  fetchNextHomeRewardInfoForBackend,
   fetchPendingHomeRedemptionsForBackend,
 } from "@/features/home/homeRewardsRepository";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { logHomeOpenLatency, resetHomeOpenLog } from "@/lib/homeOpenLatency";
 import { recordPointsHistory } from "@/lib/pointsHistory";
-import { homeRewardQuery, readHomeRewardsWithDeadline } from "@/features/home/homeRewardQuery";
-import { useHomeRewardsBrowser } from "@/components/home/useHomeRewardsBrowser";
 import { getSportEmoji } from "@/lib/sportEmojis";
 import { findNearbyGameEvent } from "@/hooks/useNearbyGameEvent";
 import { useClubTheme, hasClubThemeCached } from "@/hooks/useClubTheme";
@@ -99,7 +94,6 @@ import {
   isHomeEventForMember,
 } from "@/components/home/homeEventSelection";
 import { HomeDashboardSections } from "@/components/home/HomeDashboardSections";
-import { useHomeClubMembers } from "@/components/home/useHomeClubMembers";
 
 export {
   getEventLocalDateKey,
@@ -159,18 +153,7 @@ interface Team {
 }
 
 export default function HomePage() {
-  const { user, profile, refreshProfile, initialized, profileNamePending } = useAuth();
-  // Quietly prepare "Invite people" choices so the sheet opens instantly.
-  useEffect(() => {
-    if (!user?.id || !isFeatureRoutedToIcp("membership")) return;
-    const t = window.setTimeout(() => {
-      void withFeatureBackend("membership", {
-        supabase: async () => null,
-        icp: async ctx => (await import("@/live/leagueInviteTargets")).readLiveInviteTargets(ctx),
-      }, { shared: "person" }).catch(() => {});
-    }, 3000);
-    return () => window.clearTimeout(t);
-  }, [user?.id]);
+  const { user, profile, refreshProfile, initialized } = useAuth();
   const isIcp = resolveAuthBackend() === "icp";
   
   usePageTitle("Home");
@@ -233,6 +216,8 @@ export default function HomePage() {
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   
   const [selectedUpgradeClub, setSelectedUpgradeClub] = useState<string>("");
+  const [rewardsDialogOpen, setRewardsDialogOpen] = useState(false);
+  const [selectedRewardClubId, setSelectedRewardClubId] = useState<string | null>(null);
   const [selectedReward, setSelectedReward] = useState<HomeReward | null>(null);
   const [confirmRedeemDialogOpen, setConfirmRedeemDialogOpen] = useState(false);
   const [selectedRedeemFor, setSelectedRedeemFor] = useState<string>("myself");
@@ -478,10 +463,10 @@ export default function HomePage() {
             // returns every league the caller is linked to (admin or
             // claimed player), so we reuse it here and let the merge below
             // de-duplicate against adminLeaguesResult.
-            const leagues = await readDiscoveredMiniLeagues(ctx);
+            const leagues = await listMyLiveMiniLeagues(ctx);
             return { data: leagues.map((l) => ({ mini_league_id: l.id })), error: null as any };
           },
-        }, { shared: 'person' }),
+        }, { everyGroup: true, merge: (parts: Array<{ data: { mini_league_id: string }[] | null; error: unknown }>) => { const failed = parts.find(p => p.error); if (failed) throw failed.error; return { data: [...new Map(parts.flatMap(p => p.data ?? []).map(r => [r.mini_league_id, r])).values()], error: null }; } }),
         leagueAdminArr.length > 0
           ? withFeatureBackend<{ data: { id: string }[] | null; error: any }>("mini_leagues", {
               supabase: async () => supabase.from("mini_leagues").select("id").in("club_id", leagueAdminArr),
@@ -602,11 +587,9 @@ export default function HomePage() {
       return { memberships, events: limited as Event[] };
   };
 
-  const incompleteHomeRetriesRef = useRef(0);
-  useEffect(() => { incompleteHomeRetriesRef.current = 0; }, [user?.id]);
   const { data: membershipAndEvents, isLoading, isFetching, isFetched } = useQuery({
     queryKey: eventKeys.home(user?.id),
-    queryFn: async ({ signal }) => {
+    queryFn: async () => {
       if (useIcpLab && user?.id) {
         return fixtureData.getLocalLabHomeSnapshot(user.id);
       }
@@ -619,16 +602,7 @@ export default function HomePage() {
         // chat presence already has a canister wrapper (livePresenceHeartbeat)
         // used elsewhere — neither is part of this consolidated query.
         supabase: fetchHomeFromSupabase,
-        icp: (ctx) => fetchLiveHomeFeed(ctx, {
-          signal,
-          onProgress: feed => {
-            if (signal.aborted || !user?.id) return;
-            queryClient.setQueryData(eventKeys.home(user.id), (previous: typeof feed | undefined) => {
-              if (previous?.events?.length && !previous.incomplete) return previous;
-              return feed;
-            });
-          },
-        }),
+        icp: (ctx) => fetchLiveHomeFeed(ctx),
       }, { shared: "person" });
     },
     enabled: !!user,
@@ -649,16 +623,6 @@ export default function HomePage() {
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
-    // Right after sign-in some club reads can fail while access is still
-    // settling, leaving a partial (often empty) Next Up. staleTime would then
-    // hold that result until Home remounts, so quietly re-read a few times.
-    refetchInterval: (query) => {
-      const data = query.state.data as { incomplete?: boolean } | undefined;
-      if (!data?.incomplete) { incompleteHomeRetriesRef.current = 0; return false; }
-      if (incompleteHomeRetriesRef.current >= 4) return false;
-      incompleteHomeRetriesRef.current += 1;
-      return 3000 * incompleteHomeRetriesRef.current;
-    },
   });
 
   // Persist the latest snapshot whenever the query resolves so the next cold
@@ -669,7 +633,7 @@ export default function HomePage() {
   // The verified-empty path in the queryFn clears the snapshot explicitly, so
   // genuine "left every club" states still persist.
   useEffect(() => {
-    if (!user?.id || !membershipAndEvents || ('incomplete' in membershipAndEvents && membershipAndEvents.incomplete === true)) return;
+    if (!user?.id || !membershipAndEvents) return;
     const m = membershipAndEvents.memberships as { clubIds?: string[]; teamIds?: string[] } | undefined;
     const isEmpty = (m?.clubIds?.length ?? 0) === 0 && (m?.teamIds?.length ?? 0) === 0;
     if (isEmpty) {
@@ -689,7 +653,6 @@ export default function HomePage() {
   // Derive memberships and events from consolidated query
   const userMemberships = membershipAndEvents?.memberships;
   const allEvents = membershipAndEvents?.events;
-  useHomeClubMembers(user?.id, userMemberships?.clubIds, activeClubFilter);
 
   // Listen for server-side schedule refresh broadcasts so the home dashboard
   // re-fetches events automatically when an admin pushes a refresh.
@@ -861,11 +824,11 @@ export default function HomePage() {
           // canister equivalent yet.
           const rows = await Promise.all(
             clubIds.map(async (id) => {
-              const profileOpt = await readMembershipInScope(ctx, { clubId: id }, scoped => getLiveClubProfile(scoped, id));
+              const profileOpt = await getLiveClubProfile(ctx, id);
               const profile = profileOpt.length ? profileOpt[0] : null;
               let pointsDisplayName: string | null = null;
               if (isFeatureRoutedToIcp("points")) {
-                const settings = await readContentInScope(ctx, 'points', { clubId: id }, scoped => getLiveClubPointsSettings(scoped, id)).catch(() => null);
+                const settings = await getLiveClubPointsSettings(ctx, id).catch(() => null);
                 pointsDisplayName = settings?.display_name[0] ?? null;
               }
               return {
@@ -881,7 +844,7 @@ export default function HomePage() {
             .filter((r) => r.name !== "")
             .sort((a, b) => a.name.localeCompare(b.name));
         },
-      }, { shared: 'person' });
+      }, { everyGroup: true, merge: mergeLists });
     },
     enabled: !!user && !!userMemberships && (userMemberships?.clubIds?.length ?? 0) > 0,
     staleTime: 5 * 60 * 1000,
@@ -928,7 +891,7 @@ export default function HomePage() {
             if ([...clubSubs.values()].some(liveHasAnyPro)) return true;
             return fetchLiveCallerIapPro(ctx);
           },
-        }, { memberGroups: true, merge: (parts: boolean[]) => parts.some(Boolean) });
+        }, { everyGroup: true, merge: (parts: boolean[]) => parts.some(Boolean) });
       }
 
       // Check club subs, team subs, and teams table (for trial is_pro) in parallel
@@ -955,9 +918,9 @@ export default function HomePage() {
   const showProBadge = !!userRoles && !isLoadingUserRoles && !isLoadingProAccess && !hasProAccess && !isAppAdmin;
 
   // Fetch clubs for rewards with Pro status - uses memberships data
-  const { data: rewardClubs = [], isPending: rewardClubsPending, isError: rewardClubsError, refetch: retryRewardClubs } = useQuery({
-    queryKey: ["reward-clubs-home", user?.id, resolveAuthBackend(), activeClubFilter, userMemberships?.clubIds],
-    queryFn: () => readHomeRewardsWithDeadline(async () => {
+  const { data: rewardClubs = [] } = useQuery({
+    queryKey: ["reward-clubs-home", user?.id, activeClubFilter, userMemberships?.clubIds],
+    queryFn: async () => {
       // ICP: club profiles + Pro grants come from club_domain.
       if (isFeatureRoutedToIcp("membership")) {
         return withFeatureBackend("membership", {
@@ -967,21 +930,20 @@ export default function HomePage() {
             if (clubIds.length === 0) return [];
             const [subs, profiles] = await Promise.all([
               listLiveClubSubscriptions(ctx, clubIds),
-              Promise.all(clubIds.map((clubId) => readMembershipInScope(ctx, { clubId }, scoped => getLiveClubProfile(scoped, clubId)))),
+              Promise.all(clubIds.map((clubId) => getLiveClubProfile(ctx, clubId).catch(() => null))),
             ]);
             return clubIds.flatMap((clubId, index) => {
               const profile = profiles[index];
-              const club = profile?.[0];
-              if (!club) return [];
+              if (!profile) return [];
               return [{
                 id: clubId,
-                name: club.name,
-                logo_url: club.logo_url?.[0] ?? null,
+                name: profile.name,
+                logo_url: profile.logo_url?.[0] ?? null,
                 hasPro: liveHasAnyPro(subs.get(clubId)),
               }];
             });
           },
-        }, { shared: 'person' });
+        }, { everyGroup: true, merge: mergeLists });
       }
       if (activeClubFilter) {
         const [clubResult, subResult] = await Promise.all([
@@ -1006,28 +968,11 @@ export default function HomePage() {
         const hasPro = sub?.is_pro || sub?.is_pro_football || sub?.admin_pro_override || sub?.admin_pro_football_override;
         return { ...club, hasPro: !!hasPro };
       });
-    }),
-    enabled: !!user && (!!activeClubFilter || !!userMemberships),
+    },
+    enabled: !!user && !!userMemberships,
     staleTime: 5 * 60 * 1000,
-    retry: false,
+    placeholderData: (prev) => prev,
   });
-
-  const { open: rewardsDialogOpen, setOpen: setRewardsDialogOpen,
-    selectedClubId: selectedRewardClubId, setSelectedClubId: setSelectedRewardClubId,
-    browse: handleBrowseRewards } = useHomeRewardsBrowser(
-      activeClubFilter,
-      rewardClubs.filter((club: any) => isAppAdmin || club.hasPro).map((club: any) => club.id),
-    );
-
-  // Warm the exact selected club without waiting for Home's feed/Pro directory.
-  // Catalogue reads remain authorized by the owning service; warming grants nothing.
-  useEffect(() => {
-    if (!user?.id) return;
-    const ids = activeClubFilter
-      ? [activeClubFilter]
-      : rewardClubs.filter((club: any) => isAppAdmin || club.hasPro).map((club: any) => club.id).slice(0, 6);
-    for (const id of ids) void queryClient.prefetchQuery(homeRewardQuery(supabase, user.id, resolveAuthBackend(), id));
-  }, [user?.id, activeClubFilter, queryClient, rewardClubs, isAppAdmin]);
 
   // Rewards are per-club. Lock if none of the user's relevant clubs have Pro
   // (scoped to activeClubFilter when set, otherwise any club). App admins bypass.
@@ -1035,25 +980,27 @@ export default function HomePage() {
   const isRewardsProLocked = !isAppAdmin && userClubs.length > 0 && rewardClubs.length > 0 && !hasAnyRewardClubPro;
 
   // Fetch rewards for selected club
-  const { data: availableRewards = [], isLoading: rewardsLoading, isError: rewardsError, refetch: retryRewards } = useQuery(
-    homeRewardQuery(supabase, user?.id, resolveAuthBackend(), selectedRewardClubId),
-  );
+  const { data: availableRewards = [], isLoading: rewardsLoading } = useQuery({
+    queryKey: ["home-available-rewards", selectedRewardClubId],
+    queryFn: async () => {
+      // Routed via withFeatureBackend("points", ...). On ICP, rewards render
+      // without a sponsor badge (no canister-side sponsor join).
+      return fetchAvailableHomeRewardsForBackend(supabase, null, selectedRewardClubId!);
+    },
+    enabled: !!selectedRewardClubId,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
 
   // Fetch the next reward info across user's clubs
   const { data: nextRewardInfo = null } = useQuery<{ points_required: number; name: string } | null>({
-    queryKey: ["next-reward-info", user?.id, resolveAuthBackend(), isAppAdmin, rewardClubs.map((c: any) => [c.id, c.hasPro])],
+    queryKey: ["next-reward-info", rewardClubs.map((c: any) => c.id)],
     queryFn: async () => {
       const proClubIds = rewardClubs.filter((c: any) => isAppAdmin || c.hasPro).map((c: any) => c.id);
       if (proClubIds.length === 0) return null;
       // Routed via withFeatureBackend("points", ...); ICP branch issues one
       // list_rewards call per eligible club (no bulk cross-club query exists).
-      // The summary and drawer share one complete per-club catalogue request,
-      // including role verification; opening rewards never repeats that work.
-      const lists = await Promise.all(proClubIds.map((clubId) =>
-        queryClient.fetchQuery(homeRewardQuery(supabase, user?.id, resolveAuthBackend(), clubId)),
-      ));
-      const first = lists.flat().sort((a, b) => a.points_required - b.points_required)[0];
-      return first ? { points_required: first.points_required, name: first.name } : null;
+      return fetchNextHomeRewardInfoForBackend(supabase, null, proClubIds);
     },
     enabled: rewardClubs.length > 0,
     staleTime: 5 * 60 * 1000,
@@ -1125,6 +1072,23 @@ export default function HomePage() {
     }
     return child.ignite_points || 0;
   };
+  const handleBrowseRewards = () => {
+    const proClubs = rewardClubs.filter((club: any) => isAppAdmin || club.hasPro);
+    
+    // In club mode with single Pro club, auto-select it
+    if (activeClubFilter && proClubs.length === 1) {
+      setSelectedRewardClubId(proClubs[0].id);
+      setRewardsDialogOpen(true);
+    } else if (proClubs.length === 1) {
+      // Only one Pro club total
+      setSelectedRewardClubId(proClubs[0].id);
+      setRewardsDialogOpen(true);
+    } else if (proClubs.length > 1) {
+      // Multiple clubs - show club selection first
+      setRewardsDialogOpen(true);
+    }
+  };
+
   // Stable per-attempt idempotency key so retries/double taps can't double-spend.
   const redeemAttemptKeyRef = useRef<string | null>(null);
 
@@ -1366,7 +1330,7 @@ export default function HomePage() {
       if (error) throw error;
       return data as Club[];
     },
-    enabled: !!user && teamDialogOpen,
+    enabled: !!user && (teamDialogOpen || !!activeClubFilter),
     staleTime: 1000 * 60 * 5,
     placeholderData: (prev) => prev,
   });
@@ -1380,10 +1344,9 @@ export default function HomePage() {
           icp: async (ctx) => {
             const filterOut = /test|demo|sample/i;
             const liveClubs = (await listLiveClubs(ctx)).filter((c) => !filterOut.test(c.name));
-            // One club failing in this group must not hide its other clubs.
             const teamsByClub = await Promise.all(
               liveClubs.map(async (c) => {
-                const rows = await listLiveTeams(ctx, c.id).catch(() => [] as Awaited<ReturnType<typeof listLiveTeams>>);
+                const rows = await listLiveTeams(ctx, c.id);
                 return rows
                   .filter((t) => t.deleted_at_ms.length === 0 && !filterOut.test(t.name))
                   .map((t) => ({
@@ -1508,7 +1471,7 @@ export default function HomePage() {
                 };
               });
           },
-        }, { memberGroups: true, merge: mergeLists });
+        }, { everyGroup: true, merge: mergeLists });
       }
       // Only fetch teams where user is coach or team_admin (direct team edit access)
       const { data: userRoles, error: rolesError } = await supabase
@@ -1656,7 +1619,7 @@ export default function HomePage() {
                 };
               });
           },
-        }, { memberGroups: true, merge: mergeLists });
+        }, { everyGroup: true, merge: mergeLists });
       }
       // Get user's roles
       const { data: userRoles, error: rolesError } = await supabase
@@ -1835,7 +1798,7 @@ export default function HomePage() {
         return withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
-            const [team] = await getLiveTeam(ctx, teamId);
+            const team = await getLiveTeam(ctx, teamId).catch(() => null);
             return resolveLiveProFootballAccess(ctx, { teamId, clubId: team?.club_id ?? null });
           },
         }, { teamId: teamId! });
@@ -1860,7 +1823,6 @@ export default function HomePage() {
       return !!clubSubscription?.is_pro_football;
     },
     loadRoster: async (teamId) => {
-      if (resolveAuthBackend() === 'icp') return readIcpPitchRoster(teamId);
       const [membersResult, childrenResult] = await Promise.all([
         supabase
           .from("user_roles")
@@ -1876,7 +1838,14 @@ export default function HomePage() {
       };
     },
     findNearbyEvent: findNearbyGameEvent,
-    loadGoingRsvps: readGoingGameRsvps,
+    loadGoingRsvps: async (eventId) => {
+      const { data } = await supabase
+        .from("rsvps")
+        .select("user_id, child_id")
+        .eq("event_id", eventId)
+        .eq("status", "going");
+      return data || [];
+    },
   });
 
 
@@ -1886,24 +1855,8 @@ export default function HomePage() {
   // Fetch children on the selected team for parent linking
   const showChildLinker = !isLeagueSelected && selectedTeam && selectedTeamRole === "parent";
   const { data: teamChildren } = useQuery({
-    queryKey: ["team-children-for-link", selectedTeam, user?.id, resolveAuthBackend()],
+    queryKey: ["team-children-for-link", selectedTeam],
     queryFn: async () => {
-      if (resolveAuthBackend() === "icp") {
-        // ICP: offer the parent's own children (decrypted names), not the old database.
-        const [{ icpCtx }, club, vault] = await Promise.all([
-          import("@/lib/icpClubTeamLookup"),
-          import("@/live/features/club"),
-          import("@/live/features/vault"),
-        ]);
-        const ctx = await icpCtx();
-        const rows = (await club.listMyLiveOwnChildren(ctx)) as Array<{ id: string }>;
-        const names = await vault
-          .resolveLivePiiTextBatch(ctx, rows.map((r) => r.id), "name", "read", "join_team")
-          .catch(() => new Map<string, string>());
-        return rows
-          .map((r) => ({ id: r.id, name: names.get(r.id)?.trim() || "Child" }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-      }
       const [{ data: assignedData, error: assignedError }, { data: pendingInvites, error: pendingError }] = await Promise.all([
         supabase
           .from("child_team_assignments")
@@ -1955,7 +1908,7 @@ export default function HomePage() {
 
       return Array.from(childrenMap.values()).sort((a, b) => a.name.localeCompare(b.name));
     },
-    enabled: !!showChildLinker,
+    enabled: !!showChildLinker && resolveAuthBackend() !== "icp",
   });
 
   // Check if user already has the SPECIFIC role they're requesting in the selected team/league
@@ -1978,34 +1931,8 @@ export default function HomePage() {
 
   // Pending elevated-access requests so buttons reflect state instead of re-submitting.
   const { data: pendingTeamRequests } = useQuery({
-    queryKey: ["pending-role-requests-for-team", user?.id, selectedTeam, resolveAuthBackend()],
+    queryKey: ["pending-role-requests-for-team", user?.id, selectedTeam],
     queryFn: async () => {
-      // ICP has no caller-own request list; never fall back to the old database.
-      // Requests sent this session are remembered in the cache (see onSuccess).
-      if (resolveAuthBackend() === "icp") {
-        const sessionKnown = queryClient.getQueryData<TeamRole[]>(["pending-role-requests-for-team", user?.id, selectedTeam, "icp"]) ?? [];
-        const team = teams?.find((t) => t.id === selectedTeam);
-        if (!team?.club_id) return sessionKnown;
-        const strip = (v: string) => v.replace(/^(icp:|ii:)/, "").trim().toLowerCase();
-        const me = strip(String(user!.id));
-        try {
-          // Club admins can read the club's request list on-chain; keep only
-          // this account's pending requests for the selected team.
-          const rows = await withFeatureBackend("membership", {
-            supabase: async () => [] as any[],
-            icp: (ctx) => listLiveRoleRequests(ctx, team.club_id),
-          }, { clubId: team.club_id });
-          const mine = (rows as any[]).filter((r) => {
-            const who = strip(String(r?.user?.toText?.() ?? r?.user ?? r?.account_id ?? ""));
-            const teamId = Array.isArray(r?.team) ? r.team[0] : r?.team;
-            return who === me && teamId === selectedTeam && String(r?.status).toLowerCase() === "pending";
-          }).map((r) => r.role as TeamRole);
-          return Array.from(new Set([...sessionKnown, ...mine]));
-        } catch {
-          // Non-admins cannot list club requests; fall back to this session's record.
-          return sessionKnown;
-        }
-      }
       const { data, error } = await supabase
         .from("role_requests")
         .select("role")
@@ -2156,11 +2083,7 @@ export default function HomePage() {
         title: "Request sent",
         description: `Your ${teamRoleLabel(role)} access request has been sent to the team admins.`,
       });
-      if (resolveAuthBackend() === "icp") {
-        queryClient.setQueryData<TeamRole[]>(["pending-role-requests-for-team", user?.id, selectedTeam, "icp"], (prev) => Array.from(new Set([...(prev ?? []), role])));
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["pending-role-requests-for-team", user?.id, selectedTeam] });
-      }
+      queryClient.invalidateQueries({ queryKey: ["pending-role-requests-for-team", user?.id, selectedTeam] });
       queryClient.invalidateQueries({ queryKey: ["role-requests"] });
     },
     onError: (error: Error) => {
@@ -2172,9 +2095,7 @@ export default function HomePage() {
   // This prevents the "double flash" issue on login where the page loads, then shows loading, then loads again
 
   const activeClubName = userClubs?.find((c: any) => c.id === activeClubFilter)?.name || clubs?.find(c => c.id === activeClubFilter)?.name;
-  // While an ICP profile's encrypted name is still unlocking, display_name is
-  // a "…" placeholder — render the greeting without a name until it resolves.
-  const firstName = profileNamePending ? '' : profile?.display_name?.split(' ')[0] || 'there';
+  const firstName = profile?.display_name?.split(' ')[0] || 'there';
 
   // Gate first paint of the widget area on the primary memberships query so
   // every widget mounts together and fades in as a single, cohesive surface
@@ -2184,7 +2105,7 @@ export default function HomePage() {
   // old empty event list made <NextUpCarousel /> return null, so My Teams painted
   // high on the page and was pushed down when Next Up arrived. Keep the unified
   // Home skeleton in place while an empty Next Up result is actively refetching.
-  const waitingForNextUpResolution = !membershipAndEvents && isFetching;
+  const waitingForNextUpResolution = events.length === 0 && isFetching;
 
   // Coordinate first paint of Next Up + My Teams so both fade in together.
   // Both widgets are mounted behind the unified skeleton and only revealed once
@@ -2210,7 +2131,7 @@ export default function HomePage() {
     ? (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution
     : readyNextUpSignature === nextUpEventSignature;
   const myTeamsReady = readyMyTeamsTarget === myTeamsReadyTarget;
-  const computedShowContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution;
+  const computedShowContent = initialized && (isFetched || !!membershipAndEvents) && !isLoading && !waitingForNextUpResolution && nextUpSectionReady && myTeamsReady;
   // Latch so we never re-hide the page back to the unified skeleton after the
   // first synchronized reveal — otherwise a later refetch on one section
   // (events array reference changes → NextUp re-checks first hero) would yank
@@ -2240,9 +2161,7 @@ export default function HomePage() {
   // ICP reads are slow on cold start; when we already have a last-seen
   // snapshot, show it immediately instead of waiting for every section.
   const icpCachedReveal = resolveAuthBackend() === "icp" && initialized && (!!nextUpCachedSnapshot || events.length > 0);
-  // ICP sections have their own loading states: don't hide My Teams while
-  // Next Up resolves photo ownership (or vice versa).
-  const showContent = (resolveAuthBackend() === "icp" && initialized) || computedShowContent || hasRevealed || revealTimedOut || icpCachedReveal;
+  const showContent = computedShowContent || hasRevealed || revealTimedOut || icpCachedReveal;
 
   // Empty-state gate: only show the "Find or Join a Club" welcome once we
   // authoritatively know the user has zero clubs AND zero teams. The
@@ -2322,7 +2241,6 @@ export default function HomePage() {
     <div className="py-6 space-y-5">
       <HomeDashboardOverview
         firstName={firstName}
-        namePending={profileNamePending}
         email={user?.email}
         activeClubName={activeClubName}
         activeClubFilter={activeClubFilter}
@@ -2403,11 +2321,6 @@ export default function HomePage() {
               rewardsDialogOpen,
               selectedRewardClubId,
               rewardsLoading,
-              rewardsError,
-              onRetryRewards: () => void retryRewards(),
-              rewardClubsLoading: rewardClubsPending,
-              rewardClubsError,
-              onRetryRewardClubs: () => void retryRewardClubs(),
               availableRewards,
               rewardClubs,
               isAppAdmin,

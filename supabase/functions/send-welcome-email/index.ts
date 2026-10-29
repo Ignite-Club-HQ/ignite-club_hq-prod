@@ -98,9 +98,7 @@ Deno.serve(async (request: Request) => {
       return json({ error: "Invalid welcome email request" }, 400);
     }
 
-    // Service-role only RPC: the caller's session and recipientUserId match
-    // were verified above, so the admin client may perform the check.
-    const { data: eligible, error: eligibilityError } = await admin.rpc("is_welcome_email_recipient", {
+    const { data: eligible, error: eligibilityError } = await userClient.rpc("is_welcome_email_recipient", {
       _scope_kind: scopeKind,
       _scope_id: scopeId,
       _recipient_user_id: recipientUserId,

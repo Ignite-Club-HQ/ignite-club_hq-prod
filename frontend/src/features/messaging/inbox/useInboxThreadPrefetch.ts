@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import { buildInboxPrefetchJobs } from "./inboxPrefetch";
-import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 
 interface InboxDataClient {
   from: (table: string) => any;
@@ -31,31 +30,22 @@ export function useInboxThreadPrefetch({
   isNativeRuntime,
 }: UseInboxThreadPrefetchOptions) {
   useEffect(() => {
-    if (!enabled || isNativeRuntime() || isFeatureRoutedToIcp("messaging")) return;
+    if (!enabled || isNativeRuntime()) return;
 
     let cancelled = false;
     let idleHandle: number | null = null;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     const prefetchAll = () => {
-      if (cancelled || isFeatureRoutedToIcp("messaging")) return;
+      if (cancelled) return;
       const jobs = buildInboxPrefetchJobs({ teamIds, clubIds, groupIds, cap });
       jobs.forEach((job) => {
         if (cancelled) return;
         queryClient.prefetchQuery({
           queryKey: job.queryKey,
           queryFn: async () => {
-            // A queued prefetch can outlive its page or provider. Never read
-            // legacy tables (or cache an empty result) after switching to ICP.
-            if (cancelled || isFeatureRoutedToIcp("messaging")) {
-              throw new Error("Inbox prefetch retired");
-            }
             let query = client.from(job.table).select(job.select);
             if (job.scope) query = query.eq(job.scope.column, job.scope.value);
-            const { data, error } = await query.order("created_at", { ascending: false }).limit(messagesPerPage + 1);
-            if (error) throw error;
-            if (cancelled || isFeatureRoutedToIcp("messaging")) {
-              throw new Error("Inbox prefetch retired");
-            }
+            const { data } = await query.order("created_at", { ascending: false }).limit(messagesPerPage + 1);
             if (!data?.length) return { messages: [], hasOlderMessages: false };
             const hasOlderMessages = data.length > messagesPerPage;
             return {
@@ -64,7 +54,6 @@ export function useInboxThreadPrefetch({
             };
           },
           staleTime: 60_000,
-          retry: false,
         });
       });
     };

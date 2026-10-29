@@ -9,9 +9,6 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Search, UserPlus, Mail } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { resolveAuthBackend } from "@/live/authBackendMode";
-import { withFeatureBackend } from "@/live/featureRouter";
 
 interface AssignTeamAdminSectionProps {
   clubId: string;
@@ -34,8 +31,6 @@ export function AssignTeamAdminSection({
   teamName,
   onAssignmentChange 
 }: AssignTeamAdminSectionProps) {
-  const { user } = useAuth();
-  const backend = resolveAuthBackend();
   const [assignOther, setAssignOther] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<{ id: string; display_name: string; avatar_url: string | null } | null>(null);
@@ -44,28 +39,10 @@ export function AssignTeamAdminSection({
   const [inviteEmail, setInviteEmail] = useState("");
 
   // Fetch club members who could become team admins
-  const { data: clubMembers = [], error: membersError } = useQuery({
-    queryKey: ['club-members-for-admin', backend, user?.id, clubId, teamId, searchQuery],
+  const { data: clubMembers = [] } = useQuery({
+    queryKey: ['club-members-for-admin', clubId, searchQuery],
     queryFn: async () => {
       if (!searchQuery.trim()) return [];
-      return withFeatureBackend("membership", {
-        icp: async ctx => {
-          const [{ listLiveRoleGrants, listLiveTeamRoleGrants, getLiveMyRoleGrants }, { listLiveProfilesByIds }] = await Promise.all([
-            import("@/live/features/membership"), import("@/live/features/identityAccessClient"),
-          ]);
-          const mine = await getLiveMyRoleGrants(ctx);
-          const isAdmin = mine.some(role => role.role === "app_admin" || (role.role === "club_admin" && role.club[0] === clubId));
-          const roles = teamId ? await listLiveTeamRoleGrants(ctx, teamId) : isAdmin ? await listLiveRoleGrants(ctx, clubId) : await (async () => {
-            const { listLiveTeams } = await import("@/live/features/club");
-            const teams = await listLiveTeams(ctx, clubId);
-            return (await Promise.all(teams.map(team => listLiveTeamRoleGrants(ctx, team.id)))).flat();
-          })();
-          const ids = [...new Set(roles.map(role => role.account_id))];
-          const profiles = await listLiveProfilesByIds(ctx, ids, { clubId });
-          return profiles.filter(p => p.display_name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-            .map(p => ({ id: p.account_id, display_name: p.display_name, avatar_url: p.avatar_ref ?? null }));
-        },
-        supabase: async () => {
       
       // Get all users who have any role in this club (directly or via teams)
       const { data: directMembers } = await supabase
@@ -107,8 +84,6 @@ export function AssignTeamAdminSection({
       });
 
       return Array.from(memberMap.values());
-        },
-      }, { clubId });
     },
     enabled: assignOther && searchQuery.length >= 2,
   });
@@ -296,8 +271,7 @@ export function AssignTeamAdminSection({
             </div>
           )}
 
-          {membersError && <p role="alert" className="text-sm text-destructive">Could not load members. Try your search again.</p>}
-          {searchQuery.length >= 2 && clubMembers.length === 0 && !membersError && (
+          {searchQuery.length >= 2 && clubMembers.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-2">
               No members found matching "{searchQuery}"
             </p>

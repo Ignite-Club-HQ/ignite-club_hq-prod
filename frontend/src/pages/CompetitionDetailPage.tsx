@@ -21,15 +21,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
-import { registerLiveCompetitionTeam, isLiveCompetitionAdmin } from "@/live/features/competitions";
+import { registerLiveCompetitionTeam, isLiveCompetitionAdmin, assignLiveDivision } from "@/live/features/competitions";
 import { ensureLiveCompetitionAdminThread } from "@/live/features/messaging";
 import { createLiveShellTeamInvite } from "@/live/features/membership";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { CompetitionFixturesPanel, CompetitionLadderPanel } from "@/components/CompetitionFixturesPanel";
 import CompetitionPlayerStatsPanel from "@/components/competitions/CompetitionPlayerStatsPanel";
 import { CreateCompetitionEventButton } from "@/components/competitions/CreateCompetitionEventButton";
-import { CompetitionEventsList } from "@/components/competitions/CompetitionEventsList";
-import { CompetitionWelcomeMessage } from "@/components/competitions/CompetitionWelcomeMessage";
 import { CompetitionShareJoinLink } from "@/components/CompetitionShareJoinLink";
 import { useClubProAccess } from "@/hooks/useClubProAccess";
 import { ProFeatureLock } from "@/components/subscription/ProFeatureLock";
@@ -288,8 +286,6 @@ function SupabaseCompetitionDetailPage() {
         const comps = (await listLiveCompetitionsMulti(ctx, clubs.map((c: any) => c.id))) as any[];
         const found = comps.find((c) => c.id === id);
         if (!found) return null;
-        const { readIcpAssociationPlayhq } = await import("@/lib/associationPlayhqRepository");
-        const linked = (await readIcpAssociationPlayhq(found.club_id)).find(c => c.id === found.id);
         const clubName = await icpGetClubName(found.club_id).catch(() => null);
         return {
           id: found.id,
@@ -300,11 +296,7 @@ function SupabaseCompetitionDetailPage() {
           points_win: Number(found.points_win ?? 3),
           points_draw: Number(found.points_draw ?? 1),
           points_loss: Number(found.points_loss ?? 0),
-          source: linked ? "playhq" : "icp",
-          sport: linked?.sport ?? null,
-          external_tenant: linked?.external_tenant ?? null,
-          external_id: linked?.external_id ?? null,
-          last_synced_at: linked?.last_synced_at ?? null,
+          source: "icp",
           clubs: { id: found.club_id, name: clubName, kind: null },
         };
       }
@@ -342,7 +334,7 @@ function SupabaseCompetitionDetailPage() {
       if (!id || !user?.id) throw new Error("Sign in to contact competition admins.");
       return withFeatureBackend("messaging", {
         supabase: async () => {
-          const { data, error } = await (supabase as any).rpc("get_or_create_competition_admin_chat", { p_competition_id: id });
+          const { data, error } = await supabase.rpc("ensure_competition_admin_thread", { _competition_id: id });
           if (error) throw error;
           return data;
         },
@@ -675,9 +667,6 @@ function SupabaseCompetitionDetailPage() {
         />
       )}
 
-      {competition.status !== "draft" && <><CompetitionWelcomeMessage competitionId={id ?? ""} /><CompetitionEventsList competitionId={id!} /></>}
-
-
       {isAdmin && !organizerHasPro && !proLoading && organizerClubId && (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
           <Crown className="h-5 w-5 text-primary mt-0.5 shrink-0" />
@@ -723,7 +712,7 @@ function SupabaseCompetitionDetailPage() {
         </TabsList>
 
         <TabsContent value="fixtures" className="space-y-2">
-          <CompetitionFixturesPanel competitionId={id!} isAdmin={canManage} divisions={divisions} entries={entries} source={competition.source} competitionStatus={competition.status} />
+          <CompetitionFixturesPanel competitionId={id!} isAdmin={canManage} divisions={divisions} entries={entries} source={competition.source} />
         </TabsContent>
 
         {canViewLadder && (
@@ -963,24 +952,11 @@ function TeamsByDivision({
       : "Unassigned";
     const divFilter = [entry.division_id, divisionId].filter(Boolean) as string[];
 
-    // Count through the owning competition; do not infer absence on failure.
+    // ICP mode has no competition_matches table to check for affected
+    // fixtures, so assign directly through the canister without the
+    // Supabase move-confirmation flow.
     if (resolveAuthBackend() === "icp") {
-      try {
-        const rows = await withFeatureBackend("competitions", {
-          supabase: async () => [],
-          icp: async ctx => (await import("@/live/features/competitions")).listLiveCompetitionMatches(ctx, competitionId),
-        }, { competitionId });
-        const affected = rows.filter(m => (m.home_team === entry.team_id || m.away_team === entry.team_id) &&
-          (divFilter.length === 0 || (m.division_id[0] != null && divFilter.includes(m.division_id[0]))));
-        if (!affected.length) await doAssignDivision(entry.id, divisionId, false, entry.team_id, divFilter);
-        else {
-          setClearFixtures(true);
-          setMoveConfirm({ entryId: entry.id, teamId: entry.team_id, teamName: entry.teams?.name ?? "Team",
-            fromDivisionId: entry.division_id ?? null, toDivisionId: divisionId, toName, affectedMatchCount: affected.length });
-        }
-      } catch (error) {
-        toast({ title: "Could not check fixtures", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
-      }
+      await doAssignDivision(entry.id, divisionId, false, entry.team_id, divFilter);
       return;
     }
 
@@ -1021,7 +997,6 @@ function TeamsByDivision({
     affectedDivisionIds: string[] = [],
   ) => {
     setSavingId(entryId);
-    let cleared = false;
     try {
       await withFeatureBackend("competitions", {
         supabase: async () => {
@@ -1033,11 +1008,7 @@ function TeamsByDivision({
         },
         icp: async (ctx) => {
           if (!teamId) throw new Error("Team id is required to assign a division");
-          const current = entries.find((e: any) => e.team_id === teamId);
-          if (!current) throw new Error("Team entry changed; refresh before moving");
-          const { moveLiveTeamDivision } = await import("@/live/features/competitions");
-          const count = await moveLiveTeamDivision(ctx, competitionId, teamId, current.division_id ?? null, divisionId, alsoClear);
-          cleared = alsoClear && count > 0;
+          await assignLiveDivision(ctx, competitionId, teamId, divisionId);
         },
       }, writeOnce({ competitionId }));
     } catch (error: any) {
@@ -1045,7 +1016,8 @@ function TeamsByDivision({
       toast({ title: "Could not move team", description: error?.message, variant: "destructive" });
       return;
     }
-    if (resolveAuthBackend() !== "icp" && alsoClear && teamId) {
+    let cleared = false;
+    if (alsoClear && teamId) {
       // IMPORTANT: never delete completed matches — those carry the team's
       // points/results which now follow them to the new division via the
       // competition_ladder view. Only clear scheduled/pending fixtures.
@@ -1269,17 +1241,43 @@ function TeamsByDivision({
     </div>
   );
 }
-// The trusted competition service resolves and queues the audience per club.
-async function sendIcpCompetitionBroadcast(competitionId: string, competitionName: string, message: string, divisionIds: Set<string>, operation: string): Promise<number> {
-  return withFeatureBackend("competitions", {
-    supabase: async () => { throw new Error("ICP competition required"); },
-    icp: async ctx => {
-      const { connectLiveCompetitionDomain } = await import("@/live/domains");
-      const { unwrapCandid } = await import("@/live/features/candid");
-      const { actor } = await connectLiveCompetitionDomain(ctx.target, ctx.identity);
-      return Number(await unwrapCandid(actor.queue_competition_broadcast(operation, competitionId, [...divisionIds].sort(), competitionName.slice(0, 200), message), "Queue competition broadcast"));
-    },
-  }, { competitionId, writeKey: operation, attempts: 1 });
+// ICP broadcast: logs on competition_domain, then fans out an in-app/push
+// notification to every member of the accepted (optionally division-limited)
+// teams through notification_queue. Recipient ids are principal text.
+async function sendIcpCompetitionBroadcast(competitionId: string, competitionName: string, message: string, divisionIds: Set<string>): Promise<number> {
+  const [{ icpCtx }, comps, { listLiveTeamRoleGrants }, { fanOutLiveNotifications }] = await Promise.all([
+    import("@/lib/icpClubTeamLookup"),
+    import("@/live/features/competitions"),
+    import("@/live/features/membership"),
+    import("@/live/features/notifications"),
+  ]);
+  const ctx = await icpCtx();
+  const entries = await comps.listLiveCompetitionEntries(ctx, competitionId);
+  const teams = entries.filter((e: any) => {
+    if (e.status !== "accepted" && e.status !== "registered") return false;
+    if (divisionIds.size === 0) return true;
+    const div = Array.isArray(e.division_id) ? e.division_id[0] : e.division_id;
+    return !!div && divisionIds.has(div);
+  });
+  const sent = await comps.sendLiveCompetitionBroadcast(ctx, competitionId, JSON.stringify({ teams: teams.length }), message);
+  const recipients = new Set<string>();
+  for (const t of teams) {
+    try {
+      const grants = await listLiveTeamRoleGrants(ctx, t.team_id);
+      grants.forEach((g: any) => recipients.add(g.user.toText()));
+    } catch (e) { console.warn("[broadcast] roster read failed", t.team_id, e); }
+  }
+  if (recipients.size > 0) {
+    await fanOutLiveNotifications(ctx, {
+      userIds: Array.from(recipients),
+      clubId: teams[0]?.club_id ?? "",
+      kind: "competition_broadcast",
+      body: `${competitionName}: ${message}`.slice(0, 1000),
+      idempotencyKeyPrefix: sent.id,
+      relatedId: competitionId,
+    });
+  }
+  return teams.length;
 }
 
 function BroadcastsHeaderBadge({ competitionId }: { competitionId: string }) {
@@ -1287,13 +1285,8 @@ function BroadcastsHeaderBadge({ competitionId }: { competitionId: string }) {
     queryKey: ["competition-broadcasts-count", competitionId],
     queryFn: async () => {
       if (resolveAuthBackend() === "icp") {
-        return withFeatureBackend("competitions", {
-          supabase: async () => 0,
-          icp: async ctx => {
-            const { listLiveCompetitionBroadcasts } = await import("@/live/features/competitions");
-            return (await listLiveCompetitionBroadcasts(ctx, competitionId)).length;
-          },
-        }, { competitionId });
+        const [{ icpCtx }, { listLiveCompetitionBroadcasts }] = await Promise.all([import("@/lib/icpClubTeamLookup"), import("@/live/features/competitions")]);
+        return (await listLiveCompetitionBroadcasts(await icpCtx(), competitionId)).length;
       }
       const { count } = await supabase
         .from("competition_broadcasts")
@@ -1333,7 +1326,6 @@ function BroadcastsPanel({ competitionId, competitionName, divisions, acceptedTe
   const [selectedDivisionIds, setSelectedDivisionIds] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
-  const [pendingBroadcast, setPendingBroadcast] = useState<{ operation: string; payload: string } | null>(null);
   const [showDivisions, setShowDivisions] = useState(false);
 
   const MAX_LEN = 1000;
@@ -1342,10 +1334,8 @@ function BroadcastsPanel({ competitionId, competitionName, divisions, acceptedTe
     queryKey: ["competition-broadcasts", competitionId],
     queryFn: async () => {
       if (resolveAuthBackend() === "icp") {
-        const rows = await withFeatureBackend("competitions", {
-          supabase: async () => [],
-          icp: async ctx => (await import("@/live/features/competitions")).listLiveCompetitionBroadcasts(ctx, competitionId),
-        }, { competitionId });
+        const [{ icpCtx }, { listLiveCompetitionBroadcasts }] = await Promise.all([import("@/lib/icpClubTeamLookup"), import("@/live/features/competitions")]);
+        const rows = await listLiveCompetitionBroadcasts(await icpCtx(), competitionId);
         return rows.slice(0, 20).map((b: any) => {
           const meta = (() => { try { return JSON.parse(b.title); } catch { return {}; } })();
           return { id: b.id, message: b.body, created_at: new Date(Number(b.created_at_ms)).toISOString(), recipient_team_count: Number(meta.teams ?? 0) };
@@ -1385,14 +1375,9 @@ function BroadcastsPanel({ competitionId, competitionName, divisions, acceptedTe
     setSending(true);
     if (resolveAuthBackend() === "icp") {
       try {
-        const payload = JSON.stringify([competitionId, competitionName, message.trim(), [...selectedDivisionIds].sort()]);
-        if (pendingBroadcast && pendingBroadcast.payload !== payload) throw new Error("Retry the original broadcast before sending a different message.");
-        const operation = pendingBroadcast?.operation ?? crypto.randomUUID();
-        setPendingBroadcast({ operation, payload });
-        const count = await sendIcpCompetitionBroadcast(competitionId, competitionName, message.trim(), selectedDivisionIds, operation);
-        setPendingBroadcast(null);
+        const count = await sendIcpCompetitionBroadcast(competitionId, competitionName, message.trim(), selectedDivisionIds);
         try { (navigator as any).vibrate?.(15); } catch {}
-        toast({ title: `Broadcast queued for ${count} recipient${count === 1 ? "" : "s"}` });
+        toast({ title: `Broadcast sent to ${count} team${count === 1 ? "" : "s"}` });
         setMessage("");
         setActiveTemplate(null);
         setSelectedDivisionIds(new Set());
@@ -1419,7 +1404,7 @@ function BroadcastsPanel({ competitionId, competitionName, divisions, acceptedTe
     }
     const count = (data as any).recipient_team_count;
     try { (navigator as any).vibrate?.(15); } catch {}
-    toast({ title: `Broadcast queued for ${count} recipient${count === 1 ? "" : "s"}` });
+    toast({ title: `Broadcast sent to ${count} team${count === 1 ? "" : "s"}` });
     setMessage("");
     setActiveTemplate(null);
     setSelectedDivisionIds(new Set());
@@ -1640,36 +1625,9 @@ function InviteTeamForm({ competitionId, organizerClubId, divisions, defaultOpen
   const [newClubName, setNewClubName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
-  const [customMessage, setCustomMessage] = useState("");
-  const [messageTouched, setMessageTouched] = useState(false);
   // ICP branch only: the canister has no email delivery, so the claim link
   // is surfaced here for manual copy/paste instead of being emailed.
   const [icpClaimLink, setIcpClaimLink] = useState<string | null>(null);
-
-  // Pre-fill the personal note with the competition's saved default
-  // (Supabase only — the canister has no saved invite message).
-  const { data: savedInviteMessage } = useQuery({
-    queryKey: ["competition-invite-message", competitionId],
-    enabled: open,
-    queryFn: async () => {
-      if(isIcp)return withFeatureBackend("competitions",{supabase:async()=>"",icp:async ctx=>{
-        const {getLiveCompetitionWelcomeEmail}=await import("@/live/features/competitions");
-        return (await getLiveCompetitionWelcomeEmail(ctx,competitionId)).message;
-      }},{competitionId});
-      const { data } = await supabase
-        .from("competitions")
-        .select("invite_email_message")
-        .eq("id", competitionId)
-        .maybeSingle();
-      return ((data as any)?.invite_email_message ?? "") as string;
-    },
-  });
-
-  useEffect(() => {
-    if (!messageTouched && typeof savedInviteMessage === "string") {
-      setCustomMessage(savedInviteMessage);
-    }
-  }, [savedInviteMessage, messageTouched]);
 
   const { data: clubs = [] } = useQuery({
     queryKey: ["clubs-for-team-invite", clubSearch, isIcp],
@@ -1791,7 +1749,6 @@ function InviteTeamForm({ competitionId, organizerClubId, divisions, defaultOpen
                   clubName: newClubName.trim() || tName,
                   roleName: "Team Admin",
                   inviteLink: claimLink,
-                  customMessage: customMessage.trim() || undefined,
                 },
               },
             });
@@ -1974,18 +1931,6 @@ function InviteTeamForm({ competitionId, organizerClubId, divisions, defaultOpen
                 <Input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="redacted@example.invalid" />
                 <p className="text-[11px] text-muted-foreground">This person will receive the invite and become the first team admin when they claim it.</p>
               </div>
-              {!isIcp && (
-                <div className="space-y-1.5">
-                  <Label>Personal message (optional)</Label>
-                  <Textarea
-                    value={customMessage}
-                    onChange={(e) => { setCustomMessage(e.target.value.slice(0, 500)); setMessageTouched(true); }}
-                    rows={3}
-                    placeholder="Add a short note to this invite email"
-                  />
-                  <p className="text-[11px] text-muted-foreground">{customMessage.length}/500 — the competition's saved message is filled in here, and you can change it for this invite.</p>
-                </div>
-              )}
               {icpClaimLink && (
                 <div className="space-y-1.5">
                   <Label>Claim link</Label>

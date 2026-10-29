@@ -1,1 +1,0 @@
-ALTER TABLE public.team_subscriptions ADD COLUMN IF NOT EXISTS max_spread_minutes integer NOT NULL DEFAULT 5;

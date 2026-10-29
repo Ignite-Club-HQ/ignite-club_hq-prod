@@ -36,10 +36,6 @@ interface ChatMediaViewerProps {
   chatType: ChatSharedMediaType;
   chatId: string | undefined;
   title?: string;
-  clubId?: string;
-  teamId?: string;
-  miniLeagueId?: string;
-  competitionId?: string;
 }
 
 type TabKey = "photos" | "files" | "links" | "all";
@@ -57,16 +53,11 @@ export function ChatMediaViewer({
   chatType,
   chatId,
   title = "Shared in Chat",
-  clubId,
-  teamId,
-  miniLeagueId,
-  competitionId,
 }: ChatMediaViewerProps) {
   const navigate = useNavigate();
   const { data: items = [], isLoading } = useChatSharedMedia(chatType, chatId, {
     limit: 200,
     enabled: open,
-    clubId, teamId, miniLeagueId, competitionId,
   });
   const [tab, setTab] = useState<TabKey>("photos");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);

@@ -47,18 +47,13 @@ syncCanisterIds();
 const FALLBACK_GOOGLE_MAPS_BROWSER_KEY = "AIzaSyBmvJph4LmrbtW7skeczzpBIyb9WWzFKo4";
 process.env.IGNITE_LIVE_GOOGLE_MAPS_BROWSER_KEY ||= process.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY || FALLBACK_GOOGLE_MAPS_BROWSER_KEY;
 process.env.IGNITE_LIVE_GIPHY_API_KEY ||= process.env.GIPHY_API_KEY || "";
-// Protected personal names are stored encrypted under each club's key. The
-// display release is live on mainnet for every group, so the published app
-// must ask the canisters for those names; an explicit 0 in .env still turns
-// them off.
-process.env.IGNITE_LIVE_PRIVATE_CLUB_NAME_DISPLAYS ||= "1";
 
 // Last-resort fallback: the connected project's public URL and anon key.
 // Both are browser-safe (the anon key ships in the client bundle anyway) and
 // are only used when neither the environment nor .env provides the values.
-const FALLBACK_SUPABASE_URL = "https://cdrxmelhysdqrccttsjg.supabase.co";
+const FALLBACK_SUPABASE_URL = "https://ecsdwrarzfexssxtrymj.supabase.co";
 const FALLBACK_SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkcnhtZWxoeXNkcXJjY3R0c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NzIxMTMsImV4cCI6MjEwNjE0ODExM30.vRVXXZuoh-9VliT7vt6lw2nANooLwlgOeyfBTFLQjXw";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0";
 
 const supabaseUrl =
   process.env.IGNITE_LIVE_SUPABASE_URL ||

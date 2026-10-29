@@ -311,7 +311,6 @@ export function EventOverviewSection({
         return (
           <GoogleMapEmbed
             address={mapAddress}
-            loading="eager"
             className="w-full h-48 rounded-lg border"
           />
         );

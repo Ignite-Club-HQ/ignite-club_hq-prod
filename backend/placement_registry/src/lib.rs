@@ -11,25 +11,6 @@ use std::cell::RefCell;
 #[path = "placementPolicy.rs"]
 mod placement_policy;
 
-const PRIVATE_NAME_WRITER_MEMORY: u8 = 12;
-#[path = "../../shared/private_name_writer_window.rs"]
-mod private_name_writer_window;
-use private_name_writer_window::{WriterRequest, WriterReceipt};
-#[ic_cdk::update]
-fn freeze_private_name_preparation(request: WriterRequest) -> Result<(), String> { private_name_writer_window::freeze(request) }
-#[ic_cdk::update]
-fn read_private_name_preparation(request: WriterRequest) -> Result<WriterReceipt, String> { private_name_writer_window::preparation_receipt(request) }
-#[ic_cdk::update]
-fn activate_private_name_preparation(request: WriterRequest) -> Result<(), String> { private_name_writer_window::activate_preparation(request) }
-#[ic_cdk::update]
-fn finish_private_name_preparation(request: WriterRequest) -> Result<(), String> { private_name_writer_window::finish_preparation(request) }
-#[ic_cdk::update]
-fn open_private_name_writer_window(_request: WriterRequest) -> Result<(), String> { Err("Topology writes remain closed during private-name rehearsal".into()) }
-#[ic_cdk::update]
-fn seal_private_name_writer_window(request: WriterRequest) -> Result<(), String> { private_name_writer_window::seal(request) }
-#[ic_cdk::update]
-fn read_private_name_writer_window(request: WriterRequest) -> Result<WriterReceipt, String> { private_name_writer_window::receipt(request) }
-
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 type Outcome<T> = Result<T, String>;
 const MAX_ID: usize = 64;
@@ -595,8 +576,6 @@ fn get_operator(principal: Principal) -> Outcome<Option<Operator>> {
 
 #[ic_cdk::update]
 fn grant_operator(principal: Principal, roles: Vec<OperatorRole>) -> Outcome<Operator> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_governor()?;
     if principal == Principal::anonymous() {
         return Err("Invalid operator".into());
@@ -617,8 +596,6 @@ fn grant_operator(principal: Principal, roles: Vec<OperatorRole>) -> Outcome<Ope
 
 #[ic_cdk::update]
 fn revoke_operator(principal: Principal) -> Outcome<()> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_governor()?;
     OPERATORS.with(|items| items.borrow_mut().remove(&principal.as_slice().to_vec()));
     audit("revoke_operator", None, format!("principal={principal}"));
@@ -631,8 +608,6 @@ fn set_site_availability(
     enabled: bool,
     expected_version: u64,
 ) -> Outcome<SiteAvailability> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_operator(OperatorRole::InfrastructureAdmin)?;
     validate_id(&site_id)?;
     if current_version() != expected_version {
@@ -667,8 +642,6 @@ fn set_target(
     enabled: bool,
     expected_version: u64,
 ) -> Outcome<Target> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_operator(OperatorRole::InfrastructureAdmin)?;
     validate_id(&alias)?;
     if let Some(ref s) = site_id {
@@ -707,8 +680,6 @@ fn set_target(
 
 #[ic_cdk::update]
 fn set_target_health(alias: String, healthy: bool, expected_version: u64) -> Outcome<Target> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_operator(OperatorRole::InfrastructureAdmin)?;
     let mut target = target_for(&alias).ok_or("Target not registered")?;
     if current_version() != expected_version {
@@ -736,8 +707,6 @@ fn set_residency_policy(
     allowed_profiles: Vec<String>,
     expected_version: u64,
 ) -> Outcome<ResidencyPolicy> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_operator(OperatorRole::SecurityAdmin)?;
     validate_country(&country)?;
     validate_residency_profiles(&allowed_profiles)?;
@@ -772,8 +741,6 @@ fn set_residency(
     target_alias: String,
     expected_version: u64,
 ) -> Outcome<ResidencyAssignment> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_operator(OperatorRole::PlacementAdmin)?;
     validate_id(&club_id)?;
     validate_id(&profile)?;
@@ -837,8 +804,6 @@ fn set_placement(
     backend: Backend,
     expected_version: u64,
 ) -> Outcome<Placement> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_operator(OperatorRole::PlacementAdmin)?;
     validate_id(&club_id)?;
     validate_country(&country)?;
@@ -891,8 +856,6 @@ fn set_placement(
 
 #[ic_cdk::update]
 fn set_state(club_id: String, state: PlacementState, expected_version: u64) -> Outcome<Placement> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_operator(OperatorRole::MigrationOperator)?;
     let mut placement = placement_for(&club_id).ok_or("Club has no placement")?;
     if current_version() != expected_version {
@@ -922,8 +885,6 @@ fn set_policy(
     icp_enabled: bool,
     expected_version: u64,
 ) -> Outcome<Policy> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_operator(OperatorRole::SecurityAdmin)?;
     validate_country(&country)?;
     let policy = policy_for(&country);
@@ -957,8 +918,6 @@ fn set_availability(
     enabled: bool,
     expected_version: u64,
 ) -> Outcome<Availability> {
-    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
-
     require_operator(OperatorRole::InfrastructureAdmin)?;
     let mut status = availability();
     if status.version != expected_version {
@@ -1105,13 +1064,3 @@ fn memory_stats() -> MemoryStats {
 }
 
 ic_cdk::export_candid!();
-
-#[cfg(test)]
-mod private_writer_contract_export {
-    #[test]
-    fn export_contract_when_requested() {
-        if std::env::var_os("IGNITE_EXPORT_CANDID").is_some() {
-            std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/placement_registry.did"), super::__export_service()).expect("write candid");
-        }
-    }
-}

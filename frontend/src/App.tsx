@@ -19,11 +19,8 @@ import { ThemeProvider } from "next-themes";
 import { ClubThemeProvider } from "@/hooks/useClubTheme";
 import { AccessibilityPrefsProvider } from "@/hooks/useAccessibilityPrefs";
 const GlobalSubMonitorGate = lazyWithRetry(() => import("@/components/pitch/GlobalSubMonitorGate"));
-const IcpGapFeedback = lazyWithRetry(() => import("@/components/IcpGapFeedback"));
-import TestingIssuesPanel from "@/components/TestingIssuesPanel";
 import PitchBoardResumeRedirect from "@/components/pitch/PitchBoardResumeRedirect";
 import { MessagesBootstrapPrefetcher } from "@/components/MessagesBootstrapPrefetcher";
-import { warmMainRoutes } from "@/lib/routePrefetch";
 
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { IOSInstallPrompt } from "@/components/IOSInstallPrompt";
@@ -92,7 +89,6 @@ const ClubChatPage = lazyWithRetry(() => import("./pages/ClubChatPage").then(mar
 const GroupChatPage = lazyWithRetry(() => import("./pages/GroupChatPage").then(markChatChunk));
 const DirectMessagePage = lazyWithRetry(() => import("./pages/DirectMessagePage").then(markChatChunk));
 const ClubAdminChatPage = lazyWithRetry(() => import("./pages/ClubAdminChatPage").then(markChatChunk));
-const CompetitionAdminChatPage = lazyWithRetry(() => import("./pages/CompetitionAdminChatPage").then(markChatChunk));
 const WelcomeMessagePage = lazyWithRetry(() => import("./pages/WelcomeMessagePage"));
 const MediaPage = lazyWithRetry(() => import("./pages/MediaPage"));
 const VaultPage = lazyWithRetry(() => import("./pages/VaultPage"));
@@ -155,9 +151,6 @@ const AdminAICatchUpPage = lazyWithRetry(() => import("./pages/AdminAICatchUpPag
 const AdminIcpLlmTestPage = lazyWithRetry(() => import("./pages/AdminIcpLlmTestPage"));
 const AdminIcpDataPage = lazyWithRetry(() => import("./pages/AdminIcpDataPage"));
 const AdminIcpHealthPage = lazyWithRetry(() => import("./pages/AdminIcpHealthPage"));
-const AdminGroupInfrastructurePage = lazyWithRetry(() => import("./pages/AdminGroupInfrastructurePage"));
-const AdminClubMigrationPage = lazyWithRetry(() => import("./pages/AdminClubMigrationPage"));
-const ClaimAccountPage = lazyWithRetry(() => import("./pages/ClaimAccountPage"));
 const PlacementAdminSettingsPage = lazyWithRetry(() => import("./pages/PlacementAdminSettingsPage"));
 const AdMobSettingsPage = lazyWithRetry(() => import("./pages/AdMobSettingsPage"));
 const ClassEnrolmentPage = lazyWithRetry(() => import("./pages/ClassEnrolmentPage"));
@@ -250,12 +243,12 @@ installPendingSendKeeper(queryClient);
 // Download the main pages' code while the app is idle so the first tap on
 // any of them does not wait for a code download.
 if (typeof window !== "undefined") {
-  warmMainRoutes();
   const warm = () => {
     const pages = [
-      () => import("./pages/ClubsPage"),
+      () => import("./pages/HomePage"), () => import("./pages/MessagesPage"),
+      () => import("./pages/EventsPage"), () => import("./pages/ClubsPage"),
       () => import("./pages/ClubDetailPage"), () => import("./pages/TeamDetailPage"),
-      () => import("./pages/VaultPage"),
+      () => import("./pages/MediaPage"), () => import("./pages/VaultPage"),
       () => import("./pages/ProfilePage"), () => import("./pages/SettingsPage"),
       () => import("./pages/EventDetailPage"), () => import("./pages/NotificationsPage"),
       () => import("./pages/TeamChatPage"), () => import("./pages/ClubChatPage"),
@@ -280,37 +273,8 @@ if (typeof window !== "undefined") {
 // canister reads refresh it (only when an Internet Identity session exists).
 export const appCacheReady: Promise<void> = import("@/lib/icpQueryCachePersist")
   .then(async (m) => {
-    const { getActiveIcpTarget } = await import('@/live/targetRegistry');
-    const scope = () => {
-      try {
-        const raw = localStorage.getItem('ignite_icp_internet_identity_session');
-        const principal = raw ? JSON.parse(raw).principal : null;
-        if (typeof principal !== 'string') return null;
-        const target = getActiveIcpTarget();
-        return JSON.stringify([principal, target.host, target.networkKind,
-          Object.entries(target.canisterIds ?? {}).sort(([a], [b]) => a.localeCompare(b))]);
-      } catch { return null; }
-    };
-    await m.restoreIcpQueryCache(queryClient, true, 400, scope);
-    (await import('@/live/membershipDiscoveryCache')).bindMembershipDiscovery(queryClient);
-    m.startIcpQueryCachePersist(queryClient, true, scope);
-  })
-  .catch(() => undefined);
-
-// ICP mode: open the group-routing session in the background once an Internet
-// Identity session exists. Without this, the first chat/event/gallery tap pays
-// the cold registry + membership sweep (~10s) before any content read starts.
-// Best-effort: real reads still surface their own errors.
-appCacheReady
-  .then(() => {
-    try {
-      if (!localStorage.getItem("ignite_icp_internet_identity_session")) return;
-    } catch {
-      return;
-    }
-    void import("@/live/groupDispatch")
-      .then((m) => m.clubDispatch.memberClubIds())
-      .catch(() => undefined);
+    await m.restoreIcpQueryCache(queryClient, true);
+    m.startIcpQueryCachePersist(queryClient, true);
   })
   .catch(() => undefined);
 
@@ -536,13 +500,9 @@ const App = () => {
           <DevRibbon />
           <Toaster />
           <Sonner />
-          <Suspense fallback={null}><IcpGapFeedback /></Suspense>
-          <TestingIssuesPanel />
           <IcsPreviewFallbackDialog />
           <NotifDebugOverlay />
-          {/* Commit destination chrome now; lazy code must not retain the old
-              screen and make a successful tap look ignored. */}
-          <BrowserRouter useTransitions={false}>
+          <BrowserRouter>
             <AppNavigatorBridge />
             <ScrollToTop />
             <PWAPendingInviteHandler />
@@ -557,15 +517,13 @@ const App = () => {
               <Routes>
                 {/* Public routes */}
                 <Route path="/auth" element={<AuthPage />} />
-                <Route path="/claim-account" element={<ClaimAccountPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/verify-reset-code" element={<VerifyResetCodePage />} />
                 <Route path="/complete-profile" element={<CompleteProfilePage />} />
                 <Route path="/competitions/officials/join" element={<NativeOnlyGate><WithDeepLinkGate><CompetitionOfficialJoinPage /></WithDeepLinkGate></NativeOnlyGate>} />
-                <Route path="/join/:token" element={<WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate>} />
-                <Route path="/join/p/:token" element={<WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate>} />
-                <Route path="/j/:code" element={<WithDeepLinkGate><ShortInviteRedirect /></WithDeepLinkGate>} />
-                <Route path="/i/:code" element={<WithDeepLinkGate><ShortInviteRedirect /></WithDeepLinkGate>} />
+                <Route path="/join/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate></NativeOnlyGate>} />
+                <Route path="/join/p/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinTeamPage /></WithDeepLinkGate></NativeOnlyGate>} />
+                <Route path="/j/:code" element={<NativeOnlyGate><WithDeepLinkGate><ShortInviteRedirect /></WithDeepLinkGate></NativeOnlyGate>} />
                 <Route path="/join-club/:token" element={<NativeOnlyGate><WithDeepLinkGate><JoinClubPage /></WithDeepLinkGate></NativeOnlyGate>} />
                 <Route path="/signup-pro" element={<SignupProPage />} />
                 <Route path="/terms" element={<TermsOfServicePage />} />
@@ -634,7 +592,6 @@ const App = () => {
                   <Route path="/messages/club/:clubId" element={<RemountOnParamChange param="clubId"><ClubChatPage /></RemountOnParamChange>} />
                    <Route path="/messages/dm/:conversationId" element={<RemountOnParamChange param="conversationId"><DirectMessagePage /></RemountOnParamChange>} />
                    <Route path="/messages/club-admin/:conversationId" element={<RemountOnParamChange param="conversationId"><ClubAdminChatPage /></RemountOnParamChange>} />
-                   <Route path="/messages/competition-admin/:conversationId" element={<RemountOnParamChange param="conversationId"><CompetitionAdminChatPage /></RemountOnParamChange>} />
                   <Route path="/messages/welcome" element={<WelcomeMessagePage />} />
                   <Route path="/messages/:teamId" element={<RemountOnParamChange param="teamId"><TeamChatPage /></RemountOnParamChange>} />
                   <Route path="/groups/:groupId" element={<RemountOnParamChange param="groupId"><GroupChatPage /></RemountOnParamChange>} />
@@ -676,8 +633,6 @@ const App = () => {
                   <Route path="/admin/icp-llm-test" element={<AdminIcpLlmTestPage />} />
                   <Route path="/admin/icp-data" element={<AdminIcpDataPage />} />
                   <Route path="/admin/icp-health" element={<AdminIcpHealthPage />} />
-                  <Route path="/admin/group-infrastructure" element={<AdminGroupInfrastructurePage />} />
-                  <Route path="/admin/club-migration" element={<AdminClubMigrationPage />} />
                   <Route path="/admin/icp-canisters" element={<Navigate to="/admin/placement-settings" replace />} />
                   <Route path="/admin/admob" element={<AdMobSettingsPage />} />
                  <Route path="/admin/send-update-reminder" element={<SendUpdateReminderPage />} />

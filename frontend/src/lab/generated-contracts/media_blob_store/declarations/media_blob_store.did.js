@@ -160,17 +160,6 @@ export const idlFactory = ({ IDL }) => {
       ),
     'cycles_balance' : IDL.Func([], [IDL.Nat], ['query']),
     'delete_blob' : IDL.Func([IDL.Text], [Result], []),
-    'delete_erased_scope_vault_blob' : IDL.Func(
-        [IDL.Text, IDL.Text],
-        [Result],
-        [],
-      ),
-    'delete_expired_vault_blob' : IDL.Func([IDL.Text, IDL.Text], [Result], []),
-    'delete_vault_blob' : IDL.Func(
-        [IDL.Principal, IDL.Text, IDL.Text],
-        [Result],
-        [],
-      ),
     'enable_retained_media_quota' : IDL.Func([], [Result], []),
     'enable_shared_media_quota' : IDL.Func([], [Result], []),
     'enable_stable_media_storage' : IDL.Func([], [Result], []),
@@ -319,20 +308,6 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
-    'read_vault_blob_evidence' : IDL.Func(
-        [IDL.Principal, IDL.Text],
-        [
-          IDL.Variant({
-            'Ok' : IDL.Record({
-              'owner' : IDL.Principal,
-              'content_hash' : IDL.Text,
-              'size' : IDL.Nat,
-            }),
-            'Err' : IDL.Text,
-          }),
-        ],
-        [],
-      ),
     'reconcile_retained_deletions' : IDL.Func(
         [IDL.Text],
         [
@@ -381,7 +356,6 @@ export const idlFactory = ({ IDL }) => {
         [Result],
         [],
       ),
-    'set_vault_authority' : IDL.Func([IDL.Principal], [Result], []),
     'stable_storage_status' : IDL.Func(
         [],
         [

@@ -56,9 +56,6 @@ function RewardImage({ src, alt, className }: { src: string; alt: string; classN
 import { compressImage } from "@/lib/imageCompression";
 import { PointsIconGallery } from "@/components/PointsIconGallery";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { useAuth } from "@/hooks/useAuth";
-import { invalidateRewardCatalog } from "@/lib/invalidateRewardCatalog";
-import { readMembershipInScope } from "@/live/membershipRouting";
 import {
   createLiveClubReward,
   deleteLiveClubReward,
@@ -102,7 +99,6 @@ interface ClubRewardsManagerProps {
 }
 
 export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -257,14 +253,8 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
 
   // Fetch sponsors for this club
   const { data: sponsors = [] } = useQuery({
-    queryKey: ["sponsors", clubId, user?.id, resolveAuthBackend()],
-    queryFn: () => withFeatureBackend("membership", {
-      icp: async ctx => {
-        const { listLiveSponsors } = await import("@/live/features/club");
-        return (await listLiveSponsors(ctx, clubId)).filter(s => s.is_active && s.club_id === clubId)
-          .sort((a, b) => a.sort_order - b.sort_order).map(s => ({ id: s.id, name: s.name, logo_url: s.logo_url[0] ?? null }));
-      },
-      supabase: async () => {
+    queryKey: ["sponsors", clubId],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("sponsors")
         .select("id, name, logo_url")
@@ -273,12 +263,11 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         .order("display_order", { ascending: true });
       if (error) throw error;
       return data as Sponsor[];
-      },
-    }, { clubId }),
+    },
   });
 
   const { data: rewards = [], isLoading } = useQuery({
-    queryKey: ["club-rewards", clubId, user?.id, resolveAuthBackend()],
+    queryKey: ["club-rewards", clubId],
     queryFn: async () => {
       return withFeatureBackend("points", {
         supabase: async () => {
@@ -293,11 +282,6 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         },
         icp: async (ctx) => {
           const liveRewards = await listLiveClubRewards(ctx, clubId, null, false);
-          const sponsorRows = await readMembershipInScope(ctx, { clubId }, async scoped => {
-            const { listLiveSponsors } = await import("@/live/features/club");
-            return listLiveSponsors(scoped, clubId);
-          });
-          const sponsorById = new Map(sponsorRows.filter(s => s.club_id === clubId).map(s => [s.id, { id: s.id, name: s.name, logo_url: s.logo_url[0] ?? null }]));
           return liveRewards
             .sort((a, b) => Number(b.is_default) - Number(a.is_default) || Number(a.created_at_ms) - Number(b.created_at_ms))
             .map((r) => ({
@@ -315,7 +299,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
               sponsor_id: r.sponsor_id[0] ?? null,
               created_at: new Date(Number(r.created_at_ms)).toISOString(),
               // No canister-side sponsor join — see live/features/points.ts doc comment.
-              sponsors: r.sponsor_id[0] ? sponsorById.get(r.sponsor_id[0]) ?? null : null,
+              sponsors: null,
             })) as ClubReward[];
         },
       }, { clubId });
@@ -353,7 +337,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
       }, writeOnce({ clubId }));
     },
     onSuccess: () => {
-      void invalidateRewardCatalog(queryClient, clubId);
+      queryClient.invalidateQueries({ queryKey: ["club-rewards", clubId] });
     },
   });
 
@@ -394,7 +378,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
       }, writeOnce({ clubId }));
     },
     onSuccess: () => {
-      void invalidateRewardCatalog(queryClient, clubId);
+      queryClient.invalidateQueries({ queryKey: ["club-rewards", clubId] });
       resetForm();
       setDialogOpen(false);
       toast({ title: "Reward added" });
@@ -446,7 +430,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
       }, writeOnce({ clubId }));
     },
     onSuccess: () => {
-      void invalidateRewardCatalog(queryClient, clubId);
+      queryClient.invalidateQueries({ queryKey: ["club-rewards", clubId] });
       resetForm();
       setDialogOpen(false);
       toast({ title: "Reward updated" });
@@ -489,20 +473,8 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         },
       }, writeOnce({ clubId }));
     },
-    onMutate: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      await queryClient.cancelQueries({ queryKey: ["club-rewards", clubId] });
-      const previous = queryClient.getQueriesData<ClubReward[]>({ queryKey: ["club-rewards", clubId] });
-      queryClient.setQueriesData<ClubReward[]>({ queryKey: ["club-rewards", clubId] }, (old) =>
-        Array.isArray(old) ? old.map((r) => (r.id === id ? { ...r, is_active: isActive } : r)) : old,
-      );
-      return { previous };
-    },
-    onError: (_e, _v, context) => {
-      context?.previous?.forEach(([key, data]) => queryClient.setQueryData(key, data));
-      toast({ title: "Couldn't update reward", variant: "destructive" });
-    },
-    onSettled: () => {
-      return invalidateRewardCatalog(queryClient, clubId);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["club-rewards", clubId] });
     },
   });
 
@@ -566,23 +538,9 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
         },
       }, writeOnce({ clubId }));
     },
-    onMutate: async (rewardId: string) => {
-      await queryClient.cancelQueries({ queryKey: ["club-rewards", clubId] });
-      const previous = queryClient.getQueriesData<ClubReward[]>({ queryKey: ["club-rewards", clubId] });
-      queryClient.setQueriesData<ClubReward[]>({ queryKey: ["club-rewards", clubId] }, (old) =>
-        Array.isArray(old) ? old.map((r) => ({ ...r, is_default: r.id === rewardId })) : old,
-      );
-      return { previous };
-    },
-    onError: (_e, _v, context) => {
-      context?.previous?.forEach(([key, data]) => queryClient.setQueryData(key, data));
-      toast({ title: "Couldn't update featured reward", variant: "destructive" });
-    },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["club-rewards", clubId] });
       toast({ title: "Featured reward updated" });
-    },
-    onSettled: () => {
-      return invalidateRewardCatalog(queryClient, clubId);
     },
   });
 
@@ -599,7 +557,7 @@ export default function ClubRewardsManager({ clubId }: ClubRewardsManagerProps) 
       }, writeOnce({ clubId }));
     },
     onSuccess: () => {
-      void invalidateRewardCatalog(queryClient, clubId);
+      queryClient.invalidateQueries({ queryKey: ["club-rewards", clubId] });
       toast({ title: "Reward deleted" });
     },
   });

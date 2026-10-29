@@ -415,9 +415,8 @@ export default function BroadcastChatPage() {
 
       return { messages, hasOlderMessages: hasMore };
     },
-    enabled: !!user?.id, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
+    enabled: !!user?.id && resolveAuthBackend() !== "icp", // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
     staleTime: 1000 * 60 * 5,
-    refetchInterval: useIcpLab ? 15_000 : false,
     gcTime: 1000 * 60 * 60 * 24,
     refetchOnMount: "always", // Force refetch on every mount so reactions/messages added while away are picked up (true is a no-op while staleTime is unmet)
     refetchOnWindowFocus: false,
@@ -782,7 +781,6 @@ export default function BroadcastChatPage() {
 
   // Realtime subscription - directly update cache instead of invalidating
   useEffect(() => {
-    if (useIcpLab) return;
     const channel = supabase
       .channel("broadcast-messages-realtime")
       .on(
@@ -931,7 +929,7 @@ export default function BroadcastChatPage() {
       cacheKeys: [["broadcast-messages"]],
       queryClient,
     });
-  }, [useIcpLab, queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
+  }, [queryClient, user?.id, reconcileScope, applyRealtimeReaction, applyRealtimeReactionDelete]);
 
   const handleReply = useCallback((m: { id: string; text: string; authorName: string | null }) => {
     // Don't allow replying to optimistic or queued messages (temp/queued IDs)
@@ -982,8 +980,6 @@ export default function BroadcastChatPage() {
           if (error) throw error;
         },
         icp: async (ctx) => {
-          // Never let a club-only choice silently go to every club.
-          if (targetClubIds.length > 0) throw new Error("Club-only announcements aren't available yet. This would go to every club.");
           // Fixed "broadcast" conversation id, matching the ["broadcast-messages"]
           // query key / queueMessage targetId convention. Replies persist via
           // the canister's reply_to_id; club targeting stays Supabase-only.
@@ -992,7 +988,7 @@ export default function BroadcastChatPage() {
             : (() => {
                 const poll = /\[poll:([^\]]+)\]/.exec(text);
                 if (poll) return { kind: "poll", refId: poll[1], url: null };
-                const news = /\[news:(?:[0-9a-fA-F-]{36}:)?([^\]]+)\]/.exec(text);
+                const news = /\[news:([^\]]+)\]/.exec(text);
                 if (news) return { kind: "news", refId: news[1], url: null };
                 return null;
               })();
@@ -1267,7 +1263,7 @@ export default function BroadcastChatPage() {
 
       {/* Messages */}
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
-        {(!!searchQuery.trim() && !filteredMessages?.length && (isSearchFetching || !searchCanShowEmpty)) ? (
+        {(isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState
@@ -1354,9 +1350,7 @@ export default function BroadcastChatPage() {
           <ReplyPreview replyingTo={replyingTo} onCancel={() => setReplyingTo(null)} />
           {editingMessage && <EditingBanner text={editingMessage.text} onCancel={handleCancelEdit} />}
           <ScheduledMessagesBanner target={scheduleTarget} />
-          {/* Club-only announcements are not supported on ICP yet: every
-              announcement there reaches all clubs, so don't offer the choice. */}
-          {!editingMessage && !useIcpLab && (
+          {!editingMessage && (
             <BroadcastAudienceSelector
               value={targetClubIds}
               onChange={setTargetClubIds}

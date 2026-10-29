@@ -53,13 +53,6 @@ interface AuthContextType {
   /** 'restoring' until the stored session has been resolved one way or the other. */
   sessionRestoration: "restoring" | "authenticated" | "signed_out";
   profileResolved: boolean; // True only after profile has been fetched from server at least once
-  /**
-   * Internet Identity only: true while a known existing profile's encrypted
-   * name is still unlocking. While true, display_name holds a "…" placeholder
-   * that must not be rendered — hide the name (and avatar initial) until this
-   * clears. Undefined for the Supabase provider (name arrives with the row).
-   */
-  profileNamePending?: boolean;
   unreadCount: number;
   unreadMessagesCount: number;
   signUp: (email: string, password: string) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
@@ -80,7 +73,7 @@ interface AuthContextType {
    */
   resumingSignIn?: boolean;
   signOut: () => Promise<void>;
-  refreshProfile: (savedIcpProfile?: IcpIdentityProfile) => Promise<void>;
+  refreshProfile: () => Promise<void>;
   refreshUnreadCount: () => Promise<void>;
   clearUnreadCount: () => void;
   decrementUnreadCount: (n: number) => void;
@@ -1332,7 +1325,6 @@ function withIcpTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 export function IcpAuthProvider({ children, persona = "member" }: { children: ReactNode; persona?: string }) {
   markMountedAuthProvider("icp");
-  const queryClient = useQueryClient();
   const [session, setSession] = useState<InternetIdentitySession | null>(() => {
     try {
       const raw = localStorage.getItem("ignite_icp_internet_identity_session");
@@ -1345,8 +1337,6 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     }
   });
   const principal = session?.principal ?? null;
-  const [signingOut, setSigningOut] = useState(false);
-  const signingOutRef = useRef(false);
   // Real identity profile resolved from the identity_access canister
   // (Stage B of the ICP-only cutover). Starts from the per-principal
   // localStorage cache for instant render, then refreshes from the canister.
@@ -1358,13 +1348,9 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   // Only a cached profile WITH a name counts as resolved: a cached "no profile
   // yet" can be stale (saved elsewhere since) and would bounce an existing
   // member to profile setup before the canister answers.
-  // A cached existing profile whose name is encrypted (the decrypted name is
-  // never stored) also counts: resuming the app must not block on the
-  // network name unlock. A cached "no profile yet" still waits.
   const [icpProfileResolved, setIcpProfileResolved] = useState(() =>
-    Boolean(principal && knownCachedIcpProfile(getCachedIcpIdentityProfile(principal))),
+    Boolean(principal && getCachedIcpIdentityProfile(principal)?.displayName),
   );
-  const [icpNamePending, setIcpNamePending] = useState(false);
   // True when the profile could not be loaded AND there is no cache to render
   // from. Drives the "unable to load / retry" screen instead of an endless
   // spinner or a wrong redirect to profile completion.
@@ -1378,18 +1364,8 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     console.warn("[Auth] Stored Internet Identity session is no longer valid; returning to sign-in.");
     localStorage.removeItem("ignite_icp_internet_identity_session");
     clearIcpIdentityProfileCache();
-    queryClient.clear();
-    void import("@/live/features/events").then((m) => m.clearListedLiveEvents()).catch(() => undefined);
-    void import("@/live/features/messaging").then((m) => m.clearWarmLiveLatestPages()).catch(() => undefined);
-    // Phone apps keep the on-device read cache (scoped per account, access
-    // re-verified by fresh reads on next sign-in); browsers must wipe it
-    // because sign-out is the only reliable delete on a shared computer.
-    if (!isNativePlatform()) {
-      const { clearPersistedIcpQueryCache } = await import('@/lib/icpQueryCachePersist');
-      await clearPersistedIcpQueryCache();
-    }
     setSession(null);
-  }, [queryClient]);
+  }, []);
   useEffect(() => {
     if (!principal) {
       setIcpProfile(null);
@@ -1399,14 +1375,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     }
     const cached = getCachedIcpIdentityProfile(principal);
     setIcpProfile(cached);
-    // Warm the in-memory own-name store from the device cache so the
-    // member's own rows (events, chats, posts) show their name before the
-    // background unlock completes.
-    if (cached?.displayName) {
-      void import("@/live/ownPrivateName").then((m) => m.rememberOwnPrivateName(principal, cached.displayName!)).catch(() => undefined);
-    }
-    setIcpProfileResolved(knownCachedIcpProfile(cached));
-    setIcpNamePending(Boolean(cached && !cached.displayName && knownCachedIcpProfile(cached)));
+    setIcpProfileResolved(Boolean(cached?.displayName));
     setIcpProfileError(false);
     const requestId = ++icpProfileRequestRef.current;
     let cancelled = false;
@@ -1430,10 +1399,9 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
           }
           return;
         }
-        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 45000);
+        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 20000);
         if (!cancelled && icpProfileRequestRef.current === requestId) {
           setIcpProfile(fetched);
-          setIcpNamePending(false);
           setIcpProfileResolved(true);
           setIcpProfileError(false);
         }
@@ -1441,7 +1409,7 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
         console.warn("[Auth] ICP identity profile fetch failed:", error);
         // Keep rendering from cache when there is one; with no cache, surface
         // the retry screen (AppLayout auto-retries via refreshProfile()).
-        if (!cancelled && icpProfileRequestRef.current === requestId && !knownCachedIcpProfile(getCachedIcpIdentityProfile(principal))) {
+        if (!cancelled && icpProfileRequestRef.current === requestId && !getCachedIcpIdentityProfile(principal)?.displayName) {
           setIcpProfileResolved(true);
           setIcpProfileError(true);
         }
@@ -1473,12 +1441,11 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
   const profileHidden = icpProfileError && !icpProfile?.displayName;
   const profile = useMemo(() => principal && !profileHidden ? {
     id: principal,
-    // Placeholder only while a known existing profile's private name unlocks.
-    display_name: icpDisplayName ?? (icpNamePending ? "…" : null),
+    display_name: icpDisplayName,
     avatar_url: icpAvatarRef,
     ignite_points: 0,
     theme_preference: null,
-  } : null, [principal, profileHidden, icpDisplayName, icpAvatarRef, icpNamePending]);
+  } : null, [principal, profileHidden, icpDisplayName, icpAvatarRef]);
   // Preload the Internet Identity module and eagerly construct its auth
   // client as soon as this provider mounts (well before the user can click
   // sign-in). The signer transport used by `client.signIn()` only allows
@@ -1598,7 +1565,6 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     initialized: true,
     sessionRestoration: principal ? "authenticated" as const : "signed_out" as const,
     profileResolved: !principal || icpProfileResolved,
-    profileNamePending: Boolean(principal) && icpNamePending && !icpDisplayName,
     unreadCount: 0,
     unreadMessagesCount: 0,
     signUp: async () => ({ error: (await signInWithIcp()).error, needsEmailConfirmation: false }),
@@ -1611,15 +1577,6 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
     // the member on a spinner with no way forward.
     resumingSignIn: iiResumePending && iiSignInReady,
     signOut: async () => {
-      if (signingOutRef.current) return;
-      signingOutRef.current = true;
-      setSigningOut(true);
-      // Retire mounted pages before clearing queries/delegations. Otherwise
-      // their still-enabled observers restart reads as the identity disappears.
-      ++icpProfileRequestRef.current;
-      navigateApp("/auth", { replace: true });
-      try {
-      await queryClient.cancelQueries();
       // Clear the Internet Identity session FIRST and only then drop the
       // app session: setSession(null) re-arms the silent resume effect, so
       // the stored delegation (and its block-resume flag) must already be
@@ -1632,49 +1589,18 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
       // tap opens the Internet Identity window straight away.
       setIiWarmGeneration((g) => g + 1);
       localStorage.removeItem("ignite_icp_internet_identity_session");
-      queryClient.clear();
-      void import("@/live/features/events").then((m) => m.clearListedLiveEvents()).catch(() => undefined);
-    void import("@/live/features/messaging").then((m) => m.clearWarmLiveLatestPages()).catch(() => undefined);
       const { clearIcpIdentityProfileCache } = await import("@/live/identityProfileCache");
       clearIcpIdentityProfileCache();
-      // Phone apps keep the on-device read cache across sign-out (scoped per
-      // account, re-verified on next sign-in); browsers must wipe it.
-      if (!isNativePlatform()) {
-        const { clearPersistedIcpQueryCache } = await import("@/lib/icpQueryCachePersist");
-        await clearPersistedIcpQueryCache();
-      }
-      const [{ clearGroupDispatchCache }, { clearPiiVetKeyCache }] = await Promise.all([
-        import('@/live/groupDispatch'), import('@/live/piiVetKeys'),
-      ]);
-      clearGroupDispatchCache();
-      await clearPiiVetKeyCache();
+      const { clearPersistedIcpQueryCache } = await import("@/lib/icpQueryCachePersist");
+      await clearPersistedIcpQueryCache();
       const { clearIcpEntitlementsCache } = await import("@/live/identityEntitlementsCache");
       clearIcpEntitlementsCache(principal ?? undefined);
       const { disconnectChatRealtime } = await import("@/live/wsRealtime");
       disconnectChatRealtime();
-      } finally {
-      localStorage.removeItem("ignite_icp_internet_identity_session");
-      queryClient.clear();
-      setIcpProfile(null);
-      setIcpProfileResolved(false);
       setSession(null);
-      signingOutRef.current = false;
-      setSigningOut(false);
-      }
     },
-    refreshProfile: async (savedIcpProfile?: IcpIdentityProfile) => {
-      if (!principal || signingOutRef.current) return;
-      // A caller-bound acknowledged save already supplies the display profile.
-      // Do not repeat identity/profile/role reads just to leave onboarding.
-      if (savedIcpProfile) {
-        if (savedIcpProfile.accountId !== principal || savedIcpProfile.profileMissing) throw Error('Saved profile does not match the signed-in account.');
-        ++icpProfileRequestRef.current;
-        setIcpProfile(savedIcpProfile);
-        setIcpProfileResolved(true);
-        setIcpProfileError(false);
-        return;
-      }
-      const requestId = ++icpProfileRequestRef.current;
+    refreshProfile: async () => {
+      if (!principal) return;
       try {
         const [authMod, { fetchIcpIdentityProfile }] = await Promise.all([
           import("@/live/internetIdentityAuth"),
@@ -1687,25 +1613,18 @@ export function IcpAuthProvider({ children, persona = "member" }: { children: Re
           await clearDeadIcpSession();
           return;
         }
-        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 45000);
-        if (signingOutRef.current || requestId !== icpProfileRequestRef.current) return;
+        const fetched = await withIcpTimeout(fetchIcpIdentityProfile(identity, principal), 20000);
         setIcpProfile(fetched);
         setIcpProfileResolved(true);
         setIcpProfileError(false);
       } catch (error) {
         console.warn("[Auth] ICP profile refresh failed:", error);
-        if (!signingOutRef.current && requestId === icpProfileRequestRef.current && !getCachedIcpIdentityProfile(principal)?.displayName) setIcpProfileError(true);
+        if (!getCachedIcpIdentityProfile(principal)?.displayName) setIcpProfileError(true);
       }
     },
     refreshUnreadCount: async () => {},
     clearUnreadCount: () => {},
     decrementUnreadCount: () => {},
   } satisfies AuthContextType;
-  return <AuthContext.Provider value={value}>{signingOut ? null : children}</AuthContext.Provider>;
-}
-
-/** An existing account the device has seen before: either a readable name or
- * a confirmed (encrypted-name) profile. Never a cached "no profile yet". */
-function knownCachedIcpProfile(cached: { displayName: string | null; profileMissing: boolean; accountId: string } | null): boolean {
-  return !!cached && (!!cached.displayName || (!cached.profileMissing && !!cached.accountId));
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

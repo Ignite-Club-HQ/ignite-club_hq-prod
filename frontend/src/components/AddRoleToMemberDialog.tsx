@@ -1,5 +1,4 @@
 import { writeOnce } from "@/live/clubScope";
-import { sendCompetitionWelcomeEmail } from "@/lib/sendCompetitionWelcomeEmail";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, UserPlus } from "lucide-react";
@@ -113,10 +112,6 @@ export default function AddRoleToMemberDialog({
             type: "membership",
             message: `You have been assigned new role(s) in ${teamName}: ${roleNames}`,
             related_id: teamId,
-          });
-
-          void sendCompetitionWelcomeEmail({
-            userId, recipientName: userName, teamId, teamName, clubId, roleName: roleNames,
           });
         },
       }, writeOnce({ clubId }));

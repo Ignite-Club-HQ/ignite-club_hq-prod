@@ -1,4 +1,3 @@
-import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,11 +17,10 @@ interface EventLinkCardProps {
 
 export const EventLinkCard = memo(function EventLinkCard({ eventId }: EventLinkCardProps) {
   const navigate = useNavigate();
-  const { user, sessionRestoration } = useAuth();
 
   const icpRouted = isFeatureRoutedToIcp("events");
   const { data: event, isLoading } = useQuery({
-    queryKey: ["event-link-card", eventId, icpRouted, user?.id],
+    queryKey: ["event-link-card", eventId, icpRouted],
     queryFn: async () => {
       return withFeatureBackend("events", {
         supabase: async () => {
@@ -58,7 +56,7 @@ export const EventLinkCard = memo(function EventLinkCard({ eventId }: EventLinkC
         },
       }, { eventId });
     },
-    enabled: !!eventId && !!user && sessionRestoration === 'authenticated',
+    enabled: !!eventId,
     staleTime: 5 * 60 * 1000,
   });
 

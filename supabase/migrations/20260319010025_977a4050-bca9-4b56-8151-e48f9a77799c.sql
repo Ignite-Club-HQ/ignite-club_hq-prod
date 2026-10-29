@@ -1,1 +1,0 @@
-UPDATE clubs SET contact_email = 'bwsoccerclub@gmail.com' WHERE id = '966bdaec-ebf1-46da-b2b3-cc53bf05c422';

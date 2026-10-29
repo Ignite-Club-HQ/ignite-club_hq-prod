@@ -1,4 +1,3 @@
-import { writeBoundedReadCache } from "./deviceCacheBudget";
 // Local message cache for offline reading
 //
 // IMPORTANT (Android WebView freeze fix — companion to messagesPageCache):
@@ -38,9 +37,6 @@ export interface CachedMessage {
 interface CacheEntry {
   messages: CachedMessage[];
   timestamp: number;
-  /** True when `messages` is the newest window of a real thread read (even
-   * zero or one message), not a notification preload stub. */
-  complete?: boolean;
 }
 
 type ChatType = "team" | "club" | "group" | "broadcast" | "dm" | "club_admin";
@@ -96,10 +92,10 @@ function flushKeyNow(key: string): void {
       return;
     }
     try {
-      writeBoundedReadCache(key, JSON.stringify(entry));
+      localStorage.setItem(key, JSON.stringify(entry));
     } catch {
       clearOldCaches();
-      try { writeBoundedReadCache(key, JSON.stringify(entry)); } catch { /* drop */ }
+      try { localStorage.setItem(key, JSON.stringify(entry)); } catch { /* drop */ }
     }
   } catch { /* best-effort */ }
 }
@@ -143,7 +139,7 @@ export function getCachedMessages(type: ChatType, targetId: string): CachedMessa
 // localMessages from that stale cache and the user appeared stuck on
 // ancient history with no newer messages and no way to scroll down to
 // today's content.
-export function cacheMessages(type: ChatType, targetId: string, messages: CachedMessage[], options: { complete?: boolean } = {}): void {
+export function cacheMessages(type: ChatType, targetId: string, messages: CachedMessage[]): void {
   try {
     const key = getCacheKey(type, targetId);
     // Always normalise, even under the cap. Some callers pass descending
@@ -155,7 +151,6 @@ export function cacheMessages(type: ChatType, targetId: string, messages: Cached
     const entry: CacheEntry = {
       messages: normalised,
       timestamp: Date.now(),
-      complete: options.complete ?? true,
     };
     memCache.set(key, entry);
     scheduleFlush(key);
@@ -167,9 +162,7 @@ export function addMessageToCache(type: ChatType, targetId: string, message: Cac
   try {
     const existing = getCachedMessages(type, targetId);
     const updated = [message, ...existing.filter(m => m.id !== message.id)];
-    // A preload on top of a real thread copy keeps it complete; on its own it
-    // is only a stub and must never paint as the whole thread.
-    cacheMessages(type, targetId, updated, { complete: isCachedThreadComplete(type, targetId) });
+    cacheMessages(type, targetId, updated);
   } catch {
     console.error("Failed to add message to cache");
   }
@@ -180,7 +173,7 @@ export function removeMessageFromCache(type: ChatType, targetId: string, message
   try {
     const existing = getCachedMessages(type, targetId);
     const updated = existing.filter(m => m.id !== messageId);
-    cacheMessages(type, targetId, updated, { complete: isCachedThreadComplete(type, targetId) });
+    cacheMessages(type, targetId, updated);
   } catch { /* ignore */ }
 }
 
@@ -211,12 +204,6 @@ function clearOldCaches(): void {
   } catch { /* ignore */ }
 }
 
-/** The saved copy came from a real thread read, so it can paint immediately
- * even when it holds zero or one message (an empty chat stays empty). */
-export function isCachedThreadComplete(type: ChatType, targetId: string): boolean {
-  return ensureLoaded(getCacheKey(type, targetId))?.complete === true;
-}
-
 // Check if we have cached messages for a chat
 export function hasCachedMessages(type: ChatType, targetId: string): boolean {
   return getCachedMessages(type, targetId).length > 0;
@@ -228,22 +215,6 @@ export function shouldRefetchMessages(type: ChatType, targetId: string, fetchedC
   if (fetchedCount > 0) return false;
   const cachedCount = getCachedMessages(type, targetId).length;
   return cachedCount > 0;
-}
-
-export function clearAllMessageCaches(): void {
-  for (const timer of pendingFlushTimers.values()) clearTimeout(timer);
-  pendingFlushTimers.clear();
-  for (const handle of pendingIdleHandles.values()) {
-    try { window.cancelIdleCallback?.(handle); } catch { /* unavailable */ }
-  }
-  pendingIdleHandles.clear();
-  memCache.clear();
-  try {
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(CACHE_KEY_PREFIX)) localStorage.removeItem(key);
-    }
-  } catch { /* unavailable */ }
 }
 
 // Clear cache for a specific chat

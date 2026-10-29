@@ -1,1 +1,0 @@
-UPDATE public.teams SET auto_chat_post_enabled = true;

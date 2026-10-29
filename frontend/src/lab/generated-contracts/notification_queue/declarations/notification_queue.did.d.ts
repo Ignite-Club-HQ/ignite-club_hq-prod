@@ -83,11 +83,6 @@ export interface Main {
     [string, string, string, string, string, string],
     Result
   >,
-  'enqueue_competition_broadcast' : ActorMethod<
-    [Array<string>, string, string, string, string],
-    { 'Ok' : number } |
-      { 'Err' : string }
-  >,
   'export_club_snapshot' : ActorMethod<
     [string],
     { 'Ok' : Uint8Array } |
@@ -181,21 +176,6 @@ export interface Main {
   'read_account_removal_drain' : ActorMethod<
     [Request],
     { 'Ok' : Receipt } |
-      { 'Err' : string }
-  >,
-  'read_competition_broadcast_receipt' : ActorMethod<
-    [string, string],
-    {
-        'Ok' : [] | [
-          {
-            'body' : string,
-            'club' : string,
-            'count' : number,
-            'related' : string,
-            'audience' : Array<string>,
-          }
-        ]
-      } |
       { 'Err' : string }
   >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,

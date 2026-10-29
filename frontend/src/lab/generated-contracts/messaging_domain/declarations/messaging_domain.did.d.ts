@@ -26,13 +26,6 @@ export interface AttachmentMetadata {
   'message_id' : [] | [string],
   'ref_id' : string,
 }
-export interface Batch {
-  'requester' : Principal,
-  'members' : Array<boolean>,
-  'subjects' : Array<Principal>,
-  'club' : string,
-  'revision' : bigint,
-}
 export interface BroadcastResult {
   'skipped' : Array<string>,
   'delivered' : number,
@@ -172,11 +165,6 @@ export interface LinkPreview {
   'image' : [] | [string],
 }
 export interface Main {
-  'activate_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'addBulkAccessPrincipal' : ActorMethod<
     [Principal],
     { 'Ok' : null } |
@@ -266,11 +254,6 @@ export interface Main {
     { 'Ok' : Conversation } |
       { 'Err' : string }
   >,
-  'ensure_default_club_chat' : ActorMethod<
-    [string, string, [] | [string], Array<[Principal, string]>],
-    { 'Ok' : GroupMetadata } |
-      { 'Err' : string }
-  >,
   'ensure_mini_league_chat' : ActorMethod<
     [string, string, string, Array<Principal>],
     { 'Ok' : GroupSummary } |
@@ -287,19 +270,9 @@ export interface Main {
     { 'Ok' : LinkPreview } |
       { 'Err' : string }
   >,
-  'finish_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'forward_message' : ActorMethod<
     [string, string],
     { 'Ok' : Message } |
-      { 'Err' : string }
-  >,
-  'freeze_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'generate_chat_recap' : ActorMethod<
@@ -313,11 +286,6 @@ export interface Main {
       { 'Err' : string }
   >,
   'get_club_dm_settings' : ActorMethod<[string], ClubDmSettings>,
-  'get_direct_conversation' : ActorMethod<
-    [string],
-    { 'Ok' : Conversation } |
-      { 'Err' : string }
-  >,
   'get_group_join_policy' : ActorMethod<
     [string],
     { 'join_policy' : string, 'category' : [] | [string] }
@@ -330,11 +298,6 @@ export interface Main {
   'get_group_metadata_multi' : ActorMethod<
     [Array<string>],
     { 'Ok' : Array<GroupMetadata> } |
-      { 'Err' : string }
-  >,
-  'get_message_window' : ActorMethod<
-    [string, string],
-    { 'Ok' : MessagePage } |
       { 'Err' : string }
   >,
   'get_mini_league_chat' : ActorMethod<
@@ -402,11 +365,6 @@ export interface Main {
       { 'Err' : string }
   >,
   'list_blocked_users' : ActorMethod<[], Array<Principal>>,
-  'list_broadcast_message_readers' : ActorMethod<
-    [Array<string>],
-    { 'Ok' : Array<Receipt__2> } |
-      { 'Err' : string }
-  >,
   'list_club_admin_threads' : ActorMethod<
     [string],
     Array<{ 'id' : string, 'member' : Principal }>
@@ -423,11 +381,6 @@ export interface Main {
   'list_content_reports' : ActorMethod<
     [[] | [string]],
     { 'Ok' : Array<ContentReport> } |
-      { 'Err' : string }
-  >,
-  'list_conversation_online_users' : ActorMethod<
-    [string],
-    { 'Ok' : Array<Principal> } |
       { 'Err' : string }
   >,
   'list_deleted_groups' : ActorMethod<
@@ -497,7 +450,7 @@ export interface Main {
   >,
   'list_read_receipts' : ActorMethod<
     [string],
-    { 'Ok' : Array<Receipt__2> } |
+    { 'Ok' : Array<Receipt__1> } |
       { 'Err' : string }
   >,
   'list_typing' : ActorMethod<
@@ -507,7 +460,7 @@ export interface Main {
   >,
   'mark_read' : ActorMethod<
     [string, string],
-    { 'Ok' : Receipt__2 } |
+    { 'Ok' : Receipt__1 } |
       { 'Err' : string }
   >,
   'memory_stats' : ActorMethod<
@@ -536,15 +489,9 @@ export interface Main {
         'Ok' : {
           'page' : MessagePage,
           'pins' : [] | [Array<PinnedMessage>],
-          'polls' : Array<PollResults>,
           'reactions' : Array<Reaction>,
         }
       } |
-      { 'Err' : string }
-  >,
-  'open_private_name_writer_window' : ActorMethod<
-    [Request],
-    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'pin_message' : ActorMethod<
@@ -553,7 +500,7 @@ export interface Main {
       { 'Err' : string }
   >,
   'prepare_account_removal' : ActorMethod<
-    [Request__1],
+    [Request],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -699,7 +646,7 @@ export interface Main {
   >,
   'read_account_list_read_receipts' : ActorMethod<
     [string],
-    { 'Ok' : Array<Receipt__2> } |
+    { 'Ok' : Array<Receipt__1> } |
       { 'Err' : string }
   >,
   'read_account_list_typing' : ActorMethod<
@@ -724,7 +671,6 @@ export interface Main {
         'Ok' : {
           'page' : MessagePage,
           'pins' : [] | [Array<PinnedMessage>],
-          'polls' : Array<PollResults>,
           'reactions' : Array<Reaction>,
         }
       } |
@@ -741,7 +687,7 @@ export interface Main {
       { 'Err' : string }
   >,
   'read_account_removal_drain' : ActorMethod<
-    [Request__1],
+    [Request],
     { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
@@ -775,42 +721,6 @@ export interface Main {
       { 'Err' : string }
   >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
-  'read_private_name_preparation' : ActorMethod<
-    [Request],
-    { 'Ok' : Receipt__1 } |
-      { 'Err' : string }
-  >,
-  'read_private_name_writer_window' : ActorMethod<
-    [Request],
-    { 'Ok' : Receipt__1 } |
-      { 'Err' : string }
-  >,
-  'read_profile_broadcast_batch' : ActorMethod<
-    [Principal, string, Array<Principal>, [] | [bigint]],
-    { 'Ok' : Batch } |
-      { 'Err' : string }
-  >,
-  'read_profile_competition_admin_batch' : ActorMethod<
-    [Principal, string, Array<Principal>, [] | [bigint]],
-    { 'Ok' : Batch } |
-      { 'Err' : string }
-  >,
-  'read_profile_direct_batch' : ActorMethod<
-    [Principal, string, Array<Principal>, [] | [bigint]],
-    { 'Ok' : Batch } |
-      { 'Err' : string }
-  >,
-  'read_vault_chat_access' : ActorMethod<
-    [Principal, string, string],
-    {
-        'Ok' : {
-          'can_manage' : boolean,
-          'club' : string,
-          'team' : [] | [string],
-        }
-      } |
-      { 'Err' : string }
-  >,
   'recapTransform' : ActorMethod<
     [{ 'context' : Uint8Array, 'response' : HttpRequestResult }],
     HttpRequestResult
@@ -871,13 +781,8 @@ export interface Main {
     ChatPhotoReminderResult
   >,
   'seal_account_removal' : ActorMethod<
-    [Request__1],
-    { 'Ok' : Receipt } |
-      { 'Err' : string }
-  >,
-  'seal_private_name_writer_window' : ActorMethod<
     [Request],
-    { 'Ok' : null } |
+    { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
   'search_messages' : ActorMethod<
@@ -977,11 +882,6 @@ export interface Main {
   >,
   'set_user_messaging_settings' : ActorMethod<
     [boolean, boolean],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
-  'set_vault_domain_canister' : ActorMethod<
-    [Principal],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -1133,7 +1033,6 @@ export interface Poll {
   'options' : Array<string>,
 }
 export interface PollResults {
-  'votes' : [] | [Array<PollVote>],
   'poll' : Poll,
   'total_votes' : number,
   'counts' : Uint32Array,
@@ -1156,17 +1055,10 @@ export interface RecapConfig {
 }
 export interface Receipt {
   'outstanding' : bigint,
-  'request' : Request__1,
+  'request' : Request,
   'receiver' : Principal,
 }
 export interface Receipt__1 {
-  'active' : bigint,
-  'request' : Request,
-  'sealed' : boolean,
-  'closing' : boolean,
-  'receiver' : Principal,
-}
-export interface Receipt__2 {
   'conversation_id' : string,
   'read' : boolean,
   'user' : Principal,
@@ -1186,11 +1078,6 @@ export interface Reference {
   'resource_id' : string,
 }
 export interface Request {
-  'inventory_digest' : Uint8Array,
-  'generation' : bigint,
-  'operation_id' : string,
-}
-export interface Request__1 {
   'account_id' : string,
   'inventory_digest' : Uint8Array,
   'subjects' : Array<Principal>,
@@ -1240,7 +1127,7 @@ export interface State {
   'attachmentMetadata' : Array<AttachmentMetadata>,
   'dmLinks' : Array<DmLink>,
   'userMessagingSettings' : Array<UserMessagingSettings>,
-  'receipts' : Array<Receipt__2>,
+  'receipts' : Array<Receipt__1>,
   'reactions' : Array<Reaction>,
   'roles' : Array<RoleGrant>,
   'competitionAdmins' : Array<CompetitionAdmin>,

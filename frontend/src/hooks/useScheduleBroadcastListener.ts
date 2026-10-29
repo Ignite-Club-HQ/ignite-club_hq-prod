@@ -21,7 +21,6 @@ export function useScheduleBroadcastListener(clubIds: string[] | undefined) {
 
     const unsub = subscribeToScheduleBroadcasts(ids, () => {
       queryClient.invalidateQueries({ queryKey: ["events"] });
-      queryClient.invalidateQueries({ queryKey: ["icp-schedule-fixtures"] });
       queryClient.invalidateQueries({ queryKey: ["user-memberships-for-events"] });
     });
 

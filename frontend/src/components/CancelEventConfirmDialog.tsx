@@ -47,7 +47,6 @@ export function CancelEventConfirmDialog({
   const keyboardBottomInset = useNativeKeyboardBottomInset();
   const { memberCount, isLoading, recipientLookupFailed } = useEventCancellationRecipients({
     open,
-    eventId,
     teamId,
     clubId,
     miniLeagueId,

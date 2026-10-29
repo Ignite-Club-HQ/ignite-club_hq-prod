@@ -1,3 +1,4 @@
+import { acrossLists } from "@/live/featureScopes";
 import { writeOnce } from "@/live/clubScope";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -81,7 +82,7 @@ export default function TeamCompetitionsSection({ teamId, canManage }: Props) {
               }),
           );
         },
-      }, { teamId }),
+      }, acrossLists),
   });
 
   const respond = async (entryId: string, status: "accepted" | "declined") => {

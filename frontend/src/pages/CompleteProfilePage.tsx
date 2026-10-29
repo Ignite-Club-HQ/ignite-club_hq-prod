@@ -40,7 +40,6 @@ import { connectLocalIdentityAccessClient } from "@/lab/localIdentityAccess";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { sendLiveWelcomeMessage } from "@/live/features/messaging";
-import type { IcpIdentityProfile } from "@/live/identityProfileCache";
 
 
 interface PendingInvite {
@@ -243,13 +242,6 @@ function SupabaseCompleteProfilePage() {
   useEffect(() => {
     const fetchPendingInvites = async () => {
       if (!user?.email || authLoading) return;
-      // Internet Identity has no email inbox. Token invitations are handled
-      // by their owning invite page, not an off-chain synthetic-email search.
-      if (resolveAuthBackend() === "icp") {
-        setPendingInvites([]);
-        setInvitesLoading(false);
-        return;
-      }
       
       setInvitesLoading(true);
       const userEmail = user.email.toLowerCase();
@@ -456,7 +448,6 @@ function SupabaseCompleteProfilePage() {
     setSaving(true);
 
     try {
-      let savedIcpProfile: IcpIdentityProfile | undefined;
       if (isIcpLive) {
         const [{ getCurrentInternetIdentity }, { saveIcpIdentityProfile }] = await Promise.all([
           import("@/live/internetIdentityAuth"),
@@ -470,7 +461,7 @@ function SupabaseCompleteProfilePage() {
         // profile stores it as the avatar reference directly. Skip only
         // pathological sizes so a huge image can't blow the ingress limit.
         const avatarRef = avatarUrl && avatarUrl.length <= 500_000 ? avatarUrl : null;
-        savedIcpProfile = await saveIcpIdentityProfile(identity, user.id, {
+        await saveIcpIdentityProfile(identity, user.id, {
           displayName: displayName.trim(),
           avatarRef,
         });
@@ -577,7 +568,8 @@ function SupabaseCompleteProfilePage() {
       // Send welcome DM from Ignite Support (fire and forget - don't block on this).
       // The message text is app-admin configurable via App Settings
       // (app_settings.welcome_dm_message); falls back to the default.
-      void fetchWelcomeDmMessage().then(welcomeMessage => withFeatureBackend("messaging", {
+      const welcomeMessage = await fetchWelcomeDmMessage();
+      withFeatureBackend("messaging", {
         supabase: () =>
           // send_welcome_dm is a security-definer database function (replaces
           // the old send-welcome-dm edge function); it verifies the caller is
@@ -600,7 +592,7 @@ function SupabaseCompleteProfilePage() {
           sendLiveWelcomeMessage(ctx, welcomeMessage).then(() => {
             console.log("[CompleteProfile] Welcome DM sent successfully");
           }),
-      }, { shared: "person" })).catch(err => {
+      }, { shared: "person" }).catch(err => {
         console.warn("[CompleteProfile] Error calling welcome DM function:", err);
       });
 
@@ -1227,7 +1219,7 @@ function SupabaseCompleteProfilePage() {
         await applyInviteClubSwitch(user.id, firstInvitedClubId, setActiveClubTheme, {
           source: "CompleteProfile",
         });
-      } else if (!isIcpLive) {
+      } else {
         // Defensive: the invite may already have been marked accepted (DB
         // trigger or an earlier partial run), so the pending list was empty.
         const fallback = await seedClubThemeFromAnyInvite(user, setActiveClubTheme);
@@ -1238,18 +1230,11 @@ function SupabaseCompleteProfilePage() {
 
 
       // Invalidate club theme queries so they refetch with new user roles
-      if (isIcpLive) {
-        // Invalidation still refreshes the mounted views, but their network
-        // reads must not hold the acknowledged profile save on this screen.
-        void queryClient.invalidateQueries({ queryKey: ["club-themes"] });
-        void queryClient.invalidateQueries({ queryKey: ["all-user-clubs-for-theme-v2"] });
-      } else {
-        await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
-        await queryClient.invalidateQueries({ queryKey: ["all-user-clubs-for-theme-v2"] });
-      }
+      await queryClient.invalidateQueries({ queryKey: ["club-themes"] });
+      await queryClient.invalidateQueries({ queryKey: ["all-user-clubs-for-theme-v2"] });
       
       // Force refresh profile in auth context so theme is picked up
-      await refreshProfile(savedIcpProfile);
+      await refreshProfile();
       
       // Navigate to home - all invites were already processed above
       // Flag a one-time welcome toast for HomePage to display.

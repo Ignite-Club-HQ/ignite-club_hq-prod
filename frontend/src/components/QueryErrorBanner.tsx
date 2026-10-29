@@ -21,10 +21,9 @@ export interface QueryErrorBannerProps {
   /** Optional override copy. */
   message?: string;
   className?: string;
-  tone?: 'error' | 'neutral';
 }
 
-export function QueryErrorBanner({ hasError, onRetry, message, className, tone = 'error' }: QueryErrorBannerProps) {
+export function QueryErrorBanner({ hasError, onRetry, message, className }: QueryErrorBannerProps) {
   const [retrying, setRetrying] = useState(false);
   if (!hasError) return null;
 
@@ -40,21 +39,18 @@ export function QueryErrorBanner({ hasError, onRetry, message, className, tone =
   };
 
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
       onClick={handle}
-      disabled={retrying}
       className={cn(
-        "w-full h-auto flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm whitespace-normal transition-colors touch-manipulation",
-        tone === 'neutral' ? "border-border bg-muted/40 text-foreground hover:bg-muted" : "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15",
+        "w-full flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/15 transition-colors touch-manipulation",
         className,
       )}
       aria-label="Retry loading"
     >
       <div className="flex items-center gap-2 min-w-0">
         <AlertCircle className="h-4 w-4 shrink-0" />
-        <span>
+        <span className="truncate">
           {message ?? "Couldn't load latest data. Tap to retry."}
         </span>
       </div>
@@ -62,6 +58,6 @@ export function QueryErrorBanner({ hasError, onRetry, message, className, tone =
         <RefreshCw className={cn("h-3.5 w-3.5", retrying && "animate-spin")} />
         Retry
       </span>
-    </Button>
+    </button>
   );
 }

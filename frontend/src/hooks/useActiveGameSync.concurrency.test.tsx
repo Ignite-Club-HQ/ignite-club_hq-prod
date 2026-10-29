@@ -512,7 +512,7 @@ describe.runIf(supabaseMode)("useActiveGameSync soccer multi-tenant write concur
 });
 
 describe.runIf(!supabaseMode)("useActiveGameSync ICP routing", () => {
-  it("leaves ICP snapshots to the shared board owner without reading Supabase", async () => {
+  it("syncs timer and pitch state through events_domain without reading Supabase", async () => {
     activeGameBackendMocks.mode = "icp";
     activeGameBackendMocks.sync.mockResolvedValue({ id: "icp-active-game" });
     seedSoccerBoard("team-icp");
@@ -522,14 +522,19 @@ describe.runIf(!supabaseMode)("useActiveGameSync ICP routing", () => {
       await result.current.forceSync();
     });
 
-    expect(activeGameBackendMocks.sync).not.toHaveBeenCalled();
+    expect(activeGameBackendMocks.sync).toHaveBeenCalledWith(
+      { identity: {}, target: {} },
+      expect.objectContaining({ teamId: "team-icp", boardSessionId: expect.any(String) }),
+    );
+    expect(JSON.parse(activeGameBackendMocks.sync.mock.calls[0][1].timerStateJson)).toMatchObject({ teamId: "team-icp" });
+    expect(JSON.parse(activeGameBackendMocks.sync.mock.calls[0][1].pitchStateJson).players).toHaveLength(1);
     expect(writeLog).toEqual([]);
   });
 
-  it("does not deactivate another device's ICP board from a stopped local clock", async () => {
+  it("deactivates a stopped board through events_domain using its team scope", async () => {
     activeGameBackendMocks.mode = "icp";
     seedSoccerBoard("team-stopped");
-    const timer = JSON.parse(localStorage.getItem(TIMER_KEY) ?? '{}');
+    const timer = JSON.parse(localStorage.getItem(TIMER_KEY)!);
     timer.isRunning = false;
     timer.elapsedSeconds = 0;
     localStorage.setItem(TIMER_KEY, JSON.stringify(timer));
@@ -537,7 +542,10 @@ describe.runIf(!supabaseMode)("useActiveGameSync ICP routing", () => {
 
     await act(async () => result.current.forceSync());
 
-    expect(activeGameBackendMocks.deactivate).not.toHaveBeenCalled();
+    expect(activeGameBackendMocks.deactivate).toHaveBeenCalledWith(
+      { identity: {}, target: {} },
+      "team-stopped",
+    );
     expect(activeGameBackendMocks.sync).not.toHaveBeenCalled();
     expect(writeLog).toEqual([]);
   });
@@ -550,7 +558,7 @@ describe.runIf(!supabaseMode)("useActiveGameSync ICP routing", () => {
 
     await act(async () => result.current.forceSync());
 
-    expect(activeGameBackendMocks.sync).not.toHaveBeenCalled();
+    expect(activeGameBackendMocks.sync).toHaveBeenCalledOnce();
     expect(writeLog).toEqual([]);
   });
 });

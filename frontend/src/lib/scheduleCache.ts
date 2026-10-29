@@ -1,4 +1,3 @@
-import { writeBoundedReadCache } from "./deviceCacheBudget";
 // Lightweight offline cache for events lists and event details.
 // Stores per user/filter combo so each user sees their own scoped data when offline.
 //
@@ -36,7 +35,7 @@ function safeSet<T>(key: string, data: T): void {
   try {
     if (typeof localStorage === "undefined") return;
     const entry: Entry<T> = { data, timestamp: Date.now() };
-    writeBoundedReadCache(key, JSON.stringify(entry));
+    localStorage.setItem(key, JSON.stringify(entry));
   } catch {
     // quota or unavailable - ignore
   }
@@ -109,7 +108,7 @@ export function purgeEventsFromScheduleCache(deletedIds: string[]): void {
         );
         if (next.length !== entry.data.length) {
           // Preserve the original timestamp so purging never extends the TTL.
-          writeBoundedReadCache(key, JSON.stringify({ data: next, timestamp: entry.timestamp }));
+          localStorage.setItem(key, JSON.stringify({ data: next, timestamp: entry.timestamp }));
         }
       } catch {
         // Corrupt entry - drop it rather than leave a deleted event behind.

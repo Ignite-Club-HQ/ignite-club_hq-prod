@@ -1,29 +1,23 @@
+import { supabase } from "@/integrations/supabase/client";
 import { withFeatureBackend } from "@/live/featureRouter";
 
 /**
- * Membership acceptance is exclusively on ICP. Email delivery is deferred
- * and must never make acceptance depend on an external application service.
+ * Accepts an ICP pending invite, then asks the server to send the team's
+ * welcome email. The server re-verifies acceptance on the canister, so this
+ * request carries only the invite id; a failed send never fails the accept.
  */
-export async function acceptIcpInviteAndWelcome(inviteId: string) {
-  return withFeatureBackend("membership", {
-    supabase: async () => { throw new Error("Internet Identity required"); },
+export async function acceptIcpInviteAndWelcome(inviteId: string): Promise<void> {
+  await withFeatureBackend("membership", {
+    supabase: async () => {},
     icp: async (ctx) => {
-      const { acceptPendingLiveInvite, readLiveFamilyInviteReceipt } = await import("@/live/features/club");
+      const { acceptPendingLiveInvite } = await import("@/live/features/club");
       await acceptPendingLiveInvite(ctx, inviteId);
-      const receipt = await readLiveFamilyInviteReceipt(ctx, inviteId);
-      const { addLiveGuardianRelationship, grantLivePiiRead } = await import("@/live/features/vault");
-      for (const id of receipt.child_ids) {
-        try {
-          await addLiveGuardianRelationship(ctx, ctx.identity.getPrincipal(), id);
-          for (const field of ["name", "year_of_birth", "jersey_number"]) {
-            try { await grantLivePiiRead(ctx, id, field, ctx.identity.getPrincipal()); }
-            catch (error) { if (field === "name") throw error; }
-          }
-        } catch (error) {
-          console.warn("Accepted invitation; encrypted child-name access needs retry", error);
-        }
+      try {
+        const { error } = await supabase.functions.invoke("send-welcome-email-icp", { body: { inviteId } });
+        if (error) console.error("[welcome-email] ICP delivery request failed", error);
+      } catch (error) {
+        console.error("[welcome-email] ICP delivery request failed", error);
       }
-      return receipt;
     },
   }, { inviteToken: inviteId });
 }

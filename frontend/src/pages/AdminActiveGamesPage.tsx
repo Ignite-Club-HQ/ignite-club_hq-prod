@@ -23,7 +23,6 @@ import { PageLoading } from "@/components/ui/page-loading";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { listLiveActiveGames, listLiveActiveGameWriteRates } from "@/live/features/events";
-import { resolveAuthBackend } from "@/live/authBackendMode";
 
 interface ActiveGameRow {
   id: string;
@@ -129,7 +128,6 @@ function IcpLabAdminActiveGamesPage() {
 
 function SupabaseAdminActiveGamesPage() {
   const { user } = useAuth();
-  const isIcp = resolveAuthBackend() === "icp";
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"active" | "recent">("active");
@@ -253,7 +251,7 @@ function SupabaseAdminActiveGamesPage() {
 
   // Realtime: re-pull on any active_games change.
   useEffect(() => {
-    if (!isAppAdmin || isIcp) return;
+    if (!isAppAdmin) return;
     const channel = supabase
       .channel("admin-active-games")
       .on(
@@ -265,7 +263,7 @@ function SupabaseAdminActiveGamesPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAppAdmin, isIcp]);
+  }, [isAppAdmin]);
 
   const coachLabel = (userId: string) => {
     const p = profileMap?.[userId];

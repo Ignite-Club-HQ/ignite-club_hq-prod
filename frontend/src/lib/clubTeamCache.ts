@@ -1,4 +1,3 @@
-import { writeBoundedReadCache } from "./deviceCacheBudget";
 // Local cache for club and team metadata
 
 export interface CachedClub {
@@ -64,7 +63,7 @@ function saveClubsCache() {
       clubsMemoryCache.forEach((club, key) => {
         obj[key] = club;
       });
-      writeBoundedReadCache(CLUBS_CACHE_KEY, JSON.stringify(obj));
+      localStorage.setItem(CLUBS_CACHE_KEY, JSON.stringify(obj));
     } catch {
       try { localStorage.removeItem(CLUBS_CACHE_KEY); } catch {}
     }
@@ -79,7 +78,7 @@ function saveTeamsCache() {
       teamsMemoryCache.forEach((team, key) => {
         obj[key] = team;
       });
-      writeBoundedReadCache(TEAMS_CACHE_KEY, JSON.stringify(obj));
+      localStorage.setItem(TEAMS_CACHE_KEY, JSON.stringify(obj));
     } catch {
       try { localStorage.removeItem(TEAMS_CACHE_KEY); } catch {}
     }
@@ -216,11 +215,6 @@ export function invalidateTeamCache(teamId: string) {
 }
 
 export function clearClubTeamCache() {
-  if (saveClubsTimeout) window.clearTimeout(saveClubsTimeout);
-  saveClubsTimeout = null;
-  if (saveTeamsTimeout) window.clearTimeout(saveTeamsTimeout);
-  saveTeamsTimeout = null;
-
   clubsMemoryCache.clear();
   teamsMemoryCache.clear();
   memoryCacheLoaded = false;

@@ -1,8 +1,5 @@
 import type { FeatureBackendContext } from "@/live/featureRouter";
 import { readMembershipInScope } from "@/live/membershipRouting";
-import { settleAll } from "@/live/crossGroupClubs";
-import { withReadDeadline } from "@/live/readDeadline";
-const rewardRead = <T,>(read: Promise<T>, label: string) => withReadDeadline(read, label, 12_000);
 import { readPointsInClub } from "@/live/pointsRouting";
 import { getLiveMyRoleGrants } from "@/live/features/membership";
 import { getLiveClubProfile, getLiveTeam, isLiveClubPro } from "@/live/features/club";
@@ -23,15 +20,15 @@ import {
 
 /** Club ids the caller belongs to (club-wide grants plus team grants' clubs). */
 export async function liveMyRewardClubIds(ctx: FeatureBackendContext): Promise<string[]> {
-  const grants = await withReadDeadline(getLiveMyRoleGrants(ctx), 'Reward memberships', 20_000);
+  const grants = await getLiveMyRoleGrants(ctx);
   const ids = new Set<string>();
   const teamIds = new Set<string>();
   for (const g of grants) {
     if (g.club[0]) ids.add(g.club[0]);
     else if (g.team[0]) teamIds.add(g.team[0]);
   }
-  const { values: teams } = await settleAll(
-    [...teamIds].map((t) => rewardRead(readMembershipInScope(ctx, { teamId: t }, scoped => getLiveTeam(scoped, t)), 'Reward team')),
+  const teams = await Promise.all(
+    [...teamIds].map((t) => readMembershipInScope(ctx, { teamId: t }, scoped => getLiveTeam(scoped, t))),
   );
   for (const t of teams) {
     const clubId = (t[0] as { club_id?: string } | undefined)?.club_id;
@@ -53,14 +50,12 @@ export async function liveRewardClubs(
   ctx: FeatureBackendContext,
   clubIds: string[],
 ): Promise<LiveRewardClub[]> {
-  const { values: rows } = await settleAll(
+  const rows = await Promise.all(
     clubIds.map(async (id) => {
       const [profile, settings, hasPro] = await Promise.all([
-        rewardRead(readMembershipInScope(ctx, { clubId: id }, scoped => getLiveClubProfile(scoped, id)), 'Reward club'),
-        // Names/icons decorate the directory; a slow settings service must
-        // not block verified club subscription access or points history.
-        withReadDeadline(readPointsInClub(ctx, id, scoped => getLiveClubPointsSettings(scoped, id)), 'Points display settings', 4_000).catch(() => null),
-        rewardRead(readMembershipInScope(ctx, { clubId: id }, scoped => isLiveClubPro(scoped, id)), 'Reward subscription'),
+        readMembershipInScope(ctx, { clubId: id }, scoped => getLiveClubProfile(scoped, id)),
+        readPointsInClub(ctx, id, scoped => getLiveClubPointsSettings(scoped, id)),
+        readMembershipInScope(ctx, { clubId: id }, scoped => isLiveClubPro(scoped, id)),
       ]);
       const p = profile[0];
       if (!p) return null;
@@ -77,17 +72,7 @@ export async function liveRewardClubs(
   return rows.filter((r): r is LiveRewardClub => !!r);
 }
 
-type SponsorLookup = ReadonlyMap<string, ReadonlyMap<string, { id: string; name: string; logo_url: string | null }>>;
-async function rewardSponsorLookup(ctx: FeatureBackendContext, clubIds: string[]) {
-  const result = new Map<string, Map<string, { id: string; name: string; logo_url: string | null }>>();
-  const { listLiveSponsors } = await import("@/live/features/club");
-  await settleAll(clubIds.map(id => readMembershipInScope(ctx, { clubId: id }, async scoped => {
-    const rows = await listLiveSponsors(scoped, id);
-    result.set(id, new Map(rows.filter(s => s.club_id === id).map(s => [s.id, { id: s.id, name: s.name, logo_url: s.logo_url[0] ?? null }])));
-  })));
-  return result;
-}
-export function mapLiveReward(r: Awaited<ReturnType<typeof listLiveClubRewards>>[number], sponsorsByClub?: SponsorLookup) {
+export function mapLiveReward(r: Awaited<ReturnType<typeof listLiveClubRewards>>[number]) {
   return {
     id: r.id,
     club_id: r.club_id,
@@ -100,32 +85,27 @@ export function mapLiveReward(r: Awaited<ReturnType<typeof listLiveClubRewards>>
     qr_code_url: r.qr_code_url[0] ?? null,
     show_qr_code: r.show_qr_code,
     reward_type: r.reward_type,
-    sponsor_id: r.sponsor_id?.[0] ?? null,
-    sponsors: r.sponsor_id?.[0] ? sponsorsByClub?.get(r.club_id)?.get(r.sponsor_id[0]) ?? null : null,
+    sponsors: null,
   };
 }
 
 /** Active, redeemable (non player-of-match) rewards for the given clubs. */
 export async function liveRedeemableRewards(ctx: FeatureBackendContext, clubIds: string[]) {
-  // Sponsors only decorate rewards — fetch them alongside, not before.
-  const [sponsors, { values: lists }] = await Promise.all([
-    rewardSponsorLookup(ctx, clubIds),
-    settleAll(
-      clubIds.map((id) => readPointsInClub(ctx, id, scoped => listLiveClubRewards(scoped, id, null, true))),
-    ),
-  ]);
+  const lists = await Promise.all(
+    clubIds.map((id) => readPointsInClub(ctx, id, scoped => listLiveClubRewards(scoped, id, null, true))),
+  );
   return lists
     .flat()
     .filter((r) => r.is_active && r.reward_type !== "player_of_match")
-    .map(r => mapLiveReward(r, sponsors))
+    .map(mapLiveReward)
     .sort((a, b) => a.points_required - b.points_required);
 }
 
 async function clubNameMap(ctx: FeatureBackendContext, clubIds: string[]) {
   const m = new Map<string, string>();
-  await Promise.allSettled(
+  await Promise.all(
     clubIds.map(async (id) => {
-      const p = await withReadDeadline(readMembershipInScope(ctx, { clubId: id }, scoped => getLiveClubProfile(scoped, id)), 'History club name', 4_000);
+      const p = await readMembershipInScope(ctx, { clubId: id }, scoped => getLiveClubProfile(scoped, id));
       if (p[0]) m.set(id, p[0].name);
     }),
   );
@@ -141,11 +121,11 @@ export async function liveMyPointsHistory(
 ) {
   const clubIds = clubFilter ? [clubFilter] : await liveMyRewardClubIds(ctx);
   const [pages, names] = await Promise.all([
-    settleAll(
+    Promise.all(
       clubIds.map((id) =>
-        rewardRead(readPointsInClub(ctx, id, scoped => listLivePointsHistory(scoped, id, subjectForUser(userId), 0, limit)), 'Points history'),
+        readPointsInClub(ctx, id, scoped => listLivePointsHistory(scoped, id, subjectForUser(userId), 0, limit)),
       ),
-    ).then((r) => r.values),
+    ),
     clubNameMap(ctx, clubIds),
   ]);
   return pages
@@ -179,12 +159,11 @@ export async function liveMyRedemptions(
   const subjects = [subjectForUser(userId), ...[...childNames.keys()].map(subjectForChild)];
   const clubIds = clubFilter ? [clubFilter] : await liveMyRewardClubIds(ctx);
   const [lists, names, rewards] = await Promise.all([
-    settleAll(clubIds.flatMap((id) => subjects.map((sub) => readPointsInClub(ctx, id, scoped => listLiveRedemptions(scoped, id, sub))))).then((r) => r.values),
+    Promise.all(clubIds.flatMap((id) => subjects.map((sub) => readPointsInClub(ctx, id, scoped => listLiveRedemptions(scoped, id, sub))))),
     clubNameMap(ctx, clubIds),
-    settleAll(clubIds.map((id) => readPointsInClub(ctx, id, scoped => listLiveClubRewards(scoped, id, null, false)))).then((r) => r.values),
+    Promise.all(clubIds.map((id) => readPointsInClub(ctx, id, scoped => listLiveClubRewards(scoped, id, null, false)))),
   ]);
-  const sponsors = await rewardSponsorLookup(ctx, clubIds);
-  const rewardById = new Map(rewards.flat().map((r) => [r.id, mapLiveReward(r, sponsors)]));
+  const rewardById = new Map(rewards.flat().map((r) => [r.id, mapLiveReward(r)]));
   return lists
     .flat()
     .sort((a, b) => Number(b.created_at_ms) - Number(a.created_at_ms))

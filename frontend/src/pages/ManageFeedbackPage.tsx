@@ -60,8 +60,6 @@ type StatusFilter = "all" | FeedbackStatus;
 import { withFeatureBackend } from "@/live/featureRouter";
 import { listLiveFeedback, updateLiveFeedbackStatus, deleteLiveFeedback } from "@/live/features/insights";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
-import { readAdminPages } from "@/live/adminPaging";
-import { decodeFeedbackFields } from "@/lib/feedbackFields";
 
 export default function ManageFeedbackPage() {
   return <SupabaseManageFeedbackPage />;
@@ -92,7 +90,7 @@ function SupabaseManageFeedbackPage() {
   const { isAppAdmin } = useIsAppAdmin();
 
   const { data: feedback, isLoading } = useQuery({
-    queryKey: ["all-feedback", user?.id],
+    queryKey: ["all-feedback"],
     queryFn: async () => {
       return withFeatureBackend("admin", {
         supabase: async () => {
@@ -106,14 +104,12 @@ function SupabaseManageFeedbackPage() {
         icp: async (ctx) => {
           // Provisional mapping: canister has no profile join, so `profiles`
           // falls back to the caller's principal text for display.
-          const items = await readAdminPages(async (offset, limit) => {
-            const page = await listLiveFeedback(ctx, null, offset, limit);
-            return { items: page.items, total: Number(page.total) };
-          }, item => item.id);
+          const { items } = await listLiveFeedback(ctx, null, 0, 200);
           return items.map((item) => ({
             id: item.id,
             type: item.kind,
-            ...decodeFeedbackFields(item.title[0], item.message),
+            title: item.title[0] ?? item.message,
+            description: item.title.length ? item.message : null,
             status: fromLiveFeedbackStatus(item.status),
             created_at: new Date(Number(item.created_at_ms)).toISOString(),
             profiles: { display_name: item.user.toText(), avatar_url: null },

@@ -92,17 +92,8 @@ export async function getIcpNotificationRoute(
   if (!relatedId) return FALLBACK;
 
   switch (kind) {
-    case "photo_comment":
-    case "comment_reply":
-    case "comment_reaction":
-      return `/media?photo=${encodeURIComponent(relatedId)}&comments=1`;
-    case "photo_reaction":
-    case "photo_uploaded":
-      return `/media?photo=${encodeURIComponent(relatedId)}`;
     case "media_chat_photo_reminder":
-      // Open the team chat where the photo was shared: its own photos carry
-      // the "Add to gallery" action, so nothing needs re-picking.
-      return `/messages/${encodeURIComponent(relatedId)}?gallery=1`;
+      return `/media?team=${encodeURIComponent(relatedId)}&upload=1`;
     case "event_invite":
     case "event_cancelled":
     case "event_updated":

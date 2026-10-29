@@ -1,1 +1,0 @@
-ALTER TABLE public.club_subscriptions ADD COLUMN disable_points_system boolean NOT NULL DEFAULT false;

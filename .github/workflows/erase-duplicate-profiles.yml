@@ -43,4 +43,3 @@ jobs:
           if [ -z "$DEPLOYER_PEM" ]; then echo "::error::DEPLOYER_PEM secret is not set."; exit 1; fi
           cp scripts/erase-duplicate-profiles.mjs /tmp/icp-run/
           node /tmp/icp-run/erase-duplicate-profiles.mjs
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_ERASE_DUPLICATE_PROFILES_ENABLED == 'true') }}

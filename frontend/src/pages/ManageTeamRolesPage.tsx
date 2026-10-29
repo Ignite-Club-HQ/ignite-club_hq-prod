@@ -29,7 +29,6 @@ import { membershipKeys } from "@/lab/membershipQueryKeys";
 import { refreshTeamRoleChange } from "@/lab/teamMembershipCacheCompletion";
 import { roleLabels, type AppRole } from "@/features/membership/rolePresentation";
 import { groupRoleRowsByUser } from "@/features/membership/roleRoster";
-import { roleMemberProfiles } from "@/features/membership/roleMemberProfiles";
 import {
   RoleManagementHeader,
   RoleManagementTabs,
@@ -105,12 +104,11 @@ function SupabaseManageTeamRolesPage() {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
             const grants = await listLiveTeamRoleGrants(ctx, teamId!);
-            const profiles = await roleMemberProfiles(grants.map(g => g.account_id), team?.club_id);
             return (grants as any[]).map((g) => ({
               id: `${g.account_id}-${g.role}`,
               role: g.role,
               user_id: g.account_id,
-              profiles: profiles.get(g.account_id),
+              profiles: { id: g.account_id, display_name: g.account_id, avatar_url: null },
             }));
           },
         }, { teamId: teamId! });
@@ -134,7 +132,6 @@ function SupabaseManageTeamRolesPage() {
           icp: async (ctx) => {
             if (!team?.club_id) return [];
             const rows = await listLiveRoleRequests(ctx, team.club_id);
-            const profiles = await roleMemberProfiles(rows.filter(r => r.status === "pending" && (r.team?.[0] ?? null) === teamId).map(r => r.account_id), team?.club_id);
             return (rows as any[])
               .filter((r) => r.status === "pending" && (r.team?.[0] ?? null) === teamId)
               .map((r) => ({
@@ -143,7 +140,7 @@ function SupabaseManageTeamRolesPage() {
                 team_id: teamId,
                 role: r.role,
                 status: r.status,
-                requester: profiles.get(r.account_id),
+                requester: { id: r.account_id, display_name: r.account_id, avatar_url: null },
               }));
           },
         }, { clubId: team?.club_id as string });

@@ -18,27 +18,19 @@ import { useOptionalAuth } from "@/hooks/useAuth";
 const decryptedCache = new Map<string, string>();
 const failedCache = new Map<string, number>();
 const inFlight = new Map<string, Promise<string | null>>();
-const failureCounts = new Map<string, number>();
-// Resuming the app often fails the first unlock while the connection wakes
-// up; retry quickly first instead of showing no avatar for a whole minute.
-const FAILURE_BACKOFF_MS = [3_000, 10_000, 30_000, 60_000];
-const retryDelay = (key: string) => FAILURE_BACKOFF_MS[Math.min((failureCounts.get(key) ?? 1) - 1, FAILURE_BACKOFF_MS.length - 1)];
-const markFailed = (key: string) => { failedCache.set(key, Date.now()); failureCounts.set(key, (failureCounts.get(key) ?? 0) + 1); };
+const FAILURE_RETRY_MS = 60_000;
 
 export function isIcpBlobUrl(src: string): boolean {
   try {
     const target = getActiveIcpTarget();
     const stores = listBlobStoreCanisterIds(target);
+    if (stores.length === 0) return false;
     const url = new URL(src);
-    // A new group's store is not in the shared target's static IDs. Club
-    // paths still need asynchronous approved-owner resolution, never <img>
-    // with the raw ciphertext URL, even before routing has warmed up.
-    const clubPath = /^\/clubs\/[^/]+\//.test(url.pathname);
     if (url.hostname === "icp0.io" || url.hostname === "raw.icp0.io") {
       return stores.includes(url.pathname.replace(/^\/+/, "").split("/")[0]);
     }
     const sub = /^([a-z0-9-]+)\.(?:raw\.)?icp0\.io$/.exec(url.hostname)?.[1];
-    return !!sub && (stores.includes(sub) || clubPath);
+    return !!sub && stores.includes(sub);
   } catch {
     return false;
   }
@@ -69,7 +61,7 @@ export function useResolvedIcpBlobSrc(src: string | undefined | null): ResolvedI
     const cached = decryptedCache.get(cacheKey);
     if (cached) return { src: cached, pending: false, failed: false };
     const failedAt = failedCache.get(cacheKey);
-    if (failedAt && Date.now() - failedAt < retryDelay(cacheKey)) {
+    if (failedAt && Date.now() - failedAt < FAILURE_RETRY_MS) {
       return { src: undefined, pending: false, failed: true };
     }
     return { src: undefined, pending: true, failed: false };
@@ -84,13 +76,13 @@ export function useResolvedIcpBlobSrc(src: string | undefined | null): ResolvedI
     const retryAfterCooldown = () => {
       if (navigator.onLine === false) return;
       const failedAt = failedCache.get(cacheKey);
-      if (failedAt && Date.now() - failedAt < retryDelay(cacheKey)) return;
+      if (failedAt && Date.now() - failedAt < FAILURE_RETRY_MS) return;
       retry();
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") retryAfterCooldown();
     };
-    const remaining = Math.max(0, retryDelay(cacheKey) - (Date.now() - (failedCache.get(cacheKey) ?? 0)));
+    const remaining = Math.max(0, FAILURE_RETRY_MS - (Date.now() - (failedCache.get(cacheKey) ?? 0)));
     const timer = window.setTimeout(retryAfterCooldown, remaining);
     window.addEventListener("online", retryAfterCooldown);
     window.addEventListener("focus", retryAfterCooldown);
@@ -117,12 +109,12 @@ export function useResolvedIcpBlobSrc(src: string | undefined | null): ResolvedI
       request = import("@/live/mediaDecrypt")
         .then((m) => m.resolveIcpBlobObjectUrl(input))
         .then((url) => {
-          if (url) { decryptedCache.set(cacheKey, url); failureCounts.delete(cacheKey); }
-          else markFailed(cacheKey);
+          if (url) decryptedCache.set(cacheKey, url);
+          else failedCache.set(cacheKey, Date.now());
           return url;
         })
         .catch((error: unknown) => {
-          markFailed(cacheKey);
+          failedCache.set(cacheKey, Date.now());
           throw error;
         })
         .finally(() => { inFlight.delete(cacheKey); });

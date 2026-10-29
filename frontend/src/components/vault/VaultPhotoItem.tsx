@@ -49,8 +49,7 @@ export function VaultPhotoItem({
   
   // Get signed URL for private bucket photos
   const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPhotoUrl(rawPhotoUrl);
-  // Never render the original URL after an unlock failure: ICP URLs are ciphertext.
-  const photoUrl = signedUrl;
+  const photoUrl = signedUrl || rawPhotoUrl;
   
   // If no URL is available, show error state
   if (!rawPhotoUrl) {
@@ -62,7 +61,7 @@ export function VaultPhotoItem({
   }
   
   // Show loading state while fetching signed URL or loading image
-  if (isLoadingSignedUrl || (photoUrl && !isLoaded && !hasError)) {
+  if (isLoadingSignedUrl || (!isLoaded && !hasError)) {
     return (
       <>
         {/* Only start preloading once we have a signed URL */}
@@ -85,7 +84,7 @@ export function VaultPhotoItem({
   }
   
   // Show error state if image failed to load
-  if (hasError || (!isLoadingSignedUrl && !photoUrl)) {
+  if (hasError) {
     return (
       <div className="aspect-square rounded-lg bg-muted flex items-center justify-center">
         <span className="text-xs text-muted-foreground text-center px-2">Failed to load</span>

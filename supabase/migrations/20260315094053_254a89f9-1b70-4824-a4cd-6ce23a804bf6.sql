@@ -1,1 +1,0 @@
-ALTER TABLE public.rsvps ADD COLUMN attendance_points_awarded BOOLEAN NOT NULL DEFAULT false;

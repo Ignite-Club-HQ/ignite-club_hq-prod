@@ -1,9 +1,0 @@
-{
-  "appId": "app.igniteclubhq.iososresumetest",
-  "appName": "Ignite iOS OS Test",
-  "webDir": "www",
-  "ios": {
-    "path": ".generated/ios",
-    "scheme": "App"
-  }
-}

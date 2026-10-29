@@ -129,12 +129,14 @@ export function TeamChatComposerFooter({
                   <PollAttachmentPreview
                     pollId={pendingPollId}
                     onRemove={() => onPendingPollIdChange(null)}
+                    disabled={isSending}
                   />
                 )}
                 {pendingNewsId && (
                   <NewsAttachmentPreview
                     newsId={pendingNewsId}
                     onRemove={() => onPendingNewsIdChange(null)}
+                    disabled={isSending}
                   />
                 )}
               </div>
@@ -182,7 +184,6 @@ export function TeamChatComposerFooter({
             onSchedule={scheduleTarget ? () => onScheduleDialogOpenChange(true) : undefined}
             disabled={!message.trim() && !imageUrl && !pendingPollId && !pendingNewsId}
             loading={isSending}
-            allowConcurrentSend
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId || !!pendingNewsId}
           />
         </ChatComposerShell>

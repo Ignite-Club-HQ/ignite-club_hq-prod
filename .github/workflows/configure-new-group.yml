@@ -1,4 +1,3 @@
-# Superseded for new groups by "Add new group" (add-group.yml); kept for maintenance.
 # Configure an already-installed new club group on mainnet, kept CLOSED.
 # Signs with the DEPLOYER_PEM secret; never registers or opens the group.
 # Input: path to the group's committed provision.json (phase "installed").
@@ -53,4 +52,3 @@ jobs:
           rm -f "$RUNNER_TEMP/operator.pem"
           git config user.name "ignite-operator"; git config user.email "operator@users.noreply.github.com"
           git add "${{ inputs.provision_file }}" && git commit -m "Group configuration progress" && git push || true
-    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_CONFIGURE_NEW_GROUP_ENABLED == 'true') }}

@@ -109,6 +109,7 @@ export function ClubAdminChatComposerFooter({
               <PollAttachmentPreview
                 pollId={pendingPollId}
                 onRemove={() => onPendingPollIdChange(null)}
+                disabled={isSending}
               />
             ) : undefined
           }
@@ -145,7 +146,6 @@ export function ClubAdminChatComposerFooter({
             onSchedule={scheduleTarget ? () => onScheduleDialogOpenChange(true) : undefined}
             disabled={!message.trim() && !imageUrl && !pendingPollId}
             loading={isSending}
-            allowConcurrentSend
             canSend={!!message.trim() || !!imageUrl || !!pendingPollId}
           />
         </ChatComposerShell>

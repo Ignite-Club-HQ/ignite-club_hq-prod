@@ -36,11 +36,12 @@ export async function cancelEventOnIcp(
   ctx: FeatureBackendContext,
   input: IcpCancelEventInput,
 ): Promise<IcpCancelEventResult> {
-  const [{ setLiveEventCancelled, setLiveSeriesCancelled, listLiveEvents, notifyLiveEventAudience }, { sendLiveMessage }] =
+  const [{ setLiveEventCancelled, setLiveSeriesCancelled, getLiveEventsSnapshot }, { sendLiveMessage }, { fanOutLiveNotifications }, { listLiveTeamRoleGrants, listLiveRoleGrants }] =
     await Promise.all([
       import("@/live/features/events"),
       import("@/live/features/messaging"),
-
+      import("@/live/features/notifications"),
+      import("@/live/features/membership"),
     ]);
 
   const { event } = input;
@@ -48,7 +49,7 @@ export async function cancelEventOnIcp(
   let seriesId = event.series_id ?? null;
   let fromMs = event.starts_at_ms ?? 0;
   if (input.cancelType === "series" && !seriesId) {
-    const snapshot = { events: await listLiveEvents(ctx, event.club_id, null) };
+    const snapshot = await getLiveEventsSnapshot(ctx);
     const live = (snapshot.events as Array<{ id: string; series_id: [] | [string]; starts_at_ms: bigint }>)
       .find((e) => e.id === event.id);
     seriesId = live?.series_id?.[0] ?? null;
@@ -81,7 +82,23 @@ export async function cancelEventOnIcp(
   let notifiedCount = 0;
   if (input.sendPushNotification) {
     try {
-      notifiedCount = Number(await notifyLiveEventAudience(ctx, event.id, 'event_cancelled'));
+      const grants = event.team_id
+        ? await listLiveTeamRoleGrants(ctx, event.team_id)
+        : await listLiveRoleGrants(ctx, event.club_id);
+      const me = ctx.identity.getPrincipal().toText();
+      const userIds = [...new Set(grants.map((g: any) => g.user?.toText?.() ?? String(g.user)))].filter((id) => id && id !== me);
+      if (userIds.length > 0) {
+        notifiedCount = Number(
+          await fanOutLiveNotifications(ctx, {
+            userIds,
+            clubId: event.club_id,
+            kind: "event_cancelled",
+            body: `Event cancelled: ${title}`,
+            idempotencyKeyPrefix: `event-cancel-${event.id}-${Date.now()}`,
+            relatedId: event.id,
+          }),
+        );
+      }
     } catch (err) {
       console.warn("[CancelEvent] ICP push fan-out failed", err);
     }

@@ -16,11 +16,6 @@ type RoleGrant =
    team_id: opt text;
    user: principal;
  };
-type Result = 
- variant {
-   Err: text;
-   Ok: Page__1;
- };
 type Request = 
  record {
    account_id: text;
@@ -49,12 +44,6 @@ type Reaction =
    kind: text;
    user: principal;
  };
-type Page__1 = 
- record {
-   assets: vec Asset;
-   next: opt Cursor;
-   scanned: nat;
- };
 type Page = 
  record {
    next: opt nat;
@@ -74,28 +63,10 @@ type Main =
        Err: text;
        Ok: Comment;
      });
-   add_comment_reply: (asset_id: text, body: text, reply_to_id: opt text) ->
-    (variant {
-       Err: text;
-       Ok: Comment;
-     });
    add_reaction: (asset_id: text, kind: text, created_at_ms: nat64) ->
     (variant {
        Err: text;
        Ok: Reaction;
-     });
-   announce_gallery_asset: (asset_id: text) ->
-    (variant {
-       Err: text;
-       Ok: text;
-     });
-   build_asset_page_index: () ->
-    (variant {
-       Err: text;
-       Ok: record {
-             complete: bool;
-             scanned: nat;
-           };
      });
    /// Public: remaining cycles (shown in admin settings).
    cycles_balance: () -> (nat) query;
@@ -143,8 +114,6 @@ type Main =
        Ok: vec principal;
      }) query;
    list_assets: (club_id: text) -> (vec Asset) query;
-   list_assets_page: (club_id: text, cursor: opt Cursor, limit: nat) ->
-    (Result) query;
    list_comments: (asset_id: text) -> (vec Comment) query;
    list_gallery_chat_cards: (club_id: text, team_id: text) ->
     (vec GalleryChatCard) query;
@@ -172,8 +141,6 @@ type Main =
    read_account_get_gallery_chat_card: (card_id: text) ->
     (opt GalleryChatCard);
    read_account_list_assets: (club_id: text) -> (vec Asset);
-   read_account_list_assets_page: (club_id: text, cursor: opt Cursor, limit:
-    nat) -> (Result);
    read_account_list_comments: (asset_id: text) -> (vec Comment);
    read_account_list_gallery_chat_cards: (club_id: text, team_id: text) ->
     (vec GalleryChatCard);
@@ -188,27 +155,10 @@ type Main =
                    Err: text;
                    Ok: Page;
                  });
-   read_gallery_asset_for_service: (user: principal, asset_id: text) ->
-    (variant {
-       Err: text;
-       Ok: Asset;
-     });
-   read_gallery_view_counts: (ids: vec text) ->
-    (variant {
-       Err: text;
-       Ok: vec record {
-                 text;
-                 nat;
-               };
-     });
    read_group_opening_configuration: () -> (vec record {
                                                   text;
                                                   text;
                                                 });
-   record_gallery_view: (asset_id: text) -> (variant {
-                                               Err: text;
-                                               Ok: nat;
-                                             });
    register_asset: (club_id: text, kind: text, mime: text, checksum: 
     text, storage_path: text, visibility: text, expires_at_ms: nat64) ->
     (variant {
@@ -224,11 +174,6 @@ type Main =
     (variant {
        Err: text;
        Ok;
-     });
-   remove_gallery_asset: (asset_id: text, mode: text) ->
-    (variant {
-       Err: text;
-       Ok: record {vault_updated: bool;};
      });
    remove_reaction: (asset_id: text) -> (variant {
                                            Err: text;
@@ -258,11 +203,6 @@ type Main =
        Err: text;
        Ok: Asset;
      });
-   set_gallery_authorities: (club: principal, vault: principal) ->
-    (variant {
-       Err: text;
-       Ok;
-     });
    set_transfer_fence: (club: text, fenced: bool) ->
     (variant {
        Err: text;
@@ -291,12 +231,6 @@ type GalleryChatCard =
    updated_at_ms: nat64;
    uploader_id: principal;
  };
-type Cursor = 
- record {
-   before: text;
-   club_id: text;
-   revision: nat;
- };
 type Comment = 
  record {
    asset_id: text;
@@ -305,7 +239,6 @@ type Comment =
    created_at_ms: nat64;
    deleted: bool;
    id: text;
-   reply_to_id: opt text;
  };
 type Capability = 
  record {

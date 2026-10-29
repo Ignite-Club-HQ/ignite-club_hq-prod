@@ -10,8 +10,6 @@ const backendMocks = vi.hoisted(() => ({
   events: vi.fn(),
   getTeam: vi.fn(),
   getClubName: vi.fn(),
-  cachedTeam: null as any,
-  cachedClub: null as any,
 }));
 
 vi.mock("@/live/featureRouter", () => ({
@@ -20,25 +18,10 @@ vi.mock("@/live/featureRouter", () => ({
 }));
 vi.mock("@/live/features/events", () => ({
   listLiveEvents: (...args: unknown[]) => backendMocks.events(...args),
-  getListedLiveEvent: () => null,
 }));
 vi.mock("@/lib/icpClubTeamLookup", () => ({
   icpGetTeam: (...args: unknown[]) => backendMocks.getTeam(...args),
   icpGetClubName: (...args: unknown[]) => backendMocks.getClubName(...args),
-}));
-vi.mock("@/lib/clubTeamCache", () => ({
-  getCachedTeam: () => backendMocks.cachedTeam,
-  getCachedClub: () => backendMocks.cachedClub,
-}));
-vi.mock("@/live/features/club", () => ({
-  getLiveTeam: async (...args: unknown[]) => {
-    const team = await backendMocks.getTeam(...args);
-    return team ? [team] : [];
-  },
-  getLiveClubProfile: async (...args: unknown[]) => {
-    const name = await backendMocks.getClubName(...args);
-    return name ? [{ name }] : [];
-  },
 }));
 
 function clientResult(result: { data: any; error: any }) {
@@ -50,14 +33,6 @@ function clientResult(result: { data: any; error: any }) {
 }
 
 describe.runIf(backendMocks.mode === "supabase")("event detail repository", () => {
-  it("passes only the event request's cancellation signal to its database read", async () => {
-    const controller = new AbortController();
-    const maybeSingle = vi.fn().mockResolvedValue({ data: { id: 'event-1' }, error: null });
-    const abortSignal = vi.fn(() => ({ maybeSingle }));
-    const client = { from: () => ({ select: () => ({ eq: () => ({ abortSignal }) }) }) };
-    await fetchEventDetail(client, 'event-1', controller.signal);
-    expect(abortSignal).toHaveBeenCalledWith(controller.signal);
-  });
   beforeEach(() => {
     backendMocks.events.mockReset();
   });
@@ -91,42 +66,10 @@ describe.runIf(backendMocks.mode === "supabase")("event detail repository", () =
 });
 
 describe.runIf(backendMocks.mode === "icp")("event detail repository ICP mapping", () => {
-  it("opens a confirmed event even when both optional display lookups stall", async () => {
-    backendMocks.getTeam.mockReturnValue(new Promise(() => {}));
-    backendMocks.getClubName.mockReturnValue(new Promise(() => {}));
-    backendMocks.events.mockResolvedValue([{
-      id: "event-icp", club_id: "club-1", team_id: ["team-1"], title: "Final",
-      event_type: "game", starts_at_ms: 1_800_000_000_000n, ends_at_ms: 0n,
-    }]);
-    vi.useFakeTimers();
-    try {
-      const pending = fetchEventDetail({ from: vi.fn() }, "event-icp");
-      await vi.advanceTimersByTimeAsync(1501);
-      const event = await pending;
-      expect(event?.id).toBe("event-icp");
-      expect(event?.teams).toBeNull();
-    } finally { vi.useRealTimers(); }
-  });
   beforeEach(() => {
     backendMocks.events.mockReset();
     backendMocks.getTeam.mockReset().mockResolvedValue({ id: "team-1", name: "Tigers" });
     backendMocks.getClubName.mockReset().mockResolvedValue("North Club");
-    backendMocks.cachedTeam = null;
-    backendMocks.cachedClub = null;
-  });
-
-  it("does not wait for more name requests when the owning club/team metadata is already loaded", async () => {
-    backendMocks.cachedTeam = { id: "team-1", club_id: "club-1", name: "Tigers" };
-    backendMocks.cachedClub = { id: "club-1", name: "North Club" };
-    backendMocks.events.mockResolvedValue([{
-      id: "event-icp", club_id: "club-1", team_id: ["team-1"],
-      title: "Final", event_type: "game", starts_at_ms: 1_800_000_000_000n,
-      ends_at_ms: 0n, series_id: [],
-    }]);
-    const result = await fetchEventDetail({ from: vi.fn() }, "event-icp");
-    expect(result?.teams?.name).toBe("Tigers");
-    expect(backendMocks.getTeam).not.toHaveBeenCalled();
-    expect(backendMocks.getClubName).not.toHaveBeenCalled();
   });
 
   it("maps a canister event into the shared detail row without Supabase reads", async () => {

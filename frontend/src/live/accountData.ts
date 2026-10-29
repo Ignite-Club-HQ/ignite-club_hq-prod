@@ -75,8 +75,8 @@ export async function exportMyIcpAccountData(
  * club_domain revokes all linked principals' role access before identity
  * erasure. The caller's own vault files, chat messages and event records
  * are then purged on their domains (purge_my_data); shared club records and
- * parent-owned children remain. If any content purge fails, retain the
- * identity and deletion reservation so cleanup can be retried before commit.
+ * parent-owned children remain. A domain that fails is disclosed in the
+ * returned note and is safe to retry.
  */
 export async function eraseMyIcpAccount(
   identity: Identity,
@@ -93,39 +93,8 @@ export async function eraseMyIcpAccount(
       import('./accountDeletionInventory'), import('./domains'),
     ]);
     inventory = await openAccountDeletionInventory(target, identity,
-      ['club_domain', 'vault_domain', 'events_domain', 'messaging_domain', 'competition_domain', 'notification_queue']);
+      ['club_domain', 'vault_domain', 'events_domain', 'messaging_domain']);
     if (inventory.revision !== undefined) await client.prepareAccountDeletion(account.id, inventory.revision);
-    // Every service resolves aliases from identity itself and installs a durable
-    // broadcast-only fence before any proof is retired or membership revoked.
-    for (const [domain, connect] of [
-      ['competition_domain', 'connectLiveCompetitionDomain'],
-      ['club_domain', 'connectLiveClubDomain'],
-      ['notification_queue', 'connectLiveNotificationQueue'],
-    ] as const) {
-      for (const t of inventory.targetsFor(domain)) {
-        await inventory.validate();
-        const { actor } = await domains[connect](t, identity);
-        const result = await actor.prepare_my_broadcast_erasure();
-        if ('Err' in result) throw new Error(result.Err);
-        await inventory.validate();
-      }
-    }
-    // Frozen competition completion must be checked before club/queue evidence
-    // changes. Each destructive service rechecks its local obligations.
-    for (const t of inventory.targetsFor('competition_domain')) {
-      await inventory.validate();
-      const { actor } = await domains.connectLiveCompetitionDomain(t, identity);
-      const result = await actor.check_my_broadcast_erasure();
-      if ('Err' in result) throw new Error(result.Err);
-      await inventory.validate();
-    }
-    for (const t of inventory.targetsFor('club_domain')) {
-      await inventory.validate();
-      const { actor } = await domains.connectLiveClubDomain(t, identity);
-      const result = await actor.purge_my_broadcast_data();
-      if ('Err' in result) throw new Error(result.Err);
-      await inventory.validate();
-    }
     // Revoke the independent club authorization source before erasing the
     // identity profile. Partial failure is surfaced and safe to retry.
     for (const t of inventory.targetsFor('club_domain')) {
@@ -137,15 +106,12 @@ export async function eraseMyIcpAccount(
       await inventory.validate();
     }
     // Purge the caller's own content on each domain before erasing the
-    // identity. Failures block identity commit so the caller remains available
-    // to retry cleanup; never turn an unsettled purge into successful erasure.
+    // identity. Failures are collected and disclosed, never silently dropped.
     const purgeFailures: string[] = [];
     for (const [label, connect, domain] of [
       ["vault", "connectLiveVaultDomain", "vault_domain"],
       ["events", "connectLiveEventsDomain", "events_domain"],
       ["messaging", "connectLiveMessagingDomain", "messaging_domain"],
-      ["competitions", "connectLiveCompetitionDomain", "competition_domain"],
-      ["notifications", "connectLiveNotificationQueue", "notification_queue"],
     ] as const) {
       for (const t of inventory.targetsFor(domain)) {
       await inventory.validate();
@@ -163,12 +129,6 @@ export async function eraseMyIcpAccount(
       }
     }
     await inventory.validate();
-    if (purgeFailures.length > 0) {
-      throw new Error(
-        `Account deletion is incomplete: ${purgeFailures.join(", ")} cleanup could not be confirmed. ` +
-        "Your sign-in identity has been retained so cleanup can be retried. Club access already removed stays removed.",
-      );
-    }
     if (inventory.revision !== undefined) {
       await client.commitAccountDeletion(account.id);
       await client.settleAccountDeletion(account.id);
@@ -176,8 +136,11 @@ export async function eraseMyIcpAccount(
     return {
       note:
         "Your identity_access account has been erased and club/team role access revoked. " +
-        "The personal-content services acknowledged cleanup. " +
-        "Shared club records and parent-owned children are retained; this does not certify historical notification or delivery-record anonymization.",
+        (purgeFailures.length === 0 ? "Your vault files, chat messages and event records have been permanently removed. " : "Some personal content could not be removed. ") +
+        "Shared club records and parent-owned children are retained." +
+        (purgeFailures.length > 0
+          ? ` The ${purgeFailures.join(", ")} purge could not be completed — please contact support to finish removing that content.`
+          : ""),
     };
   } finally {
     inventory?.dispose();

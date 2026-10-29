@@ -1,1 +1,0 @@
-ALTER TABLE public.events ADD COLUMN IF NOT EXISTS duty_team_label text;

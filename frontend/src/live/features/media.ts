@@ -6,8 +6,7 @@ import {
   type LiveBlobRef,
   type LiveMediaSource,
 } from "../mediaStorage";
-import { candidOpt, toNat64, unwrapCandid } from "./candid";
-import { readCompatibleMediaPage, type MediaPageCursor } from '../mediaPaging';
+import { candidOpt, toNat64, unwrapCandid, unwrapCandidOpt } from "./candid";
 
 /**
  * Media feature -> media_metadata canister.
@@ -140,25 +139,9 @@ export async function listLiveAssets(ctx: FeatureBackendContext, clubId: string)
   return actor.list_assets(clubId);
 }
 
-/** One genuinely bounded owning-canister page; never silently drain a gallery. */
-export async function listLiveAssetsPage(ctx: FeatureBackendContext, clubId: string, cursor: MediaPageCursor | null = null) {
-  const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  if (typeof actor.list_assets_page !== 'function') {
-    if (cursor) throw new Error('Media paging method unavailable during continuation');
-    return { assets: await actor.list_assets(clubId), next: null, bounded: false };
-  }
-  return readCompatibleMediaPage(
-    () => actor.list_assets_page(clubId, cursor ? [cursor] : [], 60n),
-    () => actor.list_assets(clubId),
-    cursor === null,
-  );
-}
-
 export async function getLiveAsset(ctx: FeatureBackendContext, assetId: string) {
   const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  // Ownership discovery asks multiple groups: absence in a non-owning group
-  // is expected, not a transport failure. Preserve actual rejected calls.
-  return (await actor.get_asset(assetId))[0] ?? null;
+  return unwrapCandidOpt(await actor.get_asset(assetId), "Get asset");
 }
 
 export async function deleteLiveAsset(ctx: FeatureBackendContext, assetId: string) {
@@ -194,11 +177,10 @@ export async function addLiveComment(
   assetId: string,
   body: string,
   createdAtMs: number | Date,
-  replyToId?: string | null,
 ) {
   const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
   return unwrapCandid(
-    actor.add_comment_reply(assetId, body, candidOpt(replyToId)),
+    actor.add_comment(assetId, body, toNat64(createdAtMs)),
     "Add comment",
   );
 }
@@ -237,48 +219,3 @@ export async function listLiveGalleryChatCards(
 // Publish a chat image to the club media gallery (MessageActionSheet)
 // ---------------------------------------------------------------------------
 
-
-/** Feed-only hides metadata without deleting the Vault copy or source bytes. */
-export async function removeLiveGalleryAsset(ctx: FeatureBackendContext, assetId: string, mode: 'feed_only' | 'feed_and_vault') {
-  const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  return unwrapCandid(actor.remove_gallery_asset(assetId, mode), 'Remove gallery photo');
-}
-export async function announceLiveGalleryAsset(ctx: FeatureBackendContext, assetId: string) {
-  const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  return unwrapCandid(actor.announce_gallery_asset(assetId), 'Queue gallery notification');
-}
-
-export async function recordLiveGalleryView(ctx: FeatureBackendContext, assetId: string) {
-  const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  return unwrapCandid(actor.record_gallery_view(assetId), 'Record gallery view');
-}
-export async function readLiveGalleryViewCounts(ctx: FeatureBackendContext, ids: string[]) {
-  const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  return unwrapCandid(actor.read_gallery_view_counts(ids), 'Read gallery views');
-}
-
-export async function publishLiveGalleryChatCard(ctx: FeatureBackendContext, input: {
-  clubId: string; teamId: string; eventId?: string | null; assetIds: string[]; heroUrl: string; receipt: string;
-}) {
-  const { actor } = await connectLiveMediaMetadata(ctx.target, ctx.identity);
-  const card = await unwrapCandid(actor.save_gallery_chat_card([], input.clubId, input.teamId,
-    candidOpt(input.eventId), input.receipt, candidOpt(input.assetIds[0]), [input.heroUrl], input.assetIds.length, input.assetIds, false, false), 'Save gallery chat card');
-  const { sendLiveMessage, isLiveConversationAbsent, ensureLiveClubConversations } = await import('./messaging');
-  const { readContentInScope } = await import('../contentRouting');
-  const { writeOnce } = await import('../clubScope');
-  // Uploading does not open the team thread, so older teams may never have
-  // provisioned their deterministic conversation. Only confirmed absence
-  // authorizes repair; denied/unknown reads must stop before any write.
-  const absent = await readContentInScope(ctx, 'messaging', { clubId: input.clubId }, scoped =>
-    isLiveConversationAbsent(scoped, input.teamId));
-  if (absent) {
-    await readContentInScope(ctx, 'membership', writeOnce({ clubId: input.clubId }), scoped =>
-      ensureLiveClubConversations(scoped, input.clubId));
-    const stillAbsent = await readContentInScope(ctx, 'messaging', { clubId: input.clubId }, scoped =>
-      isLiveConversationAbsent(scoped, input.teamId));
-    if (stillAbsent) throw new Error('Team chat could not be prepared');
-  }
-  await readContentInScope(ctx, 'messaging', writeOnce({ clubId: input.clubId }), scoped =>
-    sendLiveMessage(scoped, input.teamId, `[gallery:${card.id}]`, input.receipt));
-  return card;
-}

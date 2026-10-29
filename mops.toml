@@ -1,6 +1,5 @@
 [toolchain]
 moc = "1.16.1"
-pocket-ic = "15.0.0"
 
 [moc]
 args = [ "--default-persistent-actors" ]

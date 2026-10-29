@@ -1,1 +1,0 @@
-module { public type Target={club:Text;authority:Principal;teams:[Text];officials:[Principal]}; }

@@ -64,9 +64,9 @@ describe("Event Detail attendance failure handling", () => {
     // declaration + personal, child, mini-league player, remind, resend
     expect(disabledUses.length).toBeGreaterThanOrEqual(6);
     expect(source).toContain("disabled={rsvpMutation.isPending || attendanceActionsDisabled");
-    expect(source).toContain("childRsvpMutation.variables?.childId === child.id) || attendanceActionsDisabled}");
+    expect(source).toContain("disabled={childRsvpMutation.isPending || attendanceActionsDisabled}");
     expect(source).toContain(
-      "parentLeaguePlayerRsvpMutation.variables?.playerId === player.id) || attendanceActionsDisabled}",
+      "disabled={parentLeaguePlayerRsvpMutation.isPending || attendanceActionsDisabled}",
     );
     expect(source).toContain("disabled={remindMutation.isPending || attendanceActionsDisabled}");
     expect(source).toContain(

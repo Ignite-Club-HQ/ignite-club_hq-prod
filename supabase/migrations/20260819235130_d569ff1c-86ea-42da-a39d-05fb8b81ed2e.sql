@@ -1,1 +1,0 @@
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS club_switcher_hint_seen_at timestamptz;

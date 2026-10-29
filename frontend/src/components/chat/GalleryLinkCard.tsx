@@ -1,21 +1,14 @@
-import { getCachedTeam } from "@/lib/clubTeamCache";
-import { useAuth } from "@/hooks/useAuth";
-import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { ImageIcon, ChevronRight } from "lucide-react";
 import { memo, useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { getLiveGalleryChatCard } from "@/live/features/media";
 import { getLiveTeam } from "@/live/features/club";
-import { resolveSignedUrl } from "@/hooks/useSignedPhotoUrl";
-import { withReadDeadline } from "@/live/readDeadline";
+import { useSignedPhotoUrl } from "@/hooks/useSignedPhotoUrl";
 import { Skeleton } from "@/components/ui/skeleton";
-import { chatVaultLocation, readChatVaultCard } from "@/features/messaging/thread/chatVaultCardRead";
-import { isIcpBlobUrl } from "@/hooks/useResolvedIcpBlobSrc";
-import { Button } from "@/components/ui/button";
-import { chatScopeFromPath } from "@/live/chatScope";
 
 interface GalleryLinkCardProps {
   cardId: string;
@@ -24,40 +17,26 @@ interface GalleryLinkCardProps {
 
 export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptHint = false }: GalleryLinkCardProps) {
   const navigate = useNavigate();
-  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const isIcp = isFeatureRoutedToIcp('media');
-  const { user, sessionRestoration } = useAuth();
-  const queryClient = useQueryClient();
-  const { pathname } = useLocation();
-  const chatScope = chatScopeFromPath(pathname);
-  const teamId = chatScope && "teamId" in chatScope ? chatScope.teamId : undefined;
-  // Subscribe without fetching: React.memo otherwise hides the header's
-  // newly resolved owning club from a card already showing its skeleton.
-  useQuery({ queryKey: ["team", teamId], queryFn: skipToken, notifyOnChangeProps: ["data"] });
-  const location = isIcp ? chatVaultLocation(queryClient, user?.id, pathname) : undefined;
-  const locationKey = location && "clubId" in location ? `club:${location.clubId}`
-    : location && "teamId" in location ? `team:${location.teamId}` : "resource";
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const isIcp = resolveAuthBackend() === "icp";
 
-  const { data: card, isLoading, isError, refetch } = useQuery({
-    // Resolving the open team's club must replace an earlier cold team/resource
-    // discovery, not leave this card attached to its stalled promise.
-    queryKey: ["gallery-chat-card", cardId, user?.id, isIcp, locationKey],
-    queryFn: async ({ signal }) => {
+  const { data: card, isLoading } = useQuery({
+    queryKey: ["gallery-chat-card", cardId],
+    queryFn: async () => {
       if (isIcp) {
-        return withReadDeadline(readChatVaultCard(location, { galleryCardId: cardId }, scope => withFeatureBackend("media", {
+        return withFeatureBackend("media", {
           icp: async (ctx) => {
             const row = await getLiveGalleryChatCard(ctx, cardId);
             if (!row) return null;
             // Team name resolves from club_domain; the canister Event record
             // has no opponent field, so opponentLabel/eventStart stay null and
             // the headline falls back to the team-name wording.
-            const team = getCachedTeam(row.team_id);
+            const team = await withFeatureBackend("membership", { supabase: async () => null, icp: scoped => getLiveTeam(scoped, row.team_id) }, { teamId: row.team_id });
             const teamRow = Array.isArray(team) ? team[0] : team;
             return {
               id: row.id,
               team_id: row.team_id,
-              club_id: row.club_id,
               hero_image_url: row.hero_image_url[0] ?? null,
               photo_count: row.photo_count,
               event_id: row.event_id[0] ?? null,
@@ -69,15 +48,7 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptH
             };
           },
           supabase: async () => null,
-        }, scope)), "Photo update read", 45_000, signal).catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : String(error);
-          console.warn("[GalleryLinkCard] photo update read failed", { cardId, message });
-          // Discovery reports a card no group holds for this account as
-          // "not found or not authorized": that is a removed/unshared card,
-          // not a retryable failure.
-          if (/not found or not authorized/i.test(message)) return null;
-          throw error;
-        });
+        }, { galleryCardId: cardId });
       }
       const { data } = await supabase
         .from("gallery_chat_cards")
@@ -99,40 +70,12 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptH
 
       return data ? { ...data, opponentLabel, eventStart } : null;
     },
-    enabled: !!cardId && !!user && sessionRestoration === 'authenticated',
+    enabled: !!cardId,
     staleTime: 30 * 1000,
-    // One quiet retry covers cold group discovery right after resume.
-    retry: isIcp ? 1 : undefined,
-    retryDelay: 2_000,
   });
 
-  const { data: teamLabel } = useQuery({
-    queryKey: ["gallery-card-team-label", card?.team_id, user?.id, isIcp],
-    enabled: isIcp && !!card && !card.teams && sessionRestoration === "authenticated",
-    queryFn: async () => {
-      if (!card) return null;
-      return withFeatureBackend("membership", { supabase: async () => null,
-        icp: async ctx => (await getLiveTeam(ctx, card.team_id))[0]?.name ?? null },
-        { clubId: (card as { club_id: string }).club_id });
-    },
-    retry: false,
-    staleTime: 5 * 60_000,
-  });
-
-  const originalHero = card?.hero_image_url ?? null;
-  const imageQuery = useQuery({
-    queryKey: ["gallery-card-image", user?.id, isIcp, originalHero],
-    enabled: !!originalHero && !!user && sessionRestoration === "authenticated",
-    queryFn: ({ signal }) => originalHero
-      ? withReadDeadline(resolveSignedUrl(originalHero), "Photo unlock", 20_000, signal)
-      : Promise.resolve(null),
-    staleTime: 5 * 60_000,
-    gcTime: 5 * 60_000,
-    retry: false,
-  });
-  const heroSrc = imageQuery.data || (originalHero && !isIcpBlobUrl(originalHero) ? originalHero : null);
-  const imgLoaded = !!heroSrc && loadedSrc === heroSrc;
-  const imgError = !!heroSrc && failedSrc === heroSrc;
+  const { signedUrl } = useSignedPhotoUrl(card?.hero_image_url ?? null);
+  const heroSrc = signedUrl || card?.hero_image_url || null;
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -158,12 +101,12 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptH
   if (!card) {
     return (
       <div className={`flex ${isPromptHint ? "h-[76px]" : "h-[240px]"} max-w-[320px] items-center rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground`}>
-        {isError ? <div>Couldn’t open this photo update.<Button variant="ghost" size="sm" onClick={() => void refetch()}>Try again</Button></div> : "This photo update is no longer available."}
+        Gallery update unavailable
       </div>
     );
   }
 
-  const teamName = teamLabel || (card as { teams?: { name?: string } | null }).teams?.name || "Team";
+  const teamName = (card as { teams?: { name?: string } | null }).teams?.name || "Team";
   const isPrompt = card.is_prompt;
   const count = card.photo_count;
   const promptHeadline = (() => {
@@ -193,7 +136,9 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptH
   const ctaLabel = isPrompt ? "Open uploader" : "View Gallery";
 
   return (
-    <div
+    <button
+      type="button"
+      onClick={handleClick}
       className={`group block w-full max-w-[320px] overflow-hidden rounded-2xl border border-border/60 bg-card text-left shadow-[0_1px_2px_hsl(var(--foreground)/0.04)] transition-colors hover:border-primary/30 hover:shadow-[0_2px_8px_hsl(var(--foreground)/0.06)] active:bg-primary/[0.04] touch-manipulation dark:border-border/40 dark:bg-card/80 dark:hover:border-primary/40 ${isPrompt ? "h-[76px]" : "h-[240px]"}`}
     >
       {/* Fixed hero slot for all non-prompt cards so image URL/signing/error
@@ -208,23 +153,14 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptH
                 alt=""
                 loading="eager"
                 decoding="async"
-                onLoad={() => setLoadedSrc(heroSrc)}
-                onError={() => setFailedSrc(heroSrc)}
+                onLoad={() => setImgLoaded(true)}
+                onError={() => setImgError(true)}
                 className={`h-full w-full object-cover ${imgLoaded ? "opacity-100" : "opacity-0"}`}
               />
             </>
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-primary/10">
-              {imageQuery.isError || imgError ? (
-                <div className="text-center text-xs text-muted-foreground">
-                  <p>Couldn’t load this photo.</p>
-                  <Button variant="ghost" size="sm" onClick={() => {
-                    setFailedSrc(null);
-                    setLoadedSrc(null);
-                    void imageQuery.refetch();
-                  }}>Try photo again</Button>
-                </div>
-              ) : <ImageIcon className="h-7 w-7 text-primary/70" />}
+              <ImageIcon className="h-7 w-7 text-primary/70" />
             </div>
           )}
           {count > 1 && heroSrc && !imgError && (
@@ -236,7 +172,6 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptH
         </div>
       )}
 
-      <Button variant="ghost" onClick={handleClick} className="h-auto w-full justify-start rounded-none p-0 text-left whitespace-normal">
       {isPrompt ? (
         <div className="flex items-center gap-3 px-3.5 py-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/15">
@@ -276,7 +211,6 @@ export const GalleryLinkCard = memo(function GalleryLinkCard({ cardId, isPromptH
           </div>
         </div>
       )}
-      </Button>
-    </div>
+    </button>
   );
 });
