@@ -4296,7 +4296,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { return #Err("Child not found") };
       case (?child) { if (not isChildGuardian(caller, child)) return #Err("Forbidden") };
     };
-    switch (await request_role(club, "parent", ?team)) {
+    switch (await requestRoleFor(caller, club, "parent", ?team)) {
       case (#Err(e)) #Err(e);
       case (#Ok(req)) {
         roleRequestChildren := roleRequestChildren.concat([(req.id, child_id)]);
@@ -4306,6 +4306,10 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func request_role(club : Text, role : Text, team : ?Text) : async { #Ok : Types.RoleRequest; #Err : Text } {
+    await requestRoleFor(caller, club, role, team)
+  };
+
+  func requestRoleFor(caller : Principal, club : Text, role : Text, team : ?Text) : async { #Ok : Types.RoleRequest; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
 
