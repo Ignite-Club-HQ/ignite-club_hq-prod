@@ -89,7 +89,14 @@ jobs:
           umask 077
           export ICP_HOME="$RUNNER_TEMP/all-group-icp-home"
           echo "ICP_HOME=$ICP_HOME" >> "$GITHUB_ENV"
-          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$RUNNER_TEMP/all-group.pem"
+          # Rebuild a clean PEM even when the secret was pasted on one line (newlines turned into spaces or literal \n).
+          PEM_IN="$DEPLOYER_PEM" node -e '
+            const s=process.env.PEM_IN.replace(/\r/g,"").replace(/\\n/g,"\n");
+            const m=s.match(/-----BEGIN ([A-Z0-9 ]+?)-----([\s\S]*?)-----END \1-----/);
+            if(!m){console.error("Governor key secret has no BEGIN/END block");process.exit(1);}
+            const body=m[2].replace(/\s+/g,"").match(/.{1,64}/g).join("\n");
+            process.stdout.write(`-----BEGIN ${m[1]}-----\n${body}\n-----END ${m[1]}-----\n`);
+          ' > "$RUNNER_TEMP/all-group.pem"
           icp identity import --from-pem "$RUNNER_TEMP/all-group.pem" --storage plaintext ignite-governor
           icp identity default ignite-governor
           test "$(icp identity principal)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae
