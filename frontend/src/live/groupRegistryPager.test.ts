@@ -14,6 +14,20 @@ const transport = (change?: number) => {
   };
 };
 describe('revision pinned registry paging', () => {
+  it('a single-page registry is one atomic consensus reply: read once', async () => {
+    let calls = 0;
+    const read = async () => ({ Ok: { revision: 1n, configuration_revision: [++calls === 1 ? 4n : 5n] as [bigint],
+      groups: [{ id: 'g2' }], placements: [{ group_id: 'g2' }], next_cursor: [] as [] } });
+    const result = await readPinnedGroupRegistry(read);
+    expect(calls).toBe(1); expect(result.configurationRevision).toBe(4n);
+  });
+  it('rejects configuration drift between pages of a multi-page registry', async () => {
+    let calls = 0;
+    const read = async (_r: [] | [bigint], cursor: [] | [string]) => ({ Ok: { revision: 1n, configuration_revision: [++calls === 1 ? 4n : 5n] as [bigint],
+      groups: [{ id: cursor.length ? 'g3' : 'g2' }], placements: [{ group_id: cursor.length ? 'g3' : 'g2' }],
+      next_cursor: (cursor.length ? [] : ['a']) as [] | [string] } });
+    await expect(readPinnedGroupRegistry(read)).rejects.toThrow('Configuration revision changed');
+  });
   it('collects 200 groups through both consensus reads', async () => {
     const result = await readPinnedGroupRegistry(transport());
     expect(result.groups).toHaveLength(200); expect(result.placements).toHaveLength(200); expect(result.revision).toBe(1n);
