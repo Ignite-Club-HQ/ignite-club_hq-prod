@@ -323,3 +323,4 @@ Validation budget: changed rules plus direct regressions per substantial batch; 
 - [ ] Stage 1 Codemagic PROD anon key must be set in Codemagic env group — blocked: user
 
 - [ ] ICP DEV/PROD split: current canisters = DEV (test clubs only); provision new PROD canister set; prod promotion deploys code to PROD canisters (plan pending approval)
+- [ ] Auto-upgrade PROD canisters on push to prod (like DB migrations)
