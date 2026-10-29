@@ -160,8 +160,8 @@ Scope approved by user instruction "Close all gaps." All changes DEV-only; produ
 
 ### Still open
 
-1. **Deploy the three staged functions** once the deployment pipeline recovers (platform error, retried 4×).
-2. **Secrets for the new functions:** `RESEND_API_KEY` and `WELCOME_EMAIL_FROM` are not in the DEV secrets store — `send-welcome-email*` will return 503 "not configured" until Paul adds them (Resend account credentials; cannot be invented). `verify-iap-receipt-icp` needs `IAP_ATTESTATION_HMAC_SECRET` (shared with the identity_access canister) and `APPLE_SHARED_SECRET` for its IAP path; its media-upload job additionally needs the `reserve_measured_media` / `settle_measured_media` SQL, which is not applied.
+1. **Deploy the three staged functions** — reclassified by Paul as **post-merge work, not a merge blocker** (see §11).
+2. **Secrets for the new functions** — reclassified as **post-merge work, not a merge blocker** (see §11). `RESEND_API_KEY` and `WELCOME_EMAIL_FROM` are not in the DEV secrets store — `send-welcome-email*` will return 503 "not configured" until Paul adds them (Resend account credentials; cannot be invented). `verify-iap-receipt-icp` needs `IAP_ATTESTATION_HMAC_SECRET` (shared with the identity_access canister) and `APPLE_SHARED_SECRET` for its IAP path; its media-upload job additionally needs the `reserve_measured_media` / `settle_measured_media` SQL, which is not applied.
 3. Code-side hybrid fixes (unchanged from §7): `profiles.full_name/first_name/email`, `teams.age_group`, `events.start_at`, `team_memberships.user_id`, `club_players.user_id`, `mini_leagues.status`, `user_roles.mini_league_id`.
 4. Hosted Auth URL/template config and the wider RLS/Storage review remain separate, unauthorised scopes.
 5. 780 pre-existing linter findings (including 1 ERROR: security definer view) predate this work; offer to address separately.
