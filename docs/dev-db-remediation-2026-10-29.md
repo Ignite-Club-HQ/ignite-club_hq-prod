@@ -131,3 +131,13 @@ Merge readiness is **not** declared.
 ## 8. Confirmation
 
 Untouched: production, hosted deployment settings (Netlify/Codemagic), workflows, Edge Function deployments, secrets, Auth settings and canisters. No emails, notifications, payments, imports, backfills or data cleanup were triggered.
+
+## 9. Follow-up verification — 2026-10-29 (read-only)
+
+Edge functions and RLS are per-project; DEV runs its own deployed set. Live checks against `ecsdwrarzfexssxtrymj`:
+
+- `send-welcome-email`, `verify-iap-receipt-icp`, `create-member-checkout` → **404 NOT_FOUND on DEV** (not deployed). Control `check-vapid-key` → 200, confirming the endpoint probing works.
+- Realtime publication confirmed via `pg_publication_rel`: 20 tables published; `active_games`, `chat_pinned_vault`, `club_subscriptions`, `member_payments` remain **not published**.
+- **New finding:** DEV VAPID keys are misconfigured — `check-vapid-key` reports invalid key pair (keys exist but do not match / wrong lengths). Push notifications will not work on DEV until regenerated.
+
+Classification: merge-critical DEV items are branch divergence, the missing edge functions plus their SQL (welcome-email deliveries, measured upload), code-side field fixes, and the realtime gaps. Hosted Auth config and the wider RLS/Storage review are not DEV merge blockers.
