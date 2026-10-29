@@ -120,7 +120,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self'",
-  "connect-src 'self' https://api.giphy.com https://cdrxmelhysdqrccttsjg.supabase.co wss://cdrxmelhysdqrccttsjg.supabase.co https://icp-api.io https://*.icp0.io https://*.ic0.app https://*.icp.net https://id.ai https://api.country.is https://photon.komoot.io",
+  "connect-src 'self' https://api.giphy.com https://ecsdwrarzfexssxtrymj.supabase.co wss://ecsdwrarzfexssxtrymj.supabase.co https://icp-api.io https://*.icp0.io https://*.ic0.app https://*.icp.net https://id.ai https://api.country.is https://photon.komoot.io",
   "frame-src https://id.ai https://www.google.com https://www.youtube.com",
   "object-src 'none'",
   "worker-src 'self'",

@@ -1,4 +1,4 @@
-project_id = "cdrxmelhysdqrccttsjg"
+project_id = "ecsdwrarzfexssxtrymj"
 [functions.verify-iap-receipt-icp]
 verify_jwt = false
 

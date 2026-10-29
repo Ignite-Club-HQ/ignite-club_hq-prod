@@ -65,7 +65,7 @@ if (existsSync(cacheMeta) && existsSync(lockfile)) {
 // Last-resort fallback: the connected project's public URL and anon key.
 // Both are browser-safe (the anon key ships in the client bundle anyway) and
 // are only used when neither the environment nor .env provides the values.
-const FALLBACK_SUPABASE_URL = "https://cdrxmelhysdqrccttsjg.supabase.co";
+const FALLBACK_SUPABASE_URL = "https://ecsdwrarzfexssxtrymj.supabase.co";
 const FALLBACK_SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkcnhtZWxoeXNkcXJjY3R0c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NzIxMTMsImV4cCI6MjEwNjE0ODExM30.vRVXXZuoh-9VliT7vt6lw2nANooLwlgOeyfBTFLQjXw";
 
