@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -787,6 +787,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           id: string
+          include_captains: boolean
           join_policy: string
           last_message_at: string | null
           last_message_author_id: string | null
@@ -814,6 +815,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          include_captains?: boolean
           join_policy?: string
           last_message_at?: string | null
           last_message_author_id?: string | null
@@ -841,6 +843,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          include_captains?: boolean
           join_policy?: string
           last_message_at?: string | null
           last_message_author_id?: string | null
@@ -1684,6 +1687,36 @@ export type Database = {
           },
         ]
       }
+      club_invite_message_defaults: {
+        Row: {
+          club_id: string
+          message: string
+        }
+        Insert: {
+          club_id: string
+          message: string
+        }
+        Update: {
+          club_id?: string
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_invite_message_defaults_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: true
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_invite_message_defaults_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: true
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_invites: {
         Row: {
           club_id: string
@@ -2266,6 +2299,7 @@ export type Database = {
           member_payments_enabled: boolean
           member_subscription_amount: number | null
           plan: Database["public"]["Enums"]["club_subscription_plan"]
+          pricing_version: string
           promo_code_id: string | null
           scheduled_storage_downgrade_gb: number | null
           storage_downgrade_at: string | null
@@ -2297,6 +2331,7 @@ export type Database = {
           member_payments_enabled?: boolean
           member_subscription_amount?: number | null
           plan?: Database["public"]["Enums"]["club_subscription_plan"]
+          pricing_version?: string
           promo_code_id?: string | null
           scheduled_storage_downgrade_gb?: number | null
           storage_downgrade_at?: string | null
@@ -2328,6 +2363,7 @@ export type Database = {
           member_payments_enabled?: boolean
           member_subscription_amount?: number | null
           plan?: Database["public"]["Enums"]["club_subscription_plan"]
+          pricing_version?: string
           promo_code_id?: string | null
           scheduled_storage_downgrade_gb?: number | null
           storage_downgrade_at?: string | null
@@ -2363,7 +2399,6 @@ export type Database = {
           ai_catch_up_enabled: boolean
           allow_guests_default: boolean
           auto_reward_threshold: number | null
-          backend: string
           bot_user_id: string | null
           chat_thread_ads_enabled: boolean
           city: string | null
@@ -2454,7 +2489,6 @@ export type Database = {
           ai_catch_up_enabled?: boolean
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
-          backend?: string
           bot_user_id?: string | null
           chat_thread_ads_enabled?: boolean
           city?: string | null
@@ -2545,7 +2579,6 @@ export type Database = {
           ai_catch_up_enabled?: boolean
           allow_guests_default?: boolean
           auto_reward_threshold?: number | null
-          backend?: string
           bot_user_id?: string | null
           chat_thread_ads_enabled?: boolean
           city?: string | null
@@ -2833,7 +2866,7 @@ export type Database = {
           external_id: string | null
           gender: string | null
           hide_ladder: boolean
-          hide_scores: boolean | null
+          hide_scores: boolean
           id: string
           max_entries: number | null
           name: string
@@ -2852,7 +2885,7 @@ export type Database = {
           external_id?: string | null
           gender?: string | null
           hide_ladder?: boolean
-          hide_scores?: boolean | null
+          hide_scores?: boolean
           id?: string
           max_entries?: number | null
           name: string
@@ -2871,7 +2904,7 @@ export type Database = {
           external_id?: string | null
           gender?: string | null
           hide_ladder?: boolean
-          hide_scores?: boolean | null
+          hide_scores?: boolean
           id?: string
           max_entries?: number | null
           name?: string
@@ -2994,7 +3027,6 @@ export type Database = {
         Row: {
           arrival_minutes_before: number | null
           away_event_id: string | null
-          away_score: number | null
           away_team_id: string | null
           away_team_name: string | null
           competition_id: string
@@ -3006,7 +3038,6 @@ export type Database = {
           external_home_team_id: string | null
           external_id: string | null
           home_event_id: string | null
-          home_score: number | null
           home_team_id: string | null
           home_team_name: string | null
           id: string
@@ -3024,7 +3055,6 @@ export type Database = {
         Insert: {
           arrival_minutes_before?: number | null
           away_event_id?: string | null
-          away_score?: number | null
           away_team_id?: string | null
           away_team_name?: string | null
           competition_id: string
@@ -3036,7 +3066,6 @@ export type Database = {
           external_home_team_id?: string | null
           external_id?: string | null
           home_event_id?: string | null
-          home_score?: number | null
           home_team_id?: string | null
           home_team_name?: string | null
           id?: string
@@ -3054,7 +3083,6 @@ export type Database = {
         Update: {
           arrival_minutes_before?: number | null
           away_event_id?: string | null
-          away_score?: number | null
           away_team_id?: string | null
           away_team_name?: string | null
           competition_id?: string
@@ -3066,7 +3094,6 @@ export type Database = {
           external_home_team_id?: string | null
           external_id?: string | null
           home_event_id?: string | null
-          home_score?: number | null
           home_team_id?: string | null
           home_team_name?: string | null
           id?: string
@@ -3126,23 +3153,68 @@ export type Database = {
           },
         ]
       }
-      competition_pending_scores: {
+      competition_role_email_invites: {
         Row: {
-          away_score: number | null
-          home_score: number | null
-          match_id: string
+          accepted_at: string | null
+          accepted_user_id: string | null
+          attempts: number
+          competition_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          invited_email: string
+          role: string
+          status: string
+          token: string
+          verification_code_hash: string
         }
         Insert: {
-          away_score?: number | null
-          home_score?: number | null
-          match_id: string
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          attempts?: number
+          competition_id: string
+          created_at?: string
+          created_by: string
+          expires_at?: string
+          id?: string
+          invited_email: string
+          role: string
+          status?: string
+          token: string
+          verification_code_hash: string
         }
         Update: {
-          away_score?: number | null
-          home_score?: number | null
-          match_id?: string
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          attempts?: number
+          competition_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          invited_email?: string
+          role?: string
+          status?: string
+          token?: string
+          verification_code_hash?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "competition_role_email_invites_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_role_email_invites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       competition_role_invites: {
         Row: {
@@ -4650,17 +4722,18 @@ export type Database = {
           coach_note: string | null
           coach_note_author: string | null
           coach_note_updated_at: string | null
+          competition_id: string | null
           competition_match_id: string | null
           competition_side: string | null
           created_at: string
           created_by: string
           description: string | null
+          duty_team_id: string | null
+          duty_team_label: string | null
           end_time: string | null
           event_date: string
           final_score_away: number | null
           final_score_home: number | null
-          history_competition_id: string | null
-          history_match_id: string | null
           id: string
           is_bye: boolean
           is_cancelled: boolean
@@ -4671,6 +4744,7 @@ export type Database = {
           max_guests_per_member: number | null
           meet_time: string | null
           mini_league_id: string | null
+          notify_suppressed: boolean
           opponent: string | null
           parent_event_id: string | null
           player_of_match: string | null
@@ -4708,17 +4782,18 @@ export type Database = {
           coach_note?: string | null
           coach_note_author?: string | null
           coach_note_updated_at?: string | null
+          competition_id?: string | null
           competition_match_id?: string | null
           competition_side?: string | null
           created_at?: string
           created_by: string
           description?: string | null
+          duty_team_id?: string | null
+          duty_team_label?: string | null
           end_time?: string | null
           event_date: string
           final_score_away?: number | null
           final_score_home?: number | null
-          history_competition_id?: string | null
-          history_match_id?: string | null
           id?: string
           is_bye?: boolean
           is_cancelled?: boolean
@@ -4729,6 +4804,7 @@ export type Database = {
           max_guests_per_member?: number | null
           meet_time?: string | null
           mini_league_id?: string | null
+          notify_suppressed?: boolean
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
@@ -4766,17 +4842,18 @@ export type Database = {
           coach_note?: string | null
           coach_note_author?: string | null
           coach_note_updated_at?: string | null
+          competition_id?: string | null
           competition_match_id?: string | null
           competition_side?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
+          duty_team_id?: string | null
+          duty_team_label?: string | null
           end_time?: string | null
           event_date?: string
           final_score_away?: number | null
           final_score_home?: number | null
-          history_competition_id?: string | null
-          history_match_id?: string | null
           id?: string
           is_bye?: boolean
           is_cancelled?: boolean
@@ -4787,6 +4864,7 @@ export type Database = {
           max_guests_per_member?: number | null
           meet_time?: string | null
           mini_league_id?: string | null
+          notify_suppressed?: boolean
           opponent?: string | null
           parent_event_id?: string | null
           player_of_match?: string | null
@@ -4830,6 +4908,13 @@ export type Database = {
             columns: ["club_id"]
             isOneToOne: false
             referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
             referencedColumns: ["id"]
           },
           {
@@ -5242,9 +5327,6 @@ export type Database = {
         Row: {
           away_label: string
           away_score: number
-          competition_id: string | null
-          competition_match_id: string | null
-          competition_side: string | null
           created_at: string
           event_id: string | null
           home_label: string
@@ -5264,9 +5346,6 @@ export type Database = {
         Insert: {
           away_label: string
           away_score?: number
-          competition_id?: string | null
-          competition_match_id?: string | null
-          competition_side?: string | null
           created_at?: string
           event_id?: string | null
           home_label: string
@@ -5286,9 +5365,6 @@ export type Database = {
         Update: {
           away_label?: string
           away_score?: number
-          competition_id?: string | null
-          competition_match_id?: string | null
-          competition_side?: string | null
           created_at?: string
           event_id?: string | null
           home_label?: string
@@ -5660,6 +5736,42 @@ export type Database = {
           transaction_id?: string
           user_id?: string
           verified_at?: string | null
+        }
+        Relationships: []
+      }
+      icp_welcome_email_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          invite_id: string
+          last_error: string | null
+          locked_at: string | null
+          provider_message_id: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          invite_id: string
+          last_error?: string | null
+          locked_at?: string | null
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          invite_id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -7970,7 +8082,6 @@ export type Database = {
           ai_catch_up_enabled: boolean
           avatar_url: string | null
           club_switcher_hint_seen_at: string | null
-          country: string | null
           created_at: string
           display_name: string | null
           email_hash: string | null
@@ -7996,7 +8107,6 @@ export type Database = {
           ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           club_switcher_hint_seen_at?: string | null
-          country?: string | null
           created_at?: string
           display_name?: string | null
           email_hash?: string | null
@@ -8022,7 +8132,6 @@ export type Database = {
           ai_catch_up_enabled?: boolean
           avatar_url?: string | null
           club_switcher_hint_seen_at?: string | null
-          country?: string | null
           created_at?: string
           display_name?: string | null
           email_hash?: string | null
@@ -10895,6 +11004,105 @@ export type Database = {
         }
         Relationships: []
       }
+      welcome_email_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedupe_key: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          provider_message_id: string | null
+          recipient_user_id: string
+          scope_id: string
+          scope_kind: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          provider_message_id?: string | null
+          recipient_user_id: string
+          scope_id: string
+          scope_kind: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          provider_message_id?: string | null
+          recipient_user_id?: string
+          scope_id?: string
+          scope_kind?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      welcome_email_settings: {
+        Row: {
+          competition_id: string | null
+          created_at: string
+          enabled: boolean
+          id: string
+          message: string
+          subject: string
+          team_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          competition_id?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          message?: string
+          subject?: string
+          team_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          competition_id?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          message?: string
+          subject?: string
+          team_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "welcome_email_settings_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "welcome_email_settings_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       competition_ladder: {
@@ -10963,11 +11171,20 @@ export type Database = {
       }
     }
     Functions: {
+      _can_add_player_to_team: { Args: { p_team_id: string }; Returns: string }
       _internal_service_role_key: { Args: never; Returns: string }
       _leaderboard_window_start: { Args: { _window: string }; Returns: string }
       _provision_invite_children_internal: {
         Args: { p_invite_id: string; p_user_id: string }
         Returns: Json
+      }
+      accept_competition_role_email_invite: {
+        Args: { p_token: string; p_verification_code_hash: string }
+        Returns: {
+          competition_id: string
+          role: string
+          status: string
+        }[]
       }
       accept_competition_role_link: {
         Args: { p_token: string }
@@ -10987,6 +11204,10 @@ export type Database = {
         Returns: Json
       }
       acknowledge_ai_catch_up_disclosure: { Args: never; Returns: string }
+      add_existing_club_child_to_team: {
+        Args: { p_child_id: string; p_team_id: string }
+        Returns: string
+      }
       admin_get_user_emails: {
         Args: { user_ids: string[] }
         Returns: {
@@ -11176,6 +11397,10 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
+      can_access_competition_vault: {
+        Args: { _competition_id: string }
+        Returns: boolean
+      }
       can_access_mini_league_chat: {
         Args: { _mini_league_id: string; _user_id: string }
         Returns: boolean
@@ -11208,9 +11433,17 @@ export type Database = {
         Args: { _event_id: string; _team_id: string }
         Returns: boolean
       }
+      can_create_competition_event: {
+        Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_dm_user: { Args: { other_user_id: string }; Returns: boolean }
       can_edit_drill: {
         Args: { _drill_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_invite_players_to_team: {
+        Args: { _team_id: string; _user_id: string }
         Returns: boolean
       }
       can_manage_club_eois: { Args: { _club_id: string }; Returns: boolean }
@@ -11250,8 +11483,16 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: boolean
       }
+      can_read_general_chat_attachment: {
+        Args: { _name: string; _user_id: string }
+        Returns: boolean
+      }
       can_read_history_row: {
         Args: { p_event: string; p_team: string }
+        Returns: boolean
+      }
+      can_rename_competition_chat: {
+        Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
       can_view_album: { Args: { _album_id: string }; Returns: boolean }
@@ -11261,6 +11502,14 @@ export type Database = {
       }
       can_view_competition: {
         Args: { _competition_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_view_competition_match_event: {
+        Args: { _match_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_view_competition_wide_event: {
+        Args: { _event_id: string; _user_id: string }
         Returns: boolean
       }
       can_view_drill: {
@@ -11287,10 +11536,6 @@ export type Database = {
         Args: { _mini_league_id: string; _user_id: string }
         Returns: boolean
       }
-      can_view_pending_role_request_profile: {
-        Args: { p_profile_id: string }
-        Returns: boolean
-      }
       carry_over_players: {
         Args: {
           _club_player_ids: string[]
@@ -11310,6 +11555,10 @@ export type Database = {
       child_is_in_event_audience: {
         Args: { _child_id: string; _event_id: string }
         Returns: boolean
+      }
+      claim_competition_role_link: {
+        Args: { p_token: string }
+        Returns: string
       }
       claim_eoi_by_token: {
         Args: { _token: string }
@@ -11403,6 +11652,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_icp_welcome_email: {
+        Args: { _invite_id: string }
+        Returns: boolean
+      }
       claim_mini_league_invite: {
         Args: { _token: string }
         Returns: {
@@ -11434,6 +11687,15 @@ export type Database = {
           p_event_type: string
           p_object_id?: string
           p_stale_after?: string
+        }
+        Returns: string
+      }
+      claim_welcome_email_delivery: {
+        Args: {
+          _dedupe_key: string
+          _recipient_user_id: string
+          _scope_id: string
+          _scope_kind: string
         }
         Returns: string
       }
@@ -11521,7 +11783,6 @@ export type Database = {
           team_msgs: number
         }[]
       }
-      club_is_paid: { Args: { _club_id: string }; Returns: boolean }
       club_news_competition_ids: {
         Args: { _club_id: string }
         Returns: string[]
@@ -11533,8 +11794,19 @@ export type Database = {
           guardian_id: string
         }[]
       }
+      competition_event_audience: {
+        Args: { _competition_id: string }
+        Returns: {
+          club_id: string
+          user_id: string
+        }[]
+      }
       competition_scores_visible: {
         Args: { match_id: string }
+        Returns: boolean
+      }
+      competition_vault_storage_access: {
+        Args: { _manage: boolean; _object_name: string }
         Returns: boolean
       }
       complete_stripe_webhook_event: {
@@ -11628,6 +11900,28 @@ export type Database = {
         }
         Returns: string
       }
+      create_competition_event: {
+        Args: {
+          p_competition_id: string
+          p_description?: string
+          p_end_time?: string
+          p_event_date: string
+          p_location?: string
+          p_title: string
+          p_type: Database["public"]["Enums"]["event_type"]
+        }
+        Returns: number
+      }
+      create_competition_role_email_invite: {
+        Args: {
+          _competition_id: string
+          _email: string
+          _role: string
+          _token: string
+          _verification_code_hash: string
+        }
+        Returns: string
+      }
       create_event_with_duties: {
         Args: { p_child_dates?: string[]; p_duties?: Json; p_event: Json }
         Returns: string
@@ -11698,6 +11992,7 @@ export type Database = {
         Returns: number
       }
       dm_attachments_disabled: { Args: { _user_id: string }; Returns: boolean }
+      dm_block_reason: { Args: { other_user_id: string }; Returns: string }
       duplicate_season_structure: {
         Args: {
           _copy_staff?: boolean
@@ -11806,6 +12101,24 @@ export type Database = {
         Returns: string
       }
       finalize_vault_deletion: { Args: { _job_id: string }; Returns: string }
+      finish_icp_welcome_email: {
+        Args: {
+          _error?: string
+          _invite_id: string
+          _provider_message_id?: string
+          _sent: boolean
+        }
+        Returns: boolean
+      }
+      finish_welcome_email_delivery: {
+        Args: {
+          _delivery_id: string
+          _error?: string
+          _provider_message_id?: string
+          _sent: boolean
+        }
+        Returns: boolean
+      }
       format_message_preview: {
         Args: { _has_image?: boolean; _text: string }
         Returns: string
@@ -11904,9 +12217,30 @@ export type Database = {
           status: string
         }[]
       }
+      get_competition_event_recipients: {
+        Args: { p_event_id: string }
+        Returns: string[]
+      }
       get_competition_join_token_status: {
         Args: { p_token: string }
         Returns: string
+      }
+      get_competition_role_email_invite_status: {
+        Args: { p_token: string }
+        Returns: {
+          competition_id: string
+          competition_name: string
+          role: string
+          status: string
+        }[]
+      }
+      get_competition_role_link_info: {
+        Args: { p_token: string }
+        Returns: {
+          competition_id: string
+          competition_name: string
+          role: string
+        }[]
       }
       get_competition_role_link_status: {
         Args: { p_token: string }
@@ -11993,6 +12327,10 @@ export type Database = {
         Returns: {
           user_id: string
         }[]
+      }
+      get_group_captain_user_ids: {
+        Args: { _group_id: string }
+        Returns: string[]
       }
       get_inbox_latest_club_messages: {
         Args: { _club_ids: string[] }
@@ -12123,6 +12461,12 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      get_my_viewable_competition_match_ids: {
+        Args: never
+        Returns: {
+          match_id: string
+        }[]
       }
       get_online_users_from_set: {
         Args: { _user_ids: string[] }
@@ -12386,10 +12730,6 @@ export type Database = {
         Returns: undefined
       }
       history_result_dto: { Args: { p_id: string }; Returns: Json }
-      history_row_scores_visible: {
-        Args: { p_comp: string; p_match: string }
-        Returns: boolean
-      }
       history_scores_visible: { Args: { p_event: string }; Returns: boolean }
       increment_child_club_points: {
         Args: { _amount: number; _child_id: string; _club_id: string }
@@ -12503,6 +12843,10 @@ export type Database = {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
+      is_group_captain_member: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
@@ -12517,6 +12861,10 @@ export type Database = {
       }
       is_league_admin: {
         Args: { p_mini_league_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_league_admin_for_competition: {
+        Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
       is_league_parent: {
@@ -12558,6 +12906,14 @@ export type Database = {
         Returns: boolean
       }
       is_vault_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_welcome_email_recipient: {
+        Args: {
+          _recipient_user_id: string
+          _scope_id: string
+          _scope_kind: string
+        }
+        Returns: boolean
+      }
       join_competition_with_token: {
         Args: { p_division_id?: string; p_team_id: string; p_token: string }
         Returns: {
@@ -12613,13 +12969,6 @@ export type Database = {
         Returns: {
           status: string
           team_id: string
-        }[]
-      }
-      list_expired_free_media: {
-        Args: { _limit?: number }
-        Returns: {
-          bucket_id: string
-          name: string
         }[]
       }
       list_leaderboard_teams: {
@@ -12813,7 +13162,6 @@ export type Database = {
         Returns: Json
       }
       publish_season: { Args: { _season_id: string }; Returns: undefined }
-      purge_expired_free_media_rows: { Args: never; Returns: number }
       purge_old_client_perf_log: { Args: never; Returns: undefined }
       push_delivery_cron_failures: {
         Args: { p_limit?: number }
@@ -12844,6 +13192,10 @@ export type Database = {
         Returns: {
           inserted_count: number
         }[]
+      }
+      read_competition_playhq: {
+        Args: { p_competition_id: string }
+        Returns: Json
       }
       read_game_history: {
         Args: { p_club_id?: string; p_limit?: number; p_team_id?: string }
@@ -12918,6 +13270,10 @@ export type Database = {
         Args: { _team_id: string; _user_id: string }
         Returns: Json
       }
+      rename_competition_chat: {
+        Args: { _group_id: string; _name: string }
+        Returns: undefined
+      }
       repair_event_push_queue: {
         Args: { p_dry_run?: boolean; p_event_id: string }
         Returns: {
@@ -12969,6 +13325,10 @@ export type Database = {
           team_id: string
         }[]
       }
+      revoke_competition_role_email_invite: {
+        Args: { _token: string }
+        Returns: boolean
+      }
       save_competition_match_result: {
         Args: {
           p_away_score: number
@@ -12981,6 +13341,17 @@ export type Database = {
       save_game_history: {
         Args: { p_only_if_missing?: boolean; p_result: Json }
         Returns: undefined
+      }
+      search_club_children_for_team: {
+        Args: { p_query: string; p_team_id: string }
+        Returns: {
+          child_id: string
+          guardian_names: string[]
+          name: string
+          on_this_team: boolean
+          team_names: string[]
+          year_of_birth: number
+        }[]
       }
       search_competition_coordinator_candidates: {
         Args: { _competition_id: string; _query?: string }
@@ -13047,6 +13418,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      send_fixture_import_summary: {
+        Args: { p_event_ids: string[] }
+        Returns: undefined
+      }
       send_game_stats_email_rpc: {
         Args: {
           _event_date: string
@@ -13108,10 +13483,6 @@ export type Database = {
           _sponsor_name?: string
         }
         Returns: undefined
-      }
-      send_welcome_dm: {
-        Args: { p_message?: string; p_user_id: string }
-        Returns: string
       }
       set_internal_dispatch_credentials: {
         Args: { _functions_base_url: string; _service_role_key: string }
