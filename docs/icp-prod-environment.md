@@ -14,7 +14,7 @@
 2. GitHub → Settings → Secrets → Actions: add `PROD_GOVERNOR_PEM` (exported text). Optional: `PROD_ICP_PUSH_WORKER_SEED`.
 3. GitHub → Settings → Variables: `PROD_GOVERNOR_PRINCIPAL` (`icp identity principal`), `PROD_SUPABASE_ANON_KEY` (public anon key), optional `DEV_DEPLOYER_PRINCIPAL` (the `jfagr-…` web-app key, so PROD refuses it).
 4. GitHub → Settings → Environments: create `production` (add required reviewers for a one-click approval).
-5. Fund the PROD account (~10 ICP; the run prints the address), then on the `prod` branch run **Promote ICP canisters to PROD** with action `provision` and confirmation `PROVISION PROD CANISTERS`.
+5. Fund the PROD account (~10 ICP; the run prints the address), then on the `prod` branch run **[PROD] Promote ICP canisters to live** with action `provision` and confirmation `PROVISION PROD CANISTERS`.
 
 ## Every release
 Merge `main` → `prod`. The workflow upgrades only the PROD canisters whose code changed since their recorded commit, core → domains → router, upgrade-only, and stops at the first failure. Progress is saved in `deploy/prod/release.json`, so a re-run resumes. Then it republishes the PROD web app.

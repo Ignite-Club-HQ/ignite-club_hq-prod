@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "LEGACY base/Group 1 ONLY. Use Upgrade backend (all mainnet groups) for synchronized feature releases. Router remains isolated."
+        description: "LEGACY base/Group 1 ONLY. Use [TEST] Upgrade backend (all test groups) for synchronized feature releases. Router remains isolated."
         type: choice
         required: true
         default: history

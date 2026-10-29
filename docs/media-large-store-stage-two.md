@@ -12,7 +12,7 @@ Signing uses owner GitHub Actions `DEPLOYER_PEM`. No workspace deploy identity o
 
 ### Pay directly by card
 
-Run GitHub Actions → **Fund photo-store test by card**. Choose a unique payment ID (e.g. `card-smoke-001`), the planned test ID (e.g. `media-smoke-004`), scenario **smoke**, the same funding ceiling as the test (e.g. **5**), and type **CREATE CARD LINK**.
+Run GitHub Actions → **[TEST] Fund photo-store test by card**. Choose a unique payment ID (e.g. `card-smoke-001`), the planned test ID (e.g. `media-smoke-004`), scenario **smoke**, the same funding ceiling as the test (e.g. **5**), and type **CREATE CARD LINK**.
 
 Open the running **Create payment link and wait for delivery** step: its log prints **PAY BY CARD** with the exact Stripe checkout URL. The URL and quoted amount/card fee also appear in the run summary and saved payment receipt. Pay on that hosted page only; never enter card details in GitHub or chat. The workflow waits up to one hour for delivery and reads the deploy-account balance afterwards. Start the test separately only when the balance is sufficient.
 
@@ -20,7 +20,7 @@ It imports the existing `DEPLOYER_PEM` into an isolated temporary CLI identity, 
 
 Payment evidence is saved on **ignite-media-test-receipts** under `deploy/media-funding/<payment-id>.json` and as artifact `media-card-<payment-id>`. Intent is committed/read back before order creation. An existing ID or any unresolved earlier payment blocks another order. If interrupted, use the existing saved checkout link and reconcile order status as the same deploy identity; do not rerun/create a replacement payment. Unpaid orders may expire; refunds/review/unknown replies require explicit operator reconciliation of the receipt before any further purchase. Keep the receipts branch. Temporary key material is removed on exit and cleanup. This setup does not expose the repository secret or automatically start a paid test.
 
-GitHub Actions → **Test larger photo store (isolated mainnet)** on the branch containing these changes. Start with **smoke**, unique id `media-smoke-001`, and an explicit whole-number funding ceiling from **2–20T cycles**. Default 5T is a proposed funding ceiling, not an estimated test cost. Type **TEST ISOLATED STORE** to authorize spending. The ceiling includes the 0.1T ledger fee; the remainder funds exactly one new unregistered store. No top-ups, deletion or live-group configuration occur.
+GitHub Actions → **[TEST] Test larger photo store (isolated)** on the branch containing these changes. Start with **smoke**, unique id `media-smoke-001`, and an explicit whole-number funding ceiling from **2–20T cycles**. Default 5T is a proposed funding ceiling, not an estimated test cost. Type **TEST ISOLATED STORE** to authorize spending. The ceiling includes the 0.1T ledger fee; the remainder funds exactly one new unregistered store. No top-ups, deletion or live-group configuration occur.
 
 After smoke passes, run **mixed** with a fresh id for a 5 GiB bounded fill/two churn rounds/upgrade, then **tiny** with another fresh id for a separate 512 MiB target. Each run creates one separate store. The workflow is manual and serialized with existing governor deployments.
 

@@ -17,7 +17,7 @@ protocol rather than bypassing it. Stopped state is stable across upgrades.
 2. In GitHub Settings → Environments, configure **group-2-admin-controls** with
    only authorized administrators as required reviewers and restrict release branches.
    This restricts the stop operation, not who may create a club.
-3. Actions → **Stop Group 2 new clubs** → action **check**. Leave the other fields empty.
+3. Actions → **[TEST] Stop Group 2 new clubs** → action **check**. Leave the other fields empty.
 4. To stop, select **stop**, copy the checked revision into **expected_revision**,
    and enter **STOP GROUP 2 NEW CLUBS** in **confirmation**.
 5. Confirm the run succeeds and its report verifies stopped state.

@@ -8,7 +8,7 @@ and compatible app routing remain separate work.
 
 ## What is implemented
 
-The manual **Group 2 owner opening** GitHub workflow has four actions:
+The manual **[TEST] Group 2 owner opening** GitHub workflow has four actions:
 
 - `register-closed`: registers the already-installed, checked g2 inventory and immutable placement. Does not open it.
 - `check`: checks exact approved deployed modules, sole governor controllers, certified subnet IDs, health, mandatory creator binding, actual reciprocal settings and bound-deletion configuration. It does not mutate placement or open anything.
@@ -31,7 +31,7 @@ Nothing was deployed or opened by this implementation. The workflow intentionall
 
 ### Running the Group 2 upgrade
 
-After top-ups and the separately approved shared-router/identity upgrade, use Actions → **Upgrade Group 2 (closed)** on the approved release branch:
+After top-ups and the separately approved shared-router/identity upgrade, use Actions → **[TEST] Upgrade Group 2 (closed)** on the approved release branch:
 
 | Field | First run | Upgrade run |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ Both runs require the existing `DEPLOYER_PEM` secret and the protected **group-2
 
 Progress and original public photo-key attestation are saved and read back on the **group-2-upgrade-receipts** branch before each upgrade. The **group-2-upgrade-report** artifact contains public module hashes, inventory and fuel evidence—not the signing key or environment values. If interrupted, rerun the same release only after reviewing the saved progress: a pending upgrade settles only if the exact intended module is already installed; an old/unknown module outcome stops for manual reconciliation rather than repeating the call. Changing release/inventory or router revision also stops. Do not delete progress to bypass a refusal.
 
-Once the upgrade succeeds, complete step 3's owner-placement/deletion settings separately, use the verified **newHash** values in your opening approval, and run **Group 2 owner opening**: `register-closed` → `check` → `open` (registration only if not already registered). The compatible app release and actual signed-in acceptance remain separate prerequisites. The upgrade workflow does not automatically run configuration or opening.
+Once the upgrade succeeds, complete step 3's owner-placement/deletion settings separately, use the verified **newHash** values in your opening approval, and run **[TEST] Group 2 owner opening**: `register-closed` → `check` → `open` (registration only if not already registered). The compatible app release and actual signed-in acceptance remain separate prerequisites. The upgrade workflow does not automatically run configuration or opening.
 
 ### Opening approval fields
 
