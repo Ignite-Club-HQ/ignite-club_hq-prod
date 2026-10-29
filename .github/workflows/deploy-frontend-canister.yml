@@ -114,7 +114,7 @@ jobs:
           lines = [body[i:i + 64] for i in range(0, len(body), 64)]
           with open(sys.argv[1], "w") as f:
               f.write(f"-----BEGIN {m_label}-----\n" + "\n".join(lines) + f"\n-----END {m_label}-----\n")
-          print(f"Using {m_label} block ({len(body)} base64 chars).")
+          print(f"Using {m_label} block.")
           PY
           icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor
           icp identity default ignite-governor
