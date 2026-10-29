@@ -1225,10 +1225,11 @@ export default function TeamDetailPage() {
           icp: async (ctx) => {
             if (selectedRole !== "parent") return requestLiveRole(ctx, team.club_id, selectedRole, id);
             const trimmedNew = newChildName.trim();
-            const child = selectedChildForLink && selectedChildForLink !== "__new__"
-              ? { id: selectedChildForLink }
-              : trimmedNew ? { name: trimmedNew } : null;
-            if (!child) throw new Error("Please select your child or add their name");
+            // A child already on the team is linked by staff; only a new
+            // name is created under the parent and carried with the request.
+            if (selectedChildForLink && selectedChildForLink !== "__new__") return requestLiveRole(ctx, team.club_id, selectedRole, id);
+            if (!trimmedNew) throw new Error("Please select your child or add their name");
+            const child = { name: trimmedNew };
             const { requestLiveParentRoleWithChild } = await import("@/live/features/club");
             return requestLiveParentRoleWithChild(ctx, team.club_id, id, child);
           },
