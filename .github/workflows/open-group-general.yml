@@ -22,6 +22,7 @@ on:
         default: ''
 permissions:
   contents: write
+  actions: write
 concurrency:
   group: ignite-mainnet-governor-deployment
   cancel-in-progress: false
@@ -72,6 +73,7 @@ jobs:
               npx --yes tsx@4 scripts/open-group-general.ts "$ACTION" "../$APPROVAL_FILE" "$RUNNER_TEMP/operator.pem" "$RUNNER_TEMP/general-opening-report.json";;
           esac
       - name: Commit generated approval and snapshot
+        id: commit
         if: inputs.action == 'prepare-hashes' || inputs.action == 'snapshot'
         run: |
           set -euo pipefail
@@ -79,8 +81,16 @@ jobs:
           git config user.email "noreply@igniteclubhq.app"
           git add deploy/groups/g2/general-opening.json
           if [ -f frontend/src/live/generated/routingGates.ts ]; then git add frontend/src/live/generated/routingGates.ts; fi
-          git diff --cached --quiet || git commit -m "chore: routing snapshot for ${GITHUB_REF_NAME} [skip ci]"
-          git push
+          if git diff --cached --quiet; then echo "changed=false" >> "$GITHUB_OUTPUT"; else
+            git commit -m "chore: routing snapshot for ${GITHUB_REF_NAME} [skip ci]"; git push; echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+      # The snapshot is compiled into the web app, and bot pushes never trigger
+      # other workflows, so republish the frontend explicitly or the live site
+      # keeps the stale snapshot and fails closed.
+      - name: Republish web app with the new snapshot
+        if: inputs.action == 'snapshot' && github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-frontend-canister.yml --ref main
       - name: Remove signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/operator.pem"
