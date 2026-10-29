@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isIcpSession } from "@/lib/icpClubTeamLookup";
 
 
 
@@ -65,6 +66,9 @@ export function HomeWelcomeGetStarted({
     enabled: !!email,
     staleTime: 60_000,
     queryFn: async () => {
+      // ICP invites are matched by hashed email on the invite link itself; there is
+      // no by-email lookup, and the old database must not be read for II accounts.
+      if (isIcpSession()) return [];
       const { data, error } = await supabase
         .from("pending_invites")
         .select("id, club_id, team_id, invite_token, role, clubs:club_id(name), teams:team_id(name)")

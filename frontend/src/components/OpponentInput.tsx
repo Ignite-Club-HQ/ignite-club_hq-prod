@@ -14,6 +14,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { isIcpSession } from "@/lib/icpClubTeamLookup";
+import { addLocalFavorite, listLocalFavorites, removeLocalFavorite } from "@/lib/localFavoriteOpponents";
 
 interface OpponentInputProps {
   value: string;
@@ -46,6 +48,8 @@ export function OpponentInput({
   const { data: favorites } = useQuery({
     queryKey: ["favorite-opponents", user?.id, clubId, teamId],
     queryFn: async () => {
+      // Internet Identity: no favourites table on ICP yet — keep them on this device.
+      if (isIcpSession()) return listLocalFavorites(user!.id, clubId, teamId);
       let query = supabase
         .from("favorite_opponents")
         .select("*")
@@ -78,6 +82,10 @@ export function OpponentInput({
   // Save favorite mutation
   const saveFavorite = useMutation({
     mutationFn: async (opponentName: string) => {
+      if (isIcpSession()) {
+        addLocalFavorite(user!.id, opponentName, clubId, teamId);
+        return;
+      }
       const { error } = await supabase
         .from("favorite_opponents")
         .insert({
@@ -100,6 +108,10 @@ export function OpponentInput({
   // Delete favorite mutation
   const deleteFavorite = useMutation({
     mutationFn: async (id: string) => {
+      if (isIcpSession()) {
+        removeLocalFavorite(user!.id, id);
+        return;
+      }
       const { error } = await supabase
         .from("favorite_opponents")
         .delete()
