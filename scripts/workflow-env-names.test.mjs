@@ -49,10 +49,15 @@ test('a [TEST] workflow can never reach the live canister set', () => {
   }
 });
 
-test('[DB] and [REPO] workflows never sign with the ICP governor key', () => {
+test('[DB] and [REPO] workflows cannot reach a canister at all', () => {
   for (const { file, name, text } of workflows) {
     if (!name.startsWith('[DB] ') && !name.startsWith('[REPO] ')) continue;
-    assert.doesNotMatch(text, /DEPLOYER_PEM|GOVERNOR_PEM/, `${file}: ${name.split(' ')[0]} must not hold the ICP governor key`);
+    assert.doesNotMatch(text, /ic\.ids\.json|deploy\/mainnet|deploy\/groups|deploy\/prod|deploy\/frontend/,
+      `${file}: ${name.split(' ')[0]} must not reference a canister table`);
+    // The governor key may only be *transported* between repos (migrate-repo-setup);
+    // these workflows must never install it as a signing identity or call the ICP CLI.
+    assert.doesNotMatch(text, /icp identity|identity import|--pem-file/,
+      `${file}: ${name.split(' ')[0]} must not sign with the ICP governor key`);
   }
 });
 
