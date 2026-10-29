@@ -5739,6 +5739,42 @@ export type Database = {
         }
         Relationships: []
       }
+      icp_welcome_email_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          invite_id: string
+          last_error: string | null
+          locked_at: string | null
+          provider_message_id: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          invite_id: string
+          last_error?: string | null
+          locked_at?: string | null
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          invite_id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inbox_open_perf: {
         Row: {
           bootstrap_enabled: boolean
@@ -10968,6 +11004,54 @@ export type Database = {
         }
         Relationships: []
       }
+      welcome_email_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedupe_key: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          provider_message_id: string | null
+          recipient_user_id: string
+          scope_id: string
+          scope_kind: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          provider_message_id?: string | null
+          recipient_user_id: string
+          scope_id: string
+          scope_kind: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          provider_message_id?: string | null
+          recipient_user_id?: string
+          scope_id?: string
+          scope_kind?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       welcome_email_settings: {
         Row: {
           competition_id: string | null
@@ -11568,6 +11652,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_icp_welcome_email: {
+        Args: { _invite_id: string }
+        Returns: boolean
+      }
       claim_mini_league_invite: {
         Args: { _token: string }
         Returns: {
@@ -11599,6 +11687,15 @@ export type Database = {
           p_event_type: string
           p_object_id?: string
           p_stale_after?: string
+        }
+        Returns: string
+      }
+      claim_welcome_email_delivery: {
+        Args: {
+          _dedupe_key: string
+          _recipient_user_id: string
+          _scope_id: string
+          _scope_kind: string
         }
         Returns: string
       }
@@ -12004,6 +12101,24 @@ export type Database = {
         Returns: string
       }
       finalize_vault_deletion: { Args: { _job_id: string }; Returns: string }
+      finish_icp_welcome_email: {
+        Args: {
+          _error?: string
+          _invite_id: string
+          _provider_message_id?: string
+          _sent: boolean
+        }
+        Returns: boolean
+      }
+      finish_welcome_email_delivery: {
+        Args: {
+          _delivery_id: string
+          _error?: string
+          _provider_message_id?: string
+          _sent: boolean
+        }
+        Returns: boolean
+      }
       format_message_preview: {
         Args: { _has_image?: boolean; _text: string }
         Returns: string
@@ -12791,6 +12906,14 @@ export type Database = {
         Returns: boolean
       }
       is_vault_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_welcome_email_recipient: {
+        Args: {
+          _recipient_user_id: string
+          _scope_id: string
+          _scope_kind: string
+        }
+        Returns: boolean
+      }
       join_competition_with_token: {
         Args: { p_division_id?: string; p_team_id: string; p_token: string }
         Returns: {
