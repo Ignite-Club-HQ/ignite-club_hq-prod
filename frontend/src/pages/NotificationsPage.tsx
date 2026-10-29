@@ -43,8 +43,8 @@ import { notificationKeys } from "@/lab/notificationQueryKeys";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { approveLiveClubJoinRequest, rejectLiveClubJoinRequest } from "@/live/features/club";
 
-// ICP club join request ids are "cjreq-<clubId>-<n>-<ms>"; the club id is a UUID.
-const ICP_CLUB_JOIN_REQUEST = /^cjreq-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-/i;
+// ICP club join request ids are "cjreq-<clubId>-<n>-<ms>".
+const ICP_CLUB_JOIN_REQUEST = /^cjreq-(.+)-\d+-\d+$/;
 async function decideIcpClubJoin(requestId: string, approved: boolean): Promise<boolean> {
   const match = ICP_CLUB_JOIN_REQUEST.exec(requestId);
   if (!match) return false;
