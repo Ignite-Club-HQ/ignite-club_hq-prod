@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "639333636662",
+    "project_id": "ignite-club-hq",
+    "storage_bucket": "ignite-club-hq.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:639333636662:android:920217007b59f49b025697",
+        "android_client_info": {
+          "package_name": "app.lovable.igniteteamhub"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "639333636662-a1s9mgs48ihpf0ggsjci8b9llmcuthju.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApy5LwAvxC0ZYMwO_j5ukQFHoeK9SgrnE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "639333636662-a1s9mgs48ihpf0ggsjci8b9llmcuthju.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:639333636662:android:8d5855b593fe002e025697",
+        "android_client_info": {
+          "package_name": "igniteclubhq.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "639333636662-a1s9mgs48ihpf0ggsjci8b9llmcuthju.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApy5LwAvxC0ZYMwO_j5ukQFHoeK9SgrnE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "639333636662-a1s9mgs48ihpf0ggsjci8b9llmcuthju.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

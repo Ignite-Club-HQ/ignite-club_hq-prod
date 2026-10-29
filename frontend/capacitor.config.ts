@@ -7,8 +7,8 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // accounts match the website (see src/live/nativeInternetIdentity.ts).
 // appId is locked forever once uploaded to Google Play — change before first upload if needed.
 const config: CapacitorConfig = {
-  appId: "com.igniteclubhq.app",
-  appName: "Ignite Club HQ",
+  appId: "app.lovable.igniteteamhub",
+  appName: "Ignite",
   webDir: "dist-live",
   android: {
     // Mixed content off: all traffic is https (Supabase, ICP boundary nodes).
