@@ -22,7 +22,7 @@ export function recordRelease(names, sha, root = REPO_ROOT) {
   return release;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(process.argv[1])}`).href) {
   const [first, sha] = process.argv.slice(2);
   const names = first === "--all" ? UPGRADE_ORDER.filter((n) => loadIds("prod")[n]) : [first];
   recordRelease(names, sha);
