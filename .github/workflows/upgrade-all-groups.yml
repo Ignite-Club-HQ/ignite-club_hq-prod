@@ -99,7 +99,16 @@ jobs:
           ' > "$RUNNER_TEMP/all-group.pem"
           icp identity import --from-pem "$RUNNER_TEMP/all-group.pem" --storage plaintext ignite-governor
           icp identity default ignite-governor
-          test "$(icp identity principal)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae
+          # Select the imported identity explicitly; never print key-derived output.
+          if ! governor_identity="$(icp identity principal --identity ignite-governor 2>/dev/null)"; then
+            echo "::error::Could not read the imported governor identity. No canisters changed."
+            exit 1
+          fi
+          if [ "$governor_identity" != vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae ]; then
+            echo "::error::The imported identity does not match the pinned TEST governor. Verify the original governor file and whether an environment-level GOVERNOR_PEM overrides the repository secret. Do not change the governor pin or share the key. No canisters changed."
+            exit 1
+          fi
+          unset governor_identity
       - name: Resolve existing delivery identity without changing grants
         env:
           ICP_PUSH_WORKER_SEED: ${{ secrets.ICP_PUSH_WORKER_SEED }}
