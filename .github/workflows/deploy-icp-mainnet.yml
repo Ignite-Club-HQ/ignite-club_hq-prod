@@ -12,7 +12,7 @@
 #        Name: DEPLOYER_PEM
 #        Value: the full .pem file text (-----BEGIN PRIVATE KEY----- included)
 #      and delete the artifact afterwards.
-# Then: Actions tab → "Deploy ICP canisters (mainnet)" → Run workflow.
+# Then: Actions tab → "[TEST] Deploy canisters (legacy base/Group 1)" → Run workflow.
 # Safe to re-run; the canister ID table is attached as an artifact.
 
 name: [TEST] Deploy canisters (legacy base/Group 1)
