@@ -1,0 +1,67 @@
+// Every GitHub workflow display name must carry exactly one environment tag, so
+// the Actions tab alone tells the operator what a run can touch:
+//   [TEST]  the DEV/test canister set (deploy/mainnet, deploy/groups, DEV frontend)
+//   [PROD]  the live canister set (deploy/prod, deploy/frontend-prod)
+//   [DB]    the club database the repo is wired to; no canisters
+//   [REPO]  GitHub repository housekeeping; no canisters and no club data
+// Why: the same repository drives both environments, and a misread workflow name
+// is the cheapest way to spend money on or mutate the wrong canister set.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const DIR = path.join(ROOT, '.github/workflows');
+const TAGS = ['[TEST]', '[PROD]', '[DB]', '[REPO]'];
+
+const workflows = readdirSync(DIR)
+  .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+  .sort()
+  .map((file) => {
+    const text = readFileSync(path.join(DIR, file), 'utf8');
+    const line = text.split('\n').find((l) => /^name:\s/.test(l)) ?? '';
+    return { file, name: line.replace(/^name:\s*/, '').trim(), text };
+  });
+
+test('every workflow display name carries exactly one environment tag', () => {
+  assert.ok(workflows.length > 40, `expected the full workflow set, found ${workflows.length}`);
+  for (const { file, name } of workflows) {
+    const hits = TAGS.filter((tag) => name.startsWith(tag + ' '));
+    assert.equal(hits.length, 1, `${file}: "${name}" must start with exactly one of ${TAGS.join(' ')}`);
+    assert.ok(name.length > hits[0].length + 1, `${file}: "${name}" has no description after the tag`);
+  }
+});
+
+test('only the promotion workflow may claim PROD', () => {
+  const prod = workflows.filter(({ name }) => name.startsWith('[PROD] '));
+  assert.deepEqual(prod.map(({ file }) => file), ['promote-icp-prod.yml']);
+  assert.match(prod[0].text, /IGNITE_ICP_ENV:\s*prod/);
+  assert.match(prod[0].text, /refs\/heads\/prod/);
+});
+
+test('a [TEST] workflow can never reach the live canister set', () => {
+  for (const { file, name, text } of workflows) {
+    if (!name.startsWith('[TEST] ')) continue;
+    assert.doesNotMatch(text, /deploy\/prod\/|deploy\/frontend-prod/, `${file}: [TEST] must not touch PROD paths`);
+    assert.doesNotMatch(text, /IGNITE_ICP_ENV:\s*prod|resolveEnv\(\)\s*===?\s*['"]prod/, `${file}: [TEST] must not resolve the PROD environment`);
+  }
+});
+
+test('[DB] and [REPO] workflows never sign with the ICP governor key', () => {
+  for (const { file, name, text } of workflows) {
+    if (!name.startsWith('[DB] ') && !name.startsWith('[REPO] ')) continue;
+    assert.doesNotMatch(text, /DEPLOYER_PEM|GOVERNOR_PEM/, `${file}: ${name.split(' ')[0]} must not hold the ICP governor key`);
+  }
+});
+
+test('tags match what the workflow actually deploys', () => {
+  const byFile = Object.fromEntries(workflows.map((w) => [w.file, w]));
+  assert.ok(byFile['deploy-frontend-canister.yml'].name.startsWith('[TEST] '));
+  assert.match(byFile['deploy-frontend-canister.yml'].text, /IGNITE_ICP_ENV=dev/);
+  for (const file of ['upgrade-all-groups.yml', 'topup-canister-cycles.yml', 'canister-health.yml']) {
+    assert.ok(byFile[file].name.startsWith('[TEST] '), `${file} targets the test canister set`);
+    assert.match(byFile[file].text, /deploy\/mainnet|deploy\/groups/);
+  }
+});
