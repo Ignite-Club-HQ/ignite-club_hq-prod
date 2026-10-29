@@ -20,7 +20,7 @@ Rule: test surfaces use DEV, live surfaces use PROD. No merge to `prod` until yo
 4. Deploy the 3 deferred edge functions on DEV.
 
 ## Stage 2 — Test DEV thoroughly
-1. Checklist on preview + test canister + a Codemagic DEV build: sign-in (email, Google, Internet Identity), events/RSVP, chats/polls, competitions/hidden scores, Vault/photos, notifications.
+1. Checklist on preview + test canister (no Codemagic — that is prod-only): sign-in (email, Google, Internet Identity), events/RSVP, chats/polls, competitions/hidden scores, Vault/photos, notifications.
 2. I record results in a short DEV readiness report; you sign off.
 
 ## Stage 3 — Prepare LIVE canisters (built, not switched on)
