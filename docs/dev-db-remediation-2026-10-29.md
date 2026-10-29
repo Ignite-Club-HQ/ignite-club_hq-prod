@@ -141,3 +141,29 @@ Edge functions and RLS are per-project; DEV runs its own deployed set. Live chec
 - **New finding:** DEV VAPID keys are misconfigured — `check-vapid-key` reports invalid key pair (keys exist but do not match / wrong lengths). Push notifications will not work on DEV until regenerated.
 
 Classification: merge-critical DEV items are branch divergence, the missing edge functions plus their SQL (welcome-email deliveries, measured upload), code-side field fixes, and the realtime gaps. Hosted Auth config and the wider RLS/Storage review are not DEV merge blockers.
+
+## 10. Gap closure — 2026-10-29 (DEV only)
+
+Scope approved by user instruction "Close all gaps." All changes DEV-only; production untouched.
+
+### Applied
+
+- **Realtime publication (CLOSED):** `active_games`, `chat_pinned_vault` and `club_subscriptions` added to `supabase_realtime` (guarded, idempotent). DEV code subscribes to all three (`useRemoteFillInSync`, `BoardLinkCard`, `AdminActiveGamesPage`, `useChatPinnedVault`, `ClubUpgradePage`); until now those subscriptions silently received nothing. Verified via `pg_publication_tables`.
+- **Welcome-email delivery SQL (CLOSED):** `welcome_email_deliveries` and `icp_welcome_email_deliveries` tables plus `is_welcome_email_recipient`, `claim/finish_welcome_email_delivery`, `claim/finish_icp_welcome_email` — applied verbatim from authoritative hybrid migrations 20261012020000 / 20261013000000 (delivery portions; `welcome_email_settings` already existed). Both tables are server-only: REVOKE from anon/authenticated, GRANT ALL to service_role, RLS enabled with explicit deny-all client policies. `is_welcome_email_recipient` was hardened beyond hybrid: EXECUTE revoked from authenticated, granted to service_role only; the edge function calls it via the admin client after verifying the caller's session and that `recipientUserId` matches the caller. Migration linter re-run clean (no new findings).
+- **VAPID keys (STORED, propagation pending):** DEV's VAPID secrets were placeholder junk (`xxx`, 3-char keys) — never configured. A fresh P-256 pair was generated and stored as `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` (confirmed present in the secrets store). The warm `check-vapid-key` isolate still reports the old values; the new secrets take effect on the next cold start / redeploy. `src/lib/pushNotifications.ts` now selects the public key by `VITE_SUPABASE_PROJECT_ID`: DEV project `ecsdwrarzfexssxtrymj` uses the new DEV key, all other builds keep the existing PROD key — PROD push is unaffected by this change.
+- **Edge function sources (STAGED, deployment blocked):** `send-welcome-email`, `send-welcome-email-icp` and `verify-iap-receipt-icp` copied verbatim from hybrid (pinned 70d821c8) into `supabase/functions/`, plus shared helpers `_shared/cors.ts`, `_shared/welcomeEmail.ts`, `_shared/measuredMediaUpload.ts`. `verify-iap-receipt-icp` passes `deno check`. Deployment to DEV failed repeatedly with a platform-side "internal error" — the pipeline fails identically for an unchanged existing function (`check-vapid-key`), so this is an outage, not a code problem. **Retry deployment when the platform recovers.**
+
+### Reclassified — not DEV gaps
+
+- **`create-member-checkout` / `member_payments`:** `src/lib/memberCheckout.ts` deliberately calls the separate Ignite website project `frkzyniekamxudaumeaf` (its own URL, anon key, edge function and Realtime table). Nothing to deploy or publish on DEV; the earlier report misclassified this as a missing DEV function.
+- **Hybrid `verify_jwt` config:** hybrid `config.toml` has no entries for the three functions; they authenticate in code (session check in `send-welcome-email`, canister-token capability in the ICP functions). No config change needed.
+
+### Still open
+
+1. **Deploy the three staged functions** once the deployment pipeline recovers (platform error, retried 4×).
+2. **Secrets for the new functions:** `RESEND_API_KEY` and `WELCOME_EMAIL_FROM` are not in the DEV secrets store — `send-welcome-email*` will return 503 "not configured" until Paul adds them (Resend account credentials; cannot be invented). `verify-iap-receipt-icp` needs `IAP_ATTESTATION_HMAC_SECRET` (shared with the identity_access canister) and `APPLE_SHARED_SECRET` for its IAP path; its media-upload job additionally needs the `reserve_measured_media` / `settle_measured_media` SQL, which is not applied.
+3. Code-side hybrid fixes (unchanged from §7): `profiles.full_name/first_name/email`, `teams.age_group`, `events.start_at`, `team_memberships.user_id`, `club_players.user_id`, `mini_leagues.status`, `user_roles.mini_league_id`.
+4. Hosted Auth URL/template config and the wider RLS/Storage review remain separate, unauthorised scopes.
+5. 780 pre-existing linter findings (including 1 ERROR: security definer view) predate this work; offer to address separately.
+
+Tests: `devCompatibilityMigrations.guard.test.ts` (8) and `memberCheckout.test.ts` (23) pass; build OK.
