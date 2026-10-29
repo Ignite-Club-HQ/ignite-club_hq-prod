@@ -4333,7 +4333,7 @@ persistent actor class Main(governorInit : Principal) = this {
       decided_by = null;
     };
     roleRequests := roleRequests.concat([request]);
-    ignore notifyClubJoin(roleRequestReviewers(club, team), club, "join_request", "New request to join your team", "role_request:" # request.id, request.id);
+    ignore notifyClubJoin(roleRequestReviewers(club, team), club, "join_request", requesterToken(caller) # " wants to join " # (switch (team) { case (?t) teamNameOf(t) # " (" # clubNameOf(club) # ")"; case null clubNameOf(club) }) # " as " # role, "role_request:" # request.id, request.id);
     #Ok(request)
   
     } finally { removalReceiver.leave(caller) };
@@ -4382,7 +4382,7 @@ persistent actor class Main(governorInit : Principal) = this {
         };
         let updated : Types.RoleRequest = { req with status = "approved"; decided_at_ms = ?nowMs(); decided_by = ?caller };
         roleRequests := roleRequests.map(func(r) = if (r.id == id) updated else r);
-        ignore notifyClubJoin([req.user.toText()], req.club, "join_request_approved", "Your join request was approved", "role_request_approved:" # id, switch (req.team) { case (?t) t; case null req.club });
+        ignore notifyClubJoin([req.user.toText()], req.club, "join_request_approved", "Your request to join " # (switch (req.team) { case (?t) teamNameOf(t); case null clubNameOf(req.club) }) # " was approved", "role_request_approved:" # id, switch (req.team) { case (?t) t; case null req.club });
         #Ok(updated)
       };
     }
@@ -4407,7 +4407,7 @@ persistent actor class Main(governorInit : Principal) = this {
         if (req.status != "pending") return #Err("Request already processed");
         let updated : Types.RoleRequest = { req with status = "rejected"; decided_at_ms = ?nowMs(); decided_by = ?caller };
         roleRequests := roleRequests.map(func(r) = if (r.id == id) updated else r);
-        ignore notifyClubJoin([req.user.toText()], req.club, "join_request_denied", "Your join request was declined", "role_request_denied:" # id, switch (req.team) { case (?t) t; case null req.club });
+        ignore notifyClubJoin([req.user.toText()], req.club, "join_request_denied", "Your request to join " # (switch (req.team) { case (?t) teamNameOf(t); case null clubNameOf(req.club) }) # " was declined", "role_request_denied:" # id, switch (req.team) { case (?t) t; case null req.club });
         #Ok(updated)
       };
     }
@@ -6249,6 +6249,16 @@ persistent actor class Main(governorInit : Principal) = this {
     out
   };
 
+  func clubNameOf(club : Text) : Text {
+    switch (profiles.find(func(p) = p.id == club)) { case (?p) p.name; case null "your club" }
+  };
+  func teamNameOf(team : Text) : Text {
+    switch (teams.find(func(t) = t.id == team)) { case (?t) t.name; case null "your team" }
+  };
+  // "{u:<principal>}" is replaced in the browser by the requester's unlocked
+  // name; the queue never holds a plaintext person name.
+  func requesterToken(user : Principal) : Text { "{u:" # user.toText() # "}" };
+
   func notifyClubJoin(users : [Text], club : Text, kind : Text, body : Text, key : Text, related : Text) : async () {
     if (users.size() == 0) return;
     switch (notificationQueueCanister) {
@@ -6282,7 +6292,7 @@ persistent actor class Main(governorInit : Principal) = this {
     };
     clubJoinRequests := clubJoinRequests.concat([req]);
     // Best-effort: a queue failure must not lose the stored request.
-    ignore notifyClubJoin(clubJoinReviewers(club_id), club_id, "join_request", "New request to join your club", "club_join:" # req.id, req.id);
+    ignore notifyClubJoin(clubJoinReviewers(club_id), club_id, "join_request", requesterToken(caller) # " wants to join " # clubNameOf(club_id), "club_join:" # req.id, req.id);
     #Ok(req)
   
     } finally { removalReceiver.leave(caller) };
@@ -6316,7 +6326,7 @@ persistent actor class Main(governorInit : Principal) = this {
         ignore fanOutEnsureConversation(req.club_id, null, clubChatParticipants(req.club_id));
         let updated : Types.ClubJoinRequest = { req with status = "approved"; decided_at_ms = ?nowMs(); decided_by = ?caller };
         clubJoinRequests := clubJoinRequests.map(func(r) = if (r.id == id) updated else r);
-        ignore notifyClubJoin([req.user.toText()], req.club_id, "join_request_approved", "Your request to join the club was approved", "club_join_approved:" # id, req.club_id);
+        ignore notifyClubJoin([req.user.toText()], req.club_id, "join_request_approved", "Your request to join " # clubNameOf(req.club_id) # " was approved", "club_join_approved:" # id, req.club_id);
         #Ok(updated)
       };
     }
@@ -6341,7 +6351,7 @@ persistent actor class Main(governorInit : Principal) = this {
         if (req.status != "pending") return #Err("Request already processed");
         let updated : Types.ClubJoinRequest = { req with status = "rejected"; decided_at_ms = ?nowMs(); decided_by = ?caller };
         clubJoinRequests := clubJoinRequests.map(func(r) = if (r.id == id) updated else r);
-        ignore notifyClubJoin([req.user.toText()], req.club_id, "join_request_denied", "Your request to join the club was declined", "club_join_denied:" # id, req.club_id);
+        ignore notifyClubJoin([req.user.toText()], req.club_id, "join_request_denied", "Your request to join " # clubNameOf(req.club_id) # " was declined", "club_join_denied:" # id, req.club_id);
         #Ok(updated)
       };
     }
