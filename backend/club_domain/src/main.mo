@@ -249,6 +249,7 @@ persistent actor class Main(governorInit : Principal) = this {
   var newsTargets : [(Text, Text, Text)];
   var parentInvites : [Types.ParentInvite];
   var roleRequests : [Types.RoleRequest];
+  var roleRequestChildren : [(Text, Text)];
   var teamInvites : [Types.TeamInvite];
   var teamInviteLinks : [Types.TeamInviteLink];
   var pendingInvites : [Types.PendingInvite];
@@ -4271,7 +4272,44 @@ persistent actor class Main(governorInit : Principal) = this {
     removedMembers.any(func(m) = m.club == club and m.user.equal(user))
   };
 
+  // Team-scoped role requests are reviewable by that team's admins/coaches;
+  // club-scoped ones stay club-admin only.
+  func canReviewRoleRequest(caller : Principal, req : Types.RoleRequest) : Bool {
+    switch (req.team) { case (?_) canManageTeam(caller, req.club, req.team); case null isAdmin(caller, req.club) }
+  };
+
+  func roleRequestReviewers(club : Text, team : ?Text) : [Text] {
+    var out : [Text] = [];
+    for (g in acl.roles.values()) {
+      let fits = g.club == ?club and (g.role == "club_admin" or (team != null and g.team == team and (g.role == "team_admin" or g.role == "coach")));
+      if (fits and not isExcluded(g.user, club) and not removalReceiver.denied(g.user)) {
+        let id = g.user.toText();
+        if (not out.any(func(u) = u == id) and out.size() < 500) out := out.concat([id]);
+      };
+    };
+    out
+  };
+
+  // Parent request that carries the caller's own child onto the team on approval.
+  public shared ({ caller }) func request_parent_role_with_child(club : Text, team : Text, child_id : Text) : async { #Ok : Types.RoleRequest; #Err : Text } {
+    switch (acl.children.find(func(c) = c.id == child_id)) {
+      case null { return #Err("Child not found") };
+      case (?child) { if (not isChildGuardian(caller, child)) return #Err("Forbidden") };
+    };
+    switch (await requestRoleFor(caller, club, "parent", ?team)) {
+      case (#Err(e)) #Err(e);
+      case (#Ok(req)) {
+        roleRequestChildren := roleRequestChildren.concat([(req.id, child_id)]);
+        #Ok(req)
+      };
+    }
+  };
+
   public shared ({ caller }) func request_role(club : Text, role : Text, team : ?Text) : async { #Ok : Types.RoleRequest; #Err : Text } {
+    await requestRoleFor(caller, club, role, team)
+  };
+
+  func requestRoleFor(caller : Principal, club : Text, role : Text, team : ?Text) : async { #Ok : Types.RoleRequest; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
 
@@ -4295,6 +4333,7 @@ persistent actor class Main(governorInit : Principal) = this {
       decided_by = null;
     };
     roleRequests := roleRequests.concat([request]);
+    ignore notifyClubJoin(roleRequestReviewers(club, team), club, "join_request", "New request to join your team", "role_request:" # request.id, request.id);
     #Ok(request)
   
     } finally { removalReceiver.leave(caller) };
@@ -4304,8 +4343,10 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public query ({ caller }) func list_role_requests(club : Text) : async { #Ok : [Types.RoleRequest]; #Err : Text } {
     denyLegacyAccountQuery();
-    if (not isAdmin(caller, club)) return #Err("Club admin required");
-    #Ok(roleRequests.filter(func(r) = r.club == club))
+    if (isAdmin(caller, club)) return #Ok(roleRequests.filter(func(r) = r.club == club));
+    let mine = roleRequests.filter(func(r) = r.club == club and r.team != null and canManageTeam(caller, club, r.team));
+    if (mine.size() == 0 and not acl.roles.any(func(g) = ownsMembershipPrincipal(caller, g.user) and g.club == ?club and (g.role == "team_admin" or g.role == "coach"))) return #Err("Club admin required");
+    #Ok(mine)
   };
 
   public shared ({ caller }) func approve_role_request(id : Text) : async { #Ok : Types.RoleRequest; #Err : Text } {
@@ -4319,7 +4360,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (roleRequests.find(func(r) = r.id == id)) {
       case null { #Err("Request not found") };
       case (?req) {
-        if (not isAdmin(caller, req.club)) return #Err("Club admin required");
+        if (not canReviewRoleRequest(caller, req)) return #Err("Club admin required");
         if (req.status != "pending") return #Err("Request already processed");
         if (isExcluded(req.user, req.club) or removalReceiver.denied(req.user) or isTransferFenced(req.club) or not validPendingInviteRole(if (req.team == null) "club" else "team", req.team, ?req.role)) return #Err("Request no longer eligible");
         switch (req.team) { case (?id) { if (not inviteTeamValid(req.club, id)) return #Err("Team no longer available") }; case null {} };
@@ -4332,8 +4373,16 @@ persistent actor class Main(governorInit : Principal) = this {
           case (?t) { ignore fanOutEnsureConversation(req.club, ?t, teamChatParticipants(req.club, t)) };
           case null {};
         };
+        // Bring the parent's requested child onto the team (still guarded by guardianship).
+        switch (req.team, roleRequestChildren.find(func(e) = e.0 == id)) {
+          case (?t, ?(_, childId)) {
+            acl := { acl with children = acl.children.map(func(c) = if (c.id == childId and isChildGuardian(req.user, c) and not c.teams.any(func(x) = x == t)) { { c with teams = c.teams.concat([t]) } } else c) };
+          };
+          case _ {};
+        };
         let updated : Types.RoleRequest = { req with status = "approved"; decided_at_ms = ?nowMs(); decided_by = ?caller };
         roleRequests := roleRequests.map(func(r) = if (r.id == id) updated else r);
+        ignore notifyClubJoin([req.user.toText()], req.club, "join_request_approved", "Your join request was approved", "role_request_approved:" # id, switch (req.team) { case (?t) t; case null req.club });
         #Ok(updated)
       };
     }
@@ -4354,10 +4403,11 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (roleRequests.find(func(r) = r.id == id)) {
       case null { #Err("Request not found") };
       case (?req) {
-        if (not isAdmin(caller, req.club)) return #Err("Club admin required");
+        if (not canReviewRoleRequest(caller, req)) return #Err("Club admin required");
         if (req.status != "pending") return #Err("Request already processed");
         let updated : Types.RoleRequest = { req with status = "rejected"; decided_at_ms = ?nowMs(); decided_by = ?caller };
         roleRequests := roleRequests.map(func(r) = if (r.id == id) updated else r);
+        ignore notifyClubJoin([req.user.toText()], req.club, "join_request_denied", "Your join request was declined", "role_request_denied:" # id, switch (req.team) { case (?t) t; case null req.club });
         #Ok(updated)
       };
     }

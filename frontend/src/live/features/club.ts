@@ -1967,3 +1967,34 @@ export async function setLiveTeamPitchNotify(
     "Save pitch alerts",
   );
 }
+
+/**
+ * Parent join request that brings a child onto the team on approval. Creates
+ * the child under the caller (name encrypted on pii_access_control) unless an
+ * existing own child id is given, then files the request.
+ */
+export async function requestLiveParentRoleWithChild(
+  ctx: FeatureBackendContext,
+  clubId: string,
+  teamId: string,
+  child: { id: string } | { name: string },
+) {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  let childId: string;
+  if ("id" in child) {
+    childId = child.id;
+  } else {
+    const created = await unwrapCandid(actor.create_own_child(), "Add child");
+    childId = created.id;
+    const vault = await import("./vault");
+    const me = ctx.identity.getPrincipal();
+    // Prefer the club's shared children key so staff can read the name;
+    // before approval that may be refused, so fall back to a personal key.
+    await vault.registerLiveChildNamePii(ctx, childId, child.name, me, clubId)
+      .catch(() => vault.registerLiveChildNamePii(ctx, childId, child.name, me));
+  }
+  return unwrapCandid(
+    actor.request_parent_role_with_child(clubId, teamId, childId),
+    "Request parent role",
+  );
+}

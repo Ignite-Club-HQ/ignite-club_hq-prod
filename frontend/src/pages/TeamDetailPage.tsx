@@ -1216,14 +1216,23 @@ export default function TeamDetailPage() {
 
   const requestRoleMutation = useMutation({
     mutationFn: async () => {
-      // Canister request_role stores no parent/child metadata, so the
-      // child-link prompts below stay Supabase-only; the ICP branch submits
-      // the bare role request.
+      // ICP parent requests carry the child via request_parent_role_with_child;
+      // approval places that child on the team.
       if (isIcpAccount) {
         if (!team?.club_id || !id) throw new Error("Team could not be verified");
         const request = await withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
-          icp: async (ctx) => requestLiveRole(ctx, team.club_id, selectedRole, id),
+          icp: async (ctx) => {
+            if (selectedRole !== "parent") return requestLiveRole(ctx, team.club_id, selectedRole, id);
+            const trimmedNew = newChildName.trim();
+            // A child already on the team is linked by staff; only a new
+            // name is created under the parent and carried with the request.
+            if (selectedChildForLink && selectedChildForLink !== "__new__") return requestLiveRole(ctx, team.club_id, selectedRole, id);
+            if (!trimmedNew) throw new Error("Please select your child or add their name");
+            const child = { name: trimmedNew };
+            const { requestLiveParentRoleWithChild } = await import("@/live/features/club");
+            return requestLiveParentRoleWithChild(ctx, team.club_id, id, child);
+          },
         }, writeOnce({ clubId: team.club_id }));
         queryClient.setQueryData(["team-request", id, user?.id], { role: request.role, status: request.status });
         return;
