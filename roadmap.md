@@ -317,3 +317,7 @@ Validation budget: changed rules plus direct regressions per substantial batch; 
 
 - [ ] Staged move to canisters: test canisters from main, live canister groups promoted on merge to prod (plan in .lovable/plan.md)
 - [ ] Blocked by user: no main→prod merge until DEV readiness sign-off
+- [x] Stage 1.1 Codemagic prod-only builds default to PROD backend and refuse DEV; DEV label fixed; live site allowed to reach PROD backend
+- [ ] Stage 1.3 Redeploy test canister from main — blocked: DEPLOYER_PEM GitHub secret
+- [ ] Stage 1.4 Deploy 3 edge functions on DEV — blocked: Supabase deploy service internal error (CLI fallback)
+- [ ] Stage 1 Codemagic PROD anon key must be set in Codemagic env group — blocked: user
