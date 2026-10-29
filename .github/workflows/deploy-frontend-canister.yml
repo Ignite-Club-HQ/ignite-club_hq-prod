@@ -77,8 +77,31 @@ jobs:
           fi
           mkdir -p "$ICP_HOME/identity/keys"
           PEM_FILE="$ICP_HOME/identity/keys/ignite-governor.pem"
-          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' \
-            | sed -n '/-----BEGIN/,/-----END/p' > "$PEM_FILE"
+          # Keep only the PRIVATE KEY block (dfx secp256k1 exports also carry an
+          # "EC PARAMETERS" block, and pasted text may include a principal line
+          # or be flattened onto one line). Rewraps the base64 body at 64 chars.
+          # Prints block labels only — never key material.
+          python3 - "$PEM_FILE" <<'PY'
+          import os, re, sys
+          raw = os.environ["DEPLOYER_PEM"].replace("\r", "").replace("\\n", "\n")
+          labels = re.findall(r"-----BEGIN ([A-Z0-9 ]+)-----", raw)
+          print("PEM blocks found:", labels or "none")
+          m = re.search(r"-----BEGIN ((?:EC |ENCRYPTED )?PRIVATE KEY)-----(.*?)-----END \1-----", raw, re.S)
+          if not m:
+              print("::error::DEPLOYER_PEM has no complete PRIVATE KEY block (BEGIN…END lines with matching names).")
+              sys.exit(1)
+          if m.group(1) == "ENCRYPTED PRIVATE KEY":
+              print("::error::DEPLOYER_PEM is password-protected. Re-export it without encryption (dfx identity export).")
+              sys.exit(1)
+          body = re.sub(r"\s+", "", m.group(2))
+          if not re.fullmatch(r"[A-Za-z0-9+/=]+", body):
+              print("::error::DEPLOYER_PEM key body contains characters that are not base64 — it was altered when pasting.")
+              sys.exit(1)
+          lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+          with open(sys.argv[1], "w") as f:
+              f.write(f"-----BEGIN {m.group(1)}-----\n" + "\n".join(lines) + f"\n-----END {m.group(1)}-----\n")
+          print(f"Using {m.group(1)} block ({len(body)} base64 chars).")
+          PY
           icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor
           icp identity default ignite-governor
           echo "Deployer: $(icp identity principal)"
