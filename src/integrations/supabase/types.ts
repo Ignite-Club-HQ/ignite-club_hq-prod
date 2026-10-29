@@ -670,6 +670,33 @@ export type Database = {
           },
         ]
       }
+      canister_memory_reports: {
+        Row: {
+          analysis: Json | null
+          created_at: string
+          created_by: string | null
+          id: string
+          readings: Json
+          source: string
+        }
+        Insert: {
+          analysis?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          readings?: Json
+          source?: string
+        }
+        Update: {
+          analysis?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          readings?: Json
+          source?: string
+        }
+        Relationships: []
+      }
       chat_group_join_requests: {
         Row: {
           created_at: string
@@ -1653,6 +1680,36 @@ export type Database = {
           },
           {
             foreignKeyName: "club_dm_settings_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: true
+            referencedRelation: "public_clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_invite_message_defaults: {
+        Row: {
+          club_id: string
+          message: string
+        }
+        Insert: {
+          club_id: string
+          message: string
+        }
+        Update: {
+          club_id?: string
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_invite_message_defaults_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: true
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_invite_message_defaults_club_id_fkey"
             columns: ["club_id"]
             isOneToOne: true
             referencedRelation: "public_clubs"
@@ -3092,6 +3149,69 @@ export type Database = {
             columns: ["home_team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competition_role_email_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_user_id: string | null
+          attempts: number
+          competition_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          invited_email: string
+          role: string
+          status: string
+          token: string
+          verification_code_hash: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          attempts?: number
+          competition_id: string
+          created_at?: string
+          created_by: string
+          expires_at?: string
+          id?: string
+          invited_email: string
+          role: string
+          status?: string
+          token: string
+          verification_code_hash: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_user_id?: string | null
+          attempts?: number
+          competition_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          invited_email?: string
+          role?: string
+          status?: string
+          token?: string
+          verification_code_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_role_email_invites_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competition_role_email_invites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -10848,6 +10968,57 @@ export type Database = {
         }
         Relationships: []
       }
+      welcome_email_settings: {
+        Row: {
+          competition_id: string | null
+          created_at: string
+          enabled: boolean
+          id: string
+          message: string
+          subject: string
+          team_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          competition_id?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          message?: string
+          subject?: string
+          team_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          competition_id?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          message?: string
+          subject?: string
+          team_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "welcome_email_settings_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "welcome_email_settings_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       competition_ladder: {
@@ -10922,6 +11093,14 @@ export type Database = {
       _provision_invite_children_internal: {
         Args: { p_invite_id: string; p_user_id: string }
         Returns: Json
+      }
+      accept_competition_role_email_invite: {
+        Args: { p_token: string; p_verification_code_hash: string }
+        Returns: {
+          competition_id: string
+          role: string
+          status: string
+        }[]
       }
       accept_competition_role_link: {
         Args: { p_token: string }
@@ -11132,6 +11311,10 @@ export type Database = {
       }
       can_access_competition_admin_conversation: {
         Args: { _conversation_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_access_competition_vault: {
+        Args: { _competition_id: string }
         Returns: boolean
       }
       can_access_mini_league_chat: {
@@ -11525,6 +11708,10 @@ export type Database = {
         Args: { match_id: string }
         Returns: boolean
       }
+      competition_vault_storage_access: {
+        Args: { _manage: boolean; _object_name: string }
+        Returns: boolean
+      }
       complete_stripe_webhook_event: {
         Args: { p_event_id: string }
         Returns: undefined
@@ -11627,6 +11814,16 @@ export type Database = {
           p_type: Database["public"]["Enums"]["event_type"]
         }
         Returns: number
+      }
+      create_competition_role_email_invite: {
+        Args: {
+          _competition_id: string
+          _email: string
+          _role: string
+          _token: string
+          _verification_code_hash: string
+        }
+        Returns: string
       }
       create_event_with_duties: {
         Args: { p_child_dates?: string[]; p_duties?: Json; p_event: Json }
@@ -11912,6 +12109,15 @@ export type Database = {
       get_competition_join_token_status: {
         Args: { p_token: string }
         Returns: string
+      }
+      get_competition_role_email_invite_status: {
+        Args: { p_token: string }
+        Returns: {
+          competition_id: string
+          competition_name: string
+          role: string
+          status: string
+        }[]
       }
       get_competition_role_link_info: {
         Args: { p_token: string }
@@ -12995,6 +13201,10 @@ export type Database = {
           storage_path: string
           team_id: string
         }[]
+      }
+      revoke_competition_role_email_invite: {
+        Args: { _token: string }
+        Returns: boolean
       }
       save_competition_match_result: {
         Args: {
