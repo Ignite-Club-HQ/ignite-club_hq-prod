@@ -81,7 +81,8 @@ jobs:
         # Cleanup must not restore signing credentials until live protections
         # and real disposable acceptance have passed on this exact source.
         env:
-          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+          # GOVERNOR_PEM holds the governor (vk34m-…) key when DEPLOYER_PEM is the web-app publisher key.
+          DEPLOYER_PEM: ${{ secrets.GOVERNOR_PEM || secrets.DEPLOYER_PEM }}
         run: |
           set -euo pipefail
           test -n "$DEPLOYER_PEM"
