@@ -15,7 +15,7 @@ on:
   workflow_dispatch: {}
   push:
     branches: [main]
-    paths: ["frontend/**", "deploy/frontend/**", "!frontend/scripts/**", "!frontend/**/*.test.*", "!frontend/**/*.md"]
+    paths: ["frontend/**", "deploy/frontend/**", ".github/workflows/deploy-frontend-canister.yml", "!frontend/scripts/**", "!frontend/**/*.test.*", "!frontend/**/*.md"]
 
 concurrency:
   group: deploy-frontend-canister
