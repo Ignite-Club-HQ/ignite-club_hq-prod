@@ -82,15 +82,29 @@ jobs:
           # or be flattened onto one line). Rewraps the base64 body at 64 chars.
           # Prints block labels only — never key material.
           python3 - "$PEM_FILE" <<'PY'
-          import os, re, sys
+          import base64, os, re, sys
           raw = os.environ["DEPLOYER_PEM"].replace("\r", "").replace("\\n", "\n")
-          labels = re.findall(r"-----BEGIN ([A-Z0-9 ]+)-----", raw)
+          # Phones/notes apps turn "-----" into en/em dashes and add odd spaces.
+          raw = re.sub(r"[\u2010-\u2015\u2212]", "-", raw).replace("\u00a0", " ").strip().strip('"\'')
+          # Accept a whole PEM that was base64-encoded before saving.
+          if "BEGIN" not in raw.upper():
+              try:
+                  dec = base64.b64decode(re.sub(r"\s+", "", raw), validate=True).decode("ascii")
+                  if "BEGIN" in dec.upper():
+                      raw = dec
+              except Exception:
+                  pass
+          hdr = r"-{2,}\s*BEGIN\s+((?:EC\s+|ENCRYPTED\s+)?PRIVATE\s+KEY)\s*-{2,}"
+          labels = re.findall(r"-{2,}\s*BEGIN\s+([A-Za-z0-9 ]+?)\s*-{2,}", raw, re.I)
           print("PEM blocks found:", labels or "none")
-          m = re.search(r"-----BEGIN ((?:EC |ENCRYPTED )?PRIVATE KEY)-----(.*?)-----END \1-----", raw, re.S)
+          if not labels:
+              print("Secret contains word BEGIN:", "BEGIN" in raw.upper(), "| contains PRIVATE:", "PRIVATE" in raw.upper())
+          m = re.search(hdr + r"(.*?)-{2,}\s*END\s+\1\s*-{2,}", raw, re.S | re.I)
           if not m:
               print("::error::DEPLOYER_PEM has no complete PRIVATE KEY block (BEGIN…END lines with matching names).")
               sys.exit(1)
-          if m.group(1) == "ENCRYPTED PRIVATE KEY":
+          m_label = re.sub(r"\s+", " ", m.group(1).upper())
+          if m_label == "ENCRYPTED PRIVATE KEY":
               print("::error::DEPLOYER_PEM is password-protected. Re-export it without encryption (dfx identity export).")
               sys.exit(1)
           body = re.sub(r"\s+", "", m.group(2))
@@ -99,8 +113,8 @@ jobs:
               sys.exit(1)
           lines = [body[i:i + 64] for i in range(0, len(body), 64)]
           with open(sys.argv[1], "w") as f:
-              f.write(f"-----BEGIN {m.group(1)}-----\n" + "\n".join(lines) + f"\n-----END {m.group(1)}-----\n")
-          print(f"Using {m.group(1)} block ({len(body)} base64 chars).")
+              f.write(f"-----BEGIN {m_label}-----\n" + "\n".join(lines) + f"\n-----END {m_label}-----\n")
+          print(f"Using {m_label} block.")
           PY
           icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor
           icp identity default ignite-governor
