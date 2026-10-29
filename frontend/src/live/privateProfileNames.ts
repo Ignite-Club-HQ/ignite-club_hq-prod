@@ -392,3 +392,21 @@ export async function hydratePrivateProfileNames<T extends { display_name: strin
     return { ...profile, display_name: name ?? null };
   });
 }
+const ownClubNameBackfills = new Set<string>();
+
+/** Best-effort, once per session per account: copy the caller's own unlocked
+ * name to every club they belong to. Never blocks or throws. */
+function scheduleOwnClubNameBackfill(ctx: FeatureBackendContext, caller: string, name: string): void {
+  if (!privateClubNameDisplaysEnabled() || ownClubNameBackfills.has(caller)) return;
+  ownClubNameBackfills.add(caller);
+  setTimeout(() => {
+    void refreshPrivateOwnClubNames(ctx, name, async () => {
+      const { getLiveMyRoleGrants } = await import('./features/membership');
+      const grants = await getLiveMyRoleGrants(ctx);
+      return grants.flatMap(grant => grant.club ?? []);
+    }).catch(error => {
+      ownClubNameBackfills.delete(caller);
+      console.warn('[profile] club name backfill skipped', error);
+    });
+  }, 3000);
+}
