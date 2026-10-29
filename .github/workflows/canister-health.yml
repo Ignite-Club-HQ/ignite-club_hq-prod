@@ -1,0 +1,51 @@
+# Ignite Club HQ — weekly canister health report.
+#
+# Every canister pays for its own reads, writes and storage out of its cycle
+# balance, and each one has a memory ceiling. This workflow prints every
+# deployed canister's real fuel and memory across Group 1, shared services and
+# every deploy/groups/*/provision.json inventory (including photo stores), once
+# a week (and on demand from the
+# Actions tab) by asking each service directly through its own public query, so
+# it needs no deploy key and cannot be fooled by management-canister settings.
+# It warns when a balance drops under 1T cycles (≈ US$1.30) or memory passes
+# 3 GB. It changes nothing — it only reports.
+#
+# Compare week to week to see the real cycle burn per canister; that replaces
+# the modelled cost estimates with measured ones.
+
+name: Canister health report
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 00:00 UTC every Monday.
+    - cron: "0 0 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      # The repo root stays dependency-free, so the client lives in the runner's
+      # temp dir and reaches the script through NODE_PATH (require honours it).
+      - name: Install the Internet Computer client
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/agentdeps" --no-fund --no-audit \
+            @dfinity/agent@2.4.1 @dfinity/candid@2.4.1 @dfinity/principal@2.4.1
+
+      - name: Report balances and memory
+        env:
+          NODE_PATH: ${{ runner.temp }}/agentdeps/node_modules
+        run: |
+          set -euo pipefail
+          HEALTH_JSON_OUT="$RUNNER_TEMP/health.json" node scripts/canister-health.mjs

@@ -1,0 +1,580 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { eventKeys } from "@/lab/eventQueryKeys";
+import { getMatchArrivalDate } from "@/lib/matchArrivalTime";
+import { setLocalEventDuty } from "@/lab/localEventsService";
+import { withFeatureBackend } from "@/live/featureRouter";
+import { writeOnce } from "@/live/clubScope";
+import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import {
+  completeLiveEventDuty,
+  notifyLiveDutyCompletion,
+  createLiveOpenDuty,
+  claimLiveOpenDuty,
+  removeLiveEventDuty,
+  setLiveEventDuty,
+  uncompleteLiveEventDuty,
+} from "@/live/features/events";
+import { fanOutLiveNotifications } from "@/live/features/notifications";
+
+type DutyStatus = "open" | "completed";
+
+// Thrown when the duty row committed as completed but the admin/coach
+// notification insert failed. Records explicitly that the duty is committed.
+class DutyNotificationPartialError extends Error {
+  dutyCommitted = true as const;
+  constructor(public underlying: string) {
+    super(underlying);
+    this.name = "DutyNotificationPartialError";
+  }
+}
+
+export interface UseEventDutyMutationsArgs {
+  supabase: any;
+  useIcpLab: boolean;
+  id: string | undefined;
+  localIcpPersona: string;
+  event: any;
+  duties: any[] | undefined;
+  user: { id?: string } | null | undefined;
+  profile: { display_name?: string | null; avatar_url?: string | null } | null | undefined;
+  selectedDutyId: string | null;
+  setNewDutyName: (value: string) => void;
+  setSelectedPresetDuty: (value: string) => void;
+  setAddDutyOpen: (value: boolean) => void;
+  setAssignDialogOpen: (value: boolean) => void;
+  setSelectedDutyId: (value: string | null) => void;
+  setSelectedUserId: (value: string) => void;
+}
+
+/**
+ * Duty lifecycle mutations for the event detail page: add, claim, complete,
+ * uncomplete, delete and assign. Extracted verbatim from `EventDetailPage.tsx`
+ * — no control flow or decision logic changed, only file location.
+ */
+export function useEventDutyMutations(params: UseEventDutyMutationsArgs) {
+  const {
+    supabase, useIcpLab, id, localIcpPersona, event, duties, user, profile, selectedDutyId,
+    setNewDutyName, setSelectedPresetDuty, setAddDutyOpen,
+    setAssignDialogOpen, setSelectedDutyId, setSelectedUserId,
+  } = params;
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Add duty mutation
+  const addDutyMutation = useMutation({
+    mutationFn: async (args: { dutyName: string; startTime?: string; endTime?: string }) => {
+      if (useIcpLab) {
+        throw new Error("Open duty creation is not connected to the local events canister yet.");
+      }
+
+      // events_domain now exposes create_open_duty (an unassigned duty board
+      // entry) — route new duties there instead of blocking.
+      if (isFeatureRoutedToIcp("events")) {
+        const createdOnIcp = await withFeatureBackend("events", {
+          supabase: () => false,
+          icp: async (ctx) => {
+            if (!id) throw new Error("Missing event ID");
+            await createLiveOpenDuty(ctx, id, args.dutyName);
+            return true;
+          },
+        }, writeOnce({ eventId: id ?? "" }));
+        if (createdOnIcp) return;
+      }
+
+      // Combine event date with optional HH:MM times into ISO timestamps
+      const buildTs = (hhmm?: string): string | null => {
+        if (!hhmm || !event) return null;
+        const base = new Date(event.start_time || event.event_date);
+        if (Number.isNaN(base.getTime())) return null;
+        const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
+        if (Number.isNaN(h) || Number.isNaN(m)) return null;
+        const d = new Date(base);
+        d.setHours(h, m, 0, 0);
+        return d.toISOString();
+      };
+      const start_time = buildTs(args.startTime);
+      const end_time = buildTs(args.endTime);
+      const { error } = await supabase
+        .from("duties")
+        .insert({ event_id: id!, name: args.dutyName, start_time, end_time } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (useIcpLab) {
+        setNewDutyName("");
+        setSelectedPresetDuty("");
+        setAddDutyOpen(false);
+        toast({ title: "Duty added locally" });
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: eventKeys.duties(id) });
+      setNewDutyName("");
+      setSelectedPresetDuty("");
+      setAddDutyOpen(false);
+      toast({ title: "Duty added" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to add duty", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Claim duty mutation
+  const claimDutyMutation = useMutation({
+    mutationFn: async (dutyId: string) => {
+      if (useIcpLab) {
+        if (!id) throw new Error("Missing event ID");
+        const duty = duties?.find((candidate) => candidate.id === dutyId);
+        if (!duty?.name) throw new Error("Duty not found");
+        const localAccountId = user?.id ?? localIcpPersona;
+        await setLocalEventDuty(localIcpPersona, id, localAccountId, duty.name);
+        queryClient.setQueryData(eventKeys.duties(id), (current: unknown) =>
+          (Array.isArray(current) ? current : []).map((duty: any) =>
+            duty.id === dutyId
+              ? { ...duty, assigned_to: localAccountId, profiles: { display_name: profile?.display_name || "Local ICP Member", avatar_url: profile?.avatar_url || null } }
+              : duty,
+          ),
+        );
+        return;
+      }
+
+      // Hybrid routing: when the events feature resolves to ICP, claiming a
+      // duty is a duty-assignment write (provisional field mapping — verify
+      // account id / duty name against the live events_domain canister).
+      const claimedOnIcp = await withFeatureBackend("events", {
+        supabase: () => false,
+        icp: async (ctx) => {
+          if (!id || !user?.id) throw new Error("Missing event or user ID");
+          const duty = duties?.find((candidate) => candidate.id === dutyId);
+          if (!duty?.name) throw new Error("Duty not found");
+          await setLiveEventDuty(ctx, id, user.id, duty.name);
+          if (String(duty.id).startsWith("open:")) await claimLiveOpenDuty(ctx, String(duty.id).slice(5), user.id).catch(() => undefined);
+          return true;
+        },
+      }, writeOnce({ eventId: id ?? "" }));
+      if (claimedOnIcp) return;
+
+      const { error } = await supabase
+        .from("duties")
+        .update({ assigned_to: user?.id })
+        .eq("id", dutyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (useIcpLab) {
+        toast({ title: "Duty claimed locally" });
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: eventKeys.duties(id) });
+      toast({ title: "Duty claimed!" });
+    },
+    onError: (error) => {
+      toast({ 
+        title: "Failed to claim duty", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Notify team/club admins and coaches about duty completion. Routed through
+  // the notifications feature: Supabase inserts (push via DB trigger) or the
+  // notification_queue fan-out. Provisional: recipients come from Supabase
+  // user_roles until membership data lives on ICP.
+  const notifyDutyCompleted = async (duty: any) => {
+    if (!event || !duty) return;
+    if (isFeatureRoutedToIcp('events')) {
+      try {
+        await withFeatureBackend('events', {
+          supabase: async () => undefined,
+          icp: ctx => notifyLiveDutyCompletion(ctx, event.id, duty.assigned_to),
+        }, writeOnce({ eventId: event.id }));
+      } catch (error) { throw new DutyNotificationPartialError(error instanceof Error ? error.message : 'Notification failed'); }
+      return;
+    }
+    const memberName = profile?.display_name || "A member";
+
+    const roleQuery = event.team_id
+      ? supabase.from("user_roles").select("user_id").eq("team_id", event.team_id).in("role", ["team_admin", "coach", "club_admin", "committee_member"])
+      : supabase.from("user_roles").select("user_id").eq("club_id", event.club_id).in("role", ["club_admin", "committee_member"]);
+
+    const { data: admins, error: adminsError } = await roleQuery;
+    if (adminsError) throw new DutyNotificationPartialError(adminsError.message);
+    if (!admins || admins.length === 0) return;
+
+    const recipientIds: string[] = Array.from(
+      new Set(admins.map(a => a.user_id).filter((userId): userId is string => !!userId && userId !== user?.id))
+    );
+    if (recipientIds.length === 0) return;
+    const message = `${memberName} completed ${duty.name} for ${event.title}`;
+
+    await withFeatureBackend("notifications", {
+      supabase: async () => {
+        const { error: notificationError } = await supabase.from("notifications").insert(
+          recipientIds.map((userId) => ({
+            user_id: userId,
+            type: "duty_completed",
+            message,
+            related_id: id,
+          })),
+        );
+        // 23505 = duplicate/idempotency conflict, intentionally tolerated.
+        if (notificationError && notificationError.code !== "23505") {
+          throw new DutyNotificationPartialError(notificationError.message);
+        }
+      },
+      icp: async (ctx) => {
+        // Push delivery stays Supabase-only; the canister records the inbox
+        // entries. Fresh key prefix per completion so an uncomplete and
+        // re-complete cycle re-notifies.
+        if (!id || !event.club_id) return;
+        try {
+          await fanOutLiveNotifications(ctx, {
+            userIds: recipientIds,
+            clubId: event.club_id,
+            kind: "duty_completed",
+            body: message,
+            idempotencyKeyPrefix: `duty-completed-${id}-${crypto.randomUUID()}`,
+            relatedId: id,
+          });
+        } catch (notifyError) {
+          throw new DutyNotificationPartialError(
+            notifyError instanceof Error ? notifyError.message : String(notifyError),
+          );
+        }
+      },
+    }, writeOnce({ eventId: event.id }));
+  };
+
+  // Notify the assignee about a duty assignment through the notifications
+  // feature routing. Points stay Supabase-only (no canister shape).
+  const notifyDutyAssigned = async (userId: string) => {
+    const message = "You've been assigned a duty. Points will be awarded 24 hours after the game! 🔥";
+    await withFeatureBackend("notifications", {
+      supabase: async () => {
+        await supabase.from("notifications").insert({
+          user_id: userId,
+          type: "duty_assigned",
+          message,
+          related_id: id,
+        });
+      },
+      icp: async (ctx) => {
+        if (!id || !event?.club_id) return;
+        await fanOutLiveNotifications(ctx, {
+          userIds: [userId],
+          clubId: event.club_id,
+          kind: "duty_assigned",
+          body: message,
+          idempotencyKeyPrefix: `duty-assigned-${id}-${crypto.randomUUID()}`,
+          relatedId: id,
+        });
+      },
+    }, writeOnce({ eventId: event?.id ?? "" }));
+  };
+
+  // Instant on-screen status flip (ICP saves take ~1.3s); caller rolls back
+  // from the returned snapshot on failure.
+  const optimisticDutyStatus = async (dutyId: string, status: "open" | "completed") => {
+    if (useIcpLab || !id) return undefined;
+    const key = eventKeys.duties(id);
+    await queryClient.cancelQueries({ queryKey: key });
+    const snapshot = queryClient.getQueryData(key);
+    queryClient.setQueryData(key, (current: unknown) =>
+      Array.isArray(current)
+        ? current.map((d: any) =>
+            d.id === dutyId
+              ? { ...d, status, completed_at: status === "completed" ? new Date().toISOString() : null }
+              : d,
+          )
+        : current,
+    );
+    return { snapshot };
+  };
+
+  // Complete duty mutation
+  const completeDutyMutation = useMutation({
+    mutationFn: async (dutyId: string) => {
+      // Get duty details before updating
+      const duty = duties?.find(d => d.id === dutyId);
+
+      if (useIcpLab) {
+        throw new Error("Duty completion is not connected to the local events canister yet.");
+      }
+
+      // Guard against premature completion — duties can only be marked complete
+      // from match arrival time (for games) or event start time onwards.
+      if (event) {
+        const earliest = event.type === "game"
+          ? (getMatchArrivalDate(event as any) ?? new Date(event.start_time || event.event_date))
+          : new Date(event.start_time || event.event_date);
+        if (!Number.isNaN(earliest.getTime()) && new Date() < earliest) {
+          throw new Error(
+            `This duty can't be completed yet — it's available from ${format(earliest, "EEE d MMM, h:mm a")}.`
+          );
+        }
+      }
+
+      // Hybrid routing: assigned duties have a canister shape (complete_duty
+      // keyed by event + account). Open duties with no assignee stay
+      // Supabase-only.
+      if (duty?.assigned_to) {
+        const completedOnIcp = await withFeatureBackend("events", {
+          supabase: () => false,
+          icp: async (ctx) => {
+            if (!id) throw new Error("Missing event ID");
+            await completeLiveEventDuty(ctx, id, duty.assigned_to as string);
+            return true;
+          },
+        }, writeOnce({ eventId: id ?? "" }));
+        if (completedOnIcp) {
+          await notifyDutyCompleted(duty);
+          return { outcome: "completed" as const };
+        }
+      }
+
+      const { data: updatedDuty, error } = await supabase
+        .from("duties")
+        .update({ status: "completed" as DutyStatus, completed_at: new Date().toISOString() })
+        .eq("id", dutyId)
+        .eq("status", "open")
+        .select("id")
+        .maybeSingle();
+      // Duty update failed outright — no notifications, complete failure.
+      if (error) throw error;
+      // No row updated: the duty is no longer open (idempotent/concurrent
+      // outcome). Do not notify; just refresh so current state is displayed.
+      if (!updatedDuty) return { outcome: "noop" as const };
+
+      await notifyDutyCompleted(duty);
+      return { outcome: "completed" as const };
+    },
+    onMutate: (dutyId: string) => optimisticDutyStatus(dutyId, "completed"),
+    onSuccess: (result) => {
+      if (useIcpLab) {
+        toast({ title: "Duty completed locally" });
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: eventKeys.duties(id) });
+      if (result?.outcome === "completed") {
+        toast({ title: "Duty completed!" });
+      }
+    },
+
+    onError: (error, _dutyId, ctx: any) => {
+      if (error instanceof DutyNotificationPartialError) {
+        // The duty IS completed — never roll back or reopen it, and never
+        // report a total failure.
+        queryClient.invalidateQueries({ queryKey: eventKeys.duties(id) });
+        toast({
+          title: "Duty completed — notification failed",
+          description: `The duty was marked complete, but administrators couldn't be notified. ${error.underlying}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (ctx && "snapshot" in ctx) queryClient.setQueryData(eventKeys.duties(id), ctx.snapshot);
+      toast({ 
+        title: "Failed to complete duty", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    },
+  });
+
+
+  // Undo duty completion (in case of accidental tap)
+  const uncompleteDutyMutation = useMutation({
+    mutationFn: async (dutyId: string) => {
+      if (useIcpLab) {
+        throw new Error("Duty reopening is not connected to the local events canister yet.");
+      }
+
+      const duty = duties?.find((d) => d.id === dutyId);
+      // Hybrid routing: reopening an assigned duty has a canister shape
+      // (uncomplete_duty keyed by event + account); open duties stay
+      // Supabase-only.
+      if (duty?.assigned_to) {
+        const reopenedOnIcp = await withFeatureBackend("events", {
+          supabase: () => false,
+          icp: async (ctx) => {
+            if (!id) throw new Error("Missing event ID");
+            await uncompleteLiveEventDuty(ctx, id, duty.assigned_to as string);
+            return true;
+          },
+        }, writeOnce({ eventId: id ?? "" }));
+        if (reopenedOnIcp) return;
+      }
+
+      const { error } = await supabase
+        .from("duties")
+        .update({ status: "open" as DutyStatus, completed_at: null })
+        .eq("id", dutyId);
+      if (error) throw error;
+    },
+    onMutate: (dutyId: string) => optimisticDutyStatus(dutyId, "open"),
+    onSuccess: () => {
+      if (useIcpLab) {
+        toast({ title: "Duty reopened locally" });
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: eventKeys.duties(id) });
+      toast({ title: "Marked as not complete" });
+    },
+    onError: (error, _dutyId, ctx: any) => {
+      if (ctx && "snapshot" in ctx) queryClient.setQueryData(eventKeys.duties(id), ctx.snapshot);
+      toast({
+        title: "Failed to undo",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteDutyMutation = useMutation({
+    mutationFn: async (dutyId: string) => {
+      if (useIcpLab) {
+        throw new Error("Duty deletion is not connected to the local events canister yet.");
+      }
+
+      const duty = duties?.find((d) => d.id === dutyId);
+      // Hybrid routing: removing an assigned duty has a canister shape
+      // (remove_duty keyed by event + account); open duties stay
+      // Supabase-only.
+      if (duty?.assigned_to) {
+        const removedOnIcp = await withFeatureBackend("events", {
+          supabase: () => false,
+          icp: async (ctx) => {
+            if (!id) throw new Error("Missing event ID");
+            await removeLiveEventDuty(ctx, id, duty.assigned_to as string);
+            return true;
+          },
+        }, writeOnce({ eventId: id ?? "" }));
+        if (removedOnIcp) return;
+      }
+
+      const { error } = await supabase.from("duties").delete().eq("id", dutyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (useIcpLab) {
+        toast({ title: "Duty removed locally" });
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: eventKeys.duties(id) });
+      toast({ title: "Duty removed" });
+    },
+  });
+
+  const assignDutyMutation = useMutation({
+    mutationFn: async (userId: string | null) => {
+      if (!selectedDutyId) return;
+
+      if (useIcpLab) {
+        if (!id) throw new Error("Missing event ID");
+        const duty = duties?.find((candidate) => candidate.id === selectedDutyId);
+        if (!duty?.name) throw new Error("Duty not found");
+        if (!userId) throw new Error("Unassigning duties is not connected to the local events canister yet.");
+        await setLocalEventDuty(localIcpPersona, id, userId, duty.name);
+        queryClient.setQueryData(eventKeys.duties(id), (current: unknown) =>
+          (Array.isArray(current) ? current : []).map((row: any) =>
+            row.id === selectedDutyId
+              ? { ...row, assigned_to: userId, profiles: userId === user?.id ? { display_name: profile?.display_name || "Local ICP Member", avatar_url: profile?.avatar_url || null } : null }
+              : row,
+          ),
+        );
+        return;
+      }
+      
+      // Hybrid routing: admin re-assignment of a duty is the same
+      // set-duty write as claiming (provisional — verify against the live
+      // canister post-deploy). Unassigning (userId === null) has no canister
+      // shape, so it always stays on Supabase.
+      if (!userId && isFeatureRoutedToIcp("events")) {
+        // Unassign on-chain: remove the current assignee's duty row.
+        const duty = duties?.find((candidate) => candidate.id === selectedDutyId);
+        const prev = duty?.assigned_to ? String(duty.assigned_to) : null;
+        if (!id) throw new Error("Missing event ID");
+        if (prev) {
+          await withFeatureBackend("events", {
+            supabase: async () => undefined,
+            icp: async (ctx) => { await removeLiveEventDuty(ctx, id, prev); },
+          }, writeOnce({ eventId: id ?? "" }));
+        }
+        return;
+      }
+      const assignedOnIcp = userId
+        ? await withFeatureBackend("events", {
+            supabase: () => false,
+            icp: async (ctx) => {
+              if (!id) throw new Error("Missing event ID");
+              const duty = duties?.find((candidate) => candidate.id === selectedDutyId);
+              if (!duty?.name) throw new Error("Duty not found");
+              await setLiveEventDuty(ctx, id, userId, duty.name);
+              if (String(duty.id).startsWith("open:")) await claimLiveOpenDuty(ctx, String(duty.id).slice(5), userId).catch(() => undefined);
+              return true;
+            },
+          }, writeOnce({ eventId: id ?? "" }))
+        : false;
+      if (assignedOnIcp) {
+        // Notify the assignee through the notifications feature routing;
+        // points stay Supabase-only (no canister shape).
+        await notifyDutyAssigned(userId);
+        return;
+      }
+
+      // Get the duty to check if it was previously unassigned
+      const { data: dutyBefore } = await supabase
+        .from("duties")
+        .select("assigned_to")
+        .eq("id", selectedDutyId)
+        .single();
+      
+      const { error } = await supabase
+        .from("duties")
+        .update({ assigned_to: userId })
+        .eq("id", selectedDutyId);
+      if (error) throw error;
+
+      // Points are now awarded 24 hours after the game via scheduled job
+      // Just notify the assigned user about the duty assignment
+      if (userId && (!dutyBefore?.assigned_to || dutyBefore.assigned_to !== userId)) {
+        await notifyDutyAssigned(userId);
+      }
+    },
+    onSuccess: () => {
+      if (useIcpLab) {
+        setAssignDialogOpen(false);
+        setSelectedDutyId(null);
+        setSelectedUserId("");
+        toast({ title: "Duty assignment updated locally" });
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: eventKeys.duties(id) });
+      setAssignDialogOpen(false);
+      setSelectedDutyId(null);
+      setSelectedUserId("");
+      toast({ title: "Duty assigned" });
+    },
+  });
+
+  return {
+    addDutyMutation,
+    claimDutyMutation,
+    completeDutyMutation,
+    uncompleteDutyMutation,
+    deleteDutyMutation,
+    assignDutyMutation,
+  };
+}

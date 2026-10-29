@@ -1,0 +1,18 @@
+[toolchain]
+moc = "1.16.1"
+
+[moc]
+args = [ "--default-persistent-actors" ]
+
+[dependencies]
+core = "2.6.1"
+json = "1.4.0"
+sha2 = "0.2.5"
+
+[canisters.club_domain]
+main = "src/main.mo"
+candid = "club_domain.did"
+
+[canisters.club_domain.migrations]
+chain = "src/backend/migrations"
+check-limit = 1

@@ -1,0 +1,191 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { cacheClub, cacheTeam } from "@/lib/clubTeamCache";
+import { useTeamChatTeamData, type TeamChatTeamSupabaseClient } from "./useTeamChatTeamData";
+
+const liveMocks = vi.hoisted(() => ({
+  mode: process.env.IGNITE_TEST_BACKEND_MODE === "icp" ? "icp" : "supabase",
+  getCurrentInternetIdentity: vi.fn(),
+  getActiveIcpTarget: vi.fn(),
+  getLiveTeam: vi.fn(),
+  getLiveClubProfile: vi.fn(),
+  dispatch: vi.fn(),
+}));
+vi.mock("@/live/featureRouter", () => ({ withFeatureBackend: (feature: string, providers: any, scope: any) => {
+  liveMocks.dispatch(feature, scope);
+  return providers.icp({ identity: {}, target: { canisterIds: { club_domain: "owning-group" } } });
+} }));
+vi.mock("@/live/authBackendMode", () => ({ resolveAuthBackend: () => liveMocks.mode }));
+vi.mock("@/live/loadBackendRouting", () => ({ isFeatureRoutedToIcp: () => liveMocks.mode === "icp" }));
+vi.mock("@/live/internetIdentityAuth", () => ({ getCurrentInternetIdentity: liveMocks.getCurrentInternetIdentity }));
+vi.mock("@/live/targetRegistry", () => ({ getActiveIcpTarget: liveMocks.getActiveIcpTarget }));
+vi.mock("@/live/features/club", () => ({
+  getLiveTeam: liveMocks.getLiveTeam,
+  getLiveClubProfile: liveMocks.getLiveClubProfile,
+}));
+
+function makeWrapper() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+}
+
+function makeSupabaseClient(data: any, error: any = null): TeamChatTeamSupabaseClient {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve({ data, error }),
+        }),
+      }),
+    }),
+  };
+}
+
+describe("useTeamChatTeamData", () => {
+  it.runIf(liveMocks.mode === "supabase")("fetches the team via the supabase client and returns it", async () => {
+    const supabaseClient = makeSupabaseClient({
+      id: "team-1",
+      name: "Under 10s",
+      logo_url: null,
+      club_id: "club-1",
+      clubs: { id: "club-1", name: "Ignite FC", logo_url: null },
+    });
+    const { result } = renderHook(
+      () =>
+        useTeamChatTeamData({
+          supabaseClient,
+          teamId: "team-1",
+          useIcpLab: false,
+          getLocalLabChatTeam: vi.fn(),
+        }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.team?.name).toBe("Under 10s"));
+    expect(result.current.loadingTeam).toBe(false);
+    expect(result.current.teamIsError).toBe(false);
+  });
+
+  it("uses the ICP lab fixture team lookup when useIcpLab is true", async () => {
+    const getLocalLabChatTeam = vi.fn().mockReturnValue({ id: "team-2", name: "Lab Team", club_id: null });
+    const { result } = renderHook(
+      () =>
+        useTeamChatTeamData({
+          supabaseClient: makeSupabaseClient(null),
+          teamId: "team-2",
+          useIcpLab: true,
+          getLocalLabChatTeam,
+        }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.team?.name).toBe("Lab Team"));
+    expect(getLocalLabChatTeam).toHaveBeenCalledWith("team-2");
+  });
+
+  it("synthesizes a team from the metadata cache while the network query is disabled", () => {
+    cacheTeam({ id: "team-3", name: "Cached Team", logo_url: null, club_id: "club-3", level_age: null });
+    cacheClub({ id: "club-3", name: "Cached Club", logo_url: null, sport: null, is_pro: false });
+    const { result } = renderHook(
+      () =>
+        useTeamChatTeamData({
+          supabaseClient: makeSupabaseClient(null),
+          teamId: undefined,
+          useIcpLab: false,
+          getLocalLabChatTeam: vi.fn(),
+        }),
+      { wrapper: makeWrapper() },
+    );
+    // No teamId means the query never runs and there's nothing to synthesize from.
+    expect(result.current.team).toBeNull();
+  });
+
+  it("falls back to the cached team while the network query is still loading", async () => {
+    cacheTeam({ id: "team-4", name: "Cached Team 4", logo_url: null, club_id: "club-4", level_age: null });
+    cacheClub({ id: "club-4", name: "Cached Club 4", logo_url: null, sport: null, is_pro: false });
+    let resolveQuery: (value: any) => void = () => {};
+    const supabaseClient: TeamChatTeamSupabaseClient = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: () => new Promise((resolve) => { resolveQuery = resolve; }),
+          }),
+        }),
+      }),
+    };
+    const { result } = renderHook(
+      () =>
+        useTeamChatTeamData({
+          supabaseClient,
+          teamId: "team-4",
+          useIcpLab: false,
+          getLocalLabChatTeam: vi.fn(),
+        }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.team?.name).toBe("Cached Team 4"));
+    resolveQuery({ data: null, error: null });
+  });
+
+  it("exposes refetchTeam and teamIsFetching for the unreachable-state retry UI", async () => {
+    const supabaseClient = makeSupabaseClient({ id: "team-5", name: "Team 5", club_id: null });
+    const { result } = renderHook(
+      () =>
+        useTeamChatTeamData({
+          supabaseClient,
+          teamId: "team-5",
+          useIcpLab: false,
+          getLocalLabChatTeam: vi.fn(),
+        }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.loadingTeam).toBe(false));
+    expect(typeof result.current.refetchTeam).toBe("function");
+    expect(result.current.teamIsFetching).toBe(false);
+  });
+
+  it.runIf(liveMocks.mode === "icp")("loads team and club metadata from the live club adapter", async () => {
+    const identity = {};
+    const target = { host: "https://ic0.app", canisterIds: {} };
+    liveMocks.getCurrentInternetIdentity.mockResolvedValue(identity);
+    liveMocks.getActiveIcpTarget.mockReturnValue(target);
+    liveMocks.getLiveTeam.mockResolvedValue([{
+      id: "team-icp",
+      name: "ICP Team",
+      logo_url: [],
+      club_id: "club-icp",
+    }]);
+    liveMocks.getLiveClubProfile.mockResolvedValue([{
+      name: "ICP Club",
+      logo_url: [],
+    }]);
+    const supabaseClient = { from: vi.fn() } as unknown as TeamChatTeamSupabaseClient;
+    const { result } = renderHook(
+      () => useTeamChatTeamData({
+        supabaseClient,
+        teamId: "team-icp",
+        useIcpLab: false,
+        getLocalLabChatTeam: vi.fn(),
+      }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.team?.name).toBe("ICP Team"));
+    await waitFor(() => expect(result.current.team?.clubs?.name).toBe("ICP Club"));
+    expect(liveMocks.dispatch).toHaveBeenCalledWith("membership", { teamId: "team-icp" });
+    expect(liveMocks.getLiveTeam).toHaveBeenCalledWith({ identity: {}, target: { canisterIds: { club_domain: "owning-group" } } }, "team-icp");
+    expect(supabaseClient.from).not.toHaveBeenCalled();
+  });
+
+  it.runIf(liveMocks.mode === "icp")("reveals the authorized team while its optional club label is still pending", async () => {
+    liveMocks.getLiveTeam.mockResolvedValue([{ id: "u9-g2", name: "U9", club_id: "g2-test", logo_url: [] }]);
+    liveMocks.getLiveClubProfile.mockReturnValue(new Promise(() => {}));
+    const supabaseClient = { from: vi.fn() } as unknown as TeamChatTeamSupabaseClient;
+    const { result, unmount } = renderHook(() => useTeamChatTeamData({ supabaseClient, teamId: "u9-g2", useIcpLab: false,
+      getLocalLabChatTeam: vi.fn() }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.team?.club_id).toBe("g2-test"));
+    expect(result.current.loadingTeam).toBe(false);
+    expect(supabaseClient.from).not.toHaveBeenCalled();
+    unmount();
+  });
+});

@@ -1,0 +1,254 @@
+import { readMembershipInScope } from "@/live/membershipRouting";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useClubTheme } from "@/hooks/useClubTheme";
+import { hasGameBoardSupport } from "@/lib/sportDetection";
+import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import { withFeatureBackend } from "@/live/featureRouter";
+// features/club + features/events are imported lazily at the icp call sites
+// below so the ICP SDK stays out of the entry chunk.
+
+
+
+const VAULT_ROLES = [
+  "app_admin",
+  "club_admin",
+  "league_admin",
+  "team_admin",
+  "coach",
+  "committee_member",
+];
+const PITCH_ROLES = ["app_admin", "club_admin", "team_admin", "coach"];
+
+/**
+ * Permission snapshot used by the desktop-only nav rail / action bar so items
+ * the user cannot use are never rendered. Mobile surfaces are untouched.
+ */
+export function useDesktopNavAccess() {
+  const { user } = useAuth();
+  const { activeClubFilter } = useClubTheme();
+
+  const { data } = useQuery({
+    queryKey: ["desktop-nav-access", user?.id, activeClubFilter],
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      let rows: Array<{ role: string; club_id: string | null; team_id: string | null }>;
+      if (isFeatureRoutedToIcp("membership")) {
+        // Internet Identity users: the canister's caller-scoped role-grant
+        // list replaces the Supabase `user_roles` read.
+        const grants = await withFeatureBackend("membership", {
+          supabase: async () => [],
+          icp: async (ctx) => (await import("@/live/features/club")).myLiveRoleGrants(ctx),
+        }, { shared: 'person' });
+        rows = grants.map((g) => ({ role: g.role, club_id: g.club[0] ?? null, team_id: g.team[0] ?? null }));
+      } else {
+        const { data: roles, error } = await supabase
+          .from("user_roles")
+          .select("role, club_id, team_id")
+          .eq("user_id", user!.id);
+        if (error) throw error;
+        rows = (roles || []) as Array<{ role: string; club_id: string | null; team_id: string | null }>;
+      }
+
+      const teamIds = Array.from(new Set(rows.map((r) => r.team_id).filter(Boolean) as string[]));
+
+      // Resolve the club behind every team role so a football club membership
+      // can never light up the board for a non-football club (or vice versa).
+      let teamClubMap = new Map<string, string>();
+      let teamNameMap = new Map<string, string>();
+      if (teamIds.length > 0) {
+        if (isFeatureRoutedToIcp("membership")) {
+          // Internet Identity users: resolve team -> club from club_domain
+          // (same shape as the Supabase teams read below).
+          const teams = await withFeatureBackend("membership", {
+            supabase: async () => [] as Array<{ id: string; name: string; club_id: string | null }>,
+            icp: async (ctx) => {
+              const { getLiveTeam } = await import("@/live/features/club");
+              const resolved = await Promise.all(
+                teamIds.map(async (id) => {
+                  try {
+                    const t = (await readMembershipInScope(ctx, { teamId: id }, (scoped) => getLiveTeam(scoped, id)))[0];
+                    return t
+                      ? { id: t.id, name: t.name ?? "Team", club_id: (t.club_id ?? t.club) ?? null }
+                      : null;
+                  } catch {
+                    return null;
+                  }
+                }),
+              );
+              return resolved.filter((t): t is { id: string; name: string; club_id: string | null } => !!t);
+            },
+          }, { shared: 'person' });
+          teamClubMap = new Map(
+            teams.filter((t) => !!t.club_id).map((t) => [t.id, t.club_id as string]),
+          );
+          teamNameMap = new Map(teams.map((t) => [t.id, t.name]));
+        } else {
+          const { data: teams } = await supabase.from("teams").select("id, name, club_id").in("id", teamIds);
+          teamClubMap = new Map(
+            (teams || []).filter((t) => !!t.club_id).map((t) => [t.id as string, t.club_id as string]),
+          );
+          teamNameMap = new Map((teams || []).map((t) => [t.id as string, (t.name as string) ?? "Team"]));
+        }
+      }
+
+      const clubIds = Array.from(
+        new Set([
+          ...(rows.map((r) => r.club_id).filter(Boolean) as string[]),
+          ...Array.from(teamClubMap.values()),
+        ]),
+      );
+
+      // The pitch board only exists for football/soccer in this build — never
+      // surface it for other sports.
+      const boardClubIds = new Set<string>();
+      if (clubIds.length > 0) {
+        if (isFeatureRoutedToIcp("membership")) {
+          // Internet Identity users: club sport resolves from club_domain
+          // ClubProfile.sport (added this round).
+          const profiles = await withFeatureBackend("membership", {
+            supabase: async () => [] as Array<{ id: string; sport: string | null }>,
+            icp: async (ctx) => {
+              const { getLiveClubProfile } = await import("@/live/features/club");
+              const resolved = await Promise.all(
+                clubIds.map(async (id) => {
+                  try {
+                    const p = await readMembershipInScope(ctx, { clubId: id }, (scoped) => getLiveClubProfile(scoped, id));
+                    const profile = Array.isArray(p) ? p[0] : p;
+                    const sport = (profile as { sport?: [] | [string] } | null | undefined)?.sport;
+                    return { id, sport: sport?.[0] ?? null };
+                  } catch {
+                    return null;
+                  }
+                }),
+              );
+              return resolved.filter((p): p is { id: string; sport: string | null } => !!p);
+            },
+          }, { shared: 'person' });
+          profiles.forEach((c) => {
+            if (hasGameBoardSupport(c.sport)) boardClubIds.add(c.id);
+          });
+        } else {
+          const { data: clubs } = await supabase.from("clubs").select("id, sport").in("id", clubIds);
+          (clubs || []).forEach((c) => {
+            if (hasGameBoardSupport(c.sport)) boardClubIds.add(c.id as string);
+          });
+        }
+      }
+
+      // Respect the active club filter: the rail reflects the club the user is
+      // currently looking at, not the union of every club they belong to.
+      const inScope = (clubId: string | null | undefined) =>
+        !!clubId && boardClubIds.has(clubId) && (!activeClubFilter || clubId === activeClubFilter);
+
+      const boardRoleRows = rows.filter((r) => {
+        if (!PITCH_ROLES.includes(r.role)) return false;
+        const clubId = r.club_id ?? (r.team_id ? teamClubMap.get(r.team_id) ?? null : null);
+        return inScope(clubId);
+      });
+
+      const allBoardTeamIds = teamIds.filter((id) => inScope(teamClubMap.get(id)));
+
+      // Club-level coach/admin roles cover every team in that club; otherwise
+      // only offer the teams the user actually coaches/admins.
+      const hasClubWideBoardRole = boardRoleRows.some((r) => !r.team_id && !!r.club_id);
+      const directBoardTeamIds = boardRoleRows
+        .map((r) => r.team_id)
+        .filter((id): id is string => !!id && allBoardTeamIds.includes(id));
+
+      const boardTeamIds = hasClubWideBoardRole
+        ? allBoardTeamIds
+        : Array.from(new Set(directBoardTeamIds));
+
+      return {
+        hasTeams: rows.some((r) => !!r.team_id),
+        hasClubs: rows.some((r) => !!r.club_id),
+        canAccessVault: rows.some((r) => VAULT_ROLES.includes(r.role)),
+        canPitchBoard: boardRoleRows.length > 0 && boardTeamIds.length > 0,
+        canCreateEvent: rows.some((r) =>
+          ["app_admin", "club_admin", "team_admin", "coach", "committee_member"].includes(r.role),
+        ),
+        canCreateTeam: rows.some((r) => r.role === "club_admin" || r.role === "app_admin"),
+        teamIds: boardTeamIds,
+        boardTeams: boardTeamIds.map((id) => ({ id, name: teamNameMap.get(id) ?? "Team" })),
+      };
+    },
+
+  });
+
+
+  return {
+    hasTeams: !!data?.hasTeams,
+    hasClubs: !!data?.hasClubs,
+    canAccessVault: !!data?.canAccessVault,
+    canPitchBoard: !!data?.canPitchBoard,
+    canCreateEvent: !!data?.canCreateEvent,
+    canCreateTeam: !!data?.canCreateTeam,
+    teamIds: data?.teamIds ?? [],
+    boardTeams: data?.boardTeams ?? [],
+  };
+}
+
+/**
+ * Resolves the team whose Pitch Board should open from the desktop rail.
+ * Prefer the team with the next upcoming game, but always fall back to the
+ * first in-scope football team. The team page owns the canonical standalone
+ * board modal; event/group routes add extra event-day and roster gates and are
+ * therefore not suitable as the desktop navigation destination.
+ */
+export function useNextPitchBoardTarget(teamIds: string[], enabled: boolean) {
+  const { data } = useQuery({
+    queryKey: ["desktop-next-pitch-board", [...teamIds].sort().join(",")],
+    enabled: enabled && teamIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<string | null> => {
+      // Under ICP, resolve the next game from events_domain rather than
+      // firing a Supabase events read.
+      if (isFeatureRoutedToIcp("events")) {
+        const result = await withFeatureBackend("events", {
+          supabase: async () => null,
+          icp: async (ctx) => {
+            const { listLiveEvents } = await import("@/live/features/events");
+            const read = (await import("@/live/contentRouting")).readContentInScope;
+            const perTeam = await Promise.allSettled(teamIds.map((teamId) =>
+              read(ctx, "events", { teamId }, (s) => listLiveEvents(s, null, teamId))));
+            const events = perTeam.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+            const cutoff = Date.now() - 3 * 60 * 60 * 1000;
+            const inScope = (events as Array<{ id: string; team_id: [] | [string]; event_type: string; cancelled: boolean; starts_at_ms: bigint }>)
+              .filter((e) =>
+                !e.cancelled &&
+                e.event_type === "game" &&
+                e.team_id.length > 0 &&
+                teamIds.includes(e.team_id[0]) &&
+                Number(e.starts_at_ms) >= cutoff,
+              )
+              .sort((a, b) => Number(a.starts_at_ms) - Number(b.starts_at_ms));
+            const preferredTeamId = inScope[0]?.team_id[0] ?? teamIds[0];
+            return preferredTeamId ? `/teams/${preferredTeamId}?openPitchBoard=1` : null;
+          },
+        }, { shared: "person" }); // each team read from its own group above
+        return result;
+      }
+      const { data: events, error } = await supabase
+        .from("events")
+        .select("team_id, event_date")
+        .in("team_id", teamIds)
+        .eq("type", "game")
+        .eq("is_cancelled", false)
+        .gte("event_date", new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString())
+        .order("event_date", { ascending: true })
+        .limit(1);
+      if (error) throw error;
+      const preferredTeamId = events?.[0]?.team_id ?? teamIds[0];
+      return preferredTeamId ? `/teams/${preferredTeamId}?openPitchBoard=1` : null;
+    },
+  });
+
+  // The access query has already scoped these IDs to the active football club.
+  // Supplying this synchronously removes the second-query race where a quick
+  // click previously saw `null` and navigated to the Schedule page.
+  const fallbackTeamId = enabled ? teamIds[0] : undefined;
+  return data ?? (fallbackTeamId ? `/teams/${fallbackTeamId}?openPitchBoard=1` : null);
+}

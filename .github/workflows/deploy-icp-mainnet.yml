@@ -1,0 +1,281 @@
+# Ignite Club HQ — mainnet canister deploy, run from the GitHub Actions tab.
+#
+# One-time setup (in the GitHub repo, from any browser):
+#   1. Fund the identity: the "Show funding address" step below prints the
+#      account address — send ~8 ICP there. On the next run the
+#      "Convert available ICP to cycles" step mints it into cycles
+#      automatically (0.0001 ICP is left behind for the ledger fee).
+#   2. On the FIRST run (no DEPLOYER_PEM secret yet), a fresh deployer key is
+#      generated, every canister is pointed at it, and the key file is uploaded
+#      as the "deployer-key" artifact. Download it, then:
+#        Settings → Secrets and variables → Actions → New repository secret
+#        Name: DEPLOYER_PEM
+#        Value: the full .pem file text (-----BEGIN PRIVATE KEY----- included)
+#      and delete the artifact afterwards.
+# Then: Actions tab → "Deploy ICP canisters (mainnet)" → Run workflow.
+# Safe to re-run; the canister ID table is attached as an artifact.
+
+name: Deploy ICP canisters (mainnet — base/Group 1 only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "LEGACY base/Group 1 ONLY. Use Upgrade backend (all mainnet groups) for synchronized feature releases. Router remains isolated."
+        type: choice
+        required: true
+        default: history
+        options:
+          - router
+          - history
+          - all
+
+permissions:
+  # write: the run commits the canister ID mapping back so reruns reuse
+  # already-created canisters instead of paying to create new ones.
+  contents: write
+
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ICP_HOME: ${{ github.workspace }}/.icp-home
+      DEPLOY_SCOPE: ${{ inputs.scope || 'all' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install deploy tools (icp CLI, ic-wasm for the recipes, mops for Motoko)
+        # 1.7.0 sends wasm_memory_persistence=keep for detected Motoko EOP upgrades.
+        run: |
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          icp --version
+
+      - name: Restore or create deployer identity
+        env:
+          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$ICP_HOME/identity/keys"
+          PEM_FILE="$ICP_HOME/identity/keys/ignite-governor.pem"
+          if [ -n "$DEPLOYER_PEM" ]; then
+            # Normalize common paste issues: CRLF line endings, literal "\n"
+            # escape sequences, a JSON wrapper like {"private_key": "..."},
+            # and any stray text before/after the PEM block.
+            printf '%s' "$DEPLOYER_PEM" \
+              | tr -d '\r' \
+              | sed 's/\\\\n/\n/g' \
+              | sed 's/\\n/\n/g' \
+              | sed -n '/-----BEGIN/,/-----END/p' \
+              | sed 's/^.*-----BEGIN/-----BEGIN/' \
+              | sed 's/\(-----END [A-Z ]*KEY-----\).*$/\1/' \
+              > "$PEM_FILE"
+            echo "==> Cleaned key file starts with: $(head -1 "$PEM_FILE")"
+            if ! grep -q -- '-----BEGIN' "$PEM_FILE" || ! grep -q -- '-----END' "$PEM_FILE"; then
+              echo "::error::The DEPLOYER_PEM secret does not contain a valid key file."
+              echo "Re-copy the FULL text of the downloaded ignite-governor.pem artifact"
+              echo "(everything from -----BEGIN ... to -----END ... inclusive) and update"
+              echo "the DEPLOYER_PEM repository secret, then re-run this workflow."
+              exit 1
+            fi
+            # Fail early with a clear message if the pasted key is the wrong TYPE
+            # (e.g. an RSA key made by another tool). The Internet Computer only
+            # accepts secp256k1 or Ed25519 keys — like the one the first run
+            # generated into the 'deployer-key' artifact.
+            ALGO="$(openssl asn1parse -in "$PEM_FILE" 2>/dev/null | grep -m1 'OBJECT' || true)"
+            if printf '%s' "$ALGO" | grep -qi 'rsa'; then
+              echo "::error::The DEPLOYER_PEM secret holds an RSA key, which the Internet Computer does not accept."
+              echo "This is NOT the key this workflow generated. The funded account address"
+              echo "belongs to the identity from your FIRST run — use that key instead:"
+              echo "open that run page → Artifacts → deployer-key → ignite-governor.pem,"
+              echo "copy its full text, and update the DEPLOYER_PEM repository secret."
+              exit 1
+            fi
+            icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor
+            icp identity default ignite-governor
+            echo "==> Restored deployer principal: $(icp identity principal)"
+            echo "==> This MUST match the principal whose account address you funded."
+            echo "key_source=secret" >> "$GITHUB_ENV"
+          else
+            if [ "$DEPLOY_SCOPE" != all ]; then
+              echo "::error::Scoped upgrades require the existing DEPLOYER_PEM; refusing to create a replacement identity."
+              exit 1
+            fi
+            icp identity new ignite-governor --storage plaintext \
+              --output-seed "$ICP_HOME/identity/keys/ignite-governor.seed.txt"
+            icp identity default ignite-governor
+            echo "key_source=generated" >> "$GITHUB_ENV"
+          fi
+
+      - name: Show funding address and balances
+        run: |
+          # Run balance queries from OUTSIDE the checkout: the committed local-lab
+          # icp.yaml at the repo root makes even `icp token balance` try to load the
+          # lab canisters' init-args files and die before touching the network.
+          mkdir -p "$RUNNER_TEMP/icp-no-project" && cd "$RUNNER_TEMP/icp-no-project"
+          echo "==> Fund this account address with ICP/cycles (icscan.io or an exchange):"
+          icp identity account-id || true
+          echo "==> Current balances:"
+          icp token balance -n ic || true
+          icp cycles balance -n ic || true
+
+      - name: Convert available ICP to cycles
+        if: inputs.scope == 'all'
+        run: |
+          set -euo pipefail
+          # Outside the checkout — see "Show funding address and balances" above.
+          mkdir -p "$RUNNER_TEMP/icp-no-project" && cd "$RUNNER_TEMP/icp-no-project"
+          RAW="$(icp token balance -n ic 2>/dev/null)"
+          echo "ICP balance: $RAW"
+          # Extract the first number, leave 0.0001 ICP behind for the ledger fee.
+          AMT="$(echo "$RAW" | grep -oE '[0-9]+(\.[0-9]+)?' | head -1 || true)"
+          if [ -z "$AMT" ]; then
+            echo "==> Could not parse ICP balance; skipping auto-conversion."
+            echo "==> If deploy fails for lack of cycles, convert manually: icp cycles mint --icp <amount> -n ic"
+            exit 0
+          fi
+          MINT="$(awk -v b="$AMT" 'BEGIN{ m = b - 0.0001; if (m <= 0) m = 0; printf "%.8f", m }')"
+          if [ "$MINT" = "0.00000000" ]; then
+            echo "==> No ICP to convert (balance $AMT). Deploy uses the existing cycles balance."
+            exit 0
+          fi
+          echo "==> Minting $MINT ICP into cycles"
+          icp cycles mint --icp "$MINT" -n ic
+          icp cycles balance -n ic
+
+      - name: Point all canister configs at this deployer identity
+        run: |
+          set -euo pipefail
+          GOVERNOR="$(icp identity principal)"
+          echo "Governor principal: $GOVERNOR"
+          echo "GOVERNOR=$GOVERNOR" >> "$GITHUB_ENV"
+          SENTINEL='gwyap-pqop5-msidu-vlkov-zuejr-7gqjr-dwvkx-2yhgy-mdaxt-2giwn-cae'
+          grep -rl "$SENTINEL" backend deploy/mainnet scripts \
+            | xargs -r sed -i "s|$SENTINEL|$GOVERNOR|g"
+
+      - name: Verify cycles are ready for deploy
+        if: inputs.scope == 'all'
+        run: |
+          set -uo pipefail
+          # Outside the checkout — see "Show funding address and balances" above.
+          mkdir -p "$RUNNER_TEMP/icp-no-project" && cd "$RUNNER_TEMP/icp-no-project"
+          CYC_RAW="$(icp cycles balance -n ic 2>/dev/null || true)"
+          echo "Cycles balance: $CYC_RAW"
+          CYC_NUM="$(echo "$CYC_RAW" | grep -oE '[0-9]+(\.[0-9]+)?' | head -1 || echo 0)"
+          # If cycles are zero but ICP is present, convert now — covers funding
+          # that landed while this run was already in progress.
+          if [ "$(awk -v c="${CYC_NUM:-0}" 'BEGIN{print (c<=0)?1:0}')" = "1" ]; then
+            RAW="$(icp token balance -n ic 2>/dev/null || true)"
+            AMT="$(echo "$RAW" | grep -oE '[0-9]+(\.[0-9]+)?' | head -1 || true)"
+            MINT="$(awk -v b="${AMT:-0}" 'BEGIN{ m = b - 0.0001; if (m <= 0) m = 0; printf "%.8f", m }')"
+            if [ "$MINT" != "0.00000000" ]; then
+              echo "==> Found $AMT ICP that arrived after the first conversion pass — minting now"
+              icp cycles mint --icp "$MINT" -n ic
+              CYC_RAW="$(icp cycles balance -n ic 2>/dev/null || true)"
+              echo "Cycles balance now: $CYC_RAW"
+              CYC_NUM="$(echo "$CYC_RAW" | grep -oE '[0-9]+(\.[0-9]+)?' | head -1 || echo 0)"
+            fi
+          fi
+          if [ "$(awk -v c="${CYC_NUM:-0}" 'BEGIN{print (c<=0)?1:0}')" = "1" ]; then
+            echo "::error::No cycles available to pay for canister creation."
+            echo ""
+            echo "Deployer principal:    $(icp identity principal)"
+            echo "Its account address:   $(icp identity account-id)"
+            echo "Its ICP balance:       $(icp token balance -n ic || true)"
+            echo ""
+            echo "Your ICP must sit at THIS account address. Two ways to fix it:"
+            echo "  A) Simplest — send your ICP to the account address printed"
+            echo "     above (from the wallet/exchange where it sits now), then"
+            echo "     start a fresh workflow run."
+            echo "  B) Or make the secret match the money: update DEPLOYER_PEM"
+            echo "     with the 'deployer-key' artifact from the run that printed"
+            echo "     the address you funded (Artifacts section at the bottom of"
+            echo "     that run page), then start a fresh run."
+            exit 1
+          fi
+          echo "==> Cycles ready. Deploy needs ~18T total; if it stops partway for"
+          echo "==> funds, top up this identity's address and run the workflow again —"
+          echo "==> already-created canisters are kept, nothing is lost."
+
+      - name: Deploy selected canisters
+        env:
+          ICP_PUSH_WORKER_SEED: ${{ secrets.ICP_PUSH_WORKER_SEED }}
+          DEPLOYER_PEM_FILE: ${{ github.workspace }}/.icp-home/identity/keys/ignite-governor.pem
+        run: |
+          node scripts/ensure-frontend-deps.mjs
+          bash scripts/deploy-mainnet.sh
+
+      - name: Retain original photo-key attestation (public material only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: photo-key-attestation
+          path: deploy/mainnet/.icp/data/media-key-attestations/ic.json
+          if-no-files-found: ignore
+
+      - name: Print paste-ready canister ID table
+        if: always()
+        run: |
+          IDS="deploy/mainnet/.icp/data/mappings/ic.ids.json"
+          if [ -f "$IDS" ]; then
+            echo "==> Paste into /admin/placement-settings → Canister configuration:"
+            node -e "const m=require('./$IDS');for(const [k,v] of Object.entries(m)){const id=typeof v==='string'?v:(v.ic||v.id||Object.values(v)[0]);console.log(k+'\t'+id)}"
+          fi
+
+      - name: First-run key instructions
+        if: always() && env.key_source == 'generated'
+        run: |
+          echo "==> FIRST RUN: a fresh deployer key was generated (governor principal $GOVERNOR)."
+          echo "==> 1. Download the 'deployer-key' artifact from this run page (a .pem text file)."
+          echo "==> 2. Repo → Settings → Secrets and variables → Actions → New repository secret"
+          echo "     Name: DEPLOYER_PEM"
+          echo "     Value: the full file text, -----BEGIN PRIVATE KEY----- line included."
+          echo "==> 3. Delete the 'deployer-key' artifact from this run page after saving it."
+          echo "==> 4. Send ~8 ICP to the account address printed above, then re-run."
+          echo "     The workflow converts it to cycles automatically on the next run."
+
+      - name: Upload canister ID mapping
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canister-ids
+          path: deploy/mainnet/.icp/data/mappings/ic.ids.json
+          if-no-files-found: ignore
+
+      - name: Save canister ID mapping to the repo (so reruns reuse canisters)
+        if: always()
+        run: |
+          IDS="deploy/mainnet/.icp/data/mappings/ic.ids.json"
+          [ -f "$IDS" ] || { echo "No mapping file yet."; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -f "$IDS"
+          if git diff --cached --quiet; then echo "Mapping unchanged."; exit 0; fi
+          git commit -m "Update mainnet canister ID mapping [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep 5
+          done
+          echo "::warning::Could not push the mapping; download the canister-ids artifact instead."
+
+      - name: Upload generated deployer key (first run only)
+        if: always() && env.key_source == 'generated'
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployer-key
+          path: |
+            ${{ env.ICP_HOME }}/identity/keys/ignite-governor.pem
+            ${{ env.ICP_HOME }}/identity/keys/ignite-governor.seed.txt
+          if-no-files-found: error
