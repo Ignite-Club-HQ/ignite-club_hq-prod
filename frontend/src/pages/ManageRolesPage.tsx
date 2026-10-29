@@ -14,7 +14,8 @@ import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
 import { getLocalLabRoleRoster } from "@/lab/fixtureDataLayer";
 import { connectLocalIdentityAccessClient } from "@/lab/localIdentityAccess";
 import { roleLabels, type AppRole } from "@/features/membership/rolePresentation";
-import { withFeatureBackend, isFeatureRoutedToIcp } from "@/live/featureRouter";
+import { withFeatureBackend } from "@/live/featureRouter";
+import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { writeOnce } from "@/live/clubScope";
 import { Principal } from "@icp-sdk/core/principal";
 import {
