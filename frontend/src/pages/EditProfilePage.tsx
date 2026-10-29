@@ -50,6 +50,7 @@ export default function EditProfilePage() {
     }
   }, [profile]);
 
+
   const isNative = shouldUseNativePicker();
 
   // ICP: save the new photo to the profile straight away (no need to tap
@@ -257,30 +258,41 @@ export default function EditProfilePage() {
     }
 
     if (isIcpLive) {
+      let publicProfileSaved = false;
+      let savedIcpProfile: Awaited<ReturnType<typeof import("@/live/identityProfile").saveIcpIdentityProfile>> | null = null;
       try {
-        const [{ getCurrentInternetIdentity }, { saveIcpIdentityProfile }] = await Promise.all([
+        const [{ getCurrentInternetIdentity }, { saveIcpIdentityProfile }, { capturePrivateProfileSession }] = await Promise.all([
           import("@/live/internetIdentityAuth"),
           import("@/live/identityProfile"),
+          import('@/live/privateProfileSession'),
         ]);
+        const saveSessionActive = capturePrivateProfileSession();
         const identity = await getCurrentInternetIdentity();
+        saveSessionActive();
         if (!identity) throw new Error("You need to sign in again.");
-        await saveIcpIdentityProfile(identity, user.id, {
+        const savedProfile = await saveIcpIdentityProfile(identity, user.id, {
           displayName: displayName.trim(),
           avatarRef: avatarUrl.trim() || null,
         });
+        publicProfileSaved = true;
+        savedIcpProfile = savedProfile;
         // Mirror the display name into pii_access_control (pii_id = caller
         // principal text, field_id = "display_name", owner = the user).
-        // Best effort — the profile save above already succeeded.
-        const [{ getActiveIcpTarget }, { registerLivePiiText }] = await Promise.all([
+        // Strict readback, still no private-reference publication or cutover.
+        const [{ getActiveIcpTarget }, { preparePrivateOwnProfileName, refreshPrivateOwnClubNames }] = await Promise.all([
           import("@/live/targetRegistry"),
-          import("@/live/features/vault"),
+          import("@/live/privateProfileNames"),
         ]);
-        await registerLivePiiText(
-          { identity, target: getActiveIcpTarget() },
-          identity.getPrincipal().toText(),
-          "display_name",
-          displayName.trim(),
-        );
+        const nameContext = { identity, target: getActiveIcpTarget() };
+        if (!savedProfile.privateNameMaintained) {
+          await preparePrivateOwnProfileName(nameContext, displayName.trim());
+          saveSessionActive();
+          await refreshPrivateOwnClubNames(nameContext, displayName.trim(), async () => {
+            const { getLiveMyRoleGrants } = await import('@/live/features/membership');
+            const grants = await getLiveMyRoleGrants(nameContext);
+            return grants.flatMap(grant => grant.club ?? []);
+          }, saveSessionActive);
+        }
         // Re-sync avatar club grants — covers clubs joined after the photo
         // was uploaded. Best-effort (never throws).
         const { syncLiveAvatarClubGrants } = await import("@/live/avatarUpload");
@@ -288,14 +300,16 @@ export default function EditProfilePage() {
       } catch (error) {
         setSaving(false);
         toast({
-          title: "Failed to update profile",
-          description: error instanceof Error ? error.message : "Could not update profile",
+          title: publicProfileSaved ? "Profile saved; private details unconfirmed" : "Failed to update profile",
+          description: publicProfileSaved ? "Your profile changed, but saving private details was not confirmed. Stay here and check before retrying." : error instanceof Error ? error.message : "Could not update profile",
           variant: "destructive",
         });
         return;
       }
 
-      await refreshProfile();
+      // Use the acknowledged save (plain name in memory) rather than an
+      // immediate re-read, which could briefly miss the private name.
+      await refreshProfile(savedIcpProfile ?? undefined);
       setSaving(false);
       toast({ title: "Profile updated!" });
       navigate("/profile");

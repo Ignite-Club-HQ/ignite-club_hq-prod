@@ -1,0 +1,69 @@
+name: Migrate club from Supabase to canisters
+# Moves ONE whole club into the chosen group. check is read-only and prints the
+# plan hash; migrate/recover need that hash plus the typed confirmation. The
+# Supabase copy is never modified. Needs secret SUPABASE_SERVICE_ROLE_KEY in the
+# group-2-admin-controls environment.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        required: true
+        default: check
+        options: [check, migrate, recover, invite]
+      club_id:
+        description: Club ID (from the Migrate club admin page)
+        required: true
+      group_id:
+        description: Target group, e.g. g2
+        required: true
+      plan:
+        description: Plan hash from the check run (migrate/recover only)
+        required: false
+        default: ''
+      confirmation:
+        description: "Data: MIGRATE CLUB TO CANISTERS / RECOVER CLUB MIGRATION. Auth: SEND CLAIM EMAILS. Approves only this club/group and selected scope."
+        required: false
+        default: ''
+      approval_scope:
+        description: "Owner approval: data copying and member sign-in migration are separate. Building/checking approves neither."
+        type: choice
+        required: true
+        default: none
+        options: [none, data, auth]
+permissions:
+  contents: read
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Install existing dependencies
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Test migration safety rules
+        run: node --test scripts/migrate-club-plan.test.mjs scripts/migrate-club-writers.test.mjs scripts/migrate-club-run.test.mjs scripts/migrate-club-claims.test.mjs scripts/migrate-club-members.test.mjs scripts/migrate-club-family.test.mjs scripts/migrate-club-messaging.test.mjs scripts/migrate-club-notifications.test.mjs scripts/migrate-club-media.test.mjs scripts/migrate-club-vault.test.mjs scripts/migrate-club-event-results.test.mjs scripts/migrate-club-children-writer.test.mjs scripts/migrate-club-bytes.test.mjs scripts/migrate-club-reconcile.test.mjs scripts/migrate-club-remote.test.mjs
+      - name: Run
+        env:
+          ACTION: ${{ inputs.action }}
+          CLUB_ID: ${{ inputs.club_id }}
+          GROUP_ID: ${{ inputs.group_id }}
+          PLAN: ${{ inputs.plan }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          APPROVAL_SCOPE: ${{ inputs.approval_scope }}
+          MIGRATION_OWNER_GITHUB_LOGIN: ${{ vars.MIGRATION_OWNER_GITHUB_LOGIN }}
+          SUPABASE_URL: ${{ vars.IGNITE_LIVE_SUPABASE_URL || 'https://ecsdwrarzfexssxtrymj.supabase.co' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ICP_EMAIL_FROM: ${{ vars.ICP_EMAIL_FROM }}
+          ICP_EMAIL_APP_URL: ${{ vars.ICP_EMAIL_APP_URL }}
+          NODE_PATH: ${{ github.workspace }}/frontend/node_modules
+        run: node scripts/migrate-club.mjs

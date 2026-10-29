@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useDebounce } from "@/hooks/useDebounce";
 import { withFeatureBackend, type FeatureBackendContext } from "@/live/featureRouter";
 import { linkLiveGuardian, setLiveGuardianRelationship, createLivePendingInvite, getLiveTeam } from "@/live/features/club";
-import { searchLiveProfiles } from "@/live/features/identityAccessClient";
+import { searchLiveGuardianProfiles } from "@/live/features/identityAccessClient";
 
 interface InviteOtherParentSheetProps {
   open: boolean;
@@ -70,7 +70,7 @@ export default function InviteOtherParentSheet({
 
   // Resolve the owning club for this child's team so search stays club-scoped
   const { data: scopeClubId = null } = useQuery({
-    queryKey: ["invite-parent-scope-club", teamIds[0] ?? null],
+    queryKey: ["invite-parent-scope-club", user?.id, childId, teamIds[0] ?? null],
     enabled: open && !!teamIds[0],
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -94,8 +94,8 @@ export default function InviteOtherParentSheet({
 
   // Search for existing users as parent types — restricted to the club
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
-    queryKey: ["parent-invite-user-search", debouncedName, scopeClubId],
-    queryFn: async () => {
+    queryKey: ["parent-invite-user-search", user?.id, childId, debouncedName, scopeClubId],
+    queryFn: async ({ signal }) => {
       if (debouncedName.length < 2) return [];
       return withFeatureBackend("membership", {
         supabase: async () => {
@@ -108,15 +108,15 @@ export default function InviteOtherParentSheet({
             .filter(u => u.id !== user?.id)
             .map(u => ({ id: u.id, display_name: u.display_name, avatar_url: u.avatar_url }));
         },
-        // ICP: identity_access search_profiles (display names live there in
-        // plaintext by design — member search depends on them).
+        // Full ICP search requires live verification for this exact child.
         icp: async (ctx) => {
-          const rows = await searchLiveProfiles(ctx, debouncedName, 6);
+          const rows = await searchLiveGuardianProfiles(ctx, childId, debouncedName, 6, signal);
           return rows.filter(u => u.id !== user?.id);
         },
-      }, { shared: 'person' });
+      }, teamIds[0] ? { teamId: teamIds[0] } : { shared: 'person' });
     },
     enabled: open && debouncedName.length >= 2 && !selectedUser && (!teamIds[0] || !!scopeClubId),
+    retry: false,
   });
 
 
@@ -140,7 +140,7 @@ export default function InviteOtherParentSheet({
           await linkLiveGuardian(ctx, childId, guardian);
           await setLiveGuardianRelationship(ctx, childId, guardian, "parent", false);
         },
-      }, writeOnce({ shared: 'person' }));
+      }, writeOnce({ teamId: teamIds[0] ?? '' }));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["child_guardians", childId] });

@@ -28,11 +28,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { selectCachedProfileById } from "@/lib/profileCache";
 import { useAuth } from "@/hooks/useAuth";
 import { recordPointsHistory } from "@/lib/pointsHistory";
+import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { awardLivePoints, subjectForChild, subjectForUser } from "@/live/features/points";
 import { fanOutLiveNotifications } from "@/live/features/notifications";
 import { getLiveEventChild, getLiveGameResult, saveLiveGameResult } from "@/live/features/events";
 import { resolveLivePiiTextBatch } from "@/live/features/vault";
+import { readPlayerOfMatchAdults, readPlayerOfMatchRewards, readProfileSummaries } from "@/lib/playerOfMatchReads";
 
 interface PlayerOfMatchSelectorProps {
   eventId: string;
@@ -156,7 +158,11 @@ export default function PlayerOfMatchSelector({
             children: isChild ? { id: rawId, name } : null,
           } as any;
         },
-      }, { eventId: eventId }),
+      }, clubId ? { clubId } : { eventId: eventId }),
+    // The owning club is already known: routing by it skips event discovery
+    // across every group, which made this card spin for many seconds.
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const playerOfMatchDisplay = useMemo(() => {
@@ -186,37 +192,8 @@ export default function PlayerOfMatchSelector({
 
   // Fetch POM rewards - team-specific first, then club-level fallback
   const { data: pomRewards = [] } = useQuery({
-    queryKey: ["pom-rewards", clubId, teamId],
-    queryFn: async () => {
-      // First try team-specific rewards
-      if (teamId) {
-        const { data: teamRewards, error: teamError } = await supabase
-          .from("club_rewards")
-          .select("*")
-          .eq("club_id", clubId)
-          .eq("team_id", teamId)
-          .eq("reward_type", "player_of_match")
-          .eq("is_active", true)
-          .order("created_at", { ascending: true });
-        
-        if (!teamError && teamRewards && teamRewards.length > 0) {
-          return teamRewards;
-        }
-      }
-      
-      // Fall back to club-level rewards (team_id is null)
-      const { data, error } = await supabase
-        .from("club_rewards")
-        .select("*")
-        .eq("club_id", clubId)
-        .is("team_id", null)
-        .eq("reward_type", "player_of_match")
-        .eq("is_active", true)
-        .order("created_at", { ascending: true });
-      
-      if (error) throw error;
-      return data || [];
-    },
+    queryKey: ["pom-rewards", clubId, teamId, user?.id],
+    queryFn: () => readPlayerOfMatchRewards(clubId, teamId),
   });
 
   // Rehydrate last-used reward when rewards load / dialog opens
@@ -659,17 +636,8 @@ export default function PlayerOfMatchSelector({
   // Fetch user_ids that have the 'player' role on this team so we can exclude
   // parents, coaches, admins etc. from the POM list. Children are always players.
   const { data: playerUserIds = [] } = useQuery({
-    queryKey: ["team-player-user-ids", teamId],
-    queryFn: async () => {
-      if (!teamId) return [] as string[];
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("team_id", teamId)
-        .eq("role", "player");
-      if (error) throw error;
-      return (data || []).map((r: any) => r.user_id);
-    },
+    queryKey: ["team-player-user-ids", teamId, user?.id],
+    queryFn: () => readPlayerOfMatchAdults(clubId, teamId),
     enabled: !!teamId,
   });
 
@@ -680,11 +648,36 @@ export default function PlayerOfMatchSelector({
     (r) => !r.child_id && r.user_id && playerUserIds.includes(r.user_id)
   );
 
+  // ICP rosters carry no profile enrichment, so hydrate adult names/avatars
+  // on-chain for the pick list instead of showing "Unknown".
+  const isIcp = resolveAuthBackend() === "icp";
+  const goingAdultIds = useMemo(
+    () => goingMembers.map((r) => r.user_id as string),
+    [goingMembers],
+  );
+  const { data: adultProfiles } = useQuery({
+    queryKey: ["roster-profile-names", eventId, goingAdultIds.join(",")],
+    queryFn: () => readProfileSummaries(goingAdultIds, clubId),
+    enabled: isIcp && goingAdultIds.length > 0,
+    staleTime: 60_000,
+  });
+  const adultName = (userId: string | null | undefined) =>
+    (userId ? adultProfiles?.get(userId)?.display_name : null) || null;
+  const adultAvatar = (userId: string | null | undefined) =>
+    (userId ? adultProfiles?.get(userId)?.avatar_url : null) || null;
+
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="p-4 flex justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <Card className="border-amber-500/30 bg-amber-500/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Trophy className="h-5 w-5 text-amber-500" />
+            Player of the Match
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Checking…
         </CardContent>
       </Card>
     );
@@ -876,12 +869,12 @@ export default function PlayerOfMatchSelector({
                   disabled={awardMutation.isPending || (pomRewards.length > 1 && !activePomReward)}
                 >
                   <Avatar className="h-10 w-10 mr-3">
-                    <AvatarImage src={rsvp.profiles?.avatar_url} />
+                    <AvatarImage src={rsvp.profiles?.avatar_url || adultAvatar(rsvp.user_id) || undefined} />
                     <AvatarFallback>
-                      {rsvp.profiles?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                      {(rsvp.profiles?.display_name || adultName(rsvp.user_id))?.charAt(0)?.toUpperCase() || "?"}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="text-base">{rsvp.profiles?.display_name || "Unknown"}</span>
+                  <span className="text-base">{rsvp.profiles?.display_name || adultName(rsvp.user_id) || "Unknown"}</span>
                   {awardMutation.isPending && pendingId === rsvp.user_id && (
                     <Loader2 className="h-4 w-4 animate-spin ml-auto" />
                   )}

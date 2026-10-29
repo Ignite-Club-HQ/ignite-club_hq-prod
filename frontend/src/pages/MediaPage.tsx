@@ -595,7 +595,7 @@ function SupabaseMediaPage() {
     refetch: refetchPhotos,
   } = useInfiniteQuery({
     queryKey: photosQueryKey,
-    queryFn: async ({ pageParam = 0 }) => {
+    queryFn: async ({ pageParam = 0, signal }) => {
       if (cardId && (cardPhotoIds?.length ?? 0) === 0) {
         return { photos: [], nextCursor: undefined };
       }
@@ -611,7 +611,7 @@ function SupabaseMediaPage() {
       // branch inside fetchMediaFeedPage; the ICP branch has no long-poll to
       // abort.
       const budget = createChatFetchBudget(15_000);
-      let result: { photos: any[]; nextCursor: number | undefined };
+      let result: { photos: any[]; nextCursor: number | undefined; incomplete?: boolean };
       let error: any = null;
       try {
         result = await fetchMediaFeedPage({
@@ -624,7 +624,11 @@ function SupabaseMediaPage() {
           cardId: cardId ?? null,
           cardPhotoIds,
           offset: pageParam,
-          pageSize: PHOTOS_PER_PAGE,
+          pageSize: PHOTOS_PER_PAGE, signal,
+          onProgress: next => {
+            if (signal.aborted || pageParam !== 0) return;
+            queryClient.setQueryData(photosQueryKey, (old: any) => old?.pages?.length ? old : { pages: [next], pageParams: [0] });
+          },
         });
       } catch (err) {
         error = err;
@@ -639,7 +643,7 @@ function SupabaseMediaPage() {
 
       // Cache first page results for offline access
       const icpClubFeed = isIcpMode && !!selectedClubFilter;
-  if (pageParam === 0 && data && (icpClubFeed || !selectedClubFilter) && !selectedTeamFilter && !urlEventId && !urlCompetitionId && !dateFromKey && !dateToKey && !cardId) {
+  if (pageParam === 0 && !result.incomplete && data && (icpClubFeed || !selectedClubFilter) && !selectedTeamFilter && !urlEventId && !urlCompetitionId && !dateFromKey && !dateToKey && !cardId) {
         cachePhotos(null, icpClubFeed ? selectedClubFilter : null, null, data.map(p => ({
           id: p.id,
           file_url: p.file_url || p.image_url,
@@ -674,14 +678,7 @@ function SupabaseMediaPage() {
   const photosStuck = isOnline && (loadingPhotos || isFetchingPhotos);
   useChatStuckWatchdog(photosStuck, [photosQueryKey], "media-photos");
 
-  // Eagerly prefetch the next page once the first page is in so the user
-  // doesn't see a loading shimmer when they reach the end of the first batch.
-  useEffect(() => {
-    if (photosSuccess && hasNextPage && !isFetchingNextPage) {
-      const t = setTimeout(() => fetchNextPage(), 0);
-      return () => clearTimeout(t);
-    }
-  }, [photosSuccess, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  // Older pages are prefetched near the scroll position, not drained eagerly.
   const { data: highlightedPhoto, refetch: refetchHighlightedPhoto } = useQuery({
     queryKey: ["highlighted-photo", user?.id, highlightedPhotoId],
     queryFn: async () => {
@@ -885,7 +882,7 @@ function SupabaseMediaPage() {
           fetchNextPage();
         }
       },
-      { threshold: 0.1, rootMargin: "400px" }
+      { threshold: 0.1, rootMargin: "1000px" }
     );
 
     if (loadMoreRef.current) {
@@ -1756,11 +1753,7 @@ function SupabaseMediaPage() {
               can fire as soon as hasNextPage flips true (e.g. when server data
               arrives after initial cached photos render). */}
           {(hasNextPage || isFetchingNextPage || loadingPhotos || isShowingCachedData) && (
-            <div ref={loadMoreRef} className="flex min-h-8 justify-center py-2" aria-live="polite">
-              {isFetchingNextPage ? (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              ) : null}
-            </div>
+            <div ref={loadMoreRef} className="min-h-8 py-2" aria-hidden="true" />
           )}
           {!hasNextPage && !loadingPhotos && !isShowingCachedData && photos.length > 0 && (
             <p className="text-center text-muted-foreground text-sm py-4">No more photos</p>

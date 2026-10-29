@@ -1,9 +1,9 @@
+import { afterMembershipAcknowledgement } from "../roleGrantsMemo";
 import type { Principal } from "@icp-sdk/core/principal";
 import { connectLiveClubDomain } from "../domains";
 import { fetchMyRoleGrantsEverywhere } from "./myRoleGrants";
 import type { FeatureBackendContext } from "../featureRouter";
 import { candidOpt, unwrapCandid } from "./candid";
-import { registerLivePiiText } from "./vault";
 import { batched as batchedCall } from "./batching";
 
 /**
@@ -469,7 +469,7 @@ export async function getLiveParentInvite(ctx: FeatureBackendContext, token: str
 
 export async function acceptLiveParentInvite(ctx: FeatureBackendContext, token: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.accept_parent_invite(token), "Accept parent invite");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_parent_invite(token), "Accept parent invite"));
 }
 
 export async function liveClubWhoami(ctx: FeatureBackendContext) {
@@ -483,17 +483,17 @@ export async function liveClubWhoami(ctx: FeatureBackendContext) {
  */
 export async function softDeleteLiveTeam(ctx: FeatureBackendContext, teamId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.soft_delete_team(teamId), "Delete team");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.soft_delete_team(teamId), "Delete team"));
 }
 
 export async function restoreLiveTeam(ctx: FeatureBackendContext, teamId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.restore_team(teamId), "Restore team");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.restore_team(teamId), "Restore team"));
 }
 
 export async function deleteLiveTeamPermanent(ctx: FeatureBackendContext, teamId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.delete_team_permanent(teamId), "Permanently delete team");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.delete_team_permanent(teamId), "Permanently delete team"));
 }
 
 /**
@@ -506,7 +506,7 @@ export async function softDeleteLiveClub(
   cascadeTeams = true,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.soft_delete_club(clubId, cascadeTeams), "Delete club");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.soft_delete_club(clubId, cascadeTeams), "Delete club"));
 }
 
 export async function restoreLiveClub(
@@ -515,7 +515,7 @@ export async function restoreLiveClub(
   cascadeTeams = true,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.restore_club(clubId, cascadeTeams), "Restore club");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.restore_club(clubId, cascadeTeams), "Restore club"));
 }
 
 export async function listLiveMyRemovedClubs(ctx: FeatureBackendContext) {
@@ -525,7 +525,7 @@ export async function listLiveMyRemovedClubs(ctx: FeatureBackendContext) {
 
 export async function deleteLiveClubPermanent(ctx: FeatureBackendContext, clubId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.delete_club_permanent(clubId), "Permanently delete club");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.delete_club_permanent(clubId), "Permanently delete club"));
 }
 
 /**
@@ -615,6 +615,11 @@ export async function revokeLiveTeamInviteLink(ctx: FeatureBackendContext, linkI
 
 export async function getLiveTeamInviteLinkByToken(ctx: FeatureBackendContext, token: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  if (ctx.identity.getPrincipal().isAnonymous()) {
+    const row = await actor.get_team_invite_link_by_token(token);
+    if ("Err" in row) throw new Error(`Load team invite link failed: ${row.Err}`);
+    return row.Ok;
+  }
   return unwrapCandid(
     actor.get_team_invite_link_by_token(token),
     "Load team invite link",
@@ -648,20 +653,16 @@ export async function createLivePendingInvite(
       input.clubId,
       candidOpt(input.teamId),
       candidOpt(input.childId),
-      input.email,
+      "pii:email",
       candidOpt(input.role),
     ),
     "Create pending invite",
   );
-  // Register the invitee email on pii_access_control (pii_id = invite id,
-  // field_id = "email", owner = the inviting caller). Best effort — the
-  // invite itself already exists and must not fail on a PII write.
+  // Email is sent once by the club service and never stored anywhere; only a
+  // salted hash is kept so a duplicate invite to the same address is caught.
   const inviteId = (result as { invite?: { id?: string } } | undefined)?.invite?.id;
+  let emailDelivery: InviteEmailDelivery = "not_requested";
   if (inviteId && input.email) {
-    await registerLivePiiText(ctx, inviteId, "email", input.email);
-    // Also index the invite by a hash of its email + club id so a later
-    // create_pending_invite call can dedupe without ever reading a plaintext
-    // email back off the canister (see lib/inviteEmailDedupe.ts).
     try {
       const { hashInviteEmail } = await import("@/lib/inviteEmailDedupe");
       const hash = await hashInviteEmail(input.email, input.clubId);
@@ -669,13 +670,64 @@ export async function createLivePendingInvite(
     } catch (err) {
       console.warn("[createLivePendingInvite] email hash registration failed:", err);
     }
+    emailDelivery = await sendLiveInviteEmail(ctx, inviteId, input.email);
   }
-  return result;
+  return Object.assign(result as object, { emailDelivery }) as typeof result & { emailDelivery: InviteEmailDelivery };
+}
+
+export type InviteEmailDelivery = "not_requested" | "sent" | { failed: string };
+
+/** Hands the address to the club service for one Resend delivery; nothing is saved. */
+export async function sendLiveInviteEmail(ctx: FeatureBackendContext, inviteId: string, email: string): Promise<InviteEmailDelivery> {
+  try {
+    const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+    const reply = await actor.send_invite_email(inviteId, email.trim().toLowerCase());
+    return "Ok" in reply ? "sent" : { failed: reply.Err };
+  } catch (err) {
+    return { failed: err instanceof Error ? err.message : "Email could not be sent" };
+  }
 }
 
 export async function listLivePendingInvitesByClub(ctx: FeatureBackendContext, clubId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   return unwrapCandid(actor.list_pending_invites_by_club(clubId), "List pending invites");
+}
+
+export async function createLiveFamilyInvite(ctx: FeatureBackendContext, input: {
+  requestId: string; clubId: string; teamId: string;
+  children: { id: string; existing: boolean; name: string; yearOfBirth?: string; jerseyNumber?: string }[];
+  second: boolean; boundSecondary?: string | null; email: string; secondaryEmail?: string;
+}) {
+  const { registerLivePii, grantLivePiiReadClub } = await import("./vault");
+  // Strict: no invitation is issued when a supplied new child's encrypted name
+  // could not be saved. Stable IDs let the same operation retry without duplicates.
+  for (const child of input.children) {
+    if (!child.existing) {
+      if (!child.name.trim()) throw new Error("Child name required");
+      await registerLivePii(ctx, child.id, "name", new TextEncoder().encode(child.name), ctx.identity.getPrincipal(), { kind: "clubchildren", scope: input.clubId, club: input.clubId });
+      await grantLivePiiReadClub(ctx, child.id, "name", input.clubId);
+      for (const [field, value] of [["year_of_birth", child.yearOfBirth], ["jersey_number", child.jerseyNumber]]) {
+        if (value) {
+          await registerLivePii(ctx, child.id, field, new TextEncoder().encode(value), ctx.identity.getPrincipal(), { kind: "clubchildren", scope: input.clubId, club: input.clubId });
+          await grantLivePiiReadClub(ctx, child.id, field, input.clubId);
+        }
+      }
+    }
+  }
+  const { Principal } = await import("@icp-sdk/core/principal");
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  const result = await unwrapCandid(actor.create_family_invite(input.requestId, input.clubId, input.teamId,
+    input.children.map(c => ({ id: c.id, existing: c.existing })), input.second,
+    input.boundSecondary ? [Principal.fromText(input.boundSecondary.replace(/^principal:/, ""))] : []), "Create family invite");
+  const emailDelivery = input.email ? await sendLiveInviteEmail(ctx, result.invite.id, input.email) : "not_requested" as const;
+  const secondary = result.secondary[0];
+  const secondaryEmailDelivery = secondary && input.secondaryEmail ? await sendLiveInviteEmail(ctx, secondary.id, input.secondaryEmail) : "not_requested" as const;
+  return { ...result, emailDelivery, secondaryEmailDelivery };
+}
+
+export async function readLiveFamilyInviteReceipt(ctx: FeatureBackendContext, id: string) {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.read_family_invite_receipt(id), "Read accepted invitation receipt");
 }
 
 export async function resendLivePendingInvite(ctx: FeatureBackendContext, inviteId: string) {
@@ -741,7 +793,7 @@ export async function linkLiveGuardian(
   guardian: Parameters<ClubDomainActor["link_guardian"]>[1],
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.link_guardian(childId, guardian), "Link guardian");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.link_guardian(childId, guardian), "Link guardian"));
 }
 
 export async function unlinkLiveGuardian(
@@ -750,7 +802,7 @@ export async function unlinkLiveGuardian(
   guardian: Parameters<ClubDomainActor["unlink_guardian"]>[1],
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.unlink_guardian(childId, guardian), "Unlink guardian");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.unlink_guardian(childId, guardian), "Unlink guardian"));
 }
 
 /**
@@ -783,10 +835,10 @@ export async function adminLinkLiveChildToParent(
   parent: Parameters<ClubDomainActor["admin_link_child_to_parent"]>[1],
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return afterMembershipAcknowledgement(unwrapCandid(
     actor.admin_link_child_to_parent(childId, parent),
     "Link child to parent",
-  );
+  ));
 }
 
 export async function createLiveChildForParentOnTeam(
@@ -796,10 +848,10 @@ export async function createLiveChildForParentOnTeam(
   parent: Parameters<ClubDomainActor["create_child_for_parent_on_team"]>[2],
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return afterMembershipAcknowledgement(unwrapCandid(
     actor.create_child_for_parent_on_team(clubId, teamId, parent),
     "Create child for parent",
-  );
+  ));
 }
 
 /**
@@ -813,10 +865,10 @@ export async function moveLiveMemberToTeam(
   toTeamId: string,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return afterMembershipAcknowledgement(unwrapCandid(
     actor.move_member_to_team(clubId, member, candidOpt(fromTeamId), toTeamId),
     "Move member to team",
-  );
+  ));
 }
 
 export async function moveLiveChildToTeam(
@@ -826,10 +878,10 @@ export async function moveLiveChildToTeam(
   toTeamId: string,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return afterMembershipAcknowledgement(unwrapCandid(
     actor.move_child_to_team(childId, candidOpt(fromTeamId), toTeamId),
     "Move child to team",
-  );
+  ));
 }
 
 export async function bulkAddLiveTeamMembers(
@@ -840,10 +892,10 @@ export async function bulkAddLiveTeamMembers(
   members: Parameters<ClubDomainActor["bulk_add_team_members"]>[3],
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return afterMembershipAcknowledgement(unwrapCandid(
     actor.bulk_add_team_members(clubId, teamId, role, members),
     "Bulk add team members",
-  );
+  ));
 }
 
 /**
@@ -1000,10 +1052,10 @@ export async function createLiveClub(
   homeCountry?: string | null,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  const created = await unwrapCandid(
+  const created = await afterMembershipAcknowledgement(unwrapCandid(
     actor.create_club(id, name, slug, candidOpt(description || null), candidOpt(sport || null)),
     "Create club",
-  );
+  ));
   // Record the club's home country (jurisdiction routing metadata, mirroring
   // Supabase clubs.home_country). Set-once for admins; the club already
   // exists if this fails, so log rather than fail the creation.
@@ -1045,10 +1097,10 @@ export async function requestLiveClubJoin(ctx: FeatureBackendContext, clubId: st
 
 export async function approveLiveClubJoinRequest(ctx: FeatureBackendContext, requestId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return afterMembershipAcknowledgement(unwrapCandid(
     actor.approve_club_join_request(requestId),
     "Approve club join request",
-  );
+  ));
 }
 
 export async function rejectLiveClubJoinRequest(ctx: FeatureBackendContext, requestId: string) {
@@ -1179,7 +1231,7 @@ export async function myLiveRoleGrants(ctx: FeatureBackendContext) {
 /** Auto-accept a pending email invite under the ICP backend (PendingInviteWelcomeDialog). */
 export async function acceptPendingLiveInvite(ctx: FeatureBackendContext, inviteId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  const accepted = await unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite");
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite"));
   syncAvatarClubGrantsBestEffort(ctx);
   return accepted;
 }
@@ -1201,7 +1253,7 @@ export async function getLivePendingInvite(ctx: FeatureBackendContext, inviteId:
 /** Redeem a shareable team-invite link token (grants the link's role, idempotent). */
 export async function acceptLiveTeamInviteLink(ctx: FeatureBackendContext, token: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  const accepted = await unwrapCandid(actor.accept_team_invite_link(token), "Accept team invite link");
+  const accepted = await afterMembershipAcknowledgement(unwrapCandid(actor.accept_team_invite_link(token), "Accept team invite link"));
   syncAvatarClubGrantsBestEffort(ctx);
   return accepted;
 }
@@ -1212,12 +1264,12 @@ export async function acceptLiveTeamInviteLink(ctx: FeatureBackendContext, token
 
 export async function removeLiveMember(ctx: FeatureBackendContext, clubId: string, user: Principal) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.remove_member(clubId, user), "Remove member");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.remove_member(clubId, user), "Remove member"));
 }
 
 export async function restoreLiveMember(ctx: FeatureBackendContext, clubId: string, user: Principal) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.restore_member(clubId, user), "Restore member");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.restore_member(clubId, user), "Restore member"));
 }
 
 export async function listLiveRemovedMembers(ctx: FeatureBackendContext, clubId: string) {
@@ -1276,10 +1328,10 @@ export async function createLiveChildForParentInClub(
   parent: Principal,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return afterMembershipAcknowledgement(unwrapCandid(
     actor.create_child_for_parent_in_club(clubId, parent),
     "Create child for parent in club",
-  );
+  ));
 }
 
 /**
@@ -1355,6 +1407,26 @@ export async function getLiveCurrentSeason(ctx: FeatureBackendContext, clubId: s
 export async function saveLiveSeason(ctx: FeatureBackendContext, season: LiveSeason) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
   return unwrapCandid(actor.save_season(season), "Save season");
+}
+
+export async function duplicateLiveClubSeason(ctx: FeatureBackendContext, operation: string, source: string, name: string, copyStaff: boolean) {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.duplicate_season_structure(operation, source, name, copyStaff), "Copy season structure");
+}
+
+export async function carryOverLiveSeasonPlayers(ctx: FeatureBackendContext, source: string, target: string, members: string[]) {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return Number(await unwrapCandid(actor.carry_over_season_players(source, target, members), "Carry season players"));
+}
+
+export async function readLiveSeasonTeams(ctx: FeatureBackendContext, seasonId: string) {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return unwrapCandid(actor.read_season_teams(seasonId), "Read season teams");
+}
+
+export async function assignReturningLiveSeasonPlayers(ctx: FeatureBackendContext, sourceId: string, targetId: string, placements: Array<{ member_id: string; team_id: string }>) {
+  const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
+  return Number(await unwrapCandid(actor.assign_returning_season_players(sourceId, targetId, placements), "Assign returning season players"));
 }
 
 // ---------------------------------------------------------------------------
@@ -1461,11 +1533,11 @@ export async function createMyLiveChild(ctx: FeatureBackendContext) {
 }
 export async function deleteMyLiveChild(ctx: FeatureBackendContext, childId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.delete_own_child(childId), "Remove child");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.delete_own_child(childId), "Remove child"));
 }
 export async function setMyLiveChildTeam(ctx: FeatureBackendContext, childId: string, teamId: string, assigned: boolean) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.set_own_child_team(childId, teamId, assigned), "Update child team");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.set_own_child_team(childId, teamId, assigned), "Update child team"));
 }
 export async function listLiveChildGuardians(ctx: FeatureBackendContext, childId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
@@ -1473,7 +1545,7 @@ export async function listLiveChildGuardians(ctx: FeatureBackendContext, childId
 }
 export async function setMyLiveChildGuardian(ctx: FeatureBackendContext, childId: string, user: Principal, linked: boolean) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.set_own_child_guardian(childId, user, linked), "Update guardian");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.set_own_child_guardian(childId, user, linked), "Update guardian"));
 }
 
 /** Competition / mini-league audience for a news post (null clears it). */

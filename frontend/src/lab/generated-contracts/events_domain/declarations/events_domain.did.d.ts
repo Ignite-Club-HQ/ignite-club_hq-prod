@@ -72,6 +72,10 @@ export interface CompetitionEventTarget {
   'team_id' : string,
   'club_id' : string,
 }
+export interface DetailedGamePlayerStat {
+  'stat' : GamePlayerStat,
+  'detail' : [] | [GamePlayerDetail],
+}
 export interface Duty {
   'account_id' : string,
   'duty' : string,
@@ -188,6 +192,11 @@ export interface EventView {
   'event_id' : string,
   'viewer' : Principal,
 }
+export interface GamePlayerDetail {
+  'position_seconds' : [] | [Array<[string, number]>],
+  'user_id' : [] | [string],
+  'child_id' : [] | [string],
+}
 export interface GamePlayerStat {
   'started_on_pitch' : boolean,
   'minutes_played' : number,
@@ -258,6 +267,26 @@ export interface HttpRequestResult {
   'status' : bigint,
   'body' : Uint8Array,
   'headers' : Array<HttpHeader>,
+}
+export interface Input {
+  'request_id' : string,
+  'title' : string,
+  'mini_league_id' : [] | [string],
+  'target_team_ids' : [] | [Array<string>],
+  'adults_only' : boolean,
+  'reminder_hours' : [] | [number],
+  'team_id' : [] | [string],
+  'description' : string,
+  'occurrences' : Array<{ 'starts_at_ms' : bigint, 'ends_at_ms' : bigint }>,
+  'address' : [] | [string],
+  'restricted_to_roles' : [] | [Array<string>],
+  'duties' : Array<{ 'account_id' : [] | [string], 'duty' : string }>,
+  'rsvp_audience' : [] | [string],
+  'club_id' : string,
+  'location' : [] | [string],
+  'event_type' : string,
+  'opponent' : [] | [string],
+  'duty_team_id' : [] | [string],
 }
 export interface LineupEntry {
   'member' : string,
@@ -410,6 +439,11 @@ export interface Main {
       [] | [string],
     ],
     { 'Ok' : EventGroup } |
+      { 'Err' : string }
+  >,
+  'create_event_with_setup' : ActorMethod<
+    [Input],
+    { 'Ok' : Result__1 } |
       { 'Err' : string }
   >,
   'create_open_duty' : ActorMethod<
@@ -675,6 +709,11 @@ export interface Main {
     { 'Ok' : [] | [LineupSnapshot] } |
       { 'Err' : string }
   >,
+  'get_match_event_ids' : ActorMethod<
+    [string],
+    { 'Ok' : Array<{ 'team_id' : string, 'event_id' : string }> } |
+      { 'Err' : string }
+  >,
   'get_pitch_board_settings' : ActorMethod<
     [string],
     { 'Ok' : [] | [PitchBoardSettings] } |
@@ -712,6 +751,7 @@ export interface Main {
       { 'Err' : string }
   >,
   'get_rsvp_created_at' : ActorMethod<[string, string], [] | [bigint]>,
+  'get_schedule_view' : ActorMethod<[], [] | [string]>,
   'get_training_default' : ActorMethod<
     [string, string, [] | [string]],
     { 'Ok' : [] | [string] } |
@@ -893,6 +933,11 @@ export interface Main {
     { 'Ok' : Array<EventAttendance> } |
       { 'Err' : string }
   >,
+  'materialize_competition_fixture' : ActorMethod<
+    [MatchEventInput, bigint],
+    { 'Ok' : Array<string> } |
+      { 'Err' : string }
+  >,
   'memory_stats' : ActorMethod<
     [],
     { 'memory_bytes' : bigint, 'stable_bytes' : bigint, 'heap_bytes' : bigint }
@@ -919,6 +964,21 @@ export interface Main {
   >,
   'my_children' : ActorMethod<[], Array<Child>>,
   'my_rsvps' : ActorMethod<[], Array<Rsvp>>,
+  'notify_duty_completion' : ActorMethod<
+    [string, string],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'notify_event_audience' : ActorMethod<
+    [string, string],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'notify_group_pitch' : ActorMethod<
+    [string, string, string, string],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
   'playhqTransform' : ActorMethod<
     [{ 'context' : Uint8Array, 'response' : HttpRequestResult }],
     HttpRequestResult
@@ -1237,6 +1297,21 @@ export interface Main {
     { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
+  'read_competition_events' : ActorMethod<
+    [string],
+    { 'Ok' : Array<Event> } |
+      { 'Err' : string }
+  >,
+  'read_detailed_game_player_stats' : ActorMethod<
+    [string],
+    { 'Ok' : Array<DetailedGamePlayerStat> } |
+      { 'Err' : string }
+  >,
+  'read_event_cancellation_audience' : ActorMethod<
+    [string],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
   /**
    * / Location-only lookup for group routing: which club owns this event, if
    * / it lives in this canister. Viewers only; returns null when not held here.
@@ -1251,7 +1326,35 @@ export interface Main {
     { 'Ok' : [] | [string] } |
       { 'Err' : string }
   >,
+  'read_event_honours' : ActorMethod<
+    [string],
+    {
+        'Ok' : {
+          'goalkeepers' : Array<MatchGoalkeeperAssignment>,
+          'captains' : Array<MatchCaptainAssignment>,
+        }
+      } |
+      { 'Err' : string }
+  >,
+  'read_fixture_materialization' : ActorMethod<
+    [string],
+    {
+        'Ok' : [] | [
+          {
+            'event_ids' : Array<string>,
+            'input' : MatchEventInput,
+            'revision' : bigint,
+          }
+        ]
+      } |
+      { 'Err' : string }
+  >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
+  'read_shared_board' : ActorMethod<
+    [string, string],
+    { 'Ok' : [] | [ActiveGame] } |
+      { 'Err' : string }
+  >,
   'record_event_view' : ActorMethod<
     [string],
     { 'Ok' : null } |
@@ -1331,6 +1434,11 @@ export interface Main {
    * / App admins: run the photo-prompt sweep now (also runs every 15 min).
    */
   'run_photo_prompts' : ActorMethod<[], { 'Ok' : bigint } | { 'Err' : string }>,
+  'save_detailed_game_player_stats' : ActorMethod<
+    [string, string, Array<GamePlayerStatInput>, Array<GamePlayerDetail>],
+    { 'Ok' : Array<GamePlayerStat> } |
+      { 'Err' : string }
+  >,
   'save_game_player_stats' : ActorMethod<
     [string, string, Array<GamePlayerStatInput>],
     { 'Ok' : Array<GamePlayerStat> } |
@@ -1406,6 +1514,11 @@ export interface Main {
   >,
   'send_event_reminders' : ActorMethod<
     [string],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'send_individual_event_reminder' : ActorMethod<
+    [string, [] | [string], [] | [string]],
     { 'Ok' : number } |
       { 'Err' : string }
   >,
@@ -1545,6 +1658,11 @@ export interface Main {
     { 'Ok' : Rsvp } |
       { 'Err' : string }
   >,
+  'set_schedule_view' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'set_series_cancelled' : ActorMethod<
     [string, boolean, bigint],
     { 'Ok' : number } |
@@ -1578,6 +1696,11 @@ export interface Main {
   'sync_group_state' : ActorMethod<
     [string, bigint, [] | [string], [] | [string]],
     { 'Ok' : EventGroup } |
+      { 'Err' : string }
+  >,
+  'sync_shared_board' : ActorMethod<
+    [string, string, [] | [bigint], string, string],
+    { 'Ok' : ActiveGame } |
       { 'Err' : string }
   >,
   'transfer_governorship' : ActorMethod<
@@ -1783,6 +1906,11 @@ export interface Request {
   'generation' : bigint,
 }
 export interface Result { 'hasMore' : boolean, 'rows' : Array<Row> }
+export interface Result__1 {
+  'event_ids' : Array<string>,
+  'series_id' : [] | [string],
+  'first_event_id' : string,
+}
 export interface RoleGrant {
   'role' : string,
   'user' : Principal,

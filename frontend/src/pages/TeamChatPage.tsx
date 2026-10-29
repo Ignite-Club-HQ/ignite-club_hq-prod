@@ -1,5 +1,17 @@
+import { prefetchMessagePolls } from "@/lib/pollReadRepository";
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect, Suspense } from "react";
 import { confirmPendingSend } from "@/lib/pendingSendKeeper";
+import { applyConfirmedInboxPreview } from "@/features/messaging/inbox/confirmedInboxPreview";
+import {
+  applyPendingInboxPreview,
+  discardPendingInboxPreview,
+  settlePendingInboxPreview,
+} from "@/features/messaging/inbox/pendingInboxPreview";
+import { recordOwnSentConversation } from "@/features/messaging/inbox/ownSendBump";
+import { chatSendFailureReason } from "@/lib/chatSendFailure";
+import { withReadDeadline } from "@/live/readDeadline";
+import { readIcpThreadPage } from "@/features/messaging/thread/icpThreadRead";
+import { fetchIcpTeamLatestPage, mapLiveTeamRows as mapLiveTeamRowsShared, teamThreadScope } from "@/features/messaging/thread/icpTeamThreadPage";
 import { resolveChatUploadUrl } from "@/lib/pendingChatUploads";
 import { isSameDay } from "date-fns";
 import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
@@ -19,6 +31,7 @@ import { useSyncActiveClubToChat } from "@/hooks/useSyncActiveClubToChat";
 import { useTeamChatAdminStatus } from "@/features/messaging/thread/useTeamChatAdminStatus";
 import { useTeamChatTeamData } from "@/features/messaging/thread/useTeamChatTeamData";
 import { getCachedTeam } from "@/lib/clubTeamCache";
+import { getChatThreadLabel } from "@/lib/chatThreadLabelCache";
 import { useChatViewportHeight } from "@/hooks/useChatViewportHeight";
 import { useMeasuredElementHeight } from "@/hooks/useMeasuredElementHeight";
 import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
@@ -30,6 +43,7 @@ import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { buildNewsShareToken } from "@/features/news/newsShareToken";
 import { ChatBackButton } from "@/components/chat/ChatBackButton";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { SecureAvatar } from "@/components/SecureAvatar";
@@ -46,6 +60,7 @@ import {
 } from "@/hooks/useClubRealtimeMode";
 import { ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
+import { useChatSearchResultJump } from "@/hooks/useChatSearchResultJump";
 import { createChatHistorySearchFetcher } from "@/features/messaging/thread/chatHistorySearchFetcher";
 import { TEAM_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import { fetchMessagesAround } from "@/lib/fetchMessagesAround";
@@ -94,9 +109,12 @@ import { useMarkVisibleChatMessagesRead } from "@/hooks/useMarkVisibleChatMessag
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { fetchProfilesWithCache, fetchSingleProfileWithCache, getProfilesFromCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
+import { usePrivateChatProfiles } from "@/hooks/usePrivateChatProfiles";
+import { useChatProfileWorkset } from "@/hooks/useChatProfileWorkset";
+import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { queueMessage } from "@/lib/messageQueue";
-import { getCachedMessages, cacheMessages, shouldRefetchMessages } from "@/lib/messageCache";
+import { getCachedMessages, cacheMessages, shouldRefetchMessages, isCachedThreadComplete } from "@/lib/messageCache";
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
 import {
   recordRealtimeMutation,
@@ -121,7 +139,7 @@ import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
-import { ensureLiveClubConversations, listLiveLatestMessagesPage, listLiveReactions, sendLiveMessage, updateLiveMessage } from "@/live/features/messaging";
+import { ensureLiveClubConversations, isLiveConversationAbsent, listLiveLatestMessagesPage, listLiveReactions, sendLiveClubScopedMessage, updateLiveMessage } from "@/live/features/messaging";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { recordLiveMessageSent } from "@/live/features/insights";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
@@ -321,38 +339,32 @@ export default function TeamChatPage() {
   // user sees surrounding context. We first fetch a window of messages around
   // the match so the rows immediately before/after are present in the loaded
   // set (search alone merges only the matched row, leaving a gap).
-  const handleSearchResultClick = async (mid: string) => {
-    const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
-    setHighlightQuery(searchQuery);
-    setSearchQuery("");
-    setSearchOpen(false);
-    if (target?.created_at && teamId) {
-      if (useIcpLab || resolveAuthBackend() === "icp") {
-        requestAnimationFrame(() => handleJumpToMessage(mid));
-        return;
-      }
-      try {
-        const ctx = await fetchMessagesAround({
+  const handleSearchResultClick = useChatSearchResultJump<Message>({
+    scopeKey: `team:${user?.id}:${teamId}`,
+    getMessages: () => localMessagesRef.current ?? [],
+    closeSearch: () => {
+      setHighlightQuery(searchQuery);
+      setSearchQuery("");
+      setSearchOpen(false);
+    },
+    jump: handleJumpToMessage,
+    loadContext: async (target) => {
+      if (!target.created_at || !teamId || useIcpLab || resolveAuthBackend() === "icp") return [];
+      return fetchMessagesAround({
           table: "team_messages",
           scope: { team_id: teamId },
           createdAt: target.created_at,
           selectColumns:
             "id, text, image_url, created_at, edited_at, author_id, team_id, reply_to_id, is_club_announcement, club_announcement_name, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
           hasAnnouncements: true,
-        });
-        if (ctx.length) {
-          setLocalMessages((prev) => {
-            const existing = new Set((prev || []).map((m) => m.id));
-            const adds = ctx.filter((m) => !existing.has(m.id));
-            return adds.length ? [...(prev || []), ...adds] : prev;
-          });
-        }
-      } catch {
-        // best-effort; fall through to jump
-      }
-    }
-    requestAnimationFrame(() => handleJumpToMessage(mid));
-  };
+      });
+    },
+    mergeContext: (rows) => setLocalMessages((prev) => {
+      const existing = new Set((prev ?? []).map((m) => m.id));
+      const adds = rows.filter((m) => !existing.has(m.id));
+      return adds.length ? [...(prev ?? []), ...adds] : prev;
+    }),
+  });
 
   const {
     team,
@@ -513,68 +525,13 @@ export default function TeamChatPage() {
 
   // Canister rows → the app's team-message shape. Shared by the first page
   // load and by scroll-back paging so both render identically.
-  const mapLiveTeamRows = async (ctx: any, rows: any[]): Promise<Message[]> => {
-    const authorIds = [...new Set(rows.map((m: any) => m.sender.toText() as string))];
-    const profilesMap = await fetchProfilesWithCache(authorIds);
-    // Reactions persist on the canister; restore them on every refetch.
-    // Tolerate older canisters that lack list_reactions.
-    const reactionsByMessage = new Map<string, any[]>();
-    try {
-      const liveReactions = await listLiveReactions(ctx, teamId!);
-      for (const r of liveReactions) {
-        const uid = r.user.toText();
-        const list = reactionsByMessage.get(r.message_id) ?? [];
-        list.push({
-          id: `${r.message_id}:${uid}:${r.emoji}`,
-          user_id: uid,
-          reaction_type: r.emoji,
-          team_message_id: r.message_id,
-        });
-        reactionsByMessage.set(r.message_id, list);
-      }
-    } catch { /* canister without list_reactions — reactions stay empty until redeploy */ }
-    // Replies persist on the canister as reply_to_id; resolve the quoted
-    // snippet from messages in the same page (reply targets outside the
-    // loaded page render without a quote, same as a deleted target).
-    const rawById = new Map<string, any>(rows.map((m: any) => [m.id, m]));
-    return rows
-      .slice()
-      .sort((a: any, b: any) => Number(b.sequence - a.sequence))
-      .map((m: any) => {
-        const profile = profilesMap.get(m.sender.toText());
-        const attachment = m.attachment?.[0];
-        const replyToId: string | null = m.reply_to_id?.[0] ?? null;
-        const replyTarget = replyToId ? rawById.get(replyToId) : null;
-        const replyProfile = replyTarget ? profilesMap.get(replyTarget.sender.toText()) : null;
-        return {
-          id: m.id,
-          text: m.body,
-          image_url: attachment?.kind === "image" ? (attachment.url?.[0] ?? attachment.ref_id ?? null) : null,
-          created_at: new Date(Number(m.created_at_ms)).toISOString(),
-          edited_at: m.edited_at_ms?.[0] ? new Date(Number(m.edited_at_ms[0])).toISOString() : null,
-          author_id: m.sender.toText(),
-          team_id: teamId,
-          reply_to_id: replyToId,
-          deleted_at: null,
-          is_club_announcement: false,
-          club_announcement_name: null,
-          is_system_message: false,
-          forwarded_from_user_id: null,
-          forwarded_at: null,
-          forwarded_source_label: null,
-          profiles: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
-          reactions: reactionsByMessage.get(m.id) ?? [],
-          reply_to: replyTarget
-            ? { text: replyTarget.body, profiles: { display_name: replyProfile?.display_name ?? null } }
-            : null,
-        };
-      }) as unknown as Message[];
-  };
+  const mapLiveTeamRows = async (ctx: any, rows: any[]): Promise<Message[]> =>
+    (await mapLiveTeamRowsShared(ctx, teamId!, rows)) as unknown as Message[];
 
   const { data: messagesData, isLoading: loadingMessages, isFetching } = useQuery({
 
     queryKey: ["team-messages", teamId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       markChatFetch();
       if (useIcpLab && teamId && user?.id) {
         return {
@@ -588,29 +545,9 @@ export default function TeamChatPage() {
       // canister (deterministic ids; club_domain provisions via
       // ensure_club_conversations). Forwarded metadata is Supabase-only.
       if (isFeatureRoutedToIcp("messaging") && teamId && user?.id) {
-        return await withFeatureBackend("messaging", {
-          supabase: async () => { throw new Error("unreachable: messaging routed to ICP"); },
-          icp: async (ctx) => {
-            if (team?.club_id) {
-              try { await ensureLiveClubConversations(ctx, team.club_id); } catch { /* best-effort self-heal */ }
-            }
-            // Newest-first page: the canister returns the newest MESSAGES_PER_PAGE
-            // rows plus a backward cursor when older history remains.
-            const page = await listLiveLatestMessagesPage(ctx, teamId, null, MESSAGES_PER_PAGE);
-            const messages = await mapLiveTeamRows(ctx, page.messages);
-            const olderCursor =
-              Array.isArray(page.next_sequence) && page.next_sequence.length > 0
-                ? Number(page.next_sequence[0])
-                : null;
-            icpOlderCursorRef.current = olderCursor;
-            return {
-              messages,
-              hasOlderMessages: olderCursor !== null,
-              fromCache: false,
-            };
-
-          },
-        }, { teamId: teamId });
+        const page = await fetchIcpTeamLatestPage(queryClient, user.id, teamId, team?.club_id, signal);
+        icpOlderCursorRef.current = page.icpOlderCursor;
+        return { ...page, messages: page.messages as unknown as Message[] };
       }
 
       // If offline, return cached messages using the React Query online manager
@@ -653,6 +590,7 @@ export default function TeamChatPage() {
       }
 
       const { items: messagesToDisplay, hasMore } = splitPageWindow(rawMessages, MESSAGES_PER_PAGE);
+      if (user?.id && teamId) prefetchMessagePolls(queryClient, messagesToDisplay, user.id, { teamId }, false);
 
       // Fetch reactions and reply_to data in parallel (profiles fetched separately for faster initial render)
       const messageIds = messagesToDisplay.map((m) => m.id);
@@ -814,6 +752,7 @@ export default function TeamChatPage() {
         hasPrevious: prevBelongsToThisTeam,
         cachedMessageCount: cachedMessages.length,
         openedFromNotification: !!openedFromNotificationRef.current,
+        cachedComplete: isCachedThreadComplete("team", teamId),
       });
       if (source === "previous") return prev;
       if (source === "cache") {
@@ -851,8 +790,10 @@ export default function TeamChatPage() {
   const [localMessages, setLocalMessages] = useState<Message[] | undefined>(() => {
     if (!teamId) return undefined;
     const cached = getCachedTeamMessages(teamId);
-    return cached.length >= 2 ? cached : undefined;
+    return cached.length >= 2 || isCachedThreadComplete("team", teamId) ? cached : undefined;
   });
+  // A saved copy from a real read (even an empty chat) paints straight away.
+  const [savedThreadComplete] = useState(() => !!teamId && isCachedThreadComplete("team", teamId));
   const [infiniteScrollEnabled, setInfiniteScrollEnabled] = useState(false);
   // Realtime reactions must reach BOTH stores (query cache + localMessages).
   const reactionQueryKey = useMemo(() => ["team-messages", teamId], [teamId]);
@@ -863,7 +804,7 @@ export default function TeamChatPage() {
     queryKey: reactionQueryKey,
     setLocalMessages,
   });
-  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2;
+  const hasMeaningfulLocal = (localMessages?.length ?? 0) >= 2 || (savedThreadComplete && localMessages !== undefined);
   const showLoadingRaw =
     (!authReady && !hasMeaningfulLocal) ||
     (loadingMessages && !messagesData && !hasMeaningfulLocal);
@@ -921,9 +862,13 @@ export default function TeamChatPage() {
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
-    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
+    return [...new Set((localMessages || []).flatMap(m => [m.author_id, ...(m.reactions ?? []).map(r => r.user_id)]).filter(Boolean))];
   }, [localMessages]);
-  const { getProfile } = useProfiles(authorIds);
+  const privateChatNames = privateClubNameDisplaysEnabled() && isFeatureRoutedToIcp("messaging");
+  const { getProfile: getLegacyProfile } = useProfiles(privateChatNames ? [] : authorIds);
+  const privateWorkset = useChatProfileWorkset(localMessages ?? [], teamId, user?.id);
+  const getPrivateProfile = usePrivateChatProfiles(teamId, user?.id, privateWorkset.ids, privateChatNames);
+  const getProfile = privateChatNames ? getPrivateProfile : getLegacyProfile;
   
   // Reset per-thread scroll/message state when teamId changes so the initial
   // bottom-pin runs against the new chat, not stale messages from the last team.
@@ -1116,6 +1061,7 @@ export default function TeamChatPage() {
 
   // Always ensure profiles are loaded for messages with missing profile data
   useEffect(() => {
+    if (privateChatNames) return;
     if (!localMessages?.length) return;
     
     // Find messages with missing profile data
@@ -1144,7 +1090,7 @@ export default function TeamChatPage() {
         return updated ? newMessages : prev;
       });
     });
-  }, [localMessages]);
+  }, [localMessages, privateChatNames]);
 
   // Update hasOlderMessages from fetched data
   useEffect(() => {
@@ -1181,7 +1127,7 @@ export default function TeamChatPage() {
     // newest rows older than the cursor plus the next cursor (null = start of
     // the chat).
     if (isFeatureRoutedToIcp("messaging")) {
-      const cursor = icpOlderCursorRef.current;
+      const cursor = icpOlderCursorRef.current ?? (messagesData as { icpOlderCursor?: number | null } | undefined)?.icpOlderCursor ?? null;
       if (cursor == null) {
         setHasOlderMessages(false);
         return;
@@ -1199,7 +1145,7 @@ export default function TeamChatPage() {
                 : null;
             return { older, nextCursor };
           },
-        }, { teamId: teamId! });
+        }, teamThreadScope(teamId!, team?.club_id));
         icpOlderCursorRef.current = result.nextCursor;
         setHasOlderMessages(result.nextCursor !== null);
         const mergeOlder = (existing: Message[] | undefined): Message[] => {
@@ -1338,7 +1284,7 @@ export default function TeamChatPage() {
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, useIcpLab]);
+  }, [teamId, queryClient, isLoadingOlder, hasOlderMessages, queueAnchoredPrepend, useIcpLab, messagesData, team?.club_id]);
 
   // Keep the loader ref in sync for the anchor hook to call.
   useEffect(() => {
@@ -1691,6 +1637,7 @@ export default function TeamChatPage() {
         return queuedSend();
       }
       
+      const sendKey = crypto.randomUUID();
       const confirmedMessage = await withFeatureBackend("messaging", {
         supabase: async () => {
           const { data, error } = await supabase.from("team_messages").insert({
@@ -1706,28 +1653,26 @@ export default function TeamChatPage() {
         icp: async (ctx) => {
           // Team id doubles as the conversation id (deterministic on the
           // messaging canister).
-          if (team?.club_id) {
-            try { await ensureLiveClubConversations(ctx, team.club_id); } catch { /* best-effort self-heal */ }
-          }
           const attachment = image_url
             ? { kind: "image", refId: image_url, url: image_url }
             : (() => {
                 const poll = /\[poll:([^\]]+)\]/.exec(text);
                 if (poll) return { kind: "poll", refId: poll[1], url: null };
-                const news = /\[news:([^\]]+)\]/.exec(text);
+                const news = /\[news:(?:[0-9a-fA-F-]{36}:)?([^\]]+)\]/.exec(text);
                 if (news) return { kind: "news", refId: news[1], url: null };
                 return null;
               })();
-          const saved = await sendLiveMessage(ctx, teamId!, text, `${teamId}:${user!.id}:${Date.now()}`, attachment, reply_to_id);
+          const saved = await sendLiveClubScopedMessage(ctx, team?.club_id, teamId ?? '', text, sendKey, attachment, reply_to_id);
           void recordLiveMessageSent(ctx, teamId!, user!.id).catch(() => { /* best-effort engagement counter */ });
           return { id: saved.id, text: saved.body, image_url, created_at: new Date(Number(saved.created_at_ms)).toISOString() };},
-      }, { teamId: teamId! });
+      }, { teamId: teamId ?? '', writeKey: sendKey, attempts: 1 });
       return deliveredSend(confirmedMessage ?? undefined);
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
 
-      await queryClient.cancelQueries({ queryKey: ["team-messages", teamId] });
+      // Do not defer composer clearing until a cancelled read settles.
+      void queryClient.cancelQueries({ queryKey: ["team-messages", teamId] });
 
       // Mutation-specific temp id so overlapping sends can be rolled back
       // independently (Date.now() alone collides on rapid double-sends).
@@ -1735,6 +1680,10 @@ export default function TeamChatPage() {
       const sentAtMs = Date.now();
       const previousReplyingTo = replyingTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
+
+      // Inbox preview + row float show the message while it is still sending.
+      applyPendingInboxPreview(queryClient, "team", user?.id, teamId, { text, image_url: image_url ?? null });
+      if (teamId) recordOwnSentConversation(`team-${teamId}`);
 
 
       const optimisticMessage: Message = {
@@ -1797,6 +1746,9 @@ export default function TeamChatPage() {
       // If offline, don't revert - message is queued
       if (!navigator.onLine) return;
 
+      // The send left the pending preview state either way from here on.
+      settlePendingInboxPreview(queryClient, "team", user?.id, teamId);
+
       // If the insert actually landed and arrived via realtime, treat it as a
       // success: no failure toast and no draft restoration.
       const current = queryClient.getQueryData<{ messages: Message[] }>(["team-messages", teamId]);
@@ -1818,6 +1770,7 @@ export default function TeamChatPage() {
         });
         setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== tempId) : prev));
       }
+      discardPendingInboxPreview(queryClient, "team", user?.id, teamId);
 
       // Restore each composer field only when its slot is still empty.
       restoreFailedSendComposer({
@@ -1829,10 +1782,15 @@ export default function TeamChatPage() {
       });
 
       console.error("Failed to send team message", err);
-      toast.error("Failed to send message");
+      toast.error("Failed to send message", { description: chatSendFailureReason(err) });
     },
 
     onSuccess: (result, variables, context) => {
+      settlePendingInboxPreview(queryClient, "team", user?.id, teamId);
+      if (result?.confirmedMessage) {
+        applyConfirmedInboxPreview(queryClient, "team", user?.id, teamId, result.confirmedMessage);
+        if (teamId) recordOwnSentConversation(`team-${teamId}`);
+      }
       if (result?.confirmedMessage && context?.tempId) {
         confirmPendingSend(queryClient, ["team-messages", teamId], context.tempId, result.confirmedMessage);
         setLocalMessages((prev) => prev?.filter((row) => row.id !== context.tempId));
@@ -1910,7 +1868,8 @@ export default function TeamChatPage() {
       ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
       : baseText;
     if (pendingNewsId) {
-      finalText = finalText ? `${finalText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`;
+      const newsToken = buildNewsShareToken(queryClient, pendingNewsId);
+      finalText = finalText ? `${finalText} ${newsToken}` : newsToken;
     }
     const hadImage = !!imageUrl;
     sendMessageMutation.mutate({ text: finalText, image_url: imageUrl, reply_to_id: replyingTo?.id || null });
@@ -1934,9 +1893,13 @@ export default function TeamChatPage() {
     teamId: teamId ?? null,
     clubId: team?.club_id ?? null,
   });
-  const { withinMatchWindow: galleryWindowOpen } = useRecentMatchWindow({
+  const { withinMatchWindow: recentMatchWindow } = useRecentMatchWindow({
     teamId: teamId ?? null,
   });
+  // Arriving from the "add it to the team gallery" reminder always offers the
+  // action on your own photos, even outside the post-match window.
+  const [fromGalleryReminder] = useState(() => searchParams.get("gallery") === "1");
+  const galleryWindowOpen = recentMatchWindow || fromGalleryReminder;
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);
@@ -2042,7 +2005,15 @@ export default function TeamChatPage() {
   if (teamMetadataState === "loading") {
     // Show the saved team name while the live metadata fetch resolves; if even the
     // device cache is cold, render a neutral skeleton block instead of a generic label.
-    return <ChatPageSkeleton title={teamId ? getCachedTeam(teamId)?.name || undefined : undefined} />;
+    return (
+      <ChatPageSkeleton
+        title={
+          (teamId ? getCachedTeam(teamId)?.name || undefined : undefined) ||
+          getChatThreadLabel(user?.id, "team", teamId)?.title
+        }
+        avatarType="team"
+      />
+    );
   }
 
   if (teamMetadataState === "unreachable") {
@@ -2156,7 +2127,7 @@ export default function TeamChatPage() {
               <Skeleton key={i} className="h-16 w-3/4" />
             ))}
           </div>
-        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
+        ) : (!!searchQuery.trim() && !filteredMessages?.length && (isSearchFetching || !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState
@@ -2177,6 +2148,8 @@ export default function TeamChatPage() {
             composerHeight={composerHeight}
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
+            onVisibleMessageIds={privateChatNames ? privateWorkset.onVisibleMessageIds : undefined}
+            privateProfileRevision={privateChatNames ? getPrivateProfile : undefined}
             initialBottomPinned={!targetMessageId}
             initialTargetMessageId={targetMessageId}
             renderRow={(msg, index, arr) => {
@@ -2206,8 +2179,8 @@ export default function TeamChatPage() {
                       text={msg.text}
                       imageUrl={msg.image_url}
                       authorId={msg.author_id}
-                      authorName={msg.is_club_announcement ? (msg.club_announcement_name || "Club") : (getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || null)}
-                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null}
+                      authorName={msg.is_club_announcement ? (msg.club_announcement_name || "Club") : (getProfile(msg.author_id)?.display_name || (privateChatNames ? null : msg.profiles?.display_name) || null)}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || (privateChatNames ? null : msg.profiles?.avatar_url) || null}
                       timestamp={formatMessageDate(msg.created_at)}
                       isOwn={msg.is_club_announcement ? false : msg.author_id === user?.id}
                       isAdmin={isAdmin || false}
@@ -2217,7 +2190,9 @@ export default function TeamChatPage() {
                       queryKey={queryKeyMemo}
                       replyToMessage={
                         msg.reply_to
-                          ? { text: msg.reply_to.text, authorName: msg.reply_to.profiles?.display_name || null }
+                          ? { text: msg.reply_to.text, authorName: privateChatNames
+                            ? getProfile(localMessages?.find(row => row.id === msg.reply_to_id)?.author_id ?? "")?.display_name ?? null
+                            : msg.reply_to.profiles?.display_name || null }
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
@@ -2228,8 +2203,8 @@ export default function TeamChatPage() {
                         !msg.is_club_announcement && isAdmin && msg.author_id !== user?.id
                           ? () => handleMemberProfileTap(
                               msg.author_id,
-                              getProfile(msg.author_id)?.display_name || msg.profiles?.display_name || "Unknown User",
-                              getProfile(msg.author_id)?.avatar_url || msg.profiles?.avatar_url || null,
+                              getProfile(msg.author_id)?.display_name || (privateChatNames ? null : msg.profiles?.display_name) || "Unknown User",
+                              getProfile(msg.author_id)?.avatar_url || (privateChatNames ? null : msg.profiles?.avatar_url) || null,
                             )
                           : undefined
                       }

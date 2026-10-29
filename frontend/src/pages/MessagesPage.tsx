@@ -1,5 +1,7 @@
 import { useStickyList } from "@/hooks/useStickyList";
 import { useStableInboxReadModel } from "@/hooks/useStableInboxReadModel";
+import { useStableVisibleList } from "@/hooks/useStableVisibleList";
+import { useReadingPosition } from "@/hooks/useReadingPosition";
 import {
   conversationTypeAccentStyle,
   conversationTypeActiveStyle,
@@ -23,6 +25,8 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { WifiOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { getCachedMessagesPageData, cacheMessagesPageData } from "@/lib/messagesPageCache";
+import { rememberChatThreadLabels } from "@/lib/chatThreadLabelCache";
+import { privateProfileSearchRehearsalEnabled } from "@/live/privateProfileSearchMode";
 import { filterDeletedTeams } from "@/lib/deletedTeamTombstones";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { fetchUnreadMessageCounts } from "@/lib/unreadMessageCounts";
@@ -67,6 +71,7 @@ import {
   partitionInboxGroups,
 } from "@/features/messaging/inbox/inboxFilterPolicy";
 import {
+  bumpOwnSentRows,
   filterInboxConversations,
   normalizeInboxTypeFilter,
   partitionInboxByReadState,
@@ -74,8 +79,13 @@ import {
   type InboxConversation,
   type InboxPreviewMessage,
 } from "@/features/messaging/inbox/inboxReadModel";
+import {
+  peekOwnSentConversationKeys,
+  subscribeOwnSentConversations,
+} from "@/features/messaging/inbox/ownSendBump";
 import { mark as coldMark, snapshotStages } from "@/lib/coldStartMarks";
 import { resetInboxOpenLog } from "@/lib/inboxOpenLatency";
+import { shouldBlockInboxReveal } from "@/lib/inboxRevealPolicy";
 import { notificationKeys } from "@/lab/notificationQueryKeys";
 
 import { cacheProfiles, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
@@ -181,6 +191,7 @@ export default function MessagesPage() {
   // Effective club filter: use theme filter if active, otherwise use local filter
   const effectiveClubFilter = activeClubFilter || (localClubFilter !== "all" ? localClubFilter : null);
   const hasLocalFilter = !activeClubFilter && localClubFilter !== "all";
+  const readingPosition = useReadingPosition(useIcpLab, JSON.stringify([user?.id, effectiveClubFilter, searchQuery, typeFilter]));
 
   // Gate Chat Recap to the active club context so a free active club can't
   // borrow Pro access from another club the user belongs to.
@@ -474,6 +485,31 @@ export default function MessagesPage() {
     teamsWithMessages?.latestMessages,
   );
 
+  // ICP: load the newest page of the most recently active team chats in the
+  // background, so opening one shows its messages immediately.
+  const teamPrefetchIds = useMemo(() => {
+    if (!teams?.length) return "";
+    const latest = (teamsWithMessages?.latestMessages ?? {}) as Record<string, { created_at?: string } | undefined>;
+    return (teams as Array<{ id: string; club_id?: string | null }>)
+      .slice()
+      .sort((a, b) => String(latest[b.id]?.created_at ?? "").localeCompare(String(latest[a.id]?.created_at ?? "")))
+      .slice(0, 5)
+      .map((t) => `${t.id}|${t.club_id ?? ""}`)
+      .join(",");
+  }, [teams, teamsWithMessages?.latestMessages]);
+  useEffect(() => {
+    if (!teamPrefetchIds || !user?.id || !isFeatureRoutedToIcp("messaging")) return;
+    const userId = user.id;
+    const timer = window.setTimeout(() => {
+      void import("@/features/messaging/thread/icpTeamThreadPage").then(({ prefetchIcpTeamThreads }) =>
+        prefetchIcpTeamThreads(queryClient, userId, teamPrefetchIds.split(",").map((pair) => {
+          const [id, clubId] = pair.split("|");
+          return { id, clubId: clubId || null };
+        }))).catch(() => undefined);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [teamPrefetchIds, user?.id, queryClient]);
+
   const {
     isAppAdmin, isAppAdminFetching, adminClubs, adminTeamIds,
     isCommitteeMember, isCommitteeMemberFetching, userAllRoles, userAllRolesFetching,
@@ -606,6 +642,34 @@ export default function MessagesPage() {
     },
   });
 
+  // ICP: quietly preload the newest club chats, group chats and DMs (the
+  // slowest cold opens) so tapping one shows messages straight away.
+  const conversationWarmIds = useMemo(() => {
+    const at = (v: any) => String(v?.created_at ?? "");
+    const clubLatest = (memberClubsWithMessages?.latestMessages ?? {}) as Record<string, any>;
+    const groupLatest = (chatGroupsWithMessages?.latestMessages ?? {}) as Record<string, any>;
+    const pick = <T,>(rows: T[], when: (r: T) => string, n: number) => rows.slice().sort((a, b) => when(b).localeCompare(when(a))).slice(0, n);
+    const clubs = pick((memberClubsWithMessages?.clubs ?? []) as any[], (c) => at(clubLatest[c.id]), 3).map((c) => `club|${c.id}|`);
+    const groups = pick((chatGroupsWithMessages?.groups ?? []) as any[], (g) => at(groupLatest[g.id]), 4).map((g) => `group|${g.id}|${g.club_id ?? ""}`);
+    const dms = pick((dmConversations ?? []) as any[], (d) => at(d.last_message) || String(d.updated_at ?? ""), 4).map((d) => `dm|${d.id}|`);
+    // Interleave so each kind gets an early slot.
+    const out: string[] = [];
+    for (let i = 0; i < 4; i++) for (const list of [clubs, groups, dms]) if (list[i]) out.push(list[i]);
+    return out.join(",");
+  }, [memberClubsWithMessages, chatGroupsWithMessages, dmConversations]);
+  useEffect(() => {
+    if (!conversationWarmIds || !user?.id || !isFeatureRoutedToIcp("messaging")) return;
+    const userId = user.id;
+    const timer = window.setTimeout(() => {
+      void import("@/features/messaging/thread/icpConversationWarm").then(({ warmIcpConversations }) =>
+        warmIcpConversations(queryClient, userId, conversationWarmIds.split(",").map((row) => {
+          const [kind, id, clubId] = row.split("|");
+          return { kind, id, clubId: clubId || null } as any;
+        }))).catch(() => undefined);
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [conversationWarmIds, user?.id, queryClient]);
+
   // Fetch hidden DM conversations (with hidden_at so they can resurface on new messages)
   const { data: hiddenDMMap } = useQuery({
     queryKey: ["hidden-dm-conversations", user?.id],
@@ -701,7 +765,7 @@ export default function MessagesPage() {
   // Prefetch is kept separate from inbox composition so native can suppress
   // speculative work without changing cached conversation/read-model state.
   useInboxThreadPrefetch({
-    enabled: !!user,
+    enabled: !!user && initialized && !useIcpLab,
     queryClient,
     client: supabase,
     teamIds: (teams ?? []).map((team) => team.id),
@@ -1435,19 +1499,15 @@ queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined)
   // had. The latch is now session-scoped per user, so warm re-entry paints from
   // cache immediately and patches in place.
   //
-  // STALE-ORDER FIX: the cached-data bypass must NOT also be applied to the
-  // session's *first* reveal. Cached rows carry stale `lastActivity` /
-  // `created_at` values, so releasing the gate merely because a cache exists
-  // painted an intermediate ordering that visibly re-sorted the moment the
-  // authoritative previews arrived (the Android reload/resume jolt). Online
-  // cold starts therefore wait for authoritative ordering, bounded by
-  // `sortGateExpired` (and `isLoadingFreshData` still consults the cache, so
-  // a cached inbox never waits on the *loading* half of the gate). Offline is
-  // excluded entirely by the leading `isOnline`, so the cached inbox is still
-  // revealed instantly with no network.
+  // ICP has slower remote reads: existing account-scoped rows reveal now,
+  // then refresh quietly. Supabase retains its first-order readiness gate.
   const initialRevealBlocked =
     isOnline &&
-    (isLoadingFreshData || !freshSortDataReady);
+    shouldBlockInboxReveal({
+      online: isOnline, icp: useIcpLab,
+      hasRows: !!hasCachedData || hasAnyDisplayData || !!dmConversations?.length,
+      loading: isLoadingFreshData, orderReady: freshSortDataReady,
+    });
 
 
   useEffect(() => {
@@ -1821,6 +1881,16 @@ queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined)
     },
   });
 
+  // The inbox already knows every thread's display name, so keep a small
+  // account-scoped copy of those labels: opening a thread then paints its real
+  // name in the header immediately instead of skeleton bars for the whole read.
+  // Labels only — preview text on the row is never stored here.
+  useEffect(() => {
+    const privateNames = privateProfileSearchRehearsalEnabled() && isFeatureRoutedToIcp("messaging");
+    if (privateNames) rememberChatThreadLabels(user?.id, unifiedConversations.filter(row => row.type !== 'dm'));
+    else rememberChatThreadLabels(user?.id, unifiedConversations);
+  }, [user?.id, unifiedConversations]);
+
   const { eventTitleMap, vaultFolderNameMap, vaultFileNameMap } =
     useInboxPreviewReferenceNames(unifiedConversations, supabase);
 
@@ -1830,10 +1900,46 @@ queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined)
     [unifiedConversations, typeFilter],
   );
 
-  const { unread: unreadItems, recent: recentItems } = useMemo(
+  const freshSections = useMemo(
     () => partitionInboxByReadState(typeFilteredConversations),
     [typeFilteredConversations],
   );
+  // Placement includes the section: fresh unread badges must not move a row
+  // from Recent to Unread while someone is reading further down the inbox.
+  const placedRows = useStableVisibleList([
+    ...freshSections.unread.map(item => ({ item, section: "unread" as const })),
+    ...freshSections.recent.map(item => ({ item, section: "recent" as const })),
+  ], {
+    enabled: useIcpLab,
+    scope: JSON.stringify([user?.id, effectiveClubFilter, query, typeFilter, showAllOps]),
+    key: row => row.item.key,
+    merge: (old, fresh) => ({ ...fresh, section: old.section }),
+  });
+
+  // After the user sends a message, that conversation floats to the top of
+  // its current section straight away — the stable list above deliberately
+  // freezes order during refreshes, and back-navigation keeps the same
+  // history entry, so without this the just-messaged chat stayed put until
+  // a full page return. Read/unread grouping is preserved: rows never cross
+  // sections, and the natural lastActivity order takes over once the inbox
+  // refetch lands.
+  const [ownSendBumps, setOwnSendBumps] = useState<readonly string[]>(() => peekOwnSentConversationKeys());
+  useEffect(
+    () => subscribeOwnSentConversations(() => setOwnSendBumps(peekOwnSentConversationKeys())),
+    [],
+  );
+  const orderedRows = useMemo(
+    () => bumpOwnSentRows(
+      {
+        unread: placedRows.filter(row => row.section === "unread"),
+        recent: placedRows.filter(row => row.section === "recent"),
+      },
+      ownSendBumps,
+    ),
+    [placedRows, ownSendBumps],
+  );
+  const unreadItems = orderedRows.filter(row => row.section === "unread").map(row => row.item);
+  const recentItems = orderedRows.filter(row => row.section === "recent").map(row => row.item);
 
   const { visibleRecent, hiddenOps } = useMemo(
     () => resolveOperationalConversationDisclosure(recentItems, {
@@ -1898,8 +2004,8 @@ queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined)
   const renderConversationCard = (item: UnifiedConversation) => {
     const typeLabel = typeLabels[item.type];
     return (
+      <div key={item.key} data-reading-row={item.key}>
       <ConversationRow
-        key={item.key}
         item={item}
         currentUserId={user?.id}
         typeLabel={typeLabel}
@@ -1911,11 +2017,12 @@ queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined)
         onHideDM={onHideDM}
         onHideGroup={onHideGroup}
       />
+      </div>
     );
   };
 
   return (
-    <div className="py-4 space-y-4">
+    <div ref={readingPosition} className="py-4 space-y-4">
 
       {!isOnline && (
         <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
@@ -1941,22 +2048,6 @@ queryClient.setQueryData(["dm-conversations", user.id], (old: any[] | undefined)
         onOpenNewMessage={() => setShowNewMessageSheet(true)}
         onNavigateToUpgrade={navigate}
       />
-
-      {(chatGroupsWithMessages as { setupErrors?: string[] } | undefined)?.setupErrors?.length ? (
-        <div className="mx-4 mt-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
-          <p className="font-medium text-foreground">Some club chats couldn't be set up.</p>
-          <p className="mt-1 break-words text-xs text-muted-foreground">
-            {(chatGroupsWithMessages as { setupErrors?: string[] }).setupErrors!.slice(0, 3).join(" · ")}
-          </p>
-          <button
-            type="button"
-            className="mt-2 text-xs font-medium text-primary underline"
-            onClick={() => queryClient.refetchQueries({ queryKey: ["my-chat-groups-with-messages", user?.id] })}
-          >
-            Try again
-          </button>
-        </div>
-      ) : null}
 
       <QueryErrorBanner
         // Only alarm the user when there is genuinely nothing to show. A

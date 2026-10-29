@@ -1,6 +1,7 @@
 import type { Principal } from "@icp-sdk/core/principal";
 import type { FeatureBackendContext } from "../featureRouter";
 import { connectLiveIdentityAccessClientWithIdentity } from "../identityAccess";
+import { privateProfileSearchRehearsalEnabled } from "../privateProfileSearchMode";
 
 /**
  * Identity feature ("membership") -> identity_access canister: batch
@@ -41,6 +42,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export async function listLiveProfilesByIds(
   ctx: FeatureBackendContext,
   ids: readonly string[],
+  privateOptions?: { audience?: import('../privateProfileAudience').PrivateProfileAudience; resolveAuthority?: import('../privateProfileAuthority').PrivateProfileAuthorityResolver; signal?: AbortSignal; hydratePrivateNames?: boolean; clubId?: string },
 ) {
   if (ids.length === 0) return [];
   const requestedByAccount = new Map<string, string[]>();
@@ -83,6 +85,36 @@ export async function listLiveProfilesByIds(
         // A new account may not have completed its profile yet.
       }
     }
+    if (out.some(profile => profile.display_name?.startsWith("pii-display-name:"))) {
+      // The caller's own name is already unlocked this session; show it
+      // everywhere instead of "Unknown".
+      const { fillOwnPrivateName } = await import("../ownPrivateName");
+      const filled = fillOwnPrivateName(out, caller);
+      if (privateOptions?.clubId && !privateOptions.audience) {
+        // Other people's protected names unlock through the shared club.
+        const pending = filled.filter(p => p.display_name?.startsWith('pii-display-name:')).map(p => p.account_id);
+        const { unlockClubScopedNames } = await import("../clubScopedNames");
+        const names = pending.length ? await unlockClubScopedNames(ctx, privateOptions.clubId, pending, privateOptions.signal).catch(() => new Map<string, string>()) : new Map<string, string>();
+        return filled.map(profile => profile.display_name?.startsWith('pii-display-name:')
+          ? { ...profile, display_name: names.get(profile.account_id) ?? null }
+          : profile);
+      }
+      if (privateOptions?.hydratePrivateNames === false) {
+        return filled.map(profile => ({ ...profile, display_name: profile.display_name?.startsWith('pii-display-name:') ? null : profile.display_name }));
+      }
+      const { hydratePrivateProfileNames } = await import("../privateProfileNames");
+      const refIds = new Set(filled.filter(p => p.display_name?.startsWith('pii-display-name:')).map(p => p.account_id));
+      const hydrated = await (privateOptions ? hydratePrivateProfileNames(ctx, filled, privateOptions) : hydratePrivateProfileNames(ctx, filled));
+      if (privateOptions?.audience) return hydrated;
+      // Cross-club screens: unlock remaining names through the caller's own clubs.
+      const unnamed = hydrated.filter(p => refIds.has(p.account_id) && (!p.display_name || p.display_name.startsWith('pii-display-name:'))).map(p => p.account_id);
+      if (!unnamed.length) return hydrated;
+      const { unlockNamesThroughMyClubs } = await import("../clubScopedNames");
+      const names = await unlockNamesThroughMyClubs(ctx, unnamed, privateOptions?.signal).catch(() => new Map<string, string>());
+      return hydrated.map(p => refIds.has(p.account_id) && (!p.display_name || p.display_name.startsWith('pii-display-name:'))
+        ? { ...p, display_name: names.get(p.account_id) ?? null }
+        : p);
+    }
     return out;
   } finally {
     client.dispose();
@@ -99,12 +131,47 @@ export async function searchLiveProfiles(
   ctx: FeatureBackendContext,
   query: string,
   limit: number,
+  scope?: { clubId: string; signal?: AbortSignal; privateAuthorityBinding?: import('../accountAuthorityRegistry').AccountRegistryBinding },
 ): Promise<Array<{ id: string; display_name: string | null; avatar_url: string | null }>> {
+  const { searchLiveInvitableProfiles } = await import("./membership");
+  const rows = await searchLiveInvitableProfiles(ctx, query, limit, scope);
+  return rows.map(row => ({ id: row.account_id, display_name: row.display_name, avatar_url: row.avatar_ref }));
+}
+
+/** Full-directory lookup exclusively for linking another guardian. The
+ * canister validates this group's authority and the caller's exact child
+ * relationship; no client boolean or cached guardian list grants access. */
+export async function searchLiveGuardianProfiles(
+  ctx: FeatureBackendContext,
+  childId: string,
+  query: string,
+  limit: number,
+  signal?: AbortSignal,
+  privateAuthorityBinding?: import("../accountAuthorityRegistry").AccountRegistryBinding,
+): Promise<Array<{ id: string; display_name: string | null; avatar_url: string | null }>> {
+  if (!childId.trim()) throw new Error("A specific child is required for guardian search.");
+  if (query.trim().length < 2) return [];
+  if (privateProfileSearchRehearsalEnabled()) {
+    const { searchEncryptedGuardianProfiles } = await import("../guardianProfileSearch");
+    const { readPrivateProfileEvidence } = await import('../privateProfileEvidence');
+    const evidence = await readPrivateProfileEvidence(ctx, privateAuthorityBinding);
+    if (evidence) {
+      const { createLivePrivateProfileAuthorityResolver } = await import("../privateProfileAuthority");
+      return searchEncryptedGuardianProfiles(ctx, childId, query, limit, { signal, resolveAuthority: createLivePrivateProfileAuthorityResolver(ctx, evidence) });
+    }
+    return searchEncryptedGuardianProfiles(ctx, childId, query, limit, { signal });
+  }
+  const authorityId = ctx.target.canisterIds.club_domain;
+  if (!authorityId) throw new Error("The child's club connection is not configured.");
+  const { Principal } = await import("@icp-sdk/core/principal");
+  const authority = Principal.fromText(authorityId);
   const { client } = await connectLiveIdentityAccessClientWithIdentity(ctx.target, ctx.identity);
   try {
-    const rows = await client.searchProfiles(query, limit);
+    if (signal?.aborted) throw new Error("Guardian search cancelled.");
+    const rows = await client.searchGuardianProfiles(authority, childId, query.trim(), Math.min(25, Math.max(1, limit)));
+    if (signal?.aborted) throw new Error("Guardian search cancelled.");
     return rows.map((row) => ({
-      id: row.account_id,
+      id: row.principal.toText(),
       display_name: row.display_name,
       avatar_url: row.avatar_ref[0] ?? null,
     }));
@@ -123,16 +190,28 @@ export async function searchLiveProfilesWithPrincipals(
   query: string,
   limit: number,
 ): Promise<Array<{ accountId: string; principal: Principal; displayName: string | null; avatarUrl: string | null }>> {
-  const { client } = await connectLiveIdentityAccessClientWithIdentity(ctx.target, ctx.identity);
-  try {
-    const rows = await client.searchProfiles(query, limit);
-    return rows.map((row) => ({
-      accountId: row.account_id,
-      principal: row.principal,
-      displayName: row.display_name,
-      avatarUrl: row.avatar_ref?.[0] || null,
-    }));
-  } finally {
-    client.dispose();
+  if (!Number.isInteger(limit) || limit < 1 || limit > 25 || query.trim().length > 80) throw new Error("Invalid administrative search.");
+  if (query.trim().length < 2) return [];
+  // App-wide management is distinct from ordinary full person search. The
+  // existing directory verifies governor/app-admin authority inside the service.
+  const { readAdminUserDirectory } = await import("../adminUserDirectory");
+  const results: Array<{ accountId: string; principal: Principal; displayName: string | null; avatarUrl: string | null }> = [];
+  let cursor: string | null = null;
+  const needle = query.trim().toLocaleLowerCase();
+  for (let pageNumber = 0; pageNumber < 100; pageNumber++) {
+    const page = await readAdminUserDirectory(ctx, privateProfileSearchRehearsalEnabled() ? "" : query, cursor);
+    const profiles = page.items.flatMap(item => item.profile[0] ? [{ ...item.profile[0], principal: item.principals[0] }] : []);
+    const { hydratePrivateProfileNames } = await import("../privateProfileNames");
+    const hydrated = await hydratePrivateProfileNames(ctx, profiles);
+    for (const row of hydrated) {
+      if (!row.principal || !row.display_name?.toLocaleLowerCase().includes(needle)) continue;
+      results.push({ accountId: row.account_id, principal: row.principal, displayName: row.display_name, avatarUrl: row.avatar_ref[0] ?? null });
+      if (results.length === limit) return results;
+    }
+    const next = page.next[0];
+    if (!next) return results;
+    if (cursor && next <= cursor) throw new Error("Administrative search continuation changed.");
+    cursor = next;
   }
+  throw new Error("Administrative search exceeded its page budget.");
 }

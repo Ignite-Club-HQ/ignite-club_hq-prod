@@ -20,6 +20,7 @@ import {
 } from "@/live/features/competitions";
 import { useToast } from "@/hooks/use-toast";
 import { createOfficialEmailInviteSecrets } from "@/features/competitions/officialEmailInvite";
+import { resolveAuthBackend } from "@/live/authBackendMode";
 
 type OfficialRole = "referee" | "committee_member";
 type OfficialLink = { id: string; token: string; role: OfficialRole };
@@ -31,6 +32,10 @@ const roles: { id: OfficialRole; label: string }[] = [
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 }[char]!));
+
+// Production's competition_role_links table stores "committee" (not "committee_member").
+const toDbRole = (role: OfficialRole) => (role === "committee_member" ? "committee" : role);
+const fromDbRole = (role: string): OfficialRole => (role === "committee" ? "committee_member" : role as OfficialRole);
 
 function newToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -59,10 +64,10 @@ export function CompetitionOfficialJoinLinksCard({
         const { data, error } = await (supabase as any)
           .from("competition_role_links")
           .select("id, token, role")
-          .eq("competition_id", competitionId)
-          .is("revoked_at", null);
+          .eq("competition_id", competitionId);
         if (error) throw error;
-        return (data ?? []) as OfficialLink[];
+        return ((data ?? []) as { id: string; token: string; role: string }[])
+          .map((link) => ({ ...link, role: fromDbRole(link.role) }));
       },
       icp: async (ctx) => (await listLiveCompetitionJoinLinks(ctx, competitionId))
         .filter((link) => !link.revoked && link.team_id.length === 0 && roles.some((item) => item.id === link.role))
@@ -77,13 +82,18 @@ export function CompetitionOfficialJoinLinksCard({
       const token = newToken();
       return withFeatureBackend("competitions", {
         supabase: async () => {
-          const { data, error } = await (supabase as any).rpc("create_competition_role_link", {
-            _competition_id: competitionId,
-            _role: role,
-            _token: token,
-          });
+          const db = supabase as any;
+          const { data: auth } = await supabase.auth.getUser();
+          if (!auth.user) throw new Error("Please sign in again.");
+          const dbRole = toDbRole(role);
+          const { error: deleteError } = await db.from("competition_role_links").delete()
+            .eq("competition_id", competitionId).eq("role", dbRole);
+          if (deleteError) throw deleteError;
+          const { data, error } = await db.from("competition_role_links")
+            .insert({ competition_id: competitionId, role: dbRole, token, created_by: auth.user.id })
+            .select("id, token, role").single();
           if (error) throw error;
-          return data as OfficialLink;
+          return { ...data, role: fromDbRole(data.role) } as OfficialLink;
         },
         icp: async (ctx) => createLiveCompetitionOfficialLink(ctx, competitionId, role, token),
       }, writeOnce({ competitionId }));
@@ -99,10 +109,8 @@ export function CompetitionOfficialJoinLinksCard({
   const revokeLink = useMutation({
     mutationFn: () => withFeatureBackend("competitions", {
       supabase: async () => {
-        const { error } = await (supabase as any).rpc("revoke_competition_role_link", {
-          _competition_id: competitionId,
-          _role: role,
-        });
+        const { error } = await (supabase as any).from("competition_role_links").delete()
+          .eq("competition_id", competitionId).eq("role", toDbRole(role));
         if (error) throw error;
       },
       icp: async (ctx) => revokeLiveCompetitionOfficialLink(ctx, competitionId, role),
@@ -156,9 +164,15 @@ export function CompetitionOfficialJoinLinksCard({
             if (error) throw error;
           },
           icp: async (ctx) => {
+            const { encryptEmailPayload } = await import("@/live/emailPayload");
+            const ciphertext = await encryptEmailPayload(ctx, { to: recipient, resource: secrets.token, code: secrets.code, subject: `Join ${competitionName} as a ${roleLabel}`, text: "" });
             await createLiveCompetitionOfficialEmailInvite(
               ctx, competitionId, role, secrets.token, secrets.emailHash, secrets.codeHash,
             );
+            const { connectLiveCompetitionDomain } = await import("@/live/domains");
+            const { unwrapCandid } = await import("@/live/features/candid");
+            const { actor } = await connectLiveCompetitionDomain(ctx.target, ctx.identity);
+            await unwrapCandid(actor.queue_official_invite_email(secrets.token, ciphertext), "Queue official email");
           },
         }, writeOnce({ competitionId }));
         inviteCreated = true;
@@ -179,6 +193,7 @@ export function CompetitionOfficialJoinLinksCard({
           },
         }, writeOnce({ competitionId }));
 
+        if (resolveAuthBackend() === "icp") return;
         const { error } = await supabase.functions.invoke("send-email", {
           body: {
             to: recipient,
@@ -202,7 +217,7 @@ export function CompetitionOfficialJoinLinksCard({
     },
     onSuccess: () => {
       setEmail("");
-      toast({ title: "Official invite emailed" });
+      toast({ title: resolveAuthBackend() === "icp" ? "Official email queued" : "Official invite emailed" });
     },
     onError: (error: Error) => toast({ title: "Could not email invite", description: error.message, variant: "destructive" }),
   });

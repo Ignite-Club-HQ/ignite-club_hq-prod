@@ -1,4 +1,11 @@
 import { useRealtimeReactionSync } from "@/hooks/useRealtimeReactionSync";
+import { recordOwnSentConversation } from "@/features/messaging/inbox/ownSendBump";
+import {
+  applyPendingInboxPreview,
+  discardPendingInboxPreview,
+  settlePendingInboxPreview,
+} from "@/features/messaging/inbox/pendingInboxPreview";
+import { dmBlockMessage, fetchDmBlockReason } from "@/lib/dmBlockReason";
 import { resolveChatUploadUrl } from "@/lib/pendingChatUploads";
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
@@ -17,9 +24,10 @@ import { keepComposerFocusedThroughSend } from "@/lib/chatComposerFocus";
 import { useKeyboardOpen } from "@/hooks/useKeyboardOpen";
 import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomInset";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { buildNewsShareToken } from "@/features/news/newsShareToken";
 import { supabase } from "@/integrations/supabase/client";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
-import * as fixtureData from "@/lab/fixtureDataLayer";
+import { liveMessageRow } from "@/features/messaging/thread/liveMessageRow";
 import { markChatScopeNotificationsRead } from "@/lib/markChatScopeRead";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -62,8 +70,11 @@ import { format, isSameDay } from "date-fns";
 import { ChatDateSeparator } from "@/components/chat/ChatDateSeparator";
 import { fetchProfilesWithCache, selectCachedProfileById } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
+import { usePrivateChatProfiles } from "@/hooks/usePrivateChatProfiles";
+import { privateProfileSearchRehearsalEnabled } from "@/live/privateProfileSearchMode";
 import { Card, CardContent } from "@/components/ui/card";
-import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages } from "@/lib/messageCache";
+import { getCachedMessages, cacheMessages, CachedMessage, shouldRefetchMessages, isCachedThreadComplete } from "@/lib/messageCache";
+import { getChatThreadLabel, rememberChatThreadLabel } from "@/lib/chatThreadLabelCache";
 import { consumeFromNotificationFlag } from "@/lib/notificationPreload";
 import { logChatOpenLatency } from "@/lib/chatOpenLatency";
 import { useChatPerfMarks, markChatFetch } from "@/hooks/useChatPerfMarks";
@@ -87,7 +98,8 @@ import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEa
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
 import { resolveAuthBackend } from "@/live/authBackendMode";
-import { sendLiveMessage, updateLiveMessage, canLiveDmUser, isLiveDmAttachmentsDisabled, listLiveLatestMessagesPage, listLiveReactions } from "@/live/features/messaging";
+import { getLiveDirectConversation, sendLiveMessage, updateLiveMessage, canLiveDmUser, isLiveDmAttachmentsDisabled, listLiveLatestMessagesPage, listLiveReactions } from "@/live/features/messaging";
+import { useIcpConversationPresence } from "@/hooks/useIcpConversationPresence";
 import { recordLiveMessageSent } from "@/live/features/insights";
 import { Principal } from "@icp-sdk/core/principal";
 
@@ -126,8 +138,8 @@ interface DirectConversation {
   id: string;
   participant_1: string;
   participant_2: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 const getCachedDirectMessages = (conversationId: string): DirectMessage[] =>
@@ -166,11 +178,11 @@ const toCachedDirectMessages = (messages: DirectMessage[]): CachedMessage[] =>
     created_at: message.created_at,
     image_url: message.image_url,
     reply_to_id: message.reply_to_id,
-    profiles: message.author
+    profiles: !(privateProfileSearchRehearsalEnabled() && isFeatureRoutedToIcp("messaging")) && message.author
       ? { display_name: message.author.display_name, avatar_url: message.author.avatar_url }
       : null,
     reactions: message.reactions || [],
-    reply_to: message.reply_to ? { text: message.reply_to.text, author: message.reply_to.author } : null,
+    reply_to: message.reply_to ? { text: message.reply_to.text, author: privateProfileSearchRehearsalEnabled() && isFeatureRoutedToIcp("messaging") ? undefined : message.reply_to.author } : null,
   }));
 
 const cacheDirectMessages = (conversationId: string, messages: DirectMessage[]) => {
@@ -377,9 +389,15 @@ export default function DirectMessagePage() {
 
   // Fetch conversation details
   const { data: conversation, isLoading: conversationLoading } = useQuery({
-    queryKey: ["dm-conversation", conversationId],
+    queryKey: ["dm-conversation", conversationId, user?.id, useIcpLab],
     queryFn: async () => {
-      if (useIcpLab && conversationId && user?.id) return fixtureData.getLocalLabDirectConversation(conversationId, user.id);
+      if (!conversationId) return null;
+      if (useIcpLab || resolveAuthBackend() === "icp") {
+        return withFeatureBackend("messaging", {
+          supabase: async () => { throw new Error("ICP conversation requires Internet Identity"); },
+          icp: ctx => getLiveDirectConversation(ctx, conversationId),
+        }, { shared: "person" });
+      }
 
       const { data, error } = await supabase
         .from("direct_conversations")
@@ -402,31 +420,13 @@ export default function DirectMessagePage() {
   const isIgniteSupportConversation = isIgniteSupportUser(otherUserId);
 
   // Live presence — true when the other user has the app open in any tab.
-  const isOtherUserOnline = useIsUserOnline(otherUserId);
+  const legacyOtherOnline = useIsUserOnline(otherUserId);
+  const icpPresence = useIcpConversationPresence(conversationId, { enabled: authReady, shared: true });
+  const isOtherUserOnline = useIcpLab ? !!otherUserId && icpPresence.has(otherUserId) : legacyOtherOnline;
 
   const { elementRef: composerRef, height: composerHeight } = useMeasuredElementHeight<HTMLDivElement>(
     [isIgniteSupportConversation, replyTo, editingMessage],
   );
-
-  // Fetch other participant's profile
-  const { data: otherUser, isLoading: otherUserLoading } = useQuery({
-    queryKey: ["dm-other-user", otherUserId],
-    queryFn: async () => {
-      const { data, error } = await selectCachedProfileById(otherUserId!);
-      if (error) {
-        console.error("[DM] Failed to fetch other user profile:", error.message);
-        throw error;
-      }
-      if (!data?.display_name) {
-        console.warn("[DM] Profile returned without display_name for", otherUserId);
-      }
-      return data;
-    },
-    enabled: !!otherUserId && authReady,
-    staleTime: 5 * 60 * 1000,
-    retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
-  });
 
   // Find the first club both DM participants share. Used to scope vault picker
   // and event picker actions inside the "+" menu so users can attach files /
@@ -465,6 +465,44 @@ export default function DirectMessagePage() {
     enabled: !!user?.id && !!otherUserId && !isIgniteSupportConversation,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Fetch other participant's profile
+  const privateChatNames = privateProfileSearchRehearsalEnabled() && isFeatureRoutedToIcp("messaging");
+  const directNameIds = conversation ? [conversation.participant_1, conversation.participant_2] : [];
+  const getPrivateProfile = usePrivateChatProfiles(conversationId, user?.id, directNameIds, privateChatNames, 'direct', undefined, sharedClubId ?? undefined);
+  const { data: legacyOtherUser, isLoading: legacyOtherUserLoading } = useQuery({
+    queryKey: ["dm-other-user", otherUserId, user?.id, privateChatNames],
+    queryFn: async () => {
+      const { data, error } = await selectCachedProfileById(otherUserId!);
+      if (error) {
+        console.error("[DM] Failed to fetch other user profile:", error.message);
+        throw error;
+      }
+      if (!data?.display_name) {
+        console.warn("[DM] Profile returned without display_name for", otherUserId);
+      }
+      return data;
+    },
+    enabled: !!otherUserId && authReady && !privateChatNames,
+    staleTime: 5 * 60 * 1000,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
+  });
+  const otherUser = privateChatNames ? getPrivateProfile(otherUserId ?? '') : legacyOtherUser;
+  const otherUserLoading = privateChatNames ? !otherUser : legacyOtherUserLoading;
+
+  // Once this thread's own read names the other person, remember it (account
+  // scoped, label only — no message text) so the next open paints the header
+  // instantly instead of showing skeleton bars for the whole cold read.
+  useEffect(() => {
+    if (!user?.id || !conversationId || privateChatNames) return;
+    const title = isIgniteSupportConversation ? "Ignite Support" : otherUser?.display_name;
+    if (!title) return;
+    rememberChatThreadLabel(user.id, "dm", conversationId, {
+      title,
+      avatarUrl: isIgniteSupportConversation ? null : otherUser?.avatar_url,
+    });
+  }, [user?.id, conversationId, isIgniteSupportConversation, otherUser?.display_name, otherUser?.avatar_url, privateChatNames]);
 
   // App-admin-controlled per-club / per-user disable of the "+" attachment menu in DMs
   const { data: attachmentsDisabled } = useQuery({
@@ -522,12 +560,21 @@ export default function DirectMessagePage() {
     refetchOnMount: "always", // Force refetch on every mount (true is a no-op while staleTime is unmet)
   });
 
+  // Why DMs are blocked. Supabase uses the dm_block_reason RPC; ICP derives
+  // the reason from on-chain club DM settings (see dmBlockReason.ts).
+  const { data: dmBlockReason } = useQuery({
+    queryKey: ["dm-block-reason", otherUserId],
+    queryFn: () => fetchDmBlockReason(otherUserId!),
+    enabled: canDM === false && !!otherUserId && authReady,
+    staleTime: 30 * 1000,
+  });
+
   // Memoize query key to prevent ChatMessage memo breaks
   // Canister rows → the app's DM shape. Shared by the first page load and by
   // scroll-back paging so both render identically.
   const mapLiveDmRows = async (ctx: any, rows: any[]): Promise<DirectMessage[]> => {
     const authorIds = [...new Set(rows.map((m: any) => m.sender.toText() as string))];
-    const profilesMap = await fetchProfilesWithCache(authorIds);
+    const profilesMap = privateChatNames ? new Map() : await fetchProfilesWithCache(authorIds);
     // Reactions persist on the canister; restore them on every refetch.
     // Tolerate older canisters that lack list_reactions.
     const reactionsByMessage = new Map<string, any[]>();
@@ -732,7 +779,8 @@ export default function DirectMessagePage() {
       // proper loading state is shown until the real fetch lands.
       if (!conversationId) return undefined;
       const messages = getCachedDirectMessages(conversationId);
-      if (messages.length < 2) return undefined;
+      // A saved copy from a real read is usable even when short or empty.
+      if (messages.length < 2 && !isCachedThreadComplete("dm", conversationId)) return undefined;
 
       return { messages, hasOlderMessages: false };
     },
@@ -787,7 +835,7 @@ export default function DirectMessagePage() {
   const [localMessages, setLocalMessages] = useState<DirectMessage[] | undefined>(() => {
     if (!conversationId) return undefined;
     const cached = getCachedDirectMessages(conversationId);
-    return cached.length >= 2 ? cached : undefined;
+    return cached.length >= 2 || isCachedThreadComplete("dm", conversationId) ? cached : undefined;
   });
   const localMessagesRef = useRef(localMessages);
   localMessagesRef.current = localMessages;
@@ -848,7 +896,8 @@ export default function DirectMessagePage() {
   const authorIds = useMemo(() => {
     return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
   }, [localMessages]);
-  const { getProfile } = useProfiles(authorIds);
+  const { getProfile: getLegacyProfile } = useProfiles(privateChatNames ? [] : authorIds);
+  const getProfile = privateChatNames ? getPrivateProfile : getLegacyProfile;
 
   // Read tracking for DMs
   const messageIds = useMemo(() => (localMessages || []).map(m => m.id).filter(id => !id.startsWith("temp-")), [localMessages]);
@@ -1178,7 +1227,7 @@ export default function DirectMessagePage() {
             : (() => {
                 const poll = /\[poll:([^\]]+)\]/.exec(text);
                 if (poll) return { kind: "poll", refId: poll[1], url: null };
-                const news = /\[news:([^\]]+)\]/.exec(text);
+                const news = /\[news:(?:[0-9a-fA-F-]{36}:)?([^\]]+)\]/.exec(text);
                 if (news) return { kind: "news", refId: news[1], url: null };
                 return null;
               })();
@@ -1191,21 +1240,16 @@ export default function DirectMessagePage() {
             replyToId || null,
           );
           void recordLiveMessageSent(ctx, conversationId!, user!.id).catch(() => { /* best-effort engagement counter */ });
-          data = {
-            id: (sent as any)?.id ?? createSendTempId(),
-            text,
-            image_url: imageUrl || null,
-            conversation_id: conversationId!,
-            author_id: user!.id,
-            reply_to_id: replyToId || null,
-            created_at: new Date().toISOString(),
-          };},
+          data = liveMessageRow(sent);},
       }, { conversationId: conversationId! });
       return data;
     },
     onMutate: async ({ text, imageUrl, replyToId }) => {
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
+      // Inbox preview + row float show the message while it is still sending.
+      applyPendingInboxPreview(queryClient, "dm", user?.id, conversationId, { text, image_url: imageUrl || null });
+      if (conversationId) recordOwnSentConversation(`dm-${conversationId}`);
       const sentAtMs = Date.now();
       const previousReplyTo = replyTo;
       const optimisticMessage: DirectMessage = {
@@ -1237,6 +1281,12 @@ export default function DirectMessagePage() {
 
     onSuccess: async (newMessage) => {
       const currentReplyTo = replyToRef.current;
+      settlePendingInboxPreview(queryClient, "dm", user?.id, conversationId, {
+        text: newMessage.text,
+        image_url: newMessage.image_url ?? null,
+        created_at: newMessage.created_at,
+      });
+      if (conversationId) recordOwnSentConversation(`dm-${conversationId}`);
       
       // Update the query cache with the new message to replace optimistic one
       queryClient.setQueryData(
@@ -1287,10 +1337,9 @@ export default function DirectMessagePage() {
       cacheDirectMessages(conversationId!, realMessages);
       
       // Unhide conversation if it was hidden (so it reappears for both users)
-      await supabase
-        .from("hidden_dm_conversations")
-        .delete()
-        .eq("conversation_id", conversationId!);
+      if (!useIcpLab && resolveAuthBackend() !== "icp" && conversationId) {
+        await supabase.from("hidden_dm_conversations").delete().eq("conversation_id", conversationId);
+      }
       
       // Invalidate other related queries
       queryClient.invalidateQueries({ queryKey: ["dm-conversations"] });
@@ -1304,6 +1353,9 @@ export default function DirectMessagePage() {
       console.error('[DM] Send message error:', error, 'Message text:', variables.text?.slice(0, 20));
       // Offline sends are queued, not failed.
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+
+      // The send left the pending preview state either way from here on.
+      settlePendingInboxPreview(queryClient, "dm", user?.id, conversationId);
 
       // Check if the message actually arrived via realtime before showing error
       const currentData = queryClient.getQueryData<{ messages: DirectMessage[] }>(["dm-messages", conversationId]);
@@ -1320,6 +1372,7 @@ export default function DirectMessagePage() {
             return { ...old, messages: (old.messages || []).filter((m: DirectMessage) => m.id !== context.tempId) };
           });
         }
+        discardPendingInboxPreview(queryClient, "dm", user?.id, conversationId);
         restoreFailedSendComposer({
           context,
           setText: setMessage,
@@ -1395,8 +1448,9 @@ export default function DirectMessagePage() {
     }
     stopTyping();
     const baseText = message.trim();
-    const finalText = pendingNewsId
-      ? (baseText ? `${baseText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`)
+    const newsToken = pendingNewsId ? buildNewsShareToken(queryClient, pendingNewsId) : null;
+    const finalText = newsToken
+      ? (baseText ? `${baseText} ${newsToken}` : newsToken)
       : baseText;
     sendMessageMutation.mutate({
       text: finalText,
@@ -1620,8 +1674,19 @@ export default function DirectMessagePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstMatchId, isSearchFetching, searchQuery]);
 
+  // The inbox already told us who this thread is with, so the header carries a
+  // real name from the first frame even while the conversation read is running.
+  const rememberedThreadLabel = privateChatNames ? null : getChatThreadLabel(user?.id, "dm", conversationId);
+
   if (conversationLoading || checkingCanDM) {
-    return <ChatPageSkeleton />;
+    return (
+      <ChatPageSkeleton
+        title={rememberedThreadLabel?.title}
+        subtitle={rememberedThreadLabel?.subtitle}
+        avatarUrl={rememberedThreadLabel?.avatarUrl}
+        avatarType="dm"
+      />
+    );
   }
 
   if (!conversation) {
@@ -1659,12 +1724,15 @@ export default function DirectMessagePage() {
             </div>
             <div>
               <h3 className="font-semibold text-lg flex items-center justify-center gap-2">
-                <Crown className="h-5 w-5 text-primary" />
-                Pro Feature
+                {(dmBlockReason === "no_shared_pro_club" || !dmBlockReason) && (
+                  <Crown className="h-5 w-5 text-primary" />
+                )}
+                {dmBlockReason === "no_shared_pro_club" || !dmBlockReason
+                  ? "Pro Feature"
+                  : "Can't start this chat"}
               </h3>
               <p className="text-muted-foreground mt-1 max-w-md">
-                Direct messages require both users to be members of a Pro club. 
-                Upgrade your club to Pro to unlock this feature.
+                {dmBlockMessage(dmBlockReason)}
               </p>
             </div>
             <Button onClick={() => navigate("/messages")}>Back to Messages</Button>
@@ -1679,7 +1747,11 @@ export default function DirectMessagePage() {
       {/* Header */}
       <ChatHeaderShell
         type={isIgniteSupportConversation ? "support" : "dm"}
-        name={isIgniteSupportConversation ? "Ignite Support" : (otherUser?.display_name || (otherUserLoading ? "…" : "Unknown User"))}
+        name={
+          isIgniteSupportConversation
+            ? "Ignite Support"
+            : otherUser?.display_name || rememberedThreadLabel?.title || (otherUserLoading ? "…" : "Unknown User")
+        }
         sublabel={isIgniteSupportConversation ? "Welcome & tips" : undefined}
         avatarUrl={isIgniteSupportConversation ? undefined : otherUser?.avatar_url}
         showOnlineDot={!isIgniteSupportConversation && isOtherUserOnline}
@@ -1750,7 +1822,7 @@ export default function DirectMessagePage() {
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
+        ) : (!!searchQuery.trim() && !filteredMessages?.length && (isSearchFetching || !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState title={`Start a conversation with ${otherUser?.display_name || "this user"}`} />
@@ -1766,6 +1838,7 @@ export default function DirectMessagePage() {
             composerHeight={composerHeight}
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
+            privateProfileRevision={privateChatNames ? getPrivateProfile : undefined}
             initialBottomPinned={!targetMessageId}
             renderRow={(msg, index, arr) => {
               const prevMessage = index > 0 ? arr[index - 1] : null;
@@ -1790,8 +1863,8 @@ export default function DirectMessagePage() {
                       text={msg.text}
                       imageUrl={msg.image_url}
                       authorId={msg.author_id}
-                      authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || msg.author?.display_name || null)}
-                      authorAvatar={getProfile(msg.author_id)?.avatar_url || msg.author?.avatar_url || null}
+                      authorName={isIgniteSupportUser(msg.author_id) ? "Ignite Support" : (getProfile(msg.author_id)?.display_name || (privateChatNames ? null : msg.author?.display_name) || null)}
+                      authorAvatar={getProfile(msg.author_id)?.avatar_url || (privateChatNames ? null : msg.author?.avatar_url) || null}
                       timestamp={format(new Date(msg.created_at), "h:mm a")}
                       isOwn={msg.author_id === user?.id}
                       isAdmin={false}
@@ -1808,7 +1881,7 @@ export default function DirectMessagePage() {
                       contextId={conversationId || ""}
                       replyToMessage={
                         msg.reply_to
-                          ? { text: msg.reply_to.text, authorName: msg.reply_to.author?.display_name || null }
+                          ? { text: msg.reply_to.text, authorName: privateChatNames ? getProfile(localMessages?.find(row => row.id === msg.reply_to_id)?.author_id ?? '')?.display_name ?? null : msg.reply_to.author?.display_name || null }
                           : null
                       }
                       hasReply={!!msg.reply_to_id}
@@ -1840,7 +1913,7 @@ export default function DirectMessagePage() {
         typingUsers={typingUsers}
         replyTo={
           replyTo
-            ? { id: replyTo.id, text: replyTo.text, authorName: replyTo.author?.display_name || null }
+            ? { id: replyTo.id, text: replyTo.text, authorName: privateChatNames ? getProfile(replyTo.author_id)?.display_name ?? null : replyTo.author?.display_name || null }
             : null
         }
         onCancelReply={() => setReplyTo(null)}

@@ -18,6 +18,7 @@ import { Capacitor } from "@capacitor/core";
 import { registerPendingChatUpload } from "@/lib/pendingChatUploads";
 import { compressImage as compressImageFile } from "@/lib/imageCompression";
 import { mimeToExtension } from "@/lib/binaryUtils";
+import { withFeatureBackend } from "@/live/featureRouter";
 import { getReadableUploadError, isCancelledSelectionError } from "@/lib/uploadErrorUtils";
 import { pickNativePhoto, shouldUseNativePicker } from "@/lib/nativePhotoPicker";
 import { isIOSEnvironment, scheduleIOSNativeOverlayRecovery, temporarilyReleaseBodyScrollLock } from "@/lib/iosNativeOverlayRecovery";
@@ -162,13 +163,17 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
   // Fetch club sport so the live-board action subtitle is contextual.
   const { data: clubSport } = useQuery({
-    queryKey: ["club-sport", clubId],
+    queryKey: ["club-sport", clubId, user?.id, isIcp],
     queryFn: async () => {
       if (!clubId) return null;
+      if (isIcp) return withFeatureBackend("membership", {
+        supabase: async () => { throw new Error("Internet Identity required"); },
+        icp: async ctx => { const { getLiveClubProfile } = await import("@/live/features/club"); const [club] = await getLiveClubProfile(ctx, clubId); return club?.sport[0] ?? null; },
+      }, { clubId });
       const { data } = await supabase.from("clubs").select("sport").eq("id", clubId).maybeSingle();
       return (data?.sport ?? null) as string | null;
     },
-    enabled: !!clubId && showBoardPicker && !isIcp,
+    enabled: !!clubId && showBoardPicker,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -177,9 +182,13 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
   // game events in a ±window, but that produced false positives where the
   // attachment menu offered "Live Board" with no game in progress.
   const { data: hasActiveBoard = false } = useQuery({
-    queryKey: ["chat-has-active-board", user?.id, teamId],
+    queryKey: ["chat-has-active-board", user?.id, teamId, isIcp],
     queryFn: async () => {
       if (!user?.id || !teamId) return false;
+      if (isIcp) {
+        const { readIcpActiveBoards } = await import("@/lib/activeBoardPicker");
+        return (await readIcpActiveBoards(teamId)).length > 0;
+      }
 
       const { count: activeCount, error: activeErr } = await supabase
         .from("active_games")
@@ -192,7 +201,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       }
       return (activeCount ?? 0) > 0;
     },
-    enabled: !!user?.id && !!teamId && showBoardPicker && !isIcp,
+    enabled: !!user?.id && !!teamId && showBoardPicker,
     staleTime: 60 * 1000,
     refetchInterval: menuOpen ? 30 * 1000 : false,
   });
@@ -330,7 +339,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       if (teamId && !effectiveClubId) throw new Error("Could not check this team's club storage. Please try again.");
       const { error: uploadError } = await uploadWithinClubMediaAllowance(effectiveClubId, fileToUpload.size, () => supabase.storage
         .from("chat-attachments")
-        .upload(fileName, fileToUpload, { contentType, upsert: false, cacheControl: "31536000" }));
+        .upload(fileName, fileToUpload, { contentType, upsert: false, cacheControl: "31536000" }), supabase, teamId, { bucket: "chat-attachments", path: fileName, file: fileToUpload });
 
       if (uploadError) throw new Error(uploadError.message || "Failed to upload image");
 
@@ -420,7 +429,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
 
       const { error: upErr } = await uploadWithinClubMediaAllowance(clubId, file.size, () => supabase.storage
         .from("chat-attachments")
-        .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false, cacheControl: "31536000" }));
+        .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false, cacheControl: "31536000" }), supabase, teamId, { bucket: "chat-attachments", path, file });
       if (upErr) throw upErr;
       const { data: pub } = supabase.storage.from("chat-attachments").getPublicUrl(path);
       const fileUrl = pub.publicUrl;
@@ -856,6 +865,7 @@ export function ChatImageInput({ onImageUploaded, imageUrl, disabled, clubId, te
       {showVaultPicker && clubId && (
         <>
           <VaultPickerSheet
+            warm={menuOpen || attachChooserOpen}
             open={vaultPickerOpen}
             onOpenChange={setVaultPickerOpen}
             clubId={clubId}

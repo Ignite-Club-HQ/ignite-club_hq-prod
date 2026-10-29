@@ -26,6 +26,11 @@ export const idlFactory = ({ IDL }) => {
     'team_id' : IDL.Opt(IDL.Text),
     'competition_id' : IDL.Text,
   });
+  const Request = IDL.Record({
+    'inventory_digest' : IDL.Vec(IDL.Nat8),
+    'generation' : IDL.Nat64,
+    'operation_id' : IDL.Text,
+  });
   const EoiSubmission = IDL.Record({
     'id' : IDL.Text,
     'status' : IDL.Text,
@@ -71,6 +76,17 @@ export const idlFactory = ({ IDL }) => {
     'competition_id' : IDL.Text,
     'club_id' : IDL.Text,
   });
+  const Job = IDL.Record({
+    'id' : IDL.Text,
+    'resource' : IDL.Text,
+    'ciphertext' : IDL.Text,
+    'attempt' : IDL.Nat,
+    'kind' : IDL.Text,
+    'provider_id' : IDL.Text,
+    'created_at_ms' : IDL.Nat64,
+    'state' : IDL.Text,
+    'worker' : IDL.Opt(IDL.Principal),
+  });
   const CompetitionEngagementSummary = IDL.Record({
     'total_matches' : IDL.Nat,
     'active_teams' : IDL.Nat,
@@ -114,19 +130,17 @@ export const idlFactory = ({ IDL }) => {
     'competition_id' : IDL.Text,
     'expires_at_ms' : IDL.Nat64,
   });
-  const RoleLink = IDL.Record({
-    'token' : IDL.Text,
-    'revoked' : IDL.Bool,
-    'role' : IDL.Text,
-    'created_by' : IDL.Principal,
-    'created_at_ms' : IDL.Nat64,
-    'competition_id' : IDL.Text,
-  });
-  const Season = IDL.Record({
-    'status' : IDL.Text,
-    'name' : IDL.Text,
-    'divisions' : IDL.Vec(IDL.Text),
-    'revision' : IDL.Nat64,
+  const Input = IDL.Record({
+    'round_number' : IDL.Opt(IDL.Nat16),
+    'venue' : IDL.Opt(IDL.Text),
+    'duration_minutes' : IDL.Opt(IDL.Nat16),
+    'home_team' : IDL.Text,
+    'notes' : IDL.Opt(IDL.Text),
+    'pitch_number' : IDL.Opt(IDL.Text),
+    'scheduled_at_ms' : IDL.Opt(IDL.Nat64),
+    'away_team' : IDL.Text,
+    'division_id' : IDL.Opt(IDL.Text),
+    'arrival_minutes_before' : IDL.Opt(IDL.Nat16),
     'competition_id' : IDL.Text,
   });
   const Match = IDL.Record({
@@ -145,6 +159,21 @@ export const idlFactory = ({ IDL }) => {
     'home_score' : IDL.Nat16,
     'revision' : IDL.Nat64,
     'arrival_minutes_before' : IDL.Opt(IDL.Nat16),
+    'competition_id' : IDL.Text,
+  });
+  const RoleLink = IDL.Record({
+    'token' : IDL.Text,
+    'revoked' : IDL.Bool,
+    'role' : IDL.Text,
+    'created_by' : IDL.Principal,
+    'created_at_ms' : IDL.Nat64,
+    'competition_id' : IDL.Text,
+  });
+  const Season = IDL.Record({
+    'status' : IDL.Text,
+    'name' : IDL.Text,
+    'divisions' : IDL.Vec(IDL.Text),
+    'revision' : IDL.Nat64,
     'competition_id' : IDL.Text,
   });
   const JoinToken = IDL.Record({
@@ -266,7 +295,15 @@ export const idlFactory = ({ IDL }) => {
     'scope' : IDL.Text,
     'competition_id' : IDL.Text,
   });
-  const Request = IDL.Record({
+  const PlayHQCompetitionLink = IDL.Record({
+    'grade_id' : IDL.Text,
+    'last_synced_at_ms' : IDL.Opt(IDL.Nat64),
+    'sport' : IDL.Opt(IDL.Text),
+    'tenant' : IDL.Text,
+    'competition_id' : IDL.Text,
+    'club_id' : IDL.Text,
+  });
+  const Request__1 = IDL.Record({
     'account_id' : IDL.Text,
     'inventory_digest' : IDL.Vec(IDL.Nat8),
     'subjects' : IDL.Vec(IDL.Principal),
@@ -274,8 +311,13 @@ export const idlFactory = ({ IDL }) => {
   });
   const Receipt = IDL.Record({
     'outstanding' : IDL.Nat,
-    'request' : Request,
+    'request' : Request__1,
     'receiver' : IDL.Principal,
+  });
+  const Receipt__2 = IDL.Record({
+    'creator' : IDL.Principal,
+    'input' : Input,
+    'match_id' : IDL.Text,
   });
   const PlayHQStat = IDL.Record({
     'player_id' : IDL.Text,
@@ -299,6 +341,13 @@ export const idlFactory = ({ IDL }) => {
     'tenant' : IDL.Text,
     'competition_id' : IDL.Text,
   });
+  const Receipt__1 = IDL.Record({
+    'active' : IDL.Nat,
+    'request' : Request,
+    'sealed' : IDL.Bool,
+    'closing' : IDL.Bool,
+    'receiver' : IDL.Principal,
+  });
   const EoiTeamSuggestion = IDL.Record({
     'player_count' : IDL.Nat,
     'avg_skill' : IDL.Float64,
@@ -319,6 +368,11 @@ export const idlFactory = ({ IDL }) => {
     'accept_role_link' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : RoleGrant, 'Err' : IDL.Text })],
+        [],
+      ),
+    'activate_private_name_preparation' : IDL.Func(
+        [Request],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
     'addBulkAccessPrincipal' : IDL.Func(
@@ -357,6 +411,29 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'can_invite_players_to_team' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
+    'check_my_broadcast_erasure' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'claim_email_job' : IDL.Func(
+        [],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Opt(
+              IDL.Record({
+                'to' : IDL.Text,
+                'job' : Job,
+                'token' : IDL.Text,
+                'subject' : IDL.Text,
+                'body' : IDL.Text,
+              })
+            ),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'claim_eoi_by_token' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : EoiSubmission, 'Err' : IDL.Text })],
@@ -370,6 +447,19 @@ export const idlFactory = ({ IDL }) => {
     'claim_playhq_player' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'compact_email_jobs' : IDL.Func(
+        [IDL.Opt(IDL.Text), IDL.Nat],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'scanned' : IDL.Nat,
+              'next_cursor' : IDL.Opt(IDL.Text),
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
         [],
       ),
     'competition_engagement_summary' : IDL.Func(
@@ -431,6 +521,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : CompetitionJoinLink, 'Err' : IDL.Text })],
         [],
       ),
+    'create_fixture' : IDL.Func(
+        [IDL.Text, Input],
+        [IDL.Variant({ 'Ok' : Match, 'Err' : IDL.Text })],
+        [],
+      ),
     'create_personal_competition' : IDL.Func(
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : Competition, 'Err' : IDL.Text })],
@@ -476,6 +571,21 @@ export const idlFactory = ({ IDL }) => {
         [],
         [IDL.Variant({ 'Ok' : State, 'Err' : IDL.Text })],
         ['query'],
+      ),
+    'finish_email_job' : IDL.Func(
+        [IDL.Text, IDL.Nat, IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'finish_private_name_preparation' : IDL.Func(
+        [Request],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'freeze_private_name_preparation' : IDL.Func(
+        [Request],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
       ),
     'get_chat_settings' : IDL.Func(
         [IDL.Text],
@@ -527,6 +637,22 @@ export const idlFactory = ({ IDL }) => {
     'get_join_link_preview' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : JoinLinkPreview, 'Err' : IDL.Text })],
+        ['query'],
+      ),
+    'get_member_welcome_email_job' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'to' : IDL.Text,
+              'subject' : IDL.Text,
+              'competition_name' : IDL.Text,
+              'message' : IDL.Text,
+              'competition_id' : IDL.Text,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
         ['query'],
       ),
     'get_my_pending_eois' : IDL.Func(
@@ -619,6 +745,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : TeamEntry, 'Err' : IDL.Text })],
         [],
       ),
+    'link_playhq_competition' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
+        [IDL.Variant({ 'Ok' : Competition, 'Err' : IDL.Text })],
+        [],
+      ),
     'listBulkAccessPrincipals' : IDL.Func(
         [],
         [IDL.Variant({ 'Ok' : IDL.Vec(IDL.Principal), 'Err' : IDL.Text })],
@@ -704,6 +835,21 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Vec(OfficialChat), 'Err' : IDL.Text })],
         ['query'],
       ),
+    'list_playhq_competitions' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Vec(
+              IDL.Record({
+                'link' : PlayHQCompetitionLink,
+                'competition' : Competition,
+              })
+            ),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'list_public_competitions' : IDL.Func(
         [],
         [IDL.Variant({ 'Ok' : IDL.Vec(Competition), 'Err' : IDL.Text })],
@@ -730,14 +876,44 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
-    'prepare_account_removal' : IDL.Func(
+    'move_team_division' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text), IDL.Bool],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'open_private_name_writer_window' : IDL.Func(
         [Request],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'prepare_account_removal' : IDL.Func(
+        [Request__1],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'prepare_my_broadcast_erasure' : IDL.Func(
+        [],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
     'purge_club_snapshot' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'purge_my_data' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'queue_competition_broadcast' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'queue_official_invite_email' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
     'read_account_can_invite_players_to_team' : IDL.Func(
@@ -826,13 +1002,30 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'read_account_removal_drain' : IDL.Func(
-        [Request],
+        [Request__1],
         [IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text })],
         [],
       ),
     'read_competition_club' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Opt(IDL.Text), 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_competition_welcome_message' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Opt(
+              IDL.Record({ 'subject' : IDL.Text, 'message' : IDL.Text })
+            ),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
+    'read_fixture_operation' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Opt(Receipt__2), 'Err' : IDL.Text })],
         [],
       ),
     'read_group_opening_configuration' : IDL.Func(
@@ -864,6 +1057,21 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Bool, 'Err' : IDL.Text })],
         [],
       ),
+    'read_my_competition_cards' : IDL.Func(
+        [],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Vec(
+              IDL.Record({
+                'entries' : IDL.Vec(TeamEntry),
+                'competition' : Competition,
+              })
+            ),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'read_playhq_stats' : IDL.Func(
         [IDL.Text],
         [
@@ -884,6 +1092,59 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'read_private_admin_thread_participants' : IDL.Func(
+        [IDL.Principal, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Vec(IDL.Principal), 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_private_name_preparation' : IDL.Func(
+        [Request],
+        [IDL.Variant({ 'Ok' : Receipt__1, 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_private_name_writer_window' : IDL.Func(
+        [Request],
+        [IDL.Variant({ 'Ok' : Receipt__1, 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_profile_admin_thread_batch' : IDL.Func(
+        [
+          IDL.Principal,
+          IDL.Text,
+          IDL.Principal,
+          IDL.Vec(IDL.Principal),
+          IDL.Opt(IDL.Nat),
+        ],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'requester' : IDL.Principal,
+              'members' : IDL.Vec(IDL.Bool),
+              'subjects' : IDL.Vec(IDL.Principal),
+              'club' : IDL.Text,
+              'revision' : IDL.Nat,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
+    'read_profile_audience_batch' : IDL.Func(
+        [IDL.Principal, IDL.Text, IDL.Vec(IDL.Principal), IDL.Opt(IDL.Nat)],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'requester' : IDL.Principal,
+              'members' : IDL.Vec(IDL.Bool),
+              'subjects' : IDL.Vec(IDL.Principal),
+              'club' : IDL.Text,
+              'revision' : IDL.Nat,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'read_resource_club' : IDL.Func(
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Opt(IDL.Text), 'Err' : IDL.Text })],
@@ -894,6 +1155,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Opt(IDL.Text), 'Err' : IDL.Text })],
         ['query'],
       ),
+    'reconcile_email_job' : IDL.Func(
+        [IDL.Text, IDL.Nat, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'record_match' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : Match, 'Err' : IDL.Text })],
@@ -901,6 +1167,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'register_competition_welcome_job' : IDL.Func(
         [IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'register_member_welcome_job' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
@@ -960,8 +1231,13 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'seal_account_removal' : IDL.Func(
-        [Request],
+        [Request__1],
         [IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text })],
+        [],
+      ),
+    'seal_private_name_writer_window' : IDL.Func(
+        [Request],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
     'send_competition_broadcast' : IDL.Func(
@@ -992,6 +1268,11 @@ export const idlFactory = ({ IDL }) => {
     'set_division_hide_ladder' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Bool],
         [IDL.Variant({ 'Ok' : DivisionSetting, 'Err' : IDL.Text })],
+        [],
+      ),
+    'set_email_workers' : IDL.Func(
+        [IDL.Vec(IDL.Principal)],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
     'set_events_domain_canister' : IDL.Func(

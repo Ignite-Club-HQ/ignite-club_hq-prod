@@ -12,7 +12,8 @@ import {
 import { tryUploadMediaToBlobStore } from "@/live/mediaUpload";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { registerLiveVaultFile } from "@/live/features/vault";
+import { registerLiveVaultFile, beginLiveVaultUpload, acknowledgeLiveVaultUpload } from "@/live/features/vault";
+import { candidOpt } from "@/live/features/candid";
 import type { VaultFolderView } from "./types";
 import { uploadWithinClubMediaAllowance } from "./clubMediaAllowance";
 
@@ -119,27 +120,51 @@ export async function uploadVaultItem(
       const { compressImage } = await import("@/lib/imageCompression");
       options = { ...options, file: (await compressImage(options.file)).file };
     }
+    const registrationId = crypto.randomUUID();
+    await withFeatureBackend("vault", {
+      supabase: () => { throw new Error("unreachable: vault routing checked above"); },
+      icp: async (ctx) => {
+    const privatePath = storagePath.replace(/^(clubs\/[^/]+\/)/, "$1vault/");
+    const name = (options.name.trim() || "Untitled").slice(0, 160);
+    const mime = (options.file.type || "application/octet-stream").slice(0, 128);
+    // Role-limited folders lock the file to their role audience (one key per
+    // audience); unlimited folders keep the existing club grant path.
+    const teamScope = options.view.type === "team" ? options.view.teamId : null;
+    let audience: import("@/live/piiVetKeys").SharedAudience | undefined;
+    if (options.folderId && options.view.type !== "competition") {
+      const [{ getLiveVaultFolder }, { vaultRoleScope }] = await Promise.all([import("@/live/features/vault"), import("@/live/piiVetKeys")]);
+      const folder = await getLiveVaultFolder(ctx, options.folderId);
+      const roles = (folder?.restricted_roles ?? []).filter(Boolean);
+      if (roles.length) audience = { kind: "vaultrole", scope: vaultRoleScope(clubId, teamScope, roles), club: clubId };
+    }
     const blobUpload = dependencies.tryBlobUpload
       ? await dependencies.tryBlobUpload({
+          context: ctx,
           // "vault/" segment lets the canister apply the vault free-plan cap.
-          storagePath: storagePath.replace(/^(clubs\/[^/]+\/)/, "$1vault/"),
+          storagePath: privatePath,
           file: options.file,
           mime: options.file.type || "application/octet-stream",
           lock: "own",
+          audience,
           competitionId: options.view.type === "competition" ? options.view.competitionId : undefined,
+          beforeUpload: async (ref) => beginLiveVaultUpload(ctx, {
+            id: registrationId, folder_id: options.folderId ?? "", club: clubId,
+            team: candidOpt(options.view.type === "team" ? options.view.teamId : null),
+            mini_league_id: candidOpt(options.view.type === "mini-league" ? options.view.miniLeagueId : null),
+            competition_id: candidOpt(options.view.type === "competition" ? options.view.competitionId : null),
+            name, mime, size: BigInt(options.file.size), uploaded_by: ctx.identity.getPrincipal(),
+            file_url: `https://${ref.canister}.raw.icp0.io/${ref.path}`, blob_ref: [ref],
+            is_external_link: false, created_at_ms: 0n, deleted_at_ms: [], deleted_by: [],
+          }),
         })
       : null;
     if (!blobUpload) {
       throw new Error("Vault uploads are not available for Internet Identity members until the media canisters are configured");
     }
-    await withFeatureBackend("vault", {
-      supabase: () => {
-        throw new Error("unreachable: vault routing checked above");
-      },
-      icp: async (ctx) => {
+        await acknowledgeLiveVaultUpload(ctx, registrationId);
         await registerLiveVaultFile(
           ctx,
-          crypto.randomUUID(),
+          registrationId,
           options.folderId ?? "",
           clubId,
           options.view.type === "team" ? options.view.teamId : null,
@@ -180,7 +205,7 @@ export async function uploadVaultItem(
     try {
       const { error: uploadError } = await uploadWithinClubMediaAllowance(clubId, options.file.size, () => client.storage
         .from(storageBucket)
-        .upload(storagePath, options.file, { cacheControl: "31536000" }), client);
+        .upload(storagePath, options.file, { cacheControl: "31536000" }), client, options.view.type === "team" ? options.view.teamId : null, { bucket: storageBucket, path: storagePath, file: options.file, vault: true });
       if (uploadError) throw uploadError;
     } catch (error) {
       await dependencies.settleStorage(reservationId, false);

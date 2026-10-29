@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FolderView } from "./useVaultExport";
 import type { VaultRoleRecord } from "./types";
 import {
@@ -21,9 +21,16 @@ import {
   isVaultCoachOrTeamAdmin,
   resolveVaultContextPro,
 } from "./vaultAccess";
+import { withReadDeadline } from "@/live/readDeadline";
 import { vaultKeys } from "./vaultQueryKeys";
+import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 
 export type { VaultClubSummary } from "./vaultAccessRepository";
+
+const VAULT_OPEN_READ_MS = 12_000;
+// The wider admin inventory has a 25s per-group aggregate bound; allow it
+// to return healthy partial results before the outer bootstrap deadline.
+const VAULT_ADMIN_DIRECTORY_MS = 35_000;
 
 export interface VaultAdminUpgradeInfo {
   clubId: string | undefined;
@@ -71,6 +78,10 @@ export interface UseVaultAccessModelResult {
   isCompetitionVaultMember: boolean;
   isCompetitionVaultAdmin: boolean;
   isLoadingAccess: boolean;
+  clubsError: unknown;
+  retryClubs: () => void;
+  accessError: unknown;
+  retryAccess: () => void;
 }
 
 /**
@@ -94,20 +105,38 @@ export function useVaultAccessModel({
   activeClubFilter,
   onAutoNavigateToClub,
 }: UseVaultAccessModelOptions): UseVaultAccessModelResult {
-  const { isAppAdmin: isAppAdminFromHook, isLoading: isLoadingAppAdminHook } = useIsAppAdmin();
+  const queryClient = useQueryClient();
+  const { isAppAdmin: isAppAdminFromHook, isLoading: isLoadingAppAdminHook, error: appAdminError } = useIsAppAdmin();
   // Mirror the old raw query's `undefined` while the lookup is in flight so
   // every `isAppAdmin ?? false` / `!!isAppAdmin` call site keeps working.
   const isAppAdmin = !userId || isLoadingAppAdminHook ? undefined : isAppAdminFromHook;
   const isLoadingAppAdmin = !!userId && isLoadingAppAdminHook;
+  const isIcpVault = isFeatureRoutedToIcp("vault");
+  const selectedRoleClubId = isIcpVault
+    ? (currentView.type === "root" ? activeClubFilter : currentView.clubId)
+    : null;
 
-  const { data: userRoles, isLoading: isLoadingRoles } = useQuery({
-    queryKey: ["user-admin-roles", userId],
+  const accountRolesKey = ["user-admin-roles", userId, null];
+  const accountRolesState = queryClient.getQueryState<VaultRoleRecord[]>(accountRolesKey);
+  const reusableRoles = isIcpVault && selectedRoleClubId && accountRolesState?.status === "success" &&
+    !accountRolesState.isInvalidated && Date.now() - accountRolesState.dataUpdatedAt < 60_000
+    ? accountRolesState.data?.filter(role => role.club_id === selectedRoleClubId) : undefined;
+
+  const { data: userRoles, isLoading: isLoadingRoles, error: rolesError, refetch: retryRoles } = useQuery({
+    queryKey: ["user-admin-roles", userId, selectedRoleClubId],
     queryFn: async () => {
-      const roles = await fetchVaultUserRoles(userId!);
+      if (!userId) return [];
+      const roles = await withReadDeadline(selectedRoleClubId
+        ? fetchVaultUserRoles(userId, undefined, selectedRoleClubId)
+        : fetchVaultUserRoles(userId), "Vault roles", isIcpVault ? VAULT_OPEN_READ_MS : undefined);
       console.log("[Vault] Fetched userRoles for user", userId, ":", roles);
       return roles;
     },
     enabled: !!userId,
+    staleTime: 60_000,
+    initialData: reusableRoles,
+    initialDataUpdatedAt: reusableRoles ? accountRolesState?.dataUpdatedAt : undefined,
+    retry: isIcpVault ? false : undefined,
   });
 
   const hasVaultRoleAccess = useMemo(
@@ -115,25 +144,63 @@ export function useVaultAccessModel({
     [isAppAdmin, userRoles],
   );
 
-  const { data: userClubs, isLoading: isLoadingClubs } = useQuery({
-    queryKey: vaultKeys.clubsForUser(userId, isAppAdmin),
-    queryFn: () => fetchVaultAccessibleClubs(userId!, !!isAppAdmin),
-    enabled: !!userId && isAppAdmin !== undefined,
+  // Keep the member read subscribed when admin status resolves. A wider
+  // directory must not replace already-returned member clubs with a spinner.
+  const memberDirectoryEnabled = isIcpVault && (!activeClubFilter || !!queryClient.getQueryData([...vaultKeys.clubsForUser(userId, false), null, isIcpVault]));
+  const memberClubs = useQuery({
+    queryKey: [...vaultKeys.clubsForUser(userId, false), null, isIcpVault],
+    queryFn: ({ signal }) => userId ? withReadDeadline(
+      fetchVaultAccessibleClubs(userId, false), "Vault clubs", VAULT_OPEN_READ_MS, signal,
+    ) : [],
+    enabled: !!userId && memberDirectoryEnabled,
+    staleTime: 60_000,
+    retry: false,
   });
+  const directoryClubs = useQuery({
+    queryKey: [...vaultKeys.clubsForUser(userId, activeClubFilter ? false : !!isAppAdmin), activeClubFilter ?? null, isIcpVault],
+    queryFn: ({ signal }) => {
+      if (!userId) return [];
+      const read = activeClubFilter
+        ? fetchVaultAccessibleClubs(userId, !!isAppAdmin, undefined, activeClubFilter)
+        : fetchVaultAccessibleClubs(userId, !!isAppAdmin);
+      // Include routing/session opening, not only the provider callback.
+      return isIcpVault ? withReadDeadline(read, "Vault clubs",
+        !activeClubFilter && isAppAdmin === true ? VAULT_ADMIN_DIRECTORY_MS : VAULT_OPEN_READ_MS, signal) : read;
+    },
+    enabled: !!userId && (!!activeClubFilter || !memberDirectoryEnabled || isAppAdmin === true),
+    staleTime: 60_000,
+    retry: isIcpVault ? false : undefined,
+  });
+  const cachedDirectoryClub = isIcpVault && activeClubFilter
+    ? queryClient.getQueriesData<VaultClubSummary[]>({ queryKey: vaultKeys.clubsForUser(userId, false).slice(0, 2) })
+      .filter(([key]) => key[3] === null && key[4] === true)
+      .flatMap(([, rows]) => rows ?? []).find(club => club.id === activeClubFilter)
+    : undefined;
+  const userClubs = activeClubFilter && isIcpVault
+    ? directoryClubs.data ?? (cachedDirectoryClub ? [cachedDirectoryClub] : undefined)
+    : directoryClubs.data?.length ? directoryClubs.data : memberDirectoryEnabled
+      ? memberClubs.data ?? directoryClubs.data : directoryClubs.data;
+  const isLoadingClubs = !userClubs?.length && (directoryClubs.isPending || (memberDirectoryEnabled && memberClubs.isPending));
+  const clubsError = directoryClubs.error || (memberDirectoryEnabled ? memberClubs.error : null);
+  const refetchClubs = () => {
+    if (memberDirectoryEnabled) void memberClubs.refetch();
+    if (activeClubFilter || !memberDirectoryEnabled || isAppAdmin === true) void directoryClubs.refetch();
+  };
 
   // Auto-navigate to club view when theme filter is active - only on initial load
-  const hasAutoNavigatedRef = useRef(false);
+  const hasAutoNavigatedRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!activeClubFilter) hasAutoNavigatedRef.current = null;
     if (
       activeClubFilter &&
       currentView.type === "root" &&
       userClubs &&
       userClubs.length > 0 &&
-      !hasAutoNavigatedRef.current
+      hasAutoNavigatedRef.current !== activeClubFilter
     ) {
       const club = userClubs.find((c) => c.id === activeClubFilter);
       if (club && club.is_pro) {
-        hasAutoNavigatedRef.current = true;
+        hasAutoNavigatedRef.current = activeClubFilter;
         onAutoNavigateToClub(activeClubFilter, club.name);
       }
     }
@@ -158,9 +225,9 @@ export function useVaultAccessModel({
   const userTeamIds = useMemo(() => getVaultTeamIds(userRoles), [userRoles]);
 
   const competitionId = currentView.type === "competition" ? currentView.competitionId : null;
-  const { data: competitionAccess, isLoading: isLoadingCompetitionAccess } = useQuery({
+  const { data: competitionAccess, isLoading: isLoadingCompetitionAccess, error: competitionError, refetch: retryCompetition } = useQuery({
     queryKey: ["vault-competition-access", userId, competitionId],
-    queryFn: () => fetchVaultCompetitionAccess(competitionId!, userId!),
+    queryFn: () => competitionId && userId ? withReadDeadline(fetchVaultCompetitionAccess(competitionId, userId), "Vault competition access") : null,
     enabled: !!userId && !!competitionId,
     staleTime: 30_000,
   });
@@ -169,21 +236,36 @@ export function useVaultAccessModel({
     currentView.type === "club" || currentView.type === "team" || currentView.type === "mini-league" || currentView.type === "competition"
       ? currentView.clubId
       : null;
+  const selectedClub = isIcpVault && activeClubFilter
+    ? directoryClubs.data?.find((club) => club.id === activeClubFilter)
+    : undefined;
+  // Only the exact selected ICP read carries authoritative media allowance.
+  // Directory flags from the other paths are labels, not access evidence.
+  const selectedClubsState = queryClient.getQueryState([
+    ...vaultKeys.clubsForUser(userId, false), activeClubFilter ?? null, isIcpVault,
+  ]);
+  const selectedClubsUpdatedAt = selectedClubsState?.dataUpdatedAt ?? 0;
+  const reusableSelectedClub = selectedClub && selectedClub.id === contextClubId &&
+    !selectedClubsState?.isInvalidated && Date.now() - selectedClubsUpdatedAt < 30_000 ? selectedClub : undefined;
 
   // Check if the current club has Pro
-  const { data: currentClubHasPro, isLoading: isLoadingClubHasPro } = useQuery({
-    queryKey: vaultKeys.clubHasPro(contextClubId),
-    queryFn: () => fetchVaultClubHasPro(contextClubId!),
-    enabled: contextClubId !== null,
+  const { data: currentClubHasPro, isLoading: isLoadingClubHasPro, error: clubProError, refetch: retryClubPro } = useQuery({
+    queryKey: [...vaultKeys.clubHasPro(contextClubId), userId, isIcpVault],
+    queryFn: () => contextClubId ? withReadDeadline(fetchVaultClubHasPro(contextClubId), "Vault club subscription") : false,
+    enabled: !!userId && contextClubId !== null,
+    initialData: reusableSelectedClub?.is_pro,
+    initialDataUpdatedAt: reusableSelectedClub ? selectedClubsUpdatedAt : undefined,
+    staleTime: 30_000,
   });
 
   const contextTeamId = currentView.type === "team" ? currentView.teamId : null;
 
   // Check if the current team has Pro (for teams in non-Pro clubs)
-  const { data: currentTeamHasPro, isLoading: isLoadingTeamHasPro } = useQuery({
+  const { data: currentTeamHasPro, isLoading: isLoadingTeamHasPro, error: teamProError, refetch: retryTeamPro } = useQuery({
     queryKey: vaultKeys.teamHasPro(contextTeamId),
-    queryFn: () => fetchVaultTeamHasPro(contextTeamId!),
+    queryFn: () => contextTeamId ? withReadDeadline(fetchVaultTeamHasPro(contextTeamId), "Vault team subscription") : false,
     enabled: contextTeamId !== null,
+    staleTime: 30_000,
   });
 
   // Determine if current context has Pro access for uploads
@@ -194,16 +276,17 @@ export function useVaultAccessModel({
 
   // Check for Pro subscription across every club/team the user holds a role
   // in (the root-view entitlement gate; distinct from `currentContextHasPro`).
-  const { data: proAccessInfo, isLoading: isLoadingProClub } = useQuery({
+  const { data: proAccessInfo, isLoading: isLoadingProClub, error: anyProError, refetch: retryAnyPro } = useQuery({
     queryKey: ["pro-access-info", userId],
-    queryFn: () => fetchVaultAnyProAccess(userId!),
+    queryFn: () => userId ? withReadDeadline(fetchVaultAnyProAccess(userId), "Vault subscriptions", isIcpVault ? VAULT_OPEN_READ_MS : undefined) : false,
+    // Other page consumers still use this for storage warning state;
+    // scoped access never waits for it, but keep those consumers populated.
     enabled: !!userId,
+    staleTime: 30_000,
+    retry: isIcpVault ? false : undefined,
   });
 
-  const hasProClub = proAccessInfo ?? false;
-
-  const isLoadingAccess =
-    isLoadingAppAdmin || isLoadingProClub || isLoadingRoles || isLoadingClubHasPro || isLoadingTeamHasPro || isLoadingCompetitionAccess;
+  const hasProClub = (selectedClub?.is_pro === true) || (proAccessInfo ?? false);
 
   // Vault access requires: 1) Pro subscription in current context AND 2) Admin/coach role
   const vaultAccessContextHasPro = currentView.type === "root" ? hasProClub : currentContextHasPro;
@@ -220,12 +303,68 @@ export function useVaultAccessModel({
         isRoot: currentView.type === "root",
       });
 
+  // An already-authorized scoped member does not need unrelated app-admin
+  // discovery to finish. Pending checks still gate any unestablished access.
+  const isLoadingAccess = !canAccessVault && (
+    isLoadingAppAdmin || isLoadingRoles || (!isAppAdmin && (currentView.type === "root"
+      ? isLoadingProClub
+      : ((!currentContextHasPro && (isLoadingClubHasPro || isLoadingTeamHasPro)) || isLoadingCompetitionAccess)))
+  );
+
   // Determine if it's a role issue or a Pro subscription issue
   const hasProButNoRole = currentView.type === "competition"
     ? vaultAccessContextHasPro && !isCompetitionVaultMember
     : vaultAccessContextHasPro && !hasVaultRoleAccess;
 
+  const accessError = canAccessVault ? null : appAdminError || rolesError || (currentView.type === "root"
+    ? anyProError
+    : (!currentContextHasPro && (clubProError || teamProError)) || (competitionId && competitionError));
+  const retryAccess = () => {
+    void queryClient.refetchQueries({ queryKey: ["is-app-admin", userId], exact: true });
+    void retryRoles();
+    if (currentView.type === "root") void retryAnyPro();
+    if (contextClubId) void retryClubPro();
+    if (contextTeamId) void retryTeamPro();
+    if (competitionId) void retryCompetition();
+  };
+
+  // Bounded root warmup: the already-returned directory supplies locations,
+  // not file access. Each read still goes to its caller-authorizing canister.
+  useEffect(() => {
+    if (!isIcpVault || !userId || currentView.type !== "root" || activeClubFilter || !canAccessVault || !userRoles) return;
+    const clubs = userClubs?.slice(0, 3) ?? [];
+    for (const club of clubs) {
+      const view: FolderView = { type: "club", clubId: club.id, clubName: club.name };
+      const roles = userRoles.filter(role => role.club_id === club.id);
+      const admin = isVaultClubAdminOrCommittee(isAppAdmin ?? false, view, roles);
+      const coach = isVaultCoachOrTeamAdmin(admin, view, roles);
+      const clubRoles = new Set(roles.flatMap(role => role.role ? [role.role] : []));
+      const signature = [...clubRoles].sort().join(",");
+      if (!admin && !coach && clubRoles.size === 0) continue;
+      void queryClient.prefetchQuery({
+        queryKey: [...vaultKeys.clubHasPro(club.id), userId, true],
+        queryFn: () => withReadDeadline(fetchVaultClubHasPro(club.id), "Vault club subscription", VAULT_OPEN_READ_MS),
+        staleTime: 30_000,
+      });
+      void import("./vaultReadRepository").then(({ fetchVaultSubfolders, fetchVaultItems }) => {
+        void queryClient.prefetchQuery({
+          queryKey: [...vaultKeys.subfoldersForView(view, admin, coach, isAppAdmin, signature), userId, true],
+          queryFn: () => fetchVaultSubfolders({ view, isAppAdmin: isAppAdmin ?? false, isClubAdmin: admin, isCoachOrTeamAdmin: coach, clubRoles }),
+          staleTime: 60_000,
+        });
+        void queryClient.prefetchQuery({
+          queryKey: [...vaultKeys.filesForView(view, admin, coach), userId, true],
+          queryFn: () => fetchVaultItems({ view, isClubAdmin: admin, isCoachOrTeamAdmin: coach }),
+          staleTime: 60_000,
+        });
+      }).catch(() => { /* optional warmup: normal opening remains retryable */ });
+    }
+  }, [isIcpVault, userId, currentView.type, activeClubFilter, canAccessVault, userRoles, userClubs, isAppAdmin, queryClient]);
+
   return {
+    accessError, retryAccess,
+    clubsError: userClubs?.length ? null : clubsError,
+    retryClubs: () => { void refetchClubs(); },
     isAppAdmin,
     userRoles,
     hasVaultRoleAccess,

@@ -15,6 +15,47 @@ function deps(gates = OFF, principal = 'p1') {
 beforeEach(() => clearGroupDispatchCache());
 
 describe('club-scoped dispatcher', () => {
+  it('cold discovery refresh joins an already opening session', async () => {
+    const { d, session } = deps(ON);
+    let finish: ((value: typeof session) => void) | undefined;
+    d.open = vi.fn(() => new Promise<typeof session>(resolve => { finish = resolve; }));
+    const dispatcher = createClubDispatcher(d);
+    const opening = dispatcher.memberClubIds();
+    await vi.waitFor(() => expect(d.open).toHaveBeenCalledTimes(1));
+    const refresh = dispatcher.refreshMembershipSession();
+    await Promise.resolve(); await Promise.resolve();
+    expect(d.open).toHaveBeenCalledTimes(1);
+    if (!finish) throw new Error('Session was not opened');
+    finish(session);
+    await Promise.all([opening, refresh]);
+    expect(d.open).toHaveBeenCalledTimes(1);
+    expect(session.dispose).not.toHaveBeenCalled();
+  });
+  it('a settled session still refreshes after membership reconciliation', async () => {
+    const { d } = deps(ON);
+    const dispatcher = createClubDispatcher(d);
+    await dispatcher.memberClubIds();
+    await dispatcher.refreshMembershipSession();
+    expect(d.open).toHaveBeenCalledTimes(2);
+  });
+  it('verified legacy members do not reopen the session on every club read', async () => {
+    const { d, session } = deps(ON);
+    const dispatcher = createClubDispatcher({ ...d, open: vi.fn(async () => ({ ...session, isLegacyMember: (id: string) => id === 'legacy-club' })) });
+    await dispatcher.read('events', 'legacy-club', 'events_domain', async () => 'events');
+    await dispatcher.read('messaging', 'legacy-club', 'messaging_domain', async () => 'chats');
+    expect(d.legacy).toHaveBeenCalledTimes(2);
+    expect(session.dispose).not.toHaveBeenCalled();
+  });
+  it('member content never invokes unrestricted discovery', async () => {
+    const { d, session } = deps(ON);
+    const memberRead = vi.fn(async (_domain, read) => read({ target: { canisterIds: { club_domain: 'member-group' } } }));
+    const everyRead = vi.fn(async () => []);
+    const dispatcher = createClubDispatcher({ ...d, open: async () => ({ ...session, readEveryGroup: everyRead, readMemberGroups: memberRead }) } as never);
+    const result = await dispatcher.readMemberGroups('membership', 'club_domain', async ctx => [ctx.target.canisterIds.club_domain], parts => parts.flat());
+    expect(result).toEqual(['member-group']);
+    expect(everyRead).not.toHaveBeenCalled();
+    expect(d.legacy).not.toHaveBeenCalled();
+  });
   it.each([
     ['media', 'media_metadata', { photoId: 'photo-a' }, 'photo'],
     ['media', 'media_metadata', { galleryCardId: 'card-a' }, 'galleryCard'],
@@ -62,7 +103,10 @@ describe('club-scoped dispatcher', () => {
     expect(await x.write('events', 'moved', 'events_domain', 'k', async () => 'w', 1)).toBe('group');
     expect(session.writeClub).toHaveBeenCalledWith('moved', 'events_domain', 'k', expect.any(Function), 1);
     expect(await x.read('events', 'legacy-club', 'events_domain', async () => 'r')).toBe('legacy');
-    expect(d.open).toHaveBeenCalledTimes(1);
+    // An unknown club reopens the session once (it may be newly created), then is remembered as unplaced.
+    expect(d.open).toHaveBeenCalledTimes(2);
+    expect(await x.read('events', 'legacy-club', 'events_domain', async () => 'again')).toBe('legacy');
+    expect(d.open).toHaveBeenCalledTimes(2);
   });
   it('a group failure is reported, never retried on the shared canisters', async () => {
     const { d, session } = deps(ON); session.readClub.mockRejectedValueOnce(new Error('Request timed out'));
@@ -148,6 +192,46 @@ describe('entity scopes', () => {
     await x.remember('event', [['m-ev', 'moved']]);
     expect(await x.readFor('events', { eventId: 'm-ev' }, 'events_domain', async () => 1)).toBe('group');
     expect(s.readEveryGroup).not.toHaveBeenCalled();
+  });
+  it('remembers a newly discovered Group 2 club after reopening the stale session', async () => {
+    const { d, s } = world({ g2: [] });
+    const open = vi.fn().mockResolvedValueOnce({ ...s, isAssigned: () => false }).mockResolvedValue({ ...s, isAssigned: (club: string) => club === 'new-club' });
+    const dispatcher = createClubDispatcher({ ...d, open } as never);
+    await dispatcher.remember('conversation', [['new-chat', 'new-club']]);
+    expect(await dispatcher.readFor('messaging', { conversationId: 'new-chat' }, 'messaging_domain', async () => 1)).toBe('group');
+    expect(s.readEveryGroup).not.toHaveBeenCalled();
+    expect(s.readClub).toHaveBeenCalledWith('new-club', 'messaging_domain', expect.any(Function));
+  });
+  it('checks distinct legacy clubs in one refreshed session and keeps new-group routes', async () => {
+    const { d, s } = world({ g2: [] });
+    const open = vi.fn().mockResolvedValueOnce({ ...s, isAssigned: () => false })
+      .mockResolvedValue({ ...s, isAssigned: (club: string) => club === 'new-club' });
+    const x = createClubDispatcher({ ...d, open } as never);
+    await x.remember('conversation', [['chat-a', 'legacy-a'], ['chat-b', 'legacy-b'], ['chat-c', 'legacy-c'], ['chat-new', 'new-club']]);
+    expect(open).toHaveBeenCalledTimes(2);
+    for (const id of ['chat-a', 'chat-b', 'chat-c']) {
+      expect(await x.readFor('messaging', { conversationId: id }, 'messaging_domain', async () => 1)).toBe('legacy');
+    }
+    expect(await x.readFor('messaging', { conversationId: 'chat-new' }, 'messaging_domain', async () => 1)).toBe('group');
+    expect(s.readEveryGroup).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledTimes(2);
+  });
+  it('a chat listed for an original-group club opens from the shared canisters, not the hosted lookup', async () => {
+    const { d, s } = world({ g2: [] }); const readHosted = vi.fn(async () => { throw new Error('No hosted assignment'); });
+    const x = createClubDispatcher({ ...d, open: vi.fn(async () => ({ ...s, readHosted })) } as never);
+    await x.remember('conversation', [['g1-chat', 'g1-club']]);
+    expect(await x.readFor('messaging', { conversationId: 'g1-chat' }, 'messaging_domain', async () => 1)).toBe('legacy');
+    expect(readHosted).not.toHaveBeenCalled();
+    expect(s.readEveryGroup).not.toHaveBeenCalled();
+  });
+  it('a stale device answer pointing at an original-group club is dropped and re-checked', async () => {
+    const saved: Record<string, Record<string, string>> = { p1: { 'conversation:g1-chat': 'g1-club' } };
+    const store = { load: (p: string) => saved[p] ?? {}, save: (p: string, o: Record<string, string>) => { saved[p] = o; } };
+    const { d, s } = world({ g2: [] }); const readHosted = vi.fn(async () => { throw new Error('No hosted assignment'); });
+    const x = createClubDispatcher({ ...d, store, open: vi.fn(async () => ({ ...s, readHosted })) } as never);
+    expect(await x.readFor('messaging', { conversationId: 'g1-chat' }, 'messaging_domain', async () => 1)).toBe('legacy');
+    expect(readHosted).not.toHaveBeenCalled();
+    expect(saved.p1['conversation:g1-chat']).toBeUndefined();
   });
 });
 

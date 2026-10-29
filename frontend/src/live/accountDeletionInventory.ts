@@ -1,7 +1,7 @@
 import type { Identity } from '@icp-sdk/core/agent';
 import type { IcpTargetConfig } from './targetRegistry';
 
-type DeletionDomain = 'club_domain' | 'vault_domain' | 'events_domain' | 'messaging_domain';
+type DeletionDomain = 'club_domain' | 'vault_domain' | 'events_domain' | 'messaging_domain' | 'competition_domain' | 'notification_queue';
 
 /** Keep discovery alive through deletion: membership loss must not drop an authority on retry. */
 export async function openAccountDeletionInventory(target: IcpTargetConfig, identity: Identity,
@@ -42,7 +42,7 @@ export async function openAccountDeletionInventory(target: IcpTargetConfig, iden
       revision: session?.deletionRegistryRevision,
       targetsFor: (domain: DeletionDomain) => byDomain.get(domain) ?? [],
       // Point-in-time consensus check, NOT an atomic cross-canister erasure fence.
-      validate: async () => { if (session) await session.assertRegistryUnchanged(); },
+      validate: async () => { if (session) await session.assertRegistryUnchanged(true); },
       dispose: () => session?.dispose(),
     };
   } catch (error) { session?.dispose(); throw error; }

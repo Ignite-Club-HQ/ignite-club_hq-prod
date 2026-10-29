@@ -8,6 +8,11 @@ const mocks = vi.hoisted(() => ({
   my_unread_counts: vi.fn(),
   send_message: vi.fn(),
   submit_content_report: vi.fn(),
+  read_conversation_club: vi.fn(),
+  get_direct_conversation: vi.fn(),
+  get_message_window: vi.fn(),
+  list_conversation_online_users: vi.fn(),
+  list_broadcast_message_readers: vi.fn(),
 }));
 
 vi.mock("../domains", () => ({
@@ -20,6 +25,11 @@ vi.mock("../domains", () => ({
       my_unread_counts: mocks.my_unread_counts,
       send_message: mocks.send_message,
       submit_content_report: mocks.submit_content_report,
+      read_conversation_club: mocks.read_conversation_club,
+      get_direct_conversation: mocks.get_direct_conversation,
+      get_message_window: mocks.get_message_window,
+      list_conversation_online_users: mocks.list_conversation_online_users,
+      list_broadcast_message_readers: mocks.list_broadcast_message_readers,
     },
   })),
 }));
@@ -32,10 +42,71 @@ import {
   myLiveUnreadCounts,
   sendLiveMessage,
   submitLiveContentReport,
+  isLiveConversationAbsent,
+  getLiveDirectConversation,
+  getLiveMessageWindow,
+  listLiveConversationOnlineUsers,
+  listLiveBroadcastMessageReaders,
 } from "./messaging";
 
 const ctx = { target: {}, identity: {} } as never;
 const other = { toText: () => "aaaaa-aa" } as never;
+describe("exact private messaging reads", () => {
+  it('reads the exact displayed broadcast messages with bounded selectors and no client ordering inference', async () => {
+    const identity = { getPrincipal: () => ({ toText: () => 'viewer' }) };
+    const owner = { target: {}, identity } as never;
+    mocks.list_broadcast_message_readers.mockResolvedValue({ Ok: [{ conversation_id: 'broadcast', message_id: 'older', user: other, read: true }] });
+    expect(await listLiveBroadcastMessageReaders(owner, ['older', 'older'])).toEqual([{ conversationId: 'broadcast', messageId: 'older', user: other, read: true }]);
+    expect(mocks.list_broadcast_message_readers).toHaveBeenLastCalledWith(['older']);
+    await expect(listLiveBroadcastMessageReaders(owner, Array.from({ length: 101 }, (_, i) => String(i)))).rejects.toThrow('bounded');
+  });
+  it('refuses wrong-message reader responses and held account drift', async () => {
+    const identity = { getPrincipal: () => ({ toText: () => 'viewer' }) };
+    const owner = { target: {}, identity };
+    mocks.list_broadcast_message_readers.mockResolvedValueOnce({ Ok: [{ conversation_id: 'broadcast', message_id: 'foreign', user: other, read: true }] });
+    await expect(listLiveBroadcastMessageReaders(owner as never, ['older'])).rejects.toThrow('mismatch');
+    mocks.list_broadcast_message_readers.mockImplementationOnce(async () => { owner.identity = { ...identity }; return { Ok: [] }; });
+    await expect(listLiveBroadcastMessageReaders(owner as never, ['older'])).rejects.toThrow('account changed');
+  });
+  it("reads empty DM participants with the exact caller identity", async () => {
+    const self = { toText: () => "self" };
+    const peer = { toText: () => "peer" };
+    mocks.get_direct_conversation.mockResolvedValue({ Ok: { id: "dm-1", participants: [self, peer] } });
+    const context = { identity: { getPrincipal: () => self }, target: {} } as never;
+    expect(await getLiveDirectConversation(context, "dm-1")).toEqual({ id: "dm-1", participant_1: "self", participant_2: "peer" });
+    mocks.get_direct_conversation.mockResolvedValue({ Ok: { id: "dm-1", participants: [peer, peer] } });
+    await expect(getLiveDirectConversation(context, "dm-1")).rejects.toThrow("identity mismatch");
+  });
+  it("rejects a message window from a different conversation", async () => {
+    mocks.get_message_window.mockResolvedValue({ Ok: { messages: [{ id: "target", conversation_id: "foreign" }] } });
+    await expect(getLiveMessageWindow(ctx, "group-1", "target")).rejects.toThrow("identity mismatch");
+    mocks.get_message_window.mockResolvedValue({ Ok: { messages: [{ id: "target", conversation_id: "group-1" }] } });
+    expect((await getLiveMessageWindow(ctx, "group-1", "target")).messages).toHaveLength(1);
+  });
+  it("uses only the authorized conversation presence API and preserves refusals", async () => {
+    mocks.list_conversation_online_users.mockResolvedValue({ Ok: [other] });
+    expect(await listLiveConversationOnlineUsers(ctx, "group-1")).toEqual(["aaaaa-aa"]);
+    expect(mocks.list_conversation_online_users).toHaveBeenCalledWith("group-1");
+    mocks.list_conversation_online_users.mockResolvedValue({ Err: "Conversation access forbidden" });
+    await expect(listLiveConversationOnlineUsers(ctx, "group-1")).rejects.toThrow("access forbidden");
+  });
+});
+
+describe('conversation absence evidence', () => {
+  it('accepts only a successful empty owner option', async () => {
+    mocks.read_conversation_club.mockResolvedValueOnce({ Ok: [] });
+    expect(await isLiveConversationAbsent(ctx, 'missing-team')).toBe(true);
+    expect(mocks.read_conversation_club).toHaveBeenCalledWith('missing-team');
+    mocks.read_conversation_club.mockResolvedValueOnce({ Ok: ['club-a'] });
+    expect(await isLiveConversationAbsent(ctx, 'existing-team')).toBe(false);
+  });
+  it('preserves forbidden and transport failures', async () => {
+    mocks.read_conversation_club.mockResolvedValueOnce({ Err: 'Forbidden' });
+    await expect(isLiveConversationAbsent(ctx, 'private')).rejects.toThrow('Forbidden');
+    mocks.read_conversation_club.mockRejectedValueOnce(new Error('Remote call failed'));
+    await expect(isLiveConversationAbsent(ctx, 'unknown')).rejects.toThrow('Remote call failed');
+  });
+});
 
 describe("canLiveDmUser", () => {
   it("passes through the canister boolean unchanged", async () => {

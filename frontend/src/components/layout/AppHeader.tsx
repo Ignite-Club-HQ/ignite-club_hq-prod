@@ -19,6 +19,7 @@ import { SwipeableDropdownContent } from "@/components/ui/swipeable-dropdown-con
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { useClubTheme } from "@/hooks/useClubTheme";
+import { useClubPickerSelection } from "@/hooks/useClubPickerSelection";
 import { guardClubListResult } from "@/lib/clubListEmptyGuard";
 import { useLogoAccentColor } from "@/hooks/useLogoAccentColor";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -94,7 +95,8 @@ function getBestContrastColor(
 
 function LogoClubThemeDropdown() {
   const navigate = useNavigate();
-  const { availableClubThemes, activeClubTheme, setActiveClubTheme } = useClubTheme();
+  const { availableClubThemes, activeClubTheme } = useClubTheme();
+  const setActiveClubTheme = useClubPickerSelection();
   const defaultLogo = igniteIcon;
   const { user, signOut } = useAuth();
   // Fetch ALL user clubs (including non-Pro) to show with lock.
@@ -394,7 +396,7 @@ function LogoClubThemeDropdown() {
 export function AppHeader() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { profile, unreadCount: globalUnreadCount, user, clearUnreadCount, refreshUnreadCount, signOut } = useAuth();
+  const { profile, unreadCount: globalUnreadCount, user, clearUnreadCount, refreshUnreadCount, signOut, profileNamePending } = useAuth();
   const { activeThemeData, activeClubTheme, activeClubFilter, activeFreeClubData } = useClubTheme();
   const { setTheme, theme, resolvedTheme } = useTheme();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -443,10 +445,10 @@ export function AppHeader() {
           .not("team_id", "is", null),
         db
           .from("team_memberships")
-          .select("teams!inner(club_id)")
-          .eq("user_id", user.id)
+          .select("teams!inner(club_id), club_players!inner(profile_id)")
+          .eq("club_players.profile_id", user.id)
           .eq("status", "active"),
-        db.from("club_players").select("club_id").eq("user_id", user.id),
+        db.from("club_players").select("club_id").eq("profile_id", user.id),
       ]);
       const ids = new Set<string>();
       (clubRoles.data || []).forEach((r: any) => r.club_id && ids.add(r.club_id));
@@ -1558,7 +1560,7 @@ export function AppHeader() {
                         color: effectiveTheme === 'dark' ? 'hsl(160 5% 95%)' : 'hsl(160 10% 10%)'
                       }}
                     >
-                      {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                      {profileNamePending ? <User className="h-4 w-4" /> : profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -1572,11 +1574,11 @@ export function AppHeader() {
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={profile?.avatar_url || undefined} />
                   <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                    {profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
+                    {profileNamePending ? <User className="h-4 w-4" /> : profile?.display_name?.charAt(0)?.toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex flex-col space-y-0.5">
-                  <p className="text-sm font-medium">{profile?.display_name || "User"}</p>
+                 <div className="flex flex-col space-y-0.5">
+                  <p className="text-sm font-medium">{profileNamePending ? "" : profile?.display_name || "User"}</p>
                 </div>
               </div>
               <DropdownMenuSeparator />

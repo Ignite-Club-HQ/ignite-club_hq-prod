@@ -26,11 +26,14 @@ import { sweepStaleDeletedTeams } from "@/lib/staleDeletedTeamSweep";
 import { useLaunchIntentPending } from "@/hooks/useLaunchIntentPending";
 import { useInviteFlowSweeper } from "@/hooks/useInviteFlowSweeper";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
+import { KeptTabsOutlet } from "./KeptTabsOutlet";
+import { isIcpProviderMounted } from "@/live/authBackendMode";
+import { TabPagePlaceholder } from "./TabPagePlaceholder";
 
 const LazyDeepLinkGate = lazyWithRetry(() => import("@/components/DeepLinkGate"));
 
 export function AppLayout() {
-  const { user, profile, loading, profileLoading, profileError, refreshProfile, initialized, profileResolved, sessionRestoration } = useAuth();
+  const { user, profile, loading, profileLoading, profileError, refreshProfile, signOut, initialized, profileResolved, sessionRestoration } = useAuth();
   useAdMobInit();
   useActivityTracking();
   useTrackPresence(user?.id);
@@ -104,7 +107,6 @@ export function AppLayout() {
       profileError,
       profileResolved,
       hasProfile: !!profile,
-      displayName: profile?.display_name,
       userId: user?.id,
       isThemeReady,
       themeTimeout
@@ -297,13 +299,13 @@ export function AppLayout() {
             <p className="text-xs text-muted-foreground">Auto-retrying in 5 seconds...</p>
             <Button onClick={async () => {
               setRetrying(true);
-              await refreshProfile();
-              setRetrying(false);
+              try { await refreshProfile(); } finally { setRetrying(false); }
             }}>
               Retry Now
             </Button>
           </>
         )}
+        <Button variant="ghost" onClick={() => void signOut()}>Sign out</Button>
       </div>
     );
   }
@@ -368,13 +370,9 @@ export function AppLayout() {
           preserves the chrome and confines the fallback to the content area.
         */}
         <Suspense
-          fallback={
-            <div className="flex-1 flex items-center justify-center py-16" role="status" aria-label="Loading page">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          }
+          fallback={<TabPagePlaceholder />}
         >
-          <Outlet />
+          {isIcpProviderMounted() && user ? <KeptTabsOutlet ownerId={user.id} prewarm /> : <Outlet />}
         </Suspense>
       </main>
       <BottomNav />

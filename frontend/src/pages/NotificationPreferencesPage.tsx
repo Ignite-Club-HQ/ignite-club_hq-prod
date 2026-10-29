@@ -44,6 +44,7 @@ import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { listLivePreferencesByClub } from "@/live/features/notifications";
 import { listLiveProfilesByIds } from "@/live/features/identityAccessClient";
+import { readAdminPages } from "@/live/adminPaging";
 
 export default function NotificationPreferencesPage() {
   if (isFeatureRoutedToIcp("notifications")) {
@@ -71,24 +72,28 @@ interface IcpUserNotificationData {
  * registered column/stat is hidden rather than shown as empty.
  */
 function IcpNotificationPreferencesPage() {
+  const { user } = useAuth();
   const { isAppAdmin, isLoading: adminLoading } = useIsAppAdmin();
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["icp-notification-preferences"],
+  const withDeadline = <T,>(p: Promise<T>, ms: number, msg: string) =>
+    Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms))]);
+
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
+    queryKey: ["icp-notification-preferences", user?.id],
     queryFn: async () =>
-      withFeatureBackend("notifications", {
+      withDeadline(withFeatureBackend("notifications", {
         supabase: async () => null,
-        icp: async (ctx) => {
-          const page = await listLivePreferencesByClub(ctx, "", 500, 0);
-          const items = page.items ?? [];
-          const ids = items.map((p) => p.user);
-          const profiles = await listLiveProfilesByIds(ctx, ids).catch(() => []);
-          const nameMap = new Map<string, string | null>(
-            (profiles as any[]).map((p) => [p.id, p.display_name ?? null]),
-          );
+        icp: async () => {
+          const { adminQueueContexts } = await import("@/live/adminQueueOperations");
+          const contexts = await adminQueueContexts();
+          const pages = await Promise.all(contexts.map(queueCtx => readAdminPages(async (offset, limit) => {
+            const page = await listLivePreferencesByClub(queueCtx, "app", limit, offset);
+            return { items: page.items, total: Number(page.total) };
+          }, item => item.user, 500)));
+          const items = pages.flat();
           const users: IcpUserNotificationData[] = items.map((p) => ({
             id: p.user,
-            display_name: nameMap.get(p.user) ?? null,
+            display_name: null,
             emailMessagesEnabled: p.email_messages_enabled,
             emailEventsEnabled: p.email_events_enabled,
             emailMediaEnabled: p.email_media_enabled,
@@ -97,13 +102,31 @@ function IcpNotificationPreferencesPage() {
             pushMediaEnabled: p.media_enabled,
           }));
           return {
-            total: Number(page.total),
+            total: items.length,
             usersWithEmailEnabled: users.filter((u) => u.emailMessagesEnabled).length,
             users,
           };
         },
-      }, { shared: "person" }),
+      }, { shared: "person" }), 25_000, "Notification settings took too long to load"),
     enabled: isAppAdmin,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  // Names load separately so the table appears without waiting for them.
+  const ids = (data?.users ?? []).map((u) => u.id);
+  const { data: nameMap } = useQuery({
+    queryKey: ["icp-notification-preference-names", user?.id, ids.join(",")],
+    queryFn: async () =>
+      withFeatureBackend("notifications", {
+        supabase: async () => new Map<string, string | null>(),
+        icp: async (ctx) => {
+          const profiles = await withDeadline(listLiveProfilesByIds(ctx, ids), 20_000, "names").catch(() => []);
+          return new Map<string, string | null>(profiles.map(p => [p.account_id, p.display_name ?? null]));
+        },
+      }, { shared: "person" }),
+    enabled: isAppAdmin && ids.length > 0,
+    staleTime: 5 * 60_000,
   });
 
   if (adminLoading) {
@@ -118,7 +141,7 @@ function IcpNotificationPreferencesPage() {
     return <Navigate to="/" replace />;
   }
 
-  const users = data?.users;
+  const users = data?.users.map((u) => ({ ...u, display_name: nameMap?.get(u.id) ?? u.display_name }));
 
   const StatusBadge = ({ enabled }: { enabled: boolean }) => (
     enabled ? (
@@ -169,6 +192,13 @@ function IcpNotificationPreferencesPage() {
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : error && !data ? (
+            <div className="py-6 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">We couldn't load notification settings right now. Please try again.</p>
+              <button type="button" className="text-sm font-medium text-primary underline" disabled={isFetching} onClick={() => refetch()}>
+                {isFetching ? "Trying…" : "Try again"}
+              </button>
             </div>
           ) : (
             <Tabs defaultValue="push" className="w-full">

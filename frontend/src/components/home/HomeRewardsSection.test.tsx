@@ -66,6 +66,28 @@ function renderSection(overrides: Partial<Parameters<typeof HomeRewardsSection>[
 }
 
 describe("HomeRewardsSection", () => {
+  it("accepts the first browse tap while points and club discovery are pending", () => {
+    const { props } = renderSection({ rewardClubs: [], rewardClubsLoading: true, myPointsLoading: true });
+    fireEvent.click(screen.getByRole("button", { name: "View Rewards" }));
+    expect(props.onBrowseRewards).toHaveBeenCalledOnce();
+    expect(props.onOpenPointsHistory).not.toHaveBeenCalled();
+  });
+  it("retries failed club discovery inside the already-open drawer", () => {
+    const retry = vi.fn();
+    renderSection({ rewardsDialogOpen: true, rewardClubs: [], rewardClubsError: true, onRetryRewardClubs: retry });
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+  it("offers a working manual retry after an unavailable rewards read", () => {
+    const { props } = renderSection({ rewardsDialogOpen: true, selectedRewardClubId: "club-1", availableRewards: [], rewardsError: true, onRetryRewards: vi.fn() });
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(props.onRetryRewards).toHaveBeenCalledOnce();
+  });
+  it("keeps a loaded reward usable while refreshing", () => {
+    const { props } = renderSection({ rewardsDialogOpen: true, selectedRewardClubId: "club-1", rewardsLoading: true });
+    fireEvent.click(screen.getByRole("button", { name: /Free drink/ }));
+    expect(props.onSelectReward).toHaveBeenCalledWith(reward);
+  });
   it("opens points history from the unlocked summary card", () => {
     const { props } = renderSection();
     fireEvent.click(screen.getByRole("button", { name: "View points and rewards" }));

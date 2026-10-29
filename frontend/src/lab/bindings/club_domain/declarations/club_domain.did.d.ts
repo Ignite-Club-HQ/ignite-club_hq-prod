@@ -28,6 +28,13 @@ export interface AccountRole {
   'role' : string,
   'team' : [] | [string],
 }
+export interface Account__1 {
+  'account_id' : string,
+  'account_version' : bigint,
+  'original_authority' : Authority,
+  'principals' : Array<Principal>,
+  'revision' : bigint,
+}
 export interface Acl {
   'teams' : Array<Team>,
   'guardians' : Array<Guardian>,
@@ -35,6 +42,24 @@ export interface Acl {
   'children' : Array<Child>,
   'exclusions' : Array<Exclusion>,
   'roles' : Array<RoleGrant>,
+}
+export type Authority = { 'NoName' : null } |
+  { 'Existing' : { 'subject' : Principal, 'sink' : Principal } } |
+  { 'Unresolved' : null };
+export interface Batch {
+  'requester' : Principal,
+  'members' : Array<boolean>,
+  'subjects' : Array<Principal>,
+  'club' : string,
+  'revision' : bigint,
+}
+export interface Binding {
+  'inventory_digest' : Uint8Array,
+  'deployment' : string,
+  'generation' : bigint,
+  'group' : string,
+  'identity' : Principal,
+  'router' : Principal,
 }
 export interface Cell { 'value' : Value, 'name' : string }
 export interface Challenge {
@@ -51,6 +76,11 @@ export interface Child {
   'teams' : Array<string>,
   'club_id' : [] | [string],
   'parent' : [] | [Principal],
+}
+export interface Claimed {
+  'principal' : Principal,
+  'claimed_ms' : bigint,
+  'source_user' : string,
 }
 export interface ClassEnrolment {
   'id' : string,
@@ -189,6 +219,17 @@ export interface Config {
   'governor' : Principal,
   'acl_version' : bigint,
 }
+export interface Cursor {
+  'offset' : bigint,
+  'phase' : bigint,
+  'revision' : bigint,
+}
+export interface Cursor__1 {
+  'offset' : bigint,
+  'nested' : bigint,
+  'phase' : bigint,
+  'revision' : bigint,
+}
 export interface Draft {
   'url' : string,
   'title' : string,
@@ -197,6 +238,13 @@ export interface Draft {
   'open_mode' : string,
   'subtitle' : [] | [string],
 }
+export type Edge = { 'Parent' : { 'subject' : Principal, 'child' : string } } |
+  { 'Club' : { 'id' : string, 'deleted' : boolean } } |
+  { 'Role' : { 'subject' : Principal, 'club' : [] | [string] } } |
+  { 'Team' : { 'id' : string, 'deleted' : boolean, 'club' : string } } |
+  { 'ChildTeam' : { 'child' : string, 'team' : string } } |
+  { 'Guardian' : { 'subject' : Principal, 'child' : string } } |
+  { 'Excluded' : { 'subject' : Principal, 'club' : string } };
 export interface Exclusion { 'club' : string, 'user' : Principal }
 export interface Family { 'account_id' : string, 'child_id' : string }
 export interface Guardian { 'child' : string, 'user' : Principal }
@@ -217,6 +265,13 @@ export interface HttpResponse {
   'headers' : Array<[string, string]>,
   'status_code' : number,
 }
+export interface Intent {
+  'id' : string,
+  'submitted' : boolean,
+  'club' : string,
+  'user' : Principal,
+  'account' : [] | [Account__1],
+}
 export interface InviteMessageDefault { 'message' : string, 'club_id' : string }
 export interface InvitePayload {
   'to' : string,
@@ -224,6 +279,17 @@ export interface InvitePayload {
   'body' : string,
 }
 export interface InviteStats { 'total' : bigint, 'accepted' : bigint }
+export interface Job {
+  'id' : string,
+  'resource' : string,
+  'ciphertext' : string,
+  'attempt' : bigint,
+  'kind' : string,
+  'provider_id' : string,
+  'created_at_ms' : bigint,
+  'state' : string,
+  'worker' : [] | [Principal],
+}
 export interface Link {
   'id' : string,
   'sort_order' : number,
@@ -258,6 +324,11 @@ export interface Main {
     { 'Ok' : TeamInviteLink } |
       { 'Err' : string }
   >,
+  'acknowledge_directory_membership_source' : ActorMethod<
+    [Binding, bigint],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'acknowledge_retained_media' : ActorMethod<
     [string],
     { 'Ok' : null } |
@@ -270,6 +341,11 @@ export interface Main {
   >,
   'activate_media_retained_quota' : ActorMethod<
     [],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'activate_private_name_preparation' : ActorMethod<
+    [Request],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -318,6 +394,11 @@ export interface Main {
     { 'Ok' : ClubTeam } |
       { 'Err' : string }
   >,
+  'assign_returning_season_players' : ActorMethod<
+    [string, string, Array<{ 'team_id' : string, 'member_id' : string }>],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
   'begin_identity_link' : ActorMethod<
     [Principal],
     { 'Ok' : Challenge } |
@@ -328,6 +409,7 @@ export interface Main {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'can_accept_public_eoi' : ActorMethod<[string, string], boolean>,
   'cancel_media_quota' : ActorMethod<
     [string, string, string, bigint, bigint],
     Result
@@ -342,9 +424,29 @@ export interface Main {
    * / time so admin settings can show its balance too).
    */
   'canister_cycles' : ActorMethod<[Principal], bigint>,
+  'carry_over_season_players' : ActorMethod<
+    [string, string, Array<string>],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
   'check_team_name_unique' : ActorMethod<
     [string, string],
     { 'Ok' : boolean } |
+      { 'Err' : string }
+  >,
+  'claim_email_job' : ActorMethod<
+    [],
+    {
+        'Ok' : [] | [
+          {
+            'to' : string,
+            'job' : Job,
+            'token' : string,
+            'subject' : string,
+            'body' : string,
+          }
+        ]
+      } |
       { 'Err' : string }
   >,
   'claim_shell_team' : ActorMethod<
@@ -359,6 +461,11 @@ export interface Main {
   >,
   'commit_media_quota' : ActorMethod<[string], Result>,
   'commit_retained_media' : ActorMethod<[string], Result__1>,
+  'compact_email_jobs' : ActorMethod<
+    [[] | [string], bigint],
+    { 'Ok' : { 'scanned' : bigint, 'next_cursor' : [] | [string] } } |
+      { 'Err' : string }
+  >,
   'configure_media_growth' : ActorMethod<
     [bigint, bigint, bigint, Array<string>],
     { 'Ok' : null } |
@@ -366,6 +473,11 @@ export interface Main {
   >,
   'configure_media_growth_router' : ActorMethod<
     [Principal, string, string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'configure_membership_directory_source' : ActorMethod<
+    [Binding],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -382,6 +494,24 @@ export interface Main {
   'create_club' : ActorMethod<
     [string, string, string, [] | [string], [] | [string]],
     { 'Ok' : ClubProfile } |
+      { 'Err' : string }
+  >,
+  'create_family_invite' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      Array<{ 'id' : string, 'existing' : boolean }>,
+      boolean,
+      [] | [Principal],
+    ],
+    {
+        'Ok' : {
+          'secondary' : [] | [PendingInvite],
+          'invite' : PendingInvite,
+          'child_ids' : Array<string>,
+        }
+      } |
       { 'Err' : string }
   >,
   'create_invite_short_code' : ActorMethod<
@@ -487,6 +617,16 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'disable_membership_directory_source' : ActorMethod<
+    [],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'duplicate_season_structure' : ActorMethod<
+    [string, string, string, boolean],
+    { 'Ok' : Season } |
+      { 'Err' : string }
+  >,
   'enrol_in_class' : ActorMethod<
     [string, string, string, string],
     { 'Ok' : ClassEnrolment } |
@@ -504,6 +644,11 @@ export interface Main {
   >,
   'erase_my_membership' : ActorMethod<[], { 'Ok' : null } | { 'Err' : string }>,
   'execute' : ActorMethod<[string], Result__2>,
+  'export_account_claims' : ActorMethod<
+    [string, bigint, bigint],
+    { 'Ok' : Array<Claimed> } |
+      { 'Err' : string }
+  >,
   'export_acl' : ActorMethod<[], { 'Ok' : Config } | { 'Err' : string }>,
   'export_club_snapshot' : ActorMethod<
     [string],
@@ -526,6 +671,16 @@ export interface Main {
     { 'Ok' : [] | [PendingInviteEmailHash] } |
       { 'Err' : string }
   >,
+  'finish_email_job' : ActorMethod<
+    [string, bigint, string, string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'finish_private_name_preparation' : ActorMethod<
+    [Request],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'free_usage_counters' : ActorMethod<
     [string],
     {
@@ -541,6 +696,11 @@ export interface Main {
   'freeze_club' : ActorMethod<
     [string, bigint],
     { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
+  'freeze_private_name_preparation' : ActorMethod<
+    [Request],
+    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'getApiDoc' : ActorMethod<[], string>,
@@ -622,6 +782,18 @@ export interface Main {
       { 'Err' : string }
   >,
   'get_link' : ActorMethod<[string], { 'Ok' : Listing } | { 'Err' : string }>,
+  'get_media_allowance' : ActorMethod<
+    [string, [] | [string]],
+    {
+        'Ok' : {
+          'limit_bytes' : bigint,
+          'premium' : boolean,
+          'team_scoped' : boolean,
+          'base_bytes' : bigint,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'get_my_accessibility_prefs' : ActorMethod<
     [],
     { 'Ok' : [] | [string] } |
@@ -762,6 +934,10 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'invite_email_sender_status' : ActorMethod<
+    [],
+    { 'from' : string, 'app_url' : string, 'configured' : boolean }
+  >,
   'invite_stats' : ActorMethod<
     [string, bigint, bigint],
     { 'Ok' : InviteStats } |
@@ -771,6 +947,16 @@ export interface Main {
   'is_club_member' : ActorMethod<[Principal, string], boolean>,
   'is_member_removed' : ActorMethod<[string, Principal], boolean>,
   'is_user_on_any_team' : ActorMethod<[Array<string>, Principal], boolean>,
+  /**
+   * / Owner-approved (2026-10-28) one-time link of the original Group 1 club
+   * / service to the shared account service, used only so private club-name
+   * / displays can confirm membership. Set-once; does not release lifecycle sync.
+   */
+  'link_display_identity_authority' : ActorMethod<
+    [Principal],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'link_guardian' : ActorMethod<
     [string, Principal],
     { 'Ok' : null } |
@@ -1026,13 +1212,23 @@ export interface Main {
       { 'Err' : string }
   >,
   'mutate' : ActorMethod<
-    [Request__1],
+    [Request__2],
     { 'Ok' : Mutation } |
       { 'Err' : string }
   >,
   'my_role_grants' : ActorMethod<[], Array<RoleGrant>>,
-  'prepare_account_removal' : ActorMethod<
+  'open_private_name_writer_window' : ActorMethod<
     [Request],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  /**
+   * / Read-only: which private-details service this club service trusts.
+   * / Used by the upgrade workflow to confirm the link before release.
+   */
+  'pii_canister_status' : ActorMethod<[], [] | [Principal]>,
+  'prepare_account_removal' : ActorMethod<
+    [Request__1],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -1040,6 +1236,11 @@ export interface Main {
   'prepare_media_quota_reservation' : ActorMethod<
     [Principal, string, string, string, bigint],
     Result
+  >,
+  'prepare_my_broadcast_erasure' : ActorMethod<
+    [],
+    { 'Ok' : null } |
+      { 'Err' : string }
   >,
   'profile_team_history' : ActorMethod<
     [string],
@@ -1058,6 +1259,16 @@ export interface Main {
   'purge_expired_deletions' : ActorMethod<
     [],
     { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'purge_my_broadcast_data' : ActorMethod<
+    [],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
+  'queue_pending_invite_email' : ActorMethod<
+    [string, string],
+    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'read_account_execute' : ActorMethod<[string], Result__2>,
@@ -1350,7 +1561,7 @@ export interface Main {
       { 'Err' : string }
   >,
   'read_account_removal_drain' : ActorMethod<
-    [Request],
+    [Request__1],
     { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
@@ -1361,7 +1572,7 @@ export interface Main {
   >,
   'read_club_media_references' : ActorMethod<
     [string, bigint, [] | [bigint]],
-    { 'Ok' : Page } |
+    { 'Ok' : Page__2 } |
       { 'Err' : string }
   >,
   'read_club_retained_media_bytes' : ActorMethod<
@@ -1373,6 +1584,60 @@ export interface Main {
     [string, Principal],
     { 'can_manage' : boolean, 'is_member' : boolean, 'club_id' : [] | [string] }
   >,
+  'read_directory_membership_source_page' : ActorMethod<
+    [Binding, [] | [Cursor__1]],
+    { 'Ok' : Page__1 } |
+      { 'Err' : string }
+  >,
+  'read_directory_membership_status' : ActorMethod<
+    [Binding],
+    {
+        'Ok' : {
+          'pending' : boolean,
+          'acknowledged' : bigint,
+          'revision' : bigint,
+        }
+      } |
+      { 'Err' : string }
+  >,
+  'read_event_notification_membership' : ActorMethod<
+    [string],
+    {
+        'Ok' : {
+          'guardians' : Array<{ 'user' : Principal, 'child_id' : string }>,
+          'children' : Array<
+            {
+              'id' : string,
+              'teams' : Array<string>,
+              'parent' : [] | [Principal],
+            }
+          >,
+          'roles' : Array<
+            {
+              'role' : string,
+              'user' : Principal,
+              'team_id' : [] | [string],
+              'club_id' : string,
+            }
+          >,
+        }
+      } |
+      { 'Err' : string }
+  >,
+  'read_family_invite_receipt' : ActorMethod<
+    [string],
+    {
+        'Ok' : {
+          'accepted_by' : Principal,
+          'team_id' : [] | [string],
+          'accepted_at_ms' : bigint,
+          'already_accepted' : boolean,
+          'child_ids' : Array<string>,
+          'club_id' : string,
+        }
+      } |
+      { 'Err' : string }
+  >,
   /**
    * / Bounded consensus configuration evidence; never changes or grants access.
    */
@@ -1380,12 +1645,34 @@ export interface Main {
   'read_has_child_guardian' : ActorMethod<[Principal, string], boolean>,
   'read_has_club_membership' : ActorMethod<[Principal, string], boolean>,
   'read_has_club_staff_role' : ActorMethod<[Principal, string], boolean>,
+  'read_has_pii_audience' : ActorMethod<[Principal, string, string], boolean>,
   'read_media_quota_store_registry' : ActorMethod<
     [],
     { 'Ok' : { 'stores' : Array<Principal>, 'active' : boolean } } |
       { 'Err' : string }
   >,
   'read_media_retained_ready' : ActorMethod<[], boolean>,
+  'read_membership_directory_source_binding' : ActorMethod<
+    [],
+    { 'Ok' : { 'enabled' : boolean, 'binding' : [] | [Binding] } } |
+      { 'Err' : string }
+  >,
+  'read_membership_discovery_status' : ActorMethod<
+    [],
+    {
+        'Ok' : {
+          'pending' : boolean,
+          'acknowledged' : bigint,
+          'revision' : bigint,
+        }
+      } |
+      { 'Err' : string }
+  >,
+  'read_membership_source_page' : ActorMethod<
+    [[] | [Cursor__1]],
+    { 'Ok' : Page__1 } |
+      { 'Err' : string }
+  >,
   'read_my_club_memberships' : ActorMethod<
     [bigint, number],
     {
@@ -1408,6 +1695,46 @@ export interface Main {
       } |
       { 'Err' : string }
   >,
+  'read_private_name_cleanup_pending' : ActorMethod<
+    [],
+    { 'Ok' : Array<Intent> } |
+      { 'Err' : string }
+  >,
+  'read_private_name_preparation' : ActorMethod<
+    [Request],
+    { 'Ok' : Receipt__1 } |
+      { 'Err' : string }
+  >,
+  'read_private_name_removal_proof' : ActorMethod<
+    [string],
+    { 'Ok' : Proof } |
+      { 'Err' : string }
+  >,
+  'read_private_name_writer_window' : ActorMethod<
+    [Request],
+    { 'Ok' : Receipt__1 } |
+      { 'Err' : string }
+  >,
+  'read_profile_candidates' : ActorMethod<
+    [string, [] | [Cursor]],
+    { 'Ok' : Page } |
+      { 'Err' : string }
+  >,
+  'read_profile_family_batch' : ActorMethod<
+    [Principal, string, Array<Principal>, [] | [bigint]],
+    { 'Ok' : Batch } |
+      { 'Err' : string }
+  >,
+  'read_profile_membership_batch' : ActorMethod<
+    [Principal, string, Array<Principal>, [] | [bigint]],
+    { 'Ok' : Batch } |
+      { 'Err' : string }
+  >,
+  'read_profile_remote_revision' : ActorMethod<
+    [Array<Principal>, [] | [bigint]],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
   'read_removal_media_registry' : ActorMethod<
     [],
     { 'Ok' : { 'stores' : Array<Principal>, 'active' : boolean } } |
@@ -1418,9 +1745,30 @@ export interface Main {
     { 'Ok' : [] | [string] } |
       { 'Err' : string }
   >,
+  'read_season_teams' : ActorMethod<
+    [string],
+    { 'Ok' : Array<ClubTeam> } |
+      { 'Err' : string }
+  >,
+  'read_vault_erasure_scope' : ActorMethod<[string, [] | [string]], boolean>,
+  'reconcile_competition_broadcast' : ActorMethod<
+    [string, string],
+    { 'Ok' : [] | [number] } |
+      { 'Err' : string }
+  >,
+  'reconcile_email_job' : ActorMethod<
+    [string, bigint, string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'record_presence_heartbeat' : ActorMethod<
     [],
     { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'redeem_account_claim' : ActorMethod<
+    [string],
+    { 'Ok' : { 'club_id' : string } } |
       { 'Err' : string }
   >,
   /**
@@ -1437,6 +1785,11 @@ export interface Main {
    */
   'redeem_team_promo_code' : ActorMethod<
     [string, string, string, boolean],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
+  'register_account_claims' : ActorMethod<
+    [string, Array<Registration>],
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
@@ -1468,6 +1821,43 @@ export interface Main {
     [Principal, Principal, boolean],
     { 'ok' : bigint } |
       { 'err' : string }
+  >,
+  'relay_competition_broadcast' : ActorMethod<
+    [
+      Principal,
+      string,
+      string,
+      Array<string>,
+      Array<Principal>,
+      string,
+      string,
+    ],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'relay_event_notice' : ActorMethod<
+    [Array<string>, string, string, string, string, string],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'relay_gallery_notice' : ActorMethod<
+    [
+      Principal,
+      string,
+      [] | [string],
+      Principal,
+      [] | [Principal],
+      string,
+      string,
+      string,
+    ],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'relay_group_pitch_alert' : ActorMethod<
+    [Array<string>, string, string, string, string, string],
+    { 'Ok' : number } |
+      { 'Err' : string }
   >,
   'remove_member' : ActorMethod<
     [string, Principal],
@@ -1537,6 +1927,11 @@ export interface Main {
   'restore_team' : ActorMethod<
     [string],
     { 'Ok' : ClubTeam } |
+      { 'Err' : string }
+  >,
+  'resume_private_name_cleanup' : ActorMethod<
+    [],
+    { 'Ok' : bigint } |
       { 'Err' : string }
   >,
   'retire_media_quota_records' : ActorMethod<
@@ -1666,13 +2061,23 @@ export interface Main {
   >,
   'schema' : ActorMethod<[], string>,
   'seal_account_removal' : ActorMethod<
-    [Request],
+    [Request__1],
     { 'Ok' : Receipt } |
+      { 'Err' : string }
+  >,
+  'seal_private_name_writer_window' : ActorMethod<
+    [Request],
+    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'send_fee_reminders' : ActorMethod<
     [string, string, string, string],
     { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'send_invite_email' : ActorMethod<
+    [string, string],
+    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'set_accessibility_prefs' : ActorMethod<
@@ -1768,7 +2173,17 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'set_email_workers' : ActorMethod<
+    [Array<Principal>],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'set_events_domain_canister' : ActorMethod<
+    [Principal],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'set_gallery_media_authority' : ActorMethod<
     [Principal],
     { 'Ok' : null } |
       { 'Err' : string }
@@ -1780,6 +2195,11 @@ export interface Main {
   >,
   'set_identity_access_canister' : ActorMethod<
     [Principal],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'set_invite_email_sender' : ActorMethod<
+    [string, string, string],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -2047,6 +2467,18 @@ export type Operation__1 = {
   { 'Remove' : { 'id' : string } } |
   { 'Reorder' : { 'first' : string, 'second' : string } };
 export interface Page {
+  'subjects' : Array<Principal>,
+  'next' : [] | [Cursor],
+  'scanned' : bigint,
+  'revision' : bigint,
+}
+export interface Page__1 {
+  'next' : [] | [Cursor__1],
+  'scanned' : bigint,
+  'edges' : Array<Edge>,
+  'revision' : bigint,
+}
+export interface Page__2 {
   'references' : Array<Reference>,
   'next' : [] | [bigint],
   'scanned' : bigint,
@@ -2131,9 +2563,17 @@ export interface PromoCode {
   'club_id' : [] | [string],
   'expires_at_ms' : [] | [bigint],
 }
+export interface Proof { 'members' : Array<boolean>, 'intent' : Intent }
 export interface Receipt {
   'outstanding' : bigint,
+  'request' : Request__1,
+  'receiver' : Principal,
+}
+export interface Receipt__1 {
+  'active' : bigint,
   'request' : Request,
+  'sealed' : boolean,
+  'closing' : boolean,
   'receiver' : Principal,
 }
 export interface Reference {
@@ -2143,6 +2583,12 @@ export interface Reference {
   'store' : [] | [string],
   'resource_id' : string,
 }
+export interface Registration {
+  'email_hint' : string,
+  'source_user' : string,
+  'expires_ms' : bigint,
+  'token_hash' : string,
+}
 export interface RemovedMember {
   'club' : string,
   'user' : Principal,
@@ -2150,12 +2596,17 @@ export interface RemovedMember {
   'removed_by' : Principal,
 }
 export interface Request {
+  'inventory_digest' : Uint8Array,
+  'generation' : bigint,
+  'operation_id' : string,
+}
+export interface Request__1 {
   'account_id' : string,
   'inventory_digest' : Uint8Array,
   'subjects' : Array<Principal>,
   'generation' : bigint,
 }
-export interface Request__1 {
+export interface Request__2 {
   'request_id' : string,
   'club' : string,
   'operation' : Operation__1,
