@@ -3,7 +3,7 @@
 [build]
   base = "frontend"
   publish = "dist-live"
-  command = "npm ci --ignore-scripts --no-fund --no-audit && npm run build:live"
+  command = "npm ci --ignore-scripts --no-fund --no-audit && node ../scripts/icp-environments.mjs guard && node ../scripts/sync-canister-ids.mjs && IGNITE_LIVE_ICP_CANISTER_IDS_JSON=\"$(node ../scripts/icp-environments.mjs ids)\" npm run build:live"
 
 [build.environment]
   NODE_VERSION = "22.12.0"

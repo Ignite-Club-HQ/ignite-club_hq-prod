@@ -23,6 +23,15 @@ DEPLOY_TARGET="${DEPLOY_TARGET:-mainnet}"
 ICP_ENV="${ICP_ENV:-ic}"
 DEPLOY_SCOPE="${DEPLOY_SCOPE:-all}"
 case "$DEPLOY_SCOPE" in all|history|router) ;; *) echo "ERROR: unsupported deployment scope"; exit 1;; esac
+# DEV (deploy/mainnet) and PROD (deploy/prod) are separate canister sets; PROD
+# only from its promote workflow with IGNITE_ICP_ENV=prod, and never sharing IDs.
+if [ "$DEPLOY_TARGET" = prod ]; then
+  [ "${IGNITE_ICP_ENV:-}" = prod ] || { echo "ERROR: PROD canisters deploy only via promote-icp-prod (IGNITE_ICP_ENV=prod)"; exit 1; }
+  [ "$DEPLOY_SCOPE" = all ] || { echo "ERROR: PROD supports only full provisioning here"; exit 1; }
+  node "$(dirname "$0")/icp-environments.mjs" guard prod
+elif [ "$DEPLOY_TARGET" = mainnet ] && [ "${IGNITE_ICP_ENV:-dev}" = prod ]; then
+  echo "ERROR: IGNITE_ICP_ENV=prod cannot deploy the DEV (deploy/mainnet) set"; exit 1
+fi
 PROJECT_DIR="$(cd "$(dirname "$0")/../deploy/$DEPLOY_TARGET" && pwd)"
 IDS_JSON="$PROJECT_DIR/.icp/data/mappings/$ICP_ENV.ids.json"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"

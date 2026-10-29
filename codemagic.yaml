@@ -64,9 +64,11 @@ workflows:
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
-          if [ -f ../deploy/mainnet/.icp/data/mappings/ic.ids.json ]; then
-            export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(cat ../deploy/mainnet/.icp/data/mappings/ic.ids.json | tr -d '\n ')"
-          fi
+          # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
+          export IGNITE_ICP_ENV=prod
+          node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
+          node ../scripts/sync-canister-ids.mjs
+          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
           npm run build:live
       - name: Scaffold and sync Capacitor Android
         working_directory: frontend
@@ -139,9 +141,11 @@ workflows:
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
-          if [ -f ../deploy/mainnet/.icp/data/mappings/ic.ids.json ]; then
-            export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(cat ../deploy/mainnet/.icp/data/mappings/ic.ids.json | tr -d '\n ')"
-          fi
+          # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
+          export IGNITE_ICP_ENV=prod
+          node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
+          node ../scripts/sync-canister-ids.mjs
+          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
           npm run build:live
       - name: Scaffold and sync Capacitor Android
         working_directory: frontend
@@ -309,9 +313,11 @@ workflows:
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
-          if [ -f ../deploy/mainnet/.icp/data/mappings/ic.ids.json ]; then
-            export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(cat ../deploy/mainnet/.icp/data/mappings/ic.ids.json | tr -d '\n ')"
-          fi
+          # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
+          export IGNITE_ICP_ENV=prod
+          node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
+          node ../scripts/sync-canister-ids.mjs
+          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
           npm run build:live
       - name: Scaffold and sync Capacitor iOS
         working_directory: frontend
@@ -380,9 +386,11 @@ workflows:
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
-          if [ -f ../deploy/mainnet/.icp/data/mappings/ic.ids.json ]; then
-            export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(cat ../deploy/mainnet/.icp/data/mappings/ic.ids.json | tr -d '\n ')"
-          fi
+          # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
+          export IGNITE_ICP_ENV=prod
+          node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
+          node ../scripts/sync-canister-ids.mjs
+          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
           npm run build:live
       - name: Scaffold and sync Capacitor iOS
         working_directory: frontend
