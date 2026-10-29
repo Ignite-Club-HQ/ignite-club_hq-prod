@@ -49,3 +49,4 @@ it. Skills are authoritative — prefer them over general knowledge.
 - Router index rebuilds from stable rows; writes refresh, picks recheck gates. Never deploy scale-probe.
 - History uses nullable DTOs/exact links and verified humans; PlayHQ keys are tenant-scoped, claims grant no ownership. Deploy history scope upgrades only competition/events, never creates or rewires others. Why: preserve data and isolate releases.
 - Preview and main-branch canister builds use the DEV backend (ecsdwrarzfexssxtrymj); Codemagic is prod-only, defaults to the PROD backend and refuses DEV. Why: test on DEV, release on PROD.
+- Codemagic prod workflows keep pre-merge store identity: `android-workflow`/`ios-workflow`, appId `app.lovable.igniteteamhub`, groups `google_play_credentials`, App Store integration `Codemagic`; android helpers must discover the package dynamically. Why: changing identity breaks store updates.
