@@ -2041,6 +2041,11 @@ type Main =
        Err: text;
        Ok: ClubJoinRequest;
      });
+   request_parent_role_with_child: (club: text, team: text, child_id:
+    text) -> (variant {
+                Err: text;
+                Ok: RoleRequest;
+              });
    request_role: (club: text, role: text, team: opt text) ->
     (variant {
        Err: text;

@@ -2329,6 +2329,13 @@ export interface MainInterface {
         __kind__: "Err";
         Err: string;
     }>;
+    request_parent_role_with_child(club: string, team: string, child_id: string): Promise<{
+        __kind__: "Ok";
+        Ok: RoleRequest;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }>;
     request_role(club: string, role: string, team: string | null): Promise<{
         __kind__: "Ok";
         Ok: RoleRequest;
@@ -6641,6 +6648,16 @@ export class Club_domain implements club_domainInterface {
     }> {
         const result = await this.actor.request_club_join(arg0);
         return from_candid_variant_n23(result);
+    }
+    async request_parent_role_with_child(arg0: string, arg1: string, arg2: string): Promise<{
+        __kind__: "Ok";
+        Ok: RoleRequest;
+    } | {
+        __kind__: "Err";
+        Err: string;
+    }> {
+        const result = await this.actor.request_parent_role_with_child(arg0, arg1, arg2);
+        return from_candid_variant_n26(result);
     }
     async request_role(arg0: string, arg1: string, arg2: string | null): Promise<{
         __kind__: "Ok";

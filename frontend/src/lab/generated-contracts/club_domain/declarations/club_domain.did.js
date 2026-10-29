@@ -2636,6 +2636,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : ClubJoinRequest, 'Err' : IDL.Text })],
         [],
       ),
+    'request_parent_role_with_child' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : RoleRequest, 'Err' : IDL.Text })],
+        [],
+      ),
     'request_role' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
         [IDL.Variant({ 'Ok' : RoleRequest, 'Err' : IDL.Text })],

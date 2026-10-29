@@ -1889,6 +1889,11 @@ export interface Main {
     { 'Ok' : ClubJoinRequest } |
       { 'Err' : string }
   >,
+  'request_parent_role_with_child' : ActorMethod<
+    [string, string, string],
+    { 'Ok' : RoleRequest } |
+      { 'Err' : string }
+  >,
   'request_role' : ActorMethod<
     [string, string, [] | [string]],
     { 'Ok' : RoleRequest } |
