@@ -1,4 +1,4 @@
-name: Upgrade photo loading (both ICP groups)
+name: [TEST] Upgrade photo loading (all test groups)
 on:
   workflow_dispatch:
     inputs:

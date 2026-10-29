@@ -6,7 +6,7 @@
 # country are left untouched. Requires the club_domain redeploy that adds
 # set_club_home_country (migration 20261012_000000).
 
-name: Backfill ICP club home countries
+name: [TEST] Backfill club home countries
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: Deliver ICP email jobs
+name: [TEST] Deliver email jobs
 on:
   workflow_dispatch:
 permissions:

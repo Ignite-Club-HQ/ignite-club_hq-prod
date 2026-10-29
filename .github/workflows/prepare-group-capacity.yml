@@ -4,7 +4,7 @@
 # run opens a GitHub issue and fails with a clear message, so the owner is
 # emailed and sees the red badge. Repeat runs with an already-queued request
 # stay silent and green.
-name: Prepare group capacity (closed requests)
+name: [TEST] Prepare group capacity (closed requests)
 on:
   workflow_dispatch:
   schedule:

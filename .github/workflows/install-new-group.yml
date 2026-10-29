@@ -3,7 +3,7 @@
 # Signs with DEPLOYER_PEM. Spends cycles from the deploy identity (about
 # 1.6T per service, 13 services). Never registers or opens the group, never
 # touches existing canisters' code. Re-run to resume after any interruption.
-name: Install new group (closed)
+name: [TEST] Install new group (closed)
 
 on:
   workflow_dispatch:

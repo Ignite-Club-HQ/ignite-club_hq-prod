@@ -2,7 +2,7 @@
 # Configure an already-installed new club group on mainnet, kept CLOSED.
 # Signs with the DEPLOYER_PEM secret; never registers or opens the group.
 # Input: path to the group's committed provision.json (phase "installed").
-name: Configure new group (closed)
+name: [TEST] Configure new group (closed)
 
 on:
   workflow_dispatch:

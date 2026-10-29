@@ -9,7 +9,7 @@
 # Optional repository variables (Settings → Variables): IGNITE_LIVE_SUPABASE_URL,
 # IGNITE_LIVE_SUPABASE_ANON_KEY (both public values; defaults below).
 
-name: Deploy web app (ICP frontend canister)
+name: [TEST] Deploy web app (frontend canister)
 
 on:
   workflow_dispatch: {}

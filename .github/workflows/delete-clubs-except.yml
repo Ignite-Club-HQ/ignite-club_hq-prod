@@ -1,4 +1,4 @@
-name: Delete ICP clubs except one
+name: [TEST] Delete clubs except one
 
 on:
   workflow_dispatch:

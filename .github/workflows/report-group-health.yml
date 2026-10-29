@@ -1,4 +1,4 @@
-name: Report group health to the router
+name: [TEST] Report group health to the router
 on:
   workflow_dispatch: {}
   schedule:

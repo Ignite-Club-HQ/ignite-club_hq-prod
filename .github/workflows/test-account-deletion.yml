@@ -1,4 +1,4 @@
-name: Prove account deletion (isolated only)
+name: [TEST] Prove account deletion (isolated)
 
 on:
   workflow_dispatch:

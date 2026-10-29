@@ -1,4 +1,4 @@
-name: Upgrade team invites (both ICP groups)
+name: [TEST] Upgrade team invites (all test groups)
 on:
   workflow_dispatch:
     inputs:
