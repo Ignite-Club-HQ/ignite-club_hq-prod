@@ -398,7 +398,7 @@ function SupabaseManageRolesPage() {
                   label: roleLabels[role.role as AppRole],
                   className: `border ${roleColors[role.role as AppRole]}`,
                   variant: "outline" as const,
-                  scopeName: role.teams?.name || (role.club_id ? club.name : undefined),
+                  scopeName: role.teams?.name || (role.club_id ? club?.name : undefined),
                   removal:
                     userId === user?.id &&
                     (role.role === "club_admin" || role.role === "team_admin")
