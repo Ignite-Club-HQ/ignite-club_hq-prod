@@ -9,6 +9,22 @@
 | Keys | `DEPLOYER_PEM`, `GOVERNOR_PEM` | `PROD_GOVERNOR_PEM` |
 | Who uses it | Lovable preview, ICP test site, Netlify previews | igniteclubhq.app (Netlify `prod`), Codemagic store apps, PROD web-app canister |
 
+## Workflow names: which environment a run can touch
+
+Every workflow's Actions-tab name starts with exactly one tag, so the list alone
+says what a run is allowed to change:
+
+| Tag | Meaning |
+|---|---|
+| `[TEST]` | Only the DEV/test canisters (`deploy/mainnet`, `deploy/groups`, `deploy/frontend`) and the DEV database. Safe to run; never touches the live app. |
+| `[PROD]` | Only the live canisters (`deploy/prod`, `deploy/frontend-prod`) and the live database. `promote-icp-prod.yml` is the only one. |
+| `[DB]` | The club database the repo is wired to (per-repo secrets); no canisters. |
+| `[REPO]` | GitHub housekeeping (source checks, copying setup or branches between repos); no canisters and no club data. |
+
+`scripts/workflow-env-names.test.mjs` enforces this: a new workflow without a tag
+fails the checks, only the promotion workflow may claim `[PROD]`, and a `[TEST]`
+workflow that references PROD paths or keys fails too.
+
 ## One-time setup (operator)
 1. Create a new identity locally: `icp identity new ignite-prod-governor && icp identity export ignite-prod-governor`.
 2. GitHub → Settings → Secrets → Actions: add `PROD_GOVERNOR_PEM` (exported text). Optional: `PROD_ICP_PUSH_WORKER_SEED`.
