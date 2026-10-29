@@ -1,0 +1,249 @@
+# Ignite Club HQ — PROD (live) ICP canisters. The ICP equivalent of DEV→PROD
+# database migrations: merging main → prod upgrades the live canisters whose
+# code changed, keeping their data, then republishes the live web app.
+#
+#   push to prod            -> promote (upgrade changed PROD canisters + PROD web app)
+#   Run workflow: provision -> one-off creation + wiring of the PROD canister set
+#
+# PROD uses its own keys and IDs only: PROD_GOVERNOR_PEM (secret),
+# PROD_GOVERNOR_PRINCIPAL (variable), PROD_SUPABASE_ANON_KEY (variable) and
+# optional PROD_ICP_PUSH_WORKER_SEED. It never reads DEPLOYER_PEM/GOVERNOR_PEM
+# and refuses any DEV canister ID, governor or database.
+# The "production" GitHub environment can require a one-click approval.
+
+name: Promote ICP canisters to PROD
+
+on:
+  push:
+    branches: [prod]
+    paths: ["backend/**", "frontend/**", "deploy/prod/icp.yaml", "deploy/frontend-prod/**", "mops.toml", "mops.lock", "Cargo.toml", "Cargo.lock", ".github/workflows/promote-icp-prod.yml", "!frontend/**/*.test.*", "!frontend/**/*.md"]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "promote = upgrade changed PROD canisters; provision = one-off creation of the PROD canister set (spends cycles)"
+        type: choice
+        required: true
+        default: promote
+        options: [promote, provision]
+      confirmation:
+        description: "For provision type: PROVISION PROD CANISTERS"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 180
+    outputs:
+      provisioned: ${{ steps.state.outputs.provisioned }}
+    env:
+      ICP_HOME: ${{ github.workspace }}/.icp-home
+      ACTION: ${{ inputs.action || 'promote' }}
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the prod branch
+        run: test "$GITHUB_REF" = "refs/heads/prod" || { echo "::error::PROD canisters are only changed from the prod branch"; exit 1; }
+
+      - name: Refuse DEV canisters in the PROD table
+        run: node scripts/icp-environments.mjs guard prod
+
+      - name: Check provisioning state
+        id: state
+        run: |
+          if [ -f deploy/prod/.icp/data/mappings/ic.ids.json ]; then echo "provisioned=true" >> "$GITHUB_OUTPUT"; else echo "provisioned=false" >> "$GITHUB_OUTPUT"; fi
+          if [ "$ACTION" = provision ]; then
+            [ "${{ inputs.confirmation }}" = "PROVISION PROD CANISTERS" ] || { echo "::error::Type PROVISION PROD CANISTERS to create the PROD set"; exit 1; }
+          elif [ ! -f deploy/prod/.icp/data/mappings/ic.ids.json ]; then
+            echo "::notice::PROD canisters are not provisioned yet — nothing to promote. Run this workflow with action 'provision' once."
+            echo "### PROD canisters not provisioned yet; promotion skipped" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
+        with:
+          node-version: "22.12.0"
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install pinned tools
+        if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
+        run: |
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          icp canister install --help | grep -q -- --wasm-memory-persistence
+          node scripts/ensure-frontend-deps.mjs
+
+      - name: Environment isolation tests and interface drift check
+        if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
+        run: |
+          node --test scripts/icp-environments.test.mjs
+          node frontend/scripts/check-candid-drift.mjs
+
+      - name: Restore the PROD governor (never a DEV key)
+        if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
+        env:
+          PROD_GOVERNOR_PEM: ${{ secrets.PROD_GOVERNOR_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "$PROD_GOVERNOR_PEM" || { echo "::error::PROD_GOVERNOR_PEM secret missing"; exit 1; }
+          umask 077
+          mkdir -p "$ICP_HOME/identity/keys"
+          PEM="$ICP_HOME/identity/keys/ignite-prod-governor.pem"
+          printf '%s' "$PROD_GOVERNOR_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$PEM"
+          icp identity import --from-pem "$PEM" --storage plaintext ignite-prod-governor
+          icp identity default ignite-prod-governor
+          PRINCIPAL="$(icp identity principal)"
+          node --input-type=module -e "import {assertGovernor} from './scripts/icp-environments.mjs'; assertGovernor('prod', process.argv[1]);" "$PRINCIPAL"
+          echo "GOVERNOR=$PRINCIPAL" >> "$GITHUB_ENV"
+          echo "DEPLOYER_PEM_FILE=$PEM" >> "$GITHUB_ENV"
+
+      - name: Bake the PROD governor into canister configs (this checkout only)
+        if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
+        run: |
+          set -euo pipefail
+          SENTINEL='gwyap-pqop5-msidu-vlkov-zuejr-7gqjr-dwvkx-2yhgy-mdaxt-2giwn-cae'
+          grep -rl "$SENTINEL" backend deploy/prod scripts | xargs -r sed -i "s|$SENTINEL|$GOVERNOR|g"
+
+      - name: Convert available ICP to cycles
+        if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/icp-no-project" && cd "$RUNNER_TEMP/icp-no-project"
+          echo "PROD funding address:"; icp identity account-id || true
+          AMT="$(icp token balance -n ic 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)?' | head -1 || true)"
+          MINT="$(awk -v b="${AMT:-0}" 'BEGIN{ m = b - 0.0001; if (m <= 0) m = 0; printf "%.8f", m }')"
+          [ "$MINT" = "0.00000000" ] || icp cycles mint --icp "$MINT" -n ic
+          echo "Cycles: $(icp cycles balance -n ic 2>/dev/null || true)"
+
+      - name: Provision — create and wire every PROD canister
+        if: env.ACTION == 'provision'
+        env:
+          ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
+        run: DEPLOY_TARGET=prod ICP_ENV=ic DEPLOY_SCOPE=all bash scripts/deploy-mainnet.sh
+
+      - name: Promote — upgrade changed PROD canisters in order, keeping data
+        if: env.ACTION == 'promote' && steps.state.outputs.provisioned == 'true'
+        run: |
+          set -euo pipefail
+          IDS=deploy/prod/.icp/data/mappings/ic.ids.json
+          RECEIPT=deploy/prod/.icp/data/media-key-attestations/ic.json
+          mkdir -p "$(dirname "$RECEIPT")"
+          NAMES="$(node scripts/icp-environments.mjs changed prod "$GITHUB_SHA")"
+          if [ -z "$NAMES" ]; then echo "No PROD canister code changed."; exit 0; fi
+          echo "### Upgrading PROD canisters: $NAMES" >> "$GITHUB_STEP_SUMMARY"
+          node frontend/scripts/media-key-deploy-preflight.mjs before "$IDS" "$RECEIPT" prod ic
+          for NAME in $NAMES; do
+            echo "==> Upgrading $NAME"
+            # Upgrade only — never create, never reinstall (EOP memory kept).
+            (cd deploy/prod && icp deploy "$NAME" -e ic -y --mode upgrade --no-create)
+            node scripts/record-prod-release.mjs "$NAME" "$GITHUB_SHA"
+          done
+          node frontend/scripts/media-key-deploy-preflight.mjs after "$IDS" "$RECEIPT" prod ic
+
+      - name: Record a freshly provisioned release
+        if: env.ACTION == 'provision' && success()
+        run: node scripts/record-prod-release.mjs --all "$GITHUB_SHA"
+
+      - name: Save PROD canister IDs and release progress (also after a partial run)
+        if: always() && (env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -f deploy/prod/.icp/data/mappings/ic.ids.json deploy/prod/release.json 2>/dev/null || true
+          git diff --cached --quiet && { echo "Nothing to record."; exit 0; }
+          git commit -m "Record PROD canister release [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase --autostash -X theirs origin prod && git push origin HEAD:prod && exit 0
+            sleep 5
+          done
+          echo "::error::Could not save PROD release progress"; exit 1
+
+      - name: Remove signing material
+        if: always()
+        run: rm -rf "$ICP_HOME"
+
+  frontend:
+    needs: backend
+    if: needs.backend.result == 'success' && (needs.backend.outputs.provisioned == 'true' || inputs.action == 'provision')
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 40
+    env:
+      ICP_HOME: ${{ github.workspace }}/.icp-home
+      ICP_CLI_PLUGIN_COMPUTE_LIMIT_SECS: "1800"
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: prod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - run: npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm --no-fund --no-audit
+      - name: Build the PROD web app (PROD database + PROD canisters)
+        working-directory: frontend
+        env:
+          IGNITE_LIVE_BUILD: "1"
+          IGNITE_LIVE_SUPABASE_URL: ${{ vars.PROD_SUPABASE_URL || 'https://yabcfiuntwqjwvschnji.supabase.co' }}
+          IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ vars.PROD_SUPABASE_ANON_KEY }}
+          IGNITE_LIVE_BACKEND_ROUTING_JSON: ${{ vars.PROD_BACKEND_ROUTING_JSON }}
+        run: |
+          set -euo pipefail
+          test -n "$IGNITE_LIVE_SUPABASE_ANON_KEY" || { echo "::error::Set repository variable PROD_SUPABASE_ANON_KEY (public anon key)"; exit 1; }
+          node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
+          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
+          npm ci --ignore-scripts --no-fund --no-audit
+          node ../scripts/sync-canister-ids.mjs
+          npm run build:live
+          node scripts/prepare-canister-dist.mjs
+          rm -rf ../deploy/frontend-prod/dist && cp -r dist-canister ../deploy/frontend-prod/dist
+      - name: Restore the PROD governor
+        env:
+          PROD_GOVERNOR_PEM: ${{ secrets.PROD_GOVERNOR_PEM }}
+        run: |
+          set -euo pipefail
+          umask 077; mkdir -p "$ICP_HOME/identity/keys"
+          PEM="$ICP_HOME/identity/keys/p.pem"
+          printf '%s' "$PROD_GOVERNOR_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$PEM"
+          icp identity import --from-pem "$PEM" --storage plaintext ignite-prod-governor
+          icp identity default ignite-prod-governor
+          node --input-type=module -e "import {assertGovernor} from './scripts/icp-environments.mjs'; assertGovernor('prod', process.argv[1]);" "$(icp identity principal)"
+      - name: Publish to the PROD frontend canister
+        working-directory: deploy/frontend-prod
+        run: |
+          set -euo pipefail
+          if jq -e '.frontend // empty' .icp/data/mappings/ic.ids.json >/dev/null 2>&1; then icp canister start frontend -e ic || true; fi
+          # Never reinterpret a sync failure as permission to erase stored files.
+          icp deploy -e ic frontend --mode auto --yes --cycles 1000000000000
+          CLUB="$(node -e "console.log(require('../prod/.icp/data/mappings/ic.ids.json').club_domain)")"
+          icp canister settings update frontend --add-controller "$CLUB" -e ic --force
+          echo "### PROD web app: https://$(jq -r '.frontend' .icp/data/mappings/ic.ids.json).icp.net" >> "$GITHUB_STEP_SUMMARY"
+      - name: Commit PROD frontend canister ID
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -f deploy/frontend-prod/.icp/data/mappings/ic.ids.json 2>/dev/null || exit 0
+          git diff --cached --quiet && exit 0
+          git commit -m "Record PROD frontend canister ID [skip ci]"
+          for i in 1 2 3; do git pull --rebase --autostash -X theirs origin prod && git push origin HEAD:prod && exit 0; sleep 5; done
+      - name: Remove signing material
+        if: always()
+        run: rm -rf "$ICP_HOME"
