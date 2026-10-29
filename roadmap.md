@@ -5,6 +5,6 @@
 ## DEV compatibility remediation — DONE (migrations applied 2026-10-29)
 
 ## Classify remaining blockers: DEV-real vs prod-only (current)
-- [ ] Answer: which items are genuine DEV issues vs prod-only (edge functions deploy per project — DEV has its own set)
-- [ ] Read-only check of DEV deployed edge functions + realtime publication
+- [x] Answered: edge functions/RLS are per-project; verified DEV 404s, realtime gaps, VAPID misconfig
+- [x] Read-only check done: 3 functions 404 on DEV, 4 tables unpublished, VAPID keys invalid
 - [ ] Await user scope decision on: welcome-email/upload SQL, code-side fixes, realtime gaps, RLS/storage review
