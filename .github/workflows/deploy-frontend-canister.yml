@@ -48,6 +48,10 @@ jobs:
           IGNITE_LIVE_BUILD: "1"
           IGNITE_LIVE_SUPABASE_URL: ${{ vars.IGNITE_LIVE_SUPABASE_URL || 'https://ecsdwrarzfexssxtrymj.supabase.co' }}
           IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0' }}
+          # Canister-hosted app is ICP-first. Used only when neither the Supabase
+          # app_settings row nor club_domain's on-chain copy exists — without it
+          # the app silently defaults to Supabase and II users load nothing.
+          IGNITE_LIVE_BACKEND_ROUTING_JSON: ${{ vars.IGNITE_LIVE_BACKEND_ROUTING_JSON || '{"defaultBackend":"icp","countryRules":{},"targets":[{"id":"icp/main/v1","backend":"icp","kind":"icp-mainnet","alias":"main","version":"v1","enabled":true}],"countryTargets":{},"clubBackendOverrides":{}}' }}
         run: |
           set -euo pipefail
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(cat ../deploy/mainnet/.icp/data/mappings/ic.ids.json | tr -d '\n ')"
