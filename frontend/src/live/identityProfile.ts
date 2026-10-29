@@ -71,12 +71,20 @@ export async function saveIcpIdentityProfile(
       active();
       const { refreshPrivateOwnClubNames } = await import('./privateProfileNames');
       const { privateClubNameDisplaysEnabled } = await import('./privateClubNameDisplayMode');
-      if (privateClubNameDisplaysEnabled()) await refreshPrivateOwnClubNames({ identity, target }, input.displayName, async () => {
-        const { getLiveMyRoleGrants } = await import('./features/membership');
-        const grants = await getLiveMyRoleGrants({ identity, target });
-        active();
-        return grants.flatMap(grant => grant.club ?? []);
-      }, active);
+      // Club-readable copy is best-effort: the own name is already saved and
+      // verified; a club copy failure must not fail the whole save.
+      if (privateClubNameDisplaysEnabled()) {
+        try {
+          await refreshPrivateOwnClubNames({ identity, target }, input.displayName, async () => {
+            const { getLiveMyRoleGrants } = await import('./features/membership');
+            const grants = await getLiveMyRoleGrants({ identity, target });
+            active();
+            return grants.flatMap(grant => grant.club ?? []);
+          }, active);
+        } catch (error) {
+          console.warn('[profile] club name copy not refreshed', error);
+        }
+      }
       active();
       privateNameMaintained = true;
     } else {

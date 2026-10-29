@@ -52,6 +52,7 @@ jobs:
           # app_settings row nor club_domain's on-chain copy exists — without it
           # the app silently defaults to Supabase and II users load nothing.
           IGNITE_LIVE_BACKEND_ROUTING_JSON: ${{ vars.IGNITE_LIVE_BACKEND_ROUTING_JSON || '{"defaultBackend":"icp","countryRules":{},"targets":[{"id":"icp/main/v1","backend":"icp","kind":"icp-mainnet","alias":"main","version":"v1","enabled":true}],"countryTargets":{},"clubBackendOverrides":{}}' }}
+          IGNITE_LIVE_PRIVATE_CLUB_NAME_DISPLAYS: "1"
         run: |
           set -euo pipefail
           # DEV/test canisters only; refuses any PROD canister in the table.

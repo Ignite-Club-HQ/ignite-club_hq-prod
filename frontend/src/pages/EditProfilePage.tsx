@@ -287,11 +287,15 @@ export default function EditProfilePage() {
         if (!savedProfile.privateNameMaintained) {
           await preparePrivateOwnProfileName(nameContext, displayName.trim());
           saveSessionActive();
-          await refreshPrivateOwnClubNames(nameContext, displayName.trim(), async () => {
-            const { getLiveMyRoleGrants } = await import('@/live/features/membership');
-            const grants = await getLiveMyRoleGrants(nameContext);
-            return grants.flatMap(grant => grant.club ?? []);
-          }, saveSessionActive);
+          try {
+            await refreshPrivateOwnClubNames(nameContext, displayName.trim(), async () => {
+              const { getLiveMyRoleGrants } = await import('@/live/features/membership');
+              const grants = await getLiveMyRoleGrants(nameContext);
+              return grants.flatMap(grant => grant.club ?? []);
+            }, saveSessionActive);
+          } catch (error) {
+            console.warn('[profile] club name copy not refreshed', error);
+          }
         }
         // Re-sync avatar club grants — covers clubs joined after the photo
         // was uploaded. Best-effort (never throws).
