@@ -9,7 +9,7 @@ import { listSupabaseRoleRequests } from "@/features/membership/roleRequestRepos
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import AddClubRoleToMemberDialog from "@/components/AddClubRoleToMemberDialog";
-import { RoleRequestsList } from "@/components/members/RoleRequestsList";
+import { RoleRequestsList, CLUB_JOIN_REQUEST_ROLE } from "@/components/members/RoleRequestsList";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
 import { getLocalLabRoleRoster } from "@/lab/fixtureDataLayer";
 import { connectLocalIdentityAccessClient } from "@/lab/localIdentityAccess";
@@ -24,6 +24,11 @@ import {
   rejectLiveRoleRequest,
   removeLiveRoleGrant,
 } from "@/live/features/membership";
+import {
+  listLiveClubJoinRequests,
+  approveLiveClubJoinRequest,
+  rejectLiveClubJoinRequest,
+} from "@/live/features/club";
 import { IcpLabRoleRosterView } from "@/features/membership/IcpLabRoleRosterView";
 import { groupRoleRowsByUser } from "@/features/membership/roleRoster";
 import { roleMemberProfiles } from "@/features/membership/roleMemberProfiles";
@@ -196,9 +201,21 @@ function SupabaseManageRolesPage() {
         // Provisional: account_id is the canister principal text, not a
         // Supabase profile id — no display name/avatar join on the canister.
         icp: async (ctx) => {
-          const rows = await listLiveRoleRequests(ctx, clubId!);
-          const profiles = await roleMemberProfiles(rows.filter(r => r.status === "pending").map(r => r.account_id), clubId);
-          return (rows as any[])
+          const [rows, joinRows] = await Promise.all([
+            listLiveRoleRequests(ctx, clubId!),
+            // Club join requests live separately on club_domain; only club
+            // admins may list them, so a denial just means none to show.
+            listLiveClubJoinRequests(ctx, clubId!).catch((e) => {
+              console.warn("Club join requests unavailable:", e);
+              return [] as Awaited<ReturnType<typeof listLiveClubJoinRequests>>;
+            }),
+          ]);
+          const pendingJoins = joinRows.filter((r) => r.status === "pending");
+          const profiles = await roleMemberProfiles([
+            ...rows.filter(r => r.status === "pending").map(r => r.account_id),
+            ...pendingJoins.map((r) => r.user.toText()),
+          ], clubId);
+          const roleRows = (rows as any[])
             .filter((r) => r.status === "pending")
             .map((r) => ({
               id: r.id,
@@ -208,6 +225,16 @@ function SupabaseManageRolesPage() {
               status: r.status,
               requester: profiles.get(r.account_id),
             }));
+          const joinRequestRows = pendingJoins.map((r) => ({
+            id: r.id,
+            user_id: r.user.toText(),
+            club_id: r.club_id,
+            role: CLUB_JOIN_REQUEST_ROLE,
+            status: r.status,
+            created_at: new Date(Number(r.created_at_ms)).toISOString(),
+            requester: profiles.get(r.user.toText()) ?? null,
+          }));
+          return [...joinRequestRows, ...roleRows];
         },
       }, { clubId: clubId! }),
     enabled: !!clubId,
@@ -260,7 +287,7 @@ function SupabaseManageRolesPage() {
   });
 
   const handleRequestMutation = useMutation({
-    mutationFn: async ({ requestId, approved }: { 
+    mutationFn: async ({ requestId, approved, request }: { 
       requestId: string; 
       approved: boolean;
       request: any;
@@ -272,6 +299,11 @@ function SupabaseManageRolesPage() {
           if (error) throw error;
         },
         icp: async (ctx) => {
+          if (request?.role === CLUB_JOIN_REQUEST_ROLE) {
+            if (approved) await approveLiveClubJoinRequest(ctx, requestId);
+            else await rejectLiveClubJoinRequest(ctx, requestId);
+            return;
+          }
           if (approved) {
             await approveLiveRoleRequest(ctx, requestId);
           } else {
@@ -283,6 +315,7 @@ function SupabaseManageRolesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["club-role-requests", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club-members-roles", clubId] });
+      queryClient.invalidateQueries({ queryKey: ["club-members", clubId] });
       queryClient.invalidateQueries({ queryKey: ["club-roles", clubId] });
       toast(roleMutationFeedback.requestProcessed);
     },

@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { roleLabels, type AppRole } from "@/features/membership/rolePresentation";
 
+/** Pseudo-role marking a club join request (ICP) inside the requests list. */
+export const CLUB_JOIN_REQUEST_ROLE = "club_join_request";
+
 export interface RoleRequestRow {
   id: string;
   role: string;
@@ -63,7 +66,9 @@ export function RoleRequestsList<TRequest extends RoleRequestRow>({
               <div className="flex-1 min-w-0">
                 <p className="font-medium break-words">{request.requester?.display_name?.trim() || "Name unavailable"}</p>
                 <p className="text-sm text-muted-foreground">
-                  Wants to be: {roleLabels[request.role as AppRole]}
+                  {request.role === CLUB_JOIN_REQUEST_ROLE
+                    ? "Wants to join the club"
+                    : <>Wants to be: {roleLabels[request.role as AppRole]}</>}
                 </p>
                 {request.created_at && Number.isFinite(Date.parse(request.created_at)) && (
                   <p className="text-xs text-muted-foreground mt-1">
