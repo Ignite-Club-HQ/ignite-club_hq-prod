@@ -316,3 +316,4 @@ Validation budget: changed rules plus direct regressions per substantial batch; 
 - [x] Upload membership checks restored to the uncertain-commit design: put_chunk and begin check membership fail-closed; finalize writes ciphertext atomically first, then enforces removal/membership (shared mode inside the commit journal, local mode after the write), so an authority outage stays stored-but-unpublished and retryable; aborts with unknown outcome no longer dead-end uploads. Two-group revocation, storage-recovery, pro-allowance and inventory replicas all pass; both vitest modes pass. Nothing deployed; live at the next mainnet upgrade.
 
 - [ ] Staged move to canisters: test canisters from main, live canister groups promoted on merge to prod (plan in .lovable/plan.md)
+- [ ] Blocked by user: no main→prod merge until DEV readiness sign-off

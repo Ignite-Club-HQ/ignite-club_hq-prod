@@ -1,43 +1,38 @@
-# Ignite Club HQ — Staged Release Plan
+# Ignite Club HQ — Staged Plan (DEV first, prod later)
 
 ## Where we're heading
 
 ```text
  main (this Lovable project) ──► TEST canisters ──► DEV database (ecsd…)
         │
-        │ merge main → prod   (git already migrates the PROD database)
+        │ merge main → prod   (only when you're confident; git migrates PROD db)
         ▼
  prod ──► LIVE canister groups ──► igniteclubhq.app ──► PROD database
       ──► Codemagic phone apps                      ──► PROD database
 ```
 
-Rule: test surfaces talk to DEV, live surfaces talk to PROD. Your existing merge already promotes database changes — we keep that as is.
+Rule: test surfaces use DEV, live surfaces use PROD. No merge to `prod` until you approve it.
 
-## Stage 1 — Release safely today (no hosting changes)
-1. I make sure builds from `prod` pick the PROD database and builds from `main` pick DEV (fix the earlier "everything uses DEV" default).
-2. I repoint the demo-data helper so it never hits the wrong database.
-3. You confirm Netlify and Codemagic's PROD settings hold the PROD database address/key (screenshot is fine).
-4. Merge `main` → `prod`: git migrates PROD database, Netlify updates igniteclubhq.app, Codemagic builds apps.
+## Stage 1 — Get DEV set up properly (all on main, nothing live)
+1. I make builds choose the database by branch: `main` → DEV, `prod` → PROD (fixes the earlier "everything uses DEV" default before it can ever reach prod).
+2. I repoint the demo-data helper away from the old address.
+3. Redeploy the canister `proe7-…` from `main` so it becomes the TEST canister on DEV.
+4. Deploy the 3 deferred edge functions on DEV.
 
-## Stage 2 — Make the existing canister the TEST canister
-1. Redeploy canister `proe7-…` from `main`, pointed at DEV.
-2. Test sign-in (email, Google, Internet Identity) and key features.
-3. Every push to `main` updates it automatically from then on.
+## Stage 2 — Test DEV thoroughly
+1. Checklist on preview + test canister + a Codemagic DEV build: sign-in (email, Google, Internet Identity), events/RSVP, chats/polls, competitions/hidden scores, Vault/photos, notifications.
+2. I record results in a short DEV readiness report; you sign off.
 
-## Stage 3 — Create LIVE canisters for prod
-1. Add a separate "live" canister set (own IDs), pointed at PROD database.
-2. New workflow deploys live canisters only on merge into `prod`, after the database migration step.
-3. Live canister groups (backend/media) split the same way; existing club photos stay in their current group.
+## Stage 3 — Prepare LIVE canisters (built, not switched on)
+1. Add a separate "live" canister set, pointed at PROD database.
+2. Workflow that deploys them only on merge into `prod`, after the database migration step.
+3. Canister groups split the same way; existing club photos stay in their current group.
 
-## Stage 4 — Point igniteclubhq.app at the live canister
-1. Add igniteclubhq.app as a custom domain on the live canister.
-2. Update Internet Identity and app-link settings.
-3. Switch DNS from Netlify to ICP; keep Netlify as fallback briefly, then retire it.
-
-## Stage 5 — Leftovers (not blockers)
-- Deploy the 3 deferred edge functions on DEV, then they promote with the normal merge.
+## Stage 4 — Go live (only with your go-ahead)
+1. Merge `main` → `prod`: git migrates PROD db, Netlify updates igniteclubhq.app, Codemagic builds apps, live canisters deploy.
+2. Later: add igniteclubhq.app to the live canister, update sign-in/app links, switch DNS from Netlify, then retire Netlify.
 
 ## What I need from you
-- Go-ahead for Stage 1 (my part).
-- PROD database project ID (or confirm where it's set) so I wire `prod` builds correctly.
-- Each later stage starts only when you say go.
+- Go-ahead for Stage 1.
+- PROD database project ID (or where it's set), so `prod` builds are wired correctly.
+- `DEPLOYER_PEM` added to GitHub secrets (needed for the canister redeploy).
