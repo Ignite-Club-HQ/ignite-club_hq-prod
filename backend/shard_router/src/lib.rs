@@ -8,15 +8,38 @@ use ic_stable_structures::{
 };
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+const PRIVATE_NAME_WRITER_MEMORY: u8 = 26;
+#[path = "../../shared/private_name_writer_window.rs"]
+mod private_name_writer_window;
+use private_name_writer_window::{WriterRequest, WriterReceipt};
+#[ic_cdk::update]
+fn freeze_private_name_preparation(request: WriterRequest) -> Result<(), String> { private_name_writer_window::freeze(request) }
+#[ic_cdk::update]
+fn read_private_name_preparation(request: WriterRequest) -> Result<WriterReceipt, String> { private_name_writer_window::preparation_receipt(request) }
+#[ic_cdk::update]
+fn activate_private_name_preparation(request: WriterRequest) -> Result<(), String> { private_name_writer_window::activate_preparation(request) }
+#[ic_cdk::update]
+fn finish_private_name_preparation(request: WriterRequest) -> Result<(), String> { private_name_writer_window::finish_preparation(request) }
+#[ic_cdk::update]
+fn open_private_name_writer_window(_request: WriterRequest) -> Result<(), String> { Err("Topology writes remain closed during private-name rehearsal".into()) }
+#[ic_cdk::update]
+fn seal_private_name_writer_window(request: WriterRequest) -> Result<(), String> { private_name_writer_window::seal(request) }
+#[ic_cdk::update]
+fn read_private_name_writer_window(request: WriterRequest) -> Result<WriterReceipt, String> { private_name_writer_window::receipt(request) }
+
 mod groups;
+mod self_health;
 mod group_index;
 #[cfg(feature = "scale-probe")]
 mod scale_probe;
+mod website;
 #[cfg(feature = "scale-probe")]
 use scale_probe::Probe;
 mod discovery;
 mod media_growth;
 mod owner_opening;
+mod routing_approval;
+use routing_approval::RoutingApproval;
 #[cfg(test)]
 mod owner_opening_tests;
 use owner_opening::{OwnerOpening, OwnerOpeningApproval};
@@ -30,6 +53,7 @@ const MAX_PAGE: u16 = 100;
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DeletionLock { pub account_id: String, pub revision: u64 }
 fn registry_writable() -> Outcome<()> {
+    private_name_writer_window::require_window();
     if DELETION_LOCKS.with(|m| m.borrow().len()) > 0 { return Err("Deletion registry locked".into()); }
     Ok(())
 }
@@ -38,12 +62,18 @@ fn deletion_authority() -> Option<Principal> {
 }
 #[ic_cdk::update]
 fn set_deletion_authority(authority: Principal) -> Outcome<()> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?; validate_shard(authority)?;
     if deletion_authority().is_some_and(|p| p != authority) { return Err("Deletion authority immutable".into()); }
-    DELETION_AUTHORITY.with(|m| m.borrow_mut().set(authority.as_slice().to_vec())); Ok(())
+    if deletion_authority() == Some(authority) { return Ok(()); }
+    DELETION_AUTHORITY.with(|m| m.borrow_mut().set(authority.as_slice().to_vec()));
+    bump_configuration_revision(); Ok(())
 }
 #[ic_cdk::update]
 fn acquire_deletion_lock(account_id: String, expected_revision: u64) -> Outcome<DeletionLock> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     if deletion_authority() != Some(caller()) { return Err("Deletion authority required".into()); }
     if account_id.is_empty() || account_id.len()>128 { return Err("Invalid account id".into()); }
     if current_revision()!=expected_revision { return Err("Deletion registry revision changed".into()); }
@@ -57,6 +87,8 @@ fn acquire_deletion_lock(account_id: String, expected_revision: u64) -> Outcome<
 }
 #[ic_cdk::update]
 fn release_deletion_lock(account_id: String, expected_revision: u64) -> Outcome<()> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     if deletion_authority()!=Some(caller()) { return Err("Deletion authority required".into()); }
     if let Some(bytes)=DELETION_LOCKS.with(|m| m.borrow().get(&account_id)) {
         if decode::<DeletionLock>(&bytes).revision!=expected_revision { return Err("Deletion lock conflict".into()); }
@@ -176,7 +208,44 @@ thread_local! {
     // Additive creator binding; old assignments never imply creator ownership.
     static PLACEMENT_OWNERS: RefCell<StableBTreeMap<Vec<u8>, Vec<u8>, Memory>> = RefCell::new(StableBTreeMap::init(memory(14)));
     // Permanent additive partition. Stop preserves the owner's route discovery.
+    // Configuration approval is independent of assignment/deletion fencing (memory 2).
+    static CONFIG_REVISION: RefCell<StableCell<u64, Memory>> = RefCell::new(StableCell::init(memory(16), 0));
     static OWNER_OPENINGS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> = RefCell::new(StableBTreeMap::init(memory(15)));
+    // Governor-recorded routing approvals keyed by target alias (memory 17).
+    static ROUTING_APPROVALS: RefCell<StableBTreeMap<String, Vec<u8>, Memory>> = RefCell::new(StableBTreeMap::init(memory(17)));
+    // Website fallback club_domain for clubs predating group assignment (memory 25;
+    // 18-24 stay reserved).
+    static WEBSITE_DEFAULT: RefCell<StableCell<Vec<u8>, Memory>> = RefCell::new(StableCell::init(memory(25), Vec::new()));
+}
+
+/// Owning club_domain for a club: explicit domain route, then group
+/// assignment, then the governor-set legacy default.
+fn website_club_domain(club_id: &str) -> Option<Principal> {
+    if let Some(r) = domain_route_for(club_id, "club_domain") { return Some(r.shard); }
+    if let Some(a) = group_assignment_for(club_id) {
+        return group_for(&a.group_id).and_then(|g| g.domains.iter().find(|d| d.domain == "club_domain").map(|d| d.canister));
+    }
+    let raw = WEBSITE_DEFAULT.with(|c| c.borrow().get().clone());
+    (!raw.is_empty()).then(|| Principal::from_slice(&raw))
+}
+
+/// Governor-only: club_domain serving clubs that have no group assignment.
+#[ic_cdk::update]
+fn set_website_default_club_domain(canister: Principal) -> Outcome<()> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
+    require_governor()?; validate_shard(canister)?;
+    WEBSITE_DEFAULT.with(|c| c.borrow_mut().set(canister.as_slice().to_vec()));
+    Ok(())
+}
+
+/// Public club-website resolver: redirects /club?id=..&scope=.. to the owning group.
+#[ic_cdk::query]
+fn http_request(req: website::HttpRequest) -> website::HttpResponse {
+    match website::parse(&req) {
+        Err(resp) => resp,
+        Ok((id, scope)) => website::redirect(website_club_domain(&id), &id, &scope),
+    }
 }
 
 fn owner_opening(target: &str) -> Option<OwnerOpening> {
@@ -205,12 +274,15 @@ fn open_owner_group_for(operator: Principal, approval: OwnerOpeningApproval, now
     let receipt = OwnerOpening { approval, accepting_new: true, opened_revision: revision };
     OWNER_OPENINGS.with(|m| m.borrow_mut().insert(target, encode(&receipt)));
     REVISION.with(|m| m.borrow_mut().set(revision));
+    bump_configuration_revision();
     Ok(receipt)
 }
 /// Explicit governor signature grants only bounded owner test placement, not
 /// global admission, membership, recovery release or general accepting status.
 #[ic_cdk::update]
 fn open_owner_test_group(approval: OwnerOpeningApproval) -> Outcome<OwnerOpening> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     open_owner_group_for(caller(), approval, ic_cdk::api::time())
 }
 fn stop_owner_group_for(operator: Principal, target: String, expected_revision: u64) -> Outcome<OwnerOpening> {
@@ -223,10 +295,13 @@ fn stop_owner_group_for(operator: Principal, target: String, expected_revision: 
     receipt.accepting_new = false;
     OWNER_OPENINGS.with(|m| m.borrow_mut().insert(target, encode(&receipt)));
     REVISION.with(|m| m.borrow_mut().set(revision));
+    bump_configuration_revision();
     Ok(receipt)
 }
 #[ic_cdk::update]
 fn stop_owner_test_group(target_alias: String, expected_revision: u64) -> Outcome<OwnerOpening> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     stop_owner_group_for(caller(), target_alias, expected_revision)
 }
 fn stop_group_placements_for(operator: Principal, group_id: String, target_alias: String, expected_revision: u64) -> Outcome<u64> {
@@ -245,17 +320,22 @@ fn stop_group_placements_for(operator: Principal, group_id: String, target_alias
         OWNER_OPENINGS.with(|m| m.borrow_mut().insert(target_alias, encode(receipt)));
     }
     REVISION.with(|m| m.borrow_mut().set(revision));
+    bump_configuration_revision();
     Ok(revision)
 }
 /// Governor-only stop for general and trial admission. Never removes assignments
 /// or changes membership, service endpoints, media, or opening authorization.
 #[ic_cdk::update]
 fn stop_group_new_placements(group_id: String, target_alias: String, expected_revision: u64) -> Outcome<u64> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     stop_group_placements_for(caller(), group_id, target_alias, expected_revision)
 }
 /// Caller-scoped consensus discovery, including after stopping new placements.
 #[ic_cdk::update]
 fn read_my_owner_test_opening(target_alias: String) -> Outcome<Option<OwnerOpening>> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     let user = caller();
     if user == Principal::anonymous() { return Err("Authentication required".into()); }
     if target_alias.is_empty() || target_alias.len() > 64 { return Err("Invalid target alias".into()); }
@@ -265,6 +345,8 @@ fn read_my_owner_test_opening(target_alias: String) -> Outcome<Option<OwnerOpeni
 /// the complete group inventory, even when they have no test-club membership.
 #[ic_cdk::update]
 fn read_owner_test_deletion_required(target_alias: String) -> Outcome<bool> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     if caller() == Principal::anonymous() { return Err("Authentication required".into()); }
     if target_alias.is_empty() || target_alias.len() > 64 { return Err("Invalid target alias".into()); }
     Ok(owner_opening(&target_alias).is_some())
@@ -298,6 +380,8 @@ fn save_store_growth(b: &media_growth::StoreBudget) {
 #[ic_cdk::update]
 fn configure_store_media_growth(group_id: String, store: Principal, usable: u64, fixed: u64,
     baseline: Vec<(String, u64)>, expected_revision: u64, evidence_revision: u64) -> Outcome<()> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     if !media_growth_local() { return Err("Local media growth only".into()); }
     if current_revision() != expected_revision { return Err("Revision conflict".into()); }
@@ -318,10 +402,12 @@ fn configure_store_media_growth(group_id: String, store: Principal, usable: u64,
         return Err("Exact assigned-club baseline required".into());
     }
     let b = media_growth::StoreBudget::import(store, evidence_revision, &legacy, usable, fixed, baseline)?;
-    save_store_growth(&b); Ok(())
+    save_store_growth(&b); bump_configuration_revision(); Ok(())
 }
 #[ic_cdk::update]
 fn configure_group_media_growth(group_id: String, usable: u64, fixed: u64, free_club: u64, baseline: Vec<(String, u64)>, expected_revision: u64) -> Outcome<()> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     if !media_growth_local() { return Err("Local media growth only".into()); }
     if current_revision() != expected_revision || growth_budget(&group_id).is_some() { return Err("Immutable growth baseline required".into()); }
@@ -337,7 +423,7 @@ fn configure_group_media_growth(group_id: String, usable: u64, fixed: u64, free_
         if b.commitments.contains_key(&club) || !assigned.iter().any(|a| a.club_id == club) { return Err("Baseline club mismatch".into()); }
         b.reserve(&club, bytes)?;
     }
-    save_growth(&b); Ok(())
+    save_growth(&b); bump_configuration_revision(); Ok(())
 }
 fn reserve_growth_for(user: Principal, group_id: &str, target_alias: &str, club: &str, bytes: u64) -> Outcome<u64> {
     registry_writable()?;
@@ -351,6 +437,8 @@ fn reserve_growth_for(user: Principal, group_id: &str, target_alias: &str, club:
 }
 #[ic_cdk::update]
 fn reserve_group_media_growth(group_id: String, target_alias: String, club: String, bytes: u64) -> Outcome<u64> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     reserve_growth_for(caller(), &group_id, &target_alias, &club, bytes)
 }
 
@@ -414,6 +502,8 @@ fn creator_placement(user: Principal, club_id: &str, target_alias: &str, expecte
 /// Consensus creator receipt only; never grants club membership or data access.
 #[ic_cdk::update]
 fn read_my_new_club_placement(club_id: String, target_alias: String, expected_revision: u64) -> Outcome<GroupAssignment> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     creator_placement(caller(), &club_id, &target_alias, expected_revision)
 }
 
@@ -421,6 +511,8 @@ fn read_my_new_club_placement(club_id: String, target_alias: String, expected_re
 /// This does not authorize private reads or grant cross-club membership.
 #[ic_cdk::update]
 async fn read_new_club_creation_authorized(user: Principal, club_id: String, target_alias: String, group_id: String) -> Outcome<bool> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     registry_writable()?;
     let revision = current_revision();
     let requestor = caller();
@@ -532,6 +624,14 @@ fn domain_migration_for(club_id: &str, domain: &str) -> Option<DomainMigration> 
     DOMAIN_MIGRATIONS.with(|migrations| migrations.borrow().get(&key).map(|bytes| decode(&bytes)))
 }
 
+fn configuration_revision() -> u64 {
+    CONFIG_REVISION.with(|r| *r.borrow().get())
+}
+fn bump_configuration_revision() {
+    let next = configuration_revision().checked_add(1).expect("Configuration revision exhausted");
+    CONFIG_REVISION.with(|r| r.borrow_mut().set(next));
+}
+
 fn current_revision() -> u64 {
     REVISION.with(|revision| *revision.borrow().get())
 }
@@ -541,6 +641,7 @@ fn init(init: Init) {
     assert!(init.governor != Principal::anonymous(), "invalid governor");
     GOVERNOR.with(|cell| cell.borrow_mut().set(init.governor.as_slice().to_vec()));
     REVISION.with(|revision| revision.borrow_mut().set(0));
+    CONFIG_REVISION.with(|revision| revision.borrow_mut().set(0));
 }
 
 #[ic_cdk::post_upgrade]
@@ -593,6 +694,8 @@ fn list_routes(start_after: Option<String>, limit: u16) -> Outcome<Page> {
 
 #[ic_cdk::update]
 fn assign(request: AssignRequest) -> Outcome<AssignResult> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     validate_club_id(&request.club_id)?;
     if group_assignment_for(&request.club_id).is_some() { return Err("Club has an immutable group assignment".into()); }
@@ -631,6 +734,8 @@ fn begin_migration(
     destination: Principal,
     expected_route_revision: u64,
 ) -> Outcome<Migration> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     validate_club_id(&club_id)?;
     if group_assignment_for(&club_id).is_some() { return Err("Group migration requires verified group-wide copy and cutover".into()); }
@@ -666,6 +771,8 @@ fn begin_migration(
 
 #[ic_cdk::update]
 fn commit_migration(club_id: String, expected_migration_revision: u64) -> Outcome<AssignResult> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     validate_club_id(&club_id)?;
     let migration = migration_for(&club_id).ok_or("No migration in progress")?;
@@ -695,6 +802,8 @@ fn commit_migration(club_id: String, expected_migration_revision: u64) -> Outcom
 
 #[ic_cdk::update]
 fn abort_migration(club_id: String, expected_migration_revision: u64) -> Outcome<u64> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     validate_club_id(&club_id)?;
     let migration = migration_for(&club_id).ok_or("No migration in progress")?;
@@ -717,6 +826,8 @@ fn get_migration(club_id: String) -> Outcome<Option<Migration>> {
 
 #[ic_cdk::update]
 fn assign_domain(request: AssignDomainRequest) -> Outcome<AssignDomainResult> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     validate_club_id(&request.club_id)?;
     if group_assignment_for(&request.club_id).is_some() { return Err("Club has an immutable group assignment".into()); }
@@ -755,6 +866,8 @@ fn begin_domain_migration(
     destination: Principal,
     expected_route_revision: u64,
 ) -> Outcome<DomainMigration> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     validate_club_id(&club_id)?;
     if group_assignment_for(&club_id).is_some() { return Err("Group migration requires verified group-wide copy and cutover".into()); }
@@ -793,6 +906,8 @@ fn commit_domain_migration(
     domain: String,
     expected_migration_revision: u64,
 ) -> Outcome<AssignDomainResult> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     validate_club_id(&club_id)?;
     validate_club_id(&domain)?;
@@ -826,6 +941,8 @@ fn abort_domain_migration(
     domain: String,
     expected_migration_revision: u64,
 ) -> Outcome<u64> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     validate_club_id(&club_id)?;
     validate_club_id(&domain)?;
@@ -857,10 +974,10 @@ fn version() -> u64 {
 
 // Control-plane preparation only: these assignments do not activate live
 // frontend routing. Activation requires tested discovery/ACL/migration wiring.
-fn group_for(id: &str) -> Option<ShardGroup> {
+pub(crate) fn group_for(id: &str) -> Option<ShardGroup> {
     GROUPS.with(|items| items.borrow().get(&id.as_bytes().to_vec()).map(|bytes| decode(&bytes)))
 }
-fn save_group(group: &ShardGroup) {
+pub(crate) fn save_group(group: &ShardGroup) {
     GROUPS.with(|items| items.borrow_mut().insert(group.id.as_bytes().to_vec(), encode(group)));
     GROUP_INDEX.with(|index| { if let Some(index) = index.borrow_mut().as_mut() { index.upsert(group); } });
 }
@@ -889,6 +1006,8 @@ pub struct GroupRegistrySnapshot { pub revision: u64, pub groups: Vec<ShardGroup
 
 #[ic_cdk::update]
 fn register_group_placement(placement: GroupPlacement, expected_revision: u64) -> Outcome<u64> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     if current_revision() != expected_revision { return Err("Revision conflict".into()); }
     let group = group_for(&placement.group_id).ok_or("Unknown group")?;
@@ -902,6 +1021,7 @@ fn register_group_placement(placement: GroupPlacement, expected_revision: u64) -
     let revision = current_revision().checked_add(1).ok_or("Revision exhausted")?;
     GROUP_PLACEMENTS.with(|m| m.borrow_mut().insert(key, encode(&placement)));
     REVISION.with(|m| m.borrow_mut().set(revision));
+    bump_configuration_revision();
     Ok(revision)
 }
 
@@ -914,10 +1034,69 @@ fn read_group_registry(target_alias: String) -> Outcome<GroupRegistrySnapshot> {
     Ok(GroupRegistrySnapshot { revision: page.revision, groups: page.groups, placements: page.placements })
 }
 
+fn registered_group_ids(target_alias: &str) -> Vec<String> {
+    GROUPS.with(|m| m.borrow().iter().map(|e| decode::<ShardGroup>(&e.value())).filter(|g| g.target_alias == target_alias).map(|g| g.id).collect())
+}
+fn record_routing_approval_for(operator: Principal, approval: RoutingApproval, expected_configuration_revision: u64) -> Outcome<RoutingApproval> {
+    if governor() != Some(operator) || operator == Principal::anonymous() { return Err("Forbidden".into()); }
+    registry_writable()?;
+    if expected_configuration_revision != configuration_revision() { return Err("Configuration revision conflict".into()); }
+    let registered = registered_group_ids(&approval.target_alias);
+    for id in &registered {
+        if !GROUP_PLACEMENTS.with(|m| m.borrow().contains_key(&id.as_bytes().to_vec())) { return Err("Complete group placement required".into()); }
+    }
+    routing_approval::validate(&approval, configuration_revision(), &registered)?;
+    // Recording is not a configuration change: neither revision moves, so the
+    // approval stays valid until the next real configuration mutation.
+    ROUTING_APPROVALS.with(|m| m.borrow_mut().insert(approval.target_alias.clone(), encode(&approval)));
+    Ok(approval)
+}
+/// Governor-only. Binds the exact configuration revision and approved digest;
+/// any later group/placement/policy change makes clients fail closed again.
+#[ic_cdk::update]
+fn record_routing_approval(approval: RoutingApproval, expected_configuration_revision: u64) -> Outcome<RoutingApproval> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
+    record_routing_approval_for(caller(), approval, expected_configuration_revision)
+}
+/// Consensus read for signed-in clients; infrastructure metadata only.
+#[ic_cdk::update]
+fn read_routing_approval(target_alias: String) -> Outcome<Option<RoutingApproval>> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
+    if caller() == Principal::anonymous() { return Err("Authentication required".into()); }
+    if target_alias.is_empty() || target_alias.len() > 64 { return Err("Invalid target alias".into()); }
+    Ok(ROUTING_APPROVALS.with(|m| m.borrow().get(&target_alias).map(|b| decode(&b))))
+}
+
 #[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
 pub struct GroupRegistryPage {
     pub revision: u64, pub groups: Vec<ShardGroup>, pub placements: Vec<GroupPlacement>,
     pub next_cursor: Option<String>,
+    pub configuration_revision: Option<u64>,
+}
+
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
+pub struct PublicGroupTarget { pub id: String, pub domains: Vec<groups::DomainCanister> }
+#[derive(Clone, Debug, CandidType, Serialize, Deserialize)]
+pub struct PublicGroupPage { pub configuration_revision: u64, pub groups: Vec<PublicGroupTarget>, pub next_cursor: Option<String> }
+/// Anonymous infrastructure discovery only: never memberships, placements,
+/// controller details or a grant to read/write any destination resource.
+#[ic_cdk::update]
+fn read_public_group_targets(target_alias: String, expected_revision: Option<u64>, cursor: Option<String>, limit: u32) -> Outcome<PublicGroupPage> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
+    if target_alias.is_empty() || target_alias.len()>64 || limit==0 || limit>64 || cursor.as_ref().is_some_and(|c| c.len()>64) { return Err("Invalid public registry page".into()); }
+    let revision=configuration_revision();
+    if expected_revision.is_some_and(|r|r!=revision) || (cursor.is_some() && expected_revision.is_none()) { return Err("Public registry revision conflict".into()); }
+    let approval=ROUTING_APPROVALS.with(|m|m.borrow().get(&target_alias).map(|b|decode::<RoutingApproval>(&b))).ok_or("Public group configuration awaits approval")?;
+    routing_approval::validate(&approval,revision,&registered_group_ids(&target_alias))?;
+    use std::ops::Bound::{Excluded,Unbounded};
+    let start=cursor.map(|c|Excluded(c.into_bytes())).unwrap_or(Unbounded);
+    let rows=GROUPS.with(|m|m.borrow().range((start,Unbounded)).take(limit as usize+1).map(|e|(e.key().clone(),decode::<ShardGroup>(&e.value()))).collect::<Vec<_>>());
+    let next_cursor=if rows.len()>limit as usize {Some(String::from_utf8(rows[limit as usize-1].0.clone()).map_err(|_|"Invalid group key")?)}else{None};
+    let groups=rows.into_iter().take(limit as usize).filter(|(_,g)|g.target_alias==target_alias).map(|(_,g)|PublicGroupTarget{id:g.id,domains:g.domains}).collect();
+    Ok(PublicGroupPage{configuration_revision:revision,groups,next_cursor})
 }
 
 // Cursor advances over at most 64 stable keys, including foreign targets: no
@@ -942,11 +1121,13 @@ fn read_group_registry_page(target_alias: String, expected_revision: Option<u64>
     } else { None };
     let groups: Vec<ShardGroup> = rows.into_iter().take(limit as usize).map(|(_,v)| decode::<ShardGroup>(&v)).filter(|g| g.target_alias == target_alias).collect();
     let placements = groups.iter().map(|g| GROUP_PLACEMENTS.with(|m| m.borrow().get(&g.id.as_bytes().to_vec()).map(|b| decode(&b))).ok_or_else(|| "Incomplete group placement registry".to_string())).collect::<Outcome<Vec<_>>>()?;
-    Ok(GroupRegistryPage { revision, groups, placements, next_cursor })
+    Ok(GroupRegistryPage { revision, groups, placements, next_cursor, configuration_revision: Some(configuration_revision()) })
 }
 
 #[ic_cdk::update]
 async fn read_my_group_assignments(club_ids: Vec<String>, target_alias: String, expected_revision: u64) -> Outcome<Vec<GroupAssignment>> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     let user = caller();
     if user == Principal::anonymous() { return Err("Authentication required".into()); }
     discovery::validate_clubs(&club_ids)?;
@@ -976,6 +1157,8 @@ async fn read_my_group_assignments(club_ids: Vec<String>, target_alias: String, 
 // access rules, so this never grants access to the club's data.
 #[ic_cdk::update]
 fn read_hosted_club_assignment(club_id: String, target_alias: String, expected_revision: u64) -> Outcome<GroupAssignment> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     if caller() == Principal::anonymous() { return Err("Authentication required".into()); }
     hosted_assignment(&club_id, &target_alias, expected_revision, current_revision())
 }
@@ -992,6 +1175,8 @@ fn hosted_assignment(club_id: &str, target_alias: &str, expected_revision: u64, 
 
 #[ic_cdk::update]
 fn register_group(group: ShardGroup, expected_revision: u64) -> Outcome<u64> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     let mut group = group;
     if current_revision() != expected_revision { return Err("Revision conflict".into()); }
@@ -1019,11 +1204,14 @@ fn register_group(group: ShardGroup, expected_revision: u64) -> Outcome<u64> {
     let revision = current_revision().checked_add(1).ok_or("Revision exhausted")?;
     save_group(&group);
     REVISION.with(|stored| stored.borrow_mut().set(revision));
+    bump_configuration_revision();
     Ok(revision)
 }
 
 #[ic_cdk::update]
 fn record_group_health(group_id: String, heap_bytes: u64, cycles: u64, expected_revision: u64) -> Outcome<u64> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     if current_revision() != expected_revision { return Err("Revision conflict".into()); }
     let mut group = group_for(&group_id).ok_or("Unknown group")?;
@@ -1052,6 +1240,8 @@ fn get_group_assignment(club_id: String) -> Outcome<Option<GroupAssignment>> {
 
 #[ic_cdk::update]
 fn assign_new_club_group(club_id: String, target_alias: String, expected_revision: u64) -> Outcome<GroupAssignment> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     require_governor()?; registry_writable()?;
     assign_group_record(club_id, target_alias, expected_revision, ic_cdk::api::time())
 }
@@ -1060,6 +1250,8 @@ fn assign_new_club_group(club_id: String, target_alias: String, expected_revisio
 /// the healthiest accepting group. Capped per principal; retries are free.
 #[ic_cdk::update]
 async fn place_my_new_club(club_id: String, target_alias: String) -> Outcome<GroupAssignment> {
+    let _private_writer_lease = private_name_writer_window::enter().unwrap_or_else(|reason| ic_cdk::trap(reason));
+
     let user = caller();
     if let Some(receipt) = owner_opening(&target_alias).filter(|r| r.approval.owner == user) {
         registry_writable()?;
@@ -1067,6 +1259,11 @@ async fn place_my_new_club(club_id: String, target_alias: String) -> Outcome<Gro
         if !owner_creation_eligible(user).await? { return Err("Owner account cannot create a test club".into()); }
         registry_writable()?;
         if current_revision() != revision || owner_opening(&target_alias).as_ref() != Some(&receipt) { return Err("Owner opening changed during eligibility check".into()); }
+    }
+    // The router refreshes stale group health itself, so club creation never
+    // depends on an external reporting job staying alive.
+    if user != Principal::anonymous() && group_assignment_for(&club_id).is_none() {
+        self_health::refresh_stale(&target_alias).await;
     }
     place_new_club_for(user, club_id, target_alias, ic_cdk::api::time())
 }
@@ -1114,6 +1311,64 @@ fn assign_group_record(club_id: String, target_alias: String, expected_revision:
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn routing_approval_is_governor_only_revision_bound_and_does_not_move_revisions() {
+        let operator = Principal::from_slice(&[240, 1]);
+        init(Init { governor: operator });
+        let mut g = groups::tests::group("approval-g", 0);
+        g.target_alias = "approval-test".into();
+        save_group(&g);
+        let subnet = Principal::from_slice(&[241, 1]);
+        let placement = GroupPlacement { group_id: g.id.clone(), deployment_id: "mainnet".into(), deployment_revision: 1,
+            host: "https://icp-api.io".into(), network_kind: "public_mainnet".into(), primary_subnet: subnet,
+            approved_subnets: vec![subnet], additional_subnets_enabled: false,
+            domains: g.domains.iter().map(|d| discovery::DomainPlacement { domain: d.domain.clone(), canister: d.canister, subnet }).collect() };
+        GROUP_PLACEMENTS.with(|m| m.borrow_mut().insert(g.id.as_bytes().to_vec(), encode(&placement)));
+        let rev = configuration_revision();
+        let assignments = current_revision();
+        let approval = RoutingApproval { target_alias: g.target_alias.clone(), configuration_revision: rev,
+            approved_configuration_sha256: "c".repeat(64), removal_wiring_group_ids: vec![g.id.clone()],
+            removal_checked_at_ms: 1, evidence_sha256: "d".repeat(64) };
+        assert!(record_routing_approval_for(Principal::from_slice(&[242, 1]), approval.clone(), rev).is_err());
+        assert!(record_routing_approval_for(operator, approval.clone(), rev + 1).is_err());
+        assert_eq!(record_routing_approval_for(operator, approval.clone(), rev).unwrap(), approval);
+        assert_eq!(configuration_revision(), rev);
+        assert_eq!(current_revision(), assignments);
+        let stored = ROUTING_APPROVALS.with(|m| m.borrow().get(&g.target_alias).map(|b| decode::<RoutingApproval>(&b)));
+        assert_eq!(stored, Some(approval.clone()));
+        // A later configuration change leaves the stale approval in place; clients compare revisions and fail closed.
+        stop_group_placements_for(operator, g.id.clone(), g.target_alias.clone(), current_revision()).unwrap();
+        assert_eq!(configuration_revision(), rev + 1);
+        assert!(record_routing_approval_for(operator, approval, rev).is_err());
+        post_upgrade();
+        assert!(ROUTING_APPROVALS.with(|m| m.borrow().contains_key(&g.target_alias)));
+    }
+    #[test]
+    fn consecutive_creator_reservations_preserve_configuration_and_upgrade() {
+        let operator = Principal::from_slice(&[230, 1]);
+        init(Init { governor: operator });
+        let mut g = groups::tests::group("config-test", 0);
+        g.target_alias = "configuration-test".into();
+        save_group(&g);
+        let approved = configuration_revision();
+        let creator = Principal::from_slice(&[231, 1]);
+        let id = "00000000-0000-4000-8000-000000000081".to_string();
+        let first = place_new_club_for(creator, id.clone(), g.target_alias.clone(), 1).unwrap();
+        let second = place_new_club_for(creator, "00000000-0000-4000-8000-000000000082".into(), g.target_alias.clone(), 1).unwrap();
+        assert_eq!(first.revision, 1);
+        assert_eq!(second.revision, 2);
+        assert_eq!(configuration_revision(), approved);
+        assert_eq!(place_new_club_for(creator, id.clone(), g.target_alias.clone(), 1).unwrap(), first);
+        assert!(place_new_club_for(operator, id, g.target_alias.clone(), 1).is_err());
+        assert_eq!(current_revision(), 2);
+        let stopped = stop_group_placements_for(operator, g.id.clone(), g.target_alias.clone(), 2).unwrap();
+        assert_eq!(configuration_revision(), approved + 1);
+        assert_eq!(stop_group_placements_for(operator, g.id, g.target_alias, stopped).unwrap(), stopped);
+        assert_eq!(configuration_revision(), approved + 1);
+        post_upgrade();
+        assert_eq!(current_revision(), stopped);
+        assert_eq!(configuration_revision(), approved + 1);
+    }
     #[test]
     fn priority_index_rebuild_rollover_health_and_immutable_retry() {
         let mut a = groups::tests::group("index-a", 79);
@@ -1292,3 +1547,13 @@ fn memory_stats() -> MemoryStats {
 ic_cdk::export_candid!();
 
 pub fn candid_interface() -> String { __export_service() }
+
+#[cfg(test)]
+mod private_writer_contract_export {
+    #[test]
+    fn export_contract_when_requested() {
+        if std::env::var_os("IGNITE_EXPORT_CANDID").is_some() {
+            std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/shard_router.did"), super::__export_service()).expect("write candid");
+        }
+    }
+}

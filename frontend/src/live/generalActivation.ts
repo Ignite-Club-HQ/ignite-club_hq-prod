@@ -14,8 +14,10 @@
 import { activationStatus, type ActivationGates } from './groupActivation';
 import type { FeatureBackendContext } from './featureRouter';
 import { GROUP_DOMAINS } from './groupRouting';
+import { withReadDeadline } from './readDeadline';
 import { ROUTING_GATES_SNAPSHOT } from './generated/routingGates';
 import type { RemovalWiringEvidence } from './groupRemovalWiring';
+import { groupApprovalConfiguration, approvalConfigurationSha256 } from './groupApproval';
 
 export type RoutingGatesSnapshot = {
   approved: true;
@@ -28,6 +30,9 @@ export type RoutingGatesSnapshot = {
   routerCanisterId?: string;
   /** Decimal text of the registry revision this switch was verified against. */
   registryRevision: string;
+  /** Separate approval epoch; legacy snapshots need governor regeneration. */
+  configurationRevision?: string;
+  approvedConfiguration?: string;
   /** Exact inventory anchor: any registry change requires a fresh snapshot. */
   groups: { id: string; domains: { domain: string; canisterId: string }[]; photoStore: string | null;
     moduleHashes: Record<string, string> }[];
@@ -39,7 +44,9 @@ export type RoutingStatus = { active: boolean; missing: string[] };
 const TTL_MS = 60_000;
 let cache: { key: string; value: RoutingStatus; atMs: number } | null = null;
 
-export function clearGeneralRoutingCache() { cache = null; }
+let inflight: { key: string; p: Promise<RoutingStatus> } | null = null;
+let generation = 0;
+export function clearGeneralRoutingCache() { generation++; cache = null; inflight = null; }
 /** Sync view for call sites that cannot await (media URL parsing). Cold or
  * stale simply means not-yet-active; the async check always decides writes. */
 export function cachedGeneralRoutingActive(): boolean { return cache?.value.active ?? false; }
@@ -52,9 +59,17 @@ const safePrincipal = (ctx?: FeatureBackendContext) => {
 
 export async function generalRoutingStatus(ctx: FeatureBackendContext): Promise<RoutingStatus> {
   const key = keyFor(ctx);
+  const startedGeneration = generation;
   if (cache && cache.key === key && Date.now() - cache.atMs < TTL_MS) return cache.value;
-  const value = await compute(ctx);
-  cache = { key, value, atMs: Date.now() };
+  // Concurrent callers on page load share one check (it reads the registry twice).
+  if (inflight?.key !== key) {
+    const p = withReadDeadline(compute(ctx), 'Routing approval').finally(() => { if (inflight?.p === p) inflight = null; });
+    inflight = { key, p };
+  }
+  const entry = inflight;
+  const value = await entry.p;
+  // A cleared/replaced request must not restore an old account's cache.
+  if (generation === startedGeneration && keyFor(ctx) === key && (!inflight || inflight === entry)) cache = { key, value, atMs: Date.now() };
   return value;
 }
 
@@ -88,17 +103,59 @@ async function compute(ctx: FeatureBackendContext): Promise<RoutingStatus> {
   const { readPinnedGroupRegistry } = await import('./groupRegistryPager');
   // Two complete consensus reads; a registry that changes mid-read throws.
   const registry = await readPinnedGroupRegistry((rev, cursor, limit) => actor.read_group_registry_page(snapshot.targetAlias, rev, cursor, limit));
-  if (registry.revision !== BigInt(snapshot.registryRevision)) throw new Error('Routing switch is bound to an older registry revision; re-run the routing-snapshot verification and ship it');
-  const live = new Map(registry.groups.map(g => [g.id, { domains: g.domains.map(d => [d.domain, d.canister.toText()] as const), photoStore: g.photo_store[0]?.toText() ?? null }]));
-  const approved = new Map(snapshot.groups.map(g => [g.id, { domains: g.domains.map(d => [d.domain, d.canisterId] as const), photoStore: g.photoStore }]));
+  if (registry.configurationRevision === undefined) {
+    throw new Error('Group routing needs the updated router and a fresh approved snapshot before creating clubs');
+  }
+  // The build-time snapshot only anchors the router and deployment alias. When
+  // the configuration has moved on (for example a new group was opened), the
+  // governor-recorded live approval on the router decides instead, with the
+  // same fail-closed comparison against the live registry.
+  if (snapshot.configurationRevision === undefined || !snapshot.approvedConfiguration ||
+      registry.configurationRevision !== BigInt(snapshot.configurationRevision)) {
+    return liveApprovalStatus(actor, snapshot, registry);
+  }
+  const live = new Map(registry.groups.map(g => [g.id, { domains: g.domains.map(d => ({ domain: d.domain, canisterId: d.canister.toText() })), photoStore: g.photo_store[0]?.toText() ?? null }]));
+  const approved = new Map(snapshot.groups.map(g => [g.id, { domains: g.domains, photoStore: g.photoStore }]));
   for (const [id, want] of approved) {
     const got = live.get(id);
     if (!got || inventory(want) !== inventory(got)) throw new Error(`Group ${id} changed since the routing snapshot; re-verify before routing`);
   }
   if (live.size !== approved.size) throw new Error('Registry group set changed since the routing snapshot; re-verify before routing');
+  if (groupApprovalConfiguration(registry.groups, registry.placements) !== snapshot.approvedConfiguration) {
+    throw new Error('Group placement or policy changed since approval; run snapshot and publish before creating clubs');
+  }
   const removalWiring: RemovalWiringEvidence = { revision: BigInt(snapshot.removalWiring.revision),
     groupIds: snapshot.removalWiring.groupIds, checkedAtMs: snapshot.removalWiring.checkedAtMs };
   const gates: ActivationGates = { operatorApproved: true, recoveryVerified: true, rehearsalPassed: true, mainnetVerified: true,
-    routedDomains: [...GROUP_DOMAINS], registryRevision: registry.revision, approvedRevision: BigInt(snapshot.registryRevision), removalWiring };
+    routedDomains: [...GROUP_DOMAINS], registryRevision: registry.configurationRevision, approvedRevision: BigInt(snapshot.configurationRevision), removalWiring };
   return activationStatus(gates);
+}
+
+type LiveRegistry = { configurationRevision?: bigint; groups: Parameters<typeof groupApprovalConfiguration>[0];
+  placements: Parameters<typeof groupApprovalConfiguration>[1] };
+const STALE = 'Group configuration changed since approval; finish the group setup run before creating clubs';
+
+async function liveApprovalStatus(actor: { read_routing_approval?: (alias: string) => Promise<unknown> },
+  snapshot: RoutingGatesSnapshot, registry: LiveRegistry): Promise<RoutingStatus> {
+  let reply: { Ok: [] | [{ target_alias: string; configuration_revision: bigint; approved_configuration_sha256: string;
+    removal_wiring_group_ids: string[]; removal_checked_at_ms: bigint }] } | { Err: string };
+  try {
+    if (typeof actor.read_routing_approval !== 'function') throw new Error('unsupported');
+    reply = await actor.read_routing_approval(snapshot.targetAlias) as typeof reply;
+  } catch {
+    // An older router without live approvals: fall back to the old message.
+    throw new Error(STALE);
+  }
+  if ('Err' in reply) throw new Error(reply.Err);
+  const approval = reply.Ok[0];
+  if (!approval || approval.target_alias !== snapshot.targetAlias || approval.configuration_revision !== registry.configurationRevision) throw new Error(STALE);
+  const liveIds = registry.groups.map(g => g.id).sort();
+  const approvedIds = [...approval.removal_wiring_group_ids].sort();
+  if (liveIds.length === 0 || JSON.stringify(liveIds) !== JSON.stringify(approvedIds)) throw new Error('Registry group set changed since approval; re-verify before routing');
+  const digest = await approvalConfigurationSha256(groupApprovalConfiguration(registry.groups, registry.placements));
+  if (digest !== approval.approved_configuration_sha256) throw new Error('Group placement or policy changed since approval; finish the group setup run before creating clubs');
+  const removalWiring: RemovalWiringEvidence = { revision: approval.configuration_revision, groupIds: approvedIds,
+    checkedAtMs: Number(approval.removal_checked_at_ms) };
+  return activationStatus({ operatorApproved: true, recoveryVerified: true, rehearsalPassed: true, mainnetVerified: true,
+    routedDomains: [...GROUP_DOMAINS], registryRevision: approval.configuration_revision, approvedRevision: registry.configurationRevision!, removalWiring });
 }
