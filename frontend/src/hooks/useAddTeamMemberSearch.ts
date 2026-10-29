@@ -1,0 +1,546 @@
+import { useQuery } from "@tanstack/react-query";
+import {
+  computeMemberIdentity,
+  type MemberIdentity,
+  type MemberRole,
+} from "@/lib/memberIdentity";
+import { selectCachedProfilesByIds } from "@/lib/profileCache";
+import { withFeatureBackend } from "@/live/featureRouter";
+import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import { useAuth } from "@/hooks/useAuth";
+import { searchLiveInvitableProfiles, listLiveRoleGrants, listLiveMembershipTeams } from "@/live/features/membership";
+import { listLivePendingInvitesByClub } from "@/live/features/club";
+import type { MemberRole as LiveMemberRole } from "@/lib/memberIdentity";
+
+
+type SearchProfile = {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  masked_email?: string | null;
+};
+
+type SearchMember = {
+  name: string;
+  role: string;
+  selectedUser?: SearchProfile | null;
+  secondParentSearch?: string;
+  selectedSecondParent?: SearchProfile | null;
+};
+
+type UseAddTeamMemberSearchArgs = {
+  supabase: any;
+  open: boolean;
+  mode: "single" | "bulk";
+  clubId: string;
+  teamId: string;
+  debouncedNameInput: string;
+  debouncedSecondParentSearch: string;
+  selectedUser: SearchProfile | null;
+  selectedSecondParent: SearchProfile | null;
+  bulkMembers: SearchMember[];
+};
+
+function getPendingInviteChildName(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const children = (metadata as { children?: unknown }).children;
+  if (Array.isArray(children) && children.length > 0) {
+    const first = children[0] as { name?: unknown };
+    if (first?.name) return String(first.name).trim();
+  }
+  return null;
+}
+
+export function useAddTeamMemberSearch({
+  supabase,
+  open,
+  mode,
+  clubId,
+  teamId,
+  debouncedNameInput,
+  debouncedSecondParentSearch,
+  selectedUser,
+  selectedSecondParent,
+  bulkMembers,
+}: UseAddTeamMemberSearchArgs) {
+  const { user } = useAuth();
+  const icpMembership = isFeatureRoutedToIcp("membership");
+
+  // ICP: everyone in the club is listed straight away from the club roster
+  // (shared, briefly remembered with the Messages pickers), and names unlock
+  // separately so the people appear first. Encrypted names cannot be searched
+  // server-side, so typing filters this list on the device.
+  const {
+    data: clubRoster = [],
+    isLoading: clubRosterLoading,
+    isError: clubRosterError,
+    refetch: refetchClubRoster,
+  } = useQuery({
+    queryKey: ["invite-club-roster", user?.id, clubId],
+    enabled: open && icpMembership && !!clubId,
+    staleTime: 3 * 60 * 1000,
+    retry: 1,
+    queryFn: async () =>
+      withFeatureBackend("membership", {
+        supabase: async () => [] as Array<{ id: string; display_name: string; avatar_url: string | null }>,
+        icp: async (ctx) => {
+          const { fetchLiveMessagingCandidates } = await import("@/live/messagingCandidates");
+          const read = fetchLiveMessagingCandidates(ctx, [clubId]);
+          const timeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Club members took too long to load.")), 20_000));
+          const rows = await Promise.race([read, timeout]);
+          return rows.map((r) => ({ id: r.id, display_name: r.display_name, avatar_url: r.avatar_url }));
+        },
+      }, { clubId }),
+  });
+  const rosterIds = clubRoster.map((r) => r.id);
+  const { data: rosterNames } = useQuery({
+    queryKey: ["invite-club-roster-names", user?.id, clubId, rosterIds.join(",")],
+    enabled: open && icpMembership && !!clubId && rosterIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async ({ signal }) =>
+      withFeatureBackend("membership", {
+        supabase: async () => new Map<string, string>(),
+        icp: async (ctx) => (await import("@/live/clubScopedNames")).unlockClubScopedNames(ctx, clubId, rosterIds, signal),
+      }, { clubId }),
+  });
+  const clubPeople: SearchProfile[] = clubRoster
+    .map((r) => ({ id: r.id, display_name: rosterNames?.get(r.id) ?? r.display_name, avatar_url: r.avatar_url }))
+    .sort((a, b) => (a.display_name ?? "").localeCompare(b.display_name ?? ""));
+  const term = debouncedNameInput.trim().toLowerCase();
+  const clubPeopleMatches = term
+    ? clubPeople.filter((p) => (p.display_name ?? "").toLowerCase().includes(term))
+    : clubPeople;
+
+  const { data: remoteSearchResults = [], isLoading: remoteSearching } = useQuery({
+    queryKey: ["user-search-team-member", user?.id, debouncedNameInput, clubId],
+    queryFn: async ({ signal }) => {
+      if (debouncedNameInput.length < 2) return [];
+      return withFeatureBackend("membership", {
+        supabase: async () => {
+          const { data, error } = await supabase.rpc("search_invitable_profiles", {
+            _query: debouncedNameInput,
+            _limit: 8,
+            _club_id: clubId ?? null,
+          });
+          if (error) throw error;
+          return (data || []) as SearchProfile[];
+        },
+        icp: async (ctx) => {
+          const results = await searchLiveInvitableProfiles(ctx, debouncedNameInput, 8, { clubId, signal });
+          return results.map((r): SearchProfile => ({
+            id: r.id,
+            display_name: r.display_name,
+            avatar_url: r.avatar_ref ?? null,
+          }));
+        },
+      }, { clubId });
+    },
+    enabled: open && !icpMembership && debouncedNameInput.length >= 2,
+  });
+  const searchResults = icpMembership ? clubPeopleMatches.slice(0, 50) : remoteSearchResults;
+  const isSearching = icpMembership ? clubRosterLoading : remoteSearching;
+
+  const { data: pendingInviteResults = [] } = useQuery({
+    queryKey: ["pending-invite-search", debouncedNameInput, clubId, teamId],
+    queryFn: async () => {
+      if (debouncedNameInput.length < 2) return [];
+      return withFeatureBackend("membership", {
+        supabase: async () => {
+          const { data: invites } = await supabase
+            .from("pending_invites")
+            .select("id, invited_label, invited_email, invited_user_id, metadata, team_id, role")
+            .eq("club_id", clubId)
+            .eq("status", "pending")
+            .ilike("invited_label", `%${debouncedNameInput}%`)
+            .limit(12);
+
+          if (!invites?.length) return [];
+
+          const teamIds = Array.from(
+            new Set<string>(
+              invites
+                .filter((invite: { team_id: string | null }) => invite.team_id)
+                .map((invite: { team_id: string }) => invite.team_id),
+            ),
+          );
+          const teamNameById: Record<string, string> = {};
+          if (teamIds.length > 0 && clubId) {
+            const { data: teams } = await supabase
+              .from("teams")
+              .select("id, name")
+              .in("id", teamIds)
+              .eq("club_id", clubId);
+            for (const team of teams || []) {
+              teamNameById[team.id] = team.name;
+            }
+          }
+
+          const userIds = invites
+            .filter((invite: { invited_user_id: string | null }) => invite.invited_user_id)
+            .map((invite: { invited_user_id: string }) => invite.invited_user_id);
+          const profileMap = new Map<
+            string,
+            { display_name: string | null; avatar_url: string | null }
+          >();
+          if (userIds.length > 0) {
+            const { data: profiles } = await selectCachedProfilesByIds(userIds);
+            profiles?.forEach((profile) => profileMap.set(profile.id, profile));
+          }
+
+          return invites.map((invite: any) => ({
+            id: invite.invited_user_id || `pending-${invite.id}`,
+            display_name: invite.invited_user_id
+              ? profileMap.get(invite.invited_user_id)?.display_name || invite.invited_label
+              : invite.invited_label,
+            avatar_url: invite.invited_user_id
+              ? profileMap.get(invite.invited_user_id)?.avatar_url || null
+              : null,
+            invited_email: invite.invited_email,
+            isPendingInvite: true,
+            pendingInviteId: invite.id,
+            role: invite.role,
+            teamId: invite.team_id,
+            teamName: invite.team_id ? teamNameById[invite.team_id] || null : null,
+            childName: getPendingInviteChildName(invite.metadata),
+          }));
+        },
+        icp: async (ctx) => {
+          if (!clubId) return [];
+          // club_domain's PendingInvite has no display-name/children metadata
+          // (Supabase's `pending_invites.invited_label`/`metadata` have no
+          // canister equivalent yet), so matching falls back to email and the
+          // child-name column is always null in ICP mode.
+          const invites = await listLivePendingInvitesByClub(ctx, clubId);
+          const needle = debouncedNameInput.toLowerCase();
+          return invites
+            .filter((invite) => invite.status === "pending" && invite.email.toLowerCase().includes(needle))
+            .slice(0, 12)
+            .map((invite) => ({
+              id: `pending-${invite.id}`,
+              display_name: invite.email,
+              avatar_url: null as string | null,
+              invited_email: invite.email,
+              isPendingInvite: true,
+              pendingInviteId: invite.id,
+              role: invite.role[0] ?? null,
+              teamId: invite.team_id[0] ?? null,
+              teamName: null as string | null,
+              childName: null as string | null,
+            }));
+        },
+      }, { clubId: clubId! });
+    },
+    enabled: debouncedNameInput.length >= 2,
+  });
+
+  const identityLookupIds = Array.from(
+    new Set([
+      ...searchResults.map((result) => result.id),
+      ...pendingInviteResults
+        .filter((result) => !result.id.startsWith("pending-"))
+        .map((result) => result.id),
+    ]),
+  );
+
+  const { data: identityMap = {} } = useQuery({
+    queryKey: ["invite-search-identities", clubId, [...identityLookupIds].sort().join(",")],
+    queryFn: async (): Promise<Record<string, MemberIdentity>> => {
+      if (identityLookupIds.length === 0 || !clubId) return {};
+      return withFeatureBackend("membership", {
+        supabase: () => fetchSupabaseIdentityMap(clubId, identityLookupIds),
+        icp: async (ctx) => {
+          // club_domain's role grants have no linked-children concept (the
+          // Supabase `children`/`child_team_assignments` tables have no
+          // canister equivalent yet), so children_names is always empty here.
+          const [grants, teams] = await Promise.all([
+            listLiveRoleGrants(ctx, clubId),
+            listLiveMembershipTeams(ctx, clubId),
+          ]);
+          const teamNameById: Record<string, string> = {};
+          for (const team of teams as any[]) {
+            if (team?.id) teamNameById[team.id] = team.name ?? team.id;
+          }
+          const rolesByUser = new Map<string, { role: LiveMemberRole; team_id: string | null }[]>();
+          for (const grant of grants as any[]) {
+            const userId = grant.user?.toText ? grant.user.toText() : String(grant.user);
+            if (!identityLookupIds.includes(userId)) continue;
+            const roles = rolesByUser.get(userId) || [];
+            roles.push({ role: grant.role as LiveMemberRole, team_id: grant.team?.[0] ?? null });
+            rolesByUser.set(userId, roles);
+          }
+          const identities: Record<string, MemberIdentity> = {};
+          for (const id of identityLookupIds) {
+            identities[id] = computeMemberIdentity({
+              display_name: null,
+              roles: rolesByUser.get(id) || [],
+              children_names: [],
+              teamNameById,
+            });
+          }
+          return identities;
+        },
+      }, { clubId: clubId! });
+    },
+    enabled: identityLookupIds.length > 0 && !!clubId,
+    staleTime: 60 * 1000,
+  });
+
+  async function fetchSupabaseIdentityMap(
+    clubId: string,
+    identityLookupIds: string[],
+  ): Promise<Record<string, MemberIdentity>> {
+      const [rolesRes, teamsRes, childrenRes] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id, role, team_id")
+          .eq("club_id", clubId)
+          .in("user_id", identityLookupIds),
+        supabase.from("teams").select("id, name").eq("club_id", clubId),
+        supabase
+          .from("children")
+          .select("id, parent_id, name")
+          .in("parent_id", identityLookupIds),
+      ]);
+
+      const teamNameById: Record<string, string> = {};
+      for (const team of teamsRes.data || []) teamNameById[team.id] = team.name;
+
+      const rolesByUser = new Map<string, { role: MemberRole; team_id: string | null }[]>();
+      for (const roleRow of rolesRes.data || []) {
+        const roles = rolesByUser.get(roleRow.user_id) || [];
+        roles.push({ role: roleRow.role as MemberRole, team_id: roleRow.team_id });
+        rolesByUser.set(roleRow.user_id, roles);
+      }
+
+      const candidateChildren = (childrenRes.data || []).filter(
+        (child: any) => child.id && child.parent_id && child.name,
+      );
+      const candidateIds = candidateChildren.map((child: any) => child.id as string);
+      const inClubChildIds = new Set<string>();
+
+      if (candidateIds.length) {
+        const clubTeamIds = Object.keys(teamNameById);
+        const [assignRes, pointsRes, miniLeagueRes] = await Promise.all([
+          clubTeamIds.length
+            ? supabase
+                .from("child_team_assignments")
+                .select("child_id")
+                .in("child_id", candidateIds)
+                .in("team_id", clubTeamIds)
+            : Promise.resolve({ data: [] as any[] }),
+          supabase
+            .from("child_club_points")
+            .select("child_id")
+            .in("child_id", candidateIds)
+            .eq("club_id", clubId),
+          supabase
+            .from("child_mini_league_assignments")
+            .select("child_id, mini_leagues!inner(club_id)")
+            .in("child_id", candidateIds)
+            .eq("mini_leagues.club_id", clubId),
+        ]);
+        (assignRes.data as any[] | null)?.forEach((row) => inClubChildIds.add(row.child_id));
+        (pointsRes.data as any[] | null)?.forEach((row) => inClubChildIds.add(row.child_id));
+        (miniLeagueRes.data as any[] | null)?.forEach((row) => inClubChildIds.add(row.child_id));
+      }
+
+      const childrenByParent = new Map<string, string[]>();
+      for (const child of candidateChildren) {
+        if (!inClubChildIds.has(child.id as string)) continue;
+        const children = childrenByParent.get(child.parent_id as string) || [];
+        children.push(child.name as string);
+        childrenByParent.set(child.parent_id as string, children);
+      }
+
+      const identities: Record<string, MemberIdentity> = {};
+      for (const id of identityLookupIds) {
+        identities[id] = computeMemberIdentity({
+          display_name: null,
+          roles: rolesByUser.get(id) || [],
+          children_names: childrenByParent.get(id) || [],
+          teamNameById,
+        });
+      }
+      return identities;
+    }
+
+  const profileIds = new Set(searchResults.map((result) => result.id));
+  const filteredPendingResults = pendingInviteResults.filter(
+    (result) => !profileIds.has(result.id),
+  );
+
+  const bulkSearchTerms = Array.from(
+    new Set(
+      bulkMembers
+        .filter((member) => !member.selectedUser && member.name.trim().length >= 2)
+        .map((member) => member.name.trim()),
+    ),
+  );
+  const { data: bulkSearchResults = [] } = useQuery({
+    queryKey: ["bulk-user-search-team-member", user?.id, bulkSearchTerms, clubId, teamId],
+    queryFn: async ({ signal }) => {
+      const searches = await Promise.all(
+        bulkSearchTerms.map((term) =>
+          withFeatureBackend("membership", {
+            supabase: async () => {
+              const { data: rpcData } = await supabase.rpc("search_invitable_profiles", {
+                _query: term,
+                _limit: 8,
+                _club_id: clubId ?? null,
+              });
+              const profileResults = (rpcData || []) as SearchProfile[];
+              const { data: invites } = await supabase
+                .from("pending_invites")
+                .select("id, invited_label, invited_email, invited_user_id, metadata, team_id")
+                .eq("club_id", clubId)
+                .eq("status", "pending")
+                .ilike("invited_label", `%${term}%`)
+                .limit(8);
+              const resultProfileIds = new Set(profileResults.map((result) => result.id));
+              const pendingResults = (invites || [])
+                .map((invite: any) => ({
+                  id: invite.invited_user_id || `pending-${invite.id}`,
+                  display_name: invite.invited_label,
+                  avatar_url: null,
+                  isPendingInvite: true,
+                  pendingInviteId: invite.id,
+                  invited_email: invite.invited_email,
+                }))
+                .filter((result: { id: string }) => !resultProfileIds.has(result.id));
+              return { term, results: [...profileResults, ...pendingResults] };
+            },
+            icp: async (ctx) => {
+              const profileResults = (await searchLiveInvitableProfiles(ctx, term, 8, { clubId, signal })).map(
+                (r): SearchProfile => ({
+                  id: r.id,
+                  display_name: r.display_name,
+                  avatar_url: r.avatar_ref ?? null,
+                }),
+              );
+              if (!clubId) return { term, results: profileResults };
+              const resultProfileIds = new Set(profileResults.map((result) => result.id));
+              const needle = term.toLowerCase();
+              const invites = await listLivePendingInvitesByClub(ctx, clubId);
+              const pendingResults = invites
+                .filter(
+                  (invite) =>
+                    invite.status === "pending" && invite.email.toLowerCase().includes(needle),
+                )
+                .slice(0, 8)
+                .map((invite) => ({
+                  id: `pending-${invite.id}`,
+                  display_name: invite.email,
+                  avatar_url: null,
+                  isPendingInvite: true,
+                  pendingInviteId: invite.id,
+                  invited_email: invite.email,
+                }))
+                .filter((result) => !resultProfileIds.has(result.id));
+              return { term, results: [...profileResults, ...pendingResults] };
+            },
+          }, { clubId: clubId! }),
+        ),
+      );
+      return searches;
+    },
+    enabled: open && mode === "bulk" && bulkSearchTerms.length > 0,
+  });
+
+  const bulkSecondParentTerms = Array.from(
+    new Set(
+      bulkMembers
+        .filter(
+          (member) =>
+            member.role === "parent" &&
+            !member.selectedSecondParent &&
+            (member.secondParentSearch || "").trim().length >= 2,
+        )
+        .map((member) => (member.secondParentSearch || "").trim()),
+    ),
+  );
+  const { data: bulkSecondParentResults = [] } = useQuery({
+    queryKey: ["bulk-second-parent-search", user?.id, bulkSecondParentTerms, clubId],
+    queryFn: async ({ signal }) =>
+      Promise.all(
+        bulkSecondParentTerms.map((term) =>
+          withFeatureBackend("membership", {
+            supabase: async () => {
+              const { data } = await supabase.rpc("search_invitable_profiles", {
+                _query: term,
+                _limit: 5,
+                _club_id: clubId ?? null,
+              });
+              return {
+                term,
+                results: ((data || []) as SearchProfile[]).map((result) => ({
+                  id: result.id,
+                  display_name: result.display_name,
+                  avatar_url: result.avatar_url,
+                })),
+              };
+            },
+            icp: async (ctx) => {
+              const results = (await searchLiveInvitableProfiles(ctx, term, 5, { clubId, signal })).map((r) => ({
+                id: r.id,
+                display_name: r.display_name,
+                avatar_url: r.avatar_ref ?? null,
+              }));
+              return { term, results };
+            },
+          }, { clubId }),
+        ),
+      ),
+    enabled: open && mode === "bulk" && bulkSecondParentTerms.length > 0,
+  });
+
+  const { data: secondParentSearchResults = [] } = useQuery({
+    queryKey: ["second-parent-search", user?.id, debouncedSecondParentSearch, clubId],
+    queryFn: async ({ signal }) => {
+      if (debouncedSecondParentSearch.length < 2) return [];
+      return withFeatureBackend("membership", {
+        supabase: async () => {
+          const { data } = await supabase.rpc("search_invitable_profiles", {
+            _query: debouncedSecondParentSearch,
+            _limit: 5,
+            _club_id: clubId ?? null,
+          });
+          return ((data || []) as SearchProfile[]).map((result) => ({
+            id: result.id,
+            display_name: result.display_name,
+            avatar_url: result.avatar_url,
+          }));
+        },
+        icp: async (ctx) => {
+          const results = await searchLiveInvitableProfiles(ctx, debouncedSecondParentSearch, 5, { clubId, signal });
+          return results.map((r): SearchProfile => ({
+            id: r.id,
+            display_name: r.display_name,
+            avatar_url: r.avatar_ref ?? null,
+          }));
+        },
+      }, { clubId });
+    },
+    enabled: open && debouncedSecondParentSearch.length >= 2 && !selectedSecondParent,
+  });
+
+  return {
+    clubPeople,
+    clubPeopleLoading: icpMembership && clubRosterLoading,
+    clubPeopleError: icpMembership && clubRosterError,
+    refetchClubPeople: refetchClubRoster,
+    filteredResults: searchResults,
+    filteredPendingResults,
+    identityMap,
+    isSearching,
+    bulkSearchMap: new Map(
+      bulkSearchResults.map((entry) => [entry.term, entry.results]),
+    ),
+    bulkSecondParentMap: new Map(
+      bulkSecondParentResults.map((entry) => [entry.term, entry.results]),
+    ),
+    filteredSecondParentResults: secondParentSearchResults.filter(
+      (result) => result.id !== selectedUser?.id,
+    ),
+  };
+}

@@ -31,3 +31,4 @@ jobs:
           name: premark-output
           path: premark-output.txt
           retention-days: 30
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' }}

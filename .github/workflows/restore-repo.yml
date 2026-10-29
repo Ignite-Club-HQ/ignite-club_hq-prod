@@ -15,7 +15,7 @@ on:
 jobs:
   list-or-restore:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,13 +41,13 @@ jobs:
           echo "📦 Available backups for ${{ env.REPO_NAME }}:"
           echo ""
           BACKUP_PATH="gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.REPO_NAME }}/"
-          
+
           # Check if any backups exist
           if ! gsutil ls "$BACKUP_PATH" 2>/dev/null; then
             echo "❌ No backups found for this repository"
             exit 0
           fi
-          
+
           # List all date folders
           gsutil ls "$BACKUP_PATH" | while read date_folder; do
             DATE=$(basename "$date_folder")
@@ -61,7 +61,7 @@ jobs:
               done
             fi
           done
-          
+
           echo ""
           echo "ℹ️  To restore, re-run this workflow with:"
           echo "    - backup_date: YYYY-MM-DD"
@@ -76,24 +76,24 @@ jobs:
             echo "⚠️  This will replace all current repository files with the backup."
             exit 1
           fi
-          
+
           DATE="${{ github.event.inputs.backup_date }}"
           BACKUP_PATH="gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${{ env.REPO_NAME }}/${DATE}/"
-          
+
           # Check if backup exists
           if ! gsutil ls "$BACKUP_PATH" 2>/dev/null; then
             echo "❌ No backup found for date: $DATE"
             echo "Run this workflow without a date to see available backups."
             exit 1
           fi
-          
+
           # Get the backup file
           BACKUP_FILE=$(gsutil ls "${BACKUP_PATH}*.tar.gz" 2>/dev/null | head -1)
           if [ -z "$BACKUP_FILE" ]; then
             echo "❌ No tar.gz backup file found for date: $DATE"
             exit 1
           fi
-          
+
           echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_ENV
           echo "✓ Found backup: $BACKUP_FILE"
 
@@ -108,20 +108,20 @@ jobs:
         if: ${{ github.event.inputs.backup_date != '' && github.event.inputs.confirm_restore == 'CONFIRM' }}
         run: |
           echo "📂 Extracting backup..."
-          
+
           # Create temp directory for extraction
           mkdir -p /tmp/restore
           tar -xzf /tmp/backup.tar.gz -C /tmp/restore
-          
+
           echo "🔄 Restoring files..."
-          
+
           # Remove all files except .git directory
           find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-          
+
           # Copy restored files
           cp -r /tmp/restore/* . 2>/dev/null || true
           cp -r /tmp/restore/.[!.]* . 2>/dev/null || true
-          
+
           echo "✓ Files restored"
 
       - name: Commit restored files
@@ -129,9 +129,9 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          
+
           git add -A
-          
+
           if git diff --staged --quiet; then
             echo "ℹ️  No changes to commit - backup matches current state"
           else
@@ -147,3 +147,4 @@ jobs:
           echo "✅ Repository successfully restored from backup: ${{ github.event.inputs.backup_date }}"
           echo ""
           echo "Restored from: ${{ env.BACKUP_FILE }}"
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_RESTORE_REPO_ENABLED == 'true') }}

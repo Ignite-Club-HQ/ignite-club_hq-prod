@@ -1,0 +1,95 @@
+{
+  "governor": "vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae",
+  "routerId": "jcdfe-vqaaa-aaaal-qxloq-cai",
+  "identityAccess": "mq2sj-fiaaa-aaaal-qxlqa-cai",
+  "targetAlias": "mainnet",
+  "deploymentId": "mainnet",
+  "host": "https://icp-api.io",
+  "provisionFile": "../deploy/groups/g2/provision.json",
+  "workloadIdentity": "mm6iy-siaaa-aaaal-qxlsa-cai",
+  "deploymentRevision": "1",
+  "primarySubnet": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+  "maxClubs": 100,
+  "minCycles": "1000000000000",
+  "heapBudgetBytes": "3221225472",
+  "services": [
+    {
+      "name": "club_domain",
+      "canisterId": "yfwyv-nyaaa-aaaal-qxpyq-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "3c55bec919ea4d839d6f292a2e86272e32f21328cbf16213dc9b851059ff42fa"
+    },
+    {
+      "name": "events_domain",
+      "canisterId": "ymvtj-3qaaa-aaaal-qxpza-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "ee0bdcc39c1af96cc8c745d9b8493951495f94d3b6e37ff4caee7a9ff0d36e7a"
+    },
+    {
+      "name": "messaging_domain",
+      "canisterId": "yluv5-wiaaa-aaaal-qxpzq-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "d3f7bcc8bb12f717b54b9af2bb7bc96615afc78e3e9322978b96e86228e8a258"
+    },
+    {
+      "name": "vault_domain",
+      "canisterId": "y6teq-xaaaa-aaaal-qxp2a-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "8e53acb5bbbe68daa438c94aacff16821c026f7e14b7b5b946607c3d63a7bfee"
+    },
+    {
+      "name": "competition_domain",
+      "canisterId": "yzsce-2yaaa-aaaal-qxp2q-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "c5fb94d89fe17407435cf19a03881da721c16dc8f30e9ab03a214e8b3d084087"
+    },
+    {
+      "name": "club_points_domain",
+      "canisterId": "yqrjy-mqaaa-aaaal-qxp3a-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "c743d1a8eb0bffb9fc95b5abaf62c4eef0d58b8ec717769b5936df5a249a68e1"
+    },
+    {
+      "name": "mini_league_domain",
+      "canisterId": "yxqpm-biaaa-aaaal-qxp3q-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "7c8dc5712146ad6cb0e94e8c6908755a1b9c8d2bb7a5e08b013e7cd7049add91"
+    },
+    {
+      "name": "media_metadata",
+      "canisterId": "z26lc-oaaaa-aaaal-qxp4a-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "0296231d1a16023693d52feb2e3990acb4830e438390765933b1a74eaf0eb334"
+    },
+    {
+      "name": "insights_domain",
+      "canisterId": "z57nw-dyaaa-aaaal-qxp4q-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "643c426eef6ae0bea32abd987b24c62c10ba2850cec968636c495f334987848f"
+    },
+    {
+      "name": "notification_queue",
+      "canisterId": "zu4gk-vqaaa-aaaal-qxp5a-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "100b0197578278a06008394961362abcc805afad998cf6a562a647e17dd49d95"
+    },
+    {
+      "name": "pii_access_control",
+      "canisterId": "zt5a6-yiaaa-aaaal-qxp5q-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "d777c5fbc952f3a1485a1f0706332c1fe99e72fedcf39bb50f0d2b4a95ba62b9"
+    },
+    {
+      "name": "timer_jobs",
+      "canisterId": "zg2rt-zaaaa-aaaal-qxp6a-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "70d631b37e367b3b97f0423662843f32cd1434ca535666c351f9fa65143e1871"
+    },
+    {
+      "name": "media_blob_store",
+      "canisterId": "ycx6b-aaaaa-aaaal-qxpya-cai",
+      "subnetId": "e66qm-3cydn-nkf4i-ml4rb-4ro6o-srm5s-x5hwq-hnprz-3meqp-s7vks-5qe",
+      "moduleHash": "8fe9fc10f1f58a9d6da4a08434c5f864292663a2e229c6a31e45d870c6365455"
+    }
+  ]
+}

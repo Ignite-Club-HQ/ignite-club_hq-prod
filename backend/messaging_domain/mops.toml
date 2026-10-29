@@ -1,0 +1,19 @@
+[toolchain]
+moc = "1.16.1"
+
+[moc]
+args = [ "--default-persistent-actors" ]
+
+[dependencies]
+core = "2.6.1"
+ic = "4.2.0"
+ic-websocket-cdk = "0.4.1"
+ic-certification = "1.1.0"
+
+[canisters.messaging_domain]
+main = "src/main.mo"
+candid = "messaging_domain.did"
+
+[canisters.messaging_domain.migrations]
+chain = "src/backend/migrations"
+check-limit = 1

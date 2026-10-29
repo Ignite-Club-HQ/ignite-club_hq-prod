@@ -72,3 +72,4 @@ jobs:
           path: ${{ steps.dump.outputs.file }}
           retention-days: 30
           if-no-files-found: error
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' }}

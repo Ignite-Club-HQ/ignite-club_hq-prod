@@ -1,0 +1,49 @@
+/**
+ * Fires the `check-pending-subs` edge function immediately so push fan-out
+ * to other staff happens within ~1s instead of waiting for the next 10s
+ * cron cycle. Critical for pending-sub notifications because the open pitch
+ * board executes subs quickly, marking them executed before cron sees them.
+ */
+import { supabase } from "@/integrations/supabase/client";
+import { resolveAuthBackend } from "@/live/authBackendMode";
+
+const recent = new Map<string, number>();
+const DEDUPE_MS = 4000;
+
+export async function triggerPitchCheck(source: string, dedupeKey?: string): Promise<void> {
+  const now = Date.now();
+  if (dedupeKey) {
+    const last = recent.get(dedupeKey);
+    if (last && now - last < DEDUPE_MS) return;
+    recent.set(dedupeKey, now);
+    // light garbage collect
+    if (recent.size > 50) {
+      for (const [k, t] of recent.entries()) {
+        if (now - t > DEDUPE_MS * 4) recent.delete(k);
+      }
+    }
+  }
+
+  try {
+    // Push fan-out is an approved Supabase exception, but Internet Identity
+    // users have no Supabase session — skip silently for them. Check the
+    // auth backend explicitly rather than relying on session absence.
+    //
+    // This helper only knows `source`/`dedupeKey` (no teamId/clubId/message),
+    // so it cannot itself call fanOutLiveNotifications. The real ICP delivery
+    // for pitch-board alerts (substitution/halftime/full-time) happens at the
+    // call sites that have that context — see
+    // GlobalSubMonitor.triggerImmediatePitchCheck, which fans out via
+    // notification_queue.fan_out directly instead of poking this edge
+    // function. The one caller of this file for a live board
+    // (useAutoSubScheduler's "pitch-board-pending-sub") still goes through
+    // GlobalSubMonitor's own triggerImmediatePitchCheck in parallel for the
+    // actual ICP alert, so no alert is lost — this call is just a no-op there.
+    if (resolveAuthBackend() === "icp") return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await supabase.functions.invoke("check-pending-subs", { body: { source } });
+  } catch (err) {
+    console.warn("[triggerPitchCheck] failed", err);
+  }
+}

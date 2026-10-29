@@ -1,0 +1,153 @@
+name: Upgrade backend (all mainnet groups)
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Upgrade runs its own complete preflight; check is read-only
+        type: choice
+        required: true
+        default: upgrade
+        options: [ check, upgrade, recover ]
+      scope:
+        description: full_backend upgrades every existing backend canister in every registered group, including shared infrastructure once
+        type: choice
+        required: true
+        default: full_backend
+        options: [ full_backend, club_migration, private_name_cleanup, secure_name_save, private_club_name_display, app_admin, team_invites, messaging, competition, history, subscriptions, events_pitch, gallery_vault ]
+      checked_plan:
+        description: "CHECKED PLAN HASH (64 letters/numbers) - required for recover; optional for upgrade"
+        required: false
+        default: ''
+      confirmation:
+        description: "CONFIRMATION WORDS - UPGRADE ALL MAINNET GROUPS (upgrade) or RECOVER COMPLETED MAINNET RELEASE (recover); empty for check"
+        required: false
+        default: ''
+permissions:
+  contents: write
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    environment: group-2-admin-controls
+    timeout-minutes: 360
+    env:
+      ACTION: ${{ inputs.action }}
+      SCOPE: ${{ inputs.scope }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      CHECKED_PLAN: ${{ inputs.checked_plan }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: oven-sh/setup-bun@v2
+        if: (inputs.scope == 'private_name_cleanup' || inputs.scope == 'secure_name_save' || inputs.scope == 'private_club_name_display') && inputs.action != 'recover'
+        with:
+          bun-version: '1.3.0'
+      - name: Validate reviewed scope and exact confirmation
+        run: |
+          node --input-type=module <<'JS'
+          import {validateRequest,normalizeConfirmation,normalizePlan} from './scripts/all-group-upgrade-policy.mjs';
+          if(process.env.ACTION==='upgrade'&&['full_backend','club_migration','private_name_cleanup','secure_name_save','private_club_name_display'].includes(process.env.SCOPE)&&!normalizePlan(process.env.CHECKED_PLAN)){
+            const typed=normalizeConfirmation(process.env.CONFIRMATION);
+            if(typed.startsWith('RECOVER'))throw Error('Action dropdown is still "upgrade". Change Action to "recover" and paste the original checked plan hash into Checked plan');
+            if(typed!=='UPGRADE ALL MAINNET GROUPS')throw Error('Type UPGRADE ALL MAINNET GROUPS');
+            validateRequest('check',process.env.SCOPE);
+          }else validateRequest(process.env.ACTION,process.env.SCOPE,process.env.CONFIRMATION,process.env.CHECKED_PLAN);
+          JS
+      - name: Install pinned tools and existing dependencies
+        run: |
+          npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
+          node scripts/ensure-frontend-deps.mjs
+          icp canister install --help | grep -q -- --wasm-memory-persistence
+      - name: Test inventory and interrupted-release safeguards
+        run: node --test scripts/all-group-upgrade-policy.test.mjs scripts/private-name-cleanup-release-policy.test.mjs scripts/secure-name-release-policy.test.mjs scripts/all-group-wiring-policy.test.mjs scripts/all-group-publication.test.mjs scripts/group2-journal.test.mjs scripts/group2-upgrade-rules.test.mjs scripts/subscription-upgrade-policy.test.mjs scripts/placement-upgrade-evidence.test.mjs
+      - name: Verify cleanup-only activation on disposable canisters before governor restoration
+        if: (inputs.scope == 'private_name_cleanup' || inputs.scope == 'secure_name_save' || inputs.scope == 'private_club_name_display') && inputs.action != 'recover'
+        run: node scripts/test-private-name-workflow.mjs
+      - name: Require release from main
+        if: (inputs.scope == 'private_name_cleanup' || inputs.scope == 'secure_name_save' || inputs.scope == 'private_club_name_display')
+        # Safeguard is the group-2-admin-controls review approval on this job;
+        # no extra token is needed to read repository protection settings.
+        run: |
+          test "$GITHUB_REF" = "refs/heads/main" || { echo "Run this release from main; no governor restored"; exit 1; }
+      - name: Restore existing governor only
+        # Cleanup must not restore signing credentials until live protections
+        # and real disposable acceptance have passed on this exact source.
+        env:
+          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOYER_PEM"
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/all-group-icp-home"
+          echo "ICP_HOME=$ICP_HOME" >> "$GITHUB_ENV"
+          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$RUNNER_TEMP/all-group.pem"
+          icp identity import --from-pem "$RUNNER_TEMP/all-group.pem" --storage plaintext ignite-governor
+          icp identity default ignite-governor
+          test "$(icp identity principal)" = vk34m-qhp7i-xyaaw-itwxz-uohx7-ucw52-mx2vs-alcau-3h4ga-rayrt-pae
+      - name: Resolve existing delivery identity without changing grants
+        env:
+          ICP_PUSH_WORKER_SEED: ${{ secrets.ICP_PUSH_WORKER_SEED }}
+          PUSH_WORKER_PRINCIPAL: ${{ vars.PUSH_WORKER_PRINCIPAL }}
+        run: bash scripts/resolve-group-push-worker.sh
+      - name: Build selected recipe artifacts once
+        if: inputs.action != 'recover'
+        run: |
+          node --input-type=module <<'JS'
+          import { spawnSync } from 'node:child_process';
+          import { mkdirSync, copyFileSync } from 'node:fs';
+          import { SCOPES } from './scripts/all-group-upgrade-policy.mjs';
+          const names=SCOPES[process.env.SCOPE];
+          if(!names)throw Error('Unsupported scope');
+          const cleanup=process.env.SCOPE==='private_name_cleanup';
+          const secure=['secure_name_save','private_club_name_display'].includes(process.env.SCOPE);
+          const privateRelease=cleanup||secure;
+          const result=spawnSync('icp',['build',...names.filter(n=>!privateRelease||n!=='identity_access')],{cwd:'deploy/mainnet',stdio:'inherit'});
+          if(result.status!==0)process.exit(1);
+          const dest=process.env.RUNNER_TEMP+'/all-group-wasm';mkdirSync(dest,{recursive:true});
+          if(privateRelease){
+            // Explicit compiler input avoids relying on recipe env forwarding.
+            const env={...process.env};
+            delete env.IGNITE_PRIVATE_NAME_CLEANUP_RELEASE;
+            if(cleanup)env.IGNITE_PRIVATE_NAME_CLEANUP_RELEASE='1';
+            for(const key of Object.keys(env))if(key.includes('REHEARSAL'))delete env[key];
+            const rust=spawnSync('cargo',['build','--locked','--release','--target','wasm32-unknown-unknown','--target-dir','target/private-name-cleanup','-p','identity_access'],{env,stdio:'inherit'});
+            if(rust.status!==0)process.exit(1);
+          }
+          for(const name of names)copyFileSync(privateRelease&&name==='identity_access'?'target/private-name-cleanup/wasm32-unknown-unknown/release/identity_access.wasm':'deploy/mainnet/.icp/cache/artifacts/'+name,dest+'/'+name);
+          JS
+      - name: Automatically check the complete release on this exact source revision
+        if: inputs.action == 'upgrade' && (inputs.scope == 'full_backend' || inputs.scope == 'club_migration' || (inputs.scope == 'private_name_cleanup' || inputs.scope == 'secure_name_save' || inputs.scope == 'private_club_name_display')) && inputs.checked_plan == ''
+        working-directory: frontend
+        run: |
+          npx --yes tsx@4 scripts/upgrade-all-groups.ts check "$SCOPE" "$RUNNER_TEMP/all-group-wasm" "$RUNNER_TEMP/all-group.pem" "$RUNNER_TEMP/all-group-report"
+          node --input-type=module <<'JS'
+          import {readFileSync,appendFileSync} from 'node:fs';
+          const {planHash}=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/all-group-report/check.json','utf8'));
+          if(!/^[a-f0-9]{64}$/.test(planHash))throw Error('Complete checked plan missing');
+          appendFileSync(process.env.GITHUB_ENV,'CHECKED_PLAN='+planHash+'\n');
+          JS
+      - name: Check or upgrade the complete existing mainnet inventory
+        working-directory: frontend
+        run: npx --yes tsx@4 scripts/upgrade-all-groups.ts "$ACTION" "$SCOPE" "$RUNNER_TEMP/all-group-wasm" "$RUNNER_TEMP/all-group.pem" "$RUNNER_TEMP/all-group-report"
+      - name: Publish verified fingerprints with source-branch compare and readback
+        if: inputs.action == 'upgrade' || inputs.action == 'recover'
+        working-directory: frontend
+        run: npx --yes tsx@4 scripts/publish-all-group-upgrade.ts
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/all-group.pem"; rm -rf "$RUNNER_TEMP/all-group-icp-home"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: all-group-upgrade-report
+          path: ${{ runner.temp }}/all-group-report
+          if-no-files-found: warn
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_UPGRADE_ALL_GROUPS_ENABLED == 'true') }}

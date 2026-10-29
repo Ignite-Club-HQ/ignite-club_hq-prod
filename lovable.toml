@@ -1,0 +1,5 @@
+[run]
+install = "node scripts/ensure-frontend-deps.mjs"
+dev = "node scripts/dev-preview.mjs"
+"build:dev" = "node scripts/build-preview.mjs"
+build = "node scripts/build-preview.mjs"

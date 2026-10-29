@@ -1,7 +1,8 @@
 name: Add iOS Platform
 
 on:
-  workflow_dispatch:  # Manual trigger only
+  workflow_dispatch:
+    # Manual trigger only
 
 permissions:
   contents: write
@@ -41,3 +42,4 @@ jobs:
           git add ios/
           git commit -m "Add iOS platform via GitHub Actions"
           git push
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_ADD_IOS_PLATFORM_ENABLED == 'true') }}

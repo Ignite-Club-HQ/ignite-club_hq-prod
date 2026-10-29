@@ -4,12 +4,13 @@ on:
   schedule:
     # Run daily at 3 AM UTC (1 hour after storage backup)
     - cron: '0 3 * * *'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
+    # Allow manual trigger
 
 jobs:
   backup:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,10 +32,10 @@ jobs:
           CURRENT_SHA=$(git rev-parse HEAD)
           echo "Current commit SHA: $CURRENT_SHA"
           echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
-          
+
           # Try to get the last backed up SHA from GCS
           LAST_SHA_FILE="gs://${{ secrets.GCS_BUCKET_NAME }}/repo-backups/${REPO_NAME}/.last-backup-sha"
-          
+
           if gsutil -q stat "$LAST_SHA_FILE" 2>/dev/null; then
             LAST_SHA=$(gsutil cat "$LAST_SHA_FILE")
             echo "Last backed up SHA: $LAST_SHA"
@@ -50,7 +51,7 @@ jobs:
             echo "No previous backup found. Will create first backup."
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
-          
+
           echo "CURRENT_SHA=$CURRENT_SHA" >> $GITHUB_ENV
 
       - name: Create archive
@@ -58,7 +59,7 @@ jobs:
         run: |
           DATE=$(date +%Y-%m-%d)
           ARCHIVE_NAME="${{ env.REPO_NAME }}-${DATE}.tar.gz"
-          
+
           # Create a compressed archive of the entire repo
           tar -czf "/tmp/${ARCHIVE_NAME}" \
             --exclude='.git' \
@@ -67,7 +68,7 @@ jobs:
             --exclude='dist' \
             --exclude='build' \
             .
-          
+
           echo "ARCHIVE_PATH=/tmp/${ARCHIVE_NAME}" >> $GITHUB_ENV
           echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
           echo "DATE=${DATE}" >> $GITHUB_ENV
@@ -95,3 +96,4 @@ jobs:
           else
             echo "ℹ Backup skipped - no changes detected"
           fi
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_BACKUP_REPO_ENABLED == 'true') }}

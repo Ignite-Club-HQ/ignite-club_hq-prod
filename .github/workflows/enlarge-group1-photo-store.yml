@@ -1,0 +1,63 @@
+name: Enlarge group photo store
+
+on:
+  workflow_dispatch:
+    inputs:
+      group:
+        description: 'Which group (1 or 2)'
+        required: true
+        default: '2'
+      size_gib:
+        description: 'Configured photo store size in GiB (3–200; safety headroom applies)'
+        required: true
+        default: '200'
+      confirm:
+        description: 'Type ENLARGE GROUP <number> PHOTO STORE, e.g. ENLARGE GROUP 2 PHOTO STORE'
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ignite-mainnet-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  enlarge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          GROUP: ${{ inputs.group }}
+        run: node --input-type=module -e "import { assertEnlargeConfirmation } from './scripts/enlarge-photo-store-policy.mjs'; assertEnlargeConfirmation(process.env.CONFIRM, process.env.GROUP);"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+      - name: Install frontend dependencies (preserve project installer)
+        run: node scripts/ensure-frontend-deps.mjs
+      - name: Safety checks
+        run: node --test scripts/enlarge-photo-store-policy.test.mjs
+      - name: Write temporary signing key
+        env:
+          DEPLOYER_PEM: ${{ secrets.DEPLOYER_PEM }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOYER_PEM" || { echo '::error::DEPLOYER_PEM secret missing'; exit 1; }
+          umask 077
+          printf '%s' "$DEPLOYER_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$RUNNER_TEMP/enlarge.pem"
+      - name: Enlarge the store
+        working-directory: frontend
+        env:
+          ENLARGE_GROUP: ${{ inputs.group }}
+          ENLARGE_GIB: ${{ inputs.size_gib }}
+          ENLARGE_CONFIRM: ${{ inputs.confirm }}
+          OPERATOR_PEM_PATH: ${{ runner.temp }}/enlarge.pem
+        run: npx --yes tsx@4 scripts/enlarge-photo-store.ts
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/enlarge.pem"
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_ENLARGE_GROUP1_PHOTO_STORE_ENABLED == 'true') }}

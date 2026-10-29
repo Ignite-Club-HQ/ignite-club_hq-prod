@@ -1,0 +1,373 @@
+import type { RefObject } from "react";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { prefetchMessagePolls } from "@/lib/pollReadRepository";
+import { markChatFetch } from "@/hooks/useChatPerfMarks";
+import { splitPageWindow } from "@/lib/chatPageWindow";
+import { getCachedMessages, cacheMessages, isCachedThreadComplete } from "@/lib/messageCache";
+import { fetchProfilesWithCache } from "@/lib/profileCache";
+import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
+import { isUsableCachedThread } from "@/lib/chatThreadLoadState";
+import { assertReadNotAborted } from "@/live/readDeadline";
+import { groupChatReadScope } from './groupChatScope';
+import * as fixtureData from "@/lab/fixtureDataLayer";
+import { withFeatureBackend } from "@/live/featureRouter";
+import { listLiveLatestMessagesPage, listLiveReactions } from "@/live/features/messaging";
+import {
+  attachReactionsToMessages,
+  getCachedGroupMessages,
+  type GroupChatSupabaseClient,
+  type GroupMessage,
+  type MessageReaction,
+} from "@/features/messaging/thread/groupChatData";
+
+export interface GroupMessagesQueryData {
+  messages: GroupMessage[];
+  hasOlderMessages: boolean;
+  /** Backward cursor for ICP scroll-back paging (null = nothing older remains). */
+  olderCursor?: number | null;
+  reactions: MessageReaction[];
+  fromCache?: boolean;
+}
+
+
+interface UseGroupMessagesQueryOptions {
+  groupId?: string;
+  clubId?: string | null;
+  userId?: string;
+  useIcpLab: boolean;
+  isOnline: boolean;
+  queryClient: QueryClient;
+  openedFromNotificationRef: RefObject<number | null>;
+  pageSize: number;
+  supabaseClient: GroupChatSupabaseClient;
+  signal?: AbortSignal;
+}
+
+/**
+ * Canister rows → the app's group-message shape. Shared by the first page
+ * load and by scroll-back paging so both render identically.
+ */
+export const mapLiveGroupRows = async (
+  ctx: any,
+  groupId: string,
+  rows: any[],
+  onMessagesReady?: (messages: GroupMessage[]) => void,
+  signal?: AbortSignal,
+): Promise<GroupMessage[]> => {
+  assertReadNotAborted(signal);
+  const authorIds = [...new Set(rows.map((m: any) => m.sender.toText() as string))];
+  // Author photos and reactions enrich the thread; they must not delay its text.
+  if (onMessagesReady) {
+    const rawById = new Map(rows.map(m => [m.id, m]));
+    onMessagesReady(rows.slice().sort((a, b) => Number(b.sequence - a.sequence)).map(m => {
+      const attachment = m.attachment?.[0];
+      const replyToId = m.reply_to_id?.[0] ?? null;
+      const reply = replyToId ? rawById.get(replyToId) : null;
+      return {
+        id: m.id, text: m.body, group_id: m.conversation_id, author_id: m.sender.toText(),
+        created_at: new Date(Number(m.created_at_ms)).toISOString(),
+        edited_at: m.edited_at_ms?.[0] ? new Date(Number(m.edited_at_ms[0])).toISOString() : null,
+        image_url: attachment?.kind === "image" ? (attachment.url?.[0] ?? attachment.ref_id ?? null) : null,
+        author: null, reactions: [], reply_to_id: replyToId,
+        reply_to: reply ? { id: reply.id, text: reply.body, author_id: reply.sender.toText(), author: null } : null,
+      } as GroupMessage;
+    }));
+  }
+  const [profilesMap, liveReactions] = await Promise.all([
+    // Rehearsal names are mounted-audience-only; never embed decrypted labels
+    // in message snapshots. GroupChatPage hydrates them independently.
+    privateClubNameDisplaysEnabled() ? Promise.resolve(new Map())
+      : fetchProfilesWithCache(authorIds),
+    listLiveReactions(ctx, groupId).catch(() => []),
+  ]);
+  assertReadNotAborted(signal);
+  // Reactions persist on the canister; restore them on every refetch.
+  // Tolerate older canisters that lack list_reactions.
+  const reactionsByMessage = new Map<string, any[]>();
+  try {
+    for (const r of liveReactions) {
+      const uid = r.user.toText();
+      const list = reactionsByMessage.get(r.message_id) ?? [];
+      list.push({
+        id: `${r.message_id}:${uid}:${r.emoji}`,
+        user_id: uid,
+        reaction_type: r.emoji,
+        group_message_id: r.message_id,
+      });
+      reactionsByMessage.set(r.message_id, list);
+    }
+  } catch { /* canister without list_reactions — reactions stay empty until redeploy */ }
+  // Replies persist on the canister as reply_to_id; resolve the quoted snippet
+  // from messages in the same page (targets outside the loaded page render
+  // without a quote, same as a deleted target).
+  const rawById = new Map<string, any>(rows.map((m: any) => [m.id, m]));
+  return rows
+    .slice()
+    .sort((a: any, b: any) => Number(b.sequence - a.sequence))
+    .map((m: any) => {
+      const profile = profilesMap.get(m.sender.toText());
+      const attachment = m.attachment?.[0];
+      const replyToId: string | null = m.reply_to_id?.[0] ?? null;
+      const replyTarget = replyToId ? rawById.get(replyToId) : null;
+      const replyProfile = replyTarget ? profilesMap.get(replyTarget.sender.toText()) : null;
+      return {
+        id: m.id,
+        text: m.body,
+        image_url: attachment?.kind === "image" ? (attachment.url?.[0] ?? attachment.ref_id ?? null) : null,
+        created_at: new Date(Number(m.created_at_ms)).toISOString(),
+        edited_at: m.edited_at_ms?.[0] ? new Date(Number(m.edited_at_ms[0])).toISOString() : null,
+        author_id: m.sender.toText(),
+        group_id: m.conversation_id,
+        reply_to_id: replyToId,
+        author: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
+        reactions: reactionsByMessage.get(m.id) ?? [],
+        reply_to: replyTarget
+          ? { id: replyTarget.id, text: replyTarget.body, author_id: replyTarget.sender.toText(), author: replyProfile ? { display_name: replyProfile.display_name } : null }
+          : null,
+      };
+    }) as GroupMessage[];
+};
+
+const fetchGroupMessages = async ({
+
+  groupId,
+  clubId,
+  userId,
+  useIcpLab,
+  isOnline,
+  queryClient,
+  pageSize,
+  supabaseClient,
+  signal,
+}: Omit<UseGroupMessagesQueryOptions, "openedFromNotificationRef">): Promise<GroupMessagesQueryData> => {
+  assertReadNotAborted(signal);
+  markChatFetch();
+  if (!groupId || !userId) {
+    throw new Error("Group message query requires a group and user");
+  }
+
+  if (useIcpLab) {
+    const messages = fixtureData.getLocalLabGroupMessages(groupId, userId) as GroupMessage[];
+    return { messages, hasOlderMessages: false, reactions: [], fromCache: true };
+  }
+
+  // If offline, return cached messages using the shared online manager
+  // so native app resume does not incorrectly fall back to stale cache.
+  if (!isOnline) {
+    const cached = getCachedMessages("group", groupId);
+    if (cached.length > 0) {
+      // Transform cached messages to GroupMessage format
+      const groupMessages = cached.map(m => ({
+        id: m.id,
+        text: m.text,
+        image_url: m.image_url,
+        created_at: m.created_at,
+        author_id: m.author_id,
+        group_id: groupId,
+        reply_to_id: m.reply_to_id,
+        author: m.profiles ? { display_name: m.profiles.display_name, avatar_url: m.profiles.avatar_url } : null,
+        reply_to: m.reply_to,
+      })) as GroupMessage[];
+      const cachedReactions = cached.flatMap((message) =>
+        (message.reactions || []).map((reaction) => ({
+          id: reaction.id || `cached-${message.id}-${reaction.user_id}-${reaction.reaction_type}`,
+          user_id: reaction.user_id,
+          reaction_type: reaction.reaction_type,
+          group_message_id: message.id,
+        }))
+      ) as MessageReaction[];
+      return {
+        messages: attachReactionsToMessages(groupMessages, cachedReactions),
+        hasOlderMessages: false,
+        reactions: cachedReactions,
+        fromCache: true,
+      };
+
+    }
+    throw new Error("No cached messages available offline");
+  }
+
+  // Fetch messages WITHOUT profile join to avoid timeout from large avatar_url
+  const fetchFromSupabase = async (): Promise<GroupMessagesQueryData> => {
+    const { data: rawMessages, error } = await supabaseClient
+      .from("group_messages")
+      .select("id, text, image_url, created_at, edited_at, author_id, group_id, reply_to_id, deleted_at, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label")
+      .eq("group_id", groupId)
+      .is("deleted_at", null) // Only fetch non-deleted messages
+      .order("created_at", { ascending: false })
+      .limit(pageSize + 1);
+    if (error) throw error;
+
+    if (!rawMessages?.length) {
+      return { messages: [] as GroupMessage[], hasOlderMessages: false, reactions: [] as MessageReaction[] };
+    }
+
+    const { items: dataToDisplay, hasMore } = splitPageWindow(rawMessages, pageSize);
+
+    prefetchMessagePolls(queryClient, dataToDisplay, userId, { conversationId: groupId }, false);
+
+    const messageIds = dataToDisplay.map((m) => m.id);
+    const replyToIds = dataToDisplay
+      .filter((m) => m.reply_to_id)
+      .map((m) => m.reply_to_id as string);
+    const authorIds = [...new Set(dataToDisplay.map((m) => m.author_id))];
+
+    // Preserve cached reactions when the reactions query fails transiently
+    const cachedQueryData = queryClient.getQueryData(["group-messages", groupId]) as GroupMessagesQueryData | undefined;
+    const cachedReactions: MessageReaction[] = cachedQueryData?.reactions || [];
+
+    const [reactionsResult, replyToResult, profilesMap] = await Promise.all([
+      supabaseClient
+        .from("message_reactions")
+        .select("id, user_id, reaction_type, group_message_id")
+        .in("group_message_id", messageIds),
+      replyToIds.length > 0
+        ? supabaseClient
+            .from("group_messages")
+            .select("id, text, author_id")
+            .in("id", replyToIds)
+        : Promise.resolve({ data: [] as any[] }),
+      fetchProfilesWithCache(authorIds),
+    ]);
+
+    if (reactionsResult.error) {
+      console.warn("[GroupChat] Failed to fetch reactions, keeping cached reactions", reactionsResult.error);
+    }
+
+    const replyToMap = new Map(
+      (replyToResult.data || []).map((r: any) => [r.id, {
+        ...r,
+        author: profilesMap.get(r.author_id) ? { display_name: profilesMap.get(r.author_id)?.display_name } : null,
+      }])
+    );
+
+    // Map to expected format - use fetched profiles
+    const messages = dataToDisplay.map((msg: any) => {
+      const replyTo = msg.reply_to_id ? replyToMap.get(msg.reply_to_id) || null : null;
+      const profile = profilesMap.get(msg.author_id);
+      return {
+        ...msg,
+        author: profile ? { display_name: profile.display_name, avatar_url: profile.avatar_url } : null,
+        reply_to: replyTo,
+      };
+    }) as GroupMessage[];
+
+    // Cache messages for offline access
+    cacheMessages("group", groupId, messages.map(m => ({
+      id: m.id,
+      text: m.text,
+      author_id: m.author_id,
+      created_at: m.created_at,
+      image_url: m.image_url,
+      reply_to_id: m.reply_to_id,
+      profiles: m.author ? { display_name: m.author.display_name, avatar_url: m.author.avatar_url } : null,
+      reactions: (reactionsResult.data || []).filter((r: any) => r.group_message_id === m.id),
+      reply_to: m.reply_to,
+    })));
+
+    const resolvedReactions = (
+      reactionsResult.error ? cachedReactions : (reactionsResult.data || [])
+    ) as MessageReaction[];
+
+    return {
+      // Reactions are embedded on the rows as well as returned flat, so any
+      // render that seeds straight from this payload shows them immediately.
+      messages: attachReactionsToMessages(messages, resolvedReactions),
+      hasOlderMessages: hasMore,
+      reactions: resolvedReactions,
+    };
+  };
+
+  return withFeatureBackend("messaging", {
+    supabase: fetchFromSupabase,
+    icp: async (ctx): Promise<GroupMessagesQueryData> => {
+      assertReadNotAborted(signal);
+      // Newest-first page: the canister returns the newest `pageSize` rows
+      // plus a backward cursor when older history remains.
+      const page = await listLiveLatestMessagesPage(ctx, groupId, null, pageSize);
+      assertReadNotAborted(signal);
+      prefetchMessagePolls(queryClient, page.messages, userId, { conversationId: groupId }, true, ctx);
+      const olderCursor =
+        Array.isArray(page.next_sequence) && page.next_sequence.length > 0
+          ? Number(page.next_sequence[0])
+          : null;
+      const messages = await mapLiveGroupRows(ctx, groupId, page.messages, readyMessages => {
+        if (signal?.aborted) return;
+        // Only unblock a cold thread; do not overwrite loaded reactions or
+        // optimistic/realtime rows while a background refresh is in flight.
+        queryClient.setQueryData<GroupMessagesQueryData>(["group-messages", groupId], previous =>
+          previous?.messages.length ? previous : {
+            messages: readyMessages, reactions: [], olderCursor,
+            hasOlderMessages: olderCursor !== null,
+          });
+      }, signal);
+      // mapLiveGroupRows embeds canister reactions per message; flatten the
+      // same rows for consumers that read the flat reactions list.
+      const reactions = messages.flatMap((m: any) =>
+        ((m.reactions || []) as any[]).map((r) => ({ ...r, group_message_id: m.id })),
+      ) as MessageReaction[];
+      return {
+        messages: attachReactionsToMessages(messages, reactions),
+        hasOlderMessages: olderCursor !== null,
+        olderCursor,
+        reactions,
+      };
+    },
+
+  }, groupChatReadScope(queryClient, userId, groupId, clubId));
+};
+
+const getGroupMessagesPlaceholderData = (
+  prev: GroupMessagesQueryData | undefined,
+  groupId: string | undefined,
+  openedFromNotificationRef: RefObject<number | null>,
+) => {
+  if (!groupId) return undefined;
+  // SECURITY (cross-group bleed): `prev` is whatever THIS hook instance
+  // last rendered. When the route param changes without a remount, that is
+  // the PREVIOUS group's message list — returning it verbatim renders
+  // group A's messages under group B's header (and bakes them into group
+  // B's offline cache). Never reuse `prev` unless every row belongs to the
+  // current group.
+  const prevBelongsToThisGroup =
+    !!prev &&
+    Array.isArray(prev.messages) &&
+    prev.messages.length > 0 &&
+    prev.messages.every((m: any) => !m?.group_id || m.group_id === groupId);
+  // From-push freshness: prefer the just-preloaded localStorage cache
+  // over a stale `prev` so the new message renders at first paint —
+  // but only when the cache has a meaningful history window. A single
+  // preloaded row replacing `prev` strands the user with one message
+  // floating at the top of an empty viewport.
+  if (openedFromNotificationRef.current) {
+    const cachedData = getCachedGroupMessages(groupId);
+    // Require a meaningful history window (>=5). The notification preload
+    // writes a SINGLE message into cache before the chat mounts.
+    const cachedHasHistory = cachedData.messages.length >= 5;
+    if (cachedHasHistory) {
+      return { ...cachedData, hasOlderMessages: false, fromCache: true };
+    }
+  }
+  if (prevBelongsToThisGroup) return prev;
+
+  const cachedData = getCachedGroupMessages(groupId);
+  // A genuine one-message thread is usable; a notification-preload stub is not.
+  // A saved copy from a real read is usable even when the chat is empty.
+  if (!isUsableCachedThread(cachedData.messages as any) && !isCachedThreadComplete("group", groupId)) return undefined;
+
+  return { ...cachedData, hasOlderMessages: false, fromCache: true };
+};
+
+export const useGroupMessagesQuery = (options: UseGroupMessagesQueryOptions) => {
+  const { groupId, userId, openedFromNotificationRef } = options;
+  return useQuery({
+    queryKey: ["group-messages", groupId],
+    queryFn: ({ signal }) => fetchGroupMessages({ ...options, signal }),
+    enabled: !!groupId && !!userId, // session token is sufficient; don't wait for profile fetch (`authReady`) to unblock first paint
+    staleTime: 1000 * 60 * 5, // 5 minutes - show cache instantly
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnMount: "always", // Force refetch on every mount so reactions/messages added while away are picked up (true is a no-op while staleTime is unmet)
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => getGroupMessagesPlaceholderData(prev as GroupMessagesQueryData | undefined, groupId, openedFromNotificationRef),
+  });
+};
