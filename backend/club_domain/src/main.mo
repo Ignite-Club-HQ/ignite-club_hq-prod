@@ -5907,7 +5907,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (teamCreationRequests.find(func(r) = r.id == id)) {
       case null { #Err("Request not found") };
       case (?req) {
-        if (not isAdmin(caller, req.club_id)) return #Err("Club admin required");
+        if (not canReviewClubJoin(caller, req.club_id)) return #Err("Club or team admin required");
         if (req.status != "pending") return #Err("Request already processed");
         switch (teamCapacityError(req.club_id, 1)) { case (?error) return #Err(error); case null {} };
         let now = nowMs();
@@ -5951,7 +5951,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (teamCreationRequests.find(func(r) = r.id == id)) {
       case null { #Err("Request not found") };
       case (?req) {
-        if (not isAdmin(caller, req.club_id)) return #Err("Club admin required");
+        if (not canReviewClubJoin(caller, req.club_id)) return #Err("Club or team admin required");
         if (req.status != "pending") return #Err("Request already processed");
         let updated : Types.TeamCreationRequest = { req with status = "rejected"; decided_at_ms = ?nowMs(); decided_by = ?caller };
         teamCreationRequests := teamCreationRequests.map(func(r) = if (r.id == id) updated else r);
@@ -6179,6 +6179,37 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(clubHomeCountries.filter(func(entry) = ids.any(func(id) = id == entry.0)))
   };
 
+  // Club join requests are reviewable by club admins and by team admins of
+  // that club (a join request has no team, so any team admin may triage it).
+  func canReviewClubJoin(caller : Principal, club : Text) : Bool {
+    if (isAdmin(caller, club)) return true;
+    if (isExcluded(caller, club) or removalReceiver.denied(caller)) return false;
+    acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and grant.role == "team_admin" and grant.club == ?club and grant.team != null)
+  };
+
+  // Club-scoped reviewers only; global app_admin grants are not paged here.
+  func clubJoinReviewers(club : Text) : [Text] {
+    var out : [Text] = [];
+    for (grant in acl.roles.values()) {
+      if ((grant.role == "club_admin" or grant.role == "team_admin") and grant.club == ?club and not isExcluded(grant.user, club) and not removalReceiver.denied(grant.user)) {
+        let id = grant.user.toText();
+        if (not out.any(func(u) = u == id) and out.size() < 500) out := out.concat([id]);
+      };
+    };
+    out
+  };
+
+  func notifyClubJoin(users : [Text], club : Text, kind : Text, body : Text, key : Text, related : Text) : async () {
+    if (users.size() == 0) return;
+    switch (notificationQueueCanister) {
+      case null {};
+      case (?queueId) {
+        let queue : actor { fan_out : shared ([Text], Text, Text, Text, Text, ?Text) -> async { #Ok : Nat16; #Err : Text } } = actor (Principal.toText(queueId));
+        try { ignore await (with timeout = 10) queue.fan_out(users, club, kind, body, key, ?related) } catch (_) {};
+      };
+    }
+  };
+
   public shared ({ caller }) func request_club_join(club_id : Text) : async { #Ok : Types.ClubJoinRequest; #Err : Text } {
     let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
     try {
@@ -6200,6 +6231,8 @@ persistent actor class Main(governorInit : Principal) = this {
       decided_by = null;
     };
     clubJoinRequests := clubJoinRequests.concat([req]);
+    // Best-effort: a queue failure must not lose the stored request.
+    ignore notifyClubJoin(clubJoinReviewers(club_id), club_id, "join_request", "New request to join your club", "club_join:" # req.id, req.id);
     #Ok(req)
   
     } finally { removalReceiver.leave(caller) };
@@ -6209,7 +6242,7 @@ persistent actor class Main(governorInit : Principal) = this {
 
   public query ({ caller }) func list_club_join_requests(club_id : Text) : async { #Ok : [Types.ClubJoinRequest]; #Err : Text } {
     denyLegacyAccountQuery();
-    if (not isAdmin(caller, club_id)) return #Err("Club admin required");
+    if (not canReviewClubJoin(caller, club_id)) return #Err("Club or team admin required");
     #Ok(clubJoinRequests.filter(func(r) = r.club_id == club_id))
   };
 
@@ -6224,7 +6257,7 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (clubJoinRequests.find(func(r) = r.id == id)) {
       case null { #Err("Request not found") };
       case (?req) {
-        if (not isAdmin(caller, req.club_id)) return #Err("Club admin required");
+        if (not canReviewClubJoin(caller, req.club_id)) return #Err("Club or team admin required");
         if (req.status != "pending") return #Err("Request already processed");
         if (isExcluded(req.user, req.club_id) or removalReceiver.denied(req.user) or isTransferFenced(req.club_id)) return #Err("Request no longer eligible");
         bumpMembershipDiscovery();
@@ -6233,6 +6266,7 @@ persistent actor class Main(governorInit : Principal) = this {
         ignore fanOutEnsureConversation(req.club_id, null, clubChatParticipants(req.club_id));
         let updated : Types.ClubJoinRequest = { req with status = "approved"; decided_at_ms = ?nowMs(); decided_by = ?caller };
         clubJoinRequests := clubJoinRequests.map(func(r) = if (r.id == id) updated else r);
+        ignore notifyClubJoin([req.user.toText()], req.club_id, "join_request_approved", "Your request to join the club was approved", "club_join_approved:" # id, req.club_id);
         #Ok(updated)
       };
     }
@@ -6253,10 +6287,11 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (clubJoinRequests.find(func(r) = r.id == id)) {
       case null { #Err("Request not found") };
       case (?req) {
-        if (not isAdmin(caller, req.club_id)) return #Err("Club admin required");
+        if (not canReviewClubJoin(caller, req.club_id)) return #Err("Club or team admin required");
         if (req.status != "pending") return #Err("Request already processed");
         let updated : Types.ClubJoinRequest = { req with status = "rejected"; decided_at_ms = ?nowMs(); decided_by = ?caller };
         clubJoinRequests := clubJoinRequests.map(func(r) = if (r.id == id) updated else r);
+        ignore notifyClubJoin([req.user.toText()], req.club_id, "join_request_denied", "Your request to join the club was declined", "club_join_denied:" # id, req.club_id);
         #Ok(updated)
       };
     }
@@ -9366,7 +9401,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    if (not isAdmin(caller, club_id)) return #Err("Club admin required");
+    if (not canReviewClubJoin(caller, club_id)) return #Err("Club or team admin required");
     #Ok(clubJoinRequests.filter(func(r) = r.club_id == club_id))
   
     } finally { removalReceiver.leave(caller) };

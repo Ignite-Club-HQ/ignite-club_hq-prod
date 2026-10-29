@@ -41,6 +41,22 @@ import {
 } from "@/lab/notificationCachePolicy";
 import { notificationKeys } from "@/lab/notificationQueryKeys";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { approveLiveClubJoinRequest, rejectLiveClubJoinRequest } from "@/live/features/club";
+
+// ICP club join request ids are "cjreq-<clubId>-<n>-<ms>".
+const ICP_CLUB_JOIN_REQUEST = /^cjreq-(.+)-\d+-\d+$/;
+async function decideIcpClubJoin(requestId: string, approved: boolean): Promise<boolean> {
+  const match = ICP_CLUB_JOIN_REQUEST.exec(requestId);
+  if (!match) return false;
+  await withFeatureBackend("membership", {
+    icp: async (ctx) => {
+      if (approved) await approveLiveClubJoinRequest(ctx, requestId);
+      else await rejectLiveClubJoinRequest(ctx, requestId);
+    },
+    supabase: async () => { throw new Error("Request not found"); },
+  }, writeOnce({ clubId: match[1] }));
+  return true;
+}
 import { getLiveMiniLeague } from "@/live/features/miniLeagues";
 import { resolveLocalAuthMode } from "@/lab/localRuntimeMode";
 import {
@@ -608,6 +624,7 @@ export default function NotificationsPage() {
 
   const approveRequest = useMutation({
     mutationFn: async (requestId: string) => {
+      if (await decideIcpClubJoin(requestId, true)) return;
       // Get the request details for email sending
       const { data: request, error: fetchError } = await supabase
         .from("role_requests")
@@ -681,6 +698,7 @@ export default function NotificationsPage() {
 
   const denyRequest = useMutation({
     mutationFn: async (requestId: string) => {
+      if (await decideIcpClubJoin(requestId, false)) return;
       // Get request details for email
       const { data: request, error: fetchError } = await supabase
         .from("role_requests")
