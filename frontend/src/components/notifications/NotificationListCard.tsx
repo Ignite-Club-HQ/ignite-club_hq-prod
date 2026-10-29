@@ -1,4 +1,5 @@
 import { Check, CheckCircle, XCircle } from "lucide-react";
+import { NotificationMessageText } from "@/components/notifications/NotificationMessageText";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { SwipeableNotificationCard } from "@/components/SwipeableNotificationCard";
@@ -85,7 +86,7 @@ export function NotificationListCard({
         <NotificationIconWrapper type={notification.type} isRead={notification.read} message={notification.message} />
         <div className="flex-1 min-w-0">
           <p className={isEarlier ? "text-sm text-muted-foreground" : "text-sm"}>
-            {notification.message}
+            <NotificationMessageText message={notification.message} />
             {EVENT_LINK_NOTIFICATION_TYPES.includes(notification.type) && notification.related_id && (
               <Button
                 variant="link"

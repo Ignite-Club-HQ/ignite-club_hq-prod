@@ -1,4 +1,5 @@
 import { acrossLists } from "@/live/featureScopes";
+import { NotificationMessageText } from "@/components/notifications/NotificationMessageText";
 import { writeOnce } from "@/live/clubScope";
 import { mergeLists } from "@/live/featureRouter";
 import { useState, useEffect, Suspense } from "react";
@@ -1513,7 +1514,7 @@ export function AppHeader() {
                         {renderNotificationIcon(notification.type, notification.message)}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm line-clamp-2 font-medium text-foreground">
-                            {notification.message}
+                            <NotificationMessageText message={notification.message} />
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}

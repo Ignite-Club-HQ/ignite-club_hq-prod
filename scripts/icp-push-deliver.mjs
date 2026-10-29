@@ -193,7 +193,7 @@ async function sendFcm(projectId, oauth, token, n) {
     body: JSON.stringify({
       message: {
         token,
-        notification: { title: titleFor(n), body: n.body },
+        notification: { title: titleFor(n), body: String(n.body).replace(/\{u:[a-z0-9-]+\}/g, "Someone") },
         data: {
           kind: n.kind,
           url: urlFor(n),
