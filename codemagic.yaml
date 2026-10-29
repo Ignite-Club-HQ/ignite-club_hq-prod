@@ -55,8 +55,13 @@ workflows:
           # they are missing. Same public defaults as
           # .github/workflows/deploy-frontend-canister.yml; both can be overridden
           # by setting the variable in a Codemagic environment group.
-          export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://ecsdwrarzfexssxtrymj.supabase.co}"
-          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0}"
+          # Codemagic is PROD-only: default to the PROD backend and never build
+          # store apps against DEV. The PROD anon key must come from the
+          # Codemagic environment group (no committed default).
+          export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
+          case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
+          export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           if [ -f ../deploy/mainnet/.icp/data/mappings/ic.ids.json ]; then
@@ -125,8 +130,13 @@ workflows:
           # they are missing. Same public defaults as
           # .github/workflows/deploy-frontend-canister.yml; both can be overridden
           # by setting the variable in a Codemagic environment group.
-          export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://ecsdwrarzfexssxtrymj.supabase.co}"
-          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0}"
+          # Codemagic is PROD-only: default to the PROD backend and never build
+          # store apps against DEV. The PROD anon key must come from the
+          # Codemagic environment group (no committed default).
+          export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
+          case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
+          export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           if [ -f ../deploy/mainnet/.icp/data/mappings/ic.ids.json ]; then
@@ -265,8 +275,13 @@ workflows:
           # they are missing. Same public defaults as
           # .github/workflows/deploy-frontend-canister.yml; both can be overridden
           # by setting the variable in a Codemagic environment group.
-          export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://ecsdwrarzfexssxtrymj.supabase.co}"
-          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0}"
+          # Codemagic is PROD-only: default to the PROD backend and never build
+          # store apps against DEV. The PROD anon key must come from the
+          # Codemagic environment group (no committed default).
+          export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
+          case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
+          export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           if [ -f ../deploy/mainnet/.icp/data/mappings/ic.ids.json ]; then
@@ -333,8 +348,13 @@ workflows:
           # they are missing. Same public defaults as
           # .github/workflows/deploy-frontend-canister.yml; both can be overridden
           # by setting the variable in a Codemagic environment group.
-          export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://ecsdwrarzfexssxtrymj.supabase.co}"
-          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjc2R3cmFyemZleHNzeHRyeW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NjA0MzEsImV4cCI6MjA5OTEzNjQzMX0.-BE-YufJeZCJvQt9QktMe1b6obskRkaWQDLchYjpEA0}"
+          # Codemagic is PROD-only: default to the PROD backend and never build
+          # store apps against DEV. The PROD anon key must come from the
+          # Codemagic environment group (no committed default).
+          export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
+          case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
+          export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           if [ -f ../deploy/mainnet/.icp/data/mappings/ic.ids.json ]; then
