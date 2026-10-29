@@ -2242,6 +2242,7 @@ export type Database = {
           member_payments_enabled: boolean
           member_subscription_amount: number | null
           plan: Database["public"]["Enums"]["club_subscription_plan"]
+          pricing_version: string
           promo_code_id: string | null
           scheduled_storage_downgrade_gb: number | null
           storage_downgrade_at: string | null
@@ -2273,6 +2274,7 @@ export type Database = {
           member_payments_enabled?: boolean
           member_subscription_amount?: number | null
           plan?: Database["public"]["Enums"]["club_subscription_plan"]
+          pricing_version?: string
           promo_code_id?: string | null
           scheduled_storage_downgrade_gb?: number | null
           storage_downgrade_at?: string | null
@@ -2304,6 +2306,7 @@ export type Database = {
           member_payments_enabled?: boolean
           member_subscription_amount?: number | null
           plan?: Database["public"]["Enums"]["club_subscription_plan"]
+          pricing_version?: string
           promo_code_id?: string | null
           scheduled_storage_downgrade_gb?: number | null
           storage_downgrade_at?: string | null
@@ -2352,6 +2355,7 @@ export type Database = {
           description: string | null
           events_sponsor_strip_enabled: boolean
           force_disable_message_previews: boolean
+          home_country: string | null
           id: string
           invite_email_message: string | null
           invite_email_style: string
@@ -2441,6 +2445,7 @@ export type Database = {
           description?: string | null
           events_sponsor_strip_enabled?: boolean
           force_disable_message_previews?: boolean
+          home_country?: string | null
           id?: string
           invite_email_message?: string | null
           invite_email_style?: string
@@ -2530,6 +2535,7 @@ export type Database = {
           description?: string | null
           events_sponsor_strip_enabled?: boolean
           force_disable_message_previews?: boolean
+          home_country?: string | null
           id?: string
           invite_email_message?: string | null
           invite_email_style?: string
@@ -11178,6 +11184,10 @@ export type Database = {
         Args: { _competition_id: string; _user_id: string }
         Returns: boolean
       }
+      can_manage_competition_vault: {
+        Args: { _competition_id: string }
+        Returns: boolean
+      }
       can_manage_event_groups: {
         Args: { _event_id: string; _user_id: string }
         Returns: boolean
@@ -11208,6 +11218,10 @@ export type Database = {
       }
       can_read_general_chat_attachment: {
         Args: { _name: string; _user_id: string }
+        Returns: boolean
+      }
+      can_read_history_row: {
+        Args: { p_event: string; p_team: string }
         Returns: boolean
       }
       can_rename_competition_chat: {
@@ -11506,6 +11520,10 @@ export type Database = {
           club_id: string
           user_id: string
         }[]
+      }
+      competition_scores_visible: {
+        Args: { match_id: string }
+        Returns: boolean
       }
       complete_stripe_webhook_event: {
         Args: { p_event_id: string }
@@ -12123,6 +12141,12 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_my_viewable_competition_match_ids: {
+        Args: never
+        Returns: {
+          match_id: string
+        }[]
+      }
       get_online_users_from_set: {
         Args: { _user_ids: string[] }
         Returns: {
@@ -12384,6 +12408,8 @@ export type Database = {
         Args: { _platform?: string; _user_agent?: string }
         Returns: undefined
       }
+      history_result_dto: { Args: { p_id: string }; Returns: Json }
+      history_scores_visible: { Args: { p_event: string }; Returns: boolean }
       increment_child_club_points: {
         Args: { _amount: number; _child_id: string; _club_id: string }
         Returns: number
@@ -12652,6 +12678,7 @@ export type Database = {
         Returns: undefined
       }
       mask_email: { Args: { _email: string }; Returns: string }
+      mask_history_players: { Args: { p_players: Json }; Returns: Json }
       match_scores_hidden: { Args: { _match_id: string }; Returns: boolean }
       message_reads_compute_scope_key: {
         Args: { _row: Database["public"]["Tables"]["message_reads"]["Row"] }
@@ -12837,6 +12864,26 @@ export type Database = {
           inserted_count: number
         }[]
       }
+      read_competition_playhq: {
+        Args: { p_competition_id: string }
+        Returns: Json
+      }
+      read_game_history: {
+        Args: { p_club_id?: string; p_limit?: number; p_team_id?: string }
+        Returns: Json
+      }
+      read_game_result: { Args: { p_event_id: string }; Returns: Json }
+      read_history_player_stats: {
+        Args: {
+          p_event_id?: string
+          p_from?: string
+          p_team_id: string
+          p_to?: string
+        }
+        Returns: Json
+      }
+      read_history_report_events: { Args: { p_team_id: string }; Returns: Json }
+      read_history_summary: { Args: { p_event_id: string }; Returns: Json }
       reconcile_chat_group_unread: {
         Args: never
         Returns: {
@@ -12948,6 +12995,19 @@ export type Database = {
           storage_path: string
           team_id: string
         }[]
+      }
+      save_competition_match_result: {
+        Args: {
+          p_away_score: number
+          p_home_score: number
+          p_match_id: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      save_game_history: {
+        Args: { p_only_if_missing?: boolean; p_result: Json }
+        Returns: undefined
       }
       search_club_children_for_team: {
         Args: { p_query: string; p_team_id: string }
