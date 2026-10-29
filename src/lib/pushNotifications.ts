@@ -1,7 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// VAPID public key - must match the server's VAPID_PUBLIC_KEY
-const VAPID_PUBLIC_KEY = 'BIFKB_ZTDn9fhiF-crB2xQk1eNaKQQg0svSjsMV-KvM21y8L05Q6ZwZwDsqMR7-_1ZoV2J4RXRx56gjJFEhfWOw';
+// VAPID public key - must match the server's VAPID_PUBLIC_KEY.
+// DEV and PROD are separate Supabase projects with separate key pairs;
+// pick the key for the project this build talks to.
+const PROD_VAPID_PUBLIC_KEY = 'BIFKB_ZTDn9fhiF-crB2xQk1eNaKQQg0svSjsMV-KvM21y8L05Q6ZwZwDsqMR7-_1ZoV2J4RXRx56gjJFEhfWOw';
+const DEV_VAPID_PUBLIC_KEY = 'BGaBhy6YReZtflwTc3xDLmsy81cEFar2bwbYc5rARJRiuT1ciYjoMdBPpyOULE2eyRhU9Yytq_L3Jc0ztGLapaM';
+const VAPID_PUBLIC_KEY =
+  import.meta.env.VITE_SUPABASE_PROJECT_ID === 'ecsdwrarzfexssxtrymj'
+    ? DEV_VAPID_PUBLIC_KEY
+    : PROD_VAPID_PUBLIC_KEY;
 const SW_VERSION = '4.0.2';
 
 // Use sessionStorage-based mutex to prevent issues across page refreshes
