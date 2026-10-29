@@ -22,7 +22,12 @@ def configure(frontend: Path):
             item.text = value
     tree.write(styles_path, encoding="utf-8", xml_declaration=True)
 
-    activity = frontend / "android/app/src/main/java/com/igniteclubhq/app/MainActivity.java"
+    # Package follows capacitor appId (prod: app.lovable.igniteteamhub).
+    found = sorted((frontend / "android/app/src/main/java").glob("**/MainActivity.java"))
+    if len(found) != 1:
+        raise RuntimeError(f"Expected one MainActivity.java, found {len(found)}")
+    activity = found[0]
+    package = ".".join(activity.parent.relative_to(frontend / "android/app/src/main/java").parts)
     source = activity.read_text()
     registration = "registerPlugin(StatusBarBackdropPlugin.class);"
     if registration not in source:
@@ -40,7 +45,9 @@ def configure(frontend: Path):
     }
 }""")
         activity.write_text(source)
-    shutil.copyfile(frontend / "native/android/StatusBarBackdropPlugin.java", activity.with_name("StatusBarBackdropPlugin.java"))
+    plugin = (frontend / "native/android/StatusBarBackdropPlugin.java").read_text()
+    plugin = plugin.replace("package com.igniteclubhq.app;", f"package {package};", 1)
+    activity.with_name("StatusBarBackdropPlugin.java").write_text(plugin)
 
 
 if __name__ == "__main__":
