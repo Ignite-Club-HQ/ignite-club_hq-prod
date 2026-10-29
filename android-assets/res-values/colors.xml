@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ignite brand green color for notification accent -->
+    <color name="ignite_green">#4ADE80</color>
+    <!-- Adaptive icon background color (unique name to avoid Capacitor conflicts) -->
+    <color name="ignite_launcher_bg">#1ED697</color>
+</resources>

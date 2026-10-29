@@ -3,7 +3,7 @@
 # Workflows:
 #   android-debug   — unsigned debug APK, no secrets needed. Use this first to
 #                     prove the pipeline end to end.
-#   android-release — signed AAB for Google Play. Requires the environment
+#   android-workflow — signed AAB for Google Play. Requires the environment
 #                     variables listed below to be configured in the Codemagic
 #                     UI (Application -> Environment variables, group
 #                     "android_release"):
@@ -18,7 +18,7 @@
 #                                              (Firebase project used for push)
 #   ios-debug       — unsigned simulator build, no Apple account needed. Use this
 #                     to prove the iOS pipeline before touching any Apple secrets.
-#   ios-release     — signed App Store IPA. Requires an Apple Developer Program
+#   ios-workflow    — signed App Store IPA. Requires an Apple Developer Program
 #                     membership and an "app_store_connect" integration in the
 #                     Codemagic team settings (Issuer ID + Key ID + the .p8 key
 #                     downloaded from App Store Connect -> Users and Access ->
@@ -105,8 +105,8 @@ workflows:
     artifacts:
       - frontend/android/app/build/outputs/apk/debug/*.apk
 
-  android-release:
-    name: Android release AAB
+  android-workflow:
+    name: Android Build & Publish
     max_build_duration: 60
     instance_type: linux_x2
     environment:
@@ -115,10 +115,10 @@ workflows:
       # ignite_upload is the only upload key Codemagic holds. Play Console must
       # have it registered (App integrity -> Request upload key reset) — the
       # build log prints its certificate for that request.
-      android_signing:
-        - ignite_upload
+      # Same settings group the pre-merge prod workflow used (Play
+      # credentials + upload keystore as CM_KEYSTORE_PATH etc.).
       groups:
-        - android_release
+        - google_play_credentials
     scripts:
       - name: Install frontend dependencies
         script: node scripts/ensure-frontend-deps.mjs
@@ -192,7 +192,25 @@ workflows:
             *) echo "WARNING: Play Console expects a key starting $EXPECTED_SHA1_PREFIX. Request an upload key reset with the certificate below, then upload this build."
                keytool -exportcert -rfc -keystore app/upload-keystore.jks -storepass "$CM_KEYSTORE_PASSWORD" -alias "$CM_KEY_ALIAS" -file upload_certificate.pem 2>/dev/null && cat upload_certificate.pem ;;
           esac
-          printf '%s' "$GOOGLE_SERVICES_JSON" | sed 's/^[[:space:]]*//' | head -c1 | grep -q '{' && printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json || printf '%s' "$GOOGLE_SERVICES_JSON" | tr -d ' \r\n' | base64 --decode > app/google-services.json
+          if [ -n "${GOOGLE_SERVICES_JSON:-}" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" | sed 's/^[[:space:]]*//' | head -c1 | grep -q '{' && printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json || printf '%s' "$GOOGLE_SERVICES_JSON" | tr -d ' \r\n' | base64 --decode > app/google-services.json
+          else
+            cp ../../firebase/google-services.json app/google-services.json
+          fi
+          # Pre-merge launcher + notification icons.
+          rm -rf app/src/main/res/mipmap-* app/src/main/res/drawable/ic_launcher* app/src/main/res/drawable-v24
+          rm -f app/src/main/res/values/colors.xml app/src/main/res/values-night/colors.xml
+          cp -r ../../android-assets/mipmap-* app/src/main/res/
+          mkdir -p app/src/main/res/drawable app/src/main/res/values
+          cp ../../android-assets/drawable/* app/src/main/res/drawable/
+          cp ../../android-assets/res-values/colors.xml app/src/main/res/values/colors.xml
+          python3 - <<'PY2'
+          p = "app/src/main/AndroidManifest.xml"
+          s = open(p).read()
+          if "default_notification_icon" not in s:
+              s = s.replace("</application>", '<meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_notification"/><meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/ignite_green"/></application>', 1)
+          open(p, "w").write(s)
+          PY2
       - name: Configure signing
         working_directory: frontend/android
         script: |
@@ -203,7 +221,9 @@ workflows:
           # far below Play's 2,100,000,000 limit. Written straight into the
           # generated defaultConfig (replacing Capacitor's "versionCode 1") so
           # no second Gradle block can be ignored or overridden.
-          VC=$(( $(date +%s) / 60 ))
+          # Next number after the latest Play build (pre-merge behaviour).
+          LATEST=$(google-play get-latest-build-number --package-name "app.lovable.igniteteamhub" --tracks internal || echo 0)
+          VC=$((LATEST + 1))
           sed -i -E "s/versionCode[[:space:]]+[0-9]+/versionCode $VC/; s/versionName[[:space:]]+\"[^\"]*\"/versionName \"1.0.$VC\"/" app/build.gradle
           grep -q "versionCode $VC" app/build.gradle || { echo "Could not set versionCode in app/build.gradle"; grep -n "version" app/build.gradle; exit 1; }
           echo "Android versionCode set to $VC"
@@ -252,6 +272,11 @@ workflows:
     artifacts:
       - frontend/android/app/build/outputs/bundle/release/*.aab
       - frontend/android/upload_certificate.pem
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
 
   # Proves the iOS toolchain without needing an Apple Developer account: builds
   # the app for the simulator with code signing switched off. The .app cannot be
@@ -314,29 +339,27 @@ workflows:
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/**/*.app
       - /tmp/xcodebuild_logs/*.log
 
-  ios-release:
-    name: iOS release IPA (App Store)
+  ios-workflow:
+    name: iOS Build & Publish
     max_build_duration: 120
     instance_type: mac_mini_m2
     integrations:
       # Must match the name of the App Store Connect integration created in
       # Codemagic team settings.
-      app_store_connect: ignite
+      app_store_connect: Codemagic
     environment:
       node: 22
       xcode: latest
       cocoapods: default
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.igniteclubhq.app
-      groups:
-        - ios_release
+        bundle_identifier: app.lovable.igniteteamhub
       vars:
         XCODE_WORKSPACE: App.xcworkspace
         XCODE_SCHEME: App
         # App Store Connect -> App -> General -> App Information -> the numeric
         # Apple ID. Fill this in once the app record exists.
-        APP_STORE_APP_ID: 0000000000
+        APP_STORE_APP_ID: 6758928691
     scripts:
       - name: Install frontend dependencies
         script: node scripts/ensure-frontend-deps.mjs
@@ -378,12 +401,16 @@ workflows:
         script: pod install
       - name: Wire Firebase push (iOS)
         working_directory: frontend
-        script: bash ../scripts/native-push-ios.sh
+        script: |
+          # Fall back to the committed Firebase file (pre-merge behaviour).
+          export GOOGLE_SERVICE_INFO_PLIST="${GOOGLE_SERVICE_INFO_PLIST:-$(base64 < ../firebase/GoogleService-Info.plist | tr -d '\n')}"
+          bash ../scripts/native-push-ios.sh
+          cp ../android-assets/mipmap-xxxhdpi/ic_launcher.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
       - name: Increment build number
         working_directory: frontend/ios/App
         script: |
-          agvtool new-version -all $((${CM_BUILD_NUMBER:-1}))
-          agvtool new-marketing-version 1.0.${CM_BUILD_NUMBER:-1}
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo 0)
+          agvtool new-version -all $((LATEST + 1))
       - name: Set up code signing
         working_directory: frontend/ios/App
         script: xcode-project use-profiles

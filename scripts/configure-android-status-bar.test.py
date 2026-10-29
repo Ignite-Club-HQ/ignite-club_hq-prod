@@ -25,7 +25,7 @@ class AndroidStatusBarTests(unittest.TestCase):
                     self.assertIsNotNone(member)
                     if member is None:
                         raise RuntimeError(name)
-                    dest = frontend / "android" / name.replace("com/getcapacitor/myapp", "com/igniteclubhq/app")
+                    dest = frontend / "android" / name.replace("com/getcapacitor/myapp", "app/lovable/igniteteamhub")
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     dest.write_bytes(member.read())
             (frontend / "native/android").mkdir(parents=True)
@@ -38,16 +38,27 @@ class AndroidStatusBarTests(unittest.TestCase):
                 items = {i.get("name"): i.text for i in style.findall("item")}
                 self.assertEqual(items["android:windowBackground"], "#f5f7f6")
                 self.assertEqual(items["android:windowLightStatusBar"], "true")
-            activity = (frontend / "android/app/src/main/java/com/igniteclubhq/app/MainActivity.java").read_text()
+            activity = (frontend / "android/app/src/main/java/app/lovable/igniteteamhub/MainActivity.java").read_text()
             self.assertEqual(activity.count("registerPlugin(StatusBarBackdropPlugin.class)"), 1)
             self.assertLess(activity.index("registerPlugin("), activity.index("super.onCreate("))
-            self.assertTrue((frontend / "android/app/src/main/java/com/igniteclubhq/app/StatusBarBackdropPlugin.java").is_file())
+            plugin = (frontend / "android/app/src/main/java/app/lovable/igniteteamhub/StatusBarBackdropPlugin.java").read_text()
+            self.assertTrue(plugin.startswith("package app.lovable.igniteteamhub;"))
 
     def test_both_android_builds_run_shared_configuration(self):
         workflow = (ROOT / "codemagic.yaml").read_text()
-        for name, next_name in [("android-debug", "android-release"), ("android-release", "ios-debug")]:
+        for name, next_name in [("android-debug", "android-workflow"), ("android-workflow", "ios-debug")]:
             section = workflow.split("  " + name + ":", 1)[1].split("  " + next_name + ":", 1)[0]
             self.assertIn("python3 ../scripts/configure-android-status-bar.py", section)
+
+
+    def test_prod_store_identity_restored(self):
+        workflow = (ROOT / "codemagic.yaml").read_text()
+        config = (ROOT / "frontend/capacitor.config.ts").read_text()
+        self.assertIn('appId: "app.lovable.igniteteamhub"', config)
+        self.assertIn("bundle_identifier: app.lovable.igniteteamhub", workflow)
+        self.assertIn("  android-workflow:", workflow)
+        self.assertIn("  ios-workflow:", workflow)
+        self.assertIn("- google_play_credentials", workflow)
 
 
 if __name__ == "__main__":
