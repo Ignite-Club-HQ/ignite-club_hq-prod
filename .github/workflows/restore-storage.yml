@@ -30,7 +30,7 @@ on:
 jobs:
   restore:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Validate confirmation
         if: inputs.backup_date != '' && inputs.dry_run == false && inputs.confirm != 'CONFIRM'
@@ -99,3 +99,4 @@ jobs:
           echo ""
           echo "Files have been restored to Supabase storage."
           echo "The original folder structure (clubs/teams) has been preserved."
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' }}

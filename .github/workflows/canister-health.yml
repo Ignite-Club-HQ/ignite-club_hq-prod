@@ -49,3 +49,4 @@ jobs:
         run: |
           set -euo pipefail
           HEALTH_JSON_OUT="$RUNNER_TEMP/health.json" node scripts/canister-health.mjs
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_CANISTER_HEALTH_ENABLED == 'true') }}

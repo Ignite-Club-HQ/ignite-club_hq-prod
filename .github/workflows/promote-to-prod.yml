@@ -33,9 +33,9 @@ name: Promote to Prod
 
 on:
   push:
-    branches: [prod]
+    branches: [ prod ]
   pull_request:
-    branches: [prod]
+    branches: [ prod ]
   workflow_dispatch: {}
 
 concurrency:
@@ -237,7 +237,6 @@ jobs:
             echo "Edge functions queued for deploy after migrations pass: $FUNCS"
           fi
 
-
       - name: Skip dev-only migrations in PROD
         # Files whose first 5 lines contain:  -- prod-skip: dev-only
         # are marked applied in prod history without running their SQL.
@@ -391,7 +390,6 @@ jobs:
           fi
           echo "✅ Both Vault secrets present and well-formed."
 
-
       - name: Guard PROD hotfixes are still in the code being promoted
         # Blocks promotion if the branch would deploy code that reverts a PROD
         # hotfix. Add a check here for every hotfix applied directly to PROD.
@@ -426,7 +424,6 @@ jobs:
             exit 1
           fi
           echo "✅ All PROD hotfixes are present in the code being promoted."
-
 
       - name: Reconcile orphan PROD migration history rows
         # Hotfixes applied directly in PROD (SQL editor / dashboard) leave
@@ -540,8 +537,6 @@ jobs:
             if [ "$STATUS" = "200" ] || [ "$STATUS" = "201" ]; then echo "✅ Bucket $b created (private)."
             else echo "::error::Failed to create bucket $b (HTTP $STATUS)"; exit 1; fi
           done
-
-
 
       - name: Deploy changed edge functions to PROD
         if: github.event_name == 'push'
@@ -762,7 +757,6 @@ jobs:
           fi
           echo "✅ PROD notification authentication proven — safe to reconcile cron/trigger callers."
 
-
       # Legacy PROD cron jobs were scheduled with a raw anon JWT baked into their
       # headers (they predate the hardened functions and were never created by a
       # migration, so `db push` cannot fix them). Rewrite every edge-function
@@ -930,7 +924,6 @@ jobs:
 
           echo "✅ PROD cron callers now authenticate with the Vault service-role key."
 
-
       # A handful of old PROD trigger functions were created directly in PROD
       # before their definitions were migration-managed. They still contain an
       # embedded anon JWT (or read app.supabase_service_role_key via a setting),
@@ -1023,7 +1016,6 @@ jobs:
 
           echo "✅ Legacy PROD trigger dispatch credentials repaired."
 
-
       - name: Verify PROD callers authenticate to edge functions
         # Every edge function now authenticates its caller, so any cron job or
         # trigger still sending an anon key (or no Authorization header) would
@@ -1082,7 +1074,7 @@ jobs:
           fi
           echo "✅ All PROD trigger dispatchers use an approved server credential."
 
-
       - name: Post-migration state
         if: github.event_name == 'push'
         run: supabase migration list --linked
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' }}

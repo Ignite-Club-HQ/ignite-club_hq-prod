@@ -279,3 +279,4 @@ jobs:
             ${{ env.ICP_HOME }}/identity/keys/ignite-governor.pem
             ${{ env.ICP_HOME }}/identity/keys/ignite-governor.seed.txt
           if-no-files-found: error
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_DEPLOY_ICP_MAINNET_ENABLED == 'true') }}

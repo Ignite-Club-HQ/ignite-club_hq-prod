@@ -7,13 +7,13 @@ on:
         type: choice
         required: true
         default: upgrade
-        options: [check, upgrade, recover]
+        options: [ check, upgrade, recover ]
       scope:
         description: full_backend upgrades every existing backend canister in every registered group, including shared infrastructure once
         type: choice
         required: true
         default: full_backend
-        options: [full_backend, club_migration, private_name_cleanup, secure_name_save, private_club_name_display, app_admin, team_invites, messaging, competition, history, subscriptions, events_pitch, gallery_vault]
+        options: [ full_backend, club_migration, private_name_cleanup, secure_name_save, private_club_name_display, app_admin, team_invites, messaging, competition, history, subscriptions, events_pitch, gallery_vault ]
       checked_plan:
         description: "CHECKED PLAN HASH (64 letters/numbers) - required for recover; optional for upgrade"
         required: false
@@ -150,3 +150,4 @@ jobs:
           name: all-group-upgrade-report
           path: ${{ runner.temp }}/all-group-report
           if-no-files-found: warn
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_UPGRADE_ALL_GROUPS_ENABLED == 'true') }}

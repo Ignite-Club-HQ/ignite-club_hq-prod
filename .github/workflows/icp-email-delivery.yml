@@ -27,3 +27,4 @@ jobs:
           ICP_EMAIL_FROM: ${{ vars.ICP_EMAIL_FROM }}
           ICP_EMAIL_APP_URL: ${{ vars.ICP_EMAIL_APP_URL }}
           ICP_EMAIL_TARGETS_JSON: ${{ vars.ICP_EMAIL_TARGETS_JSON }}
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_ICP_EMAIL_DELIVERY_ENABLED == 'true') }}

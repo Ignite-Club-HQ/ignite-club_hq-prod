@@ -54,3 +54,4 @@ jobs:
           REMOVE_CONFIRM: ${{ inputs.confirm }}
           GH_TOKEN: ${{ github.token }}
         run: node scripts/remove-media-test-stores.mjs
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_REMOVE_MEDIA_TEST_STORES_ENABLED == 'true') }}

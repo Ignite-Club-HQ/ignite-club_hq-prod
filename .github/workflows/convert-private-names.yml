@@ -12,7 +12,7 @@ on:
         description: check (read-only plan), convert, or recover
         required: true
         type: choice
-        options: [check, convert, recover]
+        options: [ check, convert, recover ]
       plan:
         description: 64-char plan hash from the check run (convert/recover only)
         required: false
@@ -49,3 +49,4 @@ jobs:
           IDENTITY_ACCESS_CANISTER: ${{ vars.IDENTITY_ACCESS_CANISTER }}
           PII_ACCESS_CONTROL_CANISTER: ${{ vars.PII_ACCESS_CONTROL_CANISTER }}
         run: node scripts/convert-private-names.mjs
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_CONVERT_PRIVATE_NAMES_ENABLED == 'true') }}

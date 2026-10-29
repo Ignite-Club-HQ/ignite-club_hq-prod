@@ -32,3 +32,4 @@ jobs:
         run: |
           cp scripts/delete-clubs-except.mjs /tmp/icp-run/
           node /tmp/icp-run/delete-clubs-except.mjs
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_DELETE_CLUBS_EXCEPT_ENABLED == 'true') }}

@@ -9,7 +9,7 @@ on:
       scenario:
         description: 'Each run creates ONE separate store; start with smoke'
         type: choice
-        options: [smoke, smoke200, mixed, tiny]
+        options: [ smoke, smoke200, mixed, tiny ]
         default: smoke
       budget_t:
         description: 'Maximum upfront funding INCLUDING fee, whole T cycles (2–20); no top-ups'
@@ -95,3 +95,4 @@ jobs:
         run: |
           printf '%s\n' 'Evidence: artifact above and branch ignite-media-test-receipts, deploy/media-tests/.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'No live group was changed. Do not repeat interrupted creation/install; reconcile the saved target and pending intent first. Test stores retain fuel and incur ongoing upkeep until separately cleaned up.' >> "$GITHUB_STEP_SUMMARY"
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_TEST_MEDIA_LARGE_STORE_MAINNET_ENABLED == 'true') }}

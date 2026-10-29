@@ -174,3 +174,4 @@ jobs:
           echo ""
           echo "SAFETY NET: the pre-restore snapshot was uploaded as an artifact"
           echo "on this run in case you need to undo this restore."
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' }}

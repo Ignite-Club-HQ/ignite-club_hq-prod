@@ -74,3 +74,4 @@ jobs:
           FROM_ADDRESS: ${{ inputs.from_address }}
           APP_URL: ${{ inputs.app_url }}
         run: node scripts/set-invite-email-sender.mjs
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_SET_INVITE_EMAIL_SENDER_ENABLED == 'true') }}

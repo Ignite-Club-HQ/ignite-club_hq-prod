@@ -7,7 +7,7 @@ on:
         required: true
         type: choice
         default: check
-        options: [check, repair, disable]
+        options: [ check, repair, disable ]
       confirmation:
         description: REPAIR GROUP 2 ACCOUNT ACCESS or DISABLE GROUP 2 ACCOUNT ACCESS (empty for check)
         required: false
@@ -99,3 +99,4 @@ jobs:
           name: group-2-account-access-report
           path: ${{ runner.temp }}/account-access-report
           if-no-files-found: ignore
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_REPAIR_GROUP2_ACCOUNT_ACCESS_ENABLED == 'true') }}

@@ -95,3 +95,4 @@ jobs:
           rm -f "$RUNNER_TEMP/operator.pem"
           git config user.name "ignite-operator"; git config user.email "operator@users.noreply.github.com"
           test -n "${GROUP_ID:-}" || exit 0; git add "deploy/groups/$GROUP_ID" && git commit -m "Closed group $GROUP_ID install progress" && git push || true
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_INSTALL_NEW_GROUP_ENABLED == 'true') }}

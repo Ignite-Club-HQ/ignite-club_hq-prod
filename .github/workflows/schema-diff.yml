@@ -145,3 +145,4 @@ jobs:
             schema-diff-lines.txt
           retention-days: 14
           if-no-files-found: warn
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' }}

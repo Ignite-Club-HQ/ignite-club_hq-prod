@@ -51,3 +51,4 @@ jobs:
           name: private-name-isolated-test-report
           path: ${{ runner.temp }}/private-name-test-report.json
           if-no-files-found: ignore
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_TEST_PRIVATE_NAMES_ENABLED == 'true') }}

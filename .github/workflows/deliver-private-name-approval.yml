@@ -6,7 +6,7 @@ on:
         description: Deliver once, or reconcile a retained unknown delivery without replay
         required: true
         type: choice
-        options: [deliver, reconcile]
+        options: [ deliver, reconcile ]
       approval_commit:
         description: Exact repository commit containing private-name-approvals/<plan hash>.json
         required: true
@@ -46,9 +46,11 @@ jobs:
       PRIVATE_NAME_APPROVAL_REVIEWER_ID: ${{ vars.PRIVATE_NAME_APPROVAL_REVIEWER_ID }}
       PRIVATE_NAME_APPROVAL_DELIVERY_SOURCE_COMMIT: ${{ vars.PRIVATE_NAME_APPROVAL_DELIVERY_SOURCE_COMMIT }}
       PRIVATE_NAME_APPROVAL_DELIVERY_SOURCE_REF: ${{ vars.PRIVATE_NAME_APPROVAL_DELIVERY_SOURCE_REF }}
-      OPERATOR_PEM_PATH: ${{ runner.temp }}/name-approval-operator.pem
-      REPORT_PATH: ${{ runner.temp }}/name-approval-report.json
     steps:
+      - name: Initialize temporary paths
+        run: |
+          echo "OPERATOR_PEM_PATH=$RUNNER_TEMP/name-approval-operator.pem" >> "$GITHUB_ENV"
+          echo "REPORT_PATH=$RUNNER_TEMP/name-approval-report.json" >> "$GITHUB_ENV"
       - name: Reject unreviewed delivery source before checkout or credentials
         env:
           TRUSTED_SOURCE_COMMIT: ${{ vars.PRIVATE_NAME_APPROVAL_DELIVERY_SOURCE_COMMIT }}
@@ -104,3 +106,4 @@ jobs:
           name: name-approval-delivery-report
           path: ${{ runner.temp }}/name-approval-report.json
           if-no-files-found: ignore
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_DELIVER_PRIVATE_NAME_APPROVAL_ENABLED == 'true') }}

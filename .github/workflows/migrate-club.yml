@@ -10,7 +10,7 @@ on:
         type: choice
         required: true
         default: check
-        options: [check, migrate, recover, invite]
+        options: [ check, migrate, recover, invite ]
       club_id:
         description: Club ID (from the Migrate club admin page)
         required: true
@@ -30,7 +30,7 @@ on:
         type: choice
         required: true
         default: none
-        options: [none, data, auth]
+        options: [ none, data, auth ]
 permissions:
   contents: read
 concurrency:
@@ -67,3 +67,4 @@ jobs:
           ICP_EMAIL_APP_URL: ${{ vars.ICP_EMAIL_APP_URL }}
           NODE_PATH: ${{ github.workspace }}/frontend/node_modules
         run: node scripts/migrate-club.mjs
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' }}

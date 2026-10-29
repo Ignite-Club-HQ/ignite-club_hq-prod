@@ -89,3 +89,4 @@ jobs:
           git commit -m "Add group $GROUP_ID progress [skip ci]" || exit 0
           for i in 1 2 3; do git pull --rebase && git push && exit 0; sleep 5; done
           echo "::error::Could not save progress to GitHub; the run's changes are live, re-run Add new group to continue"; exit 1
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_ADD_GROUP_ENABLED == 'true') }}

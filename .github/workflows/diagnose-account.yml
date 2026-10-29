@@ -41,3 +41,4 @@ jobs:
           cp frontend/src/lab/generated-contracts/club_domain/declarations/club_domain.did.js /tmp/icp-run/
           cp frontend/src/lab/generated-contracts/shard_router/declarations/shard_router.did.js /tmp/icp-run/
           node /tmp/icp-run/diagnose-account.mjs
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_DIAGNOSE_ACCOUNT_ENABLED == 'true') }}

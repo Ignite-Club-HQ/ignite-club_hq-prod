@@ -2,13 +2,13 @@ name: Frontend tests
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
-# Cancel in-flight runs for the same branch when a new commit lands — keeps
-# the queue moving and avoids burning Actions minutes on stale pushes.
+    # Cancel in-flight runs for the same branch when a new commit lands — keeps
+    # the queue moving and avoids burning Actions minutes on stale pushes.
 concurrency:
   group: frontend-tests-${{ github.ref }}
   cancel-in-progress: true
@@ -59,3 +59,4 @@ jobs:
           name: junit-results
           path: test-results/junit.xml
           if-no-files-found: ignore
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_FRONTEND_TESTS_ENABLED == 'true') }}

@@ -44,3 +44,4 @@ jobs:
           unset DEPLOYER_PEM
           cd "$RUNNER_TEMP"
           bun "$GITHUB_WORKSPACE/scripts/scheduled-fuel.mjs"
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_SCHEDULED_GROUP_FUEL_ENABLED == 'true') }}

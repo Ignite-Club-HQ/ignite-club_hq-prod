@@ -54,3 +54,4 @@ jobs:
           echo '## Account deletion proof (disposable canisters only)' >> "$GITHUB_STEP_SUMMARY"
           f="$RUNNER_TEMP/deletion-proof.json"
           test -f "$f" && node -e 'const r=require(process.argv[1]);require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,r.steps.map(s=>"- "+(s.passed?"PASS":"FAIL")+": "+s.service).join("\n")+"\n")' "$f" || true
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_TEST_ACCOUNT_DELETION_ENABLED == 'true') }}

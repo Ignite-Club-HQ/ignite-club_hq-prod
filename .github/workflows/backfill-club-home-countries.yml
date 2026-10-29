@@ -45,3 +45,4 @@ jobs:
           fi
           cp scripts/backfill-club-home-countries.mjs /tmp/icp-run/
           node /tmp/icp-run/backfill-club-home-countries.mjs
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_BACKFILL_CLUB_HOME_COUNTRIES_ENABLED == 'true') }}

@@ -14,8 +14,8 @@ name: Deploy web app (ICP frontend canister)
 on:
   workflow_dispatch: {}
   push:
-    branches: [main]
-    paths: ["frontend/**", "deploy/frontend/**", "!frontend/scripts/**", "!frontend/**/*.test.*", "!frontend/**/*.md"]
+    branches: [ main ]
+    paths: [ "frontend/**", "deploy/frontend/**", "!frontend/scripts/**", "!frontend/**/*.test.*", "!frontend/**/*.md" ]
 
 concurrency:
   group: deploy-frontend-canister
@@ -46,10 +46,13 @@ jobs:
         working-directory: frontend
         env:
           IGNITE_LIVE_BUILD: "1"
-          IGNITE_LIVE_SUPABASE_URL: ${{ vars.IGNITE_LIVE_SUPABASE_URL || 'https://cdrxmelhysdqrccttsjg.supabase.co' }}
-          IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkcnhtZWxoeXNkcXJjY3R0c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NzIxMTMsImV4cCI6MjEwNjE0ODExM30.vRVXXZuoh-9VliT7vt6lw2nANooLwlgOeyfBTFLQjXw' }}
+          IGNITE_LIVE_SUPABASE_URL: ${{ (github.repository == 'Ignite-Club-HQ/ignite-club_hq-prod' && github.ref == 'refs/heads/main' && vars.IGNITE_MAIN_DEV_SUPABASE_URL) || ((github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod') && (vars.IGNITE_LIVE_SUPABASE_URL || 'https://cdrxmelhysdqrccttsjg.supabase.co')) }}
+          IGNITE_LIVE_SUPABASE_ANON_KEY: ${{ (github.repository == 'Ignite-Club-HQ/ignite-club_hq-prod' && github.ref == 'refs/heads/main' && vars.IGNITE_MAIN_DEV_SUPABASE_ANON_KEY) || ((github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod') && (vars.IGNITE_LIVE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkcnhtZWxoeXNkcXJjY3R0c2pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1NzIxMTMsImV4cCI6MjEwNjE0ODExM30.vRVXXZuoh-9VliT7vt6lw2nANooLwlgOeyfBTFLQjXw')) }}
         run: |
           set -euo pipefail
+          if [ "$GITHUB_REPOSITORY" = "Ignite-Club-HQ/ignite-club_hq-prod" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            IGNITE_BUILD_TARGET=hybrid IGNITE_EXPECTED_SUPABASE_URL=https://ecsdwrarzfexssxtrymj.supabase.co node --input-type=module -e "import { resolveProdHybridEnv } from '../scripts/prod-hybrid-build.mjs'; resolveProdHybridEnv(process.env)"
+          fi
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(cat ../deploy/mainnet/.icp/data/mappings/ic.ids.json | tr -d '\n ')"
           npm ci --ignore-scripts --no-fund --no-audit
           node ../scripts/sync-canister-ids.mjs || true
@@ -168,3 +171,4 @@ jobs:
             sleep 5
           done
           exit 1
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_DEPLOY_FRONTEND_CANISTER_ENABLED == 'true') }}

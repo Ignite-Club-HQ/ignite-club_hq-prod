@@ -7,7 +7,7 @@ on:
         required: true
         type: choice
         default: check
-        options: [check, upgrade, reload]
+        options: [ check, upgrade, reload ]
       confirmation:
         description: Type UPGRADE GROUP 2 for upgrade, RELOAD GROUP 2 SETTINGS for reload (leave empty for check)
         required: false
@@ -80,3 +80,4 @@ jobs:
           name: group-2-upgrade-report
           path: ${{ runner.temp }}/g2-upgrade-report
           if-no-files-found: ignore
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_UPGRADE_GROUP2_ENABLED == 'true') }}

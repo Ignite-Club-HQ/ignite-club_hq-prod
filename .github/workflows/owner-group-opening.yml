@@ -7,7 +7,7 @@ on:
         required: true
         type: choice
         default: check
-        options: [register-closed, check, open, stop]
+        options: [ register-closed, check, open, stop ]
       approval_file:
         description: Committed exact Group 2 opening approval JSON
         required: true
@@ -59,3 +59,4 @@ jobs:
           name: group-2-owner-opening-report
           path: ${{ runner.temp }}/owner-opening-report.json
           if-no-files-found: ignore
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_OWNER_GROUP_OPENING_ENABLED == 'true') }}

@@ -9,7 +9,7 @@ on:
       purpose:
         description: 'Top-ups deposit fuel after payment; new-group only funds the deploy account'
         type: choice
-        options: [top-ups, new-group, reconcile-paid, abandon-order, finish-interrupted]
+        options: [ top-ups, new-group, reconcile-paid, abandon-order, finish-interrupted ]
         default: top-ups
       group_id:
         description: 'g1 for live canisters; saved group for top-ups; unused group ID for creation funding'
@@ -80,3 +80,4 @@ jobs:
           path: ${{ runner.temp }}/infrastructure-card-report/
           if-no-files-found: warn
           retention-days: 90
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_FUND_CANISTERS_BY_CARD_ENABLED == 'true') }}

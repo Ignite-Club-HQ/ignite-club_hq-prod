@@ -11,7 +11,7 @@ on:
         type: choice
         required: true
         default: skip
-        options: [skip, overwrite]
+        options: [ skip, overwrite ]
       extra_paths:
         description: Extra tracked paths to copy (comma-separated; .github/workflows always copied)
         required: false
@@ -186,3 +186,4 @@ jobs:
           SOURCE_REPO: ${{ github.repository }}
           TARGET_REPO: ${{ inputs.target_repo }}
         run: node scripts/migrate-github-repo.mjs compare || true
+    if: ${{ github.repository != 'Ignite-Club-HQ/ignite-club_hq-prod' || github.ref == 'refs/heads/prod' || github.base_ref == 'prod' || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && vars.IGNITE_MAIN_WORKFLOWS_ENABLED == 'true' && vars.IGNITE_MAIN_MIGRATE_REPO_SETUP_ENABLED == 'true') }}
