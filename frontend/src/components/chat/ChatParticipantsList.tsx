@@ -291,7 +291,7 @@ export function ChatParticipantsList({
     staleTime: 1000 * 60 * 5,
   });
 
-  const { data: members, isLoading: membersLoading } = useQuery({
+  const { data: rawMembers, isLoading: membersLoading } = useQuery({
     queryKey: ["chat-members", chatType, chatId, teamId, clubId, miniLeagueId, clubAdminMemberUserId, effectiveGroupMembershipMode],
     queryFn: async () => {
       if (useIcpLab && user?.id) {
@@ -316,11 +316,9 @@ export function ChatParticipantsList({
               const avatarFor = (id: string, p?: { avatar_ref?: string[] } | null) =>
                 p?.avatar_ref?.[0] ??
                 (selfIds.has(id) ? (((myProfile as any)?.avatar_url as string | null) ?? null) : null);
-              const profilesFor = async (ids: string[]) => {
-                if (ids.length === 0) return new Map<string, any>();
-                const profiles = await listLiveProfilesByIds(ctx, ids, resolvedClubId ? { clubId: resolvedClubId } : undefined).catch(() => []);
-                return new Map(profiles.map((p: any) => [p.account_id, p]));
-              };
+              // Names/avatars load in a separate query (icpMemberProfiles
+              // below) so the roster paints before slow name unlocks finish.
+              const profilesFor = async (_ids: string[]) => new Map<string, any>();
               const toMembers = (
                 ids: string[],
                 roles?: Map<string, string>,
@@ -559,6 +557,36 @@ export function ChatParticipantsList({
     enabled: enabled && (resolveAuthBackend() !== "icp" || !!user),
     staleTime: 1000 * 60 * 5,
   });
+
+  const icpProfileIds = useMemo(
+    () => (useIcpLab ? [...new Set((rawMembers ?? []).map((m) => m.id))].sort() : []),
+    [useIcpLab, rawMembers],
+  );
+  const { data: icpMemberProfiles } = useQuery({
+    queryKey: ["chat-members-profiles", chatId, icpProfileIds],
+    queryFn: () =>
+      withFeatureBackend("messaging", {
+        supabase: async () => new Map<string, any>(),
+        icp: async (ctx) => {
+          const profiles = await listLiveProfilesByIds(ctx, icpProfileIds, resolvedClubId ? { clubId: resolvedClubId } : undefined).catch(() => []);
+          return new Map<string, any>(profiles.map((p: any) => [p.account_id, p]));
+        },
+      }, { conversationId: chatId }),
+    enabled: enabled && useIcpLab && icpProfileIds.length > 0,
+    staleTime: 10 * 60_000,
+    placeholderData: (prev) => prev,
+  });
+  const members = useMemo(() => {
+    if (!useIcpLab || !rawMembers) return rawMembers;
+    return rawMembers.map((m) => {
+      const p = icpMemberProfiles?.get(m.id);
+      return {
+        ...m,
+        display_name: p?.display_name || m.display_name || (icpMemberProfiles ? null : "Loading…"),
+        avatar_url: p?.avatar_ref?.[0] ?? m.avatar_url,
+      };
+    });
+  }, [useIcpLab, rawMembers, icpMemberProfiles]);
 
   const resolvedClubIdForBot = chatType === "club" ? chatId : clubId;
   const { data: clubBotUserId } = useQuery({
