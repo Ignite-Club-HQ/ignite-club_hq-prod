@@ -104,7 +104,7 @@ jobs:
               print("::error::DEPLOYER_PEM has no complete PRIVATE KEY block (BEGIN…END lines with matching names).")
               sys.exit(1)
           m_label = re.sub(r"\s+", " ", m.group(1).upper())
-          if m.group(1) == "ENCRYPTED PRIVATE KEY":
+          if m_label == "ENCRYPTED PRIVATE KEY":
               print("::error::DEPLOYER_PEM is password-protected. Re-export it without encryption (dfx identity export).")
               sys.exit(1)
           body = re.sub(r"\s+", "", m.group(2))
@@ -113,8 +113,8 @@ jobs:
               sys.exit(1)
           lines = [body[i:i + 64] for i in range(0, len(body), 64)]
           with open(sys.argv[1], "w") as f:
-              f.write(f"-----BEGIN {m.group(1)}-----\n" + "\n".join(lines) + f"\n-----END {m.group(1)}-----\n")
-          print(f"Using {m.group(1)} block ({len(body)} base64 chars).")
+              f.write(f"-----BEGIN {m_label}-----\n" + "\n".join(lines) + f"\n-----END {m_label}-----\n")
+          print(f"Using {m_label} block ({len(body)} base64 chars).")
           PY
           icp identity import --from-pem "$PEM_FILE" --storage plaintext ignite-governor
           icp identity default ignite-governor
