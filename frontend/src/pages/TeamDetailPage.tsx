@@ -1,3 +1,5 @@
+import { readIcpPitchRoster } from '@/lib/pitchEntryRoster';
+import { readGoingGameRsvps, readGameSubsDuty } from '@/lib/gameEventReads';
 import { useState, useEffect, useRef, Suspense, useMemo, type ReactNode } from "react";
 import { prefetchProfiles } from "@/hooks/useProfiles";
 import { cacheProfiles, getProfileFromCache, selectCachedProfileById, selectCachedProfilesByIds } from "@/lib/profileCache";
@@ -97,7 +99,7 @@ import {
   listLiveTeamRoleGrants,
 } from "@/live/features/membership";
 import { getLiveTeam, getLiveClubProfile, getLiveClubSubscription, getLiveTeamSubscription, saveLiveTeamSubscription, saveLiveTeamPitchSettings } from "@/live/features/club";
-import { listLiveProfilesByIds, accountIdForPrincipal } from "@/live/features/identityAccessClient";
+import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import { Principal } from "@icp-sdk/core/principal";
 import * as fixtureData from "@/lab/fixtureDataLayer";
@@ -124,12 +126,23 @@ import { TeamLeaveDialog } from "@/components/team/TeamLeaveDialog";
 import { TeamQuickActionsSection } from "@/components/team/TeamQuickActionsSection";
 import { TeamDetailAccordionSections } from "@/components/team/TeamDetailAccordionSections";
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
+import { readIcpTeamPendingInvites } from "@/features/membership/teamPendingInvites";
+import { readTeamChildRows, teamRoleRows } from '@/lib/teamRosterReads';
 
 
 type TeamRole = TeamJoinRole;
 
 const SOCCER_SPORTS = ["soccer", "football", "futsal"];
 const normalizeDutyName = (name: string | null | undefined) => name?.trim().toLowerCase() ?? "";
+
+
+/** Bound a live read so a stalled canister call becomes a retryable error, not an endless spinner. */
+function withRosterDeadline<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`The ${label} took too long to load. Please try again.`)), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
 
 export default function TeamDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -138,7 +151,7 @@ export default function TeamDetailPage() {
   // Team lifecycle management (delete/restore/permanent-delete/role-removal/join-request)
   // has no club_domain canister shape yet, so these actions are gated off entirely
   // in ICP mode rather than falling through to Supabase against a principal id.
-  const isIcpAccount = resolveAuthBackend() === "icp";
+  const isIcpAccount = isFeatureRoutedToIcp("membership");
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -169,13 +182,13 @@ export default function TeamDetailPage() {
   const [selectedChild, setSelectedChild] = useState<{ childId: string; childName: string; parentDisplay: string | null; isPending: boolean; linkInviteIds?: string[] } | null>(null);
   
   // Handle admin invite dialog from team creation flow
-  const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string } | null;
+  const locationState = location.state as { showAdminInvite?: boolean; inviteName?: string; inviteEmail?: string; teamName?: string; inviteLink?: string } | null;
   const [showAdminInviteDialog, setShowAdminInviteDialog] = useState(!!locationState?.showAdminInvite);
   const adminInviteName = locationState?.inviteName || "";
   const adminInviteEmail = locationState?.inviteEmail || "";
   const adminInviteTeamName = locationState?.teamName || "";
 
-  const { data: team, isLoading, fetchStatus: teamFetchStatus } = useQuery({
+  const { data: teamData, isLoading, error: teamError, refetch: refetchTeam, fetchStatus: teamFetchStatus } = useQuery({
     queryKey: ["team", id],
     queryFn: async () => {
       if (isFeatureRoutedToIcp("membership") && id) {
@@ -185,11 +198,6 @@ export default function TeamDetailPage() {
             const row = await getLiveTeam(ctx, id);
             const t = row.length ? row[0] : null;
             if (!t) return null;
-            const [profileRow, sub] = await Promise.all([
-              getLiveClubProfile(ctx, t.club_id),
-              getLiveClubSubscription(ctx, t.club_id),
-            ]);
-            const club = profileRow.length ? profileRow[0] : null;
             // Map the canister team + club onto the Supabase row shape this
             // page renders (including the clubs join).
             return {
@@ -206,26 +214,17 @@ export default function TeamDetailPage() {
               is_archived: t.archived,
               is_shell: t.is_shell,
               folder_id: t.folder_id[0] ?? null,
-              is_pro: sub?.is_pro ?? false,
+              is_pro: false,
               // Supabase-only columns with no canister equivalent.
               class_day: null,
               sponsor_id: null,
               deleted_at: t.deleted_at_ms.length
                 ? new Date(Number(t.deleted_at_ms[0])).toISOString()
                 : null,
-              clubs: club
-                ? {
-                    id: club.id,
-                    name: club.name,
-                    is_pro: sub?.is_pro ?? false,
-                    sport: club.sport[0] ?? null,
-                    class_mode_enabled: (await (await import("@/live/features/club")).getLiveClubGeneralSettings(ctx, club.id))?.classModeEnabled ?? false,
-                    bot_user_id: null,
-                  }
-                : null,
+              clubs: null,
             };
           },
-        }, { teamId: id! });
+        }, getCachedTeam(id)?.club_id ? { clubId: getCachedTeam(id)?.club_id ?? "" } : { teamId: id });
       }
 
       const { data, error } = await supabase
@@ -251,6 +250,29 @@ export default function TeamDetailPage() {
       } as any;
     },
   });
+  // The verified team reveals immediately; optional club labels/settings must
+  // not hold every roster, event and photo query behind their replies.
+  const { data: teamClubDisplay } = useQuery({
+    queryKey: ['team-club-display', user?.id, teamData?.club_id],
+    enabled: isIcpAccount && !!teamData?.club_id,
+    queryFn: () => withFeatureBackend('membership', {
+      supabase: () => { throw new Error('ICP club required'); },
+      icp: async ctx => {
+        const clubId = teamData?.club_id;
+        if (!clubId) return null;
+        const [profiles, settings] = await Promise.all([
+          getLiveClubProfile(ctx, clubId),
+          import('@/live/features/club').then(module => module.getLiveClubGeneralSettings(ctx, clubId)),
+        ]);
+        const club = profiles[0];
+        return club ? { id: club.id, name: club.name, is_pro: false, sport: club.sport[0] ?? null,
+          class_mode_enabled: settings?.classModeEnabled ?? false, bot_user_id: null } : null;
+      },
+    }, { clubId: teamData?.club_id ?? '' }),
+    staleTime: 5 * 60_000,
+  });
+  const team = useMemo(() => teamData && isIcpAccount && teamClubDisplay
+    ? { ...teamData, clubs: teamClubDisplay } : teamData, [teamData, isIcpAccount, teamClubDisplay]);
   useEffect(() => {
     if (team?.id && team.name && team.club_id) {
       cacheTeam({ id: team.id, name: team.name, logo_url: team.logo_url ?? null, club_id: team.club_id, level_age: (team as any).age_group ?? null, team_type: (team as any).team_type ?? undefined });
@@ -671,9 +693,16 @@ export default function TeamDetailPage() {
   // without clearing the cache (which would cause a flash of empty state)
 
   // Fetch children assigned to the team
-  const { data: teamChildren = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, refetch: refetchChildren } = useQuery({
+  const { data: teamChildrenData = [], isLoading: isChildrenLoading, isFetching: isChildrenFetching, isError: isChildrenError, error: childrenError, refetch: refetchChildren } = useQuery({
     queryKey: membershipKeys.teamChildren(id),
     queryFn: async () => {
+      if (isIcpAccount) {
+        if (!id || !team?.club_id) return [];
+        return withFeatureBackend('membership', {
+          supabase: () => { throw new Error('ICP roster required'); },
+          icp: ctx => withRosterDeadline(readTeamChildRows(ctx, team.club_id, id), 30_000, 'team player list'),
+        }, { clubId: team.club_id });
+      }
       const { data: rpcChildren, error: rpcError } = await supabase.rpc("get_team_children_for_pitch_board", {
         p_team_id: id!,
       });
@@ -744,7 +773,7 @@ export default function TeamDetailPage() {
         };
       });
     },
-    enabled: !!id && !useIcpLab,
+    enabled: !!id && !useIcpLab && (!isIcpAccount || !!team?.club_id),
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
@@ -763,39 +792,21 @@ export default function TeamDetailPage() {
           icp: async (ctx) => {
             let grants: Array<{ account_id: string; role: string }>;
             try {
-              grants = await listLiveTeamRoleGrants(ctx, id!);
-            } catch {
-              // Pre-deploy canisters lack list_team_role_grants; fall back to
-              // the caller's own grants so they at least see themselves.
+              grants = (await withRosterDeadline(listLiveTeamRoleGrants(ctx, id ?? ""), 30_000, "team member list")).map(g => ({ account_id: g.account_id.replace(/^principal:/, ""), role: g.role }));
+            } catch (err) {
+              // Only pre-deploy canisters lacking list_team_role_grants fall
+              // back to the caller's own grants. Other failures (wrong group,
+              // timeout, membership) surface as a retryable error instead of
+              // a slow all-groups sweep that hides the real problem.
+              const msg = err instanceof Error ? err.message : String(err);
+              if (!/has no (query|update) method|method not found|did not find method/i.test(msg)) throw err;
               grants = (await getLiveMyRoleGrants(ctx))
                 .filter((g) => (g.team?.[0] ?? null) === id!)
                 .map((g) => ({ account_id: g.user.toText(), role: g.role }));
             }
-            const accountIds = [...new Set(grants.map((g) => g.account_id))];
-            const profiles = accountIds.length > 0
-              ? await listLiveProfilesByIds(ctx, accountIds).catch(() => [])
-              : [];
-            const profileMap = new Map(profiles.map((p: any) => [p.account_id, p]));
-            // The signed-in member's own name is always known locally — use it
-            // when identity_access has no (named) profile row for their id.
-            const selfIds = new Set<string>([user?.id, user?.id ? `principal:${user.id}` : null, (myProfile as any)?.id].filter(Boolean) as string[]);
-            if (user?.id) { const a = await accountIdForPrincipal(user.id); if (a) selfIds.add(a); }
-            return grants.map((g) => {
-              let p: any = profileMap.get(g.account_id);
-              if ((!p || !p.display_name) && selfIds.has(g.account_id) && myProfile?.display_name) {
-                p = { ...(p ?? {}), display_name: myProfile.display_name, avatar_ref: p?.avatar_ref ?? [(myProfile as any).avatar_url].filter(Boolean) };
-              }
-              return {
-                id: `${g.account_id}:${g.role}`,
-                user_id: g.account_id,
-                role: g.role,
-                profiles: p
-                  ? { id: g.account_id, display_name: p.display_name, avatar_url: p.avatar_ref?.[0] ?? null }
-                  : null,
-              };
-            });
+            return teamRoleRows(grants);
           },
-        }, { teamId: id! });
+        }, team?.club_id ? { clubId: team.club_id } : { teamId: id! });
       }
       const { data, error } = await supabase
         .from("user_roles")
@@ -819,25 +830,62 @@ export default function TeamDetailPage() {
       
       return data || [];
     },
-    enabled: !!id && !useIcpLab,
+    // ICP: wait for the team so the read goes straight to its club's group
+    // rather than probing every group for the team owner.
+    enabled: !!id && !useIcpLab && (!isIcpAccount || !!team?.club_id),
+    retry: isIcpAccount ? 1 : 3,
     staleTime: 0, // Always fetch fresh data
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnMount: 'always', // Always refetch when component mounts
     refetchOnWindowFocus: false,
   });
 
+  const adultNameIds = useMemo(() => [...new Set(rawMembersData.map(row => row.user_id))].sort(), [rawMembersData]);
+  const childNameIds = useMemo(() => teamChildrenData.map(row => row.child_id).sort(), [teamChildrenData]);
+  const { data: adultNames = [] } = useQuery({
+    queryKey: ['team-roster-adult-names', user?.id, id, team?.club_id, adultNameIds],
+    enabled: isIcpAccount && adultNameIds.length > 0,
+    queryFn: () => withFeatureBackend('membership', {
+      supabase: () => { throw new Error('ICP names required'); },
+      icp: ctx => {
+        if (!team?.club_id) throw new Error('Team club required for member names');
+        return withRosterDeadline(readRelationshipProfiles(ctx, adultNameIds, { kind: 'club', resource: team.club_id }), 8_000, 'member names');
+      },
+    }, { clubId: team?.club_id ?? '' }),
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const { data: childNames } = useQuery({
+    queryKey: ['team-roster-child-names', user?.id, id, team?.club_id, childNameIds],
+    enabled: isIcpAccount && !!team?.club_id && childNameIds.length > 0,
+    queryFn: () => withFeatureBackend('membership', {
+      supabase: () => { throw new Error('ICP names required'); },
+      icp: async ctx => {
+        const { resolveLivePiiTextBatch } = await import('@/live/features/vault');
+        return withRosterDeadline(resolveLivePiiTextBatch(ctx, childNameIds, 'name', 'Read team roster', 'Team player names'), 20_000, 'player names');
+      },
+    }, { clubId: team?.club_id ?? '' }),
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const teamChildren = useMemo(() => !isIcpAccount || !childNames ? teamChildrenData : teamChildrenData.map(row => ({
+    ...row, children: { ...row.children, name: childNames.get(row.child_id) ?? row.children.name },
+  })), [isIcpAccount, teamChildrenData, childNames]);
+
   // Fill in the signed-in member's own name at render time too — the cached
   // member list may have been fetched before their profile finished loading.
   const rawMembers = useMemo(() => {
     const myName = myProfile?.display_name;
-    if (!myName || !user?.id) return rawMembersData;
-    const selfIds = new Set<string>([user.id, `principal:${user.id}`, (myProfile as any)?.id].filter(Boolean) as string[]);
-    return (rawMembersData as any[]).map((m) =>
-      selfIds.has(m.user_id) && !m.profiles?.display_name
-        ? { ...m, profiles: { id: m.user_id, display_name: myName, avatar_url: m.profiles?.avatar_url ?? (myProfile as any)?.avatar_url ?? null } }
-        : m,
-    );
-  }, [rawMembersData, myProfile, user?.id]);
+    const selfIds = new Set<string>([user?.id, user?.id ? `principal:${user.id}` : null, (myProfile as any)?.id].filter(Boolean) as string[]);
+    const nameMap = new Map(adultNames.map(profile => [profile.account_id, profile]));
+    return (rawMembersData as any[]).map(m => {
+      const profile = nameMap.get(m.user_id);
+      const enriched = profile ? { ...m, profiles: { id: m.user_id, display_name: profile.display_name, avatar_url: profile.avatar_ref?.[0] ?? null } } : m;
+      return selfIds.has(m.user_id) && !enriched.profiles?.display_name && myName
+        ? { ...enriched, profiles: { id: m.user_id, display_name: myName, avatar_url: enriched.profiles?.avatar_url ?? (myProfile as any)?.avatar_url ?? null } }
+        : enriched;
+    });
+  }, [rawMembersData, adultNames, myProfile, user?.id]);
 
   // Group roles by user - use user_id directly since it's always present
   // Memoize to prevent recalculation on every render
@@ -904,13 +952,7 @@ export default function TeamDetailPage() {
     queryKey: eventKeys.pitchGoingRsvps(linkedEventId),
     queryFn: async () => {
       if (!linkedEventId) return null;
-      const { data, error } = await supabase
-        .from("rsvps")
-        .select("user_id, child_id, status")
-        .eq("event_id", linkedEventId)
-        .eq("status", "going");
-      if (error) throw error;
-      return data || [];
+      return readGoingGameRsvps(linkedEventId);
     },
     enabled: !!linkedEventId && !useIcpLab,
     staleTime: 30_000,
@@ -994,6 +1036,23 @@ export default function TeamDetailPage() {
 
   const isCoachOrAdmin = userRole === "team_admin" || userRole === "coach" || isAppAdmin;
   const isAdmin = isCoachOrAdmin;
+  // Competition Owners/Admins (any entered team) and season captains (own team)
+  // may invite players only — no staff roles, no other management.
+  const { data: canInvitePlayersOnly = false } = useQuery({
+    queryKey: ["can-invite-players-to-team", id, user?.id],
+    enabled: !!id && !!user && !isCoachOrAdmin && !isClubAdmin && !useIcpLab && !isIcpAccount,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("can_invite_players_to_team", {
+        _user_id: user!.id,
+        _team_id: id,
+      });
+      if (error) return false;
+      return data === true;
+    },
+  });
+  const showInvite = isAdmin || !!isClubAdmin || canInvitePlayersOnly;
+  const playersOnlyInvite = !isAdmin && !isClubAdmin && canInvitePlayersOnly;
   // Club admins should have the same team-management actions in the team menu
   const canManageTeam = isAdmin || isClubAdmin;
   // Settings / archive / delete stay with real admins only — captains are excluded.
@@ -1025,13 +1084,7 @@ export default function TeamDetailPage() {
     queryFn: async () => {
       const nearbyEventId = await findNearbyGameEvent(id!);
       if (!nearbyEventId) return null;
-      const { data, error } = await supabase
-        .from("duties")
-        .select("id, name")
-        .eq("event_id", nearbyEventId)
-        .eq("assigned_to", user!.id);
-      if (error) throw error;
-      return (data || []).some((d: any) => normalizeDutyName(d.name) === "subs manager") ? nearbyEventId : null;
+      return user?.id && await readGameSubsDuty(nearbyEventId, user.id) ? nearbyEventId : null;
     },
     enabled: !!id && !!user && !isCoachOrAdmin && !isClubAdmin && !useIcpLab,
     staleTime: 0,
@@ -1052,12 +1105,7 @@ export default function TeamDetailPage() {
     queryKey: ["subs-manager-duty", linkedEventId, user?.id],
     queryFn: async () => {
       if (!linkedEventId || !user) return false;
-      const { data } = await supabase
-        .from("duties")
-        .select("id, name")
-        .eq("event_id", linkedEventId)
-        .eq("assigned_to", user.id)
-      return (data || []).some((d: any) => normalizeDutyName(d.name) === "subs manager");
+      return readGameSubsDuty(linkedEventId, user.id);
     },
     enabled: !!linkedEventId && !!user && !useIcpLab,
     staleTime: 0,
@@ -1073,6 +1121,20 @@ export default function TeamDetailPage() {
   const { data: activeGame } = useQuery({
     queryKey: ["team-active-game", id],
     queryFn: async () => {
+      if (isFeatureRoutedToIcp('events')) {
+        if (!id) return null;
+        return withFeatureBackend('events', {
+          supabase: async () => null,
+          icp: async ctx => {
+            const { getLiveActiveGame } = await import('@/live/features/events');
+            const [row] = await getLiveActiveGame(ctx, id);
+            if (!row) return null;
+            let pitch_state: Record<string, unknown> = {};
+            try { pitch_state = JSON.parse(String(row.pitch_state_json ?? '{}')); } catch { /* corrupt optional state */ }
+            return { id: String(row.id), updated_at: new Date(Number(row.updated_at_ms)).toISOString(), pitch_state };
+          },
+        }, { teamId: id });
+      }
       const { data } = await supabase
         .from("active_games")
         .select("id, updated_at, pitch_state")
@@ -1093,8 +1155,12 @@ export default function TeamDetailPage() {
 
   // Fetch pending invites for this team
   const { data: pendingInvites = [] } = useQuery({
-    queryKey: ["pending-invites", id, null],
+    queryKey: ["pending-invites", id, null, isIcpAccount ? "icp" : "supabase", user?.id],
     queryFn: async () => {
+      if (isIcpAccount) {
+        if (!team?.club_id || !id) throw new Error("Team invitations could not be loaded");
+        return readIcpTeamPendingInvites(team.club_id, id);
+      }
       const { data, error } = await supabase
         .from("pending_invites")
         .select("id, role, invited_user_id, invited_label, invited_email, created_at, status, email_sent_at, email_id, email_error, last_reminder_sent_at, reminder_count, metadata")
@@ -1131,7 +1197,7 @@ export default function TeamDetailPage() {
       }
       return invitesWithProfiles;
     },
-    enabled: !!id && isMember && !useIcpLab,
+    enabled: !!id && isMember && !useIcpLab && (!isIcpAccount || (!!team?.club_id && !!canManageTeam)),
   });
   const { data: existingRequest } = useQuery({
     queryKey: ["team-request", id, user?.id],
@@ -1145,7 +1211,7 @@ export default function TeamDetailPage() {
         .maybeSingle();
       return data;
     },
-    enabled: !!id && !!user && !isMember && !useIcpLab,
+    enabled: !!id && !!user && !isMember && !useIcpLab && !isIcpAccount,
   });
 
   const requestRoleMutation = useMutation({
@@ -1154,10 +1220,12 @@ export default function TeamDetailPage() {
       // child-link prompts below stay Supabase-only; the ICP branch submits
       // the bare role request.
       if (isIcpAccount) {
-        await withFeatureBackend("membership", {
+        if (!team?.club_id || !id) throw new Error("Team could not be verified");
+        const request = await withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
-          icp: async (ctx) => { await requestLiveRole(ctx, team!.club_id, selectedRole, id!); },
-        }, writeOnce({ clubId: team?.club_id as string }));
+          icp: async (ctx) => requestLiveRole(ctx, team.club_id, selectedRole, id),
+        }, writeOnce({ clubId: team.club_id }));
+        queryClient.setQueryData(["team-request", id, user?.id], { role: request.role, status: request.status });
         return;
       }
       const metadata: Record<string, any> = {};
@@ -1429,11 +1497,7 @@ export default function TeamDetailPage() {
     let goingChildIds: Set<string> | null = null;
     let goingAdultIds: Set<string> | null = null;
     if (nearbyEventId) {
-      const { data: goingRows } = await supabase
-        .from("rsvps")
-        .select("user_id, child_id")
-        .eq("event_id", nearbyEventId)
-        .eq("status", "going");
+      const goingRows = await readGoingGameRsvps(nearbyEventId);
       goingChildIds = new Set((goingRows || []).map(r => r.child_id).filter((v): v is string => !!v));
       goingAdultIds = new Set((goingRows || []).map(r => r.user_id).filter((v): v is string => !!v));
     }
@@ -1466,6 +1530,17 @@ export default function TeamDetailPage() {
     );
   }
 
+  if (!team && teamError) {
+    return (
+      <div className="py-6 text-center space-y-3" role="alert">
+        <p className="text-muted-foreground">We couldn't load this team. Please try again.</p>
+        <Button variant="outline" onClick={() => void refetchTeam()}>
+          <RefreshCw className="h-4 w-4 mr-2" />Try again
+        </Button>
+      </div>
+    );
+  }
+
   if (!team) {
     return (
       <div className="py-6 text-center">
@@ -1490,10 +1565,10 @@ export default function TeamDetailPage() {
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold truncate leading-tight">{team.name}</h1>
           <p className="text-xs text-muted-foreground leading-tight">
-            {Object.keys(members).length + teamChildren.length} member{Object.keys(members).length + teamChildren.length !== 1 ? 's' : ''}
+            {isMembersLoading || isChildrenLoading ? 'Loading members…' : isMembersError || isChildrenError ? 'Members unavailable' : <>{Object.keys(members).length + teamChildren.length} member{Object.keys(members).length + teamChildren.length !== 1 ? 's' : ''}</>}
           </p>
         </div>
-        {(isAdmin || isClubAdmin) && (
+        {showInvite && (
           <Button size="sm" className="shrink-0 h-9" onClick={() => setHeaderInviteOpen(true)}>
             <UserPlus className="h-4 w-4 mr-1.5" />
             Invite
@@ -1614,15 +1689,16 @@ export default function TeamDetailPage() {
       </div>
 
       {/* Hidden AddTeamMemberSheet controlled by header Invite button */}
-      {(isAdmin || isClubAdmin) && headerInviteOpen && (
+      {showInvite && headerInviteOpen && (
         <Suspense fallback={null}>
         <AddTeamMemberSheet
           teamId={id!}
           teamName={team.name}
           clubId={team.club_id}
           teamType={(team as any).team_type || "mixed"}
-          isClubAdminOnly={isClubAdmin && !isCoachOrAdmin}
+          isClubAdminOnly={(isClubAdmin && !isCoachOrAdmin) || playersOnlyInvite}
           canBulkInvite={isCoachOrAdmin || isClubAdmin}
+          playersOnly={playersOnlyInvite}
           triggerVariant="none"
           externalOpen={headerInviteOpen}
           onExternalOpenChange={setHeaderInviteOpen}
@@ -1932,7 +2008,7 @@ export default function TeamDetailPage() {
           canManageCaptains={canManageCaptains}
           membersSectionProps={{
             members, teamChildren, pendingInvites, memberRoleFilter, adultPlayerCount, isAdmin, isClubAdmin, currentUserId: user?.id,
-            isMembersLoading, isMembersFetching, isChildrenLoading, isChildrenFetching, isMembersError, membersError, refetchMembers, refetchChildren,
+            isMembersLoading, isMembersFetching, isChildrenLoading, isChildrenFetching, isMembersError, membersError, isChildrenError, childrenError, refetchMembers, refetchChildren,
             isSoccerClub: !!isSoccerClub, onOpenHeaderInvite: () => setHeaderInviteOpen(true), onOpenAddPlayer: () => setAddPlayerOpen(true),
             onSelectChild: setSelectedChild, onLinkChildToParent: setLinkChildToParent, onMoveToTeam: setMoveToTeam, onAddRoleMember: setAddRoleMember,
             onSelectMember: setSelectedMember, onInviteParentChild: setInviteParentChild, onOpenPositionSheet: setPositionSheetPlayer, onRemoveMember: setRemoveMember,
@@ -2031,6 +2107,7 @@ export default function TeamDetailPage() {
         teamName={adminInviteTeamName || team?.name || ""}
         inviteName={adminInviteName}
         inviteEmail={adminInviteEmail}
+        inviteLink={locationState?.inviteLink}
         onDone={() => {
           setShowAdminInviteDialog(false);
           navigate(location.pathname, { replace: true, state: {} });

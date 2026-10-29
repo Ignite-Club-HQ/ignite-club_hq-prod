@@ -18,6 +18,14 @@ export interface Backup {
   'created_by' : Principal,
   'created_at_ms' : bigint,
 }
+export interface BackupPage {
+  'files' : Array<VaultFile>,
+  'next' : [] | [bigint],
+  'offset' : bigint,
+  'folders' : Array<VaultFolder>,
+  'summary' : BackupSummary,
+  'revision' : bigint,
+}
 export interface BackupSummary {
   'id' : string,
   'backup_label' : string,
@@ -31,7 +39,32 @@ export interface BlobRef {
   'content_hash' : string,
   'canister' : string,
 }
+export interface CleanupRecord {
+  'club' : string,
+  'team' : [] | [string],
+  'blob_ref' : BlobRef,
+  'state' : { 'pending' : null } |
+    { 'erased' : null } |
+    { 'complete' : null },
+  'competition' : [] | [string],
+}
+export interface Intent { 'file' : VaultFile, 'ready' : boolean }
 export interface Main {
+  'acknowledge_file_upload' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'begin_file_cleanup' : ActorMethod<
+    [string],
+    { 'Ok' : VaultFile } |
+      { 'Err' : string }
+  >,
+  'begin_file_upload' : ActorMethod<
+    [VaultFile],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'clear_pinned_vault' : ActorMethod<
     [string, string],
     { 'Ok' : null } |
@@ -40,6 +73,11 @@ export interface Main {
   'create_backup' : ActorMethod<
     [string],
     { 'Ok' : Backup } |
+      { 'Err' : string }
+  >,
+  'create_backup_summary' : ActorMethod<
+    [string],
+    { 'Ok' : BackupSummary } |
       { 'Err' : string }
   >,
   'create_folder' : ActorMethod<
@@ -93,6 +131,11 @@ export interface Main {
   'get_folder' : ActorMethod<
     [string],
     { 'Ok' : [] | [VaultFolder] } |
+      { 'Err' : string }
+  >,
+  'get_gallery_copy' : ActorMethod<
+    [string],
+    { 'Ok' : [] | [VaultFile] } |
       { 'Err' : string }
   >,
   'get_pinned_vault' : ActorMethod<
@@ -166,6 +209,11 @@ export interface Main {
   >,
   'move_file' : ActorMethod<
     [string, string],
+    { 'Ok' : VaultFile } |
+      { 'Err' : string }
+  >,
+  'move_file_to_root' : ActorMethod<
+    [string, [] | [string]],
     { 'Ok' : VaultFile } |
       { 'Err' : string }
   >,
@@ -245,15 +293,70 @@ export interface Main {
     { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
+  'read_backup_page' : ActorMethod<
+    [string, bigint, [] | [bigint]],
+    { 'Ok' : BackupPage } |
+      { 'Err' : string }
+  >,
+  'read_cleanup_page' : ActorMethod<
+    [string],
+    {
+        'Ok' : {
+          'next' : [] | [string],
+          'items' : Array<[string, CleanupRecord]>,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'read_club_media_references' : ActorMethod<
     [string, bigint, [] | [bigint]],
     { 'Ok' : Page } |
       { 'Err' : string }
   >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
+  'read_my_upload_intent' : ActorMethod<
+    [string],
+    { 'Ok' : Intent } |
+      { 'Err' : string }
+  >,
+  'read_my_upload_page' : ActorMethod<
+    [string, string],
+    { 'Ok' : { 'ids' : Array<string>, 'next' : [] | [string] } } |
+      { 'Err' : string }
+  >,
   'read_resource_club' : ActorMethod<
     [string, string],
     { 'Ok' : [] | [string] } |
+      { 'Err' : string }
+  >,
+  'read_vault_file_page' : ActorMethod<
+    [
+      string,
+      [] | [string],
+      [] | [string],
+      [] | [string],
+      [] | [string],
+      boolean,
+      bigint,
+      [] | [bigint],
+    ],
+    {
+        'Ok' : {
+          'next' : [] | [bigint],
+          'items' : Array<VaultFileWithFolder>,
+          'revision' : bigint,
+        }
+      } |
+      { 'Err' : string }
+  >,
+  'reconcile_erased_file' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'recover_file_upload' : ActorMethod<
+    [string],
+    { 'Ok' : VaultFile } |
       { 'Err' : string }
   >,
   'register_file' : ActorMethod<
@@ -274,6 +377,11 @@ export interface Main {
     { 'Ok' : VaultFile } |
       { 'Err' : string }
   >,
+  'register_gallery_copy' : ActorMethod<
+    [string, string, string, bigint, string, BlobRef],
+    { 'Ok' : VaultFile } |
+      { 'Err' : string }
+  >,
   'rekey_principal' : ActorMethod<
     [Principal, Principal, boolean],
     { 'ok' : bigint } |
@@ -289,9 +397,26 @@ export interface Main {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'restore_backup_page' : ActorMethod<
+    [string, bigint],
+    {
+        'Ok' : {
+          'skipped' : bigint,
+          'next' : bigint,
+          'complete' : boolean,
+          'restored' : bigint,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'restore_file' : ActorMethod<
     [string],
     { 'Ok' : VaultFile } |
+      { 'Err' : string }
+  >,
+  'resume_file_cleanup' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'seal_account_removal' : ActorMethod<
@@ -305,6 +430,16 @@ export interface Main {
       { 'Err' : string }
   >,
   'set_competition_domain_canister' : ActorMethod<
+    [Principal],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'set_gallery_media_authority' : ActorMethod<
+    [Principal],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'set_messaging_domain_canister' : ActorMethod<
     [Principal],
     { 'Ok' : null } |
       { 'Err' : string }
@@ -328,6 +463,16 @@ export interface Main {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'set_vault_stores' : ActorMethod<
+    [Array<Principal>],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'sweep_vault_lifecycle' : ActorMethod<
+    [],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'transfer_governorship' : ActorMethod<
     [Principal],
     { 'Ok' : null } |
@@ -336,6 +481,11 @@ export interface Main {
   'trash_file' : ActorMethod<
     [string],
     { 'Ok' : VaultFile } |
+      { 'Err' : string }
+  >,
+  'trash_gallery_copy' : ActorMethod<
+    [Principal, string, string],
+    { 'Ok' : boolean } |
       { 'Err' : string }
   >,
   'update_folder' : ActorMethod<

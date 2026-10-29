@@ -1,7 +1,8 @@
-import { mergeLists } from "@/live/featureRouter";
-import { useState, useMemo, useEffect } from "react";
+import { readDiscoveredRemovedClubs } from "@/live/accountDiscovery";
+import { invalidateTeamLists } from "@/lib/invalidateTeamLists";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, Plus, Crown, ChevronRight, Filter, Search, X, Info, RotateCcw, Trash2 } from "lucide-react";
+import { Users, Plus, Crown, ChevronRight, Search, X, Info, RotateCcw, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,22 +11,24 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
 import { getLiveMyRoleGrants } from "@/live/features/membership";
-import { getLiveClubProfile, getLiveClubSubscription, listLiveSponsors } from "@/live/features/club";
+import { getLiveClubSubscription, listLiveSponsors } from "@/live/features/club";
+import { readClubsInOwnGroups, settleAll, grantClubId, type LiveClubRow } from "@/live/crossGroupClubs";
+import { readMembershipInScope } from "@/live/membershipRouting";
+import type { FeatureBackendContext } from "@/live/featureRouter";
+
+/** The caller's club ids from one shared, memoized all-group grants read. */
+async function liveClubIds(ctx: FeatureBackendContext): Promise<string[]> {
+  const grants = await getLiveMyRoleGrants(ctx);
+  return [...new Set(grants.map((g) => grantClubId(g)).filter((c): c is string => !!c))];
+}
 import { PageLoading } from "@/components/ui/page-loading";
-import { getSportEmoji, SPORT_EMOJIS } from "@/lib/sportEmojis";
+import { getSportEmoji } from "@/lib/sportEmojis";
 import { useSponsorAnalytics } from "@/hooks/useSponsorAnalytics";
 import { useClubTheme } from "@/hooks/useClubTheme";
 import { ConfirmPurgeDialog } from "@/components/club/ConfirmPurgeDialog";
@@ -67,7 +70,6 @@ export default function ClubsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fromCreateTeam = (location.state as { fromCreateTeam?: boolean })?.fromCreateTeam === true;
-  const [sportFilter, setSportFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [purgeTarget, setPurgeTarget] = useState<{ id: string; name: string } | null>(null);
@@ -81,8 +83,8 @@ export default function ClubsPage() {
       if (useIcpLab) {
         const rows = await withFeatureBackend("membership", {
           supabase: async () => [],
-          icp: async (ctx) => (await import("@/live/features/club")).listLiveMyRemovedClubs(ctx),
-        }, { everyGroup: true, merge: mergeLists });
+          icp: readDiscoveredRemovedClubs,
+        }, { shared: 'person' });
         const o = (v: any) => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
         return (rows as any[])
           .map((c) => ({
@@ -118,7 +120,7 @@ export default function ClubsPage() {
         await withFeatureBackend("membership", {
           supabase: async () => undefined,
           icp: async (ctx) => { await (await import("@/live/features/club")).restoreLiveClub(ctx, clubId, true); },
-        }, writeOnce({ clubId: clubId! }));
+        }, writeOnce({ clubId }));
       } catch (e) {
         error = { message: e instanceof Error ? e.message : "Unknown error" };
       }
@@ -134,6 +136,7 @@ export default function ClubsPage() {
       return;
     }
     toast({ title: "Club restored", description: "Teams and chats have been restored too." });
+    void invalidateTeamLists(queryClient, user?.id);
     queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
     queryClient.invalidateQueries({ queryKey: ["clubs"] });
     queryClient.invalidateQueries({ queryKey: membershipKeys.userRolesFor(user?.id) });
@@ -163,6 +166,7 @@ export default function ClubsPage() {
     }
     toast({ title: "Club permanently deleted", description: "Data is retained in the archive for recovery by an app admin." });
     clearClubSetupLocalState(purgeTarget.id);
+    void invalidateTeamLists(queryClient, user?.id);
     setPurgeTarget(null);
     setPurgeConfirmText("");
     queryClient.invalidateQueries({ queryKey: ["removed-clubs", user?.id] });
@@ -173,34 +177,31 @@ export default function ClubsPage() {
     queryKey: ["clubs"],
     queryFn: async () => {
       if (useIcpLab) {
+        // One shared grants read (all groups at once, memoized for every
+        // query on the page), then each club straight from its own group —
+        // no per-query fan-out and no Group 1 club looked up in Group 2.
         return withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
-            // The caller's clubs come from their club_domain role grants —
-            // the same store create_club writes the creator's club_admin
-            // grant to. There is no public club directory on the canister,
-            // so the search box only searches within these.
-            const grants = await getLiveMyRoleGrants(ctx);
-            const clubIds = [...new Set(grants.map(g => g.club[0]).filter((c): c is string => !!c))];
-            const clubs = await Promise.all(clubIds.map(async (clubId) => {
-              const row = await getLiveClubProfile(ctx, clubId);
-              const p = row.length ? row[0] : null;
-              if (!p || p.deleted_at_ms.length) return null;
-              return {
-                id: p.id,
-                name: p.name,
-                logo_url: p.logo_url[0] ?? null,
-                description: p.description[0] ?? null,
-                sport: p.sport[0] ?? null,
-                is_pro: false,
-                created_by: null,
-                primary_sponsor_id: null,
-              } as Club;
-            }));
-            return clubs.filter((c): c is Club => c !== null);
+            const toClub = (p: LiveClubRow) => ({
+              id: p.id,
+              name: p.name,
+              logo_url: p.logo_url[0] ?? null,
+              description: p.description[0] ?? null,
+              sport: p.sport[0] ?? null,
+              is_pro: false,
+              created_by: null,
+              primary_sponsor_id: null,
+            }) as Club;
+            // Show each club as soon as its own group answers instead of
+            // waiting for the slowest group.
+            const { values } = await readClubsInOwnGroups(ctx, await liveClubIds(ctx),
+              (loaded) => queryClient.setQueryData(["clubs"], loaded.map(toClub)));
+            return values.map(toClub);
           },
-        }, { everyGroup: true, merge: mergeLists });
+        }, { shared: "person" });
       }
+
 
       const { data, error } = await supabase
         .from("clubs")
@@ -223,9 +224,9 @@ export default function ClubsPage() {
         return withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
-            const grants = await getLiveMyRoleGrants(ctx);
-            const clubIds = [...new Set(grants.map(g => g.club[0]).filter((c): c is string => !!c))];
-            const perClub = await Promise.all(clubIds.map((clubId) => listLiveSponsors(ctx, clubId)));
+            const ids = await liveClubIds(ctx);
+            const { values: perClub } = await settleAll(ids.map((clubId) =>
+              readMembershipInScope(ctx, { clubId }, (scoped) => listLiveSponsors(scoped, clubId))));
             return perClub.flat()
               .filter((s) => s.is_active)
               .map((s) => ({
@@ -236,7 +237,7 @@ export default function ClubsPage() {
                 club_id: s.club_id,
               }) as Sponsor);
           },
-        }, { everyGroup: true, merge: mergeLists });
+        }, { shared: "person" });
       }
       const { data, error } = await supabase
         .from("sponsors")
@@ -256,9 +257,9 @@ export default function ClubsPage() {
         return withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
-            const grants = await getLiveMyRoleGrants(ctx);
-            const clubIds = [...new Set(grants.map(g => g.club[0]).filter((c): c is string => !!c))];
-            const subs = await Promise.all(clubIds.map((clubId) => getLiveClubSubscription(ctx, clubId)));
+            const ids = await liveClubIds(ctx);
+            const { values: subs } = await settleAll(ids.map((clubId) =>
+              readMembershipInScope(ctx, { clubId }, (scoped) => getLiveClubSubscription(scoped, clubId))));
             return subs.filter((s): s is NonNullable<typeof s> => s !== null).map((s) => ({
               club_id: s.club_id,
               is_pro: s.is_pro,
@@ -267,7 +268,7 @@ export default function ClubsPage() {
               admin_pro_football_override: s.admin_pro_football_override,
             }) as ClubSubscription);
           },
-        }, { everyGroup: true, merge: mergeLists });
+        }, { shared: "person" });
       }
       const { data, error } = await supabase
         .from("club_subscriptions")
@@ -308,66 +309,33 @@ export default function ClubsPage() {
     enabled: !!user,
   });
 
-  // Get unique sports from clubs for filter options
-  const availableSports = useMemo(() => {
-    if (!clubs) return [];
-    const sports = new Set(clubs.map(c => c.sport).filter(Boolean) as string[]);
-    return Array.from(sports).sort();
-  }, [clubs]);
 
-  // Filter clubs by sport only (for My Clubs)
-  const filterBySport = (clubList: Club[] | undefined) => {
-    if (!clubList) return clubList;
-    
-    if (sportFilter === "all") return clubList;
-    
-    return clubList.filter(club => {
-      if (!club.sport) return false;
-      const lowerSport = club.sport.toLowerCase();
-      const lowerFilter = sportFilter.toLowerCase();
-      return lowerSport.includes(lowerFilter) || lowerFilter.includes(lowerSport);
-    });
-  };
 
-  // Filter clubs by sport and search query (for search results)
-  const filterBySearch = (clubList: Club[] | undefined) => {
+  // Search matches on name, description or sport. It only ever applies to the
+  // "Search Results" list below — never to My Clubs.
+  const matchSearch = (clubList: Club[] | undefined) => {
     if (!clubList) return clubList;
-    
-    let filtered = clubList;
-    
-    // Filter by sport
-    if (sportFilter !== "all") {
-      filtered = filtered.filter(club => {
-        if (!club.sport) return false;
-        const lowerSport = club.sport.toLowerCase();
-        const lowerFilter = sportFilter.toLowerCase();
-        return lowerSport.includes(lowerFilter) || lowerFilter.includes(lowerSport);
-      });
-    }
-    
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(club => 
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return clubList;
+    return clubList.filter(
+      (club) =>
         club.name.toLowerCase().includes(query) ||
         club.description?.toLowerCase().includes(query) ||
         club.sport?.toLowerCase().includes(query)
-      );
-    }
-    
-    return filtered;
+    );
   };
 
-  // My Clubs - filter by sport and active club theme
-  const myClubs = filterBySport(
-    clubs?.filter((club) => {
-      const isMember = userRoles?.some((role) => role.club_id === club.id);
-      if (!isMember) return false;
-      // If a club theme is active, only show that club
-      if (activeClubFilter) return club.id === activeClubFilter;
-      return true;
-    })
-  );
+
+  // My Clubs - every club the user belongs to. The club theme picker is the
+  // only thing that narrows this list.
+  const myClubs = clubs?.filter((club) => {
+    const isMember = userRoles?.some((role) => role.club_id === club.id);
+    if (!isMember) return false;
+    // If a club theme is active, only show that club
+    if (activeClubFilter) return club.id === activeClubFilter;
+    return true;
+  });
+
 
   // Recently removed: respect the active club filter so other clubs don't leak in
   const scopedRemovedClubs = (removedClubs ?? []).filter((club) =>
@@ -379,7 +347,7 @@ export default function ClubsPage() {
   // Only show search results (other clubs) when user is actively searching
   const isSearching = searchQuery.trim().length > 0;
   const searchResults = isSearching 
-    ? filterBySearch(clubs?.filter((club) => !userRoles?.some((role) => role.club_id === club.id)))
+    ? matchSearch(clubs?.filter((club) => !userRoles?.some((role) => role.club_id === club.id)))
     : [];
 
   if (isLoading) {
@@ -426,40 +394,6 @@ export default function ClubsPage() {
             onClick={() => setSearchQuery("")}
           >
             <X className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-
-      {/* Sport Filter */}
-      <div className="flex items-center gap-2">
-        <Filter className="h-4 w-4 text-muted-foreground" />
-        <Select value={sportFilter} onValueChange={setSportFilter}>
-          <SelectTrigger className="w-[180px] h-10">
-            <SelectValue placeholder="Filter by sport" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover">
-            <SelectItem value="all">
-              <span className="flex items-center gap-2">
-                <span>🏆</span> All Sports
-              </span>
-            </SelectItem>
-            {Object.entries(SPORT_EMOJIS).map(([sport, emoji]) => (
-              <SelectItem key={sport} value={sport}>
-                <span className="flex items-center gap-2">
-                  <span>{emoji}</span> {sport}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {sportFilter !== "all" && (
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setSportFilter("all")}
-            className="text-muted-foreground"
-          >
-            Clear
           </Button>
         )}
       </div>

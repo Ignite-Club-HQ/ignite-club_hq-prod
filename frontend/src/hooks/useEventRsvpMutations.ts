@@ -46,7 +46,48 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+
+  // Optimistic RSVP: show the tapped answer immediately, roll back on failure.
+  const sameAccount = (a?: string | null, b?: string | null) =>
+    !!a && !!b && a.replace(/^principal:/, "") === b.replace(/^principal:/, "");
+  const applyOptimisticRsvp = async (match: (row: any) => boolean, patch: Record<string, unknown>, fresh: Record<string, unknown>) => {
+    const key = eventKeys.rsvps(id);
+    const cancellation = queryClient.cancelQueries({ queryKey: key });
+    const previous = queryClient.getQueryData(key);
+    queryClient.setQueryData(key, (current: unknown) => {
+      const rows = Array.isArray(current) ? current : [];
+      const index = rows.findIndex(match);
+      if (index < 0) return [...rows, fresh];
+      return rows.map((row: any, i) => (i === index ? { ...row, ...patch } : row));
+    });
+    await cancellation;
+    return { previous, match, optimisticStatus: patch.status };
+  };
+  const rollbackRsvp = (context?: { previous?: unknown; match: (row: any) => boolean; optimisticStatus: unknown }) => {
+    if (!context) return;
+    queryClient.setQueryData(eventKeys.rsvps(id), (current: unknown) => {
+      if (!Array.isArray(current)) return current;
+      const old = Array.isArray(context.previous) ? context.previous.find(context.match) : undefined;
+      return current.flatMap((row: any) => {
+        if (!context.match(row) || row.status !== context.optimisticStatus) return [row];
+        return old ? [old] : [];
+      });
+    });
+  };
   const rsvpMutation = useMutation({
+    onMutate: async (status: RsvpStatus) => {
+      if (useIcpLab || !user?.id) return undefined;
+      return applyOptimisticRsvp(
+        (row) => !row.child_id && sameAccount(row.user_id, user.id),
+        { status, source: "user" },
+        { id: myRsvp?.id || `pending-rsvp-${id}-${user.id}`, event_id: id, user_id: user.id, child_id: null, status, notes: rsvpNotes || null, source: "user",
+          profiles: { display_name: profile?.display_name ?? null, avatar_url: profile?.avatar_url ?? null }, children: null },
+      );
+    },
+    onError: (error, _status, context) => {
+      rollbackRsvp(context);
+      toast({ title: "Could not save RSVP", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    },
     mutationFn: async (status: RsvpStatus) => {
       if (useIcpLab) {
         if (!id) throw new Error("Missing event ID");
@@ -86,14 +127,12 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
         icp: async (ctx) => {
           if (!id || !user?.id) throw new Error("Missing event or user ID");
           await setLiveEventRsvp(ctx, id, user.id, status);
-          try {
-            await recordLiveRsvpCompleted(ctx, event?.club_id ?? id, user.id);
-          } catch {
-            // best-effort engagement counter; must never block RSVP confirmation
-          }
+          // Best-effort engagement counter: runs in the background so it
+          // never delays the RSVP confirmation.
+          void recordLiveRsvpCompleted(ctx, event?.club_id ?? id, user.id).catch(() => undefined);
           return true;
         },
-      }, writeOnce({ eventId: id ?? "" }));
+      }, writeOnce(event?.club_id ? { clubId: event.club_id } : { eventId: id ?? "" }));
       if (routedToIcp) return;
 
       // Offline path: queue the RSVP, return early
@@ -180,6 +219,19 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
 
   // Child RSVP mutation
   const childRsvpMutation = useMutation({
+    onMutate: async ({ childId, status, childName }: { childId: string; status: RsvpStatus; childName?: string }) => {
+      if (useIcpLab || !user?.id) return undefined;
+      return applyOptimisticRsvp(
+        (row) => row.child_id === childId,
+        { status, source: "user" },
+        { id: `pending-child-rsvp-${id}-${childId}`, event_id: id, user_id: user.id, child_id: childId, status, notes: null, source: "user",
+          profiles: null, children: { id: childId, name: childName ?? null } },
+      );
+    },
+    onError: (error, _vars, context) => {
+      rollbackRsvp(context);
+      toast({ title: "Could not save RSVP", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    },
     mutationFn: async ({ childId, status, childName }: { childId: string; status: RsvpStatus; childName?: string }) => {
       const existingRsvp = childRsvps.find((r) => r.child_id === childId);
 
@@ -214,7 +266,7 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
           await setLiveChildRsvp(ctx, id, user.id, childId, status, existingRsvp?.notes ?? "");
           return true;
         },
-      }, writeOnce({ eventId: id ?? "" }));
+      }, writeOnce(event?.club_id ? { clubId: event.club_id } : { eventId: id ?? "" }));
       if (routedToIcp) return;
 
       let rsvpId: string | null = null;
@@ -323,6 +375,12 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
 
   // Admin RSVP mutation for mini-league players (club/league admins can change player RSVPs)
   const adminRsvpMutation = useMutation({
+    onMutate: ({ playerId, playerName, childId, parentUserId, status }: { playerId: string; playerName: string; childId: string | null; parentUserId: string | null; status: RsvpStatus }) =>
+      applyOptimisticRsvp(
+        row => childId ? row.child_id === childId : row.mini_league_player_id === playerId,
+        { status },
+        { id: `pending-player-rsvp-${id}-${playerId}`, event_id: id, user_id: parentUserId || user?.id, child_id: childId, mini_league_player_id: childId ? null : playerId, status, children: childId ? { id: childId, name: playerName } : null, mini_league_players: { id: playerId, name: playerName }, profiles: null },
+      ),
     mutationFn: async ({ 
       playerId, 
       playerName, 
@@ -378,7 +436,8 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
       queryClient.invalidateQueries({ queryKey: eventKeys.groups(id) });
       queryClient.invalidateQueries({ queryKey: eventKeys.pitchTeamMembers(event?.team_id, event?.id) });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      rollbackRsvp(context);
       toast({ 
         title: "Failed to update RSVP", 
         description: error.message,
@@ -389,22 +448,24 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
 
   // Admin mutation to update existing RSVP status by RSVP ID
   const adminUpdateRsvpMutation = useMutation({
+    onMutate: ({ rsvpId, status }: { rsvpId: string; status: RsvpStatus; playerName: string }) =>
+      applyOptimisticRsvp(row => row.id === rsvpId, { status }, { id: rsvpId, event_id: id, status }),
     mutationFn: async ({ rsvpId, status, playerName }: { rsvpId: string; status: RsvpStatus; playerName: string }) => {
       // rsvpId on the ICP branch is the synthetic `${eventId}:${accountId}:${childId|"self"}`
       // key built when the rsvps query is served by events_domain (see
       // EventDetailPage's roster mapping) — decode it back into the
       // (event, account, child) key the canister's admin_update_rsvp_status
       // call expects, since it has no row-id lookup.
-      const parts = rsvpId.split(":");
+      const parts = parseIcpRsvpRef(rsvpId, id);
       const routedToIcp = await withFeatureBackend("events", {
         supabase: () => false,
         icp: async (ctx) => {
-          if (parts.length !== 3) throw new Error("Unrecognised RSVP reference for this backend.");
+          if (!parts) throw new Error("Unrecognised RSVP reference for this backend.");
           const [eventId, accountId, childPart] = parts;
           await adminUpdateLiveRsvpStatus(ctx, eventId, accountId, status, childPart === "self" ? null : childPart);
           return true;
         },
-      }, writeOnce({ eventId: parts[0] ?? "" }));
+      }, writeOnce(event?.club_id ? { clubId: event.club_id } : { eventId: parts?.[0] ?? id ?? "" }));
       if (routedToIcp) return;
 
       const { error } = await supabase.rpc('admin_update_rsvp_status', {
@@ -421,7 +482,8 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
       queryClient.invalidateQueries({ queryKey: eventKeys.pitchTeamMembers(event?.team_id, event?.id) });
       
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      rollbackRsvp(context);
       toast({ 
         title: "Failed to update RSVP", 
         description: error.message,
@@ -432,6 +494,9 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
 
   // Admin mutation to create RSVP for a member who hasn't responded (for team/club events)
   const rsvpForMemberMutation = useMutation({
+    onMutate: ({ memberId, memberName, status }: { memberId: string; memberName: string; status: RsvpStatus }) =>
+      applyOptimisticRsvp(row => !row.child_id && sameAccount(row.user_id, memberId), { status },
+        { id: `pending-member-rsvp-${id}-${memberId}`, event_id: id, user_id: memberId, child_id: null, status, profiles: { display_name: memberName, avatar_url: null }, children: null }),
     mutationFn: async ({ memberId, memberName, status }: { memberId: string; memberName: string; status: RsvpStatus }) => {
       const routedToIcp = await withFeatureBackend("events", {
         supabase: () => false,
@@ -456,7 +521,8 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
       queryClient.invalidateQueries({ queryKey: eventKeys.goingRsvps(id) });
       queryClient.invalidateQueries({ queryKey: eventKeys.pitchTeamMembers(event?.team_id, event?.id) });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      rollbackRsvp(context);
       toast({ 
         title: "Failed to set RSVP", 
         description: error.message,
@@ -467,6 +533,9 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
 
   // Admin mutation to create RSVP for a child who hasn't responded (for team events)
   const rsvpForChildMutation = useMutation({
+    onMutate: ({ childId, childName, parentUserId, status }: { childId: string; childName: string; parentUserId: string; status: RsvpStatus }) =>
+      applyOptimisticRsvp(row => row.child_id === childId, { status },
+        { id: `pending-child-rsvp-${id}-${childId}`, event_id: id, user_id: parentUserId, child_id: childId, status, profiles: null, children: { id: childId, name: childName } }),
     mutationFn: async ({ childId, childName, parentUserId, status }: { childId: string; childName: string; parentUserId: string; status: RsvpStatus }) => {
       const routedToIcp = await withFeatureBackend("events", {
         supabase: () => false,
@@ -506,7 +575,8 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
       queryClient.invalidateQueries({ queryKey: eventKeys.goingRsvps(id) });
       queryClient.invalidateQueries({ queryKey: eventKeys.pitchTeamMembers(event?.team_id, event?.id) });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      rollbackRsvp(context);
       toast({ 
         title: "Failed to set RSVP", 
         description: error.message,
@@ -580,4 +650,18 @@ export function useEventRsvpMutations(params: UseEventRsvpMutationsArgs) {
     rsvpForChildMutation,
     togglePaymentMutation,
   };
+}
+
+/** Decodes `${eventId}:${accountId}:${childId|"self"}`. Event and child IDs
+ * may themselves contain ":" (and accounts may carry a "principal:" prefix),
+ * so anchor on the known event ID instead of a fixed segment count. */
+export function parseIcpRsvpRef(ref: string, knownEventId?: string | null): [string, string, string] | null {
+  let eventId: string; let rest: string;
+  if (knownEventId && ref.startsWith(`${knownEventId}:`)) { eventId = knownEventId; rest = ref.slice(knownEventId.length + 1); }
+  else { const i = ref.indexOf(":"); if (i <= 0) return null; eventId = ref.slice(0, i); rest = ref.slice(i + 1); }
+  rest = rest.replace(/^principal:/, "");
+  const j = rest.indexOf(":");
+  if (j <= 0) return null;
+  const accountId = rest.slice(0, j); const childPart = rest.slice(j + 1) || "self";
+  return [eventId, accountId, childPart];
 }

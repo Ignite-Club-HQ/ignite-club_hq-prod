@@ -120,7 +120,7 @@ import {
 } from "@/live/features/membership";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 import * as fixtureData from "@/lab/fixtureDataLayer";
-import { getCachedClub, cacheClub } from "@/lib/clubTeamCache";
+import { getCachedClub, cacheClub, cacheTeams } from "@/lib/clubTeamCache";
 
 
 type ClubRole = "club_admin";
@@ -407,7 +407,7 @@ export default function ClubDetailPage() {
         const userOf = (g: any): string =>
           g.account_id ?? (g.user?.toText ? g.user.toText() : String(g.user ?? ""));
         const ids = Array.from(new Set(grantLists.flatMap((l) => l.grants.map(userOf)).filter(Boolean)));
-        const profiles = (await listLiveProfilesByIds(ctx, ids).catch(() => [])) as any[];
+        const profiles = (await listLiveProfilesByIds(ctx, ids, { clubId: id! }).catch(() => [])) as any[];
         const byId = new Map(profiles.map((p) => [p.account_id, p]));
         const { accountIdForPrincipal } = await import("@/live/features/identityAccessClient");
         const selfIds = new Set<string>([user?.id, user?.id ? `principal:${user.id}` : null, (myProfile as any)?.id].filter(Boolean) as string[]);
@@ -516,7 +516,7 @@ export default function ClubDetailPage() {
   const { data: teams } = useQuery({
     queryKey: ["club-teams", id],
     queryFn: async () => {
-      if (useIcpLab && id) {
+      if ((useIcpLab || isFeatureRoutedToIcp("membership")) && id) {
         return withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
@@ -550,7 +550,7 @@ export default function ClubDetailPage() {
               })
               .sort((a, b) => a.name.localeCompare(b.name));
           },
-        }, { teamId: id! });
+        }, { clubId: id });
       }
       const { data, error } = await supabase
         .from("teams")
@@ -566,11 +566,32 @@ export default function ClubDetailPage() {
   });
 
   // Fetch user's team memberships to show "My Team" badge
+  useEffect(() => {
+    if (!teams?.length) return;
+    // Reuse the authorized list for immediate team-page identity/owner display.
+    // This metadata never grants access or enables privileged actions.
+    cacheTeams(teams.map(t => ({
+      id: t.id, club_id: t.club_id, name: t.name, logo_url: t.logo_url ?? null,
+      level_age: (t as any).age_group ?? (t as any).level_age ?? null,
+      team_type: t.team_type === "junior" || t.team_type === "senior" || t.team_type === "mixed" ? t.team_type : undefined,
+    })));
+  }, [teams]);
+
   const { data: userTeamIds = [] } = useQuery({
     queryKey: ["user-team-memberships", id, user?.id],
     queryFn: async () => {
       const teamIds = teams?.map(t => t.id) || [];
       if (teamIds.length === 0) return [];
+
+      if (isFeatureRoutedToIcp("membership")) {
+        return withFeatureBackend("membership", {
+          supabase: async () => { throw new Error("unreachable"); },
+          icp: async (ctx) => {
+            const grants = await getLiveMyRoleGrants(ctx);
+            return [...new Set(grants.map(g => g.team[0]).filter((teamId): teamId is string => !!teamId && teamIds.includes(teamId)))];
+          },
+        }, { clubId: id! });
+      }
 
       const { data, error } = await supabase
         .from("user_roles")
@@ -590,7 +611,7 @@ export default function ClubDetailPage() {
   const { data: teamFolders = [] } = useQuery({
     queryKey: ["team-folders", id],
     queryFn: async () => {
-      if (useIcpLab && id) {
+      if ((useIcpLab || isFeatureRoutedToIcp("membership")) && id) {
         return withFeatureBackend("membership", {
           supabase: async () => { throw new Error("unreachable"); },
           icp: async (ctx) => {
@@ -608,7 +629,7 @@ export default function ClubDetailPage() {
               }))
               .sort((a, b) => a.sort_order - b.sort_order);
           },
-        }, { teamId: id! });
+        }, { clubId: id });
       }
       const { data, error } = await supabase
         .from("team_folders")

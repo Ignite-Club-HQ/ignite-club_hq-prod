@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { clearHomeSectionSnapshots } from "./homeSectionSnapshot";
+import { clearRoleGrantsMemo } from "@/live/roleGrantsMemo";
 
 const CAROUSEL_PREFIX = "ignite_my_teams_carousel_v2_";
 
@@ -9,6 +10,20 @@ const CAROUSEL_PREFIX = "ignite_my_teams_carousel_v2_";
  * membership belongs here.
  */
 const TEAM_LIST_KEY_PREFIXES = [
+  "clubs",
+  "removed-clubs",
+  "icp-my-mini-leagues",
+  "home-data",
+  "home-feed",
+  "user-memberships-and-events",
+  "user-memberships-for-events",
+  "user-clubs-for-filter",
+  "user-memberships",
+  "icp-media-feed",
+  "user-clubs-for-upgrade",
+  "member-clubs-with-messages",
+  "my-teams-with-messages",
+  "my-chat-groups-with-messages",
   "my-teams-premium-v2",
   "team-next-events-premium",
   "team-photos-premium",
@@ -54,6 +69,7 @@ export async function invalidateTeamLists(
   userId?: string | null,
 ): Promise<void> {
   clearMyTeamsCarouselCache(userId);
+  clearRoleGrantsMemo();
   // Home side-sections (Club News, Club Links) snapshot to localStorage too;
   // a deleted club's content must not repaint from the last-known snapshot.
   clearHomeSectionSnapshots();

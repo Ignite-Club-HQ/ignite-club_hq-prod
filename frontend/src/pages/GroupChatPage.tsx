@@ -1,6 +1,14 @@
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect, Suspense } from "react";
 import { confirmPendingSend } from "@/lib/pendingSendKeeper";
+import { applyConfirmedInboxPreview } from "@/features/messaging/inbox/confirmedInboxPreview";
+import {
+  applyPendingInboxPreview,
+  discardPendingInboxPreview,
+  settlePendingInboxPreview,
+} from "@/features/messaging/inbox/pendingInboxPreview";
+import { recordOwnSentConversation } from "@/features/messaging/inbox/ownSendBump";
+import { readIcpGroupMetadata } from "@/features/messaging/thread/icpThreadRead";
 import { resolveChatUploadUrl } from "@/lib/pendingChatUploads";
 import { useChatLoadingLatch } from "@/hooks/useChatLoadingLatch";
 import { consumePendingChatJump, getLastConsumedPendingChatJumpTs, subscribePendingChatJump, type PendingChatJumpPayload } from "@/lib/pendingChatJump";
@@ -30,6 +38,7 @@ import { useNativeKeyboardBottomInset } from "@/hooks/useNativeKeyboardBottomIns
 import { useChatVaultDeliverySync } from "@/hooks/useChatVaultDeliverySync";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { buildNewsShareToken } from "@/features/news/newsShareToken";
 import { supabase } from "@/integrations/supabase/client";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { getLiveMiniLeague } from "@/live/features/miniLeagues";
@@ -52,6 +61,7 @@ import { useChatOnlineCount } from "@/hooks/useChatOnlineCount";
 import { useChatPageReady } from "@/hooks/useChatPageReady";
 import { ChatSearchBar, ChatSearchLoadingState } from "@/components/chat/ChatSearch";
 import { useChatHistorySearch } from "@/hooks/useChatHistorySearch";
+import { useChatSearchResultJump } from "@/hooks/useChatSearchResultJump";
 import { createChatHistorySearchFetcher } from "@/features/messaging/thread/chatHistorySearchFetcher";
 import { GROUP_CHAT_SCOPE } from "@/features/messaging/scopes/chatScopeAdapters";
 import {
@@ -78,6 +88,7 @@ import { ChatPageSkeleton } from "@/components/chat/ChatPageSkeleton";
 import { GroupChatComposerFooter } from "@/components/chat/GroupChatComposerFooter";
 import type { ScheduleTarget } from "@/hooks/useScheduledMessages";
 import EditGroupDialog from "@/components/chat/EditGroupDialog";
+import { RenameChatGroupDialog } from "@/components/chat/RenameChatGroupDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -119,7 +130,10 @@ import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { MessageReadAvatars } from "@/components/chat/MessageReadAvatars";
 import { fetchProfilesWithCache } from "@/lib/profileCache";
 import { useProfiles } from "@/hooks/useProfiles";
-import { shouldRefetchMessages } from "@/lib/messageCache";
+import { usePrivateChatProfiles } from "@/hooks/usePrivateChatProfiles";
+import { useChatProfileWorkset } from "@/hooks/useChatProfileWorkset";
+import { privateClubNameDisplaysEnabled } from "@/live/privateClubNameDisplayMode";
+import { shouldRefetchMessages, isCachedThreadComplete } from "@/lib/messageCache";
 import {
   classifyChatThreadState,
   nextEmptyRetryDelay,
@@ -144,7 +158,9 @@ import { noteChatMount, noteChatUnmount } from "@/lib/chatPerfDiagnostics";
 import { shouldSkipChatMountInvalidate } from "@/lib/chatMountInvalidate";
 import { useChatStuckWatchdog } from "@/lib/chatStuckWatchdog";
 import { resolveChatMetadataState } from "@/lib/chatMetadataGate";
+import { getChatThreadLabel, rememberChatThreadLabel } from "@/lib/chatThreadLabelCache";
 import { ChatUnreachable } from "@/components/chat/ChatUnreachable";
+import { groupChatReadScope } from '@/features/messaging/thread/groupChatScope';
 import { isChatEagerInvalidateEnabled, ensureSessionApplied } from "@/lib/chatEagerInvalidate";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 const PinVaultSheet = lazyWithRetry(() => import("@/components/chat/PinVaultSheet").then(m => ({ default: m.PinVaultSheet })));
@@ -328,40 +344,31 @@ export default function GroupChatPage() {
       { tryLoadOlder: () => loadOlderMessagesRef.current?.() },
     );
 
-  const handleSearchResultClick = async (mid: string) => {
-    const target = (localMessagesRef.current ?? []).find((m) => m.id === mid);
-    // Preserve the query for highlighting the jumped-to row until the
-    // highlight ring clears — clearing searchQuery here would strip the
-    // <mark> spans mid-jump and leave the user unsure why the row matched.
-    setHighlightQuery(searchQuery);
-    setSearchQuery("");
-    setSearchOpen(false);
-    if (target?.created_at && groupId) {
-      if (useIcpLab || resolveAuthBackend() === "icp") {
-        requestAnimationFrame(() => handleJumpToMessage(mid));
-        return;
-      }
-      try {
-        const ctx = await fetchMessagesAround({
+  const handleSearchResultClick = useChatSearchResultJump<GroupMessage>({
+    scopeKey: `group:${user?.id}:${groupId}`,
+    getMessages: () => localMessagesRef.current ?? [],
+    closeSearch: () => {
+      setHighlightQuery(searchQuery);
+      setSearchQuery("");
+      setSearchOpen(false);
+    },
+    jump: handleJumpToMessage,
+    loadContext: async (target) => {
+      if (!target.created_at || !groupId || useIcpLab || resolveAuthBackend() === "icp") return [];
+      return fetchMessagesAround({
           table: "group_messages",
           scope: { group_id: groupId },
           createdAt: target.created_at,
           selectColumns:
             "id, text, image_url, created_at, edited_at, author_id, group_id, reply_to_id, is_system_message, forwarded_from_user_id, forwarded_at, forwarded_source_label",
-        });
-        if (ctx.length) {
-          setLocalMessages((prev) => {
-            const existing = new Set((prev || []).map((m) => m.id));
-            const adds = ctx.filter((m) => !existing.has(m.id));
-            return adds.length ? [...(prev || []), ...adds] : prev;
-          });
-        }
-      } catch {
-        // best-effort
-      }
-    }
-    requestAnimationFrame(() => handleJumpToMessage(mid));
-  };
+      });
+    },
+    mergeContext: (rows) => setLocalMessages((prev) => {
+      const existing = new Set((prev ?? []).map((m) => m.id));
+      const adds = rows.filter((m) => !existing.has(m.id));
+      return adds.length ? [...(prev ?? []), ...adds] : prev;
+    }),
+  });
 
   // Fetch group details
   // Fetch group details.
@@ -386,8 +393,9 @@ export default function GroupChatPage() {
         return withFeatureBackend("messaging", {
           supabase: async () => null,
           icp: async (ctx) => {
-            try {
-              const metadata = await getLiveGroupMetadata(ctx, groupId!);
+            if (!groupId) return null;
+              const metadata = await readIcpGroupMetadata(() => getLiveGroupMetadata(ctx, groupId));
+              if (!metadata) return null;
               return {
                 id: metadata.conversationId,
                 name: metadata.name,
@@ -400,12 +408,8 @@ export default function GroupChatPage() {
                 category: null,
                 join_policy: null,
               } as ChatGroup;
-            } catch {
-              // Not yet created on the canister — header/menus fall back gracefully.
-              return null;
-            }
           },
-        }, { conversationId: groupId! });
+        }, groupChatReadScope(queryClient, user?.id, groupId ?? ""));
       }
 
       const { data, error } = await supabase
@@ -416,7 +420,7 @@ export default function GroupChatPage() {
       if (error) throw error;
       return (data as ChatGroup) ?? null;
     },
-    enabled: !!groupId,
+    enabled: !!groupId && authReady,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -476,6 +480,15 @@ export default function GroupChatPage() {
       const { resolveIcpChatAdmin } = await import("@/lib/icpChatAdmin");
       const icp = await resolveIcpChatAdmin({ clubId: group.club_id, teamId: group.team_id, teamRoles: ["team_admin"] });
       if (icp !== null) return icp;
+
+      // Club admins can also rename groups that include members of their
+      // club (server-enforced); mirrors production's UI rule.
+      const { data: canRename } = await (supabase as any).rpc("club_admin_can_rename_group", {
+        _user_id: user!.id,
+        _group_id: group.id,
+        _club_id: group.club_id,
+      });
+      if (canRename) return true;
       
       // Run all role checks in parallel
       const [teamRoleResult, clubRoleResult, appAdminResult] = await Promise.all([
@@ -510,6 +523,30 @@ export default function GroupChatPage() {
     enabled: !!groupId && authReady && !!group && !useIcpLab,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Competition owners/admins can rename that competition's chats (name only).
+  const competitionGroupId = (group as any)?.competition_id as string | null | undefined;
+  const { data: canRenameCompetitionChat } = useQuery({
+    queryKey: ["can-rename-competition-chat", groupId, user?.id],
+    queryFn: async () => {
+      if (resolveAuthBackend() === "icp") {
+        // ICP: the messaging canister answers competition-admin authorization
+        // for this conversation directly.
+        return withFeatureBackend("messaging", {
+          supabase: async () => false,
+          icp: (ctx) => isLiveCompetitionAdmin(ctx, groupId!),
+        }, { conversationId: groupId! });
+      }
+      const { data } = await (supabase.rpc as any)("can_rename_competition_chat", {
+        _user_id: user!.id,
+        _group_id: groupId,
+      });
+      return !!data;
+    },
+    enabled: !!groupId && !!user?.id && !!competitionGroupId,
+    staleTime: 5 * 60 * 1000,
+  });
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
 
   const { isOnline } = useOnlineStatus();
 
@@ -554,6 +591,7 @@ export default function GroupChatPage() {
     openedFromNotificationRef,
     pageSize: MESSAGES_PER_PAGE,
     supabaseClient: supabase,
+    clubId: group?.club_id,
   });
 
   // Scope key for the realtime edit/soft-delete reconciliation registry.
@@ -603,7 +641,9 @@ export default function GroupChatPage() {
 
 
     const fromCache = getCachedGroupMessages(groupId).messages;
-    return isUsableCachedThread(fromCache as any) ? fromCache : undefined;
+    if (isUsableCachedThread(fromCache as any)) return fromCache;
+    // A saved copy of a genuinely empty chat shows "No messages yet" at once.
+    return fromCache.length === 0 && isCachedThreadComplete("group", groupId) ? [] : undefined;
   };
 
 
@@ -683,6 +723,8 @@ export default function GroupChatPage() {
     },
     [applyRealtimeReactionDelete, queryClient, groupId],
   );
+  // A saved copy of a genuinely empty chat paints at once; the read refreshes it.
+  const [savedEmptyThread] = useState(() => !!groupId && isCachedThreadComplete("group", groupId) && getCachedGroupMessages(groupId).messages.length === 0);
   const hasMeaningfulLocal = isUsableCachedThread(localMessages as any);
 
   // Authoritative fetched count (null = query never produced data).
@@ -730,7 +772,9 @@ export default function GroupChatPage() {
       setRecoveryExhausted(false);
       return;
     }
-    const needsRecovery = messagesIsError || fetchedCount === 0;
+    // An empty answer is only suspicious when the inbox shows a message here;
+    // otherwise re-reading a genuinely empty chat just keeps it loading.
+    const needsRecovery = messagesIsError || (fetchedCount === 0 && inboxSaysHasMessage);
     if (!needsRecovery) return;
     if (recoveryTimerRef.current) return;
 
@@ -751,7 +795,7 @@ export default function GroupChatPage() {
         recoveryTimerRef.current = null;
       }
     };
-  }, [groupId, authReady, fetchedCount, messagesIsError, messagesFetchStatus, refetchMessages]);
+  }, [groupId, authReady, fetchedCount, messagesIsError, messagesFetchStatus, refetchMessages, inboxSaysHasMessage]);
 
   useEffect(
     () => () => {
@@ -768,7 +812,7 @@ export default function GroupChatPage() {
     status: messagesStatus,
     fetchStatus: messagesFetchStatus,
     isError: messagesIsError,
-    hasUsableCached: hasMeaningfulLocal,
+    hasUsableCached: hasMeaningfulLocal || (savedEmptyThread && !inboxSaysHasMessage),
     fetchedCount,
     inboxSaysHasMessage,
     recoveryExhausted,
@@ -828,9 +872,16 @@ export default function GroupChatPage() {
   
   // Use fresh profile data that refreshes on visibility change (fixes names vanishing after phone lock)
   const authorIds = useMemo(() => {
-    return [...new Set((localMessages || []).map(m => m.author_id).filter(Boolean))];
-  }, [localMessages]);
-  const { getProfile } = useProfiles(authorIds);
+    return [...new Set([
+      ...(localMessages || []).flatMap(m => [m.author_id, m.forwarded_from_user_id]),
+      ...reactions.map(r => r.user_id),
+    ].filter((id): id is string => !!id))];
+  }, [localMessages, reactions]);
+  const privateChatNames = privateClubNameDisplaysEnabled() && isFeatureRoutedToIcp("messaging");
+  const { getProfile: getLegacyProfile } = useProfiles(privateChatNames ? [] : authorIds);
+  const privateWorkset = useChatProfileWorkset(localMessages ?? [], groupId, user?.id, reactions);
+  const getPrivateProfile = usePrivateChatProfiles(groupId, user?.id, privateWorkset.ids, privateChatNames);
+  const getProfile = privateChatNames ? getPrivateProfile : getLegacyProfile;
   
   // Reset scroll state when groupId changes
   useEffect(() => {
@@ -923,6 +974,7 @@ export default function GroupChatPage() {
 
   // Always ensure profiles are loaded for messages with missing author data
   useEffect(() => {
+    if (privateChatNames) return;
     if (!localMessages?.length) return;
     
     // Find messages with missing profile data
@@ -951,7 +1003,7 @@ export default function GroupChatPage() {
         return updated ? newMessages : prev;
       });
     });
-  }, [localMessages]);
+  }, [localMessages, privateChatNames]);
 
 
   useEffect(() => {
@@ -1096,7 +1148,7 @@ export default function GroupChatPage() {
             : (() => {
                 const poll = /\[poll:([^\]]+)\]/.exec(text);
                 if (poll) return { kind: "poll", refId: poll[1], url: null };
-                const news = /\[news:([^\]]+)\]/.exec(text);
+                const news = /\[news:(?:[0-9a-fA-F-]{36}:)?([^\]]+)\]/.exec(text);
                 if (news) return { kind: "news", refId: news[1], url: null };
                 return null;
               })();
@@ -1108,13 +1160,21 @@ export default function GroupChatPage() {
     },
     onMutate: async ({ text, image_url, reply_to_id }) => {
       const currentProfile = profileRef.current;
-      await queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
+      // Cancel synchronously without holding the next draft behind cancellation.
+      void queryClient.cancelQueries({ queryKey: ["group-messages", groupId] });
 
       // Mutation-specific temp id so overlapping sends roll back independently.
       const tempId = createSendTempId();
       const sentAtMs = Date.now();
       const previousReplyTo = replyTo;
       const { baseText: unsentText, pollId: unsentPollId } = splitPollMarkup(text);
+
+      // Inbox preview + row float show the message while it is still sending.
+      applyPendingInboxPreview(queryClient, "group", user?.id, groupId, { text, image_url: image_url ?? null });
+      if (groupId) {
+        recordOwnSentConversation(`group-${groupId}`);
+        recordOwnSentConversation(`league-${groupId}`);
+      }
 
       const optimisticMessage: GroupMessage = {
         id: tempId,
@@ -1172,6 +1232,9 @@ export default function GroupChatPage() {
         return;
       }
 
+      // The send left the pending preview state either way from here on.
+      settlePendingInboxPreview(queryClient, "group", user?.id, groupId);
+
       // Succeeded-but-errored: the row already arrived via realtime.
       const currentData = queryClient.getQueryData<{ messages: GroupMessage[] }>(["group-messages", groupId]);
       if (authoritativeMessageExists(currentData?.messages, { authorId: user?.id, text: variables.text, imageUrl: variables.image_url ?? null, replyToId: variables.reply_to_id ?? null, sentAtMs: context?.sentAtMs })) {
@@ -1189,6 +1252,7 @@ export default function GroupChatPage() {
         });
         setLocalMessages((prev) => (prev ? prev.filter((m) => m.id !== context.tempId) : prev));
       }
+      discardPendingInboxPreview(queryClient, "group", user?.id, groupId);
 
       restoreFailedSendComposer({
         context,
@@ -1203,6 +1267,16 @@ export default function GroupChatPage() {
     },
 
     onSuccess: (result, variables, context) => {
+      settlePendingInboxPreview(queryClient, "group", user?.id, groupId);
+      if (result?.confirmedMessage) {
+        applyConfirmedInboxPreview(queryClient, "group", user?.id, groupId, result.confirmedMessage);
+        // League chats share this page; only the key that exists in the
+        // inbox matches, so recording both is safe.
+        if (groupId) {
+          recordOwnSentConversation(`group-${groupId}`);
+          recordOwnSentConversation(`league-${groupId}`);
+        }
+      }
       if (result?.confirmedMessage && context?.tempId) {
         confirmPendingSend(queryClient, ["group-messages", groupId], context.tempId, result.confirmedMessage);
         setLocalMessages((prev) => prev?.filter((row) => row.id !== context.tempId));
@@ -1273,7 +1347,8 @@ export default function GroupChatPage() {
         ? (baseText ? `${baseText} [poll:${pendingPollId}]` : `[poll:${pendingPollId}]`)
         : baseText;
       if (pendingNewsId) {
-        finalText = finalText ? `${finalText} [news:${pendingNewsId}]` : `[news:${pendingNewsId}]`;
+        const newsToken = buildNewsShareToken(queryClient, pendingNewsId);
+        finalText = finalText ? `${finalText} ${newsToken}` : newsToken;
       }
       sendMessageMutation.mutate({
         text: finalText,
@@ -1538,6 +1613,19 @@ export default function GroupChatPage() {
     ? `${groupBaseSublabel} · ${groupOnlineCount} online`
     : groupBaseSublabel;
 
+  // The inbox already named this thread, so the header can carry a real title
+  // from the first frame instead of skeleton bars for the whole cold read.
+  // League chats open on this same route, so both label kinds are accepted.
+  const rememberedThreadLabel = getChatThreadLabel(user?.id, ["group", "league"], groupId);
+
+  useEffect(() => {
+    if (!user?.id || !groupId || !group?.name) return;
+    rememberChatThreadLabel(user.id, "group", groupId, {
+      title: group.name,
+      subtitle: groupBaseSublabel,
+    });
+  }, [user?.id, groupId, group?.name, groupBaseSublabel]);
+
   const groupMetadataState = resolveChatMetadataState({
     data: group,
     isLoading: groupLoading,
@@ -1548,7 +1636,13 @@ export default function GroupChatPage() {
   });
 
   if (groupMetadataState === "loading") {
-    return <ChatPageSkeleton />;
+    return (
+      <ChatPageSkeleton
+        title={rememberedThreadLabel?.title}
+        subtitle={rememberedThreadLabel?.subtitle}
+        avatarType="group"
+      />
+    );
   }
 
   if (groupMetadataState === "unreachable") {
@@ -1573,7 +1667,13 @@ export default function GroupChatPage() {
   }
 
   if (!group) {
-    return <ChatPageSkeleton />;
+    return (
+      <ChatPageSkeleton
+        title={rememberedThreadLabel?.title}
+        subtitle={rememberedThreadLabel?.subtitle}
+        avatarType="group"
+      />
+    );
   }
 
 
@@ -1649,7 +1749,13 @@ export default function GroupChatPage() {
               scheduleMessageLocked={!groupClubProLoading && !groupClubHasPro}
               onSummarizeMessages={(!aiCatchUpDisabled && groupClubHasPro) ? () => summarizeTriggerRef.current?.() : undefined}
               summarizeLocked={!groupClubProLoading && !groupClubHasPro}
-              onEditGroup={isAdmin ? () => setShowEditGroupDialog(true) : undefined}
+              onEditGroup={
+                canRenameCompetitionChat
+                  ? () => setShowRenameDialog(true)
+                  : isAdmin
+                    ? () => setShowEditGroupDialog(true)
+                    : undefined
+              }
               onDeleteGroup={(isAdmin || group.created_by === user?.id) ? () => setShowDeleteGroupDialog(true) : undefined}
               onManagePinnedVault={
                 (isAdmin || group.created_by === user?.id)
@@ -1787,7 +1893,7 @@ export default function GroupChatPage() {
       <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden overscroll-none">
         {showLoading ? (
           <p className="text-center text-muted-foreground">Loading messages...</p>
-        ) : (isSearchFetching || (!!searchQuery && !searchCanShowEmpty)) ? (
+        ) : (!!searchQuery.trim() && !filteredMessages?.length && (isSearchFetching || !searchCanShowEmpty)) ? (
           <ChatSearchLoadingState />
         ) : filteredMessages?.length === 0 ? (
           <ChatEmptyState
@@ -1808,6 +1914,8 @@ export default function GroupChatPage() {
             composerHeight={composerHeight}
             currentUserId={user?.id}
             virtualHandleRef={virtualHandleRef}
+            onVisibleMessageIds={privateChatNames ? privateWorkset.onVisibleMessageIds : undefined}
+            privateProfileRevision={privateChatNames ? getPrivateProfile : undefined}
             initialBottomPinned={!targetMessageId}
             initialTargetMessageId={targetMessageId}
             renderRow={(msg, index, arr) => {
@@ -1920,6 +2028,16 @@ export default function GroupChatPage() {
         pollDialogOpen={pollDialogOpen}
         onPollDialogOpenChange={setPollDialogOpen}
       />
+
+      {/* Rename competition chat (name only) */}
+      {canRenameCompetitionChat && group && (
+        <RenameChatGroupDialog
+          groupId={group.id}
+          currentName={group.name}
+          open={showRenameDialog}
+          onOpenChange={setShowRenameDialog}
+        />
+      )}
 
       {/* Edit Group Dialog */}
       {isAdmin && group && (

@@ -9,7 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { readReportPlayerStats, readReportSummary } from "@/features/competitions/history/reportRepository";
 import { useToast } from "@/hooks/use-toast";
 import { openHtmlReport, downloadTextReport } from "@/lib/reportExport";
-import { useReportExtras, playerKey, type PlayerHonours } from "./playerStatsReportExtras";
+import { useReportExtras, playerKey, reportedGoalkeeperMatches, type PlayerHonours } from "./playerStatsReportExtras";
+import { resolveAuthBackend } from "@/live/authBackendMode";
 
 interface PlayerStatsReportViewProps {
   teamId: string;
@@ -74,7 +75,7 @@ export default function PlayerStatsReportView({
         const aggregated = new Map<string, PlayerStat>();
 
         data.forEach((stat: any) => {
-          const key = stat.user_id || stat.fill_in_player_name || stat.id;
+          const key = playerKey(stat.user_id, stat.child_id) || (stat.fill_in_player_name ? `f:${stat.fill_in_player_name}` : `r:${stat.id}`);
           const existing = aggregated.get(key);
 
           if (existing) {
@@ -160,7 +161,7 @@ export default function PlayerStatsReportView({
 
   const honoursFor = (stat: PlayerStat): PlayerHonours => {
     const key = playerKey(stat.user_id, stat.child_id);
-    return (
+    const honours = (
       extras?.honours?.[key] ?? {
         captain: 0,
         pom: 0,
@@ -169,6 +170,9 @@ export default function PlayerStatsReportView({
         gkSeconds: 0,
       }
     );
+    return resolveAuthBackend() === "supabase"
+      ? { ...honours, gkMatches: reportedGoalkeeperMatches(honours) }
+      : honours;
   };
 
   const playerName = (stat: PlayerStat) =>
@@ -355,7 +359,7 @@ export default function PlayerStatsReportView({
                       <td style="text-align: center;">${stat.substitutions_count}</td>
                       <td style="text-align: center;">${honoursFor(stat).captain}</td>
                       <td style="text-align: center;">${honoursFor(stat).pom}</td>
-                      <td style="text-align: center;">${Math.max(honoursFor(stat).gkMatches, honoursFor(stat).gkAppointed)}</td>
+                      <td style="text-align: center;">${honoursFor(stat).gkMatches}</td>
                       <td style="text-align: center;">${formatMinutes(honoursFor(stat).gkSeconds)}</td>
                       ${dateRange
                         ? `<td style="text-align: center;">${stat.games_played ?? 1}</td><td style="text-align: center;">${stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)}</td>`
@@ -445,7 +449,7 @@ export default function PlayerStatsReportView({
         String(stat.substitutions_count),
         String(h.captain),
         String(h.pom),
-        String(Math.max(h.gkMatches, h.gkAppointed)),
+        String(h.gkMatches),
         formatMinutes(h.gkSeconds),
         String(stat.games_played ?? 1),
         String(stat.starts_count ?? (stat.started_on_pitch ? 1 : 0)),
@@ -709,7 +713,7 @@ export default function PlayerStatsReportView({
                   <TableCell className="text-center font-mono">{honoursFor(stat).captain}</TableCell>
                   <TableCell className="text-center font-mono">{honoursFor(stat).pom}</TableCell>
                   <TableCell className="text-center font-mono hidden sm:table-cell">
-                    {Math.max(honoursFor(stat).gkMatches, honoursFor(stat).gkAppointed)}
+                    {honoursFor(stat).gkMatches}
                   </TableCell>
                   <TableCell className="text-center font-mono hidden sm:table-cell">
                     {formatMinutes(honoursFor(stat).gkSeconds)}

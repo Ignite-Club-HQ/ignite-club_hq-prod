@@ -55,6 +55,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { usePitchBoardNotifications } from "@/hooks/usePitchBoardNotifications";
+import { pitchPlayerPositionsQuery, notifyIcpSubstitutionDue } from '@/lib/pitchBoardRepository';
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
 import { writeOnce } from "@/live/clubScope";
@@ -95,8 +96,11 @@ import { usePitchBoardSubSelection } from "./hooks/usePitchBoardSubSelection";
 import { usePitchBoardManualSub } from "./hooks/usePitchBoardManualSub";
 import { usePitchBoardBenchToSub } from "./hooks/usePitchBoardBenchToSub";
 import { usePitchBoardPropSync } from "./hooks/usePitchBoardPropSync";
+import { useIcpSharedPitchBoard } from './hooks/useIcpSharedPitchBoard';
+import { usePitchBoardFormationNotifications } from './hooks/usePitchBoardFormationNotifications';
 import { usePitchBoardPersistence } from "./hooks/usePitchBoardPersistence";
 import { usePitchBoardPlayerBootstrap } from "./hooks/usePitchBoardPlayerBootstrap";
+import { usePitchPlayerDetails } from './hooks/usePitchPlayerDetails';
 import { usePitchBoardLifecycle } from "./hooks/usePitchBoardLifecycle";
 import { usePitchBoardDrawing } from "./hooks/usePitchBoardDrawing";
 import { usePitchBoardPlanRepair } from "./hooks/usePitchBoardPlanRepair";
@@ -185,7 +189,8 @@ const PitchBoardLoading = ({ message = "Loading..." }: { message?: string }) => 
 
 function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs = false, initialRotationSpeed = 1, initialDisablePositionSwaps = false, initialDisableBatchSubs = false, initialRotateGkAtHalftime = true, initialMinutesPerHalf = 10, initialMaxSpreadMinutes = 5, initialTeamSize, initialFormation, readOnly = false, isSubsManager = false, initialLinkedEventId, initialShowMatchHeader = true, initialShowLineupPicker = true, miniLeagueTeams, onUnlinkEvent }: PitchBoardProps) {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const icp = resolveAuthBackend() === 'icp';
   const { pitchBoardNotificationsEnabled } = usePitchBoardNotifications();
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -615,27 +620,6 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
       return () => clearTimeout(timer);
     }
   }, [isMobileLandscape]);
-  // Create database notification which triggers server-side push via database trigger
-  const createSubNotification = useCallback(async (message: string) => {
-    if (!user?.id) return;
-    if (!pitchBoardNotificationsEnabled) return; // Check preference
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: user.id,
-          type: 'substitution',
-          message,
-          related_id: null,
-        });
-      if (error) {
-        console.log('Failed to create notification:', error);
-      }
-    } catch (error) {
-      console.log('Notification creation failed:', error);
-    }
-  }, [user?.id, pitchBoardNotificationsEnabled]);
-
   // Open auto-sub plan dialog with minutes from pitch settings
   const openAutoSubPlanDialog = useCallback((editMode?: boolean) => {
     const isFinished = gameTimerRef.current?.isGameFinished();
@@ -654,30 +638,9 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
   const handleOpenNewPlan = useCallback(() => openAutoSubPlanDialog(false), [openAutoSubPlanDialog]);
   const handleOpenEditPlan = useCallback(() => openAutoSubPlanDialog(true), [openAutoSubPlanDialog]);
 
-  // Fetch team player positions from database with caching
   const { data: teamPlayerPositions } = useQuery({
-    queryKey: ["team-player-positions", teamId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("team_player_positions")
-        .select("*")
-        .eq("team_id", teamId);
-      if (error) throw error;
-      // DB stores preferred_positions as a free-text array; keep only the
-      // four canonical pitch positions so downstream consumers get a typed
-      // PitchPosition[] regardless of legacy row contents.
-      const validPositions: readonly string[] = ["GK", "DEF", "MID", "FWD"];
-      return (data || []).map((row) => ({
-        user_id: row.user_id,
-        child_id: row.child_id,
-        preferred_positions: (row.preferred_positions ?? []).filter(
-          (position): position is PitchPosition => validPositions.includes(position),
-        ),
-        jersey_number: row.jersey_number,
-      }));
-    },
-    staleTime: 30 * 1000, // Refetch after 30s to pick up jersey/position changes
-    gcTime: 10 * 60 * 1000,
+    ...pitchPlayerPositionsQuery(teamId, user?.id, icp),
+    enabled: !!user?.id && !authLoading && !teamId.startsWith('event-group-'),
   });
 
   // linkedEventDetails, opponentName, and the 24h auto-unlink effect now live
@@ -872,6 +835,8 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     return player.teamSide === "a" ? miniLeagueTeams.teamAColor : miniLeagueTeams.teamBColor;
   }, [miniLeagueTeams]);
 
+  usePitchPlayerDetails(teamPlayerPositions, mockMode, setPlayers);
+
   // Substitution feedback effects are isolated from the selection flow.
   const {
     subAnimationPlayers,
@@ -923,6 +888,20 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     pushToUndoHistoryRef: pushToUndoHistoryRef_autoSubs,
     runSubAnimationRef: runSubAnimationRef_autoSubs,
   });
+
+  // A pending slot may render repeatedly; uncertain notification writes never replay.
+  const notifiedSubSlots = useRef(new Map<string, string>());
+  useEffect(() => {
+    if (!icp || authLoading || !user?.id || readOnly || !pitchBoardNotificationsEnabled || !pendingAutoSub) return;
+    const slot = JSON.stringify([user.id, teamId, linkedEventId, pendingAutoSub.half, pendingAutoSub.time,
+      pendingAutoSub.playerOut.id, pendingAutoSub.playerIn.id]);
+    if (notifiedSubSlots.current.has(slot)) return;
+    const key = `pitch-sub-${crypto.randomUUID()}`;
+    notifiedSubSlots.current.set(slot, key);
+    void notifyIcpSubstitutionDue(teamId, linkedEventId, user.id, key).catch(() => {
+      console.warn('Pitch-board reminder could not be queued');
+    });
+  }, [icp, authLoading, user?.id, readOnly, pitchBoardNotificationsEnabled, pendingAutoSub, teamId, linkedEventId]);
 
   // manualSubConfirmOpen + pendingManualSub now live in usePitchBoardManualSub (declared below).
 
@@ -1137,6 +1116,22 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
 
   // handleLineupSkip now lives in usePitchBoardLineup (declared at top).
 
+  useIcpSharedPitchBoard({
+    teamId, userId: user?.id, enabled: icp && !authLoading && hasInitialized, readOnly,
+    apply: snapshot => {
+      const state = snapshot as unknown as import('./types').PitchBoardState;
+      if (Array.isArray(state.players)) setPlayers(state.players);
+      if (state.teamSize) setTeamSize(state.teamSize);
+      if (typeof state.selectedFormation === 'number') setSelectedFormation(state.selectedFormation);
+      if (state.ballPosition) setBallPosition(state.ballPosition);
+      if (Array.isArray(state.autoSubPlan)) setAutoSubPlan(state.autoSubPlan);
+      if (typeof state.autoSubActive === 'boolean') setAutoSubActive(state.autoSubActive);
+      if (typeof state.autoSubPaused === 'boolean') setAutoSubPaused(state.autoSubPaused);
+      if (Array.isArray(state.goals)) setGoals(state.goals);
+      if ('linkedEventId' in state) setLinkedEventId(state.linkedEventId ?? null);
+    },
+  });
+
   // Step 9c — persistence (localStorage debounced save + active_games auto-sub mirror)
   usePitchBoardPersistence({
     hasInitialized,
@@ -1246,6 +1241,11 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     setPortraitSheetOpen,
   });
 
+  const notifyIcpFormationChange = usePitchBoardFormationNotifications({
+    userId: user?.id, teamId, readOnly, linkedEventId,
+    isGameFinished: () => gameTimerRef.current?.isGameFinished() ?? false,
+  });
+
   // Send push notification to team coaches/admins and Subs Manager assignees when formation or team size changes
   const notifyFormationOrSizeChange = useCallback(async (
     changeType: 'formation' | 'team_size', 
@@ -1258,51 +1258,8 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     // Notify whenever formation changes (during setup or active game), skip only for read-only or finished games
     if (!user?.id || readOnly || gameTimerRef.current?.isGameFinished()) return;
 
-    // ICP: team role grants (club_domain) stand in for user_roles/duties;
-    // event-group (mini-league) match duties have no canister equivalent yet,
-    // so only regular team boards notify under ICP.
-    if (resolveAuthBackend() === "icp") {
-      if (teamId.startsWith("event-group-")) return;
-      try {
-        await withFeatureBackend("membership", {
-          supabase: async () => {},
-          icp: async (ctx) => {
-            const grants = await listLiveTeamRoleGrants(ctx, teamId);
-            const recipientIds = new Set<string>([user.id]);
-            (grants as Array<{ role: string; account_id: string }>).forEach((grant) => {
-              if ((grant.role === "coach" || grant.role === "team_admin") && grant.account_id) {
-                recipientIds.add(grant.account_id);
-              }
-            });
-            const changeParts: string[] = [];
-            if (changeDetails) {
-              const benchExits = changeDetails.benchMoves.filter(m => m.direction === "to-bench");
-              const pitchEntries = changeDetails.benchMoves.filter(m => m.direction === "to-pitch");
-              if (benchExits.length > 0) changeParts.push(`📤 Off: ${benchExits.map(m => m.player.name).join(", ")}`);
-              if (pitchEntries.length > 0) changeParts.push(`📥 On: ${pitchEntries.map(m => `${m.player.name} (${m.position || ""})`).join(", ")}`);
-              if (changeDetails.positionSwaps.length > 0) {
-                changeParts.push(`🔄 Moved: ${changeDetails.positionSwaps.map(s => `${s.player.name} ${s.fromPosition}→${s.toPosition}`).join(", ")}`);
-              }
-            }
-            const baseSummary = changeType === 'formation'
-              ? `Formation changed to ${detail}`
-              : `Team size changed to ${detail} players`;
-            const notificationMessage = changeParts.length > 0
-              ? `${baseSummary} — ${changeParts.join(" • ")}`
-              : baseSummary;
-            await fanOutLiveNotifications(ctx, {
-              userIds: Array.from(recipientIds),
-              clubId: teamId,
-              kind: "formation_change",
-              body: notificationMessage,
-              idempotencyKeyPrefix: `formation-${teamId}-${Date.now()}`,
-              relatedId: teamId,
-            });
-          },
-        }, writeOnce({ teamId: teamId! }));
-      } catch (error) {
-        console.error("Failed to send ICP formation change notification:", error);
-      }
+    if (resolveAuthBackend() === 'icp') {
+      await notifyIcpFormationChange(changeType, detail);
       return;
     }
     try {
@@ -1402,7 +1359,7 @@ function PitchBoardInner({ teamId, teamName, members, onClose, disableAutoSubs =
     } catch (e) {
       console.error("Failed to send formation change notification:", e);
     }
-  }, [user?.id, teamId, teamName, readOnly, linkedEventId]);
+  }, [user?.id, teamId, teamName, readOnly, linkedEventId, notifyIcpFormationChange]);
 
   // applyFormationChange now lives in usePitchBoardLineup (declared at top).
 

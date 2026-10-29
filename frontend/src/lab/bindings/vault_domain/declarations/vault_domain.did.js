@@ -57,6 +57,14 @@ export const idlFactory = ({ IDL }) => {
     'created_by' : IDL.Principal,
     'created_at_ms' : IDL.Nat64,
   });
+  const BackupSummary = IDL.Record({
+    'id' : IDL.Text,
+    'backup_label' : IDL.Text,
+    'created_by' : IDL.Principal,
+    'created_at_ms' : IDL.Nat64,
+    'file_count' : IDL.Nat,
+    'folder_count' : IDL.Nat,
+  });
   const PinnedVault = IDL.Record({
     'root_id' : IDL.Opt(IDL.Text),
     'root_scope' : IDL.Opt(IDL.Text),
@@ -68,14 +76,6 @@ export const idlFactory = ({ IDL }) => {
     'chat_id' : IDL.Text,
     'vault_file_id' : IDL.Opt(IDL.Text),
     'chat_type' : IDL.Text,
-  });
-  const BackupSummary = IDL.Record({
-    'id' : IDL.Text,
-    'backup_label' : IDL.Text,
-    'created_by' : IDL.Principal,
-    'created_at_ms' : IDL.Nat64,
-    'file_count' : IDL.Nat,
-    'folder_count' : IDL.Nat,
   });
   const VaultFileWithFolder = IDL.Record({
     'folder_name' : IDL.Opt(IDL.Text),
@@ -93,6 +93,25 @@ export const idlFactory = ({ IDL }) => {
     'request' : Request,
     'receiver' : IDL.Principal,
   });
+  const BackupPage = IDL.Record({
+    'files' : IDL.Vec(VaultFile),
+    'next' : IDL.Opt(IDL.Nat),
+    'offset' : IDL.Nat,
+    'folders' : IDL.Vec(VaultFolder),
+    'summary' : BackupSummary,
+    'revision' : IDL.Nat,
+  });
+  const CleanupRecord = IDL.Record({
+    'club' : IDL.Text,
+    'team' : IDL.Opt(IDL.Text),
+    'blob_ref' : BlobRef,
+    'state' : IDL.Variant({
+      'pending' : IDL.Null,
+      'erased' : IDL.Null,
+      'complete' : IDL.Null,
+    }),
+    'competition' : IDL.Opt(IDL.Text),
+  });
   const Reference = IDL.Record({
     'url' : IDL.Text,
     'path' : IDL.Opt(IDL.Text),
@@ -106,7 +125,23 @@ export const idlFactory = ({ IDL }) => {
     'scanned' : IDL.Nat,
     'revision' : IDL.Nat,
   });
+  const Intent = IDL.Record({ 'file' : VaultFile, 'ready' : IDL.Bool });
   const Main = IDL.Service({
+    'acknowledge_file_upload' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'begin_file_cleanup' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : VaultFile, 'Err' : IDL.Text })],
+        [],
+      ),
+    'begin_file_upload' : IDL.Func(
+        [VaultFile],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'clear_pinned_vault' : IDL.Func(
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -115,6 +150,11 @@ export const idlFactory = ({ IDL }) => {
     'create_backup' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : Backup, 'Err' : IDL.Text })],
+        [],
+      ),
+    'create_backup_summary' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : BackupSummary, 'Err' : IDL.Text })],
         [],
       ),
     'create_folder' : IDL.Func(
@@ -174,6 +214,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Opt(VaultFolder), 'Err' : IDL.Text })],
         ['query'],
+      ),
+    'get_gallery_copy' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Opt(VaultFile), 'Err' : IDL.Text })],
+        [],
       ),
     'get_pinned_vault' : IDL.Func(
         [IDL.Text, IDL.Text],
@@ -276,6 +321,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : VaultFile, 'Err' : IDL.Text })],
         [],
       ),
+    'move_file_to_root' : IDL.Func(
+        [IDL.Text, IDL.Opt(IDL.Text)],
+        [IDL.Variant({ 'Ok' : VaultFile, 'Err' : IDL.Text })],
+        [],
+      ),
     'prepare_account_removal' : IDL.Func(
         [Request],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -371,6 +421,24 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : Receipt, 'Err' : IDL.Text })],
         [],
       ),
+    'read_backup_page' : IDL.Func(
+        [IDL.Text, IDL.Nat, IDL.Opt(IDL.Nat)],
+        [IDL.Variant({ 'Ok' : BackupPage, 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_cleanup_page' : IDL.Func(
+        [IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'next' : IDL.Opt(IDL.Text),
+              'items' : IDL.Vec(IDL.Tuple(IDL.Text, CleanupRecord)),
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'read_club_media_references' : IDL.Func(
         [IDL.Text, IDL.Nat, IDL.Opt(IDL.Nat)],
         [IDL.Variant({ 'Ok' : Page, 'Err' : IDL.Text })],
@@ -381,9 +449,60 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
         [],
       ),
+    'read_my_upload_intent' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : Intent, 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_my_upload_page' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'ids' : IDL.Vec(IDL.Text),
+              'next' : IDL.Opt(IDL.Text),
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'read_resource_club' : IDL.Func(
         [IDL.Text, IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Opt(IDL.Text), 'Err' : IDL.Text })],
+        [],
+      ),
+    'read_vault_file_page' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Opt(IDL.Text),
+          IDL.Bool,
+          IDL.Nat,
+          IDL.Opt(IDL.Nat),
+        ],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'next' : IDL.Opt(IDL.Nat),
+              'items' : IDL.Vec(VaultFileWithFolder),
+              'revision' : IDL.Nat,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
+    'reconcile_erased_file' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'recover_file_upload' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : VaultFile, 'Err' : IDL.Text })],
         [],
       ),
     'register_file' : IDL.Func(
@@ -404,6 +523,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : VaultFile, 'Err' : IDL.Text })],
         [],
       ),
+    'register_gallery_copy' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Nat64, IDL.Text, BlobRef],
+        [IDL.Variant({ 'Ok' : VaultFile, 'Err' : IDL.Text })],
+        [],
+      ),
     'rekey_principal' : IDL.Func(
         [IDL.Principal, IDL.Principal, IDL.Bool],
         [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
@@ -419,9 +543,29 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'restore_backup_page' : IDL.Func(
+        [IDL.Text, IDL.Nat],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'skipped' : IDL.Nat,
+              'next' : IDL.Nat,
+              'complete' : IDL.Bool,
+              'restored' : IDL.Nat,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
     'restore_file' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : VaultFile, 'Err' : IDL.Text })],
+        [],
+      ),
+    'resume_file_cleanup' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
     'seal_account_removal' : IDL.Func(
@@ -435,6 +579,16 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'set_competition_domain_canister' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'set_gallery_media_authority' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'set_messaging_domain_canister' : IDL.Func(
         [IDL.Principal],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
@@ -458,6 +612,16 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'set_vault_stores' : IDL.Func(
+        [IDL.Vec(IDL.Principal)],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'sweep_vault_lifecycle' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'transfer_governorship' : IDL.Func(
         [IDL.Principal],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -466,6 +630,11 @@ export const idlFactory = ({ IDL }) => {
     'trash_file' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : VaultFile, 'Err' : IDL.Text })],
+        [],
+      ),
+    'trash_gallery_copy' : IDL.Func(
+        [IDL.Principal, IDL.Text, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Bool, 'Err' : IDL.Text })],
         [],
       ),
     'update_folder' : IDL.Func(

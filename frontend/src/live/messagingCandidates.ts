@@ -2,6 +2,7 @@ import { Principal } from "@icp-sdk/core/principal";
 import type { FeatureBackendContext } from "./featureRouter";
 import { listLiveRoleGrants } from "./features/membership";
 import { getCachedIcpIdentityProfile } from "./identityProfileCache";
+import { withReadDeadline } from "./readDeadline";
 
 /**
  * Shared candidate-resolution helper for the messaging "pick people" dialogs
@@ -47,6 +48,24 @@ export function shortPrincipalLabel(principalText: string): string {
  * excluding the caller and anyone in `excludeIds` (e.g. existing group
  * participants). Safe to call with an empty `clubIds` list — returns [].
  */
+// Each club roster read is a consensus call with an account check (seconds on
+// mainnet). The Messages inbox already reads it when it opens, so remember the
+// answer briefly (memory only) and let New Message / group pickers reuse it.
+const ROSTER_TTL_MS = 3 * 60_000;
+const rosterMemo = new Map<string, { at: number; read: Promise<Awaited<ReturnType<typeof listLiveRoleGrants>>> }>();
+function rememberedRoleGrants(ctx: FeatureBackendContext, caller: string, clubId: string) {
+  const key = JSON.stringify([caller, ctx.target.host, ctx.target.networkKind,
+    Object.entries(ctx.target.canisterIds).sort(([a], [b]) => a.localeCompare(b)), clubId]);
+  const hit = rosterMemo.get(key);
+  if (hit && Date.now() - hit.at < ROSTER_TTL_MS) return hit.read;
+  const read = withReadDeadline(listLiveRoleGrants(ctx, clubId), "Club members", 20_000);
+  rosterMemo.set(key, { at: Date.now(), read });
+  read.catch(() => { if (rosterMemo.get(key)?.read === read) rosterMemo.delete(key); });
+  if (rosterMemo.size > 50) rosterMemo.delete(rosterMemo.keys().next().value as string);
+  return read;
+}
+export function __resetMessagingRosterMemo() { rosterMemo.clear(); }
+
 export async function fetchLiveMessagingCandidates(
   ctx: FeatureBackendContext,
   clubIds: string[],
@@ -57,7 +76,7 @@ export async function fetchLiveMessagingCandidates(
 
   const selfText = ctx.identity.getPrincipal().toText();
   const grantLists = await Promise.all(
-    uniqueClubIds.map((clubId) => listLiveRoleGrants(ctx, clubId)),
+    uniqueClubIds.map((clubId) => rememberedRoleGrants(ctx, selfText, clubId)),
   );
 
   const byAccount = new Map<string, LiveMessagingCandidateRole[]>();

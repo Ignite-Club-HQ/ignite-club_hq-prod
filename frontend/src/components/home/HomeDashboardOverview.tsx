@@ -2,6 +2,7 @@ import { Suspense, type ComponentProps } from "react";
 import { ChevronRight, FolderOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactClubButton } from "@/components/ContactClubButton";
+import { ContactCompetitionAdminsList } from "@/components/competitions/ContactCompetitionAdminsButton";
 import { HomeQuickActionsFab } from "@/components/HomeQuickActionsFab";
 import { MiniLeagueGameWidgets } from "@/components/MiniLeagueGameWidgets";
 import { NextUpCarousel } from "@/components/NextUpCarousel";
@@ -43,6 +44,7 @@ interface HomeDashboardRole {
 
 interface HomeDashboardOverviewProps {
   firstName: string;
+  namePending?: boolean;
   email?: string;
   activeClubName: string | null;
   activeClubFilter: string | null;
@@ -74,6 +76,7 @@ interface HomeDashboardOverviewProps {
 
 export function HomeDashboardOverview({
   firstName,
+  namePending = false,
   email,
   activeClubName,
   activeClubFilter,
@@ -116,7 +119,18 @@ export function HomeDashboardOverview({
       <div className="px-1 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold text-foreground">
-            Welcome, {firstName}! 👋
+            {namePending ? (
+              <span className="inline-flex items-center gap-2">
+                Welcome,
+                <span
+                  className="inline-block h-6 w-24 animate-pulse rounded-md bg-muted"
+                  aria-label="Loading your name"
+                />
+                ! 👋
+              </span>
+            ) : (
+              <>Welcome{firstName ? `, ${firstName}` : ""}! 👋</>
+            )}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Here's what's coming up
@@ -255,6 +269,7 @@ export function HomeDashboardOverview({
           </LazyMount>
           <LazyMount minHeight={48}>
             <ContactClubButton clubFilter={activeClubFilter} compact />
+            <ContactCompetitionAdminsList clubFilter={activeClubFilter} compact />
           </LazyMount>
         </>
       )}

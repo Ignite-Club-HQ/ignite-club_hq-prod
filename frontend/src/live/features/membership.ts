@@ -1,9 +1,11 @@
+import { afterMembershipAcknowledgement } from "../roleGrantsMemo";
 import type { Principal } from "@icp-sdk/core/principal";
 import { connectLiveClubDomain } from "../domains";
 import { fetchMyRoleGrantsEverywhere } from "./myRoleGrants";
 import { connectLiveIdentityAccessClientWithIdentity } from "../identityAccess";
 import type { FeatureBackendContext } from "../featureRouter";
 import { candidOpt, unwrapCandid } from "./candid";
+import { privateProfileSearchRehearsalEnabled } from "../privateProfileSearchMode";
 import {
   getLiveTeam,
   listLiveClubs,
@@ -89,10 +91,10 @@ export async function addLiveRoleGrant(
   team?: string | null,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return afterMembershipAcknowledgement(unwrapCandid(
     actor.add_role_grant(user, club, role, candidOpt(team)),
     "Add role grant",
-  );
+  ));
 }
 
 export async function removeLiveRoleGrant(
@@ -103,10 +105,10 @@ export async function removeLiveRoleGrant(
   team?: string | null,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(
+  return afterMembershipAcknowledgement(unwrapCandid(
     actor.remove_role_grant(user, club, role, candidOpt(team)),
     "Remove role grant",
-  );
+  ));
 }
 
 /** Removes every role grant a member holds in a club (all teams included). */
@@ -116,7 +118,7 @@ export async function removeLiveMember(
   user: Principal,
 ) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.remove_member(club, user), "Remove member");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.remove_member(club, user), "Remove member"));
 }
 
 /**
@@ -144,7 +146,7 @@ export async function listLiveRoleRequests(ctx: FeatureBackendContext, club: str
 
 export async function approveLiveRoleRequest(ctx: FeatureBackendContext, id: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.approve_role_request(id), "Approve role request");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.approve_role_request(id), "Approve role request"));
 }
 
 export async function rejectLiveRoleRequest(ctx: FeatureBackendContext, id: string) {
@@ -161,7 +163,7 @@ export async function rejectLiveRoleRequest(ctx: FeatureBackendContext, id: stri
  */
 export async function acceptLiveMembershipPendingInvite(ctx: FeatureBackendContext, inviteId: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_pending_invite(inviteId), "Accept pending invite"));
 }
 
 /**
@@ -203,7 +205,7 @@ export async function getLiveTeamInvite(ctx: FeatureBackendContext, id: string) 
 
 export async function acceptLiveTeamInvite(ctx: FeatureBackendContext, id: string) {
   const { actor } = await connectLiveClubDomain(ctx.target, ctx.identity);
-  return unwrapCandid(actor.accept_team_invite(id), "Accept team invite");
+  return afterMembershipAcknowledgement(unwrapCandid(actor.accept_team_invite(id), "Accept team invite"));
 }
 
 export async function revokeLiveTeamInvite(ctx: FeatureBackendContext, id: string) {
@@ -237,10 +239,26 @@ export async function searchLiveInvitableProfiles(
   ctx: FeatureBackendContext,
   query: string,
   limit = 10,
+  scope?: { clubId: string; signal?: AbortSignal; privateAuthorityBinding?: import("../accountAuthorityRegistry").AccountRegistryBinding },
 ) {
+  if (!scope?.clubId?.trim()) throw new Error("A specific club is required for member search.");
+  if (privateProfileSearchRehearsalEnabled()) {
+    const { searchScopedClubProfiles } = await import("../scopedProfileSearch");
+    const { readPrivateProfileEvidence } = await import('../privateProfileEvidence');
+    const evidence = await readPrivateProfileEvidence(ctx, scope.privateAuthorityBinding);
+    if (evidence) {
+      const { createLivePrivateProfileAuthorityResolver } = await import("../privateProfileAuthority");
+      return searchScopedClubProfiles(ctx, scope.clubId, query, limit, scope.signal, createLivePrivateProfileAuthorityResolver(ctx, evidence));
+    }
+    return searchScopedClubProfiles(ctx, scope.clubId, query, limit, scope.signal);
+  }
+  // Explicit transitional mode, not a fallback after a failed scoped read.
+  // Keep existing production names/search until the coordinated release.
   const { client } = await connectLiveIdentityAccessClientWithIdentity(ctx.target, ctx.identity);
   try {
+    if (scope.signal?.aborted) throw new Error("Member search cancelled.");
     const results = await client.searchProfiles(query.trim(), limit);
+    if (scope.signal?.aborted) throw new Error("Member search cancelled.");
     return results.map((r) => ({
       id: r.principal.toText(),
       account_id: r.account_id,

@@ -7,6 +7,8 @@ import type { FeatureBackendContext } from './featureRouter';
 import { openGroupSession, type GroupRegistry } from './groupSession';
 import { GROUP_DOMAINS, type GroupDomain } from './groupRouting';
 import type { EntityKind } from './groupDispatch';
+import { membershipTransport } from './membershipTransport';
+import { MEMBERSHIP_LOOKUP_RELEASE_ENABLED, releasedMembershipDirectoryReader } from './membershipDirectoryLive';
 
 export async function openLiveGroupReadSession(ctx: FeatureBackendContext, ownerGroupId?: 'g2') {
   const { connectLiveShardRouter, connectLiveClubDomain } = await import('./domains');
@@ -14,7 +16,11 @@ export async function openLiveGroupReadSession(ctx: FeatureBackendContext, owner
   // The router filters by its on-chain deployment name; the frontend's own
   // target alias is a different, local name for the same deployment.
   const routerAlias = ownerGroupId ? ctx.target.alias : (generalRoutingDeploymentAlias() ?? ctx.target.alias);
-  return openGroupSession(ctx, {
+  // Groups carry the router's on-chain deployment name; the frontend's own
+  // target alias is a different, local name for the same deployment. Routing
+  // must bind to the on-chain name or every resolve rejects as foreign.
+  let onChainAlias: string | undefined;
+  return openGroupSession(ctx, membershipTransport({
     async readRegistry(): Promise<GroupRegistry> {
       const principal = ctx.identity.getPrincipal().toText();
       const snapshot = await readPinnedGroupRegistry((revision, cursor, limit) => router.read_group_registry_page(routerAlias, revision, cursor, limit), undefined,
@@ -34,6 +40,8 @@ export async function openLiveGroupReadSession(ctx: FeatureBackendContext, owner
         snapshot.groups = snapshot.groups.filter(g => g.id === ownerGroupId);
         snapshot.placements = snapshot.placements.filter(p => p.group_id === ownerGroupId);
       }
+      onChainAlias = snapshot.groups[0]?.target_alias;
+      if (!onChainAlias || snapshot.groups.some(g => g.target_alias !== onChainAlias)) throw new Error('Mixed group deployment aliases');
       const first = snapshot.placements[0];
       if (!first) throw new Error('No complete group placement');
       for (const p of snapshot.placements) {
@@ -48,7 +56,7 @@ export async function openLiveGroupReadSession(ctx: FeatureBackendContext, owner
           if (!(GROUP_DOMAINS as readonly string[]).includes(d.domain)) throw new Error('Unknown group domain');
           return { domain: d.domain as GroupDomain, canisterId: d.canister.toText() };
         }), photoStore: g.photo_store?.[0]?.toText() })),
-        deployment: { id: first.deployment_id, alias: ctx.target.alias, networkKind: first.network_kind, host: first.host,
+        deployment: { id: first.deployment_id, alias: onChainAlias, networkKind: first.network_kind, host: first.host,
           revision: first.deployment_revision, enabled: true, additionalSubnetsEnabled: first.additional_subnets_enabled,
           primarySubnet: first.primary_subnet.toText(), approvedSubnets: first.approved_subnets.map(s => s.toText()) },
         bindings: snapshot.placements.map(p => ({ groupId: p.group_id, deploymentId: p.deployment_id, deploymentRevision: p.deployment_revision,
@@ -57,6 +65,13 @@ export async function openLiveGroupReadSession(ctx: FeatureBackendContext, owner
             return { domain: d.domain as GroupDomain, canisterId: d.canister.toText(), subnetId: d.subnet.toText() };
           }) })),
       };
+    },
+    deploymentAlias: () => onChainAlias,
+    async readLegacyMemberships(context, offset, limit) {
+      const { actor } = await connectLiveClubDomain(context.target, context.identity);
+      const reply = await actor.read_my_club_memberships(offset, limit);
+      if ('Err' in reply) throw new Error(reply.Err);
+      return { clubs: reply.Ok.clubs, next: reply.Ok.next[0] ?? null, aclRevision: reply.Ok.acl_revision };
     },
     async readMemberships(context, offset, limit) {
       const { actor } = await connectLiveClubDomain(context.target, context.identity);
@@ -85,7 +100,7 @@ export async function openLiveGroupReadSession(ctx: FeatureBackendContext, owner
       if ('Err' in reply) throw new Error(reply.Err);
       return { clubId: reply.Ok.club_id, groupId: reply.Ok.group_id, revision: reply.Ok.revision };
     },
-  });
+  }, { enabled: MEMBERSHIP_LOOKUP_RELEASE_ENABLED && !ownerGroupId, read: releasedMembershipDirectoryReader() }));
 }
 /** Which club owns an event, chat or team in this group's canister (null = not held here). */
 export async function lookupEntityClub(ctx: FeatureBackendContext, kind: EntityKind, id: string): Promise<string | null> {
@@ -95,7 +110,6 @@ export async function lookupEntityClub(ctx: FeatureBackendContext, kind: EntityK
     const { listMyLiveMiniLeagues } = await import('./features/miniLeagues');
     const [clubs, leagues] = await Promise.all([listLiveMembershipClubs(ctx), listMyLiveMiniLeagues(ctx)]);
     const ids = [...new Set([...clubs.map(c => c.id), ...leagues.map(l => l.club_id)])];
-    if (!ids.length) return null;
     return (await listLiveNewsMulti(ctx, ids)).find(p => p.id === id)?.club_id ?? null;
   }
   if (kind === 'photo' || kind === 'galleryCard') {
@@ -152,6 +166,7 @@ export async function groupHoldsInvite(ctx: FeatureBackendContext, token: string
   }
   const c = await import('./features/club');
   const probes: Array<() => Promise<unknown>> = [
+    ...(token.startsWith('tinv-') ? [async () => (await import('./features/membership')).getLiveTeamInvite(ctx, token)] : []),
     () => c.getLivePendingInvite(ctx, token),
     () => c.getLiveParentInvite(ctx, token),
     () => c.getLiveTeamInviteLinkByToken(ctx, token),

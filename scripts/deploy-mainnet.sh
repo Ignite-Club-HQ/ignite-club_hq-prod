@@ -22,7 +22,7 @@ export GOVERNOR
 DEPLOY_TARGET="${DEPLOY_TARGET:-mainnet}"
 ICP_ENV="${ICP_ENV:-ic}"
 DEPLOY_SCOPE="${DEPLOY_SCOPE:-all}"
-case "$DEPLOY_SCOPE" in all|history) ;; *) echo "ERROR: unsupported deployment scope"; exit 1;; esac
+case "$DEPLOY_SCOPE" in all|history|router) ;; *) echo "ERROR: unsupported deployment scope"; exit 1;; esac
 PROJECT_DIR="$(cd "$(dirname "$0")/../deploy/$DEPLOY_TARGET" && pwd)"
 IDS_JSON="$PROJECT_DIR/.icp/data/mappings/$ICP_ENV.ids.json"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -55,6 +55,15 @@ if [ "$CURRENT" != "$GOVERNOR" ]; then
   echo "       timer_jobs.initialize() and the wiring calls must come from the governor."
   echo "       Switch to the governor identity (icp identity default <name>) and re-run."
   exit 1
+fi
+
+if [ "$DEPLOY_SCOPE" = router ]; then
+  [ "$DEPLOY_TARGET" = mainnet ] && [ "$ICP_ENV" = ic ] || { echo "ERROR: Router upgrade requires mapped mainnet"; exit 1; }
+  node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('$IDS_JSON','utf8'));if(m.shard_router!=='jcdfe-vqaaa-aaaal-qxloq-cai')process.exit(1)"
+  echo "==> Upgrading only the existing shared router; no creation or service rewiring"
+  icp deploy shard_router -e "$ICP_ENV" -y --mode upgrade --no-create
+  echo "==> Router-only upgrade complete; run snapshot, sync and publish before creating clubs"
+  exit 0
 fi
 
 if [ -f "$IDS_JSON" ] && node -e "const m=require('$IDS_JSON');process.exit(m.pii_access_control ? 0 : 1)"; then
@@ -99,6 +108,7 @@ EVENTS_DOMAIN="$(cid events_domain)"
 COMPETITION_DOMAIN="$(cid competition_domain)"
 MINI_LEAGUE_DOMAIN="$(cid mini_league_domain)"
 VAULT_DOMAIN="$(cid vault_domain)"
+MEDIA_METADATA="$(cid media_metadata)"
 PII_ACCESS_CONTROL="$(cid pii_access_control)"
 IDENTITY_ACCESS="$(cid identity_access)"
 
@@ -114,6 +124,13 @@ icp canister call pii_access_control set_club_domain_canister "(principal \"$CLU
 icp canister call pii_access_control set_competition_domain_canister "(principal \"$COMPETITION_DOMAIN\")" -e "$ICP_ENV"
 icp canister call vault_domain set_club_domain_canister "(principal \"$CLUB_DOMAIN\")" -e "$ICP_ENV"
 icp canister call club_points_domain set_club_domain_canister "(principal \"$CLUB_DOMAIN\")" -e "$ICP_ENV"
+
+echo "==> Wiring: gallery authorities (metadata -> club/Vault)"
+icp canister call media_metadata set_gallery_authorities "(principal \"$CLUB_DOMAIN\", principal \"$VAULT_DOMAIN\")" -e "$ICP_ENV"
+icp canister call club_domain set_gallery_media_authority "(principal \"$MEDIA_METADATA\")" -e "$ICP_ENV"
+icp canister call vault_domain set_messaging_domain_canister "(principal \"$MESSAGING_DOMAIN\")" -e "$ICP_ENV"
+icp canister call messaging_domain set_vault_domain_canister "(principal \"$VAULT_DOMAIN\")" -e "$ICP_ENV"
+icp canister call vault_domain set_gallery_media_authority "(principal \"$MEDIA_METADATA\")" -e "$ICP_ENV"
 
 echo "==> Wiring: messaging_domain <-> notification_queue"
 icp canister call messaging_domain set_notification_queue_canister "(principal \"$NOTIFICATION_QUEUE\")" -e "$ICP_ENV"
@@ -146,13 +163,18 @@ fi
 
 echo "==> Wiring: media_blob_store -> club_domain"
 icp canister call media_blob_store set_club_domain_canister "(principal \"$CLUB_DOMAIN\")" -e "$ICP_ENV"
+icp canister call media_blob_store set_vault_authority "(principal \"$VAULT_DOMAIN\")" -e "$ICP_ENV"
 # Photo-store shards (media_blob_store_2, _3, …) get the same wiring. Each
 # shard is its own canister entry in icp.yaml built from the media_blob_store
 # source with GOVERNOR_PRINCIPAL set; register its ID in Placement Settings.
 for SHARD in $(node -e "const m=require('$IDS_JSON');console.log(Object.keys(m).filter(k=>/^media_blob_store_\\d+$/.test(k)).join(' '))"); do
   echo "==> Wiring: $SHARD -> club_domain"
   icp canister call "$SHARD" set_club_domain_canister "(principal \"$CLUB_DOMAIN\")" -e "$ICP_ENV"
+  icp canister call "$SHARD" set_vault_authority "(principal \"$VAULT_DOMAIN\")" -e "$ICP_ENV"
 done
+
+VAULT_STORES="$(node -e "const m=require('$IDS_JSON');console.log(Object.keys(m).filter(k=>/^media_blob_store(_\\d+)?$/.test(k)).map(k=>'principal \"'+m[k]+'\"').join('; '))")"
+icp canister call vault_domain set_vault_stores "(vec { $VAULT_STORES })" -e "$ICP_ENV"
 
 echo "==> Wiring: permanent-delete fan-out (club_domain -> events/messaging/pii, events/messaging <- club_domain)"
 # Without these, club_domain skips cross-canister cleanup (local purge still

@@ -151,6 +151,9 @@ export interface _SERVICE {
    */
   'cycles_balance' : ActorMethod<[], bigint>,
   'delete_blob' : ActorMethod<[string], Result>,
+  'delete_erased_scope_vault_blob' : ActorMethod<[string, string], Result>,
+  'delete_expired_vault_blob' : ActorMethod<[string, string], Result>,
+  'delete_vault_blob' : ActorMethod<[Principal, string, string], Result>,
   'enable_retained_media_quota' : ActorMethod<[], Result>,
   'enable_shared_media_quota' : ActorMethod<[], Result>,
   'enable_stable_media_storage' : ActorMethod<[], Result>,
@@ -250,6 +253,13 @@ export interface _SERVICE {
       } |
       { 'Err' : string }
   >,
+  'read_vault_blob_evidence' : ActorMethod<
+    [Principal, string],
+    {
+        'Ok' : { 'owner' : Principal, 'content_hash' : string, 'size' : bigint }
+      } |
+      { 'Err' : string }
+  >,
   'reconcile_retained_deletions' : ActorMethod<
     [string],
     { 'Ok' : { 'attempted' : bigint, 'cursor' : string } } |
@@ -282,6 +292,7 @@ export interface _SERVICE {
     [string, boolean, [] | [bigint]],
     Result
   >,
+  'set_vault_authority' : ActorMethod<[Principal], Result>,
   'stable_storage_status' : ActorMethod<
     [],
     {

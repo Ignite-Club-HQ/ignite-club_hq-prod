@@ -8,10 +8,11 @@ export const GROUP2_FUEL_FLOOR = 1_000_000_000_000n;
  * admission/removal checks on every group service, so it alone may stay set
  * through upgrades. Any other LOCAL_REHEARSAL flag remains forbidden. */
 export const ADMISSION_RELEASE_FLAG = 'IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL';
-export function validateGroup2Inventory(provision, shared) {
-  if (provision.groupId !== 'g2' || provision.deploymentId !== 'mainnet' || provision.phase !== 'checked' || provision.pending ||
+export function validateGroup2Inventory(provision, shared, groupId = 'g2') {
+  if (!/^g[1-9][0-9]{0,2}$/.test(groupId) || groupId === 'g1') throw new Error('New group id (g2 or later) required');
+  if (provision.groupId !== groupId || provision.deploymentId !== 'mainnet' || provision.phase !== 'checked' || provision.pending ||
       !provision.dedicatedBlobStore?.installed || provision.dedicatedBlobStore.subnetId !== provision.subnetId ||
-      !provision.configuration?.completed?.length) throw new Error('Complete checked g2 provision required');
+      !provision.configuration?.completed?.length) throw new Error(`Complete checked ${groupId} provision required`);
   const domains = GROUP_BUILD_SERVICES.filter(n => n !== 'media_blob_store');
   if (Object.keys(provision.canisters).length !== 12 || provision.installedDomains.length !== 12 ||
       domains.some(n => !provision.installedDomains.includes(n))) throw new Error('Exact twelve installed domains required');
@@ -21,7 +22,7 @@ export function validateGroup2Inventory(provision, shared) {
   const sharedIds = Object.values(shared).flatMap(x => typeof x === 'string' ? [x] : Object.values(x ?? {}));
   if (new Set(services.map(s => s.canisterId)).size !== 13 || services.some(s =>
     typeof s.canisterId !== 'string' || !s.canisterId || s.subnetId !== provision.subnetId || sharedIds.includes(s.canisterId)))
-    throw new Error('Unique g2-only canisters on the approved subnet required');
+    throw new Error(`Unique ${groupId}-only canisters on the approved subnet required`);
   return services;
 }
 export function wasmHash(bytes) {
@@ -37,7 +38,7 @@ export function verifyUpgradeStatus(service, actual, governor, expectedHash) {
   if (actual.subnetId !== service.subnetId) fail(`subnet mismatch (expected ${service.subnetId}, found ${actual.subnetId})`);
   if (!/^[a-f0-9]{64}$/.test(actual.moduleHash ?? '')) fail('module hash missing or invalid');
   if (actual.cycles < GROUP2_FUEL_FLOOR)
-    fail(`fuel under the 1T floor: ${(Number(actual.cycles) / 1e12).toFixed(3)}T — run the g2 card top-up, then retry`);
+    fail(`fuel under the 1T floor: ${(Number(actual.cycles) / 1e12).toFixed(3)}T on ${service.groupId ?? 'group'} canister ${service.canisterId} — top up that canister, then retry`);
   if (expectedHash && actual.moduleHash !== expectedHash) fail('module hash differs from the staged artifact');
   if (actual.environment.some(e => e.name.endsWith('LOCAL_REHEARSAL') && e.name !== ADMISSION_RELEASE_FLAG && e.value !== '' && e.value !== '0'))
     throw new Error(`Rehearsal settings forbidden: ${service.name}`);

@@ -16,6 +16,11 @@ export interface ClaimedInvite {
   'club_id' : string,
 }
 export interface Main {
+  'activate_private_name_preparation' : ActorMethod<
+    [Request],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'add_admin' : ActorMethod<
     [string, Principal],
     { 'Ok' : MiniLeagueAdmin } |
@@ -135,6 +140,16 @@ export interface Main {
   'filter_visible_leagues' : ActorMethod<
     [Principal, Array<MiniLeague>],
     Array<MiniLeague>
+  >,
+  'finish_private_name_preparation' : ActorMethod<
+    [Request],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'freeze_private_name_preparation' : ActorMethod<
+    [Request],
+    { 'Ok' : null } |
+      { 'Err' : string }
   >,
   'get_availability' : ActorMethod<
     [string, string],
@@ -283,8 +298,13 @@ export interface Main {
   >,
   'my_availability' : ActorMethod<[], Array<MiniLeagueSessionAvailability>>,
   'my_leagues' : ActorMethod<[], Array<MiniLeague>>,
-  'prepare_account_removal' : ActorMethod<
+  'open_private_name_writer_window' : ActorMethod<
     [Request],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'prepare_account_removal' : ActorMethod<
+    [Request__1],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
@@ -409,7 +429,7 @@ export interface Main {
   >,
   'read_account_my_leagues' : ActorMethod<[], Array<MiniLeague>>,
   'read_account_removal_drain' : ActorMethod<
-    [Request],
+    [Request__1],
     { 'Ok' : Receipt } |
       { 'Err' : string }
   >,
@@ -429,7 +449,35 @@ export interface Main {
     [Principal, string, string],
     boolean
   >,
+  'read_event_notification_subjects' : ActorMethod<
+    [string, string],
+    { 'Ok' : Array<{ 'child' : [] | [string], 'user' : string }> } |
+      { 'Err' : string }
+  >,
   'read_group_opening_configuration' : ActorMethod<[], Array<[string, string]>>,
+  'read_private_name_preparation' : ActorMethod<
+    [Request],
+    { 'Ok' : Receipt__1 } |
+      { 'Err' : string }
+  >,
+  'read_private_name_writer_window' : ActorMethod<
+    [Request],
+    { 'Ok' : Receipt__1 } |
+      { 'Err' : string }
+  >,
+  'read_profile_audience_batch' : ActorMethod<
+    [Principal, string, Array<Principal>, [] | [bigint]],
+    {
+        'Ok' : {
+          'requester' : Principal,
+          'members' : Array<boolean>,
+          'subjects' : Array<Principal>,
+          'club' : string,
+          'revision' : bigint,
+        }
+      } |
+      { 'Err' : string }
+  >,
   'rekey_principal' : ActorMethod<
     [Principal, Principal, boolean],
     { 'ok' : bigint } |
@@ -452,8 +500,13 @@ export interface Main {
       { 'Err' : string }
   >,
   'seal_account_removal' : ActorMethod<
-    [Request],
+    [Request__1],
     { 'Ok' : Receipt } |
+      { 'Err' : string }
+  >,
+  'seal_private_name_writer_window' : ActorMethod<
+    [Request],
+    { 'Ok' : null } |
       { 'Err' : string }
   >,
   'set_availability' : ActorMethod<
@@ -665,10 +718,22 @@ export interface PublicMiniLeagueSummary {
 }
 export interface Receipt {
   'outstanding' : bigint,
+  'request' : Request__1,
+  'receiver' : Principal,
+}
+export interface Receipt__1 {
+  'active' : bigint,
   'request' : Request,
+  'sealed' : boolean,
+  'closing' : boolean,
   'receiver' : Principal,
 }
 export interface Request {
+  'inventory_digest' : Uint8Array,
+  'generation' : bigint,
+  'operation_id' : string,
+}
+export interface Request__1 {
   'account_id' : string,
   'inventory_digest' : Uint8Array,
   'subjects' : Array<Principal>,

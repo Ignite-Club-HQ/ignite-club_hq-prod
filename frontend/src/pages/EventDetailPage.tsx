@@ -11,10 +11,10 @@ import { useLocalAttendanceMutation } from "@/hooks/useLocalAttendanceMutation";
 import { useParentLeaguePlayerRsvpMutation } from "@/hooks/useParentLeaguePlayerRsvpMutation";
 import { useEventAttendanceViewModel } from "@/hooks/useEventAttendanceViewModel";
 import { resolveEventCapabilities } from "@/features/events/eventCapabilities";
-import { fetchEventDetail } from "@/features/events/eventDetailRepository";
+import { fetchEventDetail, listedEventDetailPreview } from "@/features/events/eventDetailRepository";
+import { readEventDisplayNames } from "@/features/events/eventDisplayEnrichment";
 import { useIsAppAdmin } from "@/hooks/useIsAppAdmin";
 
-import { abortAllInFlightRestGets } from "@/lib/supabaseAuthRetry";
 import { Share } from "@capacitor/share";
 import { Capacitor } from "@capacitor/core";
 import { getShareUrl } from "@/lib/shareUtils";
@@ -77,6 +77,7 @@ import {
 import { hasGameBoardSupport } from "@/lib/sportDetection";
 import { resolveAuthBackend } from "@/live/authBackendMode";
 import { withFeatureBackend } from "@/live/featureRouter";
+import { withReadDeadline } from "@/live/readDeadline";
 import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
 import {
   getLiveEventRoster,
@@ -92,6 +93,7 @@ import {
 } from "@/live/features/events";
 import { getLiveMyRoleGrants, listLiveRoleGrants } from "@/live/features/membership";
 import { listLiveProfilesByIds } from "@/live/features/identityAccessClient";
+import { readRelationshipProfiles } from "@/live/relationshipProfileRead";
 import { getLiveTeamSubscription } from "@/live/features/club";
 import { mapLiveTeamSubscriptionToRow, resolveLiveProAccess, resolveLiveProFootballAccess } from "@/live/features/proAccess";
 import * as fixtureData from "@/lab/fixtureDataLayer";
@@ -216,7 +218,7 @@ export default function EventDetailPage() {
 
   const { data: event, isLoading, error: eventError, isFetching: isEventFetching } = useQuery({
     queryKey: ["event", useIcpLab ? "icp" : "supabase", localIcpPersona, id],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (useIcpLab && id) {
         try {
           return await getLocalEvent(localIcpPersona, id);
@@ -228,9 +230,12 @@ export default function EventDetailPage() {
         }
       }
 
-      return fetchEventDetail(supabase, id!);
+      if (!id) return null;
+      return fetchEventDetail(supabase, id, signal);
     },
     enabled: !!id,
+    // Show an event already seen in Schedule/Next Up straight away while it refreshes.
+    placeholderData: () => (!useIcpLab && id ? listedEventDetailPreview(id) : undefined),
     retry: (failureCount, err: any) => {
       // Telemetry: log every retry so we can quantify how often the transient
       // failure path (resume-race / 5xx / token rotation) is hit in the wild.
@@ -275,31 +280,13 @@ export default function EventDetailPage() {
       }, { eventId: id! }),
   });
 
-  // Watchdog: after an Android WebView background freeze the event fetch can
-  // stay permanently pending (its abort timer was frozen), leaving this page
-  // stuck on skeletons until a force-quit. While we have no event and are
-  // still loading, abort zombie REST GETs and re-issue every 6s.
-  const isStuckOnEventSpinner = !event && isLoading;
-  useEffect(() => {
-    if (!isStuckOnEventSpinner || !id) return;
-    const kick = () => {
-      const aborted = abortAllInFlightRestGets("event-detail-watchdog");
-      console.warn("[EventDetailPage] watchdog-refetch", {
-        t: new Date().toISOString(),
-        eventId: id,
-        abortedInFlight: aborted,
-      });
-      queryClient.refetchQueries({ queryKey: eventKeys.detail(id) });
-    };
-    const timer = setInterval(kick, 6000);
-    return () => clearInterval(timer);
-  }, [isStuckOnEventSpinner, id, queryClient]);
+
 
 
 
 
   const {
-    data: rsvps,
+    data: baseRsvps,
     error: rsvpsError,
     isLoading: rsvpsLoading,
     isFetching: rsvpsFetching,
@@ -316,9 +303,8 @@ export default function EventDetailPage() {
       // shaped like Supabase `rsvps`, so the roster (account RSVPs + linked
       // children) and the caller's own child RSVPs are read via the
       // upgraded event_roster / my_child_rsvps queries and mapped into the
-      // Supabase-shaped row the rest of this page expects. Enrichment
-      // (profile display names, mini_league_players) has no canister
-      // equivalent and is left null — provisional until verified post-deploy.
+      // Supabase-shaped row the rest of this page expects. Adult profiles
+      // hydrate from shared identity records; child names retain PII grants.
       const icpRsvps = await withFeatureBackend("events", {
         supabase: async () => null,
         icp: async (ctx) => {
@@ -333,12 +319,8 @@ export default function EventDetailPage() {
           // are decrypted here (club-scoped read grants let club members
           // read them). Best effort — a name the caller cannot read falls
           // back to the no-enrichment rendering, never an error state.
-          const childIds = [...new Set(
-            (roster.rsvps ?? [])
-              .map(({ rsvp }) => (Array.isArray(rsvp.child_id) && rsvp.child_id.length > 0 ? rsvp.child_id[0] : null))
-              .filter((c): c is string => !!c),
-          )];
-          const childNames = await resolveLivePiiTextBatch(ctx, childIds, "name", "event_roster", "Event roster child names");
+          // Publish the authorized RSVP rows first; private names load independently below.
+          const childNames = new Map<string, string>();
           const rows = (roster.rsvps ?? []).map(({ rsvp, child }) => {
             const childId = Array.isArray(rsvp.child_id) && rsvp.child_id.length > 0 ? rsvp.child_id[0] : null;
             const childRow = Array.isArray(child) && child.length > 0 ? child[0] : null;
@@ -356,9 +338,10 @@ export default function EventDetailPage() {
               mini_league_players: null,
             };
           });
-          return rows;
+          const { hydrateRsvpDisplayProfiles } = await import("@/features/events/rsvpDisplayProfiles");
+          return hydrateRsvpDisplayProfiles(rows, [], user?.id ? { id: user.id, profile } : undefined);
         },
-      }, { eventId: id! });
+      }, event?.club_id ? { clubId: event.club_id } : { eventId: id ?? "" });
       if (icpRsvps) return icpRsvps;
 
       const provider: EventRsvpProvider = {
@@ -403,6 +386,38 @@ export default function EventDetailPage() {
     },
     enabled: !!id,
   });
+
+  const rsvpDisplaySubjects = (baseRsvps ?? []).map(row => `${row.user_id}:${row.child_id ?? "self"}`).sort().join("|");
+  const { data: rsvpDisplayNames } = useQuery({
+    queryKey: ["event-rsvp-display-names", user?.id, isIcpAuthBackend, id, rsvpDisplaySubjects],
+    enabled: !!id && isIcpAuthBackend && !useIcpLab && !!baseRsvps?.length,
+    staleTime: 60_000,
+    queryFn: ({ signal }) => withFeatureBackend("events", {
+      supabase: async () => ({ children: new Map<string, string>(), profiles: [] }),
+      icp: async ctx => {
+        const children = [...new Set((baseRsvps ?? []).map(row => row.child_id).filter((value): value is string => !!value))];
+        const adults = [...new Set((baseRsvps ?? []).filter(row => !row.child_id).map(row => row.user_id))];
+        const result = await readEventDisplayNames(
+          () => resolveLivePiiTextBatch(ctx, children, "name", "event_roster", "Event roster child names"),
+          () => event?.club_id ? readRelationshipProfiles(ctx, adults, { kind: 'club', resource: event.club_id }, signal) : listLiveProfilesByIds(ctx, adults),
+        );
+        if (signal.aborted) throw new DOMException("Read cancelled", "AbortError");
+        return result;
+      },
+    }, event?.club_id ? { clubId: event.club_id } : { eventId: id ?? "" }),
+  });
+  const rsvps = useMemo(() => {
+    if (!baseRsvps || !rsvpDisplayNames) return baseRsvps;
+    const adultProfiles = new Map(rsvpDisplayNames.profiles.map(p => [p.account_id, p]));
+    return baseRsvps.map(row => {
+      const childName = row.child_id ? rsvpDisplayNames.children.get(row.child_id) : undefined;
+      const person = adultProfiles.get(row.user_id.replace(/^principal:/, "")) ?? adultProfiles.get(row.user_id);
+      return { ...row,
+        children: childName && row.child_id ? { ...row.children, id: row.child_id, name: childName } : row.children,
+        profiles: person ? { display_name: person.display_name, avatar_url: person.avatar_ref?.[0] ?? null } : row.profiles,
+      };
+    });
+  }, [baseRsvps, rsvpDisplayNames]);
 
   // Attendance read health. A failed RSVP read must never be presented as a
   // valid empty roster: we surface an alert + retry and disable every
@@ -544,7 +559,7 @@ export default function EventDetailPage() {
 
   // Populate form with existing RSVP data
   const localAccountId = user?.id ?? localIcpPersona;
-  const myRsvp = rsvps?.find((r) => r.user_id === (useIcpLab ? localAccountId : user?.id) && !r.child_id);
+  const myRsvp = rsvps?.find((r) => r.user_id?.replace(/^principal:/, "") === (useIcpLab ? localAccountId : user?.id)?.replace(/^principal:/, "") && !r.child_id);
   const { localAttendanceMutation } = useLocalAttendanceMutation({ id, localIcpPersona, localAccountId });
   
   useEffect(() => {
@@ -553,7 +568,7 @@ export default function EventDetailPage() {
     }
   }, [myRsvp?.id]);
 
-  const { data: duties, isLoading: isDutiesLoading } = useQuery({
+  const { data: baseDuties, isLoading: isDutiesLoading } = useQuery({
     queryKey: eventKeys.duties(id),
     queryFn: async () => {
       if (useIcpLab) return [];
@@ -584,9 +599,8 @@ export default function EventDetailPage() {
             listLiveDuties(ctx, id!),
             listLiveOpenDuties(ctx, id!).catch(() => [] as any[]),
           ]);
-          const assigneeIds = Array.from(new Set(rows.map((d) => d.account_id).filter(Boolean)));
-          const profiles = assigneeIds.length > 0 ? await listLiveProfilesByIds(ctx, assigneeIds) : [];
-          const profileMap = new Map(profiles.map((p: any) => [p.account_id, p]));
+          // Duty status/assignments are authoritative; display names must not hold them.
+          const profileMap = new Map<string, any>();
           return rows.map((d) => {
             const p = d.account_id ? profileMap.get(d.account_id) : null;
             return {
@@ -611,13 +625,32 @@ export default function EventDetailPage() {
               })),
           );
         },
-      }, { eventId: id! });
+      }, event?.club_id ? { clubId: event.club_id } : { eventId: id ?? "" });
     },
     enabled: !!id,
     staleTime: 0,
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
+
+  const dutyAssigneeIds = [...new Set((baseDuties ?? []).map(row => row.assigned_to).filter((value): value is string => !!value))].sort();
+  const { data: dutyDisplayProfiles } = useQuery({
+    queryKey: ["event-duty-display-names", user?.id, isIcpAuthBackend, id, dutyAssigneeIds],
+    enabled: !!id && isIcpAuthBackend && !useIcpLab && dutyAssigneeIds.length > 0,
+    staleTime: 60_000,
+    queryFn: () => withFeatureBackend("events", {
+      supabase: async () => [],
+      icp: ctx => event?.club_id ? readRelationshipProfiles(ctx, dutyAssigneeIds, { kind: 'club', resource: event.club_id }) : listLiveProfilesByIds(ctx, dutyAssigneeIds),
+    }, event?.club_id ? { clubId: event.club_id } : { eventId: id ?? "" }),
+  });
+  const duties = useMemo(() => {
+    if (!baseDuties || !dutyDisplayProfiles) return baseDuties;
+    const profiles = new Map(dutyDisplayProfiles.map(person => [person.account_id, person]));
+    return baseDuties.map(row => {
+      const person = row.assigned_to ? profiles.get(row.assigned_to.replace(/^principal:/, "")) ?? profiles.get(row.assigned_to) : undefined;
+      return { ...row, profiles: person ? { display_name: person.display_name, avatar_url: person.avatar_ref?.[0] ?? null } : row.profiles };
+    });
+  }, [baseDuties, dutyDisplayProfiles]);
 
   // Check if user is app admin (global override)
   const { isAppAdmin } = useIsAppAdmin();
@@ -971,7 +1004,7 @@ export default function EventDetailPage() {
         const STAFF_ROLES = new Set(["team_admin", "coach", "club_admin", "app_admin"]);
         const adultGrants = scoped.filter((g) => STAFF_ROLES.has(g.role) || goingAdultIds.has(g.account_id));
         const profileIds = Array.from(new Set(adultGrants.map((g) => g.account_id)));
-        const profiles = profileIds.length > 0 ? await listLiveProfilesByIds(ctx, profileIds) : [];
+        const profiles = profileIds.length > 0 && event?.club_id ? await readRelationshipProfiles(ctx, profileIds, { kind: 'club', resource: event.club_id }) : [];
         const profileMap = new Map(profiles.map((p: any) => [p.account_id, p]));
 
         const adultMembers = adultGrants.map((g) => {
@@ -1034,15 +1067,27 @@ export default function EventDetailPage() {
 
   // Fetch team/club members for duty assignment and not responded list (with roles)
   const { data: membersWithRoles } = useQuery({
-    queryKey: ["event-members-with-roles", event?.club_id, event?.team_id, isIcpAuthBackend],
+    queryKey: ["event-members-with-roles", event?.club_id, event?.team_id, (event as any)?.competition_id, isIcpAuthBackend],
     queryFn: async () => withFeatureBackend("membership", {
       supabase: async () => {
         const query = supabase
           .from("user_roles")
           .select("user_id, role, team_id, profiles:user_id (id, display_name, avatar_url)");
 
+        const isCompetitionWide = !!(event as any)?.competition_id && !event?.team_id;
         if (event?.team_id) {
           query.eq("team_id", event.team_id);
+        } else if (isCompetitionWide) {
+          // Competition-wide events invite only people on the entered teams
+          // (plus their parents/guardians) — never the whole organising club.
+          const { data: audience, error: audErr } = await supabase.rpc(
+            "get_competition_event_recipients" as any,
+            { p_event_id: id! },
+          );
+          if (audErr) throw audErr;
+          const ids = ((audience as any[]) || []).map((r: any) => (typeof r === "string" ? r : r?.get_competition_event_recipients ?? r?.user_id)).filter(Boolean);
+          if (ids.length === 0) return [];
+          query.in("user_id", ids);
         } else {
           query.eq("club_id", event!.club_id);
         }
@@ -1070,7 +1115,7 @@ export default function EventDetailPage() {
           ? grants.filter((g) => Array.isArray(g.team) && g.team[0] === event.team_id)
           : grants;
         const profileIds = Array.from(new Set(scoped.map((g) => g.account_id)));
-        const profiles = profileIds.length > 0 ? await listLiveProfilesByIds(ctx, profileIds) : [];
+        const profiles = profileIds.length > 0 && event?.club_id ? await readRelationshipProfiles(ctx, profileIds, { kind: 'club', resource: event.club_id }) : [];
         const profileMap = new Map(profiles.map((p: any) => [p.account_id, p]));
         const rows: EventMemberRoleRow[] = scoped.map((g) => {
           const p = profileMap.get(g.account_id);
@@ -1344,7 +1389,7 @@ export default function EventDetailPage() {
           const allUserIds = [...new Set([...parentIds, ...adminIds])].filter((uid) => !appAdminIds.has(uid));
           if (!allUserIds.length) return [];
 
-          const profiles = await listLiveProfilesByIds(ctx, allUserIds);
+          const profiles = await listLiveProfilesByIds(ctx, allUserIds, { clubId: leagueClubId });
           return profiles
             .map((p: any) => ({ id: p.account_id, display_name: p.display_name, avatar_url: p.avatar_ref?.[0] ?? null }))
             .sort((a, b) => (a.display_name || "").localeCompare(b.display_name || ""));
@@ -1621,25 +1666,31 @@ export default function EventDetailPage() {
   // Match awards: captain, POTM, goalkeepers — used to show inline icons next to attendees
   const isGameEvent = event?.type === "game" && !!event?.team_id;
   const { data: matchCaptainRow } = useQuery({
-    queryKey: ["match-captain", id, "marker"],
+    queryKey: isIcpAuthBackend ? ["match-captain", id, user?.id, true, event?.club_id] : ["match-captain", id, "marker"],
     enabled: !!id && isGameEvent && !useIcpLab,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      if (!id) return null;
       if (isIcpAuthBackend) {
-        const rows = await withFeatureBackend("events", {
+        const rows = await withReadDeadline(withFeatureBackend("events", {
           supabase: async () => [] as any[],
-          icp: async (ctx) => (await import("@/live/features/events")).listLiveMatchCaptains(ctx, id!) as Promise<any[]>,
-        }, { eventId: id! }).catch(() => [] as any[]);
+          icp: async (ctx) => (await import("@/live/features/events")).listLiveMatchCaptains(ctx, id) as Promise<any[]>,
+        }, event?.club_id ? { clubId: event.club_id } : { eventId: id }), "Captain details", 30_000, signal);
         const c = rows.find((r) => r.role === "captain");
-        return c ? { user_id: c.ref_kind === "child" ? null : c.ref_id, child_id: c.ref_kind === "child" ? c.ref_id : null } : null;
+        return c ? { id: `${c.event_id}:${c.ref_kind}:${c.ref_id}:${c.role}`, event_id: c.event_id,
+          user_id: c.ref_kind === "child" ? null : c.ref_id, child_id: c.ref_kind === "child" ? c.ref_id : null,
+          profiles: null, children: null } : null;
       }
       const { data, error } = await supabase
         .from("match_captains")
         .select("user_id, child_id")
-        .eq("event_id", id!)
+        .eq("event_id", id)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
+    staleTime: 60_000,
+    retry: isIcpAuthBackend ? false : undefined,
+    refetchOnWindowFocus: false,
   });
   const { data: potmRow } = useQuery({
     queryKey: ["player-of-match", id, "marker"],
@@ -1649,7 +1700,7 @@ export default function EventDetailPage() {
         const res = await withFeatureBackend("events", {
           supabase: async () => null as any,
           icp: async (ctx) => (await import("@/live/features/events")).getLiveGameResult(ctx, id!) as Promise<any>,
-        }, { eventId: id! }).catch(() => null);
+        }, event?.club_id ? { clubId: event.club_id } : { eventId: id! }).catch(() => null);
         const r = Array.isArray(res) ? res[0] : res;
         const mvp = r ? (Array.isArray(r.mvp_player_id) ? r.mvp_player_id[0] : r.mvp_player_id) : null;
         return mvp ? { user_id: mvp as string, child_id: mvp as string } : null;
@@ -1667,17 +1718,18 @@ export default function EventDetailPage() {
     queryKey: ["match-goalkeepers", id],
     enabled: !!id && isGameEvent && !useIcpLab,
     queryFn: async () => {
+      if (!id) return [];
       if (isIcpAuthBackend) {
         const rows = await withFeatureBackend("events", {
           supabase: async () => [] as any[],
-          icp: async (ctx) => (await import("@/live/features/events")).listLiveMatchGoalkeepers(ctx, id!) as Promise<any[]>,
-        }, { eventId: id! }).catch(() => [] as any[]);
+          icp: async (ctx) => (await import("@/live/features/events")).listLiveMatchGoalkeepers(ctx, id) as Promise<any[]>,
+        }, event?.club_id ? { clubId: event.club_id } : { eventId: id });
         return rows.map((g) => ({ user_id: g.ref_kind === "child" ? null : g.ref_id, child_id: g.ref_kind === "child" ? g.ref_id : null }));
       }
       const { data, error } = await supabase
         .from("match_goalkeepers" as any)
         .select("user_id, child_id")
-        .eq("event_id", id!);
+        .eq("event_id", id);
       if (error) throw error;
       return (data as any[]) || [];
     },
@@ -1817,6 +1869,7 @@ export default function EventDetailPage() {
     linkedAdultProfiles,
     reminderMembers,
     eventGuests,
+    currentUser: user?.id ? { id: user.id, profile } : undefined,
   });
 
   if (isLoading) {
@@ -2042,7 +2095,7 @@ export default function EventDetailPage() {
         onUpgrade={() => navigate(`/clubs/${event.club_id}/upgrade`)}
       />
 
-      <EventDutyTeamAssignment eventId={id!} clubId={event.club_id} canEdit={canManageEvent} />
+      <EventDutyTeamAssignment eventId={id ?? ""} clubId={event.club_id} teamId={event.team_id} targetTeamIds={(event as any).target_team_ids} canEdit={canManageEvent} />
 
       <EventDutiesSection
         event={event}

@@ -3,8 +3,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { withFeatureBackend } from "@/live/featureRouter";
-import { resendLiveEoiInvite, bulkResendLiveEoiInvites } from "@/live/features/competitions";
+import { resendLiveEoiInvite } from "@/live/features/competitions";
 import { writeEoiInScope } from "@/live/competitionRouting";
+import { resolveAuthBackend } from "@/live/authBackendMode";
 
 /** Resend the magic-link invite for a given EOI submission. */
 export function useResendEoiInvite() {
@@ -18,18 +19,10 @@ export function useResendEoiInvite() {
           });
           if (error) throw error;
         },
-        // The canister call is the bookkeeping half (invite_sent_at/count);
-        // actual email delivery still goes through the Supabase edge function
-        // below since there is no email fan-out on the canister.
-        icp: async (ctx) => {
-          await resendLiveEoiInvite(ctx, submissionId);
-          await supabase.functions.invoke("send-eoi-invite", {
-            body: { submission_id: submissionId },
-          });
-        },
+        icp: async ctx => { await resendLiveEoiInvite(ctx, submissionId); },
       }, writeOnce({ eoiId: submissionId })),
     onSuccess: () => {
-      toast.success("Invite resent");
+      toast.success(resolveAuthBackend() === "icp" ? "Invite email queued" : "Invite resent");
       qc.invalidateQueries({ queryKey: ["eoi-submissions"] });
     },
     onError: (e: unknown) => {
@@ -58,25 +51,19 @@ export function useBulkResendEoiInvites() {
           }
           return { ok, fail };
         },
-        // Canister call is the bookkeeping half; email delivery stays on Supabase.
-        icp: async (ctx) => {
-          for (const id of submissionIds) await writeEoiInScope(ctx, id, scoped => resendLiveEoiInvite(scoped, id));
-          let ok = 0;
-          let fail = 0;
+        icp: async ctx => {
+          let ok = 0, fail = 0;
           for (const id of submissionIds) {
-            const { error } = await supabase.functions.invoke("send-eoi-invite", {
-              body: { submission_id: id },
-            });
-            if (error) fail++;
-            else ok++;
+            try { await writeEoiInScope(ctx, id, scoped => resendLiveEoiInvite(scoped, id)); ok++; } catch { fail++; }
           }
           return { ok, fail };
         },
       }, { shared: "person" }),
     onSuccess: ({ ok, fail }) => {
-      if (fail === 0) toast.success(`Sent ${ok} reminder${ok === 1 ? "" : "s"}`);
+      if (fail === 0) toast.success(`${resolveAuthBackend() === "icp" ? "Queued" : "Sent"} ${ok} reminder${ok === 1 ? "" : "s"}`);
       else toast.warning(`Sent ${ok}, failed ${fail}`);
       qc.invalidateQueries({ queryKey: ["eoi-submissions"] });
     },
+    onError: () => toast.error("Could not send reminders"),
   });
 }

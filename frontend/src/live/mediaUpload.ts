@@ -5,8 +5,8 @@ import { getCurrentInternetIdentity } from "./internetIdentityAuth";
 import { getActiveIcpTarget } from "./targetRegistry";
 import { isBlobStoreConfigured, uploadBytesToBlobStore } from "./blobStoreUpload";
 import { resolveAuthBackend } from "./authBackendMode";
-import { clubIdFromMediaPath, encryptClubMedia, encryptPiiValue, isClubMediaLockSupported } from "./piiVetKeys";
-import { grantLiveClubPiiRead, grantLivePiiReadCompetition, registerLivePii } from "./features/vault";
+import { clubIdFromMediaPath, encryptClubMedia, encryptPiiValue, encryptSharedValue, isClubMediaLockSupported, type SharedAudience } from "./piiVetKeys";
+import { grantLiveClubPiiRead, grantLivePiiReadClub, grantLivePiiReadCompetition, registerLivePii } from "./features/vault";
 import { MEDIA_BLOB_PII_FIELD } from "./mediaDecrypt";
 import type { LiveBlobRef } from "./mediaStorage";
 import { sha256Hex } from "./blobStoreProtocol";
@@ -63,6 +63,9 @@ export async function tryUploadMediaToBlobStore(args: {
   /** "own" keeps the per-file lock even under clubs/ (e.g. vault files,
    * which only club staff may open — the club lock admits every member). */
   lock?: "club" | "own";
+  /** Role-limited Vault files: lock bytes to this shared audience key. */
+  audience?: SharedAudience;
+  beforeUpload?: (ref: LiveBlobRef) => Promise<void>;
 }): Promise<BlobMediaUpload | null> {
   const target = args.context?.target ?? getActiveIcpTarget();
   if (!isBlobStoreConfigured(target)) return null;
@@ -83,13 +86,26 @@ export async function tryUploadMediaToBlobStore(args: {
   const clubId = clubIdFromMediaPath(args.storagePath);
   if (clubId && !args.competitionId && args.lock !== "own" && (await isClubMediaLockSupported(ctx))) {
     const ciphertext = await encryptClubMedia(ctx, clubId, bytes);
-    return uploadBytesToBlobStore(target, identity, args.storagePath, ciphertext, args.mime);
+    return args.beforeUpload
+      ? uploadBytesToBlobStore(target, identity, args.storagePath, ciphertext, args.mime, args.beforeUpload)
+      : uploadBytesToBlobStore(target, identity, args.storagePath, ciphertext, args.mime);
   }
-  const ciphertext = await encryptPiiValue(ctx, args.storagePath, MEDIA_BLOB_PII_FIELD, bytes);
+  const ciphertext = args.audience
+    ? await encryptSharedValue(ctx, args.audience, bytes)
+    : await encryptPiiValue(ctx, args.storagePath, MEDIA_BLOB_PII_FIELD, bytes);
   // The access record's ciphertext is only a content-hash marker (the store
   // re-verifies the same hash on finalize), so register it IN PARALLEL with
   // the byte upload instead of after it — saves two sequential round trips.
   const localHash = await sha256Hex(ciphertext);
+  // Vault intent must be durable before either bytes or access records leave the device.
+  // The uploader repeats this exact idempotent binding before its first byte reservation.
+  const { orderBlobStoresForPath } = await import("./mediaStorage");
+  if (args.beforeUpload) {
+    const key = orderBlobStoresForPath(target, args.storagePath)[0];
+    const canister = key ? target.canisterIds[key] : undefined;
+    if (!canister) throw new Error("No private file store is configured.");
+    await args.beforeUpload({ canister, path: args.storagePath, content_hash: localHash });
+  }
   const registration = (async () => {
     await registerLivePii(
       ctx,
@@ -99,14 +115,17 @@ export async function tryUploadMediaToBlobStore(args: {
       identity.getPrincipal(),
     );
     if (clubId && !args.competitionId) {
-      await grantLiveClubPiiRead(ctx, args.storagePath, MEDIA_BLOB_PII_FIELD, clubId);
+      if (args.beforeUpload) await grantLivePiiReadClub(ctx, args.storagePath, MEDIA_BLOB_PII_FIELD, clubId);
+      else await grantLiveClubPiiRead(ctx, args.storagePath, MEDIA_BLOB_PII_FIELD, clubId);
     }
     if (args.competitionId) {
       await grantLivePiiReadCompetition(ctx, args.storagePath, MEDIA_BLOB_PII_FIELD, args.competitionId);
     }
   })();
   const [result] = await Promise.all([
-    uploadBytesToBlobStore(target, identity, args.storagePath, ciphertext, args.mime),
+    args.beforeUpload
+      ? uploadBytesToBlobStore(target, identity, args.storagePath, ciphertext, args.mime, args.beforeUpload)
+      : uploadBytesToBlobStore(target, identity, args.storagePath, ciphertext, args.mime),
     registration,
   ]);
   return result;

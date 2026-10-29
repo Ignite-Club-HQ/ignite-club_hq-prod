@@ -1,4 +1,7 @@
+import PrivateNameWriterWindow "../../shared/PrivateNameWriterWindow";
+import PrivateNameWriterEndpoints "../../shared/PrivateNameWriterEndpoints";
 import AccountAdmission "../../shared/AccountAdmission";
+import BroadcastErasure "../../shared/BroadcastErasure";
 import OpeningConfiguration "../../shared/OpeningConfiguration";
 import RemovalReceiver "../../shared/RemovalReceiver";
 import Error "mo:core/Error";
@@ -17,6 +20,8 @@ import Nat32 "mo:core/Nat32";
 import Nat64 "mo:core/Nat64";
 import Principal "mo:core/Principal";
 import Map "mo:core/Map";
+import BroadcastRelay "broadcastRelay";
+import EmailOutbox "../../shared/EmailOutbox";
 import Random "mo:core/Random";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
@@ -24,6 +29,7 @@ import Time "mo:core/Time";
 import Timer "mo:core/Timer";
 import Types "types";
 import AccountErasure "accountErasure";
+import AccountClaims "accountClaims";
 import AccountUnlinkFence "accountUnlinkFence";
 import Oql "../../shared/Oql";
 import OqlClubs "oqlClubs";
@@ -32,10 +38,21 @@ import MediaQuotaCutover "mediaQuotaCutover";
 import MediaRetainedQuota "mediaRetainedQuota";
 import MediaRetainedCutover "mediaRetainedCutover";
 import MediaJournalRetirement "mediaJournalRetirement";
+import InviteEmail "inviteEmail";
 import MediaJournalToken "../../shared/MediaJournalToken";
 import MediaGrowthReservations "mediaGrowthReservations";
 import MembershipPage "membershipPage";
 import MembershipIndex "membershipIndex";
+import MembershipDiscovery "membershipDiscovery";
+import MembershipSource "membershipSource";
+import MembershipDirectorySource "membershipDirectorySource";
+import MembershipSourceRetention "membershipSourceRetention";
+import SubscriptionPolicy "subscriptionPolicy";
+import ProfileMembership "profileMembership";
+import PrivateNameCleanup "../../shared/PrivateNameCleanup";
+import TeamInviteScope "teamInviteScope";
+import LinkedMembership "linkedMembership";
+import PiiAudience "piiAudience";
 
 persistent actor class Main(governorInit : Principal) = this {
   // Local rehearsal only. Eligibility never grants resource permissions.
@@ -48,10 +65,45 @@ persistent actor class Main(governorInit : Principal) = this {
   var removal_active : Map.Map<Principal, Nat>;
   transient let removalReceiver = RemovalReceiver.Gate(accountAdmissionEnabled, accountAdmissionAuthority, removal_intents, removal_subjects, removal_active);
   transient let accountAdmission = AccountAdmission.Gate(accountAdmissionEnabled, accountAdmissionAuthority);
+  transient let linkedMembershipSnapshots = Map.empty<Principal, LinkedMembership.Snapshot>();
+  // Separate stop-the-world rehearsal only; never enabled by deploy scripts.
+  var private_name_writer_intents : Map.Map<Text, PrivateNameWriterWindow.Intent>;
+  var private_name_cleanup_rows : Map.Map<Text, PrivateNameCleanup.Intent>;
+  transient let nameCleanup = PrivateNameCleanup.Queue(private_name_cleanup_rows);
+  transient let automaticNameCleanup = Runtime.envVar<system>("IGNITE_PRIVATE_NAME_CLEANUP_REHEARSAL") == ?"1" or Runtime.envVar<system>("IGNITE_PRIVATE_NAME_CLEANUP_RELEASE") == ?"1";
+  transient var nameCleanupRunning = false;
+  transient let privateNameWriterGate = PrivateNameWriterWindow.Gate(Runtime.envVar<system>("IGNITE_PRIVATE_NAME_WRITER_REHEARSAL") == ?"1", accountAdmissionAuthority, private_name_writer_intents, 4096);
+  include PrivateNameWriterEndpoints(privateNameWriterGate, Principal.fromActor(this));
+
   func admitAccount(subject : Principal) : async () {
+    if (nameCleanup.locked()) throw Error.reject("Name cleanup pending; membership changes remain locked");
     if (removalReceiver.denied(subject)) throw Error.reject("Account removal fenced");
     let eligible = await accountAdmission.eligible(subject);
+    if (nameCleanup.locked()) throw Error.reject("Name cleanup pending; membership changes remain locked");
     if (removalReceiver.denied(subject) or not eligible) throw Error.reject("Account admission denied or unavailable");
+    if (accountAdmissionEnabled) {
+      let authority = accountAdmissionAuthority;
+      let epoch = membershipEpoch();
+      let account = await accountAdmission.account(subject);
+      if (authority != accountAdmissionAuthority or epoch != membershipEpoch() or nameCleanup.locked() or removalReceiver.denied(subject)) throw Error.reject("Account authority changed; retry");
+      switch (account) {
+        // Eligibility already passed. When the account service does not share
+        // linked sign-ins with this group (eligibility-only grant) or cannot
+        // answer, keep the original exact-principal behaviour: aliases only
+        // ever widen access, so their absence must not reject the member.
+        case null { linkedMembershipSnapshots.remove(subject) };
+        case (?current) {
+          // A receiver may already hold an unlink receipt before the identity
+          // reply advances. Keep exact-principal behavior, never inherit aliases
+          // from that obsolete generation (sync itself returns its existing Err).
+          let verified = if (AccountUnlinkFence.rejects(current.id, current.version, current.principals, identityUnlinkReceipts)) ({ current with principals = [subject] }) else current;
+          // Time.now is constant only within this execution segment. No query,
+          // later message or callback may reuse these aliases as permission.
+          if (linkedMembershipSnapshots.size() >= 256) linkedMembershipSnapshots.clear();
+          linkedMembershipSnapshots.add(subject, { account = verified; observed = Time.now() });
+        };
+      };
+    };
   };
   func denyLegacyAccountQuery() {
     if (accountAdmissionEnabled) Runtime.trap("Use protected consensus account read");
@@ -114,11 +166,16 @@ persistent actor class Main(governorInit : Principal) = this {
   /// (the frontend asset canister adds club_domain as a controller at deploy
   /// time so admin settings can show its balance too).
   public shared func canister_cycles(canister_id : Principal) : async Nat {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     let ic = actor ("aaaaa-aa") : actor {
       canister_status : shared { canister_id : Principal } -> async { cycles : Nat };
     };
     let status = await ic.canister_status({ canister_id });
     status.cycles;
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   transient let challengeTtlNs : Nat64 = 600_000_000_000;
@@ -195,6 +252,78 @@ persistent actor class Main(governorInit : Principal) = this {
   var teamInvites : [Types.TeamInvite];
   var teamInviteLinks : [Types.TeamInviteLink];
   var pendingInvites : [Types.PendingInvite];
+  var familyInvites : [{ request_id : Text; created_by : Principal; primary : Text; secondary : ?Text; children : [Text]; bound_secondary : ?Principal }];
+  var emailJobs : Map.Map<Text, EmailOutbox.Job>;
+  var accountClaims : Map.Map<Text, AccountClaims.Claim>;
+  var claimsByPrincipal : Map.Map<Text, Text>;
+  var emailWorkers : [Principal];
+  var broadcastRelayReceipts : Map.Map<Text, BroadcastRelay.Receipt>;
+  var broadcastErasureSubjects : Map.Map<Principal, [Principal]>;
+  var erasedBroadcastRelays : Map.Map<Text, Bool>;
+  transient let emailOutbox = EmailOutbox.Queue(emailJobs);
+  public shared ({ caller }) func set_email_workers(workers : [Principal]) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not isGovernor(caller) or workers.size() > 10 or workers.any(func p = Principal.isAnonymous(p))) return #Err("Governor and valid workers required");
+    emailWorkers := workers; #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  public shared ({ caller }) func queue_pending_invite_email(id : Text, ciphertext : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not removalReceiver.enter(caller)) return #Err("Account unavailable");
+    try {
+      auth(caller); await admitAccount(caller);
+      let invite = pendingInvites.find(func i = i.id == id) ?? return #Err("Invite missing");
+      if (not canManageTeam(caller, invite.club_id, invite.team_id) or isTransferFenced(invite.club_id) or invite.status != "pending") return #Err("Invite manager required");
+      if (ciphertext.size() < 32) return #Err("Encrypted payload required");
+      if (Map.entries(emailJobs).filter(func pair = nowMs() - pair.1.created_at_ms < 86_400_000).size() >= 100) return #Err("Daily invitation email limit reached");
+      emailOutbox.enqueue("invite:" # id, "pending_invite", id, ciphertext, nowMs())
+    } finally { removalReceiver.leave(caller) }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  public shared ({ caller }) func claim_email_job() : async { #Ok : ?{ job : EmailOutbox.Job; to : Text; subject : Text; body : Text; token : Text }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not emailWorkers.any(func p = p == caller)) return #Err("Email worker required");
+    let job = emailOutbox.claim(caller, func j = pendingInvites.any(func i = i.id == j.resource and i.status == "pending" and not isTransferFenced(i.club_id) and not removalReceiver.denied(i.invited_by) and not isExcluded(i.invited_by, i.club_id) and canManageTeam(i.invited_by, i.club_id, i.team_id))) ?? return #Ok(null);
+    let invite = pendingInvites.find(func i = i.id == job.resource) ?? return #Err("Invite missing");
+    #Ok(?{ job; to = invite.email; subject = "You're invited to Ignite"; body = invite.id; token = "" })
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  public shared ({ caller }) func finish_email_job(id : Text, attempt : Nat, outcome : Text, provider_id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not emailWorkers.any(func p = p == caller)) return #Err("Email worker required");
+    emailOutbox.finish(caller, id, attempt, outcome, provider_id)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  public shared ({caller}) func reconcile_email_job(id:Text,attempt:Nat,provider_id:Text):async{#Ok;#Err:Text} {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if(not emailWorkers.any(func p = p==caller))return #Err("Original email worker required");
+    emailOutbox.reconcile(caller,id,attempt,"sent",provider_id)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  public shared ({caller}) func compact_email_jobs(cursor:?Text,limit:Nat):async{#Ok:{next_cursor:?Text;scanned:Nat};#Err:Text} {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if(not isGovernor(caller) or limit==0 or limit > 200)return #Err("Governor and bounded page required");
+    #Ok(emailOutbox.compact(cursor,limit))
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
   // (code, invite_id) — short share-link codes, lazily created, stable once minted.
   var inviteShortCodes : [(Text, Text)];
   var teamCreationRequests : [Types.TeamCreationRequest];
@@ -216,12 +345,15 @@ persistent actor class Main(governorInit : Principal) = this {
   var memberPayments : [Types.MemberPayment];
   var teamSponsorAllocations : [Types.TeamSponsorAllocation];
   var seasons : [Types.Season];
+  var seasonCloneReceipts : Map.Map<Text, { source : Text; name : Text; copy_staff : Bool; season_id : Text }>;
+  var seasonTeamCopies : [(Text, Text, Text)];
   var seasonTeamSummaries : [Types.SeasonTeamSummary];
   var seasonPlayerStats : [Types.SeasonPlayerStat];
 
   // Governor-set notification_queue canister id for the manual-payment fee
   // reminder fan-out (Phase 3 F6). Fail-closed while unset.
   var notificationQueueCanister : ?Principal;
+  var galleryMediaAuthority : ?Principal;
   var miniLeagueDomainCanister : ?Principal;
   var competitionDomainCanister : ?Principal;
   // Governor-set downstream canister ids for the permanent-delete fan-out.
@@ -230,6 +362,8 @@ persistent actor class Main(governorInit : Principal) = this {
   var eventsDomainCanister : ?Principal;
   var messagingDomainCanister : ?Principal;
   var piiCanister : ?Principal;
+  var vaultErasedClubs : Map.Map<Text, Bool>;
+  var vaultErasedTeams : Map.Map<Text, Text>;
   var clubSubscriptions : [Types.ClubSubscription];
   var teamSubscriptions : [Types.TeamSubscription];
   // New state added 20261015_000000: pending-invite labels, season EOI
@@ -252,6 +386,10 @@ persistent actor class Main(governorInit : Principal) = this {
   // governor-only, reads are public so an unauthenticated boot can fetch the
   // routing config. Never store secrets here — state is replica-visible.
   var appConfig : [(Text, Text)];
+  // Resend sender for invite emails. Governor-set, never returned by any
+  // method. Recipient addresses are never stored; only sent invite ids.
+  var invite_email_sender : ?InviteEmail.Sender;
+  var invite_emails_sent : [Text];
 
   // Per-club home country (ISO two-letter code), mirroring the Supabase
   // clubs.home_country column. Fixed at creation: club admins can set it
@@ -263,28 +401,44 @@ persistent actor class Main(governorInit : Principal) = this {
 
 
   public shared ({ caller }) func transfer_governorship(new_governor : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Only governor can transfer governorship");
     if (new_governor.equal(Principal.anonymous())) return #Err("New governor cannot be anonymous");
     governor := new_governor;
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
 
   /// Governor-only: moves every stored reference of one user's sign-in ID (old) to a new one.
   /// Any NEW stored principal / principal-text field added to this canister must be added here.
   public shared ({ caller }) func rekey_principal(old : Principal, new : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     rekeyImpl(caller, old, new, dry_run, false)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Same as rekey_principal, but allowed when the new sign-in ID already has data:
   // both IDs' records end up under the new one (keyed duplicates keep the new row).
   public shared ({ caller }) func merge_principal(old : Principal, new : Principal, dry_run : Bool) : async { #ok : Nat; #err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     rekeyImpl(caller, old, new, dry_run, true)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   func rekeyImpl(caller : Principal, old : Principal, new : Principal, dry_run : Bool, allowMerge : Bool) : { #ok : Nat; #err : Text } {
     if (not isGovernor(caller)) return #err("Forbidden");
+    if (nameCleanup.locked()) return #err("Name cleanup pending; preserve exact account identifiers");
     if (removalReceiver.denied(old) or removalReceiver.denied(new)) return #err("Removed identity cannot be rekeyed or merged");
     if (old.equal(Principal.anonymous()) or new.equal(Principal.anonymous())) return #err("Anonymous principal not allowed");
     if (old.equal(new)) return #err("old and new must differ");
@@ -292,8 +446,16 @@ persistent actor class Main(governorInit : Principal) = this {
 
     let oldText = Principal.toText(old);
     let newText = Principal.toText(new);
+    if (familyInvites.any(func f = f.created_by == old and familyInvites.any(func g = g.created_by == new and g.request_id == f.request_id and g.primary != f.primary))) return #err("Family invitation request conflict");
     let oldTag = "principal:" # oldText;
     let newTag = "principal:" # newText;
+    let cloneUpdates=Map.entries(seasonCloneReceipts).toArray();
+    for((key,r) in cloneUpdates.values()) {
+      switch(Text.stripStart(key,#text(oldText # "\u{1f}"))) {case (?suffix) {
+        let existing=Map.get(seasonCloneReceipts,Text.compare,newText # "\u{1f}" # suffix);
+        if(existing!=null and existing!=?r)return #err("Season operation receipt conflict")
+      };case null {}}
+    };
 
     func pEq(p : Principal) : Bool { p.equal(old) };
     func tEq(t : Text) : Bool { t == oldText or t == oldTag };
@@ -321,6 +483,7 @@ persistent actor class Main(governorInit : Principal) = this {
     conflicts += teamInvites.filter(func(i) = i.invited_by.equal(new) or i.accepted_by == ?new).size();
     conflicts += teamInviteLinks.filter(func(l) = l.created_by.equal(new)).size();
     conflicts += pendingInvites.filter(func(i) = i.invited_by.equal(new) or i.accepted_by == ?new).size();
+    conflicts += familyInvites.filter(func i = i.created_by == new or i.bound_secondary == ?new).size();
     conflicts += teamCreationRequests.filter(func(r) = r.requested_by.equal(new) or r.decided_by == ?new).size();
     conflicts += teamCaptains.filter(func(c) = c.user.equal(new)).size();
     conflicts += clubJoinRequests.filter(func(r) = r.user.equal(new) or r.decided_by == ?new).size();
@@ -332,6 +495,8 @@ persistent actor class Main(governorInit : Principal) = this {
     if (conflicts > 0 and not allowMerge) return #err("New sign-in ID already has " # Nat.toText(conflicts) # " record(s) in club_domain");
 
     var changed = 0;
+    changed += familyInvites.filter(func f = f.created_by == old or f.bound_secondary == ?old).size();
+    for((key,_) in cloneUpdates.values())if(Text.startsWith(key,#text(oldText # "\u{1f}")))changed+=1;
 
     // ---- acl ----
     let newRoles = acl.roles.map(func(g : Types.RoleGrant) : Types.RoleGrant = if (pEq(g.user)) { changed += 1; { g with user = new } } else g);
@@ -448,18 +613,19 @@ persistent actor class Main(governorInit : Principal) = this {
     if (themeChanged) { changed += 1 };
 
     if (not dry_run) {
-      membershipEpoch += 1;
+      for((key,r) in cloneUpdates.values())switch(Text.stripStart(key,#text(oldText # "\u{1f}"))){case (?suffix){Map.remove(seasonCloneReceipts,Text.compare,key);Map.add(seasonCloneReceipts,Text.compare,newText # "\u{1f}" # suffix,r)};case null {}};
+      bumpMembershipDiscovery();
       acl := { acl with roles = newRoles; guardians = newGuardians; exclusions = newExclusions; children = newChildren };
-      membershipEpoch += 1;
+      bumpMembershipDiscovery();
       accounts := newAccounts;
-      membershipEpoch += 1;
+      bumpMembershipDiscovery();
       accountExclusions := newAccountExclusions;
       accountRoles := newAccountRoles;
-      membershipEpoch += 1;
+      bumpMembershipDiscovery();
       accountFamilies := newAccountFamilies;
       accountChallenges := newAccountChallenges;
       teamFolders := newTeamFolders;
-      membershipEpoch += 1;
+      bumpMembershipDiscovery();
       teams := newTeams;
       mediaEvidenceRevision += 1;
       newsPosts := newNewsPosts;
@@ -468,6 +634,7 @@ persistent actor class Main(governorInit : Principal) = this {
       teamInvites := newTeamInvites;
       teamInviteLinks := newTeamInviteLinks;
       pendingInvites := newPendingInvites;
+      familyInvites := familyInvites.map(func i = { i with created_by = if (i.created_by == old) new else i.created_by; bound_secondary = if (i.bound_secondary == ?old) ?new else i.bound_secondary });
       teamCreationRequests := newTeamCreationRequests;
       teamCaptains := newTeamCaptains;
       clubJoinRequests := newClubJoinRequests;
@@ -489,8 +656,18 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   func isExcluded(caller : Principal, club : Text) : Bool {
-    acl.exclusions.any(func(exclusion) = exclusion.user.equal(caller) and exclusion.club == club)
-    or removedMembers.any(func(member) = member.user == caller and member.club == club)
+    membershipAliases(caller).any(func p =
+      acl.exclusions.any(func(exclusion) = exclusion.user.equal(p) and exclusion.club == club)
+      or removedMembers.any(func(member) = member.user == p and member.club == club))
+  };
+  func membershipAliases(subject : Principal) : [Principal] {
+    // Explicit relinking is not permission to resurrect this login's deleted
+    // club grants. It may use newly granted exact-principal roles only.
+    if (identityUnlinkReceipts.any(func r = r.1 == subject)) return if (removalReceiver.denied(subject) or subject.isAnonymous()) [] else [subject];
+    LinkedMembership.aliases(subject, linkedMembershipSnapshots.get(subject), PrimMem.isReplicatedExecution(), Time.now(), removalReceiver.denied)
+  };
+  func ownsMembershipPrincipal(subject : Principal, stored : Principal) : Bool {
+    membershipAliases(subject).any(func p = p == stored)
   };
 
   // A parent or guardian of a child assigned to one of the club's teams is
@@ -507,13 +684,20 @@ persistent actor class Main(governorInit : Principal) = this {
   // membership-bearing state bumps membershipEpoch; a stale index is rebuilt
   // on the next read. Candidates are always re-verified with isMember, so the
   // index can only accelerate, never grant. Rebuilt after upgrade (transient).
-  transient var membershipEpoch : Nat = 0;
+  var membershipDiscoveryJournal : MembershipDiscovery.Journal;
+  var membershipDirectorySource : MembershipDirectorySource.State;
+  var membershipSourceRetention : MembershipSourceRetention.State;
+  func membershipEpoch() : Nat = membershipDiscoveryJournal.revision;
+  func bumpMembershipDiscovery() {
+    if (nameCleanup.locked()) Runtime.trap("Name cleanup pending; membership changes remain locked");
+    MembershipDiscovery.bump(membershipDiscoveryJournal)
+  };
   transient var memberIndexEpoch : ?Nat = null;
   transient var memberIndex : MembershipIndex.Index = MembershipIndex.empty();
   transient let APP_WIDE = "\u{1F}*";
 
   func currentMemberIndex() : MembershipIndex.Index {
-    if (memberIndexEpoch == ?membershipEpoch) return memberIndex;
+    if (memberIndexEpoch == ?membershipEpoch()) return memberIndex;
     let ix = MembershipIndex.empty();
     for (g in acl.roles.values()) {
       MembershipIndex.add(ix, g.user.toText(), switch (g.club) { case (?c) c; case null APP_WIDE });
@@ -526,18 +710,18 @@ persistent actor class Main(governorInit : Principal) = this {
         for (t in teams.values()) if (t.id == teamId and t.deleted_at_ms == null) for (u in parents.concat(guardians).values()) MembershipIndex.add(ix, u.toText(), t.club_id);
       };
     };
-    memberIndex := ix; memberIndexEpoch := ?membershipEpoch; ix
+    memberIndex := ix; memberIndexEpoch := ?membershipEpoch(); ix
   };
 
   func isMember(caller : Principal, club : Text) : Bool {
     not isExcluded(caller, club) and (
-      acl.roles.any(func(grant) = grant.user.equal(caller) and (grant.club == ?club or grant.club == null))
-      or isFamilyMember(caller, club)
+      acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.club == ?club or grant.club == null))
+      or membershipAliases(caller).any(func p = isFamilyMember(p, club))
     )
   };
 
   func isAdmin(caller : Principal, club : Text) : Bool {
-    isGovernor(caller) or (not isExcluded(caller, club) and acl.roles.any(func(grant) = grant.user.equal(caller) and (grant.role == "club_admin" or grant.role == "app_admin") and (grant.club == ?club or grant.club == null)))
+    isGovernor(caller) or (not isExcluded(caller, club) and acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (grant.role == "club_admin" or grant.role == "app_admin") and (grant.club == ?club or grant.club == null)))
   };
 
   func nowNs() : Nat64 { Nat.toNat64(Int.abs(Time.now())) };
@@ -546,15 +730,17 @@ persistent actor class Main(governorInit : Principal) = this {
 
   // Club admin, or a team admin/coach of the specific team.
   func canManageTeam(caller : Principal, club : Text, team_id : ?Text) : Bool {
+    if (isExcluded(caller, club) or removalReceiver.denied(caller)) return false;
+    switch (team_id) { case (?id) { if (not inviteTeamValid(club, id)) return false }; case null {} };
     if (isAdmin(caller, club)) return true;
     switch (team_id) {
       case null { false };
       case (?team) {
         acl.roles.any(func(grant) =
-          grant.user.equal(caller) and
+          ownsMembershipPrincipal(caller, grant.user) and
           (grant.role == "team_admin" or grant.role == "coach") and
           (grant.club == ?club or grant.club == null) and
-          (grant.team == ?team or grant.team == null))
+          (grant.team == ?team))
       };
     }
   };
@@ -565,10 +751,10 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { false };
       case (?canister) {
         let competitionDomain : actor {
-          is_competition_invite_manager : shared query (Text, Principal) -> async Bool;
+          read_account_is_competition_invite_manager : shared (Text, Principal) -> async Bool;
         } = actor (Principal.toText(canister));
         try {
-          await competitionDomain.is_competition_invite_manager(team_id, caller)
+          await (with timeout = 10) competitionDomain.read_account_is_competition_invite_manager(team_id, caller)
         } catch (_) {
           false
         }
@@ -576,8 +762,16 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  func inviteTeamValid(club : Text, team : Text) : Bool {
+    TeamInviteScope.valid(club, team, teams, acl.teams)
+  };
+  func validTeamInviteRole(role : Text) : Bool { role == "player" or role == "parent" or role == "coach" or role == "team_admin" };
+  func localInviteRoleAllowed(caller : Principal, club : Text, team : Text, role : Text) : Bool {
+    validTeamInviteRole(role) and canManageTeam(caller, club, ?team) and ((role != "coach" and role != "team_admin") or isAdmin(caller, club) or acl.roles.any(func g = ownsMembershipPrincipal(caller, g.user) and g.club == ?club and g.team == ?team and g.role == "team_admin"))
+  };
   func canCreateTeamRosterInvite(caller : Principal, club_id : Text, team_id : Text, role : Text) : async Bool {
-    if (canManageTeam(caller, club_id, ?team_id)) return true;
+    if (not validTeamInviteRole(role) or not inviteTeamValid(club_id, team_id) or isExcluded(caller, club_id) or removalReceiver.denied(caller)) return false;
+    if (localInviteRoleAllowed(caller, club_id, team_id, role)) return true;
     if (role != "player" and role != "parent") return false;
     await canInviteEntrantTeamPlayers(caller, club_id, team_id)
   };
@@ -598,32 +792,61 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_identity_access_canister(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller) or Principal.isAnonymous(id)) return #Err("Governor and valid identity authority required");
     if (Runtime.envVar<system>("IGNITE_ACCOUNT_GROUP_LOCAL_REHEARSAL") != ?"1") return #Err("Cross-group account lifecycle not released");
     if (identityUnlinkReceipts.size() > 0 and identityAccessCanister != ?id) return #Err("Cannot replace identity authority after unlink");
-    identityAccessCanister := ?id; membershipEpoch += 1; #Ok
+    identityAccessCanister := ?id; bumpMembershipDiscovery(); #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   /// Independent deletion-only configuration for an empty owner-test group.
   /// Does not release linked-account sync or register lifecycle receivers.
   public shared ({ caller }) func set_owner_test_deletion_identity(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller) or Principal.isAnonymous(id)) return #Err("Governor and valid identity required");
     if (newClubGroup != ?"g2" or newClubRouter == null or newClubTarget == null) return #Err("Complete Group 2 placement binding required");
     if (profiles.size() != 0 or identityUnlinkReceipts.size() != 0) return #Err("Empty owner-test group required");
     if (identityAccessCanister != null and identityAccessCanister != ?id) return #Err("Deletion identity already bound");
     identityAccessCanister := ?id;
+    bumpMembershipDiscovery();
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  /// Owner-approved (2026-10-28) one-time link of the original Group 1 club
+  /// service to the shared account service, used only so private club-name
+  /// displays can confirm membership. Set-once; does not release lifecycle sync.
+  public shared ({ caller }) func link_display_identity_authority(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+    if (not isGovernor(caller) or Principal.isAnonymous(id)) return #Err("Governor and valid identity required");
+    if (Runtime.envVar<system>("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") != ?"1") return #Err("Private club-name displays not released");
+    if (identityAccessCanister == ?id) return #Ok;
+    if (identityAccessCanister != null or identityUnlinkReceipts.size() > 0) return #Err("Identity authority already bound");
+    identityAccessCanister := ?id;
+    bumpMembershipDiscovery();
+    #Ok
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   type LinkedAccount = { id : Text; principals : [Principal]; version : Nat64; status : { #Active; #Suspended } };
   public shared ({ caller }) func sync_my_linked_account() : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
     let authority = switch (identityAccessCanister) { case null return #Err("Identity authority not configured"); case (?id) id };
-    let epoch = membershipEpoch;
+    let epoch = membershipEpoch();
     let service : actor { read_linked_account : shared (Principal) -> async { #Ok : LinkedAccount; #Err : Text } } = actor(authority.toText());
     let reply = try { await (with timeout = 10) service.read_linked_account(caller) } catch (_) { return #Err("Identity authority unavailable") };
-    if (identityAccessCanister != ?authority or epoch != membershipEpoch) return #Err("Account authority changed; retry");
+    if (identityAccessCanister != ?authority or epoch != membershipEpoch()) return #Err("Account authority changed; retry");
     let account = switch (reply) { case (#Err(e)) return #Err(e); case (#Ok(a)) a };
     if (account.status != #Active or account.principals.size() == 0 or account.principals.size() > 8 or not account.principals.any(func(p) = p == caller)
         or account.principals.any(Principal.isAnonymous)) return #Err("Invalid linked account");
@@ -640,13 +863,19 @@ persistent actor class Main(governorInit : Principal) = this {
     // Drop obsolete local aliases instead of trusting old local link challenges.
     accounts := accounts.filter(func(a) = a.id != account.id and not a.principals.any(func(p) = account.principals.any(func(q) = p == q)))
       .concat([{ id = account.id; version = account.version; principals = account.principals; legacy_subject = caller }]);
-    membershipEpoch += 1; #Ok
+    bumpMembershipDiscovery(); #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func revoke_linked_principal(account_id : Text, user : Principal, version : Nat64) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (identityAccessCanister != ?caller or Principal.isAnonymous(caller)) return #Err("Identity authority required");
     if (Principal.isAnonymous(user) or user == governor) return #Err("Cannot revoke identity");
+    if (nameCleanup.locked()) return #Err("Name cleanup pending; preserve exact account aliases");
     if (identityUnlinkReceipts.any(func(r) = r.0 == account_id and r.1 == user and r.2 >= version)) return #Ok;
     switch (accounts.find(func(a) = a.id == account_id)) {
       case (?a) { if (a.version > version) return #Err("Account version conflict") };
@@ -660,7 +889,9 @@ persistent actor class Main(governorInit : Principal) = this {
       children = acl.children.map(func(c) = if (c.parent == ?user) ({ c with parent = null }) else c) };
     accounts := accounts.map(func(a) = { a with principals = a.principals.filter(func(p) = p != user) });
     identityUnlinkReceipts := identityUnlinkReceipts.filter(func(r) = not (r.0 == account_id and r.1 == user)).concat([(account_id, user, version)]);
-    membershipEpoch += 1; #Ok
+    bumpMembershipDiscovery(); #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   func getListing(club : Text) : Types.Listing {
@@ -697,18 +928,23 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func save_club_profile(profile : Types.ClubProfile) : async { #Ok : Types.ClubProfile; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
     if (not isAdmin(caller, profile.id)) return #Err("Club admin required");
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     profiles := profiles.filter(func(p) = p.id != profile.id);
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     profiles := profiles.concat([profile]);
     #Ok(profile)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query func get_club_profile(id : Text) : async { #Ok : ?Types.ClubProfile; #Err : Text } {
@@ -733,6 +969,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func save_club_settings(item : Types.ClubSettings) : async { #Ok : Types.ClubSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -743,6 +982,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(item)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query func get_club_settings(club_id : Text) : async { #Ok : ?Types.ClubSettings; #Err : Text } {
@@ -777,6 +1018,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_team_welcome_email(team_id : Text, enabled : Bool, subject : Text, message : Text) : async { #Ok : Types.TeamWelcomeEmail; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -793,6 +1037,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Read by the welcome-email edge function with no session. The invite id is
@@ -825,6 +1071,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_club_invite_message_default(club_id : Text, message : Text) : async { #Ok : Types.InviteMessageDefault; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -837,6 +1086,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(value)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Caller-owned clubless ("personal") team: club_id "" marks it personal,
@@ -845,20 +1096,35 @@ persistent actor class Main(governorInit : Principal) = this {
     personalTeamOwners.any(func(pair) = pair.0 == team_id and pair.1.equal(caller))
   };
 
+  func teamCapacityError(club : Text, additions : Nat) : ?Text {
+    if (club == "") return null;
+    let cap = SubscriptionPolicy.limit(clubSubscriptions.find(func(s) = s.club_id == club), nowMs());
+    let used = teams.filter(func(t) = t.club_id == club and t.deleted_at_ms == null).size();
+    if (used + additions > cap) ?"TeamLimitReached: Upgrade your club plan or pay for additional teams before adding another team." else null
+  };
+
   public shared ({ caller }) func save_team(team : Types.ClubTeam) : async { #Ok : Types.ClubTeam; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
-    let isNew = not teams.any(func(t) = t.id == team.id);
+    let prior = teams.find(func(t) = t.id == team.id);
+    let isNew = prior == null;
+    if (isTransferFenced(team.club_id)) return #Err("Club is temporarily locked for a transfer");
+    switch (prior) { case (?old) { if (old.club_id != team.club_id and not isAdmin(caller, old.club_id)) return #Err("Original club admin required") }; case null {} };
+    let addsSeat = team.deleted_at_ms == null and (switch (prior) { case null true; case (?old) old.deleted_at_ms != null or old.club_id != team.club_id });
+    if (addsSeat) { switch (teamCapacityError(team.club_id, 1)) { case (?error) return #Err(error); case null {} } };
     if (team.club_id == "") {
       if (not (isGovernor(caller) or isNew or isPersonalTeamOwner(caller, team.id))) return #Err("Team owner required");
     } else if (not isAdmin(caller, team.club_id)) {
       return #Err("Club admin required");
     };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     teams := teams.filter(func(t) = t.id != team.id);
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     teams := teams.concat([team]);
     if (team.club_id == "") {
       if (isNew and not isPersonalTeamOwner(caller, team.id)) {
@@ -871,6 +1137,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(team)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Lists the caller's own clubless teams (owner-only; not reachable via
@@ -933,6 +1201,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // Link (parent = ?assoc) or unlink (parent = null) a club and an
   // association. Only an admin of the association involved may do either.
   public shared ({ caller }) func set_club_parent_org(club_id : Text, parent_id : ?Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -961,6 +1232,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query func list_association_clubs(association_id : Text) : async { #Ok : [Types.ClubProfile]; #Err : Text } {
@@ -982,6 +1255,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func save_team_folder(folder : Types.TeamFolder) : async { #Ok : Types.TeamFolder; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -994,9 +1270,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(saved)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func delete_team_folder(folder_id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1007,13 +1288,15 @@ persistent actor class Main(governorInit : Principal) = this {
         if (not isAdmin(caller, folder.club_id)) return #Err("Club admin required");
         teamFolders := teamFolders.filter(func(f) = f.id != folder_id);
         // Teams in the deleted folder fall back to the unfiled group.
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.folder_id == ?folder_id) ({ t with folder_id = null }) else t);
         #Ok
       };
     };
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query func list_team_folders(club_id : Text) : async { #Ok : [Types.TeamFolder]; #Err : Text } {
@@ -1025,6 +1308,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_team_folder(team_id : Text, folder_id : ?Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1043,16 +1329,21 @@ persistent actor class Main(governorInit : Principal) = this {
           case null {};
         };
         let updated = { team with folder_id = folder_id };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == team_id) updated else t);
         #Ok(updated)
       };
     };
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func save_sponsor(sponsor : Types.ClubSponsor) : async { #Ok : Types.ClubSponsor; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1063,6 +1354,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(sponsor)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query func get_sponsor(id : Text) : async { #Ok : ?Types.ClubSponsor; #Err : Text } {
@@ -1101,6 +1394,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_team_sponsor_allocation(sponsor_id : Text, team_id : Text, allocated : Bool) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1122,11 +1418,16 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Hard delete — the Supabase sponsor manager deletes rows outright, so
   // the canister matches (is_active remains available for soft hiding).
   public shared ({ caller }) func delete_sponsor(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1142,6 +1443,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   func validNewsStatus(status : Text) : Bool { status == "draft" or status == "published" };
@@ -1155,10 +1458,10 @@ persistent actor class Main(governorInit : Principal) = this {
 
   // Caller belongs to (or parents a child on) the given team.
   func isOnTeam(caller : Principal, teamId : Text) : Bool {
-    acl.roles.any(func(grant) = grant.user.equal(caller) and grant.team == ?teamId)
+    acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and grant.team == ?teamId)
     or acl.children.any(func(c) {
-      let isParent = switch (c.parent) { case (?p) p.equal(caller); case null false };
-      let isGuardian = acl.guardians.any(func(g) = g.child == c.id and g.user.equal(caller));
+      let isParent = switch (c.parent) { case (?p) ownsMembershipPrincipal(caller, p); case null false };
+      let isGuardian = acl.guardians.any(func(g) = g.child == c.id and ownsMembershipPrincipal(caller, g.user));
       (isParent or isGuardian) and c.teams.any(func(t) = t == teamId)
     })
   };
@@ -1167,9 +1470,19 @@ persistent actor class Main(governorInit : Principal) = this {
     competitionAuthorities.any(func(p) = p.equal(caller)) or (switch (competitionDomainCanister) { case (?p) p.equal(caller); case null false })
   };
   public shared ({ caller }) func set_competition_authorities(ids : [Principal]) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor only");
     if (ids.size() > 64 or ids.any(func(p) = p.equal(Principal.anonymous()))) return #Err("Invalid authorities");
     competitionAuthorities := ids; #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  // Team-scoped endpoints resolve the owning club from the team records
+  // first (save_team only writes there), then the legacy ACL mirror.
+  func liveTeamRef(teamId : Text) : ?{ id : Text; club : Text } {
+    switch (liveTeamClub(teamId)) { case (?club) ?{ id = teamId; club }; case null null }
   };
   func liveTeamClub(teamId : Text) : ?Text {
     switch (teams.find(func(t) = t.id == teamId and t.deleted_at_ms == null)) {
@@ -1185,7 +1498,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?club) {
         let allowed = not isExcluded(user, club);
         { club_id = ?club; is_member = allowed and (isOnTeam(user, team_id) or isAdmin(user, club));
-          can_manage = allowed and (isAdmin(user, club) or acl.roles.any(func(g) = g.user.equal(user) and g.club == ?club and g.team == ?team_id and (g.role == "team_admin" or g.role == "coach"))) }
+          can_manage = allowed and canManageTeam(user, club, ?team_id) }
       };
     }
   };
@@ -1220,6 +1533,56 @@ persistent actor class Main(governorInit : Principal) = this {
       };
     };
     recipients
+  };
+
+  public shared ({ caller }) func relay_competition_broadcast(user : Principal, club : Text, competition : Text, team_ids : [Text], officials : [Principal], body : Text, key : Text) : async { #Ok : Nat16; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not trustedCompetition(caller) or isTransferFenced(club)) return #Err("Competition authority required");
+    let receiptKey=club # "\u{1f}" # key;
+    if (erasedBroadcastRelays.get(receiptKey) != null or broadcastErasureSubjects.get(user) != null or officials.any(func p = broadcastErasureSubjects.get(p) != null)) return #Err("Broadcast account cleanup is terminal or pending");
+    switch(Map.get(broadcastRelayReceipts,Text.compare,receiptKey)) {case (?r) {
+      if(r.authority!=caller or r.user!=user or r.competition!=competition or r.teams!=team_ids or r.officials!=officials or r.body!=body)return #Err("Relay request conflict");
+      switch(r.count){case (?n)return #Ok(n);case null return #Err("Relay outcome unresolved; reconcile exact receipt")}
+    };case null {}};
+    if (team_ids.size() > 100 or officials.size() > 500 or body.size() > 4000 or key.size() > 512) return #Err("Invalid broadcast");
+    if (team_ids.any(func t = liveTeamClub(t) != ?club)) return #Err("Foreign competition team");
+    let audience = { club_id = club; competition_id = competition; team_ids; recipients = officials; can_publish = true };
+    let recipients = competitionNewsRecipients(audience).filter(func p = not Principal.isAnonymous(p) and not removalReceiver.denied(p) and not isExcluded(p, club)).sort(Principal.compare);
+    if (recipients.size() > 500) return #Err("Broadcast audience exceeds bound");
+    for (p in recipients.values()) { await admitAccount(p) };
+    if (not trustedCompetition(caller) or isTransferFenced(club) or removalReceiver.denied(user) or team_ids.any(func t = liveTeamClub(t) != ?club)) return #Err("Broadcast authority changed");
+    let current = competitionNewsRecipients(audience).filter(func p = not Principal.isAnonymous(p) and not removalReceiver.denied(p) and not isExcluded(p, club)).sort(Principal.compare);
+    if (current != recipients) return #Err("Broadcast audience changed");
+    let queueId = notificationQueueCanister ?? return #Err("Notification queue unavailable");
+    if (broadcastErasureSubjects.get(user) != null or recipients.any(func p = broadcastErasureSubjects.get(p) != null)) return #Err("Broadcast account cleanup pending");
+    let queue : actor { enqueue_competition_broadcast : shared ([Text], Text, Text, Text, Text) -> async { #Ok : Nat16; #Err : Text } } = actor(queueId.toText());
+    let receipt:BroadcastRelay.Receipt={authority=caller;queue=queueId;user;club;competition;teams=team_ids;officials;body;key;audience=recipients.map(func p = p.toText()).sort(Text.compare);count=null};
+    Map.add(broadcastRelayReceipts,Text.compare,receiptKey,receipt);
+    let result=try{await (with timeout = 10) queue.enqueue_competition_broadcast(receipt.audience,club,competition,body,key)}catch(_){return #Err("Relay outcome unresolved; retain receipt")};
+    switch(result){case(#Ok(n)){Map.add(broadcastRelayReceipts,Text.compare,receiptKey,{receipt with count=?n});#Ok(n)};case(#Err(e))#Err(e)}
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  public shared ({caller}) func reconcile_competition_broadcast(club:Text,key:Text) : async {#Ok:?Nat16;#Err:Text} {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    let receiptKey=club # "\u{1f}" # key;
+    if (erasedBroadcastRelays.get(receiptKey) != null) return #Err("Broadcast proof terminally erased");
+    let r=Map.get(broadcastRelayReceipts,Text.compare,receiptKey)??return #Err("Original relay receipt missing");
+    if(not trustedCompetition(caller) or caller!=r.authority or isTransferFenced(club))return #Err("Original competition authority required");
+    switch(r.count){case (?n)return #Ok(?n);case null {}};
+    let queue:actor{read_competition_broadcast_receipt:shared(Text,Text)->async{#Ok:?{club:Text;related:Text;body:Text;count:Nat16;audience:[Text]};#Err:Text}}=actor(r.queue.toText());
+    let found=switch(await queue.read_competition_broadcast_receipt(club,key)){case(#Err(e))return #Err(e);case(#Ok(v))v};
+    if(Map.get(broadcastRelayReceipts,Text.compare,receiptKey)!=?r or not trustedCompetition(caller))return #Err("Relay changed during reconciliation");
+    switch found {case null #Ok(null);case (?proof){
+      if(proof.club!=r.club or proof.related!=r.competition or proof.body!=r.body or proof.audience!=r.audience)return #Err("Relay evidence conflict");
+      Map.add(broadcastRelayReceipts,Text.compare,receiptKey,{r with count=?proof.count});#Ok(?proof.count)
+    }}
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Club admins see every post; members see published posts, and
@@ -1347,6 +1710,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func create_news_post(club_id : Text, title : Text, body : Text, status : Text, target_team_ids : ?[Text], target_mini_league_id : ?Text, target_competition_id : ?Text, send_push : Bool, is_important : Bool, image_url : ?Text, attachments : [Types.NewsAttachment]) : async { #Ok : Types.NewsPost; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1385,9 +1751,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(post)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func update_news_post(id : Text, title : Text, body : Text, status : Text, target_team_ids : ?[Text], target_mini_league_id : ?Text, target_competition_id : ?Text, send_push : Bool, is_important : Bool, image_url : ?Text, attachments : [Types.NewsAttachment], expected_revision : Nat64) : async { #Ok : Types.NewsPost; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1422,9 +1793,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func delete_news_post(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1449,12 +1825,17 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Competition / mini-league audience for a news post (null clears it).
   // Membership of those audiences lives on other canisters, so on ICP the
   // target is recorded for display; visibility still follows club/team rules.
   public shared ({ caller }) func set_news_post_target(post_id : Text, kind : Text, target_id : ?Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1477,6 +1858,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func list_news_targets(club_ids : [Text]) : async { #Ok : [(Text, Text, Text)]; #Err : Text } {
@@ -1566,6 +1949,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // Update call because current mini-league membership is verified by a
   // trusted inter-canister query; query methods cannot make that call.
   public shared ({ caller }) func list_news_authorized(club_ids : [Text]) : async { #Ok : [Types.NewsPost]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1585,6 +1971,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(visiblePosts)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Parent invites: a club/team admin mints a token for a child; the
@@ -1608,6 +1996,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func create_parent_invite(club_id : Text, team_id : ?Text, child_id : Text) : async { #Ok : Types.ParentInvite; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1641,6 +2032,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(invite)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func get_parent_invite(token : Text) : async { #Ok : Types.ParentInvite; #Err : Text } {
@@ -1666,6 +2059,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func accept_parent_invite(token : Text) : async { #Ok : Types.ParentInvite; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1692,13 +2088,13 @@ persistent actor class Main(governorInit : Principal) = this {
             switch (acl.children.find(func(c) = c.id == invite.child_id)) {
               case null {
                 let child : Types.Child = { id = invite.child_id; teams = [team]; parent = null; club_id = ?invite.club_id };
-                membershipEpoch += 1;
+                bumpMembershipDiscovery();
                 acl := { acl with children = acl.children.concat([child]) };
               };
               case (?child) {
                 if (not child.teams.any(func(t) = t == team)) {
                   let updated : Types.Child = { child with teams = child.teams.concat([team]) };
-                  membershipEpoch += 1;
+                  bumpMembershipDiscovery();
                   acl := { acl with children = acl.children.map(func(c) = if (c.id == invite.child_id) updated else c) };
                 };
               };
@@ -1707,13 +2103,13 @@ persistent actor class Main(governorInit : Principal) = this {
           case null {};
         };
         if (not acl.guardians.any(func(g) = g.child == invite.child_id and g.user.equal(caller))) {
-          membershipEpoch += 1;
+          bumpMembershipDiscovery();
           acl := { acl with guardians = acl.guardians.concat([{ child = invite.child_id; user = caller }]) };
         };
         switch (accountFor(caller)) {
           case (?account) {
             if (not accountFamilies.any(func(f) = f.account_id == account.id and f.child_id == invite.child_id)) {
-              membershipEpoch += 1;
+              bumpMembershipDiscovery();
               accountFamilies := accountFamilies.concat([{ account_id = account.id; child_id = invite.child_id }]);
             };
           };
@@ -1726,6 +2122,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Pending-invite labels / role / team moves (added 20261015_000000) ----
@@ -1741,6 +2139,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_pending_invite_label(id : Text, label_ : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1756,9 +2157,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func update_pending_invite_role(id : Text, role : ?Text) : async { #Ok : Types.PendingInvite; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1768,6 +2174,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?invite) {
         if (not isAdmin(caller, invite.club_id)) return #Err("Club admin required");
         if (invite.status == "accepted" or invite.status == "revoked") return #Err("Invite no longer pending");
+        if (familyInvites.any(func f = f.primary == id or f.secondary == ?id)) return #Err("Family invite scope is immutable; revoke and reissue");
         let updated : Types.PendingInvite = { invite with role };
         pendingInvites := pendingInvites.map(func(i) = if (i.id == id) updated else i);
         #Ok(updated)
@@ -1775,9 +2182,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func move_pending_invite_team(id : Text, team_id : ?Text) : async { #Ok : Types.PendingInvite; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1788,6 +2200,7 @@ persistent actor class Main(governorInit : Principal) = this {
         if (not canManageTeam(caller, invite.club_id, invite.team_id)) return #Err("Team or club admin required");
         if (not canManageTeam(caller, invite.club_id, team_id)) return #Err("Team or club admin required");
         if (invite.status == "accepted" or invite.status == "revoked") return #Err("Invite no longer pending");
+        if (familyInvites.any(func f = f.primary == id or f.secondary == ?id)) return #Err("Family invite scope is immutable; revoke and reissue");
         let updated : Types.PendingInvite = { invite with team_id };
         pendingInvites := pendingInvites.map(func(i) = if (i.id == id) updated else i);
         #Ok(updated)
@@ -1795,6 +2208,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Season lifecycle: draft -> active (published) -> closed/archived.
@@ -1802,6 +2217,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // club so get_current_season stays unique. ----
 
   public shared ({ caller }) func publish_season(season_id : Text) : async { #Ok : Types.Season; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1824,9 +2242,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func archive_season(season_id : Text) : async { #Ok : Types.Season; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1842,12 +2265,17 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Season rollover: closes the source season and creates a new draft season
   // for the same club, copying its team assignments over as a starting point
   // for the new season's draft rosters (live ACL roles are untouched).
   public shared ({ caller }) func rollover_season(from_season_id : Text, new_name : Text, start_date : Text, end_date : Text) : async { #Ok : Types.Season; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1877,6 +2305,127 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func duplicate_season_structure(operation : Text, source_id : Text, name : Text, copy_staff : Bool) : async { #Ok : Types.Season; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not removalReceiver.enter(caller)) return #Err("Account unavailable");
+    try {
+      auth(caller); await admitAccount(caller);
+      let source = seasons.find(func s = s.id == source_id) ?? return #Err("Source season not found");
+      if (not isAdmin(caller, source.club_id) or isTransferFenced(source.club_id)) return #Err("Club admin required");
+      if (operation.size() == 0 or operation.size() > 128 or name.size() == 0 or name.size() > 200) return #Err("Invalid season request");
+      let key = caller.toText() # "\u{1f}" # operation;
+      switch (Map.get(seasonCloneReceipts, Text.compare, key)) {
+        case (?receipt) {
+          if (receipt.source != source_id or receipt.name != name or receipt.copy_staff != copy_staff) return #Err("Season operation conflict");
+          return #Ok(seasons.find(func s = s.id == receipt.season_id) ?? return #Err("Created season no longer exists"))
+        }; case null {};
+      };
+      let sourceAssignments = seasonTeamAssignments.filter(func a = a.season_id == source_id);
+      let priorCopies = seasonTeamCopies.filter(func pair = pair.0 == source_id);
+      let sourceTeams = teams.filter(func t = t.club_id == source.club_id and t.deleted_at_ms == null and not t.archived and
+        (if (priorCopies.size() > 0) priorCopies.any(func pair = pair.2 == t.id) else if (sourceAssignments.size() > 0) sourceAssignments.any(func a = a.team_id == t.id) else true));
+      if (sourceTeams.size() > 100) return #Err("Season team batch exceeds limit");
+      switch (teamCapacityError(source.club_id, sourceTeams.size())) { case (?error) return #Err(error); case null {} };
+      let id = "season-copy-" # source.club_id # "-" # Nat.toText(seasons.size() + 1) # "-" # Nat64.toText(nowNs());
+      let created : Types.Season = { source with id; name; status = "draft"; start_date = ""; end_date = ""; created_at_ms = nowMs(); updated_at_ms = nowMs() };
+      var copied : [Types.ClubTeam] = [];
+      var staff : [Types.RoleGrant] = [];
+      var mapping : [(Text, Text, Text)] = [];
+      for (team in sourceTeams.values()) {
+        let teamId = id # "-team-" # Nat.toText(copied.size());
+        copied := copied.concat([{ team with id = teamId; is_shell = false; shell_claim_token = null; shell_claimed_at_ms = null; shell_claimed_by = null; shell_contact_email = null; shell_contact_name = null; shell_invited_by = null; playhq_team_id = null; playhq_competition_id = null; playhq_auto_create_events = false }]);
+        mapping := mapping.concat([(id, team.id, teamId)]);
+        if (copy_staff) {
+          staff := staff.concat(acl.roles.filter(func r = r.club == ?source.club_id and r.team == ?team.id and (r.role == "coach" or r.role == "team_admin") and not removalReceiver.denied(r.user) and not isExcluded(r.user, source.club_id)).map(func r = ({ r with team = ?teamId })));
+        }
+      };
+      // All validation precedes the single local commit; no remote calls below.
+      seasons := seasons.concat([created]); teams := teams.concat(copied);
+      acl := { acl with teams = acl.teams.concat(copied.map(func t = ({ id = t.id; club = t.club_id }))); roles = acl.roles.concat(staff) };
+      seasonTeamCopies := seasonTeamCopies.concat(mapping);
+      Map.add(seasonCloneReceipts, Text.compare, key, { source = source_id; name; copy_staff; season_id = id });
+      bumpMembershipDiscovery();
+      #Ok(created)
+    } finally { removalReceiver.leave(caller) }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func carry_over_season_players(source_id : Text, target_id : Text, members : [Text]) : async { #Ok : Nat; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not removalReceiver.enter(caller)) return #Err("Account unavailable");
+    try {
+      auth(caller); await admitAccount(caller);
+      let source = seasons.find(func s = s.id == source_id) ?? return #Err("Source season not found");
+      let target = seasons.find(func s = s.id == target_id) ?? return #Err("Target season not found");
+      if (source.id == target.id or source.club_id != target.club_id or target.status != "draft" or not isAdmin(caller, target.club_id) or isTransferFenced(target.club_id)) return #Err("Same-club draft season and admin required");
+      if (members.size() > 500) return #Err("Rollover batch exceeds limit");
+      var additions : [Types.SeasonTeamAssignment] = [];
+      for (member in members.values()) {
+        if (additions.any(func a = a.member_id == member)) return #Err("Duplicate member");
+        let previous = seasonTeamAssignments.find(func a = a.season_id == source_id and a.member_id == member) ?? return #Err("Source member missing");
+        let destination = switch (seasonTeamCopies.find(func pair = pair.0 == target_id and pair.1 == previous.team_id)) { case (?pair) pair.2; case null previous.team_id };
+        if (not teams.any(func t = t.id == destination and t.club_id == target.club_id and t.deleted_at_ms == null and not t.archived)) return #Err("Destination team unavailable");
+        additions := additions.concat([{ previous with season_id = target_id; team_id = destination; added_at_ms = nowMs() }]);
+      };
+      let missing = additions.filter(func a = not seasonTeamAssignments.any(func current = current.season_id == target_id and current.member_id == a.member_id));
+      if (additions.any(func a = seasonTeamAssignments.any(func current = current.season_id == target_id and current.member_id == a.member_id and current.team_id != a.team_id))) return #Err("Target player already assigned differently");
+      seasonTeamAssignments := seasonTeamAssignments.concat(missing);
+      #Ok(missing.size())
+    } finally { removalReceiver.leave(caller) }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func read_season_teams(season_id : Text) : async { #Ok : [Types.ClubTeam]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not removalReceiver.enter(caller)) return #Err("Account unavailable");
+    try {
+      auth(caller); await admitAccount(caller);
+      let season = seasons.find(func s = s.id == season_id) ?? return #Err("Season missing");
+      if (not isMember(caller, season.club_id) or isTransferFenced(season.club_id)) return #Err("Club membership required");
+      let copies = seasonTeamCopies.filter(func pair = pair.0 == season_id);
+      #Ok(teams.filter(func t = t.club_id == season.club_id and t.deleted_at_ms == null and not t.archived and (copies.size() == 0 or copies.any(func pair = pair.2 == t.id))))
+    } finally { removalReceiver.leave(caller) }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func assign_returning_season_players(source_id : Text, target_id : Text, placements : [{ member_id : Text; team_id : Text }]) : async { #Ok : Nat; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not removalReceiver.enter(caller)) return #Err("Account unavailable");
+    try {
+      auth(caller); await admitAccount(caller);
+      let source = seasons.find(func s = s.id == source_id) ?? return #Err("Source season missing");
+      let target = seasons.find(func s = s.id == target_id) ?? return #Err("Target season missing");
+      if (source.id == target.id or source.club_id != target.club_id or target.status != "draft" or not isAdmin(caller, target.club_id) or isTransferFenced(target.club_id) or removalReceiver.denied(caller)) return #Err("Same-club draft and admin required");
+      if (placements.size() > 500) return #Err("Rollover batch exceeds limit");
+      var additions : [Types.SeasonTeamAssignment] = [];
+      let copies = seasonTeamCopies.filter(func p = p.0 == target_id);
+      for (placement in placements.values()) {
+        if (additions.any(func a = a.member_id == placement.member_id)) return #Err("Duplicate member");
+        if (not seasonTeamAssignments.any(func a = a.season_id == source_id and a.member_id == placement.member_id)) return #Err("Source member missing");
+        if (not teams.any(func t = t.id == placement.team_id and t.club_id == target.club_id and not t.archived and t.deleted_at_ms == null) or (copies.size() > 0 and not copies.any(func p = p.2 == placement.team_id))) return #Err("Destination team unavailable");
+        if (seasonTeamAssignments.any(func a = a.season_id == target_id and a.member_id == placement.member_id and a.team_id != placement.team_id)) return #Err("Target player assigned differently");
+        additions := additions.concat([{ season_id = target_id; member_id = placement.member_id; team_id = placement.team_id; added_at_ms = nowMs() }]);
+      };
+      let missing = additions.filter(func a = not seasonTeamAssignments.any(func row = row.season_id == target_id and row.member_id == a.member_id));
+      seasonTeamAssignments := seasonTeamAssignments.concat(missing); #Ok(missing.size())
+    } finally { removalReceiver.leave(caller) }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Season expression-of-interest (EOI) config: a free-form JSON blob
@@ -1932,7 +2481,20 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  public shared func can_accept_public_eoi(club_id : Text, season_id : Text) : async Bool {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    not isTransferFenced(club_id) and profiles.any(func p = p.id == club_id and p.deleted_at_ms == null) and
+    seasons.any(func s = s.id == season_id and s.club_id == club_id and s.status == "active") and eoiLookup(eoiPublicKey(season_id)) != null
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
   public shared ({ caller }) func set_season_public_eoi_config(season_id : Text, slug : ?Text, public_json : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1954,9 +2516,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_season_eoi_config(season_id : Text, config_json : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -1972,6 +2539,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Season team assignments: draft per-season rosters, independent of
@@ -1992,6 +2561,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func add_season_team_assignment(season_id : Text, team_id : Text, member_id : Text) : async { #Ok : Types.SeasonTeamAssignment; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2008,9 +2580,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func move_season_team_assignment(season_id : Text, member_id : Text, new_team_id : Text) : async { #Ok : Types.SeasonTeamAssignment; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2031,9 +2608,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func remove_season_team_assignment(season_id : Text, member_id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2048,6 +2630,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Club "kind" (association flag): distinguishes e.g. "club" vs
@@ -2062,6 +2646,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_club_kind(club_id : Text, kind : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2073,6 +2660,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Class/term enrolments: a member's enrolment status in a class
@@ -2085,6 +2674,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func enrol_in_class(club_id : Text, term_id : Text, class_id : Text, member_id : Text) : async { #Ok : Types.ClassEnrolment; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2106,9 +2698,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(entry)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func withdraw_from_class(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2124,6 +2721,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func list_class_enrolments(club_id : Text, term_id : ?Text, class_id : ?Text) : async { #Ok : [Types.ClassEnrolment]; #Err : Text } {
@@ -2149,6 +2748,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_club_theme_json(club_id : Text, theme_json : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2160,6 +2762,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Per-club general settings (class/term mode, default guest policy,
@@ -2189,6 +2793,9 @@ persistent actor class Main(governorInit : Principal) = this {
     max_guests_per_member_default : Nat,
     events_sponsor_strip_enabled : Bool,
   ) : async { #Ok : Types.ClubGeneralSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2200,6 +2807,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(updated)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Free-tier usage counters: cheap counts an admin UI can compare
@@ -2263,6 +2872,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func mutate(req : Types.Request) : async { #Ok : Types.Mutation; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2378,6 +2990,8 @@ persistent actor class Main(governorInit : Principal) = this {
     result
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
 
@@ -2388,7 +3002,10 @@ persistent actor class Main(governorInit : Principal) = this {
   // right before cutover; any write that slipped through aborts the move.
   func isTransferFenced(club : Text) : Bool = frozenClubs.any(func(e) = e.0 == club);
 
+  type SeasonCloneReceipt = { source : Text; name : Text; copy_staff : Bool; season_id : Text };
+  type CompetitionRecovery = { seasons : [Types.Season]; copies : [(Text, Text, Text)]; assignments : [Types.SeasonTeamAssignment]; clones : [(Text, SeasonCloneReceipt)]; invites : [Types.PendingInvite]; mail : [(Text, EmailOutbox.Job)]; relays : [(Text, BroadcastRelay.Receipt)] };
   type ClubSnapshot = {
+    competition_recovery : ?CompetitionRecovery;
     profiles : [Types.ClubProfile]; settings : [Types.ClubSettings]; teams : [Types.ClubTeam];
     sponsors : [Types.ClubSponsor]; listing : Types.Listing; roles : [Types.RoleGrant];
     acl_teams : [Types.Team]; member : Bool; exclusions : [Types.Exclusion]; children : [Types.Child]; guardians : [Types.Guardian];
@@ -2401,11 +3018,16 @@ persistent actor class Main(governorInit : Principal) = this {
   func inTeams(ids : [Text], team : ?Text) : Bool = switch (team) { case (?t) ids.any(func(i) = i == t); case null false };
   func clubChild(club : Text, ids : [Text], c : Types.Child) : Bool = c.club_id == ?club or c.teams.any(func(t) = ids.any(func(i) = i == t));
 
+  func competitionRecovery(club : Text) : CompetitionRecovery {
+    let owns = func(id : Text) : Bool = seasons.any(func x = x.id == id and x.club_id == club);
+    { seasons = seasons.filter(func x = x.club_id == club); copies = seasonTeamCopies.filter(func x = owns(x.0)); assignments = seasonTeamAssignments.filter(func x = owns(x.season_id)); clones = Map.entries(seasonCloneReceipts).filter(func pair = owns(pair.1.season_id)).toArray(); invites = pendingInvites.filter(func i = i.club_id == club); mail = Map.entries(emailJobs).filter(func pair = pendingInvites.any(func i = i.club_id == club and i.id == pair.1.resource)).toArray(); relays = Map.entries(broadcastRelayReceipts).filter(func pair = pair.1.club == club).toArray() }
+  };
   func clubSnapshot(club : Text) : ClubSnapshot {
     let ids = clubTeamIds(club);
     let kids = acl.children.filter(func(c) = clubChild(club, ids, c));
     let news = newsPosts.filter(func(n) = n.club_id == club);
     {
+      competition_recovery = ?competitionRecovery(club);
       profiles = profiles.filter(func(p) = p.id == club);
       settings = settings.filter(func(x) = x.club_id == club);
       teams = teams.filter(func(t) = t.club_id == club);
@@ -2431,9 +3053,17 @@ persistent actor class Main(governorInit : Principal) = this {
   // Removes the club-owned scope. Children/guardians are family records kept
   // on the source, matching permanent club deletion.
   func dropClubScope(club : Text) {
+    let recovery = competitionRecovery(club);
+    seasons := seasons.filter(func x = x.club_id != club);
+    seasonTeamCopies := seasonTeamCopies.filter(func x = not recovery.seasons.any(func r = r.id == x.0));
+    seasonTeamAssignments := seasonTeamAssignments.filter(func x = not recovery.seasons.any(func r = r.id == x.season_id));
+    pendingInvites := pendingInvites.filter(func i = i.club_id != club);
+    for ((key, _) in recovery.clones.values()) Map.remove(seasonCloneReceipts, Text.compare, key);
+    for ((key, _) in recovery.mail.values()) Map.remove(emailJobs, Text.compare, key);
+    for ((key, _) in recovery.relays.values()) Map.remove(broadcastRelayReceipts, Text.compare, key);
     let ids = clubTeamIds(club);
     let newsIds = newsPosts.filter(func(n) = n.club_id == club).map(func(n) = n.id);
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     profiles := profiles.filter(func(p) = p.id != club);
     settings := settings.filter(func(x) = x.club_id != club);
     teams := teams.filter(func(t) = t.club_id != club);
@@ -2462,10 +3092,23 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func import_club_snapshot(club : Text, snapshot : Blob) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor required");
     if (not isTransferFenced(club)) return #Err("Club must be fenced before import");
     let decoded : ?ClubSnapshot = from_candid (snapshot);
     let snap = switch (decoded) { case (?x) x; case null return #Err("Invalid snapshot") };
+    if (removalReceiver.snapshotDenied(snapshot)) return #Err("Snapshot references fenced account");
+    let existing = competitionRecovery(club);
+    if (snap.competition_recovery == null and (existing.seasons.size() > 0 or existing.mail.size() > 0 or existing.relays.size() > 0)) return #Err("Legacy snapshot omits competition recovery");
+    let recovery : CompetitionRecovery = snap.competition_recovery ?? ({ seasons = []; copies = []; assignments = []; clones = []; invites = []; mail = []; relays = [] });
+    if (recovery.relays.any(func pair = erasedBroadcastRelays.get(pair.0) != null or subjectsInRelay(pair.1))) return #Err("Snapshot restores erased broadcast proof");
+    if (recovery.mail.any(func pair = switch (Map.get(emailJobs, Text.compare, pair.0)) { case (?old) old != pair.1; case null false }) or recovery.relays.any(func pair = switch (Map.get(broadcastRelayReceipts, Text.compare, pair.0)) { case (?old) old != pair.1; case null false })) return #Err("Snapshot must not roll back delivery evidence");
+    let owns = func(id : Text) : Bool = recovery.seasons.any(func x = x.id == id and x.club_id == club);
+    if (recovery.seasons.any(func x = x.club_id != club) or recovery.copies.any(func x = not owns(x.0) or not snap.teams.any(func t = t.id == x.1) or not snap.teams.any(func t = t.id == x.2)) or recovery.assignments.any(func x = not owns(x.season_id) or not snap.teams.any(func t = t.id == x.team_id)) or recovery.clones.any(func pair = not owns(pair.1.source) or not owns(pair.1.season_id)) or recovery.invites.any(func i = i.club_id != club) or recovery.mail.any(func pair = pair.0 != pair.1.id or not recovery.invites.any(func i = i.id == pair.1.resource)) or recovery.relays.any(func pair = pair.1.club != club or pair.0 != club # "\u{1f}" # pair.1.key)) return #Err("Foreign competition recovery records");
+    if (recovery.mail.any(func pair = pair.1.state == "processing" or pair.1.state == "unknown") or existing.mail.any(func pair = pair.1.state == "processing" or pair.1.state == "unknown") or recovery.relays.any(func pair = pair.1.count == null) or existing.relays.any(func pair = pair.1.count == null)) return #Err("Unresolved deliveries must stay at original authority");
+    if (recovery.seasons.any(func r = seasons.any(func old = old.id == r.id and old.club_id != club)) or recovery.invites.any(func r = pendingInvites.any(func old = old.id == r.id and old.club_id != club)) or recovery.clones.any(func pair = Map.get(seasonCloneReceipts, Text.compare, pair.0) != null and not existing.clones.any(func old = old.0 == pair.0)) or recovery.mail.any(func pair = Map.get(emailJobs, Text.compare, pair.0) != null and not existing.mail.any(func old = old.0 == pair.0)) or recovery.relays.any(func pair = Map.get(broadcastRelayReceipts, Text.compare, pair.0) != null and not existing.relays.any(func old = old.0 == pair.0))) return #Err("Competition recovery key collision");
     if (snap.profiles.size() > 1 or snap.profiles.any(func(p) = p.id != club)) return #Err("Snapshot club mismatch");
     let ids = snap.teams.map(func(t) = t.id);
     let newsIds = snap.news.map(func(n) = n.id);
@@ -2504,16 +3147,29 @@ persistent actor class Main(governorInit : Principal) = this {
     roleRequests := roleRequests.concat(snap.role_requests);
     teamInvites := teamInvites.concat(snap.team_invites);
     teamInviteLinks := teamInviteLinks.concat(snap.team_invite_links);
+    seasons := seasons.concat(recovery.seasons); seasonTeamCopies := seasonTeamCopies.concat(recovery.copies); seasonTeamAssignments := seasonTeamAssignments.concat(recovery.assignments); pendingInvites := pendingInvites.concat(recovery.invites);
+    for ((key, r) in recovery.clones.values()) Map.add(seasonCloneReceipts, Text.compare, key, r);
+    for ((key, r) in recovery.mail.values()) Map.add(emailJobs, Text.compare, key, r);
+    for ((key, r) in recovery.relays.values()) Map.add(broadcastRelayReceipts, Text.compare, key, r);
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Removes exactly the snapshot scope from the source after a verified cutover.
   public shared ({ caller }) func purge_club_snapshot(club : Text) : async { #Ok : Nat; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor required");
     if (not isTransferFenced(club)) return #Err("Club must be fenced before purge");
+    let recovery = competitionRecovery(club);
+    if (recovery.mail.any(func pair = pair.1.state == "processing" or pair.1.state == "unknown") or recovery.relays.any(func pair = pair.1.count == null)) return #Err("Unresolved delivery evidence must be retained");
     let before = profiles.size() + teams.size() + newsPosts.size();
     dropClubScope(club);
     #Ok(before - (profiles.size() + teams.size() + newsPosts.size()))
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   func blobContains(hay : Blob, needle : Blob) : Bool {
@@ -2535,6 +3191,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func freeze_club(club : Text, rev : Nat64) : async { #Ok : Nat64; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor required");
     mediaEvidenceRevision += 1;
@@ -2542,14 +3201,21 @@ persistent actor class Main(governorInit : Principal) = this {
     mediaEvidenceRevision += 1;
     frozenClubs := frozenClubs.concat([(club, rev)]);
     #Ok(rev)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func unfreeze_club(club : Text, rev : Nat64) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor required");
     mediaEvidenceRevision += 1;
     frozenClubs := frozenClubs.filter(func(e) = e.0 != club);
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func export_frozen_club(club : Text) : async { #Ok : Types.Listing; #Err : Text } {
@@ -2557,11 +3223,42 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(getListing(club))
   };
 
+  // ---- One-time Supabase account claims (club migration tool) ----
+  public shared ({ caller }) func register_account_claims(club : Text, rows : [AccountClaims.Registration]) : async { #Ok : Nat; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    auth(caller);
+    if (not isGovernor(caller)) return #Err("Governor required");
+    AccountClaims.register(accountClaims, club, rows)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func redeem_account_claim(token : Text) : async { #Ok : { club_id : Text }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    AccountClaims.redeem(accountClaims, claimsByPrincipal, caller, token, nowMs())
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public query ({ caller }) func export_account_claims(club : Text, offset : Nat, limit : Nat) : async { #Ok : [AccountClaims.Claimed]; #Err : Text } {
+    if (not isGovernor(caller)) return #Err("Governor required");
+    #Ok(AccountClaims.claimed(accountClaims, club, offset, limit))
+  };
+
   public shared ({ caller }) func import_frozen_club(club : Text, listing : Types.Listing) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor required");
     updateListing(club, listing);
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func export_links() : async { #Ok : Types.Snapshot; #Err : Text } {
@@ -2570,10 +3267,15 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func import_links(snap : Types.Snapshot) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor required");
     clubListings := snap.clubs;
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func export_acl() : async { #Ok : Types.Config; #Err : Text } {
@@ -2582,12 +3284,17 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func replace_acl(rev : Nat64, new_acl : Types.Acl) : async { #Ok : Nat64; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor required");
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := new_acl;
     aclVersion := rev;
     #Ok(rev)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ICP MCP Layer 3: behavioral guide for AI agents (see
@@ -2631,9 +3338,55 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   };
 
+  // Freeze only account-linked broadcast work. Identity supplies aliases, not the browser.
+  public shared ({ caller }) func prepare_my_broadcast_erasure() : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    auth(caller);
+    if (isGovernor(caller)) return #Err("Governor erasure forbidden");
+    if (broadcastErasureSubjects.get(caller) != null) return #Ok;
+    let configured = identityAccessCanister;
+    let account = await AccountAdmission.Gate(true, configured).account(caller);
+    if (configured != identityAccessCanister) return #Err("Identity authority changed");
+    let a = account ?? return #Err("Authoritative account aliases unavailable");
+    if (a.principals.size() == 0 or a.principals.size() > 8 or a.principals.any(isGovernor)) return #Err("Invalid erasure account");
+    for (p in a.principals.values()) broadcastErasureSubjects.add(p, a.principals);
+    #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  public shared ({ caller }) func purge_my_broadcast_data() : async { #Ok : Nat; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    auth(caller);
+    let subjects = broadcastErasureSubjects.get(caller) ?? return #Err("Prepare broadcast cleanup first");
+    let affected = broadcastRelayReceipts.entries().filter(func pair = subjects.any(func p = p == pair.1.user or pair.1.officials.any(func o = o == p)) or pair.1.audience.any(func u = BroadcastErasure.matches(subjects, u))).toArray();
+    if (affected.size() > 200) return #Err("Broadcast cleanup inventory exceeds bound");
+    if (affected.any(func pair = pair.1.count == null)) return #Err("Original broadcast relay must settle before erasure");
+    for ((key, r) in affected.values()) {
+      let queue : actor { retire_competition_broadcast : shared (Text, Text, [Text], Nat16) -> async { #Ok; #Err : Text } } = actor(r.queue.toText());
+      let count = r.count ?? return #Err("Original relay count missing");
+      switch (try { await (with timeout = 10) queue.retire_competition_broadcast(r.club, r.key, r.audience, count) } catch (_) { return #Err("Queue cleanup unconfirmed; retry without resending") }) { case (#Err(e)) return #Err(e); case (#Ok) {} };
+      if (broadcastRelayReceipts.get(key) != ?r) return #Err("Relay changed during cleanup");
+      erasedBroadcastRelays.add(key, true);
+      broadcastRelayReceipts.remove(key);
+    };
+    #Ok(affected.size())
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  func subjectsInRelay(r : BroadcastRelay.Receipt) : Bool {
+    broadcastErasureSubjects.get(r.user) != null or r.officials.any(func p = broadcastErasureSubjects.get(p) != null) or broadcastErasureSubjects.entries().any(func pair = r.audience.any(func user = BroadcastErasure.matches([pair.0], user)))
+  };
+
   // Self-service erasure revokes all linked principals' club authority.
   // Keep shared club/team records and parent-owned children intact.
   public shared ({ caller }) func erase_my_membership() : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2643,9 +3396,14 @@ persistent actor class Main(governorInit : Principal) = this {
       switch (account) { case (?a) { a.id }; case null { "principal:" # Principal.toText(caller) } })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func erase_account_membership(account_id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not (isGovernor(caller) or isAppAdmin(caller))) return #Err("App admin required");
     switch (accounts.find(func(a) = a.id == account_id or a.principals.any(func(p) = Principal.toText(p) == account_id or "principal:" # Principal.toText(p) == account_id))) {
@@ -2660,19 +3418,37 @@ persistent actor class Main(governorInit : Principal) = this {
         }
       };
     }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Exact configured identity only; consensus verification of all captured aliases.
   // This is club authority evidence, not an all-service drain receipt.
   public shared ({ caller }) func read_account_membership_erased(principals : [Principal]) : async Bool {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (?caller != identityAccessCanister) return false;
     if (principals.size() == 0 or principals.size() > 8) return false;
     not principals.any(func(p) = acl.roles.any(func(g) = g.user == p)) and
       not profiles.any(func(c) = principals.any(func(p) = isMember(p, c.id)))
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   func eraseMembership(principals : [Principal], accountId : Text) : { #Ok; #Err : Text } {
+    AccountClaims.erase(accountClaims, claimsByPrincipal, principals);
     if (principals.any(func(p) = p.equal(governor))) return #Err("Governor account cannot be erased");
+    let erasedInvites=pendingInvites.filter(func i = principals.any(func p = p==i.invited_by or i.accepted_by==?p)).map(func i = i.id);
+    ignore emailOutbox.scrub(func j = erasedInvites.any(func id = id==j.resource));
+    let retiredFamilies = familyInvites.filter(func f = principals.any(func p = p == f.created_by or f.bound_secondary == ?p) or erasedInvites.any(func id = id == f.primary or f.secondary == ?id));
+    pendingInvites := pendingInvites.map(func i = if (retiredFamilies.any(func f = f.primary == i.id or f.secondary == ?i.id)) ({ i with status = "revoked" }) else i);
+    familyInvites := familyInvites.filter(func f = not retiredFamilies.any(func r = r.primary == f.primary));
+    for((key,r) in Map.entries(seasonCloneReceipts).toArray().values()) {
+      if(principals.any(func p = Text.startsWith(key,#text(p.toText() # "\u{1f}")))) {
+        Map.remove(seasonCloneReceipts,Text.compare,key);Map.add(seasonCloneReceipts,Text.compare,"erased:" # r.season_id,r)
+      }
+    };
     var exclusions = acl.exclusions;
     // Explicitly exclude every club, including family-derived membership.
     for (club in acl.clubs.values()) {
@@ -2682,7 +3458,7 @@ persistent actor class Main(governorInit : Principal) = this {
         };
       };
     };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with roles = acl.roles.filter(func(g) = AccountErasure.keepRole(g, principals)); exclusions };
     accountRoles := accountRoles.filter(func(g) = g.account_id != accountId);
     #Ok
@@ -2693,8 +3469,11 @@ persistent actor class Main(governorInit : Principal) = this {
   // require club admin — the roster includes every member's role grants.
   public query ({ caller }) func list_role_grants(club : Text) : async { #Ok : [Types.AccountRole]; #Err : Text } {
     denyLegacyAccountQuery();
-    if (not isAdmin(caller, club)) return #Err("Club admin required");
-    #Ok(accountRoles.filter(func(grant) = grant.club == ?club or grant.club == null))
+    // Members see their own club's roster (account ids + roles, no names) so
+    // they can message people; app-wide grants stay admin-only.
+    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = grant.club == ?club or grant.club == null));
+    if (not isMember(caller, club)) return #Err("Club membership required");
+    #Ok(accountRoles.filter(func(grant) = grant.club == ?club))
   };
 
   // Team-scoped roster read for the team page member list: any member of the
@@ -2731,25 +3510,171 @@ persistent actor class Main(governorInit : Principal) = this {
     acl.roles.filter(func(grant) = grant.user.equal(caller))
   };
 
-  // Caller-only consensus read; linked principals come from this canister's
-  // verified account, never a browser-supplied account/principal list.
-  // At most 200 profile slots scanned per call. Cursor is not a snapshot:
-  // consumers revalidate discovered memberships against current authority.
+  // Operator-only consensus source export. Bounded raw edges pin the durable
+  // mutation revision; no member-index rebuild or resource permission grant.
+  func membershipSourcePage(cursor : ?MembershipSource.Cursor) : { #Ok : MembershipSource.Page; #Err : Text } {
+    // Source-wide personal relationship evidence is operator-only until the
+    // separate exact central-reader binding/propagation release is verified.
+    let sizes = [profiles.size(), acl.roles.size(), acl.children.size(), acl.guardians.size(), acl.teams.size(), teams.size(), acl.exclusions.size(), removedMembers.size()];
+    func width(phase : Nat, offset : Nat) : Nat {
+      if (phase == 2) acl.children[offset].teams.size() + 1 else 1
+    };
+    func edge(phase : Nat, offset : Nat, nested : Nat) : ?MembershipSource.Edge {
+      switch (phase) {
+        case (0) { let c = profiles[offset]; ?#Club({ id = c.id; deleted = c.deleted_at_ms != null }) };
+        case (1) { let g = acl.roles[offset]; ?#Role({ subject = g.user; club = g.club }) };
+        case (2) {
+          let c = acl.children[offset];
+          if (nested == 0) switch (c.parent) { case (?subject) ?#Parent({ child = c.id; subject }); case null null }
+          else ?#ChildTeam({ child = c.id; team = c.teams[nested - 1] })
+        };
+        case (3) { let g = acl.guardians[offset]; ?#Guardian({ child = g.child; subject = g.user }) };
+        case (4) { let t = acl.teams[offset]; ?#Team({ id = t.id; club = t.club; deleted = false }) };
+        case (5) { let t = teams[offset]; ?#Team({ id = t.id; club = t.club_id; deleted = t.deleted_at_ms != null }) };
+        case (6) { let e = acl.exclusions[offset]; ?#Excluded({ subject = e.user; club = e.club }) };
+        case (7) { let e = removedMembers[offset]; ?#Excluded({ subject = e.user; club = e.club }) };
+        case (_) null
+      }
+    };
+    MembershipSource.read(membershipEpoch(), cursor, sizes, width, edge)
+  };
+
+  public shared ({ caller }) func read_membership_source_page(cursor : ?MembershipSource.Cursor) : async { #Ok : MembershipSource.Page; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not isGovernor(caller)) return #Err("Governor required");
+    membershipSourcePage(cursor)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func configure_membership_directory_source(binding : MembershipDirectorySource.Binding) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not isGovernor(caller)) return #Err("Governor required");
+    let prior = membershipDirectorySource.binding;
+    switch (MembershipDirectorySource.configure(membershipDirectorySource, binding)) {
+      case (#Err(e)) #Err(e);
+      case (#Ok) {
+        if (prior != ?binding) membershipSourceRetention.snapshot := null;
+        #Ok
+      }
+    }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func disable_membership_directory_source() : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not isGovernor(caller)) return #Err("Governor required");
+    membershipDirectorySource.enabled := false; membershipSourceRetention.snapshot := null; #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func read_membership_directory_source_binding() : async { #Ok : { binding : ?MembershipDirectorySource.Binding; enabled : Bool }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not isGovernor(caller)) return #Err("Governor required");
+    #Ok({ binding = membershipDirectorySource.binding; enabled = membershipDirectorySource.enabled })
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func read_directory_membership_status(binding : MembershipDirectorySource.Binding) : async { #Ok : { revision : Nat; acknowledged : Nat; pending : Bool }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not MembershipDirectorySource.allowed(membershipDirectorySource, caller, binding)) return #Err("Directory identity and exact source binding required");
+    #Ok({ revision = membershipEpoch(); acknowledged = membershipDiscoveryJournal.acknowledged; pending = MembershipDiscovery.pending(membershipDiscoveryJournal) })
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func read_directory_membership_source_page(binding : MembershipDirectorySource.Binding, cursor : ?MembershipSource.Cursor) : async { #Ok : MembershipSource.Page; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not MembershipDirectorySource.allowed(membershipDirectorySource, caller, binding)) return #Err("Directory identity and exact source binding required");
+    func capture() : MembershipSourceRetention.Data {
+      { profiles; roles = acl.roles; children = acl.children; guardians = acl.guardians;
+        aclTeams = acl.teams; teams; exclusions = acl.exclusions; removed = removedMembers }
+    };
+    switch (MembershipSourceRetention.acquire(membershipSourceRetention, binding, membershipEpoch(), cursor, capture)) {
+      case (#Err(e)) #Err(e);
+      case (#Ok(snapshot)) MembershipSourceRetention.read(snapshot, cursor)
+    }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func acknowledge_directory_membership_source(binding : MembershipDirectorySource.Binding, revision : Nat) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not MembershipDirectorySource.allowed(membershipDirectorySource, caller, binding)) return #Err("Directory identity and exact source binding required");
+    if (revision == 0) return #Err("Completed retained source required");
+    if (revision == membershipDiscoveryJournal.acknowledged) return #Ok;
+    if (revision < membershipDiscoveryJournal.acknowledged or revision > membershipEpoch() or
+        not MembershipSourceRetention.complete(membershipSourceRetention, binding, revision)) return #Err("Completed retained source required");
+    // Completing R must not clear pending membership changes at live L > R.
+    membershipDiscoveryJournal.acknowledged := revision;
+    #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  // Local membership commits only bump the durable journal. Delivery runs
+  // separately, never rolls back membership, and never clears pending work.
+  transient var directoryNotificationInFlight = false;
+  func notifyMembershipDirectory() : async () {
+    if (directoryNotificationInFlight or not membershipDirectorySource.enabled or not MembershipDiscovery.pending(membershipDiscoveryJournal)) return;
+    let binding = switch (membershipDirectorySource.binding) { case (?b) b; case null return };
+    let revision = membershipEpoch();
+    let directory : actor {
+      invalidate_membership_directory_source : shared (MembershipDirectorySource.Binding, Nat) -> async { #Ok; #Err : Text }
+    } = actor(binding.identity.toText());
+    directoryNotificationInFlight := true;
+    try { ignore await (with timeout = 30) directory.invalidate_membership_directory_source(binding, revision) }
+    catch (_) {} finally { directoryNotificationInFlight := false }
+  };
+  transient let membershipDirectoryTimer = Timer.recurringTimer<system>(#seconds 30, notifyMembershipDirectory);
+
+  public shared ({ caller }) func read_membership_discovery_status() : async { #Ok : { revision : Nat; acknowledged : Nat; pending : Bool }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not isGovernor(caller)) return #Err("Governor required");
+    #Ok({ revision = membershipEpoch(); acknowledged = membershipDiscoveryJournal.acknowledged; pending = MembershipDiscovery.pending(membershipDiscoveryJournal) })
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
   public shared ({ caller }) func read_my_club_memberships(offset : Nat, limit : Nat16) : async {
     #Ok : { clubs : [Text]; next : ?Nat; acl_revision : Nat64 }; #Err : Text
   } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     if (caller.equal(Principal.anonymous())) return #Err("Authentication required");
     if (limit == 0 or limit > 100 or offset > profiles.size()) return #Err("Invalid membership page");
-    let principals = switch (accountFor(caller)) { case (?a) a.principals; case null [caller] };
+    let principals = membershipAliases(caller);
     let page = MembershipPage.read<Types.ClubProfile>(profiles, offset, Nat16.toNat(limit), func(club) {
-      club.deleted_at_ms == null and principals.any(func(p) = isMember(p, club.id))
+      club.deleted_at_ms == null and isMember(caller, club.id)
     });
     #Ok({ clubs = page.rows.map(func(club) = club.id); next = page.next; acl_revision = aclVersion })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Indexed, cursor-paged successor of read_my_club_memberships: cost scales
@@ -2757,12 +3682,15 @@ persistent actor class Main(governorInit : Principal) = this {
   public shared ({ caller }) func read_my_club_memberships_indexed(after : ?Text, limit : Nat16) : async {
     #Ok : { clubs : [Text]; next : ?Text; acl_revision : Nat64 }; #Err : Text
   } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     if (caller.equal(Principal.anonymous())) return #Err("Authentication required");
     if (limit == 0 or limit > 100) return #Err("Invalid membership page");
-    let principals = switch (accountFor(caller)) { case (?a) a.principals; case null [caller] };
+    let principals = membershipAliases(caller);
     let ix = currentMemberIndex();
     if (principals.any(func(p) = MembershipIndex.has(ix, p.toText(), APP_WIDE))) {
       // App-wide roles cover every club: fall back to the bounded scan pager.
@@ -2783,7 +3711,7 @@ persistent actor class Main(governorInit : Principal) = this {
       for (club in page.clubs.values()) {
         if (out.size() == Nat16.toNat(limit)) { more := true; break scan };
         let live = profiles.any(func(pr) = pr.id == club and pr.deleted_at_ms == null);
-        if (live and principals.any(func(p) = isMember(p, club))) out := out.concat([club]);
+        if (live and isMember(caller, club)) out := out.concat([club]);
         cursor := ?club;
       };
       switch (page.next) { case null break scan; case (?_) {} };
@@ -2791,6 +3719,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok({ clubs = out; next = if (more and out.size() > 0) ?out[out.size() - 1] else null; acl_revision = aclVersion })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Cross-canister membership check used by pii_access_control's
@@ -2821,10 +3751,143 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous()) or isExcluded(user, club_id)) return false;
-    let principals = switch (accountFor(user)) { case (?a) a.principals; case null [user] };
-    principals.any(func(p) = isMember(p, club_id))
+    let principals = membershipAliases(user);
+    isMember(user, club_id)
   
     } finally { removalReceiver.leave(user) };
+  };
+
+  // Shared-key private-detail audiences, asked only by the configured PII
+  // canister. kind/scope: "clubchildren"/<club>, "teamnames"/<team>,
+  // "vaultrole"/"<club>|<team or empty>|<role,role,...>". Boolean only.
+  public shared ({ caller }) func read_has_pii_audience(user : Principal, kind : Text, scope : Text) : async Bool {
+    switch (piiCanister) { case (?p) { if (not p.equal(caller)) return false }; case null return false };
+    if (user.equal(Principal.anonymous()) or scope == "" or scope.size() > 512) return false;
+    if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
+    try {
+    await admitAccount(user);
+    PiiAudience.decide(kind, scope, {
+      isMember = func(club : Text) : Bool = not isExcluded(user, club) and isMember(user, club);
+      teamClub = func(team : Text) : ?Text = teamClub(team);
+      excluded = func(club : Text) : Bool = isExcluded(user, club);
+      onTeam = func(team : Text) : Bool = isOnTeam(user, team);
+      hasRole = func(role : Text, club : Text, team : ?Text) : Bool = acl.roles.any(func(g) =
+        ownsMembershipPrincipal(user, g.user) and g.role == role and g.club == ?club and
+        (switch (team) { case null true; case (?t) g.team == ?t or g.team == null }));
+    })
+    } finally { removalReceiver.leave(user) };
+  };
+
+  // Authority-owned candidates for club-only private name matching. Each call
+  // scans <=100 source rows and emits <=25 principals, with a durable cursor.
+  public shared ({ caller }) func read_profile_candidates(club_id : Text, cursor : ?ProfileMembership.Cursor) : async { #Ok : ProfileMembership.Page; #Err : Text } {
+    if (Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != ?"1") return #Err("Private profile candidate paging is not released");
+    if (caller.isAnonymous() or club_id == "" or club_id.size() > 128) return #Err("Authenticated club scope required");
+    if (not removalReceiver.enter(caller)) return #Err("Account removal fenced or operation capacity reached");
+    try {
+      let revision = membershipEpoch();
+      let authority = identityAccessCanister;
+      var phase = 0; var offset = 0;
+      switch (cursor) {
+        case (?c) { if (c.revision != revision or c.phase > 2) return #Err("Profile candidate cursor changed"); phase := c.phase; offset := c.offset };
+        case null {};
+      };
+      await admitAccount(caller);
+      if (not ProfileMembership.unchanged(revision, membershipEpoch(), authority == identityAccessCanister, removalReceiver.denied(caller) or isTransferFenced(club_id))) return #Err("Profile candidate scope changed");
+      if (not profiles.any(func p = p.id == club_id and p.deleted_at_ms == null)) return #Err("Active club required");
+      let aliases = switch (accountFor(caller)) { case (?a) a.principals; case null [caller] };
+      if (isExcluded(caller, club_id) or not aliases.any(func p = not removalReceiver.denied(p) and isMember(p, club_id))) return #Err("Club membership required");
+      let sizes = [acl.roles.size(), acl.children.size(), acl.guardians.size()];
+      if (offset > sizes[phase]) return #Err("Invalid profile candidate offset");
+      var scanned = 0; var subjects : [Principal] = [];
+      label scan while (phase < 3 and scanned < 100 and subjects.size() < 25) {
+        if (offset == sizes[phase]) { phase += 1; offset := 0; continue scan };
+        let subject : ?Principal = switch (phase) {
+          case (0) { let role = acl.roles[offset]; if (role.club == ?club_id) ?role.user else null };
+          case (1) acl.children[offset].parent;
+          case (_) ?acl.guardians[offset].user;
+        };
+        offset += 1; scanned += 1;
+        switch (subject) {
+          case (?p) { if (not p.isAnonymous() and not removalReceiver.denied(p) and isMember(p, club_id) and not subjects.any(func existing = existing == p)) subjects := subjects.concat([p]) };
+          case null {};
+        };
+      };
+      // Normalize exhausted phases so an exact-boundary page can finish.
+      while (phase < 3 and offset == sizes[phase]) { phase += 1; offset := 0 };
+      let next = if (phase == 3) null else ?{ revision; phase; offset };
+      #Ok({ revision; subjects; next; scanned })
+    } finally { removalReceiver.leave(caller) };
+  };
+
+  // Consensus booleans only: no child names, guardian lists or stored grants.
+  // Rehearsal-only identity-service delegation. This is an atomic bounded
+  // membership observation, not a public roster or a new readable name index.
+  public shared ({ caller }) func read_profile_membership_batch(requester : Principal, club_id : Text, subjects : [Principal], expected : ?Nat) : async { #Ok : ProfileMembership.Batch; #Err : Text } {
+    if (Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != ?"1" and Runtime.envVar<system>("IGNITE_PRIVATE_CLUB_NAME_DISPLAY_RELEASE") != ?"1") return #Err("Private profile membership reads are not released");
+    let authority = identityAccessCanister;
+    if (authority != ?caller or caller.isAnonymous()) return #Err("Configured identity authority required");
+    switch (ProfileMembership.validate(requester, club_id, subjects)) { case (?message) return #Err(message); case null {} };
+    if (not profiles.any(func p = p.id == club_id and p.deleted_at_ms == null)) return #Err("Active club required");
+    if (not removalReceiver.enter(requester)) return #Err("Account removal fenced or operation capacity reached");
+    try {
+      let revision = membershipEpoch();
+      switch (expected) { case (?value) { if (value != revision) return #Err("Profile membership revision changed") }; case null {} };
+      await admitAccount(requester);
+      if (not ProfileMembership.unchanged(revision, membershipEpoch(), identityAccessCanister == authority, removalReceiver.denied(requester) or isTransferFenced(club_id))) return #Err("Profile membership authority changed");
+      // Admit subjects once, before the local atomic membership observation.
+      var eligible : [Bool] = [];
+      for (subject in subjects.values()) {
+        let allowed = try { await admitAccount(subject); true } catch (_) { false };
+        if (not ProfileMembership.unchanged(revision, membershipEpoch(), identityAccessCanister == authority, removalReceiver.denied(requester) or isTransferFenced(club_id))) return #Err("Profile membership authority changed");
+        eligible := eligible.concat([allowed]);
+      };
+      if (not ProfileMembership.unchanged(revision, membershipEpoch(), identityAccessCanister == authority, removalReceiver.denied(requester) or isTransferFenced(club_id))) return #Err("Profile membership authority changed");
+      if (not profiles.any(func p = p.id == club_id and p.deleted_at_ms == null)) return #Err("Active club required");
+      func currentMember(subject : Principal) : Bool {
+        if (subject.isAnonymous() or removalReceiver.denied(subject) or isExcluded(subject, club_id)) return false;
+        let aliases = switch (accountFor(subject)) { case (?account) account.principals; case null [subject] };
+        aliases.any(func p = not removalReceiver.denied(p) and isMember(p, club_id))
+      };
+      if (not currentMember(requester)) return #Err("Club membership required");
+      let members = Array.tabulate<Bool>(subjects.size(), func i = eligible[i] and currentMember(subjects[i]));
+      #Ok({ revision; requester; club = club_id; subjects; members })
+    } finally { removalReceiver.leave(requester) };
+  };
+
+  // Trusted relationship services pin the exact membership generation across
+  // ALL their requester/subject checks; boolean replies alone are insufficient.
+  public shared ({ caller }) func read_profile_remote_revision(subjects : [Principal], expected : ?Nat) : async { #Ok : Nat; #Err : Text } {
+    if (Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != ?"1") return #Err("Private audience evidence is not released");
+    if (not trustedCompetition(caller) and miniLeagueDomainCanister != ?caller) return #Err("Configured relationship authority required");
+    if (subjects.size() > 26 or subjects.any(func p = p.isAnonymous())) return #Err("Bounded audience subjects required");
+    let revision = membershipEpoch();
+    switch (expected) { case (?r) if (r != revision) return #Err("Remote membership revision changed"); case null {} };
+    for (subject in subjects.values()) { await admitAccount(subject) };
+    if (not trustedCompetition(caller) and miniLeagueDomainCanister != ?caller) return #Err("Relationship authority changed");
+    if (revision != membershipEpoch() or subjects.any(func p = removalReceiver.denied(p))) return #Err("Remote membership changed");
+    #Ok(revision)
+  };
+
+  // Adult family names: BOTH viewer and each subject are current guardians of
+  // this exact child. Shared club membership alone never authorizes this path.
+  public shared ({ caller }) func read_profile_family_batch(requester : Principal, child_id : Text, subjects : [Principal], expected : ?Nat) : async { #Ok : ProfileMembership.Batch; #Err : Text } {
+    if (Runtime.envVar<system>("IGNITE_PRIVATE_PROFILE_READS_REHEARSAL") != ?"1") return #Err("Private family reads are not released");
+    let authority = identityAccessCanister;
+    if (authority != ?caller or caller.isAnonymous()) return #Err("Configured identity authority required");
+    switch (ProfileMembership.validate(requester, child_id, subjects)) { case (?e) return #Err(e); case null {} };
+    if (not removalReceiver.enter(requester)) return #Err("Account removal fenced");
+    try {
+      let revision = membershipEpoch();
+      switch (expected) { case (?r) if (r != revision) return #Err("Family revision changed"); case null {} };
+      await admitAccount(requester);
+      for (subject in subjects.values()) { await admitAccount(subject) };
+      if (revision != membershipEpoch() or authority != identityAccessCanister or removalReceiver.denied(requester)) return #Err("Family authority changed");
+      let child = acl.children.find(func c = c.id == child_id) ?? return #Err("Child not found");
+      switch (child.club_id) { case (?club) if (isTransferFenced(club) or not profiles.any(func p = p.id == club and p.deleted_at_ms == null)) return #Err("Family scope unavailable"); case null {} };
+      if (not currentChildGuardian(requester, child_id)) return #Err("Verified guardian required");
+      #Ok({ revision; requester; club = child_id; subjects; members = subjects.map(func p = not removalReceiver.denied(p) and currentChildGuardian(p, child_id)) })
+    } finally { removalReceiver.leave(requester) }
   };
 
   // Consensus booleans only: no child names, guardian lists or stored grants.
@@ -2833,7 +3896,7 @@ persistent actor class Main(governorInit : Principal) = this {
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous())) return false;
-    acl.roles.any(func(grant) = grant.user.equal(user) and grant.club == ?club_id)
+    acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id)
   
     } finally { removalReceiver.leave(user) };
   };
@@ -2923,6 +3986,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func begin_identity_link(target : Principal) : async { #Ok : Types.Challenge; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2949,9 +4015,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func accept_identity_link(id : Nat64) : async { #Ok : Types.Account; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -2970,7 +4041,7 @@ persistent actor class Main(governorInit : Principal) = this {
             let account = accounts[accountIndex];
             if (account.version != challenge.expected_version or not account.principals.any(func(item) = item.equal(challenge.issuer))) return #Err("Link authorization changed");
             let updated : Types.Account = { account with version = account.version + 1; principals = account.principals.concat([caller]) };
-            membershipEpoch += 1;
+            bumpMembershipDiscovery();
             accounts := Array.tabulate<Types.Account>(accounts.size(), func(position) { if (position == accountIndex) updated else accounts[position] });
             let accepted : Types.Challenge = { challenge with accepted = true };
             accountChallenges := Array.tabulate<Types.Challenge>(accountChallenges.size(), func(position) { if (position == index) accepted else accountChallenges[position] });
@@ -2981,9 +4052,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func revoke_identity(target : Principal, expected_version : Nat64) : async { #Ok : Types.Account; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3002,7 +4078,7 @@ persistent actor class Main(governorInit : Principal) = this {
         switch (Array.findIndex(accounts, func(account) = account.id == current.id)) {
           case null { #Err("Account unavailable") };
           case (?index) {
-            membershipEpoch += 1;
+            bumpMembershipDiscovery();
             accounts := Array.tabulate<Types.Account>(accounts.size(), func(position) { if (position == index) updated else accounts[position] });
             #Ok(updated)
           };
@@ -3011,8 +4087,66 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   // ---- Role management: grants, requests, and member removal ----
+  // Retain before sending. Unknown purge outcomes only read receipts, never
+  // resubmit. The global membership-write guard covers all sibling writers.
+  func runNameCleanup() : async () {
+    if (not automaticNameCleanup or nameCleanupRunning) return;
+    let initial = nameCleanup.first() ?? return;
+    nameCleanupRunning := true;
+    try {
+      let verifier = identityAccessCanister ?? return;
+      let identity : actor { read_private_name_cleanup_account : shared Principal -> async { #Ok : PrivateNameCleanup.Account; #Err : Text } } = actor(verifier.toText());
+      var row = initial;
+      if (row.account == null) {
+        let saved = switch (await (with timeout = 10) identity.read_private_name_cleanup_account(row.user)) { case (#Err(_)) return; case (#Ok(value)) value };
+        if (identityAccessCanister != ?verifier or nameCleanup.get(row.id) != ?row or saved.principals.size() == 0 or saved.principals.size() > 25 or not saved.principals.any(func p = p == row.user)) return;
+        switch (saved.original_authority) { case (#NoName) { nameCleanup.finish(row.id); return }; case (#Unresolved) return; case (#Existing(_)) {} };
+        row := { row with account = ?saved }; nameCleanup.save(row);
+      };
+      let saved = row.account ?? return;
+      if (saved.principals.any(func p = isMember(p, row.club))) {
+        // A remaining authorized alias keeps the replica. No purge was sent,
+        // so this no-op is definitive and must not strand the whole club.
+        if (not row.submitted) nameCleanup.finish(row.id);
+        return
+      };
+      let original = switch (saved.original_authority) { case (#Existing(value)) value; case _ return };
+      let receiver : actor {
+        purge_removed_private_club_name : shared (Text, Text, Principal) -> async { #Ok : PrivateNameCleanup.Receipt; #Err : Text };
+        read_removed_private_club_name_receipt : shared (Text, Text, Principal) -> async { #Ok : ?PrivateNameCleanup.Receipt; #Err : Text }
+      } = actor(original.sink.toText());
+      var receipt : ?PrivateNameCleanup.Receipt = null;
+      if (row.submitted) {
+        receipt := switch (await (with timeout = 10) receiver.read_removed_private_club_name_receipt(row.id, row.club, original.subject)) { case (#Ok(value)) value; case (#Err(_)) return }
+      } else {
+        row := { row with submitted = true }; nameCleanup.save(row);
+        receipt := switch (await (with timeout = 10) receiver.purge_removed_private_club_name(row.id, row.club, original.subject)) { case (#Ok(value)) ?value; case (#Err(_)) return }
+      };
+      if (identityAccessCanister != ?verifier or nameCleanup.get(row.id) != ?row or saved.principals.any(func p = isMember(p, row.club))) return;
+      switch (receipt) { case (?r) { if (r.id == row.id and r.club == row.club and r.subject == original.subject and r.replica_absent and r.original_retained) nameCleanup.finish(row.id) }; case null {} }
+    } catch (_) { /* Retain intent and unknown submission, including on timeout. */ }
+    finally { nameCleanupRunning := false }
+  };
+  transient let nameCleanupTimer = Timer.recurringTimer<system>(#seconds 60, runNameCleanup);
+  public shared ({ caller }) func resume_private_name_cleanup() : async { #Ok : Nat; #Err : Text } {
+    if (not isGovernor(caller) or not automaticNameCleanup) return #Err("Governor and approved cleanup release required");
+    await runNameCleanup(); #Ok(private_name_cleanup_rows.size())
+  };
+  public shared ({ caller }) func read_private_name_cleanup_pending() : async { #Ok : [PrivateNameCleanup.Intent]; #Err : Text } {
+    if (not isGovernor(caller)) return #Err("Governor required");
+    #Ok(private_name_cleanup_rows.values().toArray())
+  };
+  public shared ({ caller }) func read_private_name_removal_proof(id : Text) : async { #Ok : PrivateNameCleanup.Proof; #Err : Text } {
+    if (not automaticNameCleanup or identityAccessCanister != ?caller or caller.isAnonymous()) return #Err("Configured cleanup identity required");
+    let row = nameCleanup.get(id) ?? return #Err("Retained removal intent required");
+    let saved = row.account ?? return #Err("Verified cleanup account required");
+    if (not row.submitted or isTransferFenced(row.club) or not profiles.any(func p = p.id == row.club and p.deleted_at_ms == null)) return #Err("Cleanup scope unavailable");
+    #Ok({ intent = row; members = saved.principals.map(func p = isMember(p, row.club)) })
+  };
   // Provisional: `add_role_grant`/`remove_role_grant` mutate both the
   // Principal-keyed `acl.roles` (the actual authorization source used by
   // `isAdmin`/`isMember`/`canManageTeam`) and the Text-account-keyed
@@ -3027,13 +4161,16 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func add_role_grant(user : Principal, club : Text, role : Text, team : ?Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
     if (not isAdmin(caller, club)) return #Err("Club admin required");
     if (role == "") return #Err("Invalid role");
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with roles = acl.roles.concat([{ user; role; club = ?club; team }]) };
     let accountId = accountIdFor(user);
     accountRoles := accountRoles.concat([{ account_id = accountId; club = ?club; role; team }]);
@@ -3046,21 +4183,29 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func remove_role_grant(user : Principal, club : Text, role : Text, team : ?Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
     if (not isAdmin(caller, club)) return #Err("Club admin required");
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with roles = acl.roles.filter(func(g) = not (g.user.equal(user) and g.role == role and g.club == ?club and g.team == team)) };
     let accountId = accountIdFor(user);
     accountRoles := accountRoles.filter(func(g) = not (g.account_id == accountId and g.role == role and g.club == ?club and g.team == team));
+    if (automaticNameCleanup and not isMember(user, club)) { ignore nameCleanup.enqueue(club, user, membershipEpoch()); ignore runNameCleanup() };
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // SOFT delete: revokes every role a member holds in a club (club-level
@@ -3070,38 +4215,50 @@ persistent actor class Main(governorInit : Principal) = this {
   // records untouched). Idempotent: removing an already-removed member is
   // a no-op #Ok.
   public shared ({ caller }) func remove_member(club : Text, user : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     if (isTransferFenced(club)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
     if (not isAdmin(caller, club)) return #Err("Club admin required");
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with roles = acl.roles.filter(func(g) = not (g.user.equal(user) and g.club == ?club)) };
     let accountId = accountIdFor(user);
     accountRoles := accountRoles.filter(func(g) = not (g.account_id == accountId and g.club == ?club));
     if (not removedMembers.any(func(m) = m.club == club and m.user.equal(user))) {
       removedMembers := removedMembers.concat([{ club; user; removed_at_ms = nowMs(); removed_by = caller }]);
     };
+    if (automaticNameCleanup) { ignore nameCleanup.enqueue(club, user, membershipEpoch()); ignore runNameCleanup() };
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Clears the soft-delete marker. Does NOT restore previously revoked
   // role grants -- the admin must re-grant roles explicitly via
   // add_role_grant.
   public shared ({ caller }) func restore_member(club : Text, user : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     if (isTransferFenced(club)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
     if (not isAdmin(caller, club)) return #Err("Club admin required");
+    bumpMembershipDiscovery();
     removedMembers := removedMembers.filter(func(m) = not (m.club == club and m.user.equal(user)));
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func list_removed_members(club : Text) : async { #Ok : [Types.RemovedMember]; #Err : Text } {
@@ -3115,12 +4272,16 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func request_role(club : Text, role : Text, team : ?Text) : async { #Ok : Types.RoleRequest; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     if (isTransferFenced(club)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
-    if (role == "") return #Err("Invalid role");
+    if (not validPendingInviteRole(if (team == null) "club" else "team", team, ?role) or (switch (team) { case (?id) not inviteTeamValid(club, id); case null not acl.clubs.any(func c = c == club) })) return #Err("Invalid role or scope");
+    if (roleRequests.any(func r = r.user == caller and r.club == club and r.team == team and r.role == role and r.status == "pending")) return #Err("Request already pending");
     if (isExcluded(caller, club)) return #Err("Forbidden");
     let now = nowMs();
     let request : Types.RoleRequest = {
@@ -3137,6 +4298,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(request)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func list_role_requests(club : Text) : async { #Ok : [Types.RoleRequest]; #Err : Text } {
@@ -3146,6 +4309,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func approve_role_request(id : Text) : async { #Ok : Types.RoleRequest; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3155,7 +4321,10 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?req) {
         if (not isAdmin(caller, req.club)) return #Err("Club admin required");
         if (req.status != "pending") return #Err("Request already processed");
-        membershipEpoch += 1;
+        if (isExcluded(req.user, req.club) or removalReceiver.denied(req.user) or isTransferFenced(req.club) or not validPendingInviteRole(if (req.team == null) "club" else "team", req.team, ?req.role)) return #Err("Request no longer eligible");
+        switch (req.team) { case (?id) { if (not inviteTeamValid(req.club, id)) return #Err("Team no longer available") }; case null {} };
+        if (acl.roles.any(func g = g.user == req.user and g.role == req.role and g.club == ?req.club and g.team == req.team)) return #Err("Role already granted");
+        bumpMembershipDiscovery();
         acl := { acl with roles = acl.roles.concat([{ user = req.user; role = req.role; club = ?req.club; team = req.team }]) };
         accountRoles := accountRoles.concat([{ account_id = req.account_id; club = ?req.club; role = req.role; team = req.team }]);
         ignore fanOutEnsureConversation(req.club, null, clubChatParticipants(req.club));
@@ -3170,9 +4339,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func reject_role_request(id : Text) : async { #Ok : Types.RoleRequest; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3189,11 +4363,16 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Team/club soft-delete, restore, and permanent delete ----
 
   public shared ({ caller }) func soft_delete_team(id : Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3203,16 +4382,21 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?team) {
         if (not isAdmin(caller, team.club_id)) return #Err("Club admin required");
         let updated : Types.ClubTeam = { team with deleted_at_ms = ?nowMs() };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == id) updated else t);
         #Ok(updated)
       };
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func restore_team(id : Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3221,17 +4405,23 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isAdmin(caller, team.club_id)) return #Err("Club admin required");
+        if (team.deleted_at_ms != null) { switch (teamCapacityError(team.club_id, 1)) { case (?error) return #Err(error); case null {} } };
         let updated : Types.ClubTeam = { team with deleted_at_ms = null };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == id) updated else t);
         #Ok(updated)
       };
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func delete_team_permanent(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3248,6 +4438,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // cascade_teams mirrors the Supabase `cascade_club_soft_delete` RPC:
@@ -3264,6 +4456,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func soft_delete_club(id : Text, cascade_teams : Bool) : async { #Ok : Types.ClubProfile; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3274,10 +4469,10 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?club) {
         let now = nowMs();
         let updated : Types.ClubProfile = { club with deleted_at_ms = ?now };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         profiles := profiles.map(func(p) = if (p.id == id) updated else p);
         if (cascade_teams) {
-          membershipEpoch += 1;
+          bumpMembershipDiscovery();
           teams := teams.map(func(t) = if (t.club_id == id and t.deleted_at_ms == null) ({ t with deleted_at_ms = ?now }) else t);
         };
         #Ok(updated)
@@ -3285,6 +4480,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // cascade_teams mirrors `cascade_team_soft_delete` in reverse: restoring
@@ -3292,6 +4489,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // after) the club's own deletion — an approximation of "deleted together
   // with the club" since the canister does not track a cascade batch id.
   public shared ({ caller }) func restore_club(id : Text, cascade_teams : Bool) : async { #Ok : Types.ClubProfile; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3301,13 +4501,17 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Club not found") };
       case (?club) {
         let deletedAt = club.deleted_at_ms;
+        if (cascade_teams) {
+          let count = teams.filter(func(t) = t.club_id == id and t.deleted_at_ms != null and t.deleted_at_ms == deletedAt).size();
+          switch (teamCapacityError(id, count)) { case (?error) return #Err(error); case null {} }
+        };
         let updated : Types.ClubProfile = { club with deleted_at_ms = null };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         profiles := profiles.map(func(p) = if (p.id == id) updated else p);
         if (cascade_teams) {
           switch (deletedAt) {
             case (?ts) {
-              membershipEpoch += 1;
+              bumpMembershipDiscovery();
               teams := teams.map(func(t) = if (t.club_id == id and t.deleted_at_ms == ?ts) ({ t with deleted_at_ms = null }) else t);
             };
             case null {};
@@ -3318,9 +4522,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func delete_club_permanent(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3337,12 +4546,17 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Team invites (email delivery stays with Supabase; this stores the
   // invite record and its accept/revoke state) ----
 
   public shared ({ caller }) func create_team_invite(club_id : Text, team_id : Text, email : Text, role : Text) : async { #Ok : Types.TeamInvite; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3350,11 +4564,14 @@ persistent actor class Main(governorInit : Principal) = this {
     auth(caller);
     if (not (await canCreateTeamRosterInvite(caller, club_id, team_id, role))) return #Err("Team or competition admin required for player/parent invites");
     if (email == "" or email.size() > 320) return #Err("Invalid email");
-    if (role == "") return #Err("Invalid role");
+    let epoch = membershipEpoch();
+    let id = await genToken("tinv");
+    if (epoch != membershipEpoch() or isTransferFenced(club_id) or removalReceiver.denied(caller) or not inviteTeamValid(club_id, team_id)) return #Err("Invite authorization changed");
+    if (teamInvites.any(func i = i.id == id)) return #Err("Credential collision; retry");
     let now = nowMs();
     let invite : Types.TeamInvite = {
-      id = "tinv-" # team_id # "-" # Nat.toText(teamInvites.size() + 1) # "-" # Nat64.toText(nowNs() % 1_000_000_000);
-      club_id; team_id; email; role;
+      id;
+      club_id; team_id; email = "pii:email"; role;
       invited_by = caller;
       created_at_ms = now;
       expires_at_ms = now + 7 * 24 * 60 * 60 * 1000;
@@ -3365,27 +4582,30 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(invite)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func list_team_invites(club_id : Text, team_id : ?Text) : async { #Ok : [Types.TeamInvite]; #Err : Text } {
     denyLegacyAccountQuery();
     if (not isAdmin(caller, club_id)) return #Err("Club admin required");
-    #Ok(teamInvites.filter(func(i) = i.club_id == club_id and (team_id == null or team_id == ?i.team_id)))
+    #Ok(teamInvites.filter(func(i) = i.club_id == club_id and (team_id == null or team_id == ?i.team_id)).map(func(i : Types.TeamInvite) : Types.TeamInvite = { i with email = "" }))
   };
 
   public query ({ caller }) func get_team_invite(id : Text) : async { #Ok : Types.TeamInvite; #Err : Text } {
-    denyLegacyAccountQuery();
-    auth(caller);
     switch (teamInvites.find(func(i) = i.id == id)) {
       case null { #Err("Invite not found") };
       case (?invite) {
         if (invite.expires_at_ms <= nowMs()) return #Err("Invite expired");
-        #Ok(invite)
+        #Ok({ invite with email = "" })
       };
     }
   };
 
   public shared ({ caller }) func accept_team_invite(id : Text) : async { #Ok : Types.TeamInvite; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3394,10 +4614,15 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Invite not found") };
       case (?invite) {
         if (invite.revoked) return #Err("Invite revoked");
+        if (invite.accepted_by == ?caller and acl.roles.any(func g = g.user == caller and g.role == invite.role and g.club == ?invite.club_id and g.team == ?invite.team_id)) return #Ok(invite);
         if (invite.accepted_by != null) return #Err("Invite already accepted");
+        let epoch = membershipEpoch();
+        if (not (await canCreateTeamRosterInvite(invite.invited_by, invite.club_id, invite.team_id, invite.role)) or epoch != membershipEpoch() or isTransferFenced(invite.club_id) or removalReceiver.denied(caller)) return #Err("Invite authorization changed");
+        let current = teamInvites.find(func i = i.id == id) ?? return #Err("Invite not found");
+        if (current.revoked or current.accepted_by != null) return #Err("Invite changed");
         if (invite.expires_at_ms <= nowMs()) return #Err("Invite expired");
         if (isExcluded(caller, invite.club_id)) return #Err("Forbidden");
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         acl := { acl with roles = acl.roles.concat([{ user = caller; role = invite.role; club = ?invite.club_id; team = ?invite.team_id }]) };
         accountRoles := accountRoles.concat([{ account_id = accountIdFor(caller); club = ?invite.club_id; role = invite.role; team = ?invite.team_id }]);
         let accepted : Types.TeamInvite = { invite with accepted_by = ?caller };
@@ -3407,9 +4632,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func revoke_team_invite(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3425,6 +4655,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Shell teams: a club admin pre-creates a team for a coach/manager
@@ -3433,6 +4665,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // the Supabase `teams.shell_*` columns and `claim_shell_team` RPC. ----
 
   public shared ({ caller }) func create_shell_team_invite(club_id : Text, name : Text, contact_email : ?Text, contact_name : ?Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3440,6 +4675,7 @@ persistent actor class Main(governorInit : Principal) = this {
     auth(caller);
     if (not isAdmin(caller, club_id)) return #Err("Club admin required");
     if (name == "" or name.size() > 160) return #Err("Invalid team name");
+    switch (teamCapacityError(club_id, 1)) { case (?error) return #Err(error); case null {} };
     let now = nowMs();
     let token = "shell-" # club_id # "-" # Nat.toText(teams.size() + 1) # "-" # Nat64.toText(nowNs() % 1_000_000_000);
     let team : Types.ClubTeam = {
@@ -3458,11 +4694,13 @@ persistent actor class Main(governorInit : Principal) = this {
       playhq_team_id = null; playhq_competition_id = null; playhq_auto_create_events = false;
       folder_id = null;
     };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     teams := teams.concat([team]);
     #Ok(team)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func get_shell_team_by_token(token : Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
@@ -3481,6 +4719,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // it claimed; the token is left on the record as an audit trail
   // (claimed_by/claimed_at gate re-claiming, matching claim_shell_team).
   public shared ({ caller }) func claim_shell_team(token : Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3488,12 +4729,14 @@ persistent actor class Main(governorInit : Principal) = this {
     switch (teams.find(func(t) = t.shell_claim_token == ?token)) {
       case null { #Err("Shell invite not found") };
       case (?team) {
+        if (isExcluded(caller, team.club_id) or isTransferFenced(team.club_id)) return #Err("Forbidden");
+        if (team.shell_claimed_by == ?caller and canManageTeam(caller, team.club_id, ?team.id)) return #Ok(team);
         if (team.shell_claimed_by != null) return #Err("Shell team already claimed");
         if (team.deleted_at_ms != null) return #Err("Team no longer available");
         let updated : Types.ClubTeam = { team with shell_claimed_at_ms = ?nowMs(); shell_claimed_by = ?caller };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == team.id) updated else t);
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         acl := { acl with roles = acl.roles.concat([{ user = caller; role = "team_admin"; club = ?team.club_id; team = ?team.id }]) };
         accountRoles := accountRoles.concat([{ account_id = accountIdFor(caller); club = ?team.club_id; role = "team_admin"; team = ?team.id }]);
         #Ok(updated)
@@ -3501,6 +4744,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func export_identity_state() : async { #Ok : Types.State; #Err : Text } {
@@ -3535,18 +4780,24 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func create_team_invite_link(club_id : Text, team_id : Text, role : Text) : async { #Ok : Types.TeamInviteLink; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     if (isTransferFenced(club_id)) return #Err("Club is temporarily locked for a transfer");
     auth(caller);
     if (not (await canCreateTeamRosterInvite(caller, club_id, team_id, role))) return #Err("Team or competition admin required for player/parent invites");
-    if (role == "") return #Err("Invalid role");
+    let epoch = membershipEpoch();
+    let token = await genToken("tok");
+    if (epoch != membershipEpoch() or isTransferFenced(club_id) or removalReceiver.denied(caller) or not inviteTeamValid(club_id, team_id)) return #Err("Invite authorization changed");
+    if (teamInviteLinks.any(func l = l.token == token)) return #Err("Credential collision; retry");
     let now = nowMs();
     let link : Types.TeamInviteLink = {
-      id = "tlink-" # team_id # "-" # Nat.toText(teamInviteLinks.size() + 1);
+      id = "tlink-" # token;
       club_id; team_id; role;
-      token = await genToken("tok");
+      token;
       created_by = caller;
       created_at_ms = now;
       rotated_at_ms = null;
@@ -3556,9 +4807,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(link)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func list_team_invite_links(team_id : Text) : async { #Ok : [Types.TeamInviteLink]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3577,9 +4833,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func rotate_team_invite_link(id : Text) : async { #Ok : Types.TeamInviteLink; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3588,16 +4849,26 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Invite link not found") };
       case (?link) {
         if (not (await canCreateTeamRosterInvite(caller, link.club_id, link.team_id, link.role))) return #Err("Team or competition admin required for player/parent invites");
-        let updated : Types.TeamInviteLink = { link with token = await genToken("tok"); rotated_at_ms = ?nowMs() };
+        let epoch = membershipEpoch();
+        let token = await genToken("tok");
+        let current = teamInviteLinks.find(func l = l.id == id) ?? return #Err("Invite link not found");
+        if (current.revoked or current.token != link.token or epoch != membershipEpoch() or isTransferFenced(link.club_id) or removalReceiver.denied(caller)) return #Err("Invite link changed");
+        if (teamInviteLinks.any(func l = l.token == token)) return #Err("Credential collision; retry");
+        let updated : Types.TeamInviteLink = { current with token; rotated_at_ms = ?nowMs() };
         teamInviteLinks := teamInviteLinks.map(func(l) = if (l.id == id) updated else l);
         #Ok(updated)
       };
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func revoke_team_invite_link(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3613,11 +4884,11 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func get_team_invite_link_by_token(token : Text) : async { #Ok : Types.TeamInviteLink; #Err : Text } {
-    denyLegacyAccountQuery();
-    auth(caller);
     switch (teamInviteLinks.find(func(l) = l.token == token)) {
       case null { #Err("Invite link not found") };
       case (?link) {
@@ -3631,6 +4902,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // capability (unrevoked links only), and redemption is idempotent —
   // accepting the same link twice changes nothing.
   public shared ({ caller }) func accept_team_invite_link(token : Text) : async { #Ok : Types.TeamInviteLink; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3640,16 +4914,23 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?link) {
         if (link.revoked) return #Err("Invite link revoked");
         if (isExcluded(caller, link.club_id)) return #Err("Forbidden");
+        let epoch = membershipEpoch();
+        if (not (await canCreateTeamRosterInvite(link.created_by, link.club_id, link.team_id, link.role)) or epoch != membershipEpoch() or isTransferFenced(link.club_id) or removalReceiver.denied(caller)) return #Err("Invite authorization changed");
+        let current = teamInviteLinks.find(func l = l.token == token) ?? return #Err("Invite link not found");
+        if (current.revoked) return #Err("Invite link revoked");
         if (not acl.roles.any(func(g) = g.user.equal(caller) and g.role == link.role and g.club == ?link.club_id and g.team == ?link.team_id)) {
           let grant : Types.RoleGrant = { user = caller; role = link.role; club = ?link.club_id; team = ?link.team_id };
-          membershipEpoch += 1;
+          bumpMembershipDiscovery();
           acl := { acl with roles = acl.roles.concat([grant]) };
+          accountRoles := accountRoles.concat([{ account_id = accountIdFor(caller); role = link.role; club = ?link.club_id; team = ?link.team_id }]);
         };
         #Ok(link)
       };
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Pending invites: generalized team/club/guardian invite flow.
@@ -3670,6 +4951,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func create_pending_invite(kind : Text, club_id : Text, team_id : ?Text, child_id : ?Text, email : Text, role : ?Text) : async { #Ok : { invite : Types.PendingInvite; payload : Types.InvitePayload }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3677,6 +4961,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (isTransferFenced(club_id)) return #Err("Club is temporarily locked for a transfer");
     if (isExcluded(caller, club_id)) return #Err("Forbidden");
     if (kind != "team" and kind != "club" and kind != "guardian") return #Err("Invalid invite kind");
+    if (not validPendingInviteRole(kind, team_id, role)) return #Err("Invalid invitation role or scope");
     if (email == "" or email.size() > 320) return #Err("Invalid email");
     if (kind == "guardian") {
       switch (child_id) {
@@ -3700,7 +4985,12 @@ persistent actor class Main(governorInit : Principal) = this {
       };
       case null { if (not isAdmin(caller, club_id)) return #Err("Club admin required") };
     };
+    switch (team_id, role) { case (?team, ?value) { if (kind == "team" and (value == "coach" or value == "team_admin") and not localInviteRoleAllowed(caller, club_id, team, value)) return #Err("Team administrator required for staff invites") }; case _ {} };
+    let epoch = membershipEpoch();
     let token = "pinv-" # (await randomHex(16));
+    if (epoch != membershipEpoch() or pendingInvites.any(func i = i.id == token)) return #Err("Invite authorization changed; retry");
+    switch (team_id, role) { case (?team, ?value) { if (not inviteTeamValid(club_id, team) or (kind == "team" and not validTeamInviteRole(value))) return #Err("Invalid team scope") }; case _ {} };
+    if (removalReceiver.denied(caller)) return #Err("Invite authorization changed");
     if (kind == "guardian") {
       if (not canManageTeam(caller, club_id, team_id)) return #Err("Invite authorization changed");
       switch (child_id) {
@@ -3713,7 +5003,7 @@ persistent actor class Main(governorInit : Principal) = this {
     let now = nowMs();
     let invite : Types.PendingInvite = {
       id = token;
-      kind; club_id; team_id; child_id; email; role;
+      kind; club_id; team_id; child_id; email = "pii:email"; role;
       invited_by = caller;
       created_at_ms = now;
       status = "pending";
@@ -3725,35 +5015,151 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok({ invite; payload = invitePayloadFor(invite) })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  // ---- Invite email: send once, store nothing about the recipient. ----
+  public shared ({ caller }) func set_invite_email_sender(key : Text, from : Text, app_url : Text) : async { #Ok; #Err : Text } {
+    if (not isGovernor(caller)) return #Err("Governor only");
+    if (key == "") { invite_email_sender := null; return #Ok };
+    if (key.size() > 256 or from.size() == 0 or from.size() > 200 or not app_url.startsWith(#text "https://") or app_url.size() > 200 or app_url.endsWith(#text "/")) return #Err("Invalid sender settings");
+    invite_email_sender := ?{ key; from; app_url };
+    #Ok
+  };
+
+  public query func invite_email_sender_status() : async { configured : Bool; from : Text; app_url : Text } {
+    switch (invite_email_sender) { case (?s) ({ configured = true; from = s.from; app_url = s.app_url }); case null ({ configured = false; from = ""; app_url = "" }) }
+  };
+
+  public shared ({ caller }) func send_invite_email(invite_id : Text, email : Text) : async { #Ok; #Err : Text } {
+    if (caller.isAnonymous()) return #Err("Sign in required");
+    let sender = invite_email_sender ?? return #Err("Email sending is not set up yet; share the link instead");
+    let invite = pendingInvites.find(func i = i.id == invite_id) ?? return #Err("Invite not found");
+    if (invite.invited_by != caller) return #Err("Only the person who created this invite can email it");
+    if (invite.status != "pending") return #Err("Invite is no longer pending");
+    if (isExcluded(caller, invite.club_id) or isTransferFenced(invite.club_id)) return #Err("Forbidden");
+    let to = email.trim(#char ' ').toLower();
+    if (not InviteEmail.validEmail(to)) return #Err("Invalid email");
+    if (invite_emails_sent.any(func id = id == invite_id)) return #Err("Invite already emailed; create a fresh invite to send again");
+    // Reserve before the await so concurrent calls cannot send twice.
+    invite_emails_sent := (if (invite_emails_sent.size() >= 5000) invite_emails_sent.sliceToArray(1000, invite_emails_sent.size()) else invite_emails_sent).concat([invite_id]);
+    let ic : actor { http_request : InviteEmail.Request -> async InviteEmail.HttpResult } = actor ("aaaaa-aa");
+    let result = try {
+      await (with cycles = 20_000_000_000) ic.http_request(InviteEmail.request(sender, invite_id, invite.kind, to))
+    } catch (_) {
+      return #Err("Email delivery outcome unknown; share the link instead")
+    };
+    if (result.status >= 200 and result.status < 300) #Ok
+    else {
+      invite_emails_sent := invite_emails_sent.filter(func id = id != invite_id);
+      #Err("Email service refused the invite (" # Nat.toText(result.status) # "); share the link instead")
+    }
+  };
+
+  // Opaque child IDs only: names are encrypted by the client before commit.
+  // All validation precedes one no-await commit of children and both invitations.
+  public shared ({ caller }) func create_family_invite(request_id : Text, club_id : Text, team_id : Text, children : [{ id : Text; existing : Bool }], second : Bool, bound_secondary : ?Principal) : async { #Ok : { invite : Types.PendingInvite; secondary : ?Types.PendingInvite; child_ids : [Text] }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced");
+    try {
+      await admitAccount(caller); auth(caller);
+      if (not canManageTeam(caller, club_id, ?team_id) or isTransferFenced(club_id)) return #Err("Team manager required");
+      if (request_id.size() < 16 or request_id.size() > 100 or children.size() == 0 or children.size() > 12) return #Err("Invalid family invitation");
+      switch (familyInvites.find(func i = i.created_by == caller and i.request_id == request_id)) {
+        case (?receipt) {
+          let original = pendingInvites.find(func i = i.id == receipt.primary) ?? return #Err("Invitation retired");
+          if (original.club_id != club_id or original.team_id != ?team_id or receipt.children != children.map(func c = c.id) or (receipt.secondary != null) != second or receipt.bound_secondary != bound_secondary) return #Err("Request changed");
+          if (original.status == "revoked") return #Err("Invite revoked");
+          return #Ok({ invite = original; secondary = switch (receipt.secondary) { case (?id) pendingInvites.find(func i = i.id == id); case null null }; child_ids = receipt.children });
+        }; case null {};
+      };
+      let epoch = membershipEpoch();
+      let token = "pinv-" # (await randomHex(16));
+      let secondaryToken = if (second) ?("pinv-" # (await randomHex(16))) else null;
+      if (epoch != membershipEpoch() or not canManageTeam(caller, club_id, ?team_id) or isTransferFenced(club_id) or removalReceiver.denied(caller)) return #Err("Invite authorization changed");
+      if (familyInvites.any(func i = i.created_by == caller and i.request_id == request_id)) return #Err("Request already committed; read original receipt");
+      if (pendingInvites.any(func i = i.id == token or ?i.id == secondaryToken)) return #Err("Token collision");
+      switch (bound_secondary) { case (?p) { if (p == Principal.anonymous() or not second or isExcluded(p, club_id) or removalReceiver.denied(p)) return #Err("Invalid guardian") }; case null {} };
+      var seen : [Text] = [];
+      for (c in children.values()) {
+        if (seen.any(func id = id == c.id) or c.id.size() < 8 or c.id.size() > 100) return #Err("Invalid child selection");
+        seen := seen.concat([c.id]);
+        let row = acl.children.find(func child = child.id == c.id);
+        if (c.existing) {
+          let child = row ?? return #Err("Child missing");
+          if (not parentInviteScopeValid(club_id, ?team_id, c.id)) return #Err("Child in wrong scope");
+        } else if (row != null) return #Err("Child ID already exists");
+      };
+      let invite : Types.PendingInvite = { id = token; kind = "team"; club_id; team_id = ?team_id; child_id = null; email = "pii:email"; role = ?"parent"; invited_by = caller; created_at_ms = nowMs(); status = "pending"; resent_at_ms = null; accepted_at_ms = null; accepted_by = null };
+      let secondary = switch (secondaryToken) { case (?id) ?{ invite with id; kind = "guardian"; child_id = ?children[0].id; role = null }; case null null };
+      let added : [Types.Child] = children.filter(func c = not c.existing).map(func c = { id = c.id; teams = [team_id]; parent = null; club_id = ?club_id });
+      bumpMembershipDiscovery(); acl := { acl with children = acl.children.concat(added) };
+      pendingInvites := pendingInvites.concat([invite]).concat(switch (secondary) { case (?i) [i]; case null [] });
+      familyInvites := familyInvites.concat([{ request_id; created_by = caller; primary = token; secondary = secondaryToken; children = seen; bound_secondary }]);
+      #Ok({ invite; secondary; child_ids = seen })
+    } finally { removalReceiver.leave(caller) }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func read_family_invite_receipt(id : Text) : async { #Ok : { child_ids : [Text]; accepted_by : Principal; accepted_at_ms : Nat64; team_id : ?Text; club_id : Text; already_accepted : Bool }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced");
+    try {
+      await admitAccount(caller); auth(caller);
+      let invite = pendingInvites.find(func i = i.id == id) ?? return #Err("Invite not found");
+      if (invite.status != "accepted" or invite.accepted_by != ?caller or isExcluded(caller, invite.club_id)) return #Err("Accepted invitation required");
+      if (invite.kind != "guardian" and not acl.roles.any(func g = g.user == caller and g.club == ?invite.club_id and g.team == invite.team_id and ?g.role == invite.role)) return #Err("Membership access changed");
+      let family = familyInvites.find(func f = f.primary == id or f.secondary == ?id);
+      let ids = switch (family) { case (?f) f.children; case null switch (invite.child_id) { case (?cid) [cid]; case null [] } };
+      if (ids.any(func cid = not parentInviteScopeValid(invite.club_id, invite.team_id, cid) or not acl.guardians.any(func g = g.child == cid and g.user == caller))) return #Err("Family access changed");
+      #Ok({ child_ids = ids; accepted_by = caller; accepted_at_ms = invite.accepted_at_ms ?? 0; team_id = invite.team_id; club_id = invite.club_id; already_accepted = true })
+    } finally { removalReceiver.leave(caller) }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func list_pending_invites_by_club(club_id : Text) : async { #Ok : [Types.PendingInvite]; #Err : Text } {
     denyLegacyAccountQuery();
-    if (not isAdmin(caller, club_id)) return #Err("Club admin required");
-    #Ok(pendingInvites.filter(func(i) = i.club_id == club_id))
+    if (not isAdmin(caller, club_id) and not acl.teams.any(func t = t.club == club_id and canManageTeam(caller, club_id, ?t.id))) return #Err("Invite manager required");
+    #Ok(pendingInvites.filter(func i = i.club_id == club_id and canManageTeam(caller, club_id, i.team_id)))
   };
 
   // Short invite links: an 8-char hex code resolving to a PendingInvite id,
   // so share links can be short (e.g. example.com/i/AB12CD34) instead of
   // embedding the full invite id. Idempotent per invite_id.
   public shared ({ caller }) func create_invite_short_code(invite_id : Text) : async { #Ok : Text; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
     switch (pendingInvites.find(func(i) = i.id == invite_id)) {
       case null { return #Err("Invite not found") };
-      case (?invite) { if (not isAdmin(caller, invite.club_id)) return #Err("Club admin required") };
+      case (?invite) { if (not canManageTeam(caller, invite.club_id, invite.team_id) or invite.status == "revoked" or invite.status == "accepted") return #Err("Pending invite manager required") };
     };
     switch (inviteShortCodes.find(func(e) = e.1 == invite_id)) {
       case (?existing) { return #Ok(existing.0) };
       case null {};
     };
-    let code = Text.toUpper(await randomHex(4));
+    let code = Text.toUpper(await randomHex(16));
+    let invite = pendingInvites.find(func i = i.id == invite_id) ?? return #Err("Invite not found");
+    if (not canManageTeam(caller, invite.club_id, invite.team_id) or invite.status == "revoked" or invite.status == "accepted") return #Err("Invite changed");
+    switch (inviteShortCodes.find(func e = e.1 == invite_id)) { case (?existing) return #Ok(existing.0); case null {} };
+    if (inviteShortCodes.any(func e = e.0 == code)) return #Err("Credential collision; retry");
     inviteShortCodes := inviteShortCodes.concat([(code, invite_id)]);
     #Ok(code)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query func resolve_invite_short_code(code : Text) : async { #Ok : Text; #Err : Text } {
@@ -3770,15 +5176,21 @@ persistent actor class Main(governorInit : Principal) = this {
   // own club may record/query the hash to detect duplicate invites.
 
   public shared ({ caller }) func set_pending_invite_email_hash(invite_id : Text, club_id : Text, hash : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) return #Err("Club staff required");
+    let invite = pendingInvites.find(func i = i.id == invite_id) ?? return #Err("Invite not found");
+    if (invite.club_id != club_id or not canManageTeam(caller, club_id, invite.team_id) or hash.size() != 64) return #Err("Invite manager and exact scope required");
     pendingInviteEmailHashes := pendingInviteEmailHashes.filter(func(h) = h.invite_id != invite_id).concat([{ invite_id; club_id; hash }]);
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func find_pending_invite_by_email_hash(club_id : Text, hash : Text) : async { #Ok : ?Types.PendingInviteEmailHash; #Err : Text } {
@@ -3796,12 +5208,15 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Invite not found") };
       case (?invite) {
         if (invite.status == "revoked") return #Err("Invite revoked");
-        #Ok(invite)
+        #Ok({ invite with email = ""; child_id = null })
       };
     }
   };
 
   public shared ({ caller }) func resend_pending_invite(id : Text) : async { #Ok : { invite : Types.PendingInvite; payload : Types.InvitePayload }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3811,16 +5226,22 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?invite) {
         if (not isAdmin(caller, invite.club_id)) return #Err("Club admin required");
         if (invite.status == "revoked") return #Err("Invite revoked");
-        let updated : Types.PendingInvite = { invite with status = "resent"; resent_at_ms = ?nowMs() };
+        if (invite.status == "accepted") return #Err("Invite already accepted");
+        let updated : Types.PendingInvite = { invite with status = "pending"; resent_at_ms = ?nowMs() };
         pendingInvites := pendingInvites.map(func(i) = if (i.id == id) updated else i);
         #Ok({ invite = updated; payload = invitePayloadFor(updated) })
       };
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func revoke_pending_invite(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3836,6 +5257,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Self-accept: the invited principal redeems a PendingInvite directly
@@ -3844,6 +5267,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // (team/club scoped per the invite), and for "guardian" invites also
   // links the guardian/child the same way accept_parent_invite does.
   public shared ({ caller }) func accept_pending_invite(id : Text) : async { #Ok : Types.PendingInvite; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3852,9 +5278,32 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Invite not found") };
       case (?invite) {
         if (isTransferFenced(invite.club_id)) return #Err("Club is temporarily locked for a transfer");
-        if (invite.status == "accepted") return #Err("Invite already accepted");
+        if (not validPendingInviteRole(invite.kind, invite.team_id, invite.role)) return #Err("Invalid invitation role or scope");
+        if (invite.status == "accepted") {
+          let retained = if (invite.kind == "guardian") (switch (invite.child_id) { case (?cid) acl.guardians.any(func g = g.child == cid and g.user == caller); case null false }) else acl.roles.any(func g = g.user == caller and g.club == ?invite.club_id and g.team == invite.team_id and ?g.role == invite.role);
+          let familyRetained = switch (familyInvites.find(func f = f.primary == id or f.secondary == ?id)) { case (?f) f.children.all(func cid = parentInviteScopeValid(invite.club_id, invite.team_id, cid) and acl.guardians.any(func g = g.child == cid and g.user == caller)); case null true };
+          if (invite.accepted_by == ?caller and retained and familyRetained and not isExcluded(caller, invite.club_id)) return #Ok(invite);
+          return #Err("Invite already accepted");
+        };
+        let epoch = membershipEpoch();
+        let authorized = switch (invite.team_id, invite.role) { case (?team, ?role) { if (invite.kind == "team") await canCreateTeamRosterInvite(invite.invited_by, invite.club_id, team, role) else canManageTeam(invite.invited_by, invite.club_id, invite.team_id) }; case _ canManageTeam(invite.invited_by, invite.club_id, invite.team_id) };
+        let current = pendingInvites.find(func i = i.id == id) ?? return #Err("Invite not found");
+        if (not authorized or epoch != membershipEpoch() or removalReceiver.denied(caller) or removalReceiver.denied(invite.invited_by) or current.status != invite.status or isTransferFenced(invite.club_id)) return #Err("Invite authorization changed");
         if (invite.status == "revoked") return #Err("Invite revoked");
         if (isExcluded(caller, invite.club_id)) return #Err("Forbidden");
+        let family = familyInvites.find(func f = f.primary == id or f.secondary == ?id);
+        switch (family) {
+          case (?f) {
+            let primary = pendingInvites.find(func i = i.id == f.primary) ?? return #Err("Primary invitation retired");
+            if (primary.status == "revoked") return #Err("Primary invite revoked");
+            if (f.secondary == ?id and (primary.status != "accepted" or (f.bound_secondary != null and f.bound_secondary != ?caller))) return #Err("Primary parent must accept first or guardian account differs");
+            for (cid in f.children.values()) {
+              let child = acl.children.find(func c = c.id == cid) ?? return #Err("Child missing");
+              if (not parentInviteScopeValid(invite.club_id, invite.team_id, cid)) return #Err("Child scope changed");
+              if (f.secondary == ?id and not acl.guardians.any(func g = g.child == cid and ?g.user == primary.accepted_by)) return #Err("Child family changed");
+            };
+          }; case null {};
+        };
         if (invite.kind == "guardian") {
           if (isExcluded(invite.invited_by, invite.club_id) or not canManageTeam(invite.invited_by, invite.club_id, invite.team_id)) return #Err("Invite authorization changed");
           switch (invite.child_id) {
@@ -3868,13 +5317,13 @@ persistent actor class Main(governorInit : Principal) = this {
                   switch (acl.children.find(func(c) = c.id == childId)) {
                     case null {
                       let child : Types.Child = { id = childId; teams = [team]; parent = null; club_id = ?invite.club_id };
-                      membershipEpoch += 1;
+                      bumpMembershipDiscovery();
                       acl := { acl with children = acl.children.concat([child]) };
                     };
                     case (?child) {
                       if (not child.teams.any(func(t) = t == team)) {
                         let updatedChild : Types.Child = { child with teams = child.teams.concat([team]) };
-                        membershipEpoch += 1;
+                        bumpMembershipDiscovery();
                         acl := { acl with children = acl.children.map(func(c) = if (c.id == childId) updatedChild else c) };
                       };
                     };
@@ -3883,13 +5332,13 @@ persistent actor class Main(governorInit : Principal) = this {
                 case null {};
               };
               if (not acl.guardians.any(func(g) = g.child == childId and g.user.equal(caller))) {
-                membershipEpoch += 1;
+                bumpMembershipDiscovery();
                 acl := { acl with guardians = acl.guardians.concat([{ child = childId; user = caller }]) };
               };
               switch (accountFor(caller)) {
                 case (?account) {
                   if (not accountFamilies.any(func(fam) = fam.account_id == account.id and fam.child_id == childId)) {
-                    membershipEpoch += 1;
+                    bumpMembershipDiscovery();
                     accountFamilies := accountFamilies.concat([{ account_id = account.id; child_id = childId }]);
                   };
                 };
@@ -3905,12 +5354,23 @@ persistent actor class Main(governorInit : Principal) = this {
             case (?role) {
               if (not acl.roles.any(func(g) = g.user.equal(caller) and g.role == role and g.club == ?invite.club_id and g.team == invite.team_id)) {
                 let grant : Types.RoleGrant = { user = caller; role; club = ?invite.club_id; team = invite.team_id };
-                membershipEpoch += 1;
+                bumpMembershipDiscovery();
                 acl := { acl with roles = acl.roles.concat([grant]) };
+                accountRoles := accountRoles.concat([{ account_id = accountIdFor(caller); club = ?invite.club_id; role; team = invite.team_id }]);
               };
             };
             case null {};
           };
+        };
+        switch (family) {
+          case (?f) {
+            for (cid in f.children.values()) {
+              if (f.primary == id) acl := { acl with children = acl.children.map(func c = if (c.id == cid and c.parent == null) ({ c with parent = ?caller }) else c) };
+              if (not acl.guardians.any(func g = g.child == cid and g.user == caller)) acl := { acl with guardians = acl.guardians.concat([{ child = cid; user = caller }]) };
+              if (not accountFamilies.any(func g = g.child_id == cid and g.account_id == accountIdFor(caller))) accountFamilies := accountFamilies.concat([{ child_id = cid; account_id = accountIdFor(caller) }]);
+            };
+            bumpMembershipDiscovery();
+          }; case null {};
         };
         let accepted : Types.PendingInvite = { invite with status = "accepted"; accepted_at_ms = ?nowMs(); accepted_by = ?caller };
         pendingInvites := pendingInvites.map(func(i) = if (i.id == id) accepted else i);
@@ -3919,6 +5379,15 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  func validPendingInviteRole(kind : Text, team : ?Text, role : ?Text) : Bool {
+    if (kind == "guardian") return role == null or role == ?"parent";
+    let value = role ?? return false;
+    if (kind == "team") return team != null and (value == "player" or value == "parent" or value == "coach" or value == "team_admin");
+    kind == "club" and team == null and (value == "club_admin" or value == "member" or value == "player" or value == "parent")
   };
 
   // ---- Guardian link/unlink + admin-assisted child/parent linking ----
@@ -3948,32 +5417,42 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func link_guardian(child_id : Text, user : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
     if (not canManageChild(caller, child_id)) return #Err("Club admin required");
     if (not acl.guardians.any(func(g) = g.child == child_id and g.user.equal(user))) {
-      membershipEpoch += 1;
+      bumpMembershipDiscovery();
       acl := { acl with guardians = acl.guardians.concat([{ child = child_id; user }]) };
     };
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func unlink_guardian(child_id : Text, user : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
     if (not (canManageChild(caller, child_id) or caller.equal(user))) return #Err("Forbidden");
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with guardians = acl.guardians.filter(func(g) = not (g.child == child_id and g.user.equal(user))) };
     guardianMeta := guardianMeta.filter(func(m) = not (m.child_id == child_id and m.user.equal(user)));
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Guardian relationship metadata (relationship_type/is_primary), layered
@@ -3981,6 +5460,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // guardian themselves or club staff managing the child; unlink_guardian
   // prunes the matching entry so it never outlives the underlying link.
   public shared ({ caller }) func set_guardian_relationship(child_id : Text, user : Principal, relationship_type : Text, is_primary : Bool) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -3992,6 +5474,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func get_guardian_relationships(child_id : Text) : async { #Ok : [Types.GuardianMeta]; #Err : Text } {
@@ -4001,6 +5485,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func admin_link_child_to_parent(child_id : Text, parent : Principal) : async { #Ok : Types.Child; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4010,10 +5497,10 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Child not found") };
       case (?child) {
         let updated : Types.Child = { child with parent = ?parent };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         acl := { acl with children = acl.children.map(func(c) = if (c.id == child_id) updated else c) };
         if (not acl.guardians.any(func(g) = g.child == child_id and g.user.equal(parent))) {
-          membershipEpoch += 1;
+          bumpMembershipDiscovery();
           acl := { acl with guardians = acl.guardians.concat([{ child = child_id; user = parent }]) };
         };
         #Ok(updated)
@@ -4021,9 +5508,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func create_child_for_parent_on_team(club_id : Text, team_id : Text, parent : Principal) : async { #Ok : Types.Child; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4037,19 +5529,24 @@ persistent actor class Main(governorInit : Principal) = this {
       parent = ?parent;
       club_id = ?club_id;
     };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with children = acl.children.concat([child]) };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with guardians = acl.guardians.concat([{ child = child.id; user = parent }]) };
     #Ok(child)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Mini-league-scope link: a club admin can create a child record scoped
   // only to the club (no team assignment yet), mirroring
   // create_child_for_parent_on_team but without requiring a team id.
   public shared ({ caller }) func create_child_for_parent_in_club(club_id : Text, parent : Principal) : async { #Ok : Types.Child; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4063,13 +5560,15 @@ persistent actor class Main(governorInit : Principal) = this {
       parent = ?parent;
       club_id = ?club_id;
     };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with children = acl.children.concat([child]) };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with guardians = acl.guardians.concat([{ child = child.id; user = parent }]) };
     #Ok(child)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Parent self-service children (Children page) ----
@@ -4104,6 +5603,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func create_own_child() : async { #Ok : Types.Child; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4115,20 +5617,25 @@ persistent actor class Main(governorInit : Principal) = this {
       parent = ?caller;
       club_id = null;
     };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with children = acl.children.concat([child]) };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with guardians = acl.guardians.concat([{ child = child.id; user = caller }]) };
     switch (accountFor(caller)) {
-      case (?account) { membershipEpoch += 1; accountFamilies := accountFamilies.concat([{ account_id = account.id; child_id = child.id }]) };
+      case (?account) { bumpMembershipDiscovery(); accountFamilies := accountFamilies.concat([{ account_id = account.id; child_id = child.id }]) };
       case null {};
     };
     #Ok(child)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func delete_own_child(child_id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4137,27 +5644,32 @@ persistent actor class Main(governorInit : Principal) = this {
       case null { #Err("Child not found") };
       case (?child) {
         if (not isChildPrimary(caller, child)) return #Err("Only the primary parent can remove this child");
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         acl := { acl with
           children = acl.children.filter(func(c) = c.id != child_id);
           guardians = acl.guardians.filter(func(g) = g.child != child_id);
         };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         accountFamilies := accountFamilies.filter(func(f) = f.child_id != child_id);
         #Ok
       };
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // A guardian may place their child on any team in a club they belong to.
   public shared ({ caller }) func set_own_child_team(child_id : Text, team_id : Text, assigned : Bool) : async { #Ok : Types.Child; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
-    switch (acl.children.find(func(c) = c.id == child_id), acl.teams.find(func(t) = t.id == team_id)) {
+    switch (acl.children.find(func(c) = c.id == child_id), liveTeamRef(team_id)) {
       case (null, _) { #Err("Child not found") };
       case (_, null) { #Err("Team not found") };
       case (?child, ?team) {
@@ -4167,17 +5679,22 @@ persistent actor class Main(governorInit : Principal) = this {
           if (child.teams.any(func(t) = t == team_id)) child.teams else child.teams.concat([team_id])
         } else child.teams.filter(func(t) = t != team_id);
         let updated : Types.Child = { child with teams };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         acl := { acl with children = acl.children.map(func(c) = if (c.id == child_id) updated else c) };
         #Ok(updated)
       };
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Primary parent adds/removes another guardian; a guardian may remove themselves.
   public shared ({ caller }) func set_own_child_guardian(child_id : Text, user : Principal, linked : Bool) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4190,11 +5707,11 @@ persistent actor class Main(governorInit : Principal) = this {
         if (isChildPrimary(user, child) and not linked) return #Err("Cannot remove the primary parent");
         if (linked) {
           if (not acl.guardians.any(func(g) = g.child == child_id and g.user.equal(user))) {
-            membershipEpoch += 1;
+            bumpMembershipDiscovery();
             acl := { acl with guardians = acl.guardians.concat([{ child = child_id; user }]) };
           };
         } else {
-          membershipEpoch += 1;
+          bumpMembershipDiscovery();
           acl := { acl with guardians = acl.guardians.filter(func(g) = not (g.child == child_id and g.user.equal(user))) };
         };
         #Ok
@@ -4202,11 +5719,16 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Move member / child between teams ----
 
   public shared ({ caller }) func move_member_to_team(club_id : Text, user : Principal, from_team : ?Text, to_team : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4214,20 +5736,25 @@ persistent actor class Main(governorInit : Principal) = this {
     auth(caller);
     if (not isAdmin(caller, club_id)) return #Err("Club admin required");
     if (not teamInClub(to_team, club_id)) return #Err("Target team not found in club");
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with roles = acl.roles.map(func(g) = if (g.user.equal(user) and g.club == ?club_id and g.team == from_team) ({ g with team = ?to_team }) else g) };
     accountRoles := accountRoles.map(func(g) = if (g.account_id == accountIdFor(user) and g.club == ?club_id and g.team == from_team) ({ g with team = ?to_team }) else g);
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func move_child_to_team(child_id : Text, from_team : ?Text, to_team : Text) : async { #Ok : Types.Child; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
-    switch (acl.teams.find(func(t) = t.id == to_team)) {
+    switch (liveTeamRef(to_team)) {
       case null { #Err("Target team not found") };
       case (?team) {
         if (not canManageTeam(caller, team.club, ?to_team)) return #Err("Team or club admin required");
@@ -4240,7 +5767,7 @@ persistent actor class Main(governorInit : Principal) = this {
             };
             let newTeams = if (keptTeams.any(func(t) = t == to_team)) keptTeams else keptTeams.concat([to_team]);
             let updated : Types.Child = { child with teams = newTeams };
-            membershipEpoch += 1;
+            bumpMembershipDiscovery();
             acl := { acl with children = acl.children.map(func(c) = if (c.id == child_id) updated else c) };
             #Ok(updated)
           };
@@ -4249,11 +5776,16 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Bulk team-member add ----
 
   public shared ({ caller }) func bulk_add_team_members(club_id : Text, team_id : Text, role : Text, users : [Principal]) : async { #Ok : Nat; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4263,7 +5795,7 @@ persistent actor class Main(governorInit : Principal) = this {
     if (role == "") return #Err("Invalid role");
     if (users.size() > 200) return #Err("Too many members");
     for (user in users.values()) {
-      membershipEpoch += 1;
+      bumpMembershipDiscovery();
       acl := { acl with roles = acl.roles.concat([{ user; role; club = ?club_id; team = ?team_id }]) };
       accountRoles := accountRoles.concat([{ account_id = accountIdFor(user); club = ?club_id; role; team = ?team_id }]);
     };
@@ -4272,11 +5804,16 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(users.size())
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Team archive ----
 
   public shared ({ caller }) func archive_team(id : Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4286,16 +5823,21 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?team) {
         if (not isAdmin(caller, team.club_id)) return #Err("Club admin required");
         let updated : Types.ClubTeam = { team with archived = true };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == id) updated else t);
         #Ok(updated)
       };
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func unarchive_team(id : Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4305,18 +5847,23 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?team) {
         if (not isAdmin(caller, team.club_id)) return #Err("Club admin required");
         let updated : Types.ClubTeam = { team with archived = false };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         teams := teams.map(func(t) = if (t.id == id) updated else t);
         #Ok(updated)
       };
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Team-creation requests ----
 
   public shared ({ caller }) func request_team_creation(club_id : Text, name : Text, division : ?Text, age_group : ?Text) : async { #Ok : Types.TeamCreationRequest; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4339,6 +5886,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(req)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func list_team_creation_requests(club_id : Text) : async { #Ok : [Types.TeamCreationRequest]; #Err : Text } {
@@ -4348,6 +5897,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func approve_team_creation_request(id : Text) : async { #Ok : Types.TeamCreationRequest; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4357,6 +5909,7 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?req) {
         if (not isAdmin(caller, req.club_id)) return #Err("Club admin required");
         if (req.status != "pending") return #Err("Request already processed");
+        switch (teamCapacityError(req.club_id, 1)) { case (?error) return #Err(error); case null {} };
         let now = nowMs();
         let team : Types.ClubTeam = {
           id = "team-" # req.club_id # "-" # Nat.toText(teams.size() + 1) # "-" # Nat64.toText(now);
@@ -4374,7 +5927,7 @@ persistent actor class Main(governorInit : Principal) = this {
           playhq_team_id = null; playhq_competition_id = null; playhq_auto_create_events = false;
           folder_id = null;
         };
-        membershipEpoch += 1;
+        bumpMembershipDiscovery();
         teams := teams.concat([team]);
         let updated : Types.TeamCreationRequest = { req with status = "approved"; decided_at_ms = ?now; decided_by = ?caller; team_id = ?team.id };
         teamCreationRequests := teamCreationRequests.map(func(r) = if (r.id == id) updated else r);
@@ -4383,9 +5936,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func reject_team_creation_request(id : Text) : async { #Ok : Types.TeamCreationRequest; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4402,13 +5960,15 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Team player positions ----
 
   public query ({ caller }) func get_team_player_positions(team_id : Text) : async { #Ok : [Types.TeamPlayerPosition]; #Err : Text } {
     denyLegacyAccountQuery();
-    switch (acl.teams.find(func(t) = t.id == team_id)) {
+    switch (liveTeamRef(team_id)) {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isMember(caller, team.club)) return #Err("Forbidden");
@@ -4418,11 +5978,14 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_team_player_position(team_id : Text, member_id : Text, position : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
-    switch (acl.teams.find(func(t) = t.id == team_id)) {
+    switch (liveTeamRef(team_id)) {
       case null { #Err("Team not found") };
       case (?team) {
         if (not canManageTeam(caller, team.club, ?team_id)) return #Err("Team or club admin required");
@@ -4433,13 +5996,15 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Team player positions v2 (multi-position + jersey number) ----
 
   public query ({ caller }) func get_team_player_positions_v2(team_id : Text) : async { #Ok : [Types.TeamPlayerPositionAssignment]; #Err : Text } {
     denyLegacyAccountQuery();
-    switch (acl.teams.find(func(t) = t.id == team_id)) {
+    switch (liveTeamRef(team_id)) {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isMember(caller, team.club)) return #Err("Forbidden");
@@ -4449,11 +6014,14 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_team_player_positions_v2(team_id : Text, member_id : Text, positions : [Text], jersey_number : ?Nat16) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
-    switch (acl.teams.find(func(t) = t.id == team_id)) {
+    switch (liveTeamRef(team_id)) {
       case null { #Err("Team not found") };
       case (?team) {
         if (not canManageTeam(caller, team.club, ?team_id)) return #Err("Team or club admin required");
@@ -4464,11 +6032,16 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Team captains ----
 
   public shared ({ caller }) func add_team_captain(club_id : Text, team_id : Text, user : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4481,9 +6054,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func remove_team_captain(club_id : Text, team_id : Text, user : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4494,11 +6072,13 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func list_team_captains(team_id : Text) : async { #Ok : [Types.TeamCaptain]; #Err : Text } {
     denyLegacyAccountQuery();
-    switch (acl.teams.find(func(t) = t.id == team_id)) {
+    switch (liveTeamRef(team_id)) {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isMember(caller, team.club)) return #Err("Forbidden");
@@ -4510,6 +6090,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // ---- Club creation + club join requests ----
 
   public shared ({ caller }) func create_club(id : Text, name : Text, slug : Text, description : ?Text, sport : ?Text) : async { #Ok : Types.ClubProfile; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4535,9 +6118,9 @@ persistent actor class Main(governorInit : Principal) = this {
       deleted_at_ms = null;
       playhq_tenant = null; playhq_org_id = null;
     };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     profiles := profiles.concat([profile]);
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := { acl with roles = acl.roles.concat([{ user = caller; role = "club_admin"; club = ?id; team = null }]) };
     accountRoles := accountRoles.concat([{ account_id = accountIdFor(caller); club = ?id; role = "club_admin"; team = null }]);
     // Provision the club chat on the messaging canister (best-effort).
@@ -4545,6 +6128,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(profile)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Club home country (jurisdiction routing metadata) ----
@@ -4560,6 +6145,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // after creation); afterwards only the governor can change it, since a
   // country move is a deliberate data migration, never a toggle.
   public shared ({ caller }) func set_club_home_country(club_id : Text, country : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4581,6 +6169,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Batched read matching get_club_profiles; public like the club profile
@@ -4590,6 +6180,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func request_club_join(club_id : Text) : async { #Ok : Types.ClubJoinRequest; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4610,6 +6203,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(req)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func list_club_join_requests(club_id : Text) : async { #Ok : [Types.ClubJoinRequest]; #Err : Text } {
@@ -4619,6 +6214,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func approve_club_join_request(id : Text) : async { #Ok : Types.ClubJoinRequest; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4628,7 +6226,8 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?req) {
         if (not isAdmin(caller, req.club_id)) return #Err("Club admin required");
         if (req.status != "pending") return #Err("Request already processed");
-        membershipEpoch += 1;
+        if (isExcluded(req.user, req.club_id) or removalReceiver.denied(req.user) or isTransferFenced(req.club_id)) return #Err("Request no longer eligible");
+        bumpMembershipDiscovery();
         acl := { acl with roles = acl.roles.concat([{ user = req.user; role = "member"; club = ?req.club_id; team = null }]) };
         accountRoles := accountRoles.concat([{ account_id = accountIdFor(req.user); club = ?req.club_id; role = "member"; team = null }]);
         ignore fanOutEnsureConversation(req.club_id, null, clubChatParticipants(req.club_id));
@@ -4639,9 +6238,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func reject_club_join_request(id : Text) : async { #Ok : Types.ClubJoinRequest; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4658,6 +6262,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Club settings: theme palette, header toggles, invite style, hint.
@@ -4689,6 +6295,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_club_theme_palette(club_id : Text, primary : ?Text, secondary : ?Text, accent : ?Text, dark_primary : ?Text, dark_secondary : ?Text, dark_accent : ?Text) : async { #Ok : Types.ClubSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4704,9 +6313,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(updated)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_club_theme_enabled(club_id : Text, enabled : Bool) : async { #Ok : Types.ClubSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4718,9 +6332,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(updated)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_club_logo_only_mode(club_id : Text, enabled : Bool) : async { #Ok : Types.ClubSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4732,9 +6351,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(updated)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func clear_club_theme(club_id : Text) : async { #Ok : Types.ClubSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4750,9 +6374,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(updated)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_club_header_toggles(club_id : Text, header_logo_enabled : Bool, header_club_name_enabled : Bool) : async { #Ok : Types.ClubSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4764,9 +6393,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(updated)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_club_invite_email_style(club_id : Text, style : ?Text) : async { #Ok : Types.ClubSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4778,9 +6412,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(updated)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_club_switcher_hint(club_id : Text, hint : ?Text) : async { #Ok : Types.ClubSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4792,6 +6431,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(updated)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Per-user theme preference (light/dark/system or a club theme id).
@@ -4799,6 +6440,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // state, closest to the club settings this canister already owns. ----
 
   public shared ({ caller }) func set_theme_preference(preference : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4808,6 +6452,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func get_my_theme_preference() : async { #Ok : ?Text; #Err : Text } {
@@ -4823,6 +6469,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // highContrast/reduceMotion/boldText). Same shape as theme preference. ----
 
   public shared ({ caller }) func set_accessibility_prefs(prefs_json : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4832,6 +6481,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func get_my_accessibility_prefs() : async { #Ok : ?Text; #Err : Text } {
@@ -4848,6 +6499,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // principal may call this for themselves (self-reported, like
   // set_theme_preference). Pruned lazily on write to bound growth.
   public shared ({ caller }) func record_presence_heartbeat() : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4862,6 +6516,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Governor or app_admin only. Returns (principal_text, last_seen_ms) for
@@ -4912,6 +6568,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func save_club_term(term : Types.ClubTerm) : async { #Ok : Types.ClubTerm; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4941,9 +6600,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(stored)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_club_term_status(id : Text, status : Text) : async { #Ok : Types.ClubTerm; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4963,9 +6627,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func delete_club_term(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -4980,6 +6649,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Seasons (draft|active|closed|archived) — distinct from ClubTerm.
@@ -5013,6 +6684,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func save_season(season : Types.Season) : async { #Ok : Types.Season; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5036,6 +6710,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(stored)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Season analytics — canister counterpart of the Supabase
@@ -5071,6 +6747,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func save_season_team_summary(entry : Types.SeasonTeamSummary) : async { #Ok : Types.SeasonTeamSummary; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5081,9 +6760,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(stored);
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func save_season_player_stat(entry : Types.SeasonPlayerStat) : async { #Ok : Types.SeasonPlayerStat; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5094,6 +6778,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(stored);
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- profile_team_history: join accountRoles (team-scoped grants) with
@@ -5166,6 +6852,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func mark_member_paid(club_id : Text, user_id : Text, child_id : ?Text, payment_period : Text, payment_type : Text, amount : Float, notes : ?Text) : async { #Ok : Types.MemberPayment; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5185,9 +6874,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(stored)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func unmark_member_paid(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5202,32 +6896,49 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
 
   // ---- Notification queue wiring + fee-reminder fan-out (Phase 3, F6) ----
   public shared ({ caller }) func set_notification_queue_canister(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor only");
     if (id.equal(Principal.anonymous())) return #Err("Invalid canister id");
     notificationQueueCanister := ?id;
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_mini_league_domain_canister(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor only");
     if (id.equal(Principal.anonymous())) return #Err("Invalid mini_league_domain canister id");
     miniLeagueDomainCanister := ?id;
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_competition_domain_canister(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor only");
     if (id.equal(Principal.anonymous())) return #Err("Invalid competition_domain canister id");
     competitionDomainCanister := ?id;
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Permanent-delete fan-out + 30-day auto-purge ----
@@ -5241,35 +6952,171 @@ persistent actor class Main(governorInit : Principal) = this {
   transient let purgeWindowMs : Nat64 = 2_592_000_000; // 30 days in milliseconds
 
   public shared ({ caller }) func set_events_domain_canister(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor only");
     if (id.equal(Principal.anonymous())) return #Err("Invalid canister id");
     eventsDomainCanister := ?id;
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func set_gallery_media_authority(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (not isGovernor(caller) or Principal.isAnonymous(id)) return #Err("Governor and valid authority required");
+    galleryMediaAuthority := ?id; #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  public shared ({ caller }) func relay_gallery_notice(user : Principal, club : Text, team : ?Text, owner : Principal, parent : ?Principal, kind : Text, key : Text, asset_id : Text) : async { #Ok : Nat16; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (galleryMediaAuthority != ?caller or isTransferFenced(club)) return #Err("Gallery authority required");
+    if (kind != "photo_uploaded" and kind != "photo_comment" and kind != "photo_reaction" and kind != "comment_reply") return #Err("Invalid gallery notice kind");
+    if (key.size() > 512 or asset_id.size() > 256 or not isMember(user, club) or isExcluded(user, club)) return #Err("Invalid gallery scope");
+    switch team { case (?t) { if (not teams.any(func row = row.id == t and row.club_id == club and row.deleted_at_ms == null)) return #Err("Foreign team") }; case null {} };
+    let eligible = func(p : Principal) : Bool = not Principal.isAnonymous(p) and not p.equal(user) and not removalReceiver.denied(p) and not isExcluded(p, club) and isMember(p, club);
+    var recipients : [Principal] = [];
+    let add = func(p : Principal) { if (eligible(p) and not recipients.any(func x = x.equal(p))) recipients := recipients.concat([p]) };
+    if (kind == "photo_uploaded") {
+      for (grant in acl.roles.values()) {
+        if (grant.club == ?club and (team == null or grant.team == team or grant.role == "club_admin" or grant.role == "committee")) add(grant.user)
+      };
+      for (child in acl.children.values()) {
+        if (child.club_id == ?club and (switch team { case (?t) child.teams.any(func id = id == t); case null true })) {
+          switch (child.parent) { case (?p) add(p); case null {} };
+          for (g in acl.guardians.values()) if (g.child == child.id) add(g.user)
+        }
+      }
+    } else { add(owner); switch parent { case (?p) add(p); case null {} } };
+    if (recipients.size() > 500) return #Err("Gallery audience exceeds bound");
+    if (recipients.size() == 0) return #Ok(0);
+    for (p in recipients.values()) {
+      if (not removalReceiver.enter(p)) return #Err("Recipient fenced");
+      try { await admitAccount(p) } finally { removalReceiver.leave(p) }
+    };
+    if (galleryMediaAuthority != ?caller or isTransferFenced(club) or not isMember(user, club) or isExcluded(user, club) or recipients.any(func p = not eligible(p))) return #Err("Gallery audience changed");
+    let id = notificationQueueCanister ?? return #Err("Queue not configured");
+    let queue : actor { fan_out : shared ([Text], Text, Text, Text, Text, ?Text) -> async { #Ok : Nat16; #Err : Text } } = actor(id.toText());
+    let body = switch kind { case ("photo_uploaded") "New photos were shared in your gallery."; case ("photo_reaction") "Someone reacted to your photo."; case ("comment_reply") "Someone replied to your gallery comment."; case _ "Someone commented on your photo." };
+    await (with timeout = 10) queue.fan_out(recipients.map(func p = p.toText()), club, kind, body, "gallery-" # key, ?asset_id)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  // Only the already configured events authority can supply its verified
+  // match-duty audience. The queue sees its existing trusted club authority,
+  // rather than trying to admit a service principal as a human account.
+  public shared ({ caller }) func relay_group_pitch_alert(users : [Text], club : Text, kind : Text, body : Text, key : Text, related : Text) : async { #Ok : Nat16; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (eventsDomainCanister != ?caller) return #Err("Events authority required");
+    if (isTransferFenced(club)) return #Err("Club is temporarily locked for a transfer");
+    if (users.size() == 0 or users.size() > 500 or body.size() > 128 or key.size() > 512 or not Text.startsWith(related, #text "event-group-")) return #Err("Invalid pitch alert");
+    if (kind != "pitch_board_formation" and kind != "pitch_board_team_size" and kind != "pitch_board_substitution") return #Err("Invalid pitch kind");
+    let id = notificationQueueCanister ?? return #Err("Notification queue not configured");
+    let queue : actor { fan_out : shared ([Text], Text, Text, Text, Text, ?Text) -> async { #Ok : Nat16; #Err : Text } } = actor(id.toText());
+    await (with timeout = 10) queue.fan_out(users, club, kind, body, key, ?related)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  // No names or emails: only this group's configured event authority may
+  // consume current membership relationships to authorize event notices.
+  public shared ({ caller }) func read_event_notification_membership(club : Text) : async { #Ok : {
+    roles : [{ user : Principal; role : Text; club_id : Text; team_id : ?Text }];
+    children : [{ id : Text; teams : [Text]; parent : ?Principal }];
+    guardians : [{ child_id : Text; user : Principal }]
+  }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (eventsDomainCanister != ?caller or isTransferFenced(club)) return #Err("Events authority required or club locked");
+    let eligible = func(user : Principal) : Bool {
+      not Principal.isAnonymous(user) and not removalReceiver.denied(user) and not isExcluded(user, club) and isMember(user, club)
+    };
+    let activeTeams = teams.filter(func(t) = t.club_id == club and t.is_active and not t.archived and t.deleted_at_ms == null and not t.is_shell).map(func(t) = t.id);
+    let clubRoles = acl.roles.filter(func(r) = r.club == ?club and eligible(r.user));
+    let kids = acl.children.filter(func(c) = c.club_id == ?club).map(func(c) = {
+      id = c.id; teams = c.teams.filter(func(t) = activeTeams.any(func(id) = id == t));
+      parent = switch (c.parent) { case (?p) if (eligible(p)) ?p else null; case null null }
+    });
+    let links = acl.guardians.filter(func(g) = eligible(g.user) and kids.any(func(c) = c.id == g.child));
+    if (clubRoles.size() > 2000 or kids.size() > 2000 or links.size() > 4000) return #Err("Event membership inventory exceeds bound");
+    #Ok({ roles = clubRoles.map(func(r) = { user = r.user; role = r.role; club_id = club; team_id = r.team }); children = kids;
+      guardians = links.map(func(g) = { child_id = g.child; user = g.user }) })
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+
+  public shared ({ caller }) func relay_event_notice(users : [Text], club : Text, kind : Text, body : Text, key : Text, event_id : Text) : async { #Ok : Nat16; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
+    if (eventsDomainCanister != ?caller) return #Err("Events authority required");
+    if (isTransferFenced(club)) return #Err("Club is temporarily locked for a transfer");
+    if (users.size() == 0 or users.size() > 500 or body.size() > 512 or key.size() > 512 or not Text.startsWith(event_id, #text "evt-")) return #Err("Invalid event notice");
+    if (kind != "event_reminder" and kind != "event_invite" and kind != "event_cancelled" and kind != "duty_completed" and kind != "duty_reminder" and kind != "event_points_reminder" and kind != "photo_prompt_reminder") return #Err("Invalid event notice kind");
+    // Check every recipient before any queue call, including through admission awaits.
+    var principals : [Principal] = [];
+    for (user in users.values()) {
+      let p = try { Principal.fromText(user) } catch (_) { return #Err("Invalid recipient") };
+      if (not removalReceiver.enter(p)) return #Err("Recipient fenced");
+      try { await admitAccount(p) } finally { removalReceiver.leave(p) };
+      principals := principals.concat([p]);
+    };
+    if (eventsDomainCanister != ?caller or isTransferFenced(club) or principals.any(func(p) = removalReceiver.denied(p) or isExcluded(p, club))) return #Err("Event recipient access changed");
+    let id = notificationQueueCanister ?? return #Err("Notification queue not configured");
+    let queue : actor { fan_out : shared ([Text], Text, Text, Text, Text, ?Text) -> async { #Ok : Nat16; #Err : Text } } = actor(id.toText());
+    await (with timeout = 10) queue.fan_out(users, club, kind, body, key, ?event_id)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_messaging_domain_canister(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor only");
     if (id.equal(Principal.anonymous())) return #Err("Invalid canister id");
     messagingDomainCanister := ?id;
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_pii_canister(id : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor only");
     if (id.equal(Principal.anonymous())) return #Err("Invalid canister id");
     piiCanister := ?id;
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
+
+  /// Read-only: which private-details service this club service trusts.
+  /// Used by the upgrade workflow to confirm the link before release.
+  public query func pii_canister_status() : async ?Principal { piiCanister };
 
   // Removes every club_domain record scoped to one team. Callers must have
   // already verified the team is soft-deleted and the caller may delete it.
   func purgeTeamLocal(teamId : Text) {
-    membershipEpoch += 1;
+    switch (teams.find(func t = t.id == teamId)) { case (?t) vaultErasedTeams.add(teamId, t.club_id); case null {} };
+    bumpMembershipDiscovery();
     teams := teams.filter(func(t) = t.id != teamId);
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := {
       teams = acl.teams.filter(func(t) = t.id != teamId);
       guardians = acl.guardians;
@@ -5284,6 +7131,7 @@ persistent actor class Main(governorInit : Principal) = this {
     teamInvites := teamInvites.filter(func(i) = i.team_id != teamId);
     teamInviteLinks := teamInviteLinks.filter(func(l) = l.team_id != teamId);
     pendingInvites := pendingInvites.filter(func(i) = i.team_id != ?teamId);
+    familyInvites := familyInvites.filter(func f = pendingInvites.any(func i = i.id == f.primary));
     teamPlayerPositions := teamPlayerPositions.filter(func(p) = p.team_id != teamId);
     teamCaptains := teamCaptains.filter(func(c) = c.team_id != teamId);
     teamSponsorAllocations := teamSponsorAllocations.filter(func(a) = a.team_id != teamId);
@@ -5297,20 +7145,21 @@ persistent actor class Main(governorInit : Principal) = this {
   // events_domain) and are deliberately kept; global account records,
   // theme preferences, and app config are not club-scoped.
   func purgeClubLocal(id : Text) {
+    vaultErasedClubs.add(id, true);
     let clubTeamIds = teams.filter(func(t) = t.club_id == id).map(func(t) = t.id);
     let clubNewsIds = newsPosts.filter(func(post) = post.club_id == id).map(func(post) = post.id);
     func isClubTeam(teamId : Text) : Bool { clubTeamIds.any(func(t) = t == teamId) };
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     profiles := profiles.filter(func(p) = p.id != id);
     settings := settings.filter(func(s) = s.club_id != id);
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     teams := teams.filter(func(t) = t.club_id != id);
     teamFolders := teamFolders.filter(func(f) = f.club_id != id);
     sponsors := sponsors.filter(func(s) = s.club_id != id);
     clubListings := clubListings.filter(func(e) = e.0 != id);
     mediaEvidenceRevision += 1;
     frozenClubs := frozenClubs.filter(func(e) = e.0 != id);
-    membershipEpoch += 1;
+    bumpMembershipDiscovery();
     acl := {
       teams = acl.teams.filter(func(t) = t.club != id);
       guardians = acl.guardians;
@@ -5328,6 +7177,7 @@ persistent actor class Main(governorInit : Principal) = this {
     teamInvites := teamInvites.filter(func(i) = i.club_id != id);
     teamInviteLinks := teamInviteLinks.filter(func(l) = l.club_id != id);
     pendingInvites := pendingInvites.filter(func(i) = i.club_id != id);
+    familyInvites := familyInvites.filter(func f = pendingInvites.any(func i = i.id == f.primary));
     teamCreationRequests := teamCreationRequests.filter(func(r) = r.club_id != id);
     teamPlayerPositions := teamPlayerPositions.filter(func(p) = not isClubTeam(p.team_id));
     teamCaptains := teamCaptains.filter(func(c) = not isClubTeam(c.team_id));
@@ -5406,6 +7256,9 @@ persistent actor class Main(governorInit : Principal) = this {
   // and teams created before this wiring existed. The chat pages call this
   // before first read/send so a missing conversation self-heals.
   public shared ({ caller }) func ensure_club_conversations(club_id : Text) : async { #Ok : Nat32; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5416,6 +7269,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(await fanOutEnsureClubConversations(club_id))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   func fanOutTeamPurged(teamId : Text) : async () {
@@ -5483,22 +7338,36 @@ persistent actor class Main(governorInit : Principal) = this {
 
   // Governor-triggerable manual sweep; the daily timer runs the same path.
   public shared ({ caller }) func purge_expired_deletions() : async { #Ok : Nat32; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     auth(caller);
     if (not isGovernor(caller)) return #Err("Governor only");
     #Ok(await purgeExpiredDeletions())
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
+  };
+  // Only permanent local erasure creates these receipts; absence is never deletion proof.
+  // Return one boolean, no roster or private content. Current records defeat stale receipts.
+  public query func read_vault_erasure_scope(club : Text, team : ?Text) : async Bool {
+    if (vaultErasedClubs.get(club) == ?true and not profiles.any(func p = p.id == club)) return true;
+    switch team { case (?id) vaultErasedTeams.get(id) == ?club and not teams.any(func t = t.id == id); case null false }
   };
 
   // Daily auto-purge sweep. The timer id is intentionally discarded — the
   // sweep runs for the lifetime of the canister and never needs cancelling.
   // Transient: timers are not persisted across upgrades, so the initializer
   // re-arms the sweep on every upgrade.
-  transient let _purgeTimer = Timer.recurringTimer<system>(#seconds(86_400), func() : async () { ignore await purgeExpiredDeletions() });
+  transient let _purgeTimer = Timer.recurringTimer<system>(#seconds(86_400), func() : async () { if (Runtime.envVar<system>("IGNITE_PRIVATE_NAME_WRITER_REHEARSAL") != ?"1") ignore await purgeExpiredDeletions() });
 
   // Reminds every club member who has no `mark_member_paid` record for the
   // given period/type — i.e. everyone still "pending" for that fee. Fails
   // closed with a clear error while no notification_queue canister is
   // configured, mirroring messaging_domain's fan-out hook.
   public shared ({ caller }) func send_fee_reminders(club_id : Text, payment_period : Text, payment_type : Text, message : Text) : async { #Ok : Nat16; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5533,6 +7402,8 @@ persistent actor class Main(governorInit : Principal) = this {
     };
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Cross-club sponsor/strip lookup (Phase 5, F9) ----
@@ -5548,7 +7419,7 @@ persistent actor class Main(governorInit : Principal) = this {
   // platform-only — governor or app_admin, never a club admin, so a club
   // cannot grant itself Pro.
   func isAppAdmin(caller : Principal) : Bool {
-    acl.roles.any(func(grant) = grant.user.equal(caller) and grant.role == "app_admin")
+    acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and grant.role == "app_admin")
   };
 
   public query func get_club_subscription(club_id : Text) : async { #Ok : ?Types.ClubSubscription; #Err : Text } {
@@ -5558,14 +7429,43 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(null)
   };
 
+  // Server-derived allowance; a team cannot borrow another club's entitlement.
+  public query func get_media_allowance(club_id : Text, team_id : ?Text) : async { #Ok : { limit_bytes : Nat; base_bytes : Nat; team_scoped : Bool; premium : Bool }; #Err : Text } {
+    if (not profiles.any(func(c) = c.id == club_id)) return #Err("Club not found");
+    let now = nowMs();
+    let sub = clubSubscriptions.find(func(s) = s.club_id == club_id);
+    let clubPro = SubscriptionPolicy.premium(sub, now);
+    var teamPro = false;
+    switch (team_id) {
+      case (?id) {
+        if (not teams.any(func(t) = t.id == id and t.club_id == club_id and t.deleted_at_ms == null)) return #Err("Team does not belong to club");
+        switch (teamSubscriptions.find(func(s) = s.team_id == id)) {
+          case (?raw) { let s = effectiveTeamSub(raw); teamPro := s.is_pro or s.is_pro_football or s.admin_pro_override or s.admin_pro_football_override or (s.is_trial and (switch (s.trial_ends_at_ms) { case (?end) end > now; case null false })) };
+          case null {}
+        }
+      }; case null {}
+    };
+    let teamScoped = not clubPro and teamPro;
+    let base = if (teamScoped) 1_073_741_824 else SubscriptionPolicy.mediaBase(sub, now);
+    #Ok({ base_bytes = base; limit_bytes = base + (if (teamScoped) 0 else clubStorageGb(club_id).toNat() * 1_073_741_824); team_scoped = teamScoped; premium = clubPro or teamPro })
+  };
+
   // Retained activation is intentionally local-only, independent of monthly quotas.
   public shared ({ caller }) func start_media_retained_cutover() : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller) or not retainedRehearsal) return #Err("Local retained rehearsal governor required");
     if (not mediaQuotaCutover.started or mediaQuotaCutover.active) return #Err("Start monthly cutover before retained baseline");
     if (not MediaRetainedCutover.start(mediaRetainedState, mediaQuotaStores)) return #Err("Complete immutable store registry required");
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func import_media_retained_store(store : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller) or not retainedRehearsal) return #Err("Local retained rehearsal governor required");
     if (not mediaRetainedState.started or not mediaRetainedState.stores.any(func(p) = p == store)) return #Err("Sealed registered store required");
     let progress = MediaRetainedCutover.progress(mediaRetainedState, store);
@@ -5575,21 +7475,41 @@ persistent actor class Main(governorInit : Principal) = this {
       let page = await (with timeout = 10) source.retained_snapshot_page(progress.cursor);
       MediaRetainedCutover.apply(mediaRetainedState, Principal.fromActor(this), store, page)
     } catch (_) { #Err("Retained snapshot read failed; retry same cursor") }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func activate_media_retained_quota() : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller) or not retainedRehearsal) return #Err("Local retained rehearsal governor required");
     if (not MediaRetainedCutover.complete(mediaRetainedState) or mediaRetainedState.stores != mediaQuotaStores or not mediaQuotaCutover.active) return #Err("Every store and both baselines required");
     mediaRetainedState.active := true; #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func read_media_retained_ready() : async Bool {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     retainedRehearsal and MediaRetainedCutover.ready(mediaRetainedState, caller)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func read_club_retained_media_bytes(club_id : Text) : async { #Ok : { finalized : Nat; pending : Nat }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not retainedRehearsal or not mediaRetainedState.active) return #Err("Retained quota inactive");
     if (not isGovernor(caller) and not mediaRetainedState.stores.any(func(p) = p == caller) and not isMember(caller, club_id)) return #Err("Club member required");
     #Ok(MediaRetainedQuota.usage(mediaRetainedState.ledger, club_id))
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func reserve_retained_media(token : Text, path : Text, bytes : Nat) : async MediaRetainedQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not retainedRehearsal or not MediaRetainedCutover.ready(mediaRetainedState, caller)) return #Err("Registered retained store required");
     if (mediaRetainedState.ledger.operations.get(caller.toText() # "\u{1f}" # token) == null and MediaJournalToken.expired(token, Int.abs(Time.now()) / MediaQuota.cycleNs)) return #Err("Expired retained token absent");
     let segments = Iter.toArray(path.split(#char '/'));
@@ -5603,45 +7523,82 @@ persistent actor class Main(governorInit : Principal) = this {
       if (not mediaGrowthState.configured or (usage.finalized + usage.pending + bytes) * 2 > commitment) return #Err("Reserved club growth exhausted")
     };
     MediaRetainedQuota.reserve(mediaRetainedState.ledger, caller, token, club, path, bytes, pro, clubStorageGb(club).toNat())
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func commit_retained_media(token : Text) : async MediaRetainedQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not retainedRehearsal or not MediaRetainedCutover.ready(mediaRetainedState, caller)) return #Err("Registered retained store required");
     MediaRetainedQuota.settle(mediaRetainedState.ledger, caller, token, true)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func cancel_retained_media(token : Text, club : Text, path : Text, bytes : Nat) : async MediaRetainedQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not retainedRehearsal or not MediaRetainedCutover.ready(mediaRetainedState, caller)) return #Err("Registered retained store required");
     if (mediaRetainedState.ledger.operations.get(caller.toText() # "\u{1f}" # token) == null and MediaJournalToken.expired(token, Int.abs(Time.now()) / MediaQuota.cycleNs)) return #Ok({store=caller;token;path;club;bytes;previous=null;state=#released});
     MediaRetainedQuota.cancel(mediaRetainedState.ledger, caller, token, club, path, bytes)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func credit_deleted_retained_media(token : Text, entry : MediaRetainedQuota.Object) : async MediaRetainedQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not retainedRehearsal or not MediaRetainedCutover.ready(mediaRetainedState, caller)) return #Err("Registered retained store required");
     if (mediaRetainedState.ledger.operations.get(caller.toText() # "\u{1f}" # token) == null and MediaJournalToken.expired(token, Int.abs(Time.now()) / MediaQuota.cycleNs)) return #Err("Expired retained token absent");
     MediaRetainedQuota.deleted(mediaRetainedState.ledger, caller, token, entry)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func prepare_deleted_retained_media(token : Text, entry : MediaRetainedQuota.Object) : async MediaRetainedQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not retainedRehearsal or not MediaRetainedCutover.ready(mediaRetainedState, caller)) return #Err("Registered retained store required");
     if (mediaRetainedState.ledger.operations.get(caller.toText() # "\u{1f}" # token) == null and MediaJournalToken.expired(token, Int.abs(Time.now()) / MediaQuota.cycleNs)) return #Err("Expired retained token absent");
     MediaRetainedQuota.prepareDeleted(mediaRetainedState.ledger, caller, token, entry)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func acknowledge_retained_media(token : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not retainedRehearsal or not MediaRetainedCutover.ready(mediaRetainedState, caller)) return #Err("Registered retained store required");
     // An already retired token can acknowledge local cleanup again, but its
     // expired epoch can never create a new authority operation.
     if (mediaRetainedState.ledger.operations.get(caller.toText() # "\u{1f}" # token) == null and MediaJournalToken.expired(token, Int.abs(Time.now()) / MediaQuota.cycleNs)) return #Ok;
     if (MediaJournalRetirement.acknowledge(mediaJournalState, mediaRetainedState.ledger, mediaQuotaCutover.ledger, caller, token)) #Ok else #Err("Both ledgers must be settled")
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func retire_retained_media_records(cursor : Text) : async { #Ok : { removed : Nat; cursor : Text }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not retainedRehearsal or not isGovernor(caller) or not mediaRetainedState.active) return #Err("Local retained governor required");
     #Ok(MediaJournalRetirement.retire(mediaJournalState, mediaRetainedState.ledger, mediaQuotaCutover.ledger, Int.abs(Time.now()) / MediaQuota.cycleNs, cursor))
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   // Local operator attestation only: exact club list, all-store baseline and
   // conservative global allocator overhead; never a production capacity flag.
   public shared ({ caller }) func configure_media_growth_router(router : Principal, group : Text, target : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not routerGrowthRehearsal or not growthRehearsal or not isGovernor(caller)) return #Err("Local growth governor required");
     if (router.isAnonymous() or router.toText() == "aaaaa-aa" or group.size() == 0 or group.size() > 64 or target.size() == 0 or target.size() > 64) return #Err("Invalid router binding");
     let binding = { router; group; target };
     switch (mediaGrowthRouter) { case (?saved) { if (saved != binding) return #Err("Growth router immutable") }; case null { mediaGrowthRouter := ?binding } };
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   func reserveRouterGrowth(club : Text) : async Bool {
     if (not routerGrowthRehearsal) return true;
@@ -5660,6 +7617,9 @@ persistent actor class Main(governorInit : Principal) = this {
     } catch (_) { false }
   };
   public shared ({ caller }) func configure_media_growth(usable : Nat, unassigned : Nat, free_bytes : Nat, clubs : [Text]) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not growthRehearsal or not retainedRehearsal or not isGovernor(caller) or not mediaRetainedState.active) return #Err("Local active retained governor required");
     if (mediaGrowthState.configured or usable == 0 or free_bytes == 0 or clubs.size() != profiles.size() or clubs.size() > 100_000) return #Err("Immutable complete growth baseline required");
     let candidate = MediaGrowthReservations.empty(); candidate.configured := true; candidate.usable := usable; candidate.unassigned := unassigned; candidate.freeBytes := free_bytes;
@@ -5671,9 +7631,14 @@ persistent actor class Main(governorInit : Principal) = this {
     };
     if (MediaGrowthReservations.committed(candidate) > usable) return #Err("Allocator overhead exceeds capacity");
     mediaGrowthState := candidate; #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func register_media_quota_store(store : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor required");
     if (store.equal(Principal.anonymous()) or store.equal(Principal.fromText("aaaaa-aa"))) return #Err("Invalid store");
     if (mediaQuotaStores.any(func(p) { p.equal(store) })) return #Ok;
@@ -5682,22 +7647,34 @@ persistent actor class Main(governorInit : Principal) = this {
     if (mediaQuotaStores.size() >= 64) return #Err("Store registry full");
     mediaQuotaStores := mediaQuotaStores.concat([store]);
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // Deliberately governor-only preparation tests: registered stores cannot
   // consume production quota until a later, verified baseline cutover.
   public shared ({ caller }) func prepare_media_quota_reservation(store : Principal, token : Text, club_id : Text, category : Text, bytes : Nat) : async MediaQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not MediaQuota.authorizedPreparation(governor, caller, store, mediaQuotaStores)) return #Err("Governor and registered store required");
     if (not profiles.any(func(p) { p.id == club_id })) return #Err("Unknown club");
     let pro = clubSubscriptions.any(func(s) {
       s.club_id == club_id and (s.is_pro or s.admin_pro_override or s.is_pro_football or s.admin_pro_football_override or s.is_trial)
     });
     MediaQuota.reserve(mediaQuotaLedger, store, token, club_id, category, bytes, Int.abs(Time.now()) / MediaQuota.cycleNs, pro)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func settle_prepared_media_quota(store : Principal, token : Text, commit : Bool) : async MediaQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not MediaQuota.authorizedPreparation(governor, caller, store, mediaQuotaStores)) return #Err("Governor and registered store required");
     MediaQuota.settle(mediaQuotaLedger, store, token, commit)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public query ({ caller }) func get_prepared_media_quota(store : Principal, token : Text) : async { #Ok : ?MediaQuota.Reservation; #Err : Text } {
@@ -5708,12 +7685,20 @@ persistent actor class Main(governorInit : Principal) = this {
   // Registry sealing precedes store freezing. The ledger imports responses
   // directly from each registered store, not governor-supplied row payloads.
   public shared ({ caller }) func start_media_quota_cutover() : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor required");
     if (mediaQuotaStores.size() == 0) return #Err("Register every media store first");
     mediaQuotaCutover.started := true;
     #Ok
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func import_media_quota_store(store : Principal) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor required");
     if (not mediaQuotaCutover.started or not mediaQuotaStores.any(func(p) = p.equal(store))) return #Err("Sealed registered store required");
     let progress = MediaQuotaCutover.progress(mediaQuotaCutover, store);
@@ -5723,10 +7708,17 @@ persistent actor class Main(governorInit : Principal) = this {
       let page = await source.quota_snapshot_page(progress.offset);
       MediaQuotaCutover.applyPage(mediaQuotaCutover, store, page)
     } catch (_) { #Err("Snapshot read failed; retry same cursor") }
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func activate_media_quota() : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor required");
     MediaQuotaCutover.activate(mediaQuotaCutover, mediaQuotaStores)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public query ({ caller }) func media_quota_ready() : async Bool {
     MediaQuotaCutover.ready(mediaQuotaCutover, caller, mediaQuotaStores)
@@ -5738,8 +7730,13 @@ persistent actor class Main(governorInit : Principal) = this {
   // Complete operator inventory through consensus, not an uncertified query
   // or the browser's configured primary blob store. Bounded by 64 stores.
   public shared ({ caller }) func read_media_quota_store_registry() : async { #Ok : { active : Bool; stores : [Principal] }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor required");
     #Ok({ active = mediaQuotaCutover.active; stores = mediaQuotaStores })
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   // Separate, read-only identity inventory relay. Never broadens the existing
   // operator endpoint and remains absent from ordinary deployment authority.
@@ -5748,6 +7745,9 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok({ active = mediaQuotaCutover.active; stores = mediaQuotaStores })
   };
   public shared ({ caller }) func reserve_media_quota(token : Text, club_id : Text, category : Text, bytes : Nat, cycle : Nat) : async MediaQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     switch (MediaJournalToken.epoch(token)) { case (?epoch) { if (epoch != cycle) return #Err("Token cycle mismatch") }; case null {} };
     if (not MediaQuotaCutover.ready(mediaQuotaCutover, caller, mediaQuotaStores)) return #Err("Shared quota inactive or unregistered store");
     // Old-cycle retries are allowed only for an existing immutable token.
@@ -5756,12 +7756,22 @@ persistent actor class Main(governorInit : Principal) = this {
     if (not profiles.any(func(p) = p.id == club_id)) return #Err("Unknown club");
     let pro = clubSubscriptions.any(func(s) = s.club_id == club_id and (s.is_pro or s.admin_pro_override or s.is_pro_football or s.admin_pro_football_override or s.is_trial));
     MediaQuota.reserve(mediaQuotaCutover.ledger, caller, token, club_id, category, bytes, cycle, pro)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func commit_media_quota(token : Text) : async MediaQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not MediaQuotaCutover.ready(mediaQuotaCutover, caller, mediaQuotaStores)) return #Err("Shared quota inactive or unregistered store");
     MediaQuota.settle(mediaQuotaCutover.ledger, caller, token, true)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func cancel_media_quota(token : Text, club_id : Text, category : Text, bytes : Nat, cycle : Nat) : async MediaQuota.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not MediaQuotaCutover.ready(mediaQuotaCutover, caller, mediaQuotaStores)) return #Err("Shared quota inactive or unregistered store");
     switch (MediaJournalToken.epoch(token)) {
       case (?epoch) {
@@ -5771,13 +7781,23 @@ persistent actor class Main(governorInit : Principal) = this {
     };
     if (MediaQuota.status(mediaQuotaCutover.ledger, caller, token) == null and cycle + 1 < Int.abs(Time.now()) / MediaQuota.cycleNs) return #Err("Expired operation");
     MediaQuota.cancel(mediaQuotaCutover.ledger, caller, token, club_id, category, bytes, cycle)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func retire_media_quota_records(reservation_cursor : Text, usage_cursor : Text) : async { #Ok : { removed : Nat; reservation_cursor : Text; usage_cursor : Text }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor required");
     #Ok(MediaQuota.retireCoordinatedPage(mediaQuotaCutover.ledger, Int.abs(Time.now()) / MediaQuota.cycleNs, reservation_cursor, usage_cursor, not mediaRetainedState.active))
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func save_club_subscription(item : Types.ClubSubscription) : async { #Ok : Types.ClubSubscription; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5797,6 +7817,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(item)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Team subscription status (team_subscriptions parity) ----
@@ -5823,6 +7845,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func save_team_subscription(item : Types.TeamSubscription) : async { #Ok : Types.TeamSubscription; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5833,6 +7858,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(item)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func save_team_pitch_settings(
@@ -5849,6 +7876,9 @@ persistent actor class Main(governorInit : Principal) = this {
     show_lineup_picker : Bool,
     disable_team_pom_rewards : Bool,
   ) : async { #Ok : Types.TeamSubscription; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5892,6 +7922,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(merged)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Promo codes (promo_codes parity) ----
@@ -5929,6 +7961,9 @@ persistent actor class Main(governorInit : Principal) = this {
   public shared ({ caller }) func create_promo_code(
     code : Text, access_level : Text, scope_type : Text, club_id : ?Text, storage_gb : ?Nat32, expires_at_ms : ?Nat64,
   ) : async { #Ok : Types.PromoCode; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5950,9 +7985,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(item)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func set_promo_code_active(id : Text, is_active : Bool) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5963,9 +8003,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func delete_promo_code(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -5975,11 +8020,16 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   /// Redeems a team promo code for `tier` ("pro" | "pro_football").
   /// Returns the grant's expiry (code expiry if set, else 1 month / 1 year).
   public shared ({ caller }) func redeem_team_promo_code(code : Text, team_id : Text, tier : Text, is_annual : Bool) : async { #Ok : Nat64; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6027,6 +8077,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(expiry)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Club storage add-ons (club_subscriptions.storage_purchased_gb parity) ----
@@ -6044,6 +8096,9 @@ persistent actor class Main(governorInit : Principal) = this {
 
   /// Redeems a storage promo code for a club. Returns the new add-on total (GB).
   public shared ({ caller }) func redeem_club_storage_promo_code(code : Text, club_id : Text) : async { #Ok : Nat32; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6075,6 +8130,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(total)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Global app config (app_settings parity for pre-auth boot reads) ----
@@ -6089,6 +8146,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_app_config(key : Text, value : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     if (not isGovernor(caller)) await admitAccount(caller);
@@ -6101,6 +8161,8 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   // ---- Duplicate team-name check (CreateTeamPage parity) ----
@@ -6353,6 +8415,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func save_pitch_formation(team_id : Text, name : Text, team_size : Nat32, formation_json : Text, drawing_json : ?Text) : async { #Ok : PitchFormation; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6373,9 +8438,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(f)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func delete_pitch_formation(id : Text) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6390,6 +8460,8 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared query ({ caller }) func get_team_pitch_notify(team_id : Text) : async { #Ok : PitchNotifyFlags; #Err : Text } {
@@ -6403,6 +8475,9 @@ persistent actor class Main(governorInit : Principal) = this {
   };
 
   public shared ({ caller }) func set_team_pitch_notify(team_id : Text, coach : Bool, team_admin : Bool, subs_manager : Bool) : async { #Ok : PitchNotifyFlags; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6414,9 +8489,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(f)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_club_media_references(club : Text, offset : Nat, expected : ?Nat) : async { #Ok : MediaEvidence.Page; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not isGovernor(caller)) return #Err("Governor required");
     if (not isTransferFenced(club)) return #Err("Club must be fenced before media inventory");
     switch (expected) { case (?r) { if (r != mediaEvidenceRevision) return #Err("Media inventory revision changed") }; case null { if (offset != 0) return #Err("Revision required after first page") } };
@@ -6427,11 +8507,16 @@ persistent actor class Main(governorInit : Principal) = this {
       var j = 0; for (a in n.attachments.values()) { refs := refs.concat([{ resource_id = n.id # ":attachment:" # Nat.toText(j); url = a.url; store = null; path = null; content_hash = null }]); j += 1 };
     } };
     #Ok({ revision = mediaEvidenceRevision; scanned = end - start; next = if (end < newsPosts.size()) ?end else null; references = refs })
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
 
   // Additive protected consensus reads; live UI rollout is a separate release gate.
   public shared ({ caller }) func read_account_get_club_invite_message_default(club_id : Text) : async { #Ok : ?Types.InviteMessageDefault; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6440,9 +8525,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(inviteMessageDefaults.find(func(item) = item.club_id == club_id))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_team_welcome_email(team_id : Text) : async { #Ok : ?Types.TeamWelcomeEmail; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6456,9 +8546,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_my_personal_teams() : async { #Ok : [Types.ClubTeam]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6467,9 +8562,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(teams.filter(func(t) = mine.any(func(id) = id == t.id)))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_read_competition_team_access(team_id : Text, user : Principal) : async { club_id : ?Text; is_member : Bool; can_manage : Bool } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(user);
@@ -6479,14 +8579,19 @@ persistent actor class Main(governorInit : Principal) = this {
       case (?club) {
         let allowed = not isExcluded(user, club);
         { club_id = ?club; is_member = allowed and (isOnTeam(user, team_id) or isAdmin(user, club));
-          can_manage = allowed and (isAdmin(user, club) or acl.roles.any(func(g) = g.user.equal(user) and g.club == ?club and g.team == ?team_id and (g.role == "team_admin" or g.role == "coach"))) }
+          can_manage = allowed and canManageTeam(user, club, ?team_id) }
       };
     }
   
     } finally { removalReceiver.leave(user) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_is_user_on_any_team(team_ids : [Text], user : Principal) : async Bool {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(user);
@@ -6498,9 +8603,14 @@ persistent actor class Main(governorInit : Principal) = this {
     })
   
     } finally { removalReceiver.leave(user) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_news_targets(club_ids : [Text]) : async { #Ok : [(Text, Text, Text)]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6511,9 +8621,14 @@ persistent actor class Main(governorInit : Principal) = this {
       p.id == t.0 and visible.any(func(club) = club == p.club_id) and canSeeNewsPost(caller, p))))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_news(club_id : Text) : async { #Ok : [Types.NewsPost]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6521,9 +8636,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(newsPosts.filter(func(p) = p.club_id == club_id and canSeeNewsPost(caller, p)))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_news_multi(club_ids : [Text]) : async { #Ok : [Types.NewsPost]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6534,9 +8654,14 @@ persistent actor class Main(governorInit : Principal) = this {
       visible.any(func(club) = club == p.club_id) and canSeeNewsPost(caller, p)))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_parent_invite(token : Text) : async { #Ok : Types.ParentInvite; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6560,9 +8685,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_season_eoi_config(season_id : Text) : async { #Ok : ?Text; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6576,9 +8706,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_season_team_assignment(season_id : Text) : async { #Ok : [Types.SeasonTeamAssignment]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6592,9 +8727,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_club_kind(club_id : Text) : async { #Ok : ?Text; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6603,9 +8743,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(switch (clubKinds.find(func((k, _)) = k == club_id)) { case (?(_, v)) ?v; case null null })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_class_enrolments(club_id : Text, term_id : ?Text, class_id : ?Text) : async { #Ok : [Types.ClassEnrolment]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6618,9 +8763,14 @@ persistent actor class Main(governorInit : Principal) = this {
     ))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_club_general_settings(club_id : Text) : async { #Ok : Types.ClubGeneralSettings; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6638,9 +8788,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_free_usage_counters(club_id : Text) : async { #Ok : { teams : Nat; members : Nat; news_posts : Nat; pending_invites : Nat }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6661,9 +8816,14 @@ persistent actor class Main(governorInit : Principal) = this {
     })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_links(club : Text, admin_view : Bool) : async { #Ok : Types.Listing; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6678,9 +8838,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_link(id : Text) : async { #Ok : Types.Listing; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6696,9 +8861,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_execute(input : Text) : async Oql.Result {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6711,9 +8881,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_whoami() : async { #Ok : Types.Account; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6724,19 +8899,32 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_role_grants(club : Text) : async { #Ok : [Types.AccountRole]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    if (not isAdmin(caller, club)) return #Err("Club admin required");
-    #Ok(accountRoles.filter(func(grant) = grant.club == ?club or grant.club == null))
+    // Members see their own club's roster (account ids + roles, no names) so
+    // they can message people; app-wide grants stay admin-only.
+    if (isAdmin(caller, club)) return #Ok(accountRoles.filter(func(grant) = grant.club == ?club or grant.club == null));
+    if (not isMember(caller, club)) return #Err("Club membership required");
+    #Ok(accountRoles.filter(func(grant) = grant.club == ?club))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_team_role_grants(team : Text) : async { #Ok : [Types.AccountRole]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6759,29 +8947,44 @@ persistent actor class Main(governorInit : Principal) = this {
     };
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_my_role_grants() : async [Types.RoleGrant] {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     auth(caller);
-    acl.roles.filter(func(grant) = grant.user.equal(caller))
+    acl.roles.filter(func(grant) = ownsMembershipPrincipal(caller, grant.user) and (switch (grant.club) { case (?club) not isExcluded(caller, club); case null true }))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared func read_account_has_club_staff_role(user : Principal, club_id : Text) : async Bool {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous())) return false;
-    acl.roles.any(func(grant) = grant.user.equal(user) and grant.club == ?club_id)
+    not isExcluded(user, club_id) and acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id)
   
     } finally { removalReceiver.leave(user) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared func read_account_is_club_member(user : Principal, club_id : Text) : async Bool {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(user);
@@ -6789,40 +8992,60 @@ persistent actor class Main(governorInit : Principal) = this {
     isMember(user, club_id)
   
     } finally { removalReceiver.leave(user) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared func read_account_has_child_guardian(user : Principal, child_id : Text) : async Bool {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(user); currentChildGuardian(user, child_id) 
     } finally { removalReceiver.leave(user) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared func read_account_list_user_club_roles(user : Principal, club_id : Text) : async [(Text, ?Text)] {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous())) return [];
-    acl.roles.filter(func(grant) = grant.user.equal(user) and grant.club == ?club_id).map(func(grant) = (grant.role, grant.team))
+    acl.roles.filter(func(grant) = not isExcluded(user, club_id) and ownsMembershipPrincipal(user, grant.user) and grant.club == ?club_id).map(func(grant) = (grant.role, grant.team))
   
     } finally { removalReceiver.leave(user) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared func read_account_is_app_admin(user : Principal) : async Bool {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(user)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(user);
     if (user.equal(Principal.anonymous())) return false;
-    acl.roles.any(func(grant) = grant.user.equal(user) and grant.role == "app_admin")
+    acl.roles.any(func(grant) = ownsMembershipPrincipal(user, grant.user) and grant.role == "app_admin")
   
     } finally { removalReceiver.leave(user) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_club_roster(club_id : Text) : async { #Ok : { children : [Types.Child]; roles : [Types.RoleGrant] }; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    if (not acl.roles.any(func(grant) = grant.user.equal(caller) and grant.club == ?club_id)) {
+    if (not acl.roles.any(func(grant) = ownsMembershipPrincipal(caller, grant.user) and grant.club == ?club_id)) {
       return #Err("Club staff role required");
     };
     #Ok({
@@ -6831,9 +9054,14 @@ persistent actor class Main(governorInit : Principal) = this {
     })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_children() : async { #Ok : [Types.Child]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6847,9 +9075,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_removed_members(club : Text) : async { #Ok : [Types.RemovedMember]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6857,9 +9090,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(removedMembers.filter(func(m) = m.club == club))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_role_requests(club : Text) : async { #Ok : [Types.RoleRequest]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6867,9 +9105,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(roleRequests.filter(func(r) = r.club == club))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_my_removed_clubs() : async { #Ok : [Types.ClubProfile]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6878,19 +9121,29 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(profiles.filter(func(p) = switch (p.deleted_at_ms) { case (?d) d >= cutoff and isAdmin(caller, p.id); case null false }))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_team_invites(club_id : Text, team_id : ?Text) : async { #Ok : [Types.TeamInvite]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
     if (not isAdmin(caller, club_id)) return #Err("Club admin required");
-    #Ok(teamInvites.filter(func(i) = i.club_id == club_id and (team_id == null or team_id == ?i.team_id)))
+    #Ok(teamInvites.filter(func(i) = i.club_id == club_id and (team_id == null or team_id == ?i.team_id)).map(func(i : Types.TeamInvite) : Types.TeamInvite = { i with email = "" }))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_team_invite(id : Text) : async { #Ok : Types.TeamInvite; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6904,9 +9157,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_shell_team_by_token(token : Text) : async { #Ok : Types.ClubTeam; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6920,9 +9178,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_team_invite_link_by_token(token : Text) : async { #Ok : Types.TeamInviteLink; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6936,19 +9199,29 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_pending_invites_by_club(club_id : Text) : async { #Ok : [Types.PendingInvite]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    if (not isAdmin(caller, club_id)) return #Err("Club admin required");
-    #Ok(pendingInvites.filter(func(i) = i.club_id == club_id))
+    if (not isAdmin(caller, club_id) and not acl.teams.any(func t = t.club == club_id and canManageTeam(caller, club_id, ?t.id))) return #Err("Invite manager required");
+    #Ok(pendingInvites.filter(func i = i.club_id == club_id and canManageTeam(caller, club_id, i.team_id)))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_find_pending_invite_by_email_hash(club_id : Text, hash : Text) : async { #Ok : ?Types.PendingInviteEmailHash; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6956,9 +9229,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(pendingInviteEmailHashes.find(func(h) = h.club_id == club_id and h.hash == hash))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_guardian_relationships(child_id : Text) : async { #Ok : [Types.GuardianMeta]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6966,9 +9244,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(guardianMeta.filter(func(m) = m.child_id == child_id))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_my_children() : async [Types.Child] {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6976,9 +9259,14 @@ persistent actor class Main(governorInit : Principal) = this {
     acl.children.filter(func(c) = isChildGuardian(caller, c))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_child_guardians(child_id : Text) : async { #Ok : [Principal]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -6992,9 +9280,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_team_creation_requests(club_id : Text) : async { #Ok : [Types.TeamCreationRequest]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7002,13 +9295,18 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(teamCreationRequests.filter(func(r) = r.club_id == club_id))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_team_player_positions(team_id : Text) : async { #Ok : [Types.TeamPlayerPosition]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    switch (acl.teams.find(func(t) = t.id == team_id)) {
+    switch (liveTeamRef(team_id)) {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isMember(caller, team.club)) return #Err("Forbidden");
@@ -7017,13 +9315,18 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_team_player_positions_v2(team_id : Text) : async { #Ok : [Types.TeamPlayerPositionAssignment]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    switch (acl.teams.find(func(t) = t.id == team_id)) {
+    switch (liveTeamRef(team_id)) {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isMember(caller, team.club)) return #Err("Forbidden");
@@ -7032,13 +9335,18 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_team_captains(team_id : Text) : async { #Ok : [Types.TeamCaptain]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
-    switch (acl.teams.find(func(t) = t.id == team_id)) {
+    switch (liveTeamRef(team_id)) {
       case null { #Err("Team not found") };
       case (?team) {
         if (not isMember(caller, team.club)) return #Err("Forbidden");
@@ -7047,9 +9355,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_club_join_requests(club_id : Text) : async { #Ok : [Types.ClubJoinRequest]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7057,9 +9370,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(clubJoinRequests.filter(func(r) = r.club_id == club_id))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_my_theme_preference() : async { #Ok : ?Text; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7070,9 +9388,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_my_accessibility_prefs() : async { #Ok : ?Text; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7083,9 +9406,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_online_presence(window_seconds : Nat) : async { #Ok : [(Text, Int)]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7095,9 +9423,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(presenceLastSeen.filter(func(entry) = entry.1 >= cutoff));
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_club_branding(club_id : Text) : async { #Ok : Types.ClubBranding; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7111,9 +9444,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok({ name = profile.name; logo_url = profile.logo_url; contact_email = s.contact_email })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_club_terms(club_id : Text) : async { #Ok : [Types.ClubTerm]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7122,9 +9460,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(clubTerms.filter(func(t) = t.club_id == club_id))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_read_season_club(id : Text) : async { #Ok : ?Text; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7135,9 +9478,14 @@ persistent actor class Main(governorInit : Principal) = this {
     })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_seasons(club_id : Text) : async { #Ok : [Types.Season]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7146,9 +9494,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(seasons.filter(func(s) = s.club_id == club_id))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_current_season(club_id : Text) : async { #Ok : ?Types.Season; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7157,9 +9510,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(seasons.find(func(s) = s.club_id == club_id and s.status == "active"))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_season_team_summary(season_id : Text) : async { #Ok : [Types.SeasonTeamSummary]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7174,9 +9532,14 @@ persistent actor class Main(governorInit : Principal) = this {
     };
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_season_player_stats(season_id : Text, team_id : Text) : async { #Ok : [Types.SeasonPlayerStat]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7191,9 +9554,14 @@ persistent actor class Main(governorInit : Principal) = this {
     };
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_profile_team_history(profile_id : Text) : async [Types.ProfileTeamHistoryEntry] {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7222,9 +9590,14 @@ persistent actor class Main(governorInit : Principal) = this {
     })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_accepted_invites(club_id : Text, since_ms : Nat64, until_ms : Nat64) : async { #Ok : [Types.AcceptedInvite]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7241,9 +9614,14 @@ persistent actor class Main(governorInit : Principal) = this {
     }))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_invite_stats(club_id : Text, since_ms : Nat64, until_ms : Nat64) : async { #Ok : Types.InviteStats; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7253,9 +9631,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok({ total = inRange.size(); accepted })
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_member_payments(club_id : Text, payment_period : Text, payment_type : Text) : async { #Ok : [Types.MemberPayment]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7266,9 +9649,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(scoped.filter(func(p) = p.user_id == callerId))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_promo_codes() : async { #Ok : [Types.PromoCode]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7276,9 +9664,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(promoCodes)
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_list_pitch_formations(team_id : Text) : async { #Ok : [PitchFormation]; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7287,9 +9680,14 @@ persistent actor class Main(governorInit : Principal) = this {
     #Ok(pitchFormations.filter(func(f) = f.team_id == team_id))
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func read_account_get_team_pitch_notify(team_id : Text) : async { #Ok : PitchNotifyFlags; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     if (not removalReceiver.enter(caller)) throw Error.reject("Account removal fenced or operation capacity reached");
     try {
     await admitAccount(caller);
@@ -7301,15 +9699,32 @@ persistent actor class Main(governorInit : Principal) = this {
     }
   
     } finally { removalReceiver.leave(caller) };
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func prepare_account_removal(request : RemovalReceiver.Request) : async { #Ok; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     removalReceiver.prepare(caller, request)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
   public shared ({ caller }) func read_account_removal_drain(request : RemovalReceiver.Request) : async { #Ok : RemovalReceiver.Receipt; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     removalReceiver.receipt(caller, request, Principal.fromActor(this), 0)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 
   public shared ({ caller }) func seal_account_removal(request : RemovalReceiver.Request) : async { #Ok : RemovalReceiver.Receipt; #Err : Text } {
+    let privateWriterLease = switch (privateNameWriterGate.enter()) { case (#Ok(key)) key; case (#Err(reason)) throw Error.reject(reason) };
+    try {
+
     removalReceiver.seal(caller, request, Principal.fromActor(this), 0)
+  
+    } finally { privateNameWriterGate.leave(privateWriterLease) };
   };
 }

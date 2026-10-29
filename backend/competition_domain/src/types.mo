@@ -60,6 +60,19 @@ module {
     to : Text;
     created_at_ms : Nat64;
   };
+  // Pending welcome email registered by an existing member themselves (e.g.
+  // after their team accepts a competition entry). ICP accounts carry no
+  // email, so the member supplies their own address; the canister verifies
+  // competition membership and stores the browser-generated unguessable
+  // token as the capability the delivery edge function reads. One job per
+  // member per competition.
+  public type CompetitionMemberWelcomeJob = {
+    token : Text;
+    competition_id : Text;
+    member : Principal;
+    to : Text;
+    created_at_ms : Nat64;
+  };
   // Expression-of-interest submission (parent sign-up for a season).
   // Mirrors the Supabase eoi_submissions columns the EOI hooks read/write;
   // *_at_ms timestamps replace ISO strings, Principal replaces auth.uid().
@@ -168,6 +181,7 @@ module {
   // ("referees" | "committee" | "coordinators" | "all_members").
   public type OfficialChat = { competition_id : Text; scope : Text; conversation_id : Text };
   public type PlayHQMatchMeta = { match_id : Text; competition_id : Text; tenant : Text; grade_id : Text; game_id : Text; home_id : Text; away_id : Text; home_name : Text; away_name : Text; synced_revision : Nat64 };
+  public type PlayHQCompetitionLink = { competition_id : Text; club_id : Text; tenant : Text; grade_id : Text; sport : ?Text; last_synced_at_ms : ?Nat64 };
   public type PlayHQStat = { competition_id : Text; match_id : Text; tenant : Text; game_id : Text; team_id : Text; player_id : Text; player_name : Text; stats_json : Text };
   public type PlayHQClaim = { tenant : Text; player_id : Text; user : Principal };
   public type PlayHQGame = { game_id : Text; home_id : Text; away_id : Text; home_name : Text; away_name : Text; home_score : ?Nat16; away_score : ?Nat16; starts_at_ms : ?Nat64; status : Text; venue : ?Text };

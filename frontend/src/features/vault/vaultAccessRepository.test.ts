@@ -23,19 +23,27 @@ const accessMocks = vi.hoisted(() => ({
   vaultFolders: vi.fn(),
   competitionAdmin: vi.fn(),
   entitlements: vi.fn(),
+  memberIds: vi.fn(),
+  scopes: vi.fn(),
+  allowance: vi.fn(),
+  profile: vi.fn(),
 }));
 const supabaseMode = process.env.IGNITE_TEST_BACKEND_MODE !== "icp";
 const icpContext = { identity: { getPrincipal: () => ({ toText: () => "principal-a" }) }, target: { alias: "test" } };
 
 vi.mock("@/live/featureRouter", () => ({
-  withFeatureBackend: (_feature: string, providers: { supabase: () => unknown; icp: (ctx: unknown) => unknown }) =>
-    accessMocks.backend === "icp" ? providers.icp(icpContext) : providers.supabase(),
+  withFeatureBackend: (_feature: string, providers: { supabase: () => unknown; icp: (ctx: unknown) => unknown }, scope: unknown) => {
+    accessMocks.scopes(scope);
+    return accessMocks.backend === "icp" ? providers.icp(icpContext) : providers.supabase();
+  },
 }));
 vi.mock("@/live/features/insights", () => ({ isLiveAppAdmin: (...args: unknown[]) => accessMocks.isAppAdmin(...args) }));
+vi.mock("@/live/groupDispatch", () => ({ clubDispatch: { memberClubIds: () => accessMocks.memberIds() } }));
 vi.mock("@/live/features/membership", () => ({ getLiveMyRoleGrants: (...args: unknown[]) => accessMocks.roles(...args) }));
 vi.mock("@/live/features/club", () => ({
   listLiveClubs: (...args: unknown[]) => accessMocks.clubs(...args),
   getLiveTeam: (...args: unknown[]) => accessMocks.team(...args),
+  getLiveClubProfile: (...args: unknown[]) => accessMocks.profile(...args),
 }));
 vi.mock("@/live/features/proAccess", () => ({
   listLiveClubSubscriptions: (...args: unknown[]) => accessMocks.clubSubscriptions(...args),
@@ -46,6 +54,14 @@ vi.mock("@/live/features/proAccess", () => ({
 vi.mock("@/live/identityEntitlements", () => ({ fetchIcpEntitlements: (...args: unknown[]) => accessMocks.entitlements(...args) }));
 vi.mock("@/live/features/vault", () => ({ listLiveVaultFolders: (...args: unknown[]) => accessMocks.vaultFolders(...args) }));
 vi.mock("@/live/features/competitions", () => ({ isLiveCompetitionAdmin: (...args: unknown[]) => accessMocks.competitionAdmin(...args) }));
+
+vi.mock("@/live/crossGroupClubs", () => ({
+  readClubsInOwnGroups: async (_ctx: unknown, ids: string[]) => {
+    const rows = (await accessMocks.clubs()) as Array<{ id: string; name: string }>;
+    return { values: rows.filter(r => ids.includes(r.id)), failed: 0 };
+  },
+}));
+vi.mock("@/live/domains", () => ({ connectLiveClubDomain: async () => ({ actor: { get_media_allowance: accessMocks.allowance } }) }));
 
 type IgniteSupabaseClient = SupabaseClient<Database>;
 type Result = { data: unknown; error: unknown };
@@ -178,6 +194,25 @@ describe.runIf(!supabaseMode)("Vault access repository — ICP", () => {
     for (const mock of Object.values(accessMocks)) {
       if (typeof mock === "function" && "mockReset" in mock) (mock as ReturnType<typeof vi.fn>).mockReset();
     }
+    accessMocks.memberIds.mockResolvedValue(["club-a"]);
+    accessMocks.allowance.mockResolvedValue({ Ok: { premium: true } });
+  });
+
+  it("reads the known selected club directly without an unrelated directory or membership inventory", async () => {
+    accessMocks.profile.mockResolvedValue([{ id: "goat", name: "Giddy Goat", deleted_at_ms: [] }]);
+    const clubs = await fetchVaultAccessibleClubs("principal-a", true, undefined, "goat");
+    expect(clubs).toEqual([{ id: "goat", name: "Giddy Goat", is_pro: true, storage_used_bytes: 0 }]);
+    expect(accessMocks.scopes).toHaveBeenCalledWith({ clubId: "goat" });
+    expect(accessMocks.clubs).not.toHaveBeenCalled();
+    expect(accessMocks.memberIds).not.toHaveBeenCalled();
+    expect(accessMocks.allowance).toHaveBeenCalledWith("goat", []);
+  });
+
+  it("does not report an unreadable selected club as an empty successful inventory", async () => {
+    accessMocks.profile.mockResolvedValue([]);
+    await expect(fetchVaultAccessibleClubs("principal-a", false, undefined, "goat")).rejects.toThrow("selected club could not be loaded");
+    accessMocks.profile.mockRejectedValue(new Error("Club access temporarily unavailable"));
+    await expect(fetchVaultAccessibleClubs("principal-a", false, undefined, "goat")).rejects.toThrow("Club access temporarily unavailable");
   });
 
   it("maps app-admin and caller role grants from ICP domains", async () => {
@@ -191,13 +226,24 @@ describe.runIf(!supabaseMode)("Vault access repository — ICP", () => {
     expect(calls).toEqual([]);
   });
 
-  it("maps accessible ICP clubs and caller Pro entitlement", async () => {
+  it("reads selected-club caller roles in that owning group without retaining unrelated grants", async () => {
+    accessMocks.roles.mockResolvedValue([
+      { role: "club_admin", club: ["club-a"], team: [] },
+      { role: "coach", club: ["club-b"], team: ["team-b"] },
+    ]);
+    expect(await fetchVaultUserRoles("principal-a", undefined, "club-a")).toEqual([
+      { role: "club_admin", club_id: "club-a", team_id: null },
+    ]);
+    expect(accessMocks.scopes).toHaveBeenCalledWith({ clubId: "club-a" });
+  });
+
+  it("personal Pro does not mark an unpaid club as paid", async () => {
     accessMocks.clubs.mockResolvedValue([{ id: "club-a", name: "Club A" }]);
     accessMocks.clubSubscriptions.mockResolvedValue(new Map([["club-a", null]]));
     accessMocks.entitlements.mockResolvedValue({ isPro: true });
     const { client, calls } = scriptedClient({});
     await expect(fetchVaultAccessibleClubs("principal-a", false, client)).resolves.toEqual([
-      { id: "club-a", name: "Club A", is_pro: true, storage_used_bytes: 0 },
+      { id: "club-a", name: "Club A", is_pro: false, storage_used_bytes: 0 },
     ]);
     expect(accessMocks.clubSubscriptions).toHaveBeenCalledWith(icpContext, ["club-a"]);
     expect(calls).toEqual([]);
@@ -205,12 +251,12 @@ describe.runIf(!supabaseMode)("Vault access repository — ICP", () => {
 
   it("uses ICP Pro resolution for club and team scopes", async () => {
     accessMocks.resolvePro.mockResolvedValue(true);
-    accessMocks.team.mockResolvedValue({ club_id: "club-a" });
+    accessMocks.team.mockResolvedValue([{ club_id: "club-a" }]);
     const { client, calls } = scriptedClient({});
     await expect(fetchVaultClubHasPro("club-a", client)).resolves.toBe(true);
     await expect(fetchVaultTeamHasPro("team-a", client)).resolves.toBe(true);
-    expect(accessMocks.resolvePro).toHaveBeenCalledWith(icpContext, { clubId: "club-a" });
-    expect(accessMocks.resolvePro).toHaveBeenCalledWith(icpContext, { teamId: "team-a", clubId: "club-a" });
+    expect(accessMocks.allowance).toHaveBeenCalledWith("club-a", []);
+    expect(accessMocks.allowance).toHaveBeenCalledWith("club-a", ["team-a"]);
     expect(calls).toEqual([]);
   });
 
@@ -224,6 +270,30 @@ describe.runIf(!supabaseMode)("Vault access repository — ICP", () => {
     expect(calls).toEqual([]);
   });
 
+  it("lists only member clubs, reading each club in its own group (no every-group club listing)", async () => {
+    accessMocks.clubs.mockResolvedValue([{ id: "club-a", name: "Club A" }, { id: "unrelated", name: "Other Club" }]);
+    accessMocks.clubSubscriptions.mockResolvedValue(new Map([["club-a", true]]));
+    accessMocks.entitlements.mockResolvedValue({ isPro: false });
+    const clubs = await fetchVaultAccessibleClubs("principal-a", false);
+    expect(clubs.map(club => club.id)).toEqual(["club-a"]);
+    expect(accessMocks.scopes).not.toHaveBeenCalledWith(expect.objectContaining({ everyGroup: true }));
+    expect(accessMocks.clubSubscriptions).toHaveBeenCalledWith(icpContext, ["club-a"]);
+  });
+
+  it("still lists clubs when the caller's Pro entitlement can't be read", async () => {
+    accessMocks.clubs.mockResolvedValue([{ id: "club-a", name: "Club A" }]);
+    accessMocks.clubSubscriptions.mockResolvedValue(new Map([["club-a", true]]));
+    accessMocks.entitlements.mockRejectedValue(new Error("identity unavailable"));
+    const clubs = await fetchVaultAccessibleClubs("principal-a", false);
+    expect(clubs.map(club => club.id)).toEqual(["club-a"]);
+  });
+
+  it("preserves team lookup failures instead of silently dropping owning club context", async () => {
+    accessMocks.team.mockRejectedValue(new Error("Team temporarily unavailable"));
+    await expect(fetchVaultTeamHasPro("team-a")).rejects.toThrow("Team temporarily unavailable");
+    expect(accessMocks.resolvePro).not.toHaveBeenCalled();
+  });
+
   it("resolves Free when the caller has no role grants or Pro entitlement", async () => {
     accessMocks.roles.mockResolvedValue([]);
     accessMocks.clubSubscriptions.mockResolvedValue(new Map());
@@ -235,8 +305,15 @@ describe.runIf(!supabaseMode)("Vault access repository — ICP", () => {
 
     expect(accessMocks.clubSubscriptions).toHaveBeenCalledWith(icpContext, []);
     expect(accessMocks.teamSubscriptions).toHaveBeenCalledWith(icpContext, []);
-    expect(accessMocks.entitlements).toHaveBeenCalled();
+    expect(accessMocks.entitlements).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
+  });
+
+  it("does not grant club capacity from an unrelated personal Pro purchase", async () => {
+    accessMocks.entitlements.mockResolvedValue({ isPro: true });
+    accessMocks.allowance.mockResolvedValue({ Ok: { premium: false } });
+    await expect(fetchVaultClubHasPro("club-a")).resolves.toBe(false);
+    expect(accessMocks.allowance).toHaveBeenCalledWith("club-a", []);
   });
 
   it("checks competition membership and admin status through ICP domains", async () => {
@@ -249,24 +326,24 @@ describe.runIf(!supabaseMode)("Vault access repository — ICP", () => {
     expect(calls).toEqual([]);
   });
 
-  it("fails closed when competition access cannot be established", async () => {
+  it("preserves competition read failures for retry without reporting denial", async () => {
     accessMocks.vaultFolders.mockRejectedValue(new Error("competition access unavailable"));
     const { client, calls } = scriptedClient({});
 
     await expect(fetchVaultCompetitionAccess("competition-a", "principal-a", client))
-      .resolves.toEqual({ isMember: false, canManage: false });
+      .rejects.toThrow("competition access unavailable");
 
     expect(accessMocks.competitionAdmin).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
   });
 
-  it("preserves competition membership but denies management when admin lookup fails", async () => {
+  it("preserves manager lookup failures rather than falsely denying management", async () => {
     accessMocks.vaultFolders.mockResolvedValue([]);
     accessMocks.competitionAdmin.mockRejectedValue(new Error("manager lookup unavailable"));
     const { client, calls } = scriptedClient({});
 
     await expect(fetchVaultCompetitionAccess("competition-a", "principal-a", client))
-      .resolves.toEqual({ isMember: true, canManage: false });
+      .rejects.toThrow("manager lookup unavailable");
     expect(calls).toEqual([]);
   });
 });

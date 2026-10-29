@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getCachedTeam, getCachedClub, cacheTeam, cacheClub } from "@/lib/clubTeamCache";
-import { resolveAuthBackend } from "@/live/authBackendMode";
+import { isFeatureRoutedToIcp } from "@/live/loadBackendRouting";
+import { withReadDeadline } from "@/live/readDeadline";
 
 /**
  * Minimal Supabase client surface this hook needs. Callers pass their page's
@@ -43,23 +44,24 @@ export function useTeamChatTeamData({
   } = useQuery({
     queryKey: ["team", teamId],
     queryFn: async () => {
+      if (!teamId) return null;
       if (useIcpLab && teamId) {
         return getLocalLabChatTeam(teamId);
       }
 
-      if (resolveAuthBackend() === "icp") {
+      if (isFeatureRoutedToIcp("membership")) {
         // Internet Identity sign-ins: the team lives on the club canister.
-        const [{ getCurrentInternetIdentity }, { getActiveIcpTarget }, club] = await Promise.all([
-          import("@/live/internetIdentityAuth"),
-          import("@/live/targetRegistry"),
+        const [{ withFeatureBackend }, club] = await Promise.all([
+          import("@/live/featureRouter"),
           import("@/live/features/club"),
         ]);
-        const identity = await getCurrentInternetIdentity();
-        if (!identity) throw new Error("Internet Identity session required");
-        const ctx = { identity, target: getActiveIcpTarget() };
-        const [liveTeam] = (await club.getLiveTeam(ctx as any, teamId!)) as any[];
+        return withFeatureBackend("membership", {
+          supabase: async () => { throw new Error("Internet Identity team session required"); },
+          icp: async ctx => {
+        const [liveTeam] = await club.getLiveTeam(ctx, teamId);
         if (!liveTeam) return null;
-        const [profile] = ((await club.getLiveClubProfile(ctx as any, liveTeam.club_id).catch(() => [])) ?? []) as any[];
+        const cachedClub = getCachedClub(liveTeam.club_id);
+        const profile = cachedClub;
         return {
           id: liveTeam.id,
           name: liveTeam.name,
@@ -68,21 +70,40 @@ export function useTeamChatTeamData({
           clubs: {
             id: liveTeam.club_id,
             name: profile?.name ?? "",
-            logo_url: profile?.logo_url?.[0] ?? null,
+            logo_url: cachedClub?.logo_url ?? (Array.isArray(profile?.logo_url) ? profile.logo_url[0] ?? null : profile?.logo_url ?? null),
           },
         };
+          },
+        }, (() => { const owner = getCachedTeam(teamId)?.club_id; return owner ? { clubId: owner } : { teamId }; })());
       }
 
       const { data, error } = await supabaseClient
         .from("teams")
         .select("*, clubs!club_id (name, id, logo_url)")
-        .eq("id", teamId!)
+        .eq("id", teamId)
         .maybeSingle();
       if (error) throw error;
       return data ?? null;
     },
     enabled: !!teamId,
     staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Club labels are optional: expose the authorized team/owner immediately.
+  const { data: liveClubLabel } = useQuery({
+    queryKey: ["team-chat-club-label", teamData?.club_id],
+    enabled: !useIcpLab && isFeatureRoutedToIcp("membership") && !!teamData?.club_id && !getCachedClub(teamData?.club_id),
+    queryFn: async () => {
+      const clubId = teamData?.club_id;
+      if (!clubId) return null;
+      const [{ withFeatureBackend }, club] = await Promise.all([import("@/live/featureRouter"), import("@/live/features/club")]);
+      return withFeatureBackend("membership", {
+        supabase: async () => null,
+        icp: async ctx => (await withReadDeadline(club.getLiveClubProfile(ctx, clubId), "Chat club label", 1500))[0] ?? null,
+      }, { clubId });
+    },
+    retry: false,
+    staleTime: 5 * 60_000,
   });
 
   // Warm metadata cache so future opens render the header without waiting on this query.
@@ -95,7 +116,7 @@ export function useTeamChatTeamData({
       club_id: teamData.club_id,
       level_age: (teamData as any).level_age ?? null,
     });
-    if (teamData.clubs) {
+    if (teamData.clubs?.name) {
       cacheClub({
         id: teamData.clubs.id,
         name: teamData.clubs.name,
@@ -109,7 +130,8 @@ export function useTeamChatTeamData({
   // Synthesize a team object from cache when the network query is still loading,
   // so the header paints immediately instead of blocking on a metadata fetch.
   const team = useMemo(() => {
-    if (teamData) return teamData as any;
+    if (teamData) return liveClubLabel ? { ...teamData, clubs: { id: teamData.club_id, name: liveClubLabel.name,
+      logo_url: liveClubLabel.logo_url?.[0] ?? null } } : teamData as any;
     if (!teamId) return null;
     const cachedTeam = getCachedTeam(teamId);
     if (!cachedTeam) return null;
@@ -123,7 +145,7 @@ export function useTeamChatTeamData({
         ? { id: cachedClub.id, name: cachedClub.name, logo_url: cachedClub.logo_url }
         : null,
     } as any;
-  }, [teamData, teamId]);
+  }, [teamData, teamId, liveClubLabel]);
 
   return {
     team,
