@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Active scope — minimum Group 2 test opening (21 October 2026, 03:07 UTC)
+- [x] 29 Oct workflow names: every GitHub workflow display name now starts with exactly one tag — `[TEST]` (DEV/test canisters only), `[PROD]` (live canisters; only the promotion workflow), `[DB]` (database sweep, no canisters) or `[REPO]` (GitHub housekeeping). Names are quoted strings so YAML still parses; file paths are unchanged so run history and dispatch links survive. Runbook references in `docs/` and the legacy-deploy hint updated to the new names; convention documented in `docs/icp-prod-environment.md` and enforced by `scripts/workflow-env-names.test.mjs` (6 tests; 80 workflow/environment tests pass, build OK).
 - [x] 20:06 UTC owner report: **Open Group 2 to everyone succeeded** — Group 2 is registered, verified, snapshotted and open (accepting=true). Remaining follow-ups below.
 - [x] Sync the GitHub snapshot commit so this checkout's `frontend/src/live/generated/routingGates.ts` stops being `null` — until the snapshot ships in a frontend build, `generalActivation` keeps ICP routing inactive while the router may already place new clubs into Group 2, so any test club would resolve to the legacy shared canisters. Sync first, then verify a signed-in test club resolves and works against Group 2 (sign-in, club creation, photos, messaging, notifications).
 - [x] Rerun `Report group health to the router` after opening so the now-accepting group has fresh health readings.
