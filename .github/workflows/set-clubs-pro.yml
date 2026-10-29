@@ -1,10 +1,10 @@
 # Ignite Club HQ — turn Pro on for every live club on the ICP backend.
 #
-# Run from the GitHub Actions tab: "Set all ICP clubs to Pro" → Run workflow.
+# Run from the GitHub Actions tab: "[TEST] Set all clubs to Pro" → Run workflow.
 # Uses the same DEPLOYER_PEM governor key as the deploy workflow — no new
 # secrets needed. Safe to re-run: clubs already on Pro are unchanged.
 
-name: Set all ICP clubs to Pro
+name: "[TEST] Set all clubs to Pro"
 
 on:
   workflow_dispatch:

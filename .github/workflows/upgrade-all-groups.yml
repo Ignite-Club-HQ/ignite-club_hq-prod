@@ -1,4 +1,4 @@
-name: Upgrade backend (all mainnet groups)
+name: "[TEST] Upgrade backend (all test groups)"
 on:
   workflow_dispatch:
     inputs:

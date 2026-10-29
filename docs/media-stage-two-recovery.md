@@ -3,7 +3,7 @@
 ## Prepared, not executed
 This update is restricted to `media-mixed-001`, existing isolated store `2knbe-saaaa-aaaal-qxpua-cai`, with the original settings (mixed, funding ceiling 5). No live group, new store, top-up or card payment is involved. Mainnet recovery has not been run.
 
-The workflow's explicit manual confirmation authorizes execution: after the update reaches the chosen branch, start **Test larger photo store (isolated mainnet)** with the same ID, mixed, 5, and `TEST ISOLATED STORE`. Do not use a new ID to bypass the interrupted receipt.
+The workflow's explicit manual confirmation authorizes execution: after the update reaches the chosen branch, start **[TEST] Test larger photo store (isolated)** with the same ID, mixed, 5, and `TEST ISOLATED STORE`. Do not use a new ID to bypass the interrupted receipt.
 
 ## Safety boundaries
 - Original module: `8ea0289f54fb5224c1eb1e17da9242e909d34dd333cfb5f7643bbfaaebf76c9b`.

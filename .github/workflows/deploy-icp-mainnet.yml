@@ -12,16 +12,16 @@
 #        Name: DEPLOYER_PEM
 #        Value: the full .pem file text (-----BEGIN PRIVATE KEY----- included)
 #      and delete the artifact afterwards.
-# Then: Actions tab → "Deploy ICP canisters (mainnet)" → Run workflow.
+# Then: Actions tab → "[TEST] Deploy canisters (legacy base/Group 1)" → Run workflow.
 # Safe to re-run; the canister ID table is attached as an artifact.
 
-name: Deploy ICP canisters (mainnet — base/Group 1 only)
+name: "[TEST] Deploy canisters (legacy base/Group 1)"
 
 on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "LEGACY base/Group 1 ONLY. Use Upgrade backend (all mainnet groups) for synchronized feature releases. Router remains isolated."
+        description: "LEGACY base/Group 1 ONLY. Use [TEST] Upgrade backend (all test groups) for synchronized feature releases. Router remains isolated."
         type: choice
         required: true
         default: history

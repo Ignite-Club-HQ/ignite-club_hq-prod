@@ -1,7 +1,7 @@
 # Move one person's account from an old secure-sign-in ID to a new one on the
 # blockchain backend (every canister). Dry run unless confirm = yes; the dry
 # run checks every canister first and nothing is written if any refuses.
-name: Move account to new sign-in ID
+name: "[TEST] Move account to new sign-in ID"
 
 on:
   workflow_dispatch:

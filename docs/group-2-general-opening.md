@@ -10,22 +10,22 @@ controls, replacing the superseded owner-only trial
 ## Order of operations (each step is its own GitHub run)
 
 1. **Deploy the shared router upgrade first** — run
-   `Deploy ICP canisters (mainnet)` with scope `all`. This is required because:
+   `[TEST] Deploy canisters (legacy base/Group 1)` with scope `all`. This is required because:
    - placement needs health readings fresher than 15 minutes and the new
      acceptance window is 2 hours (`backend/shard_router/src/groups.rs`);
    - health reporting must stop bumping the registry revision
      (`record_group_health` now patches the group record without CAS revision
      change), otherwise every health report invalidates a shipped routing
      snapshot and the app switch fails closed forever.
-2. **Enable the reporting cadence** — the `Report group health to the router`
+2. **Enable the reporting cadence** — the `[TEST] Report group health to the router`
    workflow is scheduled every 15 minutes; confirm one green run. It reports
    every registered group anonymously (public `cycles_balance` / `memory_stats`)
    and refuses partial or shared-canister readings.
-3. **register-closed** — `Open Group 2 to everyone` → action `register-closed`,
+3. **register-closed** — `[TEST] Open Group 2 to everyone` → action `register-closed`,
    confirmation `REGISTER GROUP 2 CLOSED`. Registers the installed group and
    placement records **closed**. Settings and fingerprint collection require
    this registry entry; do not run them before registration.
-4. **Service settings** — `Open Group 2 to everyone` → action `settings`
+4. **Service settings** — `[TEST] Open Group 2 to everyone` → action `settings`
    (confirmation `SET SERVICE SETTINGS`):
    - binds all g2 services and the photo store to `identity_access`
      (`IGNITE_ACCOUNT_IDENTITY_ACCESS`),
@@ -85,4 +85,4 @@ controls, replacing the superseded owner-only trial
 `settings` also links the shared account service once, skipping anything already correct and reading every value back: identity `IGNITE_BOUND_DELETION_RELEASE=1`, router `deletion_authority` = identity, identity pinned to this router (`pin_owner_test_deletion_registry`, mainnet), and each group's club service bound to the identity (only while it is empty). A different existing binding stops the run for review. `open`/`close` re-pin the identity forward to the new registry revision so account deletions keep working.
 
 ## Reload after `settings` (Upgrade Group 2 → `reload`)
-Motoko services read their service settings only when installed or upgraded, so values written by `settings` are saved but inactive until a reload. Run "Upgrade Group 2 (closed)" with action `reload` and confirmation `RELOAD GROUP 2 SETTINGS`: it reinstalls each of the thirteen services in upgrade mode with the identical module (refuses if any staged build differs from the live module), keeps memory and settings, checks the photo key, journals each step on `group-2-upgrade-receipts`, and leaves fingerprints unchanged. Then rerun `settings` (it resumes, skipping finished links) and `check`.
+Motoko services read their service settings only when installed or upgraded, so values written by `settings` are saved but inactive until a reload. Run "[TEST] Upgrade Group 2 (closed)" with action `reload` and confirmation `RELOAD GROUP 2 SETTINGS`: it reinstalls each of the thirteen services in upgrade mode with the identical module (refuses if any staged build differs from the live module), keeps memory and settings, checks the photo key, journals each step on `group-2-upgrade-receipts`, and leaves fingerprints unchanged. Then rerun `settings` (it resumes, skipping finished links) and `check`.

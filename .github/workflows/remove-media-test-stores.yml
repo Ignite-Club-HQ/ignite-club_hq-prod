@@ -1,4 +1,4 @@
-name: Remove paid photo-store test stores
+name: "[TEST] Remove paid photo-store test stores"
 
 on:
   workflow_dispatch:

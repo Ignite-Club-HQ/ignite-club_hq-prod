@@ -75,7 +75,7 @@ about 15 spots across 6 workflows. Recommend the flat copy.
 | `erase-duplicate-profiles.yml` | manual | `DEPLOYER_PEM` |
 | `delete-clubs-except.yml` | manual | `DEPLOYER_PEM` |
 | `icp-push-deliver.yml` | **cron every 5 min** | `ICP_PUSH_WORKER_SEED`, `FCM_SERVICE_ACCOUNT_JSON` |
-| `ci.yml` ("Hybrid source checks") | PR + push to `main` and `migration/**` | none — but its name will clash with an existing CI workflow; rename to `hybrid-checks.yml` and merge the job, or keep separate |
+| `ci.yml` ("[REPO] Source checks (CI)") | PR + push to `main` and `migration/**` | none — but its name will clash with an existing CI workflow; rename to `hybrid-checks.yml` and merge the job, or keep separate |
 
 Secrets/vars to add in the other repo (Settings → Secrets and variables → Actions):
 `DEPLOYER_PEM`, `ICP_PUSH_WORKER_SEED`, `FCM_SERVICE_ACCOUNT_JSON`, and the two

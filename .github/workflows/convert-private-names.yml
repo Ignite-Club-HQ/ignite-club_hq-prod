@@ -1,4 +1,4 @@
-name: Convert private names (protected)
+name: "[TEST] Convert private names (protected)"
 
 # Converts readable identity display names to encrypted PII references.
 # check is read-only; convert/recover require APPROVAL_SCOPE=names, the exact

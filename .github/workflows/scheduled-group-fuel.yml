@@ -1,4 +1,4 @@
-name: Plan registered group fuel
+name: "[TEST] Plan registered group fuel"
 on:
   schedule:
     - cron: '23 6 * * *'

@@ -1,4 +1,4 @@
-name: Upgrade subscriptions (both ICP groups)
+name: "[TEST] Upgrade subscriptions (all test groups)"
 on:
   workflow_dispatch:
     inputs:

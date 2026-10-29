@@ -1,11 +1,11 @@
 # Ignite Club HQ — grant app admin to an Internet Identity user.
 #
-# Run from the GitHub Actions tab: "Grant app admin (ICP)" → Run workflow.
+# Run from the GitHub Actions tab: "[TEST] Grant app admin" → Run workflow.
 # Uses the same DEPLOYER_PEM governor key as the deploy workflow — no new
 # secrets needed. Default lookup name is "Paul Cranwell"; change the input
 # to grant a different Internet Identity user later.
 
-name: Grant app admin (ICP)
+name: "[TEST] Grant app admin"
 
 on:
   workflow_dispatch:

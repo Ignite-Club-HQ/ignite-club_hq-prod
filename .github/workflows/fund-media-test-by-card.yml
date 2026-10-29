@@ -1,4 +1,4 @@
-name: Fund photo-store test by card
+name: "[TEST] Fund photo-store test by card"
 
 on:
   workflow_dispatch:

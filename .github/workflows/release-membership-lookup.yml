@@ -1,4 +1,4 @@
-name: Release permanent club lookup (all groups)
+name: "[TEST] Release permanent club lookup (all groups)"
 on:
   workflow_dispatch:
     inputs:

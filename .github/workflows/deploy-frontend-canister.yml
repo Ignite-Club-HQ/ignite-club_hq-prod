@@ -1,7 +1,7 @@
 # Ignite web app → ICP frontend canister (replaces Netlify file hosting).
 #
 # Runs on every push to main that touches the frontend, or manually.
-# Uses the same DEPLOYER_PEM secret as "Deploy ICP canisters (mainnet)".
+# Uses the same DEPLOYER_PEM secret as "[TEST] Deploy canisters (legacy base/Group 1)".
 # The first run creates the canister (~0.5T cycles from the deployer's cycles
 # balance) and commits deploy/frontend/.icp/data/mappings/ic.ids.json so later
 # runs reuse it. The site is then live at https://<canister-id>.icp.net.
@@ -9,7 +9,7 @@
 # Optional repository variables (Settings → Variables): IGNITE_LIVE_SUPABASE_URL,
 # IGNITE_LIVE_SUPABASE_ANON_KEY (both public values; defaults below).
 
-name: Deploy web app (ICP frontend canister)
+name: "[TEST] Deploy web app (frontend canister)"
 
 on:
   workflow_dispatch: {}

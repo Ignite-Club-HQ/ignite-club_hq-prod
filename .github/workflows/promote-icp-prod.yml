@@ -11,7 +11,7 @@
 # and refuses any DEV canister ID, governor or database.
 # The "production" GitHub environment can require a one-click approval.
 
-name: Promote ICP canisters to PROD
+name: "[PROD] Promote ICP canisters to live"
 
 on:
   push:

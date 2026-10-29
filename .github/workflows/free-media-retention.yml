@@ -1,4 +1,4 @@
-name: Free club media retention (6 months)
+name: "[DB] Free club media retention (6 months)"
 
 # Deletes gallery photos, chat attachments and vault files older than 6 months
 # for free clubs on Supabase. Pro and trial clubs keep everything.

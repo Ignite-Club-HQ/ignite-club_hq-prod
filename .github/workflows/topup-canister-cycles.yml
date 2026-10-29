@@ -16,7 +16,7 @@
 # If the deploy account is holding ICP rather than cycles, this workflow
 # converts it first, exactly like the deploy workflow does.
 
-name: Top up canister cycles
+name: "[TEST] Top up canister cycles"
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: Migrate club from Supabase to canisters
+name: "[TEST] Migrate club from Supabase to canisters"
 # Moves ONE whole club into the chosen group. check is read-only and prints the
 # plan hash; migrate/recover need that hash plus the typed confirmation. The
 # Supabase copy is never modified. Needs secret SUPABASE_SERVICE_ROLE_KEY in the

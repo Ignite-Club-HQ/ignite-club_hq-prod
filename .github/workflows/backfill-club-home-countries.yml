@@ -1,12 +1,12 @@
 # Ignite Club HQ — backfill the home country on existing ICP clubs.
 #
-# Run from the GitHub Actions tab: "Backfill ICP club home countries" →
+# Run from the GitHub Actions tab: "[TEST] Backfill club home countries" →
 # Run workflow on main. Uses the same DEPLOYER_PEM governor key as the deploy
 # workflow — no new secrets needed. Safe to re-run: clubs that already have a
 # country are left untouched. Requires the club_domain redeploy that adds
 # set_club_home_country (migration 20261012_000000).
 
-name: Backfill ICP club home countries
+name: "[TEST] Backfill club home countries"
 
 on:
   workflow_dispatch:

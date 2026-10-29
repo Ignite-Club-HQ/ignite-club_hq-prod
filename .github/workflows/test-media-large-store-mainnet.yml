@@ -1,4 +1,4 @@
-name: Test larger photo store (isolated mainnet)
+name: "[TEST] Test larger photo store (isolated)"
 
 on:
   workflow_dispatch:

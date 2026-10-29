@@ -1,4 +1,4 @@
-name: Fund canisters or new group by card
+name: "[TEST] Fund canisters or new group by card"
 
 on:
   workflow_dispatch:

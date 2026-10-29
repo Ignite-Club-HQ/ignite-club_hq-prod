@@ -1,4 +1,4 @@
-name: Stop Group 2 new clubs
+name: "[TEST] Stop Group 2 new clubs"
 on:
   workflow_dispatch:
     inputs:

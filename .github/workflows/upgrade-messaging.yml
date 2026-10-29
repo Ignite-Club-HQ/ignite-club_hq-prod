@@ -1,4 +1,4 @@
-name: Upgrade chats (both ICP groups)
+name: "[TEST] Upgrade chats (all test groups)"
 on:
   workflow_dispatch:
     inputs:

@@ -1,6 +1,6 @@
 # One-off: lets the new repo's deploy key upgrade the test frontend canister.
 # Only ADDS a controller; removes nothing. Safe to delete after it succeeds.
-name: Grant new deployer access to frontend canister
+name: "[TEST] Grant deployer access to frontend canister"
 
 on:
   workflow_dispatch: {}
