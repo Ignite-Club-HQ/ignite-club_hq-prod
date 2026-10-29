@@ -54,7 +54,9 @@ jobs:
           IGNITE_LIVE_BACKEND_ROUTING_JSON: ${{ vars.IGNITE_LIVE_BACKEND_ROUTING_JSON || '{"defaultBackend":"icp","countryRules":{},"targets":[{"id":"icp/main/v1","backend":"icp","kind":"icp-mainnet","alias":"main","version":"v1","enabled":true}],"countryTargets":{},"clubBackendOverrides":{}}' }}
         run: |
           set -euo pipefail
-          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(cat ../deploy/mainnet/.icp/data/mappings/ic.ids.json | tr -d '\n ')"
+          # DEV/test canisters only; refuses any PROD canister in the table.
+          export IGNITE_ICP_ENV=dev
+          export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids dev)"
           npm ci --ignore-scripts --no-fund --no-audit
           node ../scripts/sync-canister-ids.mjs || true
           npm run build:live
