@@ -18,6 +18,29 @@ import { cacheIcpIdentityProfile, getCachedIcpIdentityProfile, type IcpIdentityP
 
 export type { IcpIdentityProfile } from "./identityProfileCache";
 
+/** Some identity_access builds return a pii_access_control reference
+ * (`pii-display-name:v1:<canister>:<principal>`) instead of plaintext. */
+export const PII_DISPLAY_NAME_REF = /^pii-[a-z_-]+:v\d+:/i;
+
+export async function resolveIcpDisplayName(
+  identity: Identity,
+  principal: string,
+  raw: string | null | undefined,
+  target: IcpTargetConfig,
+): Promise<string | null> {
+  if (!raw) return null;
+  if (!PII_DISPLAY_NAME_REF.test(raw)) return raw;
+  try {
+    const { resolveLivePiiTextBatch } = await import("./features/vault");
+    const names = await resolveLivePiiTextBatch(
+      { identity, target }, [principal], "display_name", "own_profile", "Show own display name",
+    );
+    return names.get(principal)?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fetches the caller's profile and role grants from the identity_access
  * canister. A missing profile (first sign-in after account provisioning) is
@@ -50,7 +73,8 @@ export async function saveIcpIdentityProfile(
     const previous = getCachedIcpIdentityProfile(principal);
     const resolved: IcpIdentityProfile = {
       accountId: principal,
-      displayName: canisterProfile?.display_name ?? input.displayName,
+      displayName:
+        (await resolveIcpDisplayName(identity, principal, canisterProfile?.display_name, target)) ?? input.displayName,
       avatarRef: canisterProfile?.avatar_ref?.[0] ?? input.avatarRef ?? null,
       roles: previous?.roles ?? [],
       profileMissing: false,
@@ -85,7 +109,7 @@ export async function fetchIcpIdentityProfile(
     }
     const resolved: IcpIdentityProfile = {
       accountId: principal,
-      displayName: canisterProfile?.display_name ?? null,
+      displayName: await resolveIcpDisplayName(identity, principal, canisterProfile?.display_name, target),
       avatarRef: canisterProfile?.avatar_ref?.[0] ?? null,
       roles: roles.value,
       profileMissing: !canisterProfile,
