@@ -22,7 +22,7 @@ const workflows = readdirSync(DIR)
   .map((file) => {
     const text = readFileSync(path.join(DIR, file), 'utf8');
     const line = text.split('\n').find((l) => /^name:\s/.test(l)) ?? '';
-    return { file, name: line.replace(/^name:\s*/, '').trim(), text };
+    return { file, line, text, name: line.replace(/^name:\s*/, '').trim().replace(/^"([\s\S]*)"$/, '$1') };
   });
 
 test('every workflow display name carries exactly one environment tag', () => {
@@ -31,6 +31,15 @@ test('every workflow display name carries exactly one environment tag', () => {
     const hits = TAGS.filter((tag) => name.startsWith(tag + ' '));
     assert.equal(hits.length, 1, `${file}: "${name}" must start with exactly one of ${TAGS.join(' ')}`);
     assert.ok(name.length > hits[0].length + 1, `${file}: "${name}" has no description after the tag`);
+  }
+});
+
+test('a bracketed tag is quoted so the file still parses as YAML', () => {
+  // An unquoted value starting with `[` is a YAML flow sequence, which makes the
+  // whole workflow unreadable, so a tagged name must always be a quoted string.
+  for (const { file, line, name } of workflows) {
+    if (!name.startsWith('[')) continue;
+    assert.match(line, /^name: "[^"]*"$/, `${file}: "${name}" must be written as name: "..."`);
   }
 });
 
