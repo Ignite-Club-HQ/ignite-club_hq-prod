@@ -3,46 +3,41 @@
 ## Where we're heading
 
 ```text
- main branch (this Lovable project)  ──►  TEST canisters (auto-deploy on push)
-        │ merge main → prod
+ main (this Lovable project) ──► TEST canisters ──► DEV database (ecsd…)
+        │
+        │ merge main → prod   (git already migrates the PROD database)
         ▼
- prod branch  ──►  LIVE canister groups  ──►  igniteclubhq.app
-              ──►  Codemagic phone apps (same code, same database)
+ prod ──► LIVE canister groups ──► igniteclubhq.app ──► PROD database
+      ──► Codemagic phone apps                      ──► PROD database
 ```
 
-One database for every surface: `ecsdwrarzfexssxtrymj`.
+Rule: test surfaces talk to DEV, live surfaces talk to PROD. Your existing merge already promotes database changes — we keep that as is.
 
-## Today (for reference)
-- igniteclubhq.app = Netlify, built from GitHub.
-- Canister site `proe7-…` = a copy deployed from `main`, still on the OLD database until redeployed.
-- Lovable "Publish" only updates ignite-club-launchpad.lovable.app (test site).
-
-## Stage 1 — Get today's release safe (no hosting changes)
-1. I repoint the demo-data helper to the right database.
-2. You check Netlify and Codemagic settings for any old `cdrx…` database values and remove them.
-3. You add `DEPLOYER_PEM` to GitHub secrets.
-4. Merge `main` → `prod`; Netlify updates igniteclubhq.app; Codemagic builds the apps.
+## Stage 1 — Release safely today (no hosting changes)
+1. I make sure builds from `prod` pick the PROD database and builds from `main` pick DEV (fix the earlier "everything uses DEV" default).
+2. I repoint the demo-data helper so it never hits the wrong database.
+3. You confirm Netlify and Codemagic's PROD settings hold the PROD database address/key (screenshot is fine).
+4. Merge `main` → `prod`: git migrates PROD database, Netlify updates igniteclubhq.app, Codemagic builds apps.
 
 ## Stage 2 — Make the existing canister the TEST canister
-1. Redeploy canister `proe7-…` from `main` so it uses the right database.
-2. Test sign-in (email, Google, Internet Identity) and key features there.
-3. From now on, every push to `main` updates this test canister automatically.
+1. Redeploy canister `proe7-…` from `main`, pointed at DEV.
+2. Test sign-in (email, Google, Internet Identity) and key features.
+3. Every push to `main` updates it automatically from then on.
 
 ## Stage 3 — Create LIVE canisters for prod
-1. I add a second set of canister settings for "live" (separate canister IDs).
-2. I add a workflow that deploys live canisters only when `main` is merged into `prod`.
-3. First run creates the live canisters; their IDs are saved so later runs upgrade in place.
-4. Live canister groups (backend/media) get the same split: test group on main, live group on prod. Existing club photos stay in their current group (per policy).
+1. Add a separate "live" canister set (own IDs), pointed at PROD database.
+2. New workflow deploys live canisters only on merge into `prod`, after the database migration step.
+3. Live canister groups (backend/media) split the same way; existing club photos stay in their current group.
 
 ## Stage 4 — Point igniteclubhq.app at the live canister
-1. Register igniteclubhq.app as a custom domain on the live canister.
-2. Update Internet Identity and app-link settings for the new host.
-3. Switch DNS from Netlify to ICP; keep Netlify as a fallback for a few weeks, then retire it.
+1. Add igniteclubhq.app as a custom domain on the live canister.
+2. Update Internet Identity and app-link settings.
+3. Switch DNS from Netlify to ICP; keep Netlify as fallback briefly, then retire it.
 
-## Stage 5 — After-merge leftovers (not blockers)
-- Deploy the 3 deferred edge functions via Supabase CLI.
+## Stage 5 — Leftovers (not blockers)
+- Deploy the 3 deferred edge functions on DEV, then they promote with the normal merge.
 
 ## What I need from you
-- Approval to start Stage 1 (my part).
-- Screenshots from Netlify and Codemagic settings for Stage 1 step 2.
+- Go-ahead for Stage 1 (my part).
+- PROD database project ID (or confirm where it's set) so I wire `prod` builds correctly.
 - Each later stage starts only when you say go.
