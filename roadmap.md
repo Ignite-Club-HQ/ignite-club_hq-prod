@@ -1,5 +1,8 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — sign-in tabs (30 Oct 2026)
+- [x] Replaced public named-club choice cards with equal method tabs and an immediately open form; preserved existing provider, invitation and authorization flows. Both tabs and remembered selection verified on phone/desktop with no page errors; 25 focused tests pass and preview build OK. PROD unchanged.
+
 ## Current request — release inspections (30 Oct 2026)
 - [x] Owner-authorized source gap closure: guarded both reminder handlers before privileged work; preserved original fingerprints in archived before-images; repaired narrow Maps/ICP download policy; corrected default-main scheduling with verified prod checkout and unchanged activation; added exact-commit database/ICP publication evidence checks for Netlify, signed Codemagic and the ICP frontend. Local validation recorded in `docs/release-gap-closure-2026-10-30.md`; no production execution.
 - [x] Completed read-only source inspections and fresh GitHub GET checks; 43 release safeguards and 57 restored push tests pass. Report: `docs/release-inspection-2026-10-30.md`. Confirmed two internal-handler authorization gaps, map/ICP-download hosting-policy blocks, default-main versus prod-only scheduled worker conflict, deliberate nonfunctional DB release hold and no required checks in effective PROD rules. No implementation, database or hosted changes.

@@ -42,6 +42,7 @@
 - Named league invitations use mini_league_domain preview/claim tokens; club email invitations remain a distinct contract. League chats use membership-gated messaging lookup and club-admin-created tagged private groups. Why: possession of child IDs or generic club discovery cannot prove ownership or chat audience.
 - Legacy parent-token discovery checks club_domain separately and propagates transport/authorization failures; account erasure captures all verified groups before revoking every club authority, purges unique personal-data authorities, then erases shared identity last. Why: token absence cannot be guessed and shared-only removal leaves group access behind.
 - IcpSignInScreen owns login presentation; AuthPage retains provider invocation and redirects to preserve identity, invite and session semantics.
+- AuthMethodChoice is an inline controlled tab selector shared by email and secure screens; it switches the existing app provider directly without an intermediate picker, and invite hand-offs retain their established presentation. Why: reduce taps without changing authorization or redirect rules.
 - Sign-in footers and profile policy links share legalLinks destinations; open separately to preserve drafts and invite URLs, and reuse destinations for internal legal pages.
 
 - Event-group sync clears the current board’s cached state on denied/missing canister reads, leaves other boards and transient-failure caches intact, and never writes for spectators. Why: revoked league access must not retain a stale board or wipe unrelated matches.

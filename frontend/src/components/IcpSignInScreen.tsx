@@ -14,6 +14,7 @@ interface IcpSignInScreenProps {
   error: string | null;
   /** Switch to the email/Google sign-in screen (?auth=email). */
   onUseEmail: () => void;
+  methodTabs?: React.ReactNode;
 }
 
 // Android can request an external browser. iOS embedded browsers do not
@@ -29,7 +30,7 @@ export function externalChromeHref(): string | null {
   return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url.href)};end`;
 }
 
-export function IcpSignInScreen({ shellStyle, onContinue, busy, preparing, native, online, error, onUseEmail }: IcpSignInScreenProps) {
+export function IcpSignInScreen({ shellStyle, onContinue, busy, preparing, native, online, error, onUseEmail, methodTabs }: IcpSignInScreenProps) {
   const embedded = !native && isLikelyInAppBrowser();
   const browserHref = embedded ? externalChromeHref() : null;
 
@@ -42,6 +43,7 @@ export function IcpSignInScreen({ shellStyle, onContinue, busy, preparing, nativ
           </div>
           <h1 className="text-3xl font-bold text-gradient-emerald leading-tight">Welcome to Ignite</h1>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">Sign in or create your account to continue.</p>
+          {methodTabs && <div className="mt-6">{methodTabs}</div>}
 
           <div className="mt-10">
             <Button type="button" size="lg" className="w-full min-h-12" onClick={onContinue} disabled={busy || preparing} aria-busy={busy}>
@@ -52,13 +54,13 @@ export function IcpSignInScreen({ shellStyle, onContinue, busy, preparing, nativ
           </div>
 
           <p className="mt-8 text-sm leading-relaxed text-muted-foreground">New to Ignite? Just continue — we'll create your account automatically.</p>
-          <button
+          {!methodTabs && <button
             type="button"
             className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline"
             onClick={onUseEmail}
           >
             Sign in with email instead
-          </button>
+          </button>}
           <div className="mt-8"><AuthLegalLinks /></div>
 
           {error && <p className="mt-5 text-sm leading-relaxed text-destructive" role="alert">{error}</p>}

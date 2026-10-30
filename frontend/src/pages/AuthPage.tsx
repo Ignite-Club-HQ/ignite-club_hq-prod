@@ -19,10 +19,8 @@ import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 import { resolveKeyboardCssHeight } from "@/lib/keyboardCssHeight";
 import {
-  authMethodEmailClubNames,
   isAuthChoiceOverrideOrigin,
   isIcpAuthAvailable,
-  readAuthChoice,
   setAuthMethodChoice,
   shouldOfferAuthMethodChoice,
   useIcpAuthScreen,
@@ -843,29 +841,20 @@ export default function AuthPage() {
     ? 'border-border/50 bg-card/95'
     : 'border-border/50 bg-card/50 backdrop-blur-sm';
 
-  // Both sign-in systems are genuinely in play (the email allowlist names
-  // clubs that keep it, and secure sign-in is available), so ask which one
-  // this person is instead of burying one path under the other. An invite
-  // hand-off skips the picker: that link already says where they belong.
-  // Once a card is tapped the device remembers it and the picker steps aside.
-  const offerMethodChoice = !forceEmailAuth && !forceIcpAuth && !isInInviteFlow
-    && shouldOfferAuthMethodChoice() && readAuthChoice() === null;
-  // True while both paths exist on this device — even after one was picked.
-  // This is what lets someone change their mind and return to the picker.
   const canSwitchMethod = shouldOfferAuthMethodChoice();
+  const showMethodTabs = canSwitchMethod && !isInInviteFlow;
   const emailSignupBlocked = emailSignupRequiresInvite() && !readEmailSignupInviteToken(window.location.search);
-
-  if (offerMethodChoice) {
-    return (
-      <AuthMethodChoice
-        shellStyle={authShellStyle}
-        emailClubNames={authMethodEmailClubNames()}
-        online={isOnline}
-        onUseEmail={() => setAuthMethodChoice("supabase")}
-        onUseSecure={() => setAuthMethodChoice("icp")}
-      />
-    );
-  }
+  const methodTabs = showMethodTabs ? <AuthMethodChoice
+    value={useIcpLab ? "icp" : "supabase"}
+    disabled={loading || googleLoading || !!resumingSignIn}
+    onChange={next => {
+      setAuthError(null);
+      const params = new URLSearchParams(searchParams);
+      params.delete("auth");
+      setSearchParams(params, { replace: true });
+      setAuthMethodChoice(next);
+    }}
+  /> : undefined;
 
   if (useIcpLab) {
     return (
@@ -877,10 +866,11 @@ export default function AuthPage() {
         native={isNativePlatform}
         online={isOnline}
         error={authError}
+        methodTabs={methodTabs}
         onUseEmail={() => {
           // With both paths offered, forget the pick and show the picker
           // again; otherwise use the URL override.
-          if (canSwitchMethod) { setAuthMethodChoice(null); return; }
+          if (canSwitchMethod) { setAuthMethodChoice("supabase"); return; }
           const params = new URLSearchParams(searchParams);
           params.set("auth", "email");
           setSearchParams(params, { replace: true });
@@ -920,6 +910,8 @@ export default function AuthPage() {
             <h1 className="text-3xl font-bold text-gradient-emerald">Ignite</h1>
           )}
         </div>
+
+        {methodTabs}
 
         {!isOnline && (
           <div
@@ -1139,14 +1131,14 @@ export default function AuthPage() {
                       but the cached hint was lost, the screen defaults to
                       email — offer a way back to the Internet Identity
                       screen. Only shown when canisters are configured. */}
-                  {(icpOverrideAllowed || canSwitchMethod) && (
+                  {icpOverrideAllowed && !showMethodTabs && (
                     <button
                       type="button"
                       className="w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline pt-1"
                       onClick={() => {
                         // With both paths offered, forget the pick and show the
                         // picker again; otherwise use the URL override.
-                        if (canSwitchMethod) { setAuthMethodChoice(null); return; }
+                        if (canSwitchMethod) { setAuthMethodChoice("icp"); return; }
                         const params = new URLSearchParams(searchParams);
                         params.set("auth", "icp");
                         setSearchParams(params, { replace: true });
