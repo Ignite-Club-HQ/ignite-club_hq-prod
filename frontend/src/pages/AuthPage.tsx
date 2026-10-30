@@ -873,6 +873,9 @@ export default function AuthPage() {
         online={isOnline}
         error={authError}
         onUseEmail={() => {
+          // With both paths offered, forget the pick and show the picker
+          // again; otherwise use the URL override.
+          if (canSwitchMethod) { setAuthMethodChoice(null); return; }
           const params = new URLSearchParams(searchParams);
           params.set("auth", "email");
           setSearchParams(params, { replace: true });
