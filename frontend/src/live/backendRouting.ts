@@ -263,7 +263,28 @@ export function parseBackendRoutingConfig(value: unknown): BackendRoutingConfig 
   // country. Any legacy "clubBackendOverrides" key in stored config is ignored.
   const clubBackendOverrides: Record<string, BackendProvider> = {};
 
-  return { defaultBackend: rawDefault, countryRules, targets, countryTargets, clubBackendOverrides };
+  // The email sign-in allowlist: clubs whose members keep email accounts.
+  // An absent or empty list leaves the switch off entirely.
+  const emailAuthClubIds: string[] = [];
+  const rawEmailClubs = record.emailAuthClubIds;
+  if (rawEmailClubs !== null && rawEmailClubs !== undefined) {
+    if (!Array.isArray(rawEmailClubs)) {
+      throw new Error(`${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubIds must be an array of club ids.`);
+    }
+    for (const raw of rawEmailClubs) {
+      if (typeof raw !== "string") {
+        throw new Error(`${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubIds entries must be club ids.`);
+      }
+      const id = raw.trim().toLowerCase();
+      if (!id) continue;
+      if (!CLUB_ID_RE.test(id)) {
+        throw new Error(`"${raw}" in ${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubIds is not a club id.`);
+      }
+      if (!emailAuthClubIds.includes(id)) emailAuthClubIds.push(id);
+    }
+  }
+
+  return { defaultBackend: rawDefault, countryRules, targets, countryTargets, clubBackendOverrides, emailAuthClubIds };
 }
 
 /** localStorage key holding the last successfully loaded routing config. */
@@ -311,6 +332,7 @@ function copyConfig(config: BackendRoutingConfig): BackendRoutingConfig {
     targets: config.targets.map(t => ({ ...t, ...(t.canisterIds ? { canisterIds: { ...t.canisterIds } } : {}), ...(t.preparation ? { preparation: { ...t.preparation, groupIds: [...t.preparation.groupIds] } } : {}) })),
     countryTargets: { ...config.countryTargets },
     clubBackendOverrides: { ...config.clubBackendOverrides },
+    emailAuthClubIds: [...config.emailAuthClubIds],
   };
 }
 
