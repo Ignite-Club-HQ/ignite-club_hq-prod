@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-30",
+  "evidenceFile": "Supabase_Snippet_Metadata_Inventory_for_Requested_Public_Schema_Objects.csv",
+  "evidenceSha256": "697d3bd49fec239d116c47f89ca8202cb4ce9cdcc973cf2f5ec50ba02550f1d7",
+  "evidenceSource": "Owner-run read-only SQL Editor export (remaining-evidence.sql / transition-object-evidence.sql); connection identity owner-supplied, not independently verified by this workspace",
+  "deploymentAuthorized": false,
+  "sectionCounts": {
+    "bucket privacy": 3,
+    "columns": 367,
+    "constraints": 105,
+    "effective function execution": 222,
+    "functions": 74,
+    "indexes": 133,
+    "named reminder schedules": 2,
+    "policies": 98,
+    "relations and RLS state": 19,
+    "requested objects": 73,
+    "scoped default privileges": 27,
+    "storage policies": 35,
+    "table grants": 399,
+    "triggers": 86,
+    "types": 19
+  },
+  "note": "Function definitions were reviewed for the comparison but are NOT stored here because they can embed secrets. Only names, presence, signatures and access facts are recorded.",
+  "keyFindings": {
+    "allRequestedTablesHaveRlsEnabled": true,
+    "noForcedRls": true,
+    "anonPoliciesLimitedToPublicCompetitionReads": [
+      "competitions: Anyone can view public competitions (SELECT)",
+      "competition_matches: Public can view matches of public competitions (SELECT)"
+    ],
+    "anonRoutingPolicyStillAbsent": true,
+    "broadAnonTableGrantsAreDefaultAndBlockedByRls": true,
+    "anonExecuteGrantedOnTriggerFunctions": [
+      "handle_new_user()",
+      "auto_accept_pending_invites_on_role()"
+    ],
+    "prodCreateCompetitionEventSignature": "create_competition_event(uuid,text,event_type,timestamp with time zone,text,text,timestamp with time zone)",
+    "newCreateCompetitionEventSignatureAbsent": true,
+    "prodCanInvitePlayersToTeamSignature": "can_invite_players_to_team(uuid,uuid)",
+    "newCanInvitePlayersToTeamSignatureAbsent": true,
+    "allThreeBucketsPrivate": ["chat-attachments", "competition-documents", "photos"],
+    "reminderSchedulesActive": [
+      "auto-rsvp-push-cron (7-59/15 * * * *)",
+      "chat-photo-gallery-reminders-hourly (15 * * * *)"
+    ],
+    "genuinelyNewObjectsConfirmedAbsent": [
+      "can_access_competition_vault",
+      "can_access_vault_file",
+      "can_access_vault_folder",
+      "can_manage_competition_vault",
+      "club_invite_message_defaults",
+      "competition_event_operations",
+      "icp_welcome_email_deliveries",
+      "is_competition_news_admin",
+      "welcome_email_deliveries",
+      "welcome_email_settings"
+    ],
+    "requestedFunctionsPresent": 43,
+    "requestedTablesPresent": 19,
+    "secretScan": "Only benign 'service_role' grant strings found in function definitions; no embedded keys or tokens detected."
+  }
+}
