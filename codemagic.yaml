@@ -60,12 +60,14 @@ workflows:
           # Codemagic environment group (no committed default).
           export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
           case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-}}"
           if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
+          node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
@@ -139,12 +141,14 @@ workflows:
           # Codemagic environment group (no committed default).
           export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
           case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-}}"
           if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
+          node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
@@ -310,12 +314,14 @@ workflows:
           # Codemagic environment group (no committed default).
           export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
           case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-}}"
           if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
+          node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
@@ -385,12 +391,14 @@ workflows:
           # Codemagic environment group (no committed default).
           export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
           case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-}}"
           if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
+          node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
