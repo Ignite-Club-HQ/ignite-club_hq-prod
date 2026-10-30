@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { reconcileScoreHistory } from './score-history-reconciliation.mjs';
-const match={competitionId:'competition-one',matchId:'match-one'};
-const row=(extra={})=>({ ...match,sourceId:'match-source',kind:'match',side:'home',homeScore:0,awayScore:2,...extra });
+const match={competitionId:'competition-one',matchId:'match-one',homeTeamId:'team-home',awayTeamId:'team-away'};
+const row=(extra={})=>({ ...match,teamId:'team-home',sourceId:'match-source',kind:'match',side:'home',homeScore:0,awayScore:2,...extra });
 const review=sources=>reconcileScoreHistory({matches:[match],sources});
 test('zero scores survive and away History orientation maps to canonical home/away',()=>{
- const r=review([row(),row({sourceId:'away-history',kind:'history',side:'away',homeScore:2,awayScore:0})]);
+ const r=review([row(),row({sourceId:'away-history',kind:'history',teamId:'team-away',side:'away',homeScore:2,awayScore:0})]);
  assert.equal(r.results[0].status,'consistent');assert.equal(r.results[0].homeScore,0);assert.equal(r.results[0].awayScore,2);
  assert.equal(r.accountedSourceCount,2);assert.equal(r.requiresReview,false);
 });
@@ -22,15 +22,20 @@ test('NULL is not zero and partial rows are not silently merged',()=>{
 });
 test('orphan/cross-competition/unknown-orientation rows remain accounted for and hold review',()=>{
  for(const changes of [{competitionId:null},{matchId:'deleted-match'},{competitionId:'other-competition'},{side:null}]){
-  const r=review([row(changes)]);assert.equal(r.requiresReview,true);assert.equal(r.accountedSourceCount,1);assert.equal(r.results[0].sources.length,0);
+  const r=review([row(changes)]);assert.equal(r.requiresReview,true);assert.equal(r.accountedSourceCount,1);assert.equal(r.results[0].sources.length,0);assert.deepEqual(r.issues[0].source,row(changes));
  }
 });
 test('PlayHQ external IDs require tenant/source binding and cannot collide within one tenant',()=>{
  const first={...match,tenantId:'tenant-one',source:'playhq',externalId:'external-one'};
- const second={competitionId:'competition-two',matchId:'match-two',tenantId:'tenant-two',source:'playhq',externalId:'external-one'};
+ const second={...match,competitionId:'competition-two',matchId:'match-two',tenantId:'tenant-two',source:'playhq',externalId:'external-one'};
  assert.equal(reconcileScoreHistory({matches:[first,second],sources:[]}).results.length,2);
  assert.throws(()=>reconcileScoreHistory({matches:[first,{...second,tenantId:'tenant-one'}],sources:[]}));
  assert.throws(()=>reconcileScoreHistory({matches:[{...first,tenantId:null}],sources:[]}));
+});
+test('stale side labels after team reassignment cannot misorient History scores',()=>{
+ const r=review([row({kind:'history',teamId:'removed-team'})]);
+ assert.equal(r.issues[0].reason,'team-orientation-mismatch');assert.equal(r.requiresReview,true);
+ assert.equal(r.issues[0].source.homeScore,0);
 });
 test('malformed, negative/fractional scores, duplicate identities and missing arrays fail closed',()=>{
  for(const homeScore of [-1,1.5,'0',undefined])assert.throws(()=>review([row({homeScore})]));

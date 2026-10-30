@@ -14,6 +14,7 @@ export function reconcileScoreHistory({ matches, sources }) {
   const externalKeys = new Set();
   for (const match of matches) {
     if (!text(match?.competitionId) || !text(match?.matchId)) throw new Error('Competition-bound match identity required');
+    if (!text(match.homeTeamId) || !text(match.awayTeamId) || match.homeTeamId === match.awayTeamId) throw new Error('Distinct canonical teams required');
     const identity = key(match.competitionId, match.matchId);
     if (inventory.has(identity)) throw new Error('Duplicate match identity');
     if (match.externalId != null) {
@@ -32,12 +33,16 @@ export function reconcileScoreHistory({ matches, sources }) {
     ids.add(row.sourceId);
     if (!['match','event','history'].includes(row.kind) || !score(row.homeScore) || !score(row.awayScore)) throw new Error('Explicit nonnegative integer or NULL scores required');
     if (!text(row.competitionId) || !text(row.matchId)) {
-      issues.push({ sourceId: row.sourceId, reason: 'missing-history-anchor' }); continue;
+      issues.push({ sourceId: row.sourceId, reason: 'missing-history-anchor', source: row }); continue;
     }
     const bucket = inventory.get(key(row.competitionId,row.matchId));
-    if (!bucket) { issues.push({ sourceId: row.sourceId, reason: 'unknown-competition-match' }); continue; }
+    if (!bucket) { issues.push({ sourceId: row.sourceId, reason: 'unknown-competition-match', source: row }); continue; }
+    const match=matches.find(m=>m.competitionId===row.competitionId && m.matchId===row.matchId);
     if ((row.kind === 'match' && row.side !== 'home') || !['home','away'].includes(row.side)) {
-      issues.push({ sourceId: row.sourceId, reason: 'unknown-score-orientation' }); continue;
+      issues.push({ sourceId: row.sourceId, reason: 'unknown-score-orientation', source: row }); continue;
+    }
+    if (row.kind !== 'match' && row.teamId !== (row.side === 'away' ? match?.awayTeamId : match?.homeTeamId)) {
+      issues.push({ sourceId: row.sourceId, reason: 'team-orientation-mismatch', source: row }); continue;
     }
     bucket.push({ ...row, canonicalHome: row.side === 'away' ? row.awayScore : row.homeScore,
       canonicalAway: row.side === 'away' ? row.homeScore : row.awayScore });
