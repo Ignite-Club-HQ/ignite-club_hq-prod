@@ -5,12 +5,14 @@ const state = vi.hoisted(() => ({
   user: { id: "principal:test-member", app_metadata: { provider: "icp" } },
   identity: {},
   grants: vi.fn(), homeCountries: vi.fn(), signOut: vi.fn(),
-  emailRead: vi.fn(), toast: vi.fn(),
+  emailRead: vi.fn(), toast: vi.fn(), authSignOut: vi.fn(),
 }));
 vi.mock("@/hooks/useAuth", () => ({ useOptionalAuth: () => ({ user: state.user }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: state.toast }) }));
 vi.mock("@/components/AppSplash", () => ({ AppSplash: () => <div>Loading</div> }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: state.emailRead } }));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { from: state.emailRead, auth: { signOut: state.authSignOut } },
+}));
 vi.mock("@/live/internetIdentityAuth", () => ({
   getCurrentInternetIdentityConfirmed: async () => state.identity,
   signOutInternetIdentity: state.signOut,
