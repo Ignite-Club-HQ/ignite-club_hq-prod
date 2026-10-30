@@ -11,6 +11,7 @@ const key = (competition, match) => JSON.stringify([competition, match]);
 export function reconcileScoreHistory({ matches, sources }) {
   if (!Array.isArray(matches) || !Array.isArray(sources)) throw new Error('Explicit complete input arrays required');
   const inventory = new Map();
+  const matchInventory = new Map();
   const externalKeys = new Set();
   for (const match of matches) {
     if (!text(match?.competitionId) || !text(match?.matchId)) throw new Error('Competition-bound match identity required');
@@ -24,6 +25,7 @@ export function reconcileScoreHistory({ matches, sources }) {
       externalKeys.add(external);
     }
     inventory.set(identity, []);
+    matchInventory.set(identity, match);
   }
   const ids = new Set();
   const issues = [];
@@ -37,7 +39,7 @@ export function reconcileScoreHistory({ matches, sources }) {
     }
     const bucket = inventory.get(key(row.competitionId,row.matchId));
     if (!bucket) { issues.push({ sourceId: row.sourceId, reason: 'unknown-competition-match', source: row }); continue; }
-    const match=matches.find(m=>m.competitionId===row.competitionId && m.matchId===row.matchId);
+    const match=matchInventory.get(key(row.competitionId,row.matchId));
     if ((row.kind === 'match' && row.side !== 'home') || !['home','away'].includes(row.side)) {
       issues.push({ sourceId: row.sourceId, reason: 'unknown-score-orientation', source: row }); continue;
     }
