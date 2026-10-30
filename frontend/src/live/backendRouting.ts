@@ -120,6 +120,9 @@ export function validateApprovedTarget(target: Omit<ApprovedBackendTarget, "id">
 
 const CANISTER_ID_RE = /^[a-z0-9]{5}(-[a-z0-9]{5}){3}-[a-z0-9]{3}$/;
 
+/** Club ids are Supabase UUIDs; the email allowlist only accepts these. */
+const CLUB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 /** True when a Cloud Engine target is enabled and has an address plus at least one canister. */
 export function isCloudEngineUsable(target: ApprovedBackendTarget): boolean {
   return CLOUD_ENGINE_RELEASED && target.kind === "icp-cloud-engine" && target.enabled
