@@ -1,0 +1,1 @@
+ALTER TABLE public.notification_preferences ALTER COLUMN show_message_preview SET DEFAULT false;

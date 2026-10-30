@@ -1,0 +1,1 @@
+UPDATE pending_invites SET metadata = '{"children": [{"name": "Mabel McVicar", "yearOfBirth": null, "existingChildId": null}]}'::jsonb WHERE id = 'aebcfd10-cdb5-426f-909a-32503e8e8145';

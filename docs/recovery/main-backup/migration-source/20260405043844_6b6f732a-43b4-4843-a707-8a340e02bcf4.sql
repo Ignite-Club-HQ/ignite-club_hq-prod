@@ -1,0 +1,2 @@
+UPDATE club_rewards SET points_required = 120, updated_at = now() WHERE id = '47b0ba85-1276-49c1-b3b1-353c155f2e46';
+UPDATE club_rewards SET points_required = 1000, updated_at = now() WHERE id = 'a994e71c-4774-4903-ae23-f3970a874b1b';

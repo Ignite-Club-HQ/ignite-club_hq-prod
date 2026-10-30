@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.get_team_competition_names(uuid[]) FROM anon;

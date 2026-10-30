@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS on_new_member_notify_upcoming_events ON public.user_roles;

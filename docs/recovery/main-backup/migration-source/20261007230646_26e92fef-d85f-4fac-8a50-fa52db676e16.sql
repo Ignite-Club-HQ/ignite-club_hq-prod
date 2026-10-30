@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.is_group_captain_member(uuid, uuid) FROM authenticated;

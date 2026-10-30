@@ -1,0 +1,1 @@
+UPDATE public.club_rewards SET points_required = 900 WHERE id = 'a994e71c-4774-4903-ae23-f3970a874b1b';

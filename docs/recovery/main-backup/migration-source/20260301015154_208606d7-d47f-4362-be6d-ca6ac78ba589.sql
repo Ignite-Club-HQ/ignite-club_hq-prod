@@ -1,0 +1,1 @@
+ALTER TABLE public.team_subscriptions ADD COLUMN rotate_gk_at_halftime boolean DEFAULT false;
