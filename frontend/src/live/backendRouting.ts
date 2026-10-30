@@ -59,6 +59,14 @@ export type BackendRoutingConfig = {
    * screen); used to test ICP with one club at a time.
    */
   clubBackendOverrides: Record<string, BackendProvider>;
+  /**
+   * Club ids whose members may keep signing in with email (Supabase).
+   *
+   * Empty = the allowlist is off: email sign-in follows the country rules like
+   * every other backend. Non-empty = only these clubs' members may sign in
+   * with email; everyone else is directed to Internet Identity.
+   */
+  emailAuthClubIds: string[];
 };
 
 export const DEFAULT_BACKEND_ROUTING_CONFIG: BackendRoutingConfig = {
@@ -67,6 +75,7 @@ export const DEFAULT_BACKEND_ROUTING_CONFIG: BackendRoutingConfig = {
   targets: [],
   countryTargets: {},
   clubBackendOverrides: {},
+  emailAuthClubIds: [],
 };
 
 const ELIGIBILITIES: BackendEligibility[] = ["supabase", "icp", "both"];
