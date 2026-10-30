@@ -30,6 +30,7 @@
 - Release-plan auditing checks every pending migration regardless of date and compares complete ordered filenames and hashes; evidence SQL remains bounded, read-only and manually approved. Why: a filtered plan or caller-supplied ledger alone cannot authorize production reconciliation.
 - Owner-supplied production exports feed the offline prod-release-review inventory with their source fingerprint and unverified connection provenance; every candidate remains held until independent target reconciliation. Why: uploaded catalog evidence must not become deployment authorization.
 - Remaining target catalog evidence uses prod-object-evidence with bounded source-derived names and trigger-function expansion, never application rows or scheduler commands. Why: migration version gaps need object comparison without exporting private records.
+- Transition evidence adds opt-in source-bound bucket/privacy, effective function ACL and exact named-schedule metadata; source dispositions remain a complete hash-bound held review, never a runner plan. Why: catalog exports must not authorize execution or leak scheduler credentials.
 
 <!-- ic-skills:managed:start -->
 <!-- state: configured (on-demand) -->

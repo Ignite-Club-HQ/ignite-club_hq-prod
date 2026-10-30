@@ -22,3 +22,20 @@ test('query is read-only, bounded to named catalog objects and includes trigger 
   assert.ok(sql.includes('ROLLBACK;'));
   assert.equal(/\b(?:INSERT INTO|UPDATE public|DELETE FROM|CREATE TABLE|ALTER TABLE|GRANT SELECT)\b/i.test(sql), false);
 });
+test('transition checks are opt-in and never appear in the standard catalog packet', () => {
+  const sql = buildObjectEvidenceSql(['events']);
+  assert.equal(sql.includes('FROM cron.job'), false);
+  assert.equal(sql.includes('FROM storage.buckets'), false);
+  assert.throws(() => buildObjectEvidenceSql(['events'], { includeTransitionChecks: 'true' }));
+});
+test('transition packet bounds bucket and exact scheduler names without exporting commands', () => {
+  const sql = buildObjectEvidenceSql(['events'], { includeTransitionChecks: true });
+  assert.ok(sql.includes("b.id IN ('competition-vault', 'competition-documents', 'photos', 'chat-attachments')"));
+  assert.ok(sql.includes("j.jobname IN ('process-scheduled-event-reminders', 'auto-rsvp-push-cron', 'chat-photo-gallery-reminders-hourly')"));
+  assert.equal(/\bj\.command\b/i.test(sql), false);
+  assert.equal(/\b(?:unschedule|schedule\s*\(|alter_job|decrypted_secrets)\b/i.test(sql), false);
+  assert.ok(sql.includes("has_function_privilege(r.oid, p.oid, 'EXECUTE')"));
+  assert.ok(sql.includes("r.rolname IN ('anon', 'authenticated', 'service_role')"));
+  assert.ok(sql.includes("d.defaclnamespace = 0"));
+  assert.ok(sql.endsWith('ROLLBACK;\n'));
+});

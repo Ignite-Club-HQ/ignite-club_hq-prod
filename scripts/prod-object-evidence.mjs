@@ -14,11 +14,51 @@ export function collectPublicObjectNames(files) {
   return [...names].sort();
 }
 
-export function buildObjectEvidenceSql(names) {
+export function buildObjectEvidenceSql(names, { includeTransitionChecks = false } = {}) {
   if (!Array.isArray(names) || !names.length || names.length > 300
       || names.some(name => typeof name !== 'string' || !/^[a-z_][a-z0-9_]*$/.test(name))
       || new Set(names).size !== names.length) throw new Error('Bounded unique public object names required');
   const literals = names.map(name => `'${name}'`).join(',\n    ');
+  if (typeof includeTransitionChecks !== 'boolean') throw new Error('Transition checks require a boolean option');
+  const extraReports = includeTransitionChecks ? `
+  UNION ALL
+  SELECT 'bucket privacy', jsonb_build_object('id', b.id, 'public', b.public)
+  FROM storage.buckets b
+  WHERE b.id IN ('competition-vault', 'competition-documents', 'photos', 'chat-attachments')
+  UNION ALL
+  SELECT 'effective function execution', jsonb_build_object(
+    'signature', p.oid::regprocedure::text, 'role', r.rolname,
+    'can_execute', has_function_privilege(r.oid, p.oid, 'EXECUTE'))
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  CROSS JOIN pg_roles r
+  WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
+    AND r.rolname IN ('anon', 'authenticated', 'service_role')
+    AND (p.proname IN (SELECT name FROM requested) OR p.oid IN (
+      SELECT t.tgfoid FROM pg_trigger t WHERE NOT t.tgisinternal
+        AND (t.tgrelid IN (SELECT oid FROM relations) OR t.tgrelid = 'auth.users'::regclass)
+    ))
+  UNION ALL
+  SELECT 'scoped default privileges', jsonb_build_object(
+    'owner', pg_get_userbyid(d.defaclrole), 'schema', COALESCE(n.nspname, '(global)'),
+    'object_type', d.defaclobjtype,
+    'grantee', CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,
+    'privilege', a.privilege_type, 'grantable', a.is_grantable)
+  FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
+  CROSS JOIN LATERAL aclexplode(d.defaclacl) a
+  WHERE (n.nspname = 'public' OR d.defaclnamespace = 0)
+    AND d.defaclobjtype IN ('r', 'f')
+    AND d.defaclrole IN (
+      SELECT c.relowner FROM pg_class c WHERE c.oid IN (SELECT oid FROM relations)
+      UNION SELECT p.proowner FROM pg_proc p JOIN pg_namespace pn ON pn.oid = p.pronamespace
+      WHERE pn.nspname = 'public' AND p.proname IN (SELECT name FROM requested)
+    )
+    AND (a.grantee = 0 OR pg_get_userbyid(a.grantee) IN ('anon', 'authenticated', 'service_role'))
+  UNION ALL
+  SELECT 'named reminder schedules', jsonb_build_object(
+    'jobname', j.jobname, 'schedule', j.schedule, 'active', j.active)
+  FROM cron.job j
+  WHERE j.jobname IN ('process-scheduled-event-reminders', 'auto-rsvp-push-cron', 'chat-photo-gallery-reminders-hourly')
+` : '';
   return `-- READ ONLY: run in the approved PROD SQL Editor, export the single result.
 -- No application records, routing values, auth accounts or scheduler commands.
 -- Function definitions/default expressions can contain embedded secrets: review before sharing.
@@ -84,7 +124,7 @@ report(section, item) AS (
     AND (p.proname IN (SELECT name FROM requested) OR p.oid IN (
       SELECT t.tgfoid FROM pg_trigger t WHERE NOT t.tgisinternal
         AND (t.tgrelid IN (SELECT oid FROM relations) OR t.tgrelid = 'auth.users'::regclass)
-    ))
+    ))${extraReports}
 )
 SELECT section, count(*) AS object_count, jsonb_agg(item ORDER BY item::text) AS results
 FROM report GROUP BY section ORDER BY section;

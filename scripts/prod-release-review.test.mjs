@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { buildProdReleaseReview, sha256 } from './prod-release-review.mjs';
+import { buildProdReleaseReview, buildProdTransitionReview, sha256 } from './prod-release-review.mjs';
 
 const evidence = {
   projectRef: 'yabcfiuntwqjwvschnji',
@@ -43,4 +43,33 @@ test('complete owner export contains 1137 unique applied versions and all 37 cur
   assert.equal(result.pendingCount, 37);
   assert.equal(result.migrations.length, 37);
   assert.equal(result.issues.length, 37);
+});
+test('transition dispositions cannot authorize execution even when every original is classified', () => {
+  const files = { [older]: 'select 1;' };
+  const notes = [{ file: older, sha256: sha256(files[older]), disposition: 'verify-overlap', reason: 'Needs exact target acceptance' }];
+  const result = buildProdTransitionReview(evidence, files, policy, notes);
+  assert.equal(result.deploymentAuthorized, false);
+  assert.equal(result.reviewOnly, true);
+  assert.equal(result.migrations[0].releaseStatus, 'hold');
+  assert.equal(result.issues.length, 1);
+});
+test('missing, reordered, stale or executable dispositions fail closed', () => {
+  const files = { [older]: 'select 1;', '20261030030705_new.sql': 'select 2;' };
+  const notes = Object.keys(files).sort().map(file => ({ file, sha256: sha256(files[file]), disposition: 'adapt', reason: 'Held' }));
+  for (const bad of [notes.slice(1), [...notes].reverse(), notes.map(e => ({ ...e, sha256: sha256('stale') })), notes.map(e => ({ ...e, disposition: 'approved' }))]) {
+    assert.throws(() => buildProdTransitionReview(evidence, files, policy, bad));
+  }
+});
+test('real transition record accounts for all 37 originals and excludes all nine unsafe originals', () => {
+  const record = JSON.parse(readFileSync(new URL('../docs/release-review/transition-dispositions-2026-10-30.json', import.meta.url), 'utf8'));
+  const dir = new URL('../supabase/migrations/', import.meta.url);
+  const files = Object.fromEntries(readdirSync(dir).filter(f => f.endsWith('.sql')).map(f => [f, readFileSync(new URL(f, dir), 'utf8')]));
+  assert.deepEqual(record.migrations.map(e => e.file), Object.keys(files).sort());
+  for (const entry of record.migrations) {
+    assert.equal(entry.sha256, sha256(files[entry.file]));
+    assert.equal(entry.releaseStatus, 'hold');
+  }
+  const excluded = record.migrations.filter(e => e.disposition === 'exclude-original').map(e => e.file.slice(0, 14));
+  assert.deepEqual(excluded, ['20261030013157', '20261030013232', '20261030013444', '20261030013735', '20261030014542', '20261030014712', '20261030030705', '20261030030741', '20261030031128']);
+  assert.equal(record.deploymentAuthorized, false);
 });
