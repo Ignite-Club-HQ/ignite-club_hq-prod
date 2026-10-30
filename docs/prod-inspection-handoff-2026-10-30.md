@@ -2,7 +2,9 @@
 
 This workspace still connects only to DEV `ecsdwrarzfexssxtrymj`. No PROD database, Netlify or Codemagic inspection credentials are present, and the available workspace connections provide GitHub and Maps only. Do not rebind this DEV project or copy production secrets into chat to work around that boundary.
 
-## Prompt for the PROD-connected Lovable project
+## Read-only inspection through the PROD Supabase dashboard
+
+There is no PROD-connected Lovable project. Keep the current Lovable project on DEV. Open the existing PROD project directly in Supabase, use its SQL Editor to run the bounded read-only evidence pack at `docs/auth-prod-read-only-evidence.sql`, and return only credential-free results. Do not run migrations, repair history or change scheduler settings. The inspection instructions below describe the authorized scope, not a request to create or reconnect a Lovable project.
 
 > Perform a strictly read-only release inspection for Ignite Club HQ PROD `yabcfiuntwqjwvschnji`. Verify the connected project identity first; stop if it does not match. Do not modify data, settings, permissions, migrations, migration history, credentials, storage, cron jobs, workflows or deployments. Do not dispatch workflows or send notifications.
 >
