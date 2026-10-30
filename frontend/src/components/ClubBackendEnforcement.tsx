@@ -13,6 +13,7 @@ import {
   deriveClubBackendsFromHomeCountries,
   getBackendRoutingConfig,
   isClubHomeCountryRoutingActive,
+  isEmailAuthAllowedForClubs,
   resolveBackendForUser,
   resolveClubBackendOverride,
   type BackendProvider,
@@ -86,7 +87,10 @@ async function fetchSupabaseMembership(
 }
 
 function hasClubPins(): boolean {
-  return isClubHomeCountryRoutingActive(getBackendRoutingConfig());
+  const config = getBackendRoutingConfig();
+  // The email allowlist can force a switch on its own, so the route tree must
+  // wait for its check exactly as it does for a country pin.
+  return isClubHomeCountryRoutingActive(config) || isEmailAuthAllowlistActive(config);
 }
 
 async function fetchSupabaseHomeCountries(clubIds: string[]): Promise<Record<string, string | null>> {
