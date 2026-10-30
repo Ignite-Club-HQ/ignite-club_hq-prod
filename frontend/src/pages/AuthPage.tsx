@@ -1131,11 +1131,14 @@ export default function AuthPage() {
                       but the cached hint was lost, the screen defaults to
                       email — offer a way back to the Internet Identity
                       screen. Only shown when canisters are configured. */}
-                  {icpOverrideAllowed && (
+                  {(icpOverrideAllowed || canSwitchMethod) && (
                     <button
                       type="button"
                       className="w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline pt-1"
                       onClick={() => {
+                        // With both paths offered, forget the pick and show the
+                        // picker again; otherwise use the URL override.
+                        if (canSwitchMethod) { setAuthMethodChoice(null); return; }
                         const params = new URLSearchParams(searchParams);
                         params.set("auth", "icp");
                         setSearchParams(params, { replace: true });
