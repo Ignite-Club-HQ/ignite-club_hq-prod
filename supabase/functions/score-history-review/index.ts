@@ -8,13 +8,13 @@ const json = (error: string, status: number) => new Response(JSON.stringify({ er
 function gatewayError(error: unknown) {
   const e = error as { statusCode?: number; responseBody?: string; message?: string };
   let message = "AI review failed. Your records have not been changed.";
-  let type = "";
+  let errorType = "";
   try {
     const body = JSON.parse(e.responseBody || "{}");
     message = body.error?.message || body.message || message;
-    type = body.error?.type || body.type || "";
+    errorType = body.error?.type || body.type || "";
   } catch { /* Never expose SDK request details or credentials. */ }
-  return { status: e.statusCode || 502, message, type };
+  return { status: e.statusCode || 502, message, errorType };
 }
 
 Deno.serve(async request => {
