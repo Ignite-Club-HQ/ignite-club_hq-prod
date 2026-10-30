@@ -61,3 +61,16 @@ Welcome/ICP staged services, their secrets and measured-media SQL remain **post-
 ## Validation performed now
 
 23 existing offline release/recovery safeguard tests passed. Source inspection confirms retained legacy event and invite callers. No target transition or authenticated/native flow was exercised; the acceptance matrix above is required work, not passed evidence. No production state or release activation changed.
+## Follow-up evidence received (30 Oct 2026, second export)
+
+Owner-run export `Supabase_Snippet_Metadata_Inventory_for_Requested_Public_Schema_Objects.csv` (SHA-256 `697d3bd4…02550f1d7`, recorded in `prod-transition-evidence-2026-10-30.json`) confirms:
+
+- **Both legacy contracts are the only ones present.** Production has `create_competition_event(uuid,text,event_type,timestamptz,text,text,timestamptz)` and `can_invite_players_to_team(uuid,uuid)`; neither new signature exists. New contracts must be added as additional overloads, never replacements.
+- **All 19 requested tables have RLS enabled; none is forced.** The only anonymous policies are the two public-competition read policies. The anonymous routing-settings policy is still absent and remains required for the sign-in tabs.
+- **Broad anonymous table-level grants (including TRUNCATE) exist as Supabase defaults and are blocked by RLS for row access** — but RLS does not gate TRUNCATE. Treat grant tightening as a separate reviewed hardening item, not part of this release.
+- **Anonymous EXECUTE is granted on the trigger functions `handle_new_user()` and `auto_accept_pending_invites_on_role()`.** Unnecessary; flag for a separate hardening review, do not change in this release.
+- **All three storage buckets are private** and both named reminder schedules are active, matching the earlier scheduler export.
+- **All ten genuinely-new objects are confirmed absent** (vault access helpers, `competition_event_operations`, welcome-email tables, `club_invite_message_defaults`, `is_competition_news_admin`), consistent with the class-C grouping.
+- All 43 requested existing functions and all 19 requested tables are present; no requested object was found under an unexpected kind.
+
+This evidence closes the equivalent-helper and effective-ACL inventory gap. It does not authorize any staging, ledger or deployment change; all 37 files remain held pending the acceptance items above.
