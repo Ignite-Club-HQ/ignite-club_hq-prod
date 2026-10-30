@@ -18,10 +18,19 @@ import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 import { resolveKeyboardCssHeight } from "@/lib/keyboardCssHeight";
-import { isAuthChoiceOverrideOrigin, isIcpAuthAvailable, useIcpAuthScreen } from "@/live/authBackendMode";
+import {
+  authMethodEmailClubNames,
+  isAuthChoiceOverrideOrigin,
+  isIcpAuthAvailable,
+  readAuthChoice,
+  setAuthMethodChoice,
+  shouldOfferAuthMethodChoice,
+  useIcpAuthScreen,
+} from "@/live/authBackendMode";
 import { GOOGLE_SIGN_IN_ENABLED } from "@/lib/authProviderFlags";
 import { describeIcpSignInError } from "@/lib/internetIdentitySignInHelp";
 import { IcpSignInScreen } from "@/components/IcpSignInScreen";
+import { AuthMethodChoice } from "@/components/AuthMethodChoice";
 import { AuthLegalLinks } from "@/components/AuthLegalLinks";
 
 import { z } from "zod";
