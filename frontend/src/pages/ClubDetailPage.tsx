@@ -1683,6 +1683,12 @@ export default function ClubDetailPage() {
                 <Sparkles className="h-4 w-4 mr-2" />
                 Manage Seasons
               </DropdownMenuItem>
+              {!isIcpAccount && userRole === "club_admin" && (
+                <DropdownMenuItem onClick={() => navigate(`/clubs/${id}/score-review`)}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Score &amp; History review
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => setShowDeleteDialog(true)}
