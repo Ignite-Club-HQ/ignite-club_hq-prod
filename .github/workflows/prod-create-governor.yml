@@ -1,0 +1,137 @@
+# Ignite Club HQ — mint the PROD signing key, entirely from the browser.
+#
+# Nobody needs a terminal for this. The key is created on a GitHub runner,
+# encrypted with a passphrase only the owner knows, and printed to the run
+# summary as one copyable block. The plain key and the seed phrase never
+# leave the runner: they are deleted before the job ends.
+#
+# Order of use (all in a browser):
+#   1. Settings → Secrets and variables → Actions → New repository secret
+#      create PROD_GOVERNOR_PASSPHRASE = a passphrase only you know.
+#   2. Run this workflow (Actions → [PROD] Create production signing key
+#      → Run workflow), typing CREATE PROD KEY and choosing the prod branch.
+#   3. From the run summary: paste the block into repository secret
+#      PROD_GOVERNOR_PEM_ENC, and set the variable PROD_GOVERNOR_PRINCIPAL
+#      to the printed principal.
+#   4. Send ICP to the printed funding address (about US$26 covers a first
+#      provisioning), then run "[PROD] Promote ICP canisters to live" with
+#      action 'provision'.
+#
+# Why the passphrase is a secret and not a form field: workflow form inputs
+# are stored in plain text on the run page, so a passphrase typed there would
+# sit next to the ciphertext it protects.
+#
+# Losing the passphrase means losing the PROD canisters permanently — nothing
+# else can restore this key. Keep both together.
+
+name: "[PROD] Create production signing key"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type CREATE PROD KEY to mint the PROD signing key"
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ignite-prod-governor-key
+  cancel-in-progress: false
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      ICP_HOME: ${{ runner.temp }}/prod-governor-key
+      IGNITE_ICP_ENV: prod
+      ACTION_CONFIRM: ${{ inputs.confirm }}
+      PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+      EXISTING_PEM: ${{ secrets.PROD_GOVERNOR_PEM }}
+      EXISTING_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: prod
+
+      - name: Require the prod branch, the confirmation and a stored passphrase
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/prod" || { echo "::error::The PROD signing key is minted from the prod branch only"; exit 1; }
+          [ "$ACTION_CONFIRM" = "CREATE PROD KEY" ] || { echo "::error::Type CREATE PROD KEY to mint the PROD signing key"; exit 1; }
+          if [ -n "${EXISTING_PEM:-}" ] || [ -n "${EXISTING_ENC:-}" ]; then
+            echo "::error::A PROD signing key is already stored. Minting another would orphan the canisters the first one controls — rotate deliberately instead."
+            exit 1
+          fi
+          test -n "${PASSPHRASE:-}" || {
+            echo "::error::No PROD_GOVERNOR_PASSPHRASE secret, so the key could not be protected."
+            echo "Create it first: Settings → Secrets and variables → Actions → New repository secret"
+            echo "Name PROD_GOVERNOR_PASSPHRASE, value a passphrase only you know."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      - name: Install the pinned CLI
+        run: |
+          npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
+          icp identity new --help | grep -q -- --output-seed
+
+      - name: Mint the key and hand it over encrypted
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$ICP_HOME"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          printf '%s' "$PASSPHRASE" > "$ICP_HOME/pass"
+
+          icp identity new ignite-prod-governor --storage plaintext --output-seed "$ICP_HOME/seed" >/dev/null 2>&1
+          icp identity export ignite-prod-governor > "$ICP_HOME/gov.pem"
+          grep -q -- '-----BEGIN' "$ICP_HOME/gov.pem" || { echo "::error::No key was produced"; exit 1; }
+
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in "$ICP_HOME/gov.pem" -out "$ICP_HOME/gov.enc" -pass file:"$ICP_HOME/pass"
+          BLOB="$(base64 -w0 "$ICP_HOME/gov.enc")"
+          PRINCIPAL="$(icp identity principal --identity ignite-prod-governor | tail -1)"
+          ADDRESS="$(icp identity account-id --identity ignite-prod-governor | tail -1)"
+          case "$PRINCIPAL" in
+            2vxsx-fae) echo "::error::The new key was not selected, so the principal is anonymous."; exit 1 ;;
+          esac
+          test -n "$ADDRESS" || { echo "::error::No funding address"; exit 1; }
+
+          {
+            echo "## PROD signing key ready"
+            echo ""
+            echo "**1. Set the repository variable** \`PROD_GOVERNOR_PRINCIPAL\` to:"
+            echo ""
+            echo "    $PRINCIPAL"
+            echo ""
+            echo "**2. Create the repository secret** \`PROD_GOVERNOR_PEM_ENC\` with the whole block below."
+            echo ""
+            echo '```text'
+            echo "$BLOB"
+            echo '```'
+            echo ""
+            echo "**3. Send ICP** to this funding address (about US$26 covers a first provisioning):"
+            echo ""
+            echo "    $ADDRESS"
+            echo ""
+            echo "Then run **[PROD] Promote ICP canisters to live** with action \`provision\`."
+            echo ""
+            echo "> The block above is encrypted with your \`PROD_GOVERNOR_PASSPHRASE\` secret. Without that"
+            echo "> passphrase the key cannot be recovered, and nothing else can restore it — keep both."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Principal: $PRINCIPAL"
+          echo "Funding address: $ADDRESS"
+          echo "Encrypted key written to the run summary."
+
+      - name: Remove signing material
+        if: always()
+        run: rm -rf "$ICP_HOME"
