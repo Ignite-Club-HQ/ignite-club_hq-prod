@@ -1,5 +1,10 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — prepare compatible PROD release (30 Oct 2026)
+- [ ] Bind the owner-supplied production CSV to a fingerprinted offline evidence record; classify and fingerprint the complete pending migration inventory without editing applied files.
+- [ ] Prepare reviewed non-executing signup/access drafts preserving production profile creation and existing account triggers; retain the database/publication hold.
+- [ ] Run focused release safeguards and record remaining target-schema, hosted and phone acceptance blockers. No production execution is authorized.
+
 ## Current request — exact competition-role self-removal (30 Oct 2026)
 - [x] Inspected actual frontend settings; added confirmed exact-role Leave, invoker/RLS DEV endpoint and owner guard, retained server chat triggers and removed blind browser official-chat deletion. 11 focused tests pass; ICP actor compiles; preview build OK. No PROD changes/deployment.
 - [ ] Remaining: ICP entitlement-based chat sync and real actor rehearsal (PocketIC setup times out); own-role-only settings for non-manager officials; exceptional existing owner-repair preservation; authenticated DEV multi-role/organiser-admin/chat acceptance (external unmanaged session unavailable). Secure self-leave disabled until chat closure. Native display needs a bundled app update. See docs/competition-role-removal-2026-10-30.md.
