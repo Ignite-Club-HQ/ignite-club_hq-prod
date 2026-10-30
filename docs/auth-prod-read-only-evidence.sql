@@ -50,4 +50,16 @@ FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name IN ('profiles', 'pending_invites', 'team_invites', 'club_invites', 'teams')
 ORDER BY table_name, ordinal_position;
+
+-- Scheduler evidence only. Never return command text: it may contain tokens.
+-- These flags classify source wiring, not validity of the actual credentials.
+SELECT jobname, schedule, active,
+       command ~* 'internal_service_role_key\s*\(' AS references_internal_service_key,
+       command ~* 'vault\.decrypted_secrets' AS references_vault,
+       command ~* 'x-cron-secret' AS uses_scheduler_secret_header,
+       command ~* 'authorization' AS has_authorization_header,
+       command ~* 'apikey' AS has_api_key_header
+FROM cron.job
+WHERE jobname IN ('auto-rsvp-push-cron', 'chat-photo-gallery-reminders-hourly')
+ORDER BY jobname;
 ROLLBACK;
