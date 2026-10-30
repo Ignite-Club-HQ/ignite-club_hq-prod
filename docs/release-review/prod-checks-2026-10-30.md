@@ -116,3 +116,37 @@ confirmed by direct inspection of the live site.
 
 - Owner go-ahead to merge and run the five run-list migrations.
 - Post-release: real-account sign-in flows and real-phone notifications.
+- Whether the single `backend_routing_config` settings row is acceptable, or should be
+  created outside the migration run so the release is purely structural.
+
+## Owner rule — 30 Oct 2026, 11:02 UTC: structures only, no production data
+
+The owner requires that the merge change **only structures** and that no production
+data be changed. The five run-list migrations were checked against that rule by
+`scripts/prod-release-no-data.test.mjs` (6 checks, all passing):
+
+| Version | What it changes | Rows written |
+| --- | --- | --- |
+| `20261030013157` | creates `email_signup_invite_allowed()`, replaces `handle_new_user()` | none — its only table write is the `profiles (id)` insert the signup trigger already performs |
+| `20261030013232` | function permission lockdown (`REVOKE`/`GRANT`) | none |
+| `20261030013735` | adds the `backend_routing_config` settings row | **one settings row** |
+| `20261030052009` | creates the empty `score_review_ai_access` table plus RLS | none |
+| `20261004045741` | `GRANT SELECT` to anon plus a policy limited to `key = 'backend_routing_config'` | none |
+
+The one unavoidable write is `20261030013735`. Production holds no
+`backend_routing_config` row at all, so without it the new sign-in screen has no
+settings to read. It is a single application-configuration row: an upsert keyed on
+`key` that replaces only `value` and `updated_at`, so it cannot duplicate itself or
+touch any other settings row, and it names no member, club record, score or message.
+
+Everything else on the run list is structure and permissions. No run-list migration
+deletes, truncates, merges or drops anything, none names the DEV project, and none
+writes a club, team, member, event, RSVP, chat, score or notification row. The
+excluded files stay out of production — `20261030013444` would have inserted
+throwaway invitation rows, and the five DEV-pinned repairs would abort rather than
+run.
+
+If the owner wants literally zero rows written, the settings row must be created
+another way (the SQL Editor by hand, or the admin settings screen); the run list
+would then be purely structural.
+
