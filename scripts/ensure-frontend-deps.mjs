@@ -117,6 +117,29 @@ export function ensureFrontendDeps() {
 
 export { frontendDir, projectRoot, viteBin };
 
+/** Approved local release rehearsals use this installer too, never npm ci
+ * against the running preview's dependencies. Only temporary candidates qualify. */
+export function ensureRehearsalDeps(directory) {
+  const candidate = path.resolve(directory);
+  if (path.dirname(candidate) !== os.tmpdir() || !path.basename(candidate).startsWith('ignite-smaller-runtime-')) {
+    throw new Error('Only temporary smaller-release candidates may install rehearsal dependencies');
+  }
+  const modules = path.join(candidate, 'node_modules');
+  const lock = path.join(candidate, 'package-lock.json');
+  const stamp = path.join(modules, '.ignite-rehearsal-stamp');
+  const hash = createHash('sha256').update(readFileSync(lock)).update(process.version).digest('hex');
+  if (existsSync(stamp) && readFileSync(stamp,'utf8').trim() === hash) return false;
+  acquireLock();
+  try {
+    const install = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci','--no-fund','--no-audit'], {
+      cwd:candidate,stdio:'inherit',
+    });
+    if (install.status !== 0) throw new Error('Local rehearsal dependency installation failed');
+    writeFileSync(stamp,hash);
+    return true;
+  } finally { rmSync(lockDir,{recursive:true,force:true}); }
+}
+
 // CLI: used as the lovable.toml install command.
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
