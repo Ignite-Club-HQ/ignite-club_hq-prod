@@ -96,9 +96,11 @@ test('run-list migrations stay portable and never target another database', () =
 });
 
 test('no run-list migration touches a business table', () => {
+  // Body writes are runtime behaviour (the signup trigger) and are pinned
+  // separately; here only statements that run at release time are inspected.
   const business = /(^|\.)(clubs|teams|profiles|events|rsvps|messages|chat_groups|competition_matches|competition_events|notifications)\b/i;
   for (const { file, sql } of runList) {
-    for (const write of writesIn(sql)) {
+    for (const write of writesIn(stripBodies(sql))) {
       assert.ok(
         !business.test(write.target),
         `${file} must not write ${write.target}; production business rows stay untouched`,
