@@ -1,8 +1,9 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — in-app AI score review
-- [ ] Add club-admin-only manual score/History comparison with server-authorized, streamed AI explanations; no score writes or release authorization.
-- [ ] Test validation, authorization, discrepancy rules and gateway response; authenticated browser acceptance depends on external Supabase access. Internet Identity requires a separately verified server authorization bridge and must fail closed meanwhile.
+- [x] Added email-auth club-admin manual score/History review form, exact club-scoped server authorization, consent, streamed AI explanations, stop and advisory download; no score writes or release authorization. DEV-only private AI access-state table added; new migration must join release review, not bypass its holds.
+- [x] Eight focused score/authorization tests pass; server checks pass; actual AI Gateway sample conflict returned a safe hold recommendation with a run ID; signed-out browser redirects to auth without page errors.
+- [ ] Activate DEV endpoint and authenticated acceptance: deployment tool failed twice with internal errors; external Supabase browser session unavailable. Internet Identity remains unsupported/fail-closed pending independently verified server authorization bridge; no production changes.
 
 ## Current request — prepare compatible PROD release (30 Oct 2026)
 - [x] Continued score preservation: implemented offline explicit match/team/orientation reconciliation preserving zero/NULL, before-images and orphan/conflict accounting; drafted service-only shadow schema outside migrations. Synthetic tests pass; target row adapters, period/detail privacy, representative SQL and independent data-transition acceptance remain open. No live scores or release controls changed.

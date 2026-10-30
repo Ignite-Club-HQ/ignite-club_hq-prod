@@ -62,7 +62,10 @@ Deno.serve(async request => {
     return safe;
   };
   try {
-    const first = await iterator.next();
+    let first = await iterator.next();
+    while (!first.done && (first.value.type === "start" || first.value.type === "start-step")) {
+      first = await iterator.next();
+    }
     if (!first.done && first.value.type === "error") {
       const safe = await failure(first.value.error);
       return json(safe.message, safe.status);
