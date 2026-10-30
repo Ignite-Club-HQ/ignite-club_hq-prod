@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mail, Search, UserMinus, X } from "lucide-react";
 import { isPlausibleInvitableEmail } from "@/lib/inviteEmailDedupe";
 import { CompetitionRoleLinkPanel } from "./CompetitionRoleLinkPanel";
+import { CompetitionRoleRemovalDialog } from "./CompetitionRoleRemovalDialog";
+import { removeSupabaseCompetitionRole, competitionRoleRefreshKeys } from "@/features/competitions/removeCompetitionRole";
 
 function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -55,6 +57,7 @@ interface RoleRow {
   id: string;
   user_id: string;
   role: string;
+  team_id?: string | null;
   profile: { display_name: string | null; avatar_url: string | null } | null;
 }
 
@@ -75,6 +78,7 @@ export function CompetitionOfficialsCard({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [removing, setRemoving] = useState<RoleRow | null>(null);
   const [pendingRole, setPendingRole] = useState<OfficialRole>("referee");
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -108,7 +112,8 @@ export function CompetitionOfficialsCard({
           // Names are cosmetic.
         }
         return grants.map((g) => ({
-          id: `${g.user.toText()}:${g.role}`,
+          id: `${g.user.toText()}:${g.role}:${g.team_id?.[0] ?? ""}`,
+          team_id: g.team_id?.[0] ?? null,
           user_id: g.user.toText(),
           role: g.role,
           profile: { display_name: names.get(g.user.toText()) ?? null, avatar_url: null },
@@ -235,19 +240,17 @@ export function CompetitionOfficialsCard({
           import("@icp-sdk/core/principal"),
           import("@/live/features/competitions"),
         ]);
-        await comp.removeLiveCompetitionRole(ctx, competitionId, Principal.fromText(row.user_id), row.role);
-        await comp.removeFromLiveOfficialChat(ctx, competitionId, row.role as OfficialRole, row.user_id);
+        await comp.removeLiveCompetitionRole(ctx, competitionId, Principal.fromText(row.user_id), row.role, row.team_id);
         return row;
       }
-      const { error } = await supabase.from("competition_roles").delete().eq("id", row.id);
-      if (error) throw error;
+      await removeSupabaseCompetitionRole(competitionId, row);
       return row;
     },
     onSuccess: (row) => {
-      queryClient.invalidateQueries({ queryKey: rolesQueryKey });
-      queryClient.invalidateQueries({ queryKey: ["chat-groups"] });
+      setRemoving(null);
+      for (const queryKey of competitionRoleRefreshKeys(competitionId)) void queryClient.invalidateQueries({ queryKey });
       toast({
-        title: "Removed",
+        title: row.user_id === user?.id ? "Competition role left" : "Removed",
         description: `${row.profile?.display_name ?? "They"} no longer has that role in ${competitionName}.`,
       });
     },
@@ -337,6 +340,7 @@ export function CompetitionOfficialsCard({
 
   return (
     <Card>
+      <CompetitionRoleRemovalDialog open={!!removing} onOpenChange={(open) => { if (!open && !removeMutation.isPending) setRemoving(null); }} pending={removeMutation.isPending} self={removing?.user_id === user?.id} onConfirm={() => { if (removing) removeMutation.mutate(removing); }} />
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Referees &amp; committee</CardTitle>
         <CardDescription>
@@ -371,16 +375,16 @@ export function CompetitionOfficialsCard({
                   <Badge variant="outline" className="shrink-0">
                     {ROLE_LABEL[r.role as OfficialRole] ?? r.role}
                   </Badge>
-                  <Button
+                  {isSelf ? <Button variant="outline" size="sm" disabled={removeMutation.isPending || isIcp} title={isIcp ? "Secure role leaving is awaiting chat-access verification" : undefined} onClick={() => setRemoving(r)}><UserMinus className="h-4 w-4 mr-1" /> Leave</Button> : <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                     aria-label={`Remove ${r.profile?.display_name ?? "user"}`}
                     disabled={removeMutation.isPending}
-                    onClick={() => removeMutation.mutate(r)}
+                    onClick={() => setRemoving(r)}
                   >
                     <UserMinus className="h-4 w-4" />
-                  </Button>
+                  </Button>}
                 </div>
               );
             })}

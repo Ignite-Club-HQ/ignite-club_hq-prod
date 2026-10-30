@@ -20,6 +20,8 @@ import {
   removeLiveCompetitionRole,
 } from "@/live/features/competitions";
 import { CompetitionAdminInboxCard } from "@/components/competitions/CompetitionAdminInboxCard";
+import { CompetitionRoleRemovalDialog } from "./CompetitionRoleRemovalDialog";
+import { removeSupabaseCompetitionRole, competitionRoleRefreshKeys } from "@/features/competitions/removeCompetitionRole";
 
 interface CompetitionAdminsCardProps {
   competitionId: string;
@@ -31,6 +33,7 @@ interface RoleRow {
   id: string;
   user_id: string;
   role: string;
+  team_id?: string | null;
   profile: { display_name: string | null; avatar_url: string | null } | null;
 }
 
@@ -49,6 +52,7 @@ export function CompetitionAdminsCard({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [removing, setRemoving] = useState<RoleRow | null>(null);
   const debouncedSearch = useDebounce(search, 300);
 
   const rolesQueryKey = ["competition-roles", competitionId];
@@ -87,7 +91,7 @@ export function CompetitionAdminsCard({
         // of a resolved name/avatar.
         icp: async (ctx) => {
           const grants = (await listLiveCompetitionRoles(ctx, competitionId)).filter(
-            (g) => g.role === "owner" || g.role === "admin",
+            (g) => g.role === "owner" || g.role === "admin" || g.role === "competition_admin",
           );
           const names = new Map<string, string | null>();
           try {
@@ -98,7 +102,8 @@ export function CompetitionAdminsCard({
             // Names are cosmetic; fall back to the principal text.
           }
           return grants.map((g) => ({
-            id: `${g.user.toText()}:${g.role}`,
+            id: `${g.user.toText()}:${g.role}:${g.team_id?.[0] ?? ""}`,
+            team_id: g.team_id?.[0] ?? null,
             user_id: g.user.toText(),
             role: g.role,
             profile: names.get(g.user.toText()) ? { display_name: names.get(g.user.toText()) ?? null, avatar_url: null } : null,
@@ -213,18 +218,18 @@ export function CompetitionAdminsCard({
     mutationFn: async (row: RoleRow) => {
       await withFeatureBackend("competitions", {
         supabase: async () => {
-          const { error } = await supabase.from("competition_roles").delete().eq("id", row.id);
-          if (error) throw error;
+          await removeSupabaseCompetitionRole(competitionId, row);
         },
-        icp: (ctx) => removeLiveCompetitionRole(ctx, competitionId, Principal.fromText(row.user_id), row.role),
+        icp: (ctx) => removeLiveCompetitionRole(ctx, competitionId, Principal.fromText(row.user_id), row.role, row.team_id),
       }, writeOnce({ competitionId }));
       return row;
     },
     onSuccess: (row) => {
-      queryClient.invalidateQueries({ queryKey: rolesQueryKey });
+      setRemoving(null);
+      for (const queryKey of competitionRoleRefreshKeys(competitionId)) void queryClient.invalidateQueries({ queryKey });
       toast({
-        title: "Admin removed",
-        description: `${row.profile?.display_name ?? "User"} no longer manages ${competitionName}.`,
+        title: row.user_id === user?.id ? "Competition role left" : "Admin role removed",
+        description: "Only this role was removed. Organiser-club admins may retain access through their club role.",
       });
     },
     onError: (error: Error) => {
@@ -233,7 +238,7 @@ export function CompetitionAdminsCard({
   });
 
   const owners = roles.filter((r) => r.role === "owner");
-  const admins = roles.filter((r) => r.role === "admin");
+  const admins = roles.filter((r) => r.role === "admin" || r.role === "competition_admin");
 
   return (
     <div className="space-y-4">
@@ -254,7 +259,7 @@ export function CompetitionAdminsCard({
             {[...owners, ...admins].map((r) => {
               const isOwner = r.role === "owner";
               const isSelf = r.user_id === user?.id;
-              const removable = !isOwner && !isSelf;
+              const removable = !isOwner;
               return (
                 <div key={r.id} className="flex items-center gap-3 p-3">
                   <Avatar className="h-8 w-8 shrink-0">
@@ -277,13 +282,16 @@ export function CompetitionAdminsCard({
                     <Badge variant="outline" className="shrink-0">Admin</Badge>
                   )}
                   {removable && (
+                    isSelf ? <Button variant="outline" size="sm" disabled={removeMutation.isPending || isIcp} title={isIcp ? "Secure role leaving is awaiting chat-access verification" : undefined} onClick={() => setRemoving(r)}>
+                      <UserMinus className="h-4 w-4 mr-1" /> Leave
+                    </Button> :
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                       aria-label={`Remove ${r.profile?.display_name ?? "user"} as admin`}
                       disabled={removeMutation.isPending}
-                      onClick={() => removeMutation.mutate(r)}
+                      onClick={() => setRemoving(r)}
                     >
                       <UserMinus className="h-4 w-4" />
                     </Button>
@@ -375,6 +383,7 @@ export function CompetitionAdminsCard({
         </div>
       </CardContent>
     </Card>
+    <CompetitionRoleRemovalDialog open={!!removing} onOpenChange={(open) => { if (!open && !removeMutation.isPending) setRemoving(null); }} pending={removeMutation.isPending} self={removing?.user_id === user?.id} onConfirm={() => { if (removing) removeMutation.mutate(removing); }} />
     <CompetitionAdminInboxCard competitionId={competitionId} hostClubId={organizerClubId} />
     </div>
   );
