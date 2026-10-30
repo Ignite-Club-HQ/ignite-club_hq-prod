@@ -1,5 +1,9 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — smaller release without score changes
+- [ ] Prepare a complete fingerprinted smaller-release inventory and sign-in rehearsal package; keep existing score/History behaviour, AI review and unverified administrator changes out. No main-to-prod merge or publication in this preparation.
+- [ ] Verify isolated signup and focused sign-in checks; identify exact staging, hosted configuration and authenticated acceptance blockers separately from deferred score work.
+
 ## Current request — in-app AI score review
 - [x] Added email-auth club-admin manual score/History review form, exact club-scoped server authorization, consent, streamed AI explanations, stop and advisory download; no score writes or release authorization. DEV-only private AI access-state table added; new migration must join release review, not bypass its holds.
 - [x] Thirteen focused tests pass, including mocked consent/access/stream/terminal-error request flow; server checks pass; actual AI Gateway sample conflict returned a safe hold recommendation with a run ID; signed-out browser redirects to auth without page errors. Cleared review data on scope/session changes and prevented partial-output downloads after failure.
