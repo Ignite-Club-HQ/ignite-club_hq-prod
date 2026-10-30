@@ -29,9 +29,6 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/prod)"
-          echo "GITHUB_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
-          echo "GITHUB_REF=refs/heads/prod" >> "$GITHUB_ENV"
-          echo "GITHUB_REF_NAME=prod" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
