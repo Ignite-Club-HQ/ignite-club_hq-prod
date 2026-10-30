@@ -493,3 +493,33 @@ export function resolveTargetForCountry(
   }
   return enabledForBackend[0];
 }
+
+/**
+ * True when the email sign-in allowlist is armed: at least one club is listed.
+ * While it is off, email sign-in follows the country rules exactly as before.
+ */
+export function isEmailAuthAllowlistActive(config: BackendRoutingConfig): boolean {
+  return config.emailAuthClubIds.length > 0;
+}
+
+/**
+ * Pure: may an account whose club memberships are `clubIds` keep signing in
+ * with email?
+ *
+ * - Allowlist off -> always allowed (nothing has been diverted yet).
+ * - No known clubs -> allowed. App admins, a still-pending invite and a failed
+ *   membership lookup all land here; refusing them would lock people out of the
+ *   app over a lookup problem.
+ * - At least one allowlisted club -> allowed. A member of an email club *and* a
+ *   secure-sign-in club keeps their email login.
+ * - Every club outside the allowlist -> not allowed: secure sign-in only.
+ */
+export function isEmailAuthAllowedForClubs(
+  config: BackendRoutingConfig,
+  clubIds: readonly string[],
+): boolean {
+  if (!isEmailAuthAllowlistActive(config)) return true;
+  if (clubIds.length === 0) return true;
+  const allowed = new Set(config.emailAuthClubIds);
+  return clubIds.some(id => allowed.has(id.trim().toLowerCase()));
+}
