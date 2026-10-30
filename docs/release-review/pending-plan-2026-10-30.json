@@ -1,0 +1,309 @@
+{
+  "schemaVersion": 1,
+  "projectRef": "yabcfiuntwqjwvschnji",
+  "evidenceSourceSha256": "5e713372b4ec0b17be7817c633455433d6e700ca1dc5e0419415fa6cf1a7baa9",
+  "independentlyVerifiedConnection": false,
+  "deploymentAuthorized": false,
+  "appliedCount": 1137,
+  "pendingCount": 37,
+  "issues": [
+    "20261030013157_a1439afb-5a9f-4201-a09d-e526b83d604e.sql: Replaces production profile-creation function without verified before-image",
+    "20261030013232_cefd7946-4844-4ca3-a963-68806c91ac15.sql: Depends on the unreviewed signup function replacement",
+    "20261030013444_a16197e5-7012-4c32-aa1b-9ac182b17cb6.sql: DEV rollback fixture test; must not execute in PROD",
+    "20261030013735_7dc525a9-0b6d-4dd5-bea5-a28010ce65c8.sql: Activates DEV club IDs; must not execute in PROD",
+    "20261030014542_9f9534c4-b9c4-4562-97bd-1a1e10644e02.sql: DEV-only permission repair, not PROD activation",
+    "20261030014712_0699d7db-b366-4657-9c34-e9b1b8ae3435.sql: DEV-only permission repair, not PROD activation",
+    "20260928122526_ced7e676-cb91-4f86-8692-6fc48d3f937a.sql: new migration has no production release classification",
+    "20261003053838_37b36ac1-6aca-4330-81cc-ce7df6d6d8ad.sql: new migration has no production release classification",
+    "20261004012137_a065d87d-15b2-4be7-83f5-87ff95998c1c.sql: new migration has no production release classification",
+    "20261004045741_f67d8540-1138-4bf3-a0cb-54eac96ac751.sql: new migration has no production release classification",
+    "20261007010000_add_competition_ladder_visibility.sql: new migration has no production release classification",
+    "20261007020000_add_event_duty_team.sql: new migration has no production release classification",
+    "20261008014417_1efafd8f-633a-4b6f-8776-7fa7890b42f7.sql: new migration has no production release classification",
+    "20261009090000_add_competition_media_scope.sql: new migration has no production release classification",
+    "20261009100000_create_competition_event_fanout.sql: new migration has no production release classification",
+    "20261010000000_add_club_invite_message_defaults.sql: new migration has no production release classification",
+    "20261010010000_mini_league_news_audience.sql: new migration has no production release classification",
+    "20261011000000_add_competition_admin_inbox.sql: new migration has no production release classification",
+    "20261012000000_add_competition_vault_access.sql: new migration has no production release classification",
+    "20261012010000_add_scheduled_event_reminders.sql: new migration has no production release classification",
+    "20261012020000_add_welcome_email_contract.sql: new migration has no production release classification",
+    "20261013000000_add_icp_welcome_email_deliveries.sql: new migration has no production release classification",
+    "20261014000000_allow_competition_admin_team_invites.sql: new migration has no production release classification",
+    "20261014010000_allow_competition_fixture_read.sql: new migration has no production release classification",
+    "20261014014920_9fbf1b37-eb60-4620-a9e6-3feb869e47da.sql: new migration has no production release classification",
+    "20261014014957_9d34abc5-4c3e-4424-9610-cf061575c744.sql: new migration has no production release classification",
+    "20261014015130_9b611a01-b847-4092-bc65-7e0e15420f43.sql: new migration has no production release classification",
+    "20261014020000_add_official_join_links.sql: new migration has no production release classification",
+    "20261014030000_email_bound_official_invites.sql: new migration has no production release classification",
+    "20261014062816_5eb2c17c-857d-45a2-bb07-af0b74f1bd55.sql: new migration has no production release classification",
+    "20261015185653_cc94e100-9ed3-4a6a-a750-bbf949694c6c.sql: new migration has no production release classification",
+    "20261015192331_dbec16fd-1649-4a11-85ed-95857aabd325.sql: new migration has no production release classification",
+    "20261021003048_cc898ea3-1b7f-44d1-81d4-e894260fa5f2.sql: new migration has no production release classification",
+    "20261021003143_71991b81-2fcd-49f9-b35f-6f9b21e593d2.sql: new migration has no production release classification",
+    "20261030030705_00f98696-cfea-4c77-b81b-3cb8b489932b.sql: new migration has no production release classification",
+    "20261030030741_d53423a3-e9e1-4a7a-9bcc-cc979ab8cd69.sql: new migration has no production release classification",
+    "20261030031128_b03c9e26-7679-4310-8dff-18599cf55443.sql: new migration has no production release classification"
+  ],
+  "migrations": [
+    {
+      "file": "20260928122526_ced7e676-cb91-4f86-8692-6fc48d3f937a.sql",
+      "sha256": "a94f1bab45b53823140ac363a317f9dadb30c08386cb34f108704f64c2646160",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261003053838_37b36ac1-6aca-4330-81cc-ce7df6d6d8ad.sql",
+      "sha256": "fd765af6b7f6a77c67e62c4ebfd80c30fc315ad0dfa1bcde81ba17233af62d9c",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261004012137_a065d87d-15b2-4be7-83f5-87ff95998c1c.sql",
+      "sha256": "455fa5980b68048a657486734ce8ce047f109306a3f73cb0377bc76081e58852",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261004045741_f67d8540-1138-4bf3-a0cb-54eac96ac751.sql",
+      "sha256": "4d4ccd00f2492ddf8a0128b27cf326d10297e77ac68d8853a262564328d09923",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261007010000_add_competition_ladder_visibility.sql",
+      "sha256": "c311c29a1a2416ac9913d1e523c5789cfd5c56b8b6f1660139e6d5b5238b9025",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261007020000_add_event_duty_team.sql",
+      "sha256": "da015608d0e7f7e197e6cf2c13bb80d9f5e5668aecfbbfa14b17532a3237b7b8",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261008014417_1efafd8f-633a-4b6f-8776-7fa7890b42f7.sql",
+      "sha256": "e74f6dd94e19c5650f7506d9b4a20e48b9eb3ce37c2b178839ec1a29664ac048",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261009090000_add_competition_media_scope.sql",
+      "sha256": "cd94c882d815597341d751768f36bd91df07bfa9ce63158a02665ebb8ced7262",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261009100000_create_competition_event_fanout.sql",
+      "sha256": "2d1bad9c131125f27f61494a69d9c2e8cb5ac29348965f9a50ed9f6fc6628fba",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261010000000_add_club_invite_message_defaults.sql",
+      "sha256": "07a5ba9c923e31008f0701762300e793c76050e39cfeae5f36af611f96cb12ec",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261010010000_mini_league_news_audience.sql",
+      "sha256": "63faafa72ae2c534b506b082d85ad3e9758ca40ea15177a93a2f494a7c1c1bdb",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261011000000_add_competition_admin_inbox.sql",
+      "sha256": "aaa0fb34ba6f337b758fdb1a73984f89ece3860af659789cbc6f4c0476d1a7f5",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261012000000_add_competition_vault_access.sql",
+      "sha256": "7fa80184bd1353933c6ceb39134c3e4a26fe5716447f8bbedd250f816e6a5869",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261012010000_add_scheduled_event_reminders.sql",
+      "sha256": "ac04e33d107b4d9955f945f0ea88852c391bdf47a7768f8038b91236d3e8e866",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261012020000_add_welcome_email_contract.sql",
+      "sha256": "3bb1894419914103bff6130bee0ef852dd0d5dd419db70312bc4dd85612e5491",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261013000000_add_icp_welcome_email_deliveries.sql",
+      "sha256": "58ae459c5e8c1208640d0d6fde8224f95f8e7e0599a80dba013224cd30a34a0c",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261014000000_allow_competition_admin_team_invites.sql",
+      "sha256": "b4e8dc6982358830a7b97ecaa120cc8a1d31ffe4f28cc987c57df8f42b589f98",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261014010000_allow_competition_fixture_read.sql",
+      "sha256": "84d5968e19b9d04abe807c9ba761d5903a8867d30640802d486036499f598e50",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261014014920_9fbf1b37-eb60-4620-a9e6-3feb869e47da.sql",
+      "sha256": "9ab596de692f2e4f3834e47ce2eb607b5656c13492a4123bc5dbf3bb825bf064",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261014014957_9d34abc5-4c3e-4424-9610-cf061575c744.sql",
+      "sha256": "5a366b00ca754f0c57c85d876baa37dc9bceb11f9740836731f195e447a183a0",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261014015130_9b611a01-b847-4092-bc65-7e0e15420f43.sql",
+      "sha256": "3e03542b9955d512bc84c0470292ae4776a1e01a8bd39f8cde595c9492c73607",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261014020000_add_official_join_links.sql",
+      "sha256": "7b2fdf24e5d85677b77e244cdc2a10c44fd2630028f312fa51035e268fbcc7fb",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261014030000_email_bound_official_invites.sql",
+      "sha256": "6b3c97a8c67c067ced57f464167f1ff8032d270d763fc68f195f8245917b683a",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261014062816_5eb2c17c-857d-45a2-bb07-af0b74f1bd55.sql",
+      "sha256": "799944591acd3f069d68e7c108267be92c7168a5fdf5c3a3f0511307eb0c2bf2",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261015185653_cc94e100-9ed3-4a6a-a750-bbf949694c6c.sql",
+      "sha256": "4636081a9031d29aced1102e6c252700141b7ba8f54d79353457ec13c2c851cc",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261015192331_dbec16fd-1649-4a11-85ed-95857aabd325.sql",
+      "sha256": "2eceb377f507af97cd8ac27878b11550ae0929ead24ce21721e60d4077cd5559",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261021003048_cc898ea3-1b7f-44d1-81d4-e894260fa5f2.sql",
+      "sha256": "479fa9f64f3e30e3d1b9211ed44942e147586b2186feca8e47174f30e2708119",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261021003143_71991b81-2fcd-49f9-b35f-6f9b21e593d2.sql",
+      "sha256": "164c0f223eb1736fbfb94c7223cdeb7c5d72e9028f557514bf8b01c05696eb2c",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261030013157_a1439afb-5a9f-4201-a09d-e526b83d604e.sql",
+      "sha256": "a30aac7dad2374e18027618083bbdcc31be9ce7c5d47d469a1e2425731416e7d",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Replaces production profile-creation function without verified before-image"
+    },
+    {
+      "file": "20261030013232_cefd7946-4844-4ca3-a963-68806c91ac15.sql",
+      "sha256": "dec4beb61ba2ff29e4e22171c2d4058121e296144d4e1842b26940abc329e051",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Depends on the unreviewed signup function replacement"
+    },
+    {
+      "file": "20261030013444_a16197e5-7012-4c32-aa1b-9ac182b17cb6.sql",
+      "sha256": "b314b168c2865bf915731684075198a6b36c2c5d93e8c1aeab947ef05bcf4ad4",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "DEV rollback fixture test; must not execute in PROD"
+    },
+    {
+      "file": "20261030013735_7dc525a9-0b6d-4dd5-bea5-a28010ce65c8.sql",
+      "sha256": "603a91a91659cccdcaebd4285f6f122b537ecd13198a57801a9fc9afe832586b",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Activates DEV club IDs; must not execute in PROD"
+    },
+    {
+      "file": "20261030014542_9f9534c4-b9c4-4562-97bd-1a1e10644e02.sql",
+      "sha256": "04d631421598ea45087e8273d9be3c2f243efa1aadde12bcc93c4918ef424980",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "DEV-only permission repair, not PROD activation"
+    },
+    {
+      "file": "20261030014712_0699d7db-b366-4657-9c34-e9b1b8ae3435.sql",
+      "sha256": "2473fbe32c64f366620256194adbd69592beb8849b3b231fb1a919964cd0cd3d",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "DEV-only permission repair, not PROD activation"
+    },
+    {
+      "file": "20261030030705_00f98696-cfea-4c77-b81b-3cb8b489932b.sql",
+      "sha256": "110e489c6d09674ef8cc2e05f699ab3afc46883910b49dcaa17343cd06479ac5",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261030030741_d53423a3-e9e1-4a7a-9bcc-cc979ab8cd69.sql",
+      "sha256": "0a04ec69dfb4979ea8b999c4bee9e3c6c4478ccdcd2086fc63df2aa51e6aa6a4",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    },
+    {
+      "file": "20261030031128_b03c9e26-7679-4310-8dff-18599cf55443.sql",
+      "sha256": "b7a4e0037b0690716ff96932d9ad5561e33f361b7dc95ec631c683a384dc5fed",
+      "recordedApplied": false,
+      "releaseStatus": "hold",
+      "reason": "Target object definitions, privileges and lifecycle effects require review; filename absence is not proof of missing schema"
+    }
+  ]
+}

@@ -28,6 +28,7 @@
 - Signed-out auth boot needs anonymous read of only the public `backend_routing_config` settings row; DEV-only permission repairs pin the verified database system identifier and skip other databases. Why: hosted project-ref settings may be absent, and promotion must not activate PROD access rules implicitly.
 - Auth release preflight preserves fingerprinted applied migrations and blocks unreviewed pending target migrations; signup authorization should be a separate auth lifecycle trigger, never an unverified replacement of target profile creation. Why: later corrections cannot prevent an unsafe earlier migration or recover unknown trigger behavior.
 - Release-plan auditing checks every pending migration regardless of date and compares complete ordered filenames and hashes; evidence SQL remains bounded, read-only and manually approved. Why: a filtered plan or caller-supplied ledger alone cannot authorize production reconciliation.
+- Owner-supplied production exports feed the offline prod-release-review inventory with their source fingerprint and unverified connection provenance; every candidate remains held until independent target reconciliation. Why: uploaded catalog evidence must not become deployment authorization.
 
 <!-- ic-skills:managed:start -->
 <!-- state: configured (on-demand) -->
