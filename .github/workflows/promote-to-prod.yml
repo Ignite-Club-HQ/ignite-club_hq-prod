@@ -1,0 +1,35 @@
+name: "[DB] Promote to Prod"
+
+# Restored original workflow path. Restoration does NOT authorize deployment.
+# Only bounded read-only evidence runs; unsafe history/cron/Vault repairs removed.
+on:
+  push:
+    branches: [prod]
+  pull_request:
+    branches: [prod]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-prod-release
+  cancel-in-progress: false
+
+jobs:
+  release-preflight:
+    name: Database release preflight (no writes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Check release safety
+        run: node --test scripts/auth-release-preflight.test.mjs scripts/restoration-safety.test.mjs
+      - name: Preserve production until hosted evidence and history are reconciled
+        run: |
+          echo '::error::Repository restoration is not release approval. PROD history, signup before-image and the complete migration plan remain unverified.'
+          echo 'No database, function, credential, storage or cron changes were attempted.'
+          echo 'See docs/main-backup-restoration-2026-10-30.md for the remaining release prerequisites.'
+          exit 1
