@@ -24,7 +24,7 @@
 - ICP rewards verify roles via governor-configured club_domain; catalog/settings reads refresh caller role mirrors first. Why: club creation needs no manual points-service grant.
 - ICP media uses uploader avatars; inbox previews use scope IDs; DM settings read/write ICP. Chat files encrypt/register before token creation. Why: silent no-ops lost device attachments.
 - Club setup uses active membership backend; palettes/logo count separately from entitlement; sponsor/theme saves invalidate it. Why: ICP free setup has no Supabase rows.
-- Sign-in method gating lives in `backend_routing_config.emailAuthClubs`: an empty list leaves email open everywhere, a non-empty list restricts email to those clubs and the post-auth club check enforces it. Why: club membership is unknown until after sign-in, so the sign-in screen can only offer a path, never decide one.
+- Sign-in method gating lives in `backend_routing_config.emailAuthClubs`: an empty list leaves email open; an armed list requires valid club/team invite tokens for new email accounts. All Supabase signup paths use emailSignupPolicy; handle_new_user repeats the check server-side against authoritative invitations, never trusting metadata club IDs. Existing sign-in stays separate. Why: browser gating cannot stop direct Auth API account creation.
 
 <!-- ic-skills:managed:start -->
 <!-- state: configured (on-demand) -->

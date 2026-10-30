@@ -25,6 +25,7 @@ import { isNativePlatform, unregisterNativePush } from "@/lib/nativePush";
 import { isTransientAuthFailure } from "@/lib/authRecoveryClassification";
 import { refreshSessionOnce } from "@/lib/refreshSessionOnce";
 import { buildAuthPathWithRedirect } from "@/lib/authRedirectStorage";
+import { readEmailSignupInviteToken, validateEmailSignupInvite } from "@/lib/emailSignupPolicy";
 import { notificationKeys } from "@/lab/notificationQueryKeys";
 // Value exports (signInWithInternetIdentity/signOutInternetIdentity) are loaded
 // dynamically at call time below. That module statically imports the ICP
@@ -1152,10 +1153,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? `${window.location.origin}${buildAuthPathWithRedirect(pendingRedirect)}`
       : `${window.location.origin}/`;
     try {
+      const inviteToken = readEmailSignupInviteToken(window.location.search);
+      await validateEmailSignupInvite(supabase, inviteToken, email);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: redirectUrl },
+        options: {
+          emailRedirectTo: redirectUrl,
+          ...(inviteToken ? { data: { email_signup_invite_token: inviteToken } } : {}),
+        },
       });
       // When email confirmation is required, signUp resolves with no session.
       // Surface that explicitly so callers can tell the user what happens next
