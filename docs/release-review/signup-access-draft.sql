@@ -13,7 +13,7 @@ BEGIN
   IF COALESCE(NEW.raw_app_meta_data->>'provider', 'email') = 'email'
      AND public.email_signup_invite_allowed(
        NEW.raw_user_meta_data->>'email_signup_invite_token', NEW.email
-     ) IS FALSE THEN
+     ) IS NOT TRUE THEN
     RAISE EXCEPTION 'Email signup requires a valid invitation for an email-enabled club.'
       USING ERRCODE = 'P0001';
   END IF;
