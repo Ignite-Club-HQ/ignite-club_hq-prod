@@ -12,7 +12,7 @@
 // serialize every caller through one lock so installs never overlap.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, lstatSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -116,6 +116,39 @@ export function ensureFrontendDeps() {
 }
 
 export { frontendDir, projectRoot, viteBin };
+
+/** Approved local release rehearsals use this installer too, never npm ci
+ * against the running preview's dependencies. Only temporary candidates qualify. */
+export function ensureRehearsalDeps(directory) {
+  const candidate = path.resolve(directory);
+  if (path.dirname(candidate) !== os.tmpdir() || !path.basename(candidate).startsWith('ignite-smaller-runtime-')) {
+    throw new Error('Only temporary smaller-release candidates may install rehearsal dependencies');
+  }
+  const modules = path.join(candidate, 'node_modules');
+  const lock = path.join(candidate, 'package-lock.json');
+  const stamp = path.join(modules, '.ignite-rehearsal-stamp');
+  for (const p of [candidate, modules, lock, path.join(candidate,'package.json')]) {
+    if (existsSync(p) && lstatSync(p).isSymbolicLink()) throw new Error('Rehearsal installer refuses symlinked inputs');
+  }
+  if (!existsSync(lock)) {
+    acquireLock();
+    try {
+      const resolve = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install','--package-lock-only','--ignore-scripts','--no-fund','--no-audit'], {cwd:candidate,stdio:'inherit'});
+      if (resolve.status !== 0) throw new Error('Candidate dependency lock resolution failed');
+    } finally { rmSync(lockDir,{recursive:true,force:true}); }
+  }
+  const hash = createHash('sha256').update(readFileSync(lock)).update(process.version).digest('hex');
+  if (existsSync(stamp) && readFileSync(stamp,'utf8').trim() === hash) return false;
+  acquireLock();
+  try {
+    const install = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci','--ignore-scripts','--no-fund','--no-audit'], {
+      cwd:candidate,stdio:'inherit',
+    });
+    if (install.status !== 0) throw new Error('Local rehearsal dependency installation failed');
+    writeFileSync(stamp,hash);
+    return true;
+  } finally { rmSync(lockDir,{recursive:true,force:true}); }
+}
 
 // CLI: used as the lovable.toml install command.
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
