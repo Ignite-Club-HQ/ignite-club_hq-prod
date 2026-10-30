@@ -11,9 +11,8 @@ test('disposable socket-only PostgreSQL verifies signup guards without touching 
   const env = { PATH: process.env.PATH, HOME: directory, LANG: 'C.UTF-8' };
   const asLocalUser = process.getuid?.() === 0;
   const command = (program, args) => {
-    const result = spawnSync(asLocalUser ? 'runuser' : program,
-      asLocalUser ? ['-u','lovable','--',program,...args] : args,
-      { env, encoding: 'utf8', timeout: 60000 });
+    const result = spawnSync(program, args,
+      { env, encoding: 'utf8', timeout: 60000, ...(asLocalUser ? { uid: 1000, gid: 1000 } : {}) });
     assert.equal(result.status, 0, `${program}: ${result.stderr}`);
     return result.stdout;
   };
