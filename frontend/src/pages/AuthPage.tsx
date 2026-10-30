@@ -849,6 +849,9 @@ export default function AuthPage() {
   // Once a card is tapped the device remembers it and the picker steps aside.
   const offerMethodChoice = !forceEmailAuth && !forceIcpAuth && !isInInviteFlow
     && shouldOfferAuthMethodChoice() && readAuthChoice() === null;
+  // True while both paths exist on this device — even after one was picked.
+  // This is what lets someone change their mind and return to the picker.
+  const canSwitchMethod = shouldOfferAuthMethodChoice();
 
   if (offerMethodChoice) {
     return (

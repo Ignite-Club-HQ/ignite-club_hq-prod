@@ -1216,6 +1216,7 @@ export default function PlacementAdminSettingsPage() {
                 targets: [],
                 countryTargets: {},
                 clubBackendOverrides: {},
+                emailAuthClubs: [],
               };
               const currentTarget = tryActiveIcpTarget();
               return (
