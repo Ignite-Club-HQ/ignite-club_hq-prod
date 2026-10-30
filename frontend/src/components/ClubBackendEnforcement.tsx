@@ -13,6 +13,7 @@ import {
   deriveClubBackendsFromHomeCountries,
   getBackendRoutingConfig,
   isClubHomeCountryRoutingActive,
+  isEmailAuthAllowlistActive,
   isEmailAuthAllowedForClubs,
   resolveBackendForUser,
   resolveClubBackendOverride,
