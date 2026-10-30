@@ -3,12 +3,20 @@
 [build]
   base = "frontend"
   publish = "dist-live"
-  command = "npm ci --ignore-scripts --no-fund --no-audit && node ../scripts/icp-environments.mjs guard && node ../scripts/sync-canister-ids.mjs && IGNITE_LIVE_ICP_CANISTER_IDS_JSON=\"$(node ../scripts/icp-environments.mjs ids)\" npm run build:live"
+  command = "node ../scripts/host-build-env.mjs"
 
 [build.environment]
   NODE_VERSION = "22.12.0"
   CI = "true"
   IGNITE_LIVE_BUILD = "1"
+
+[context.production.environment]
+  IGNITE_ICP_ENV = "prod"
+  IGNITE_LIVE_SUPABASE_URL = "https://yabcfiuntwqjwvschnji.supabase.co"
+
+[context.main.environment]
+  IGNITE_ICP_ENV = "dev"
+  IGNITE_LIVE_SUPABASE_URL = "https://ecsdwrarzfexssxtrymj.supabase.co"
 
 # Same-origin server endpoints (replacements for the old Supabase edge
 # functions giphy-search and fetch-link-preview, which are not deployed on
@@ -17,6 +25,10 @@
 # server middleware (frontend/vite.live.config.ts) serves the same paths.
 [functions]
   directory = "netlify/functions"
+
+[[edge_functions]]
+  function = "share"
+  path = "/share"
 
 [[redirects]]
   from = "/api/fetch-link-preview"
@@ -28,10 +40,15 @@
   to = "/.netlify/functions/register-club-backend"
   status = 200
 
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "no-referrer"
-    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.giphy.com; font-src 'self'; connect-src 'self' https://api.giphy.com https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co wss://yabcfiuntwqjwvschnji.supabase.co wss://ecsdwrarzfexssxtrymj.supabase.co https://icp-api.io https://id.ai; frame-src https://id.ai; object-src 'none'; worker-src 'self'; base-uri 'none'; form-action 'none'; manifest-src 'none'; media-src 'self' blob:"
+    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.giphy.com https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co; font-src 'self'; connect-src 'self' https://api.giphy.com https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co wss://yabcfiuntwqjwvschnji.supabase.co wss://ecsdwrarzfexssxtrymj.supabase.co https://icp-api.io https://id.ai; frame-src https://id.ai; object-src 'none'; worker-src 'self'; base-uri 'none'; form-action 'none'; manifest-src 'none'; media-src 'self' blob: https://ecsdwrarzfexssxtrymj.supabase.co https://yabcfiuntwqjwvschnji.supabase.co"

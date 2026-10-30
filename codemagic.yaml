@@ -60,12 +60,14 @@ workflows:
           # Codemagic environment group (no committed default).
           export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
           case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-}}"
           if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
+          node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
@@ -121,6 +123,8 @@ workflows:
       # credentials + upload keystore as CM_KEYSTORE_PATH etc.).
       groups:
         - google_play_credentials
+        - android_signing
+        - supabase_prod
     scripts:
       - name: Install frontend dependencies
         script: node scripts/ensure-frontend-deps.mjs
@@ -137,12 +141,14 @@ workflows:
           # Codemagic environment group (no committed default).
           export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
           case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-}}"
           if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
+          node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
@@ -226,8 +232,7 @@ workflows:
           # generated defaultConfig (replacing Capacitor's "versionCode 1") so
           # no second Gradle block can be ignored or overridden.
           # Next number after the latest Play build (pre-merge behaviour).
-          LATEST=$(google-play get-latest-build-number --package-name "app.lovable.igniteteamhub" --tracks internal || echo 0)
-          VC=$((LATEST + 1))
+          VC=$(node ../../../scripts/native-release-version.mjs android)
           sed -i -E "s/versionCode[[:space:]]+[0-9]+/versionCode $VC/; s/versionName[[:space:]]+\"[^\"]*\"/versionName \"1.0.$VC\"/" app/build.gradle
           grep -q "versionCode $VC" app/build.gradle || { echo "Could not set versionCode in app/build.gradle"; grep -n "version" app/build.gradle; exit 1; }
           echo "Android versionCode set to $VC"
@@ -309,12 +314,14 @@ workflows:
           # Codemagic environment group (no committed default).
           export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
           case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-}}"
           if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
+          node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
@@ -360,6 +367,8 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.lovable.igniteteamhub
+      groups:
+        - supabase_prod
       vars:
         XCODE_WORKSPACE: App.xcworkspace
         XCODE_SCHEME: App
@@ -382,12 +391,14 @@ workflows:
           # Codemagic environment group (no committed default).
           export IGNITE_LIVE_SUPABASE_URL="${IGNITE_LIVE_SUPABASE_URL:-https://yabcfiuntwqjwvschnji.supabase.co}"
           case "$IGNITE_LIVE_SUPABASE_URL" in *ecsdwrarzfexssxtrymj*) echo "Refusing PROD build against DEV backend"; exit 1;; esac
+          export IGNITE_LIVE_SUPABASE_ANON_KEY="${IGNITE_LIVE_SUPABASE_ANON_KEY:-${VITE_SUPABASE_PUBLISHABLE_KEY:-}}"
           if [ -z "${IGNITE_LIVE_SUPABASE_ANON_KEY:-}" ]; then echo "IGNITE_LIVE_SUPABASE_ANON_KEY (PROD) must be set in Codemagic"; exit 1; fi
           export IGNITE_LIVE_SUPABASE_ANON_KEY
           # Blockchain canister IDs come from the committed ID table (same source
           # the site build uses), so the native bundle targets the real canisters.
           # PROD canisters only ("{}" until provisioned) — never the DEV/test set.
           export IGNITE_ICP_ENV=prod
+          node --input-type=module -e 'import {resolveHostBuildEnv} from "../scripts/host-build-env.mjs"; resolveHostBuildEnv(process.env)'
           node ../scripts/icp-environments.mjs guard prod "$IGNITE_LIVE_SUPABASE_URL"
           node ../scripts/sync-canister-ids.mjs
           export IGNITE_LIVE_ICP_CANISTER_IDS_JSON="$(node ../scripts/icp-environments.mjs ids prod)"
@@ -417,17 +428,28 @@ workflows:
       - name: Increment build number
         working_directory: frontend/ios/App
         script: |
-          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo 0)
-          agvtool new-version -all $((LATEST + 1))
+          set -euo pipefail
+          NEXT_BUILD=$(node ../../../scripts/native-release-version.mjs ios)
+          APP_VERSION="${CM_APP_VERSION:?Set CM_APP_VERSION to the reviewed App Store marketing version}"
+          case "$APP_VERSION" in *[!0-9.]*|'') echo 'Invalid marketing version'; exit 1;; esac
+          agvtool new-marketing-version "$APP_VERSION"
+          agvtool new-version -all "$NEXT_BUILD"
+          node -e 'const fs=require("fs"); fs.writeFileSync(".native-release-version.json", JSON.stringify({version: process.argv[1], build: process.argv[2]}))' "$APP_VERSION" "$NEXT_BUILD"
       - name: Set up code signing
         working_directory: frontend/ios/App
         script: xcode-project use-profiles
       - name: Build App Store IPA
         working_directory: frontend/ios/App
         script: |
+          set -euo pipefail
           xcode-project build-ipa \
             --workspace "$XCODE_WORKSPACE" \
             --scheme "$XCODE_SCHEME"
+          IPA=$(python3 -c 'import glob; files=glob.glob("build/ios/ipa/*.ipa"); assert len(files)==1, "Expected exactly one IPA"; print(files[0])')
+          VERIFY_DIR=$(mktemp -d)
+          unzip -q "$IPA" -d "$VERIFY_DIR"
+          PLIST=$(python3 -c 'import glob,sys; files=glob.glob(sys.argv[1]+"/Payload/*.app/Info.plist"); assert len(files)==1; print(files[0])' "$VERIFY_DIR")
+          node ../../../scripts/native-release-version.mjs verify-ipa .native-release-version.json "$PLIST"
     artifacts:
       - frontend/ios/App/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log

@@ -7,3 +7,28 @@ verify_jwt = true
 
 [functions.send-welcome-email-icp]
 verify_jwt = false
+
+# Restored internal handlers enforce their own service-role/cron/admin checks.
+# No deployment or cron/credential changes are implied by these source entries.
+[functions.sync-dispatch-credentials]
+verify_jwt = false
+[functions.process-event-notifications]
+verify_jwt = false
+[functions.process-message-notifications]
+verify_jwt = false
+[functions.process-push-delivery-queue]
+verify_jwt = false
+[functions.retry-missed-push-notifications]
+verify_jwt = false
+[functions.check-push-failure-rate]
+verify_jwt = false
+[functions.cleanup-old-notifications]
+verify_jwt = false
+[functions.cleanup-push-subscriptions]
+verify_jwt = false
+[functions.send-event-reminders]
+verify_jwt = false
+[functions.send-club-announcement]
+verify_jwt = false
+
+# Everything else retains gateway JWT verification until individually reviewed.
