@@ -95,20 +95,41 @@ export function subscribeAuthChoice(cb: () => void): () => void {
 
 export function readAuthChoice(): BackendProvider | null {
   try {
-    if (!isAuthChoiceOverrideOrigin()) return null;
-    const param = new URLSearchParams(window.location.search).get("auth");
     const before = localStorage.getItem(AUTH_CHOICE_KEY);
-    if (param === "email" || param === "supabase") localStorage.setItem(AUTH_CHOICE_KEY, "supabase");
-    else if (param === "icp") localStorage.setItem(AUTH_CHOICE_KEY, "icp");
-    // `?auth=auto` forgets the device choice so the club pin / default decides
-    // again — the only other wipe is the club-backend enforcement switch.
-    else if (param === "auto" || param === "default") localStorage.removeItem(AUTH_CHOICE_KEY);
+    // The URL override stays restricted to the blockchain copy / localhost
+    // (see isAuthChoiceOverrideOrigin). A choice made by tapping a card on the
+    // sign-in screen is stored directly and honoured everywhere: it is the app
+    // itself offering the two paths, not someone routing around the rules, and
+    // the post-auth club check is what actually enforces them.
+    if (isAuthChoiceOverrideOrigin()) {
+      const param = new URLSearchParams(window.location.search).get("auth");
+      if (param === "email" || param === "supabase") localStorage.setItem(AUTH_CHOICE_KEY, "supabase");
+      else if (param === "icp") localStorage.setItem(AUTH_CHOICE_KEY, "icp");
+      // `?auth=auto` forgets the device choice so routing decides again — the
+      // only other wipe is the club-backend enforcement switch.
+      else if (param === "auto" || param === "default") localStorage.removeItem(AUTH_CHOICE_KEY);
+    }
     const v = localStorage.getItem(AUTH_CHOICE_KEY);
     if (v !== before) notifyAuthChoiceChanged();
     return v === "supabase" || v === "icp" ? v : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Records the sign-in method picked on the choice screen and tells the app to
+ * remount the auth provider with it. Pass null to forget the choice and let
+ * routing decide again (this is what "use a different method" does).
+ */
+export function setAuthMethodChoice(provider: BackendProvider | null): void {
+  try {
+    if (provider === null) localStorage.removeItem(AUTH_CHOICE_KEY);
+    else localStorage.setItem(AUTH_CHOICE_KEY, provider);
+  } catch {
+    /* storage unavailable — the screen still renders, routing decides */
+  }
+  notifyAuthChoiceChanged();
 }
 
 function hasSupabaseSessionStored(): boolean {
