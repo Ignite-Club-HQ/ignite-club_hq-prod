@@ -87,6 +87,7 @@ export function assembleSmallerRuntime({ productionSource, currentRoot = root })
   let mode = readFileSync(path.join(secure, 'src/live/authBackendMode.ts'), 'utf8');
   mode = patchOnce(mode, '  return mountedAuthProvider === "icp";', '  return true;');
   mode = patchOnce(mode, '  if (mountedAuthProvider === "icp") return false;', '  return false;');
+  mode = patchOnce(mode, 'export function readAuthChoice(): BackendProvider | null {', 'export function readAuthChoice(): BackendProvider | null {\n  return "icp";');
   put(secure, 'src/live/authBackendMode.ts', mode);
   // Hard-reload recoveries belong to the secure document, never legacy home.
   for (const file of ['components/RouteErrorBoundary.tsx','components/ClubBackendEnforcement.tsx','lib/pushNotifications.ts']) {

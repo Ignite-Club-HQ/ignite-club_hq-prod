@@ -1,9 +1,12 @@
 import path from 'node:path';
 import { defineConfig } from 'vite';
+import tailwindcss from 'tailwindcss';
+import autoprefixer from 'autoprefixer';
 const root = process.cwd();
 export default defineConfig({
   envPrefix:['VITE_','IGNITE_LIVE_'], envDir:false, esbuild:{jsx:'automatic'},
   define:{'process.env.LOG_LEVEL':'undefined'},
+  css:{postcss:{plugins:[tailwindcss({config:path.join(root,'tailwind.config.ts')}),autoprefixer()]}},
   resolve:{dedupe:['react','react-dom','react-router-dom','@tanstack/react-query']},
   plugins:[{
     name:'isolated-runtime-aliases', enforce:'pre',
