@@ -343,18 +343,27 @@ export function readCachedBackendRoutingConfig(): BackendRoutingConfig | null {
 
 let activeConfig: BackendRoutingConfig | null = null;
 
-function copyConfig(config: BackendRoutingConfig): BackendRoutingConfig {
+/**
+ * A routing config as callers hand it in. `emailAuthClubs` is optional here so
+ * existing call sites (and stored configs written before the allowlist existed)
+ * keep working — an omitted list means the switch is off.
+ */
+export type BackendRoutingConfigInput = Omit<BackendRoutingConfig, "emailAuthClubs"> & {
+  emailAuthClubs?: EmailAuthClub[];
+};
+
+function copyConfig(config: BackendRoutingConfigInput): BackendRoutingConfig {
   return {
     defaultBackend: config.defaultBackend,
     countryRules: { ...config.countryRules },
     targets: config.targets.map(t => ({ ...t, ...(t.canisterIds ? { canisterIds: { ...t.canisterIds } } : {}), ...(t.preparation ? { preparation: { ...t.preparation, groupIds: [...t.preparation.groupIds] } } : {}) })),
     countryTargets: { ...config.countryTargets },
     clubBackendOverrides: { ...config.clubBackendOverrides },
-    emailAuthClubs: config.emailAuthClubs.map(c => ({ ...c })),
+    emailAuthClubs: (config.emailAuthClubs ?? []).map(c => ({ ...c })),
   };
 }
 
-export function applyBackendRoutingConfig(config: BackendRoutingConfig | null): void {
+export function applyBackendRoutingConfig(config: BackendRoutingConfigInput | null): void {
   activeConfig = config ? copyConfig(config) : null;
 }
 
