@@ -32,7 +32,7 @@ test('protected applied-file drift remains a release blocker', () => {
   const result = buildProdReleaseReview({ ...evidence, appliedVersions: ['20260928122526'] }, { [older]: 'changed' }, p);
   assert.match(result.issues[0], /removed or edited/);
 });
-test('complete owner export contains 1137 unique applied versions and all 37 current files remain pending', () => {
+test('complete owner export contains 1137 unique applied versions and all 38 current files remain pending', () => {
   const real = JSON.parse(readFileSync(new URL('../docs/release-review/prod-evidence-2026-10-30.json', import.meta.url), 'utf8'));
   const dir = new URL('../supabase/migrations/', import.meta.url);
   const files = Object.fromEntries(readdirSync(dir).filter(f => f.endsWith('.sql')).map(f => [f, readFileSync(new URL(f, dir), 'utf8')]));
@@ -40,9 +40,9 @@ test('complete owner export contains 1137 unique applied versions and all 37 cur
   const result = buildProdReleaseReview(real, files, p);
   assert.equal(result.appliedCount, 1137);
   assert.equal(new Set(real.appliedVersions).size, 1137);
-  assert.equal(result.pendingCount, 37);
-  assert.equal(result.migrations.length, 37);
-  assert.equal(result.issues.length, 37);
+  assert.equal(result.pendingCount, 38);
+  assert.equal(result.migrations.length, 38);
+  assert.equal(result.issues.length, 38);
 });
 test('transition dispositions cannot authorize execution even when every original is classified', () => {
   const files = { [older]: 'select 1;' };
@@ -60,11 +60,16 @@ test('missing, reordered, stale or executable dispositions fail closed', () => {
     assert.throws(() => buildProdTransitionReview(evidence, files, policy, bad));
   }
 });
-test('real transition record accounts for all 37 originals and excludes all nine unsafe originals', () => {
+test('historical transition preserves 37 originals and fails closed on the newly added AI migration', () => {
   const record = JSON.parse(readFileSync(new URL('../docs/release-review/transition-dispositions-2026-10-30.json', import.meta.url), 'utf8'));
   const dir = new URL('../supabase/migrations/', import.meta.url);
   const files = Object.fromEntries(readdirSync(dir).filter(f => f.endsWith('.sql')).map(f => [f, readFileSync(new URL(f, dir), 'utf8')]));
-  assert.deepEqual(record.migrations.map(e => e.file), Object.keys(files).sort());
+  assert.deepEqual(Object.keys(files).filter(f => !record.migrations.some(e => e.file === f)),
+    ['20261030052009_17c7388f-6d82-4683-ba3a-5b64a0b78ada.sql']);
+  const real = JSON.parse(readFileSync(new URL('../docs/release-review/prod-evidence-2026-10-30.json', import.meta.url), 'utf8'));
+  const p = JSON.parse(readFileSync(new URL('./auth-release-policy.json', import.meta.url), 'utf8'));
+  assert.throws(() => buildProdTransitionReview(real, files, p,
+    record.migrations.map(e => ({ ...e, reason: e.transitionReason }))), /Complete ordered hash-matched source dispositions required/);
   for (const entry of record.migrations) {
     assert.equal(entry.sha256, sha256(files[entry.file]));
     assert.equal(entry.releaseStatus, 'hold');
