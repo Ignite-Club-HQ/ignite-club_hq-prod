@@ -82,7 +82,7 @@ export const DEFAULT_BACKEND_ROUTING_CONFIG: BackendRoutingConfig = {
   targets: [],
   countryTargets: {},
   clubBackendOverrides: {},
-  emailAuthClubIds: [],
+  emailAuthClubs: [],
 };
 
 const ELIGIBILITIES: BackendEligibility[] = ["supabase", "icp", "both"];
@@ -274,27 +274,35 @@ export function parseBackendRoutingConfig(value: unknown): BackendRoutingConfig 
   const clubBackendOverrides: Record<string, BackendProvider> = {};
 
   // The email sign-in allowlist: clubs whose members keep email accounts.
-  // An absent or empty list leaves the switch off entirely.
-  const emailAuthClubIds: string[] = [];
-  const rawEmailClubs = record.emailAuthClubIds;
+  // An absent or empty list leaves the switch off entirely. Entries carry
+  // their own label because a signed-out visitor cannot read club names.
+  const emailAuthClubs: EmailAuthClub[] = [];
+  const rawEmailClubs = record.emailAuthClubs;
   if (rawEmailClubs !== null && rawEmailClubs !== undefined) {
     if (!Array.isArray(rawEmailClubs)) {
-      throw new Error(`${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubIds must be an array of club ids.`);
+      throw new Error(`${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs must be an array.`);
     }
     for (const raw of rawEmailClubs) {
-      if (typeof raw !== "string") {
-        throw new Error(`${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubIds entries must be club ids.`);
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        throw new Error(`${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs entries must be { id, name } objects.`);
       }
-      const id = raw.trim().toLowerCase();
-      if (!id) continue;
+      const entry = raw as Record<string, unknown>;
+      const id = typeof entry.id === "string" ? entry.id.trim().toLowerCase() : "";
       if (!CLUB_ID_RE.test(id)) {
-        throw new Error(`"${raw}" in ${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubIds is not a club id.`);
+        throw new Error(`"${String(entry.id ?? "")}" in ${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs is not a club id.`);
       }
-      if (!emailAuthClubIds.includes(id)) emailAuthClubIds.push(id);
+      const name = typeof entry.name === "string" ? entry.name.trim() : "";
+      if (!name) {
+        throw new Error(`Club ${id} in ${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs needs a name for the sign-in screen.`);
+      }
+      if (name.length > 80) {
+        throw new Error(`Name for club ${id} in ${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs must be 80 characters or fewer.`);
+      }
+      if (!emailAuthClubs.some(c => c.id === id)) emailAuthClubs.push({ id, name });
     }
   }
 
-  return { defaultBackend: rawDefault, countryRules, targets, countryTargets, clubBackendOverrides, emailAuthClubIds };
+  return { defaultBackend: rawDefault, countryRules, targets, countryTargets, clubBackendOverrides, emailAuthClubs };
 }
 
 /** localStorage key holding the last successfully loaded routing config. */
