@@ -178,3 +178,18 @@ export function resolveAuthBackend(): BackendProvider {
 export function useIcpAuthScreen(): boolean {
   return resolveAuthBackend() === "icp";
 }
+
+/**
+ * True when `/auth` must ask which sign-in method to use instead of picking
+ * one: the email allowlist is armed (so email is a restricted path for named
+ * clubs) and secure sign-in is actually available. With either missing there
+ * is only one real choice, so the screen just shows it.
+ */
+export function shouldOfferAuthMethodChoice(): boolean {
+  return isIcpAuthAvailable() && isEmailAuthAllowlistActive(getBackendRoutingConfig());
+}
+
+/** Club names the email path is for — the choice screen's label. */
+export function authMethodEmailClubNames(): string[] {
+  return emailAuthClubNames(getBackendRoutingConfig());
+}
