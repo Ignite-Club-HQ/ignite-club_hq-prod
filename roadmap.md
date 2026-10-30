@@ -1,9 +1,9 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — pre-PROD release safety (30 Oct 2026)
-- [ ] Fix and test the app-admin exemption before email-club enforcement; cover both retained clubs' team-only parents.
-- [ ] Add isolated, disabled-until-approved PROD push delivery configuration and focused safeguards; do not run it or change PROD.
-- [ ] Publish a bounded database release preflight and non-destructive signup-guard draft; preserve applied migrations unchanged.
+- [x] Fixed app-admin exemption before email-club enforcement; server-authorized role reads and both retained clubs' team-only parent regressions pass.
+- [x] Added isolated, disabled-until-approved PROD push worker configuration; branch, exact base-queue inventory, cross-environment isolation and Firebase/worker credential checks run before delivery. No live worker execution. Default-branch scheduling and environment approval remain activation prerequisites.
+- [x] Added fingerprinted database release preflight and non-destructive signup-guard draft in `docs/auth-prod-release-2026-10-30.md`; applied migrations unchanged. PROD pull requests fail closed in source CI until the verified existing promotion plan is integrated; this is not a runtime gate on an external runner.
 - [ ] External release prerequisites: approve read-only PROD function/policy/club-ID evidence and identify the existing DB promotion runner; then review its pending migration plan. Unsafe earlier migrations cannot be neutralized by later SQL. Production phone acceptance requires release-candidate builds and configured workers.
 
 ## Sign-in diversion — existing clubs keep email, new clubs go Internet Identity (30 Oct 2026)

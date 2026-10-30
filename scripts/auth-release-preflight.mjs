@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 export function auditAuthRelease(policy, files, appliedVersions) {
-  if (!Array.isArray(appliedVersions) || appliedVersions.some(v => !/^\d+$/.test(v))) throw new Error('Verified target migration versions required as a JSON array of decimal strings');
+  if (!Array.isArray(appliedVersions) || appliedVersions.some(v => typeof v !== 'string' || !/^\d+$/.test(v))) throw new Error('Verified target migration versions required as a JSON array of decimal strings');
   const applied = new Set(appliedVersions);
   const issues = [];
   const classified = new Set(policy.migrations.map(m => m.file));
