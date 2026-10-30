@@ -1,5 +1,11 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — pre-PROD release safety (30 Oct 2026)
+- [ ] Fix and test the app-admin exemption before email-club enforcement; cover both retained clubs' team-only parents.
+- [ ] Add isolated, disabled-until-approved PROD push delivery configuration and focused safeguards; do not run it or change PROD.
+- [ ] Publish a bounded database release preflight and non-destructive signup-guard draft; preserve applied migrations unchanged.
+- [ ] External release prerequisites: approve read-only PROD function/policy/club-ID evidence and identify the existing DB promotion runner; then review its pending migration plan. Unsafe earlier migrations cannot be neutralized by later SQL. Production phone acceptance requires release-candidate builds and configured workers.
+
 ## Sign-in diversion — existing clubs keep email, new clubs go Internet Identity (30 Oct 2026)
 - [x] Built the split: `backend_routing_config.emailAuthClubs` names the clubs whose members keep email sign-in; everyone else is directed to Internet Identity. Empty list = switch off, email open to all exactly as before.
 - [x] `/auth` shows two equal-weight choice cards ("Sign in with email" naming the allowlisted clubs, "Sign in securely" for everyone else) whenever the allowlist is armed and secure sign-in is available. The tap is remembered per device; a "sign in the other way" control returns to the picker. Invite hand-offs skip the picker.
