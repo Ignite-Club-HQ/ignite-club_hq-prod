@@ -54,6 +54,8 @@ WITH requested(name) AS (SELECT unnest(ARRAY[
     'competitions',
     'create_competition_event',
     'create_competition_role_email_invite',
+    'direct_conversations',
+    'direct_messages',
     'duties',
     'email_signup_invite_allowed',
     'enqueue_scheduled_event_notice',
