@@ -1,0 +1,3 @@
+INSERT INTO public.app_settings (key,value,description)
+VALUES ('backend_routing_config', '{"defaultBackend":"supabase","countryRules":{},"targets":[],"countryTargets":{},"clubBackendOverrides":{},"emailAuthClubs":[{"id":"966bdaec-ebf1-46da-b2b3-cc53bf05c422","name":"Bridgewater Soccer Club"},{"id":"493ee2e3-c834-487d-93be-d1c8a0dbc4a8","name":"Basket Range Cricket Club"}]}'::jsonb, 'Email sign-in retained for existing Bridgewater and Basket Range members; new email accounts require club invitations.')
+ON CONFLICT (key) DO UPDATE SET value=jsonb_set(COALESCE(public.app_settings.value,'{}'::jsonb),'{emailAuthClubs}',EXCLUDED.value->'emailAuthClubs'), updated_at=now();
