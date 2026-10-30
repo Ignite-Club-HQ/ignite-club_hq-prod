@@ -27,6 +27,7 @@
 - Sign-in method gating lives in `backend_routing_config.emailAuthClubs`: an empty list leaves email open; an armed list requires valid club/team invite tokens for new email accounts. All Supabase signup paths use emailSignupPolicy; handle_new_user repeats the check server-side against authoritative invitations, never trusting metadata club IDs. Existing sign-in stays separate. Why: browser gating cannot stop direct Auth API account creation.
 - Signed-out auth boot needs anonymous read of only the public `backend_routing_config` settings row; DEV-only permission repairs pin the verified database system identifier and skip other databases. Why: hosted project-ref settings may be absent, and promotion must not activate PROD access rules implicitly.
 - Auth release preflight preserves fingerprinted applied migrations and blocks unreviewed pending target migrations; signup authorization should be a separate auth lifecycle trigger, never an unverified replacement of target profile creation. Why: later corrections cannot prevent an unsafe earlier migration or recover unknown trigger behavior.
+- Release-plan auditing checks every pending migration regardless of date and compares complete ordered filenames and hashes; evidence SQL remains bounded, read-only and manually approved. Why: a filtered plan or caller-supplied ledger alone cannot authorize production reconciliation.
 
 <!-- ic-skills:managed:start -->
 <!-- state: configured (on-demand) -->

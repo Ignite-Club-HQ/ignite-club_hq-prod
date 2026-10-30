@@ -1,7 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — pre-PROD release safety (30 Oct 2026)
-- [ ] Continue release preparation: strengthen exact pending-plan validation and prepare bounded read-only evidence collection; leave PROD access and activation for explicit approval.
+- [x] Continued release preparation: reject older unclassified pending migrations, malformed/duplicate inventories and incomplete/reordered/hash-mismatched runner plans; harden invitation payload and usage validation. Prepared bounded read-only evidence SQL without executing it. 42 release-safety script tests and 45 focused frontend tests pass; applied migrations and PROD remain unchanged.
 - [x] Fixed app-admin exemption before email-club enforcement; server-authorized role reads and both retained clubs' team-only parent regressions pass.
 - [x] Added isolated, disabled-until-approved PROD push worker configuration; branch, exact base-queue inventory, cross-environment isolation and Firebase/worker credential checks run before delivery. No live worker execution. Default-branch scheduling and environment approval remain activation prerequisites.
 - [x] Added fingerprinted database release preflight and non-destructive signup-guard draft in `docs/auth-prod-release-2026-10-30.md`; applied migrations unchanged. PROD pull requests fail closed in source CI until the verified existing promotion plan is integrated; this is not a runtime gate on an external runner.
