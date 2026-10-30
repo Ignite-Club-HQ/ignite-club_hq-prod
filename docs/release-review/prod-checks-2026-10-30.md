@@ -46,10 +46,37 @@ Do not run in production:
 - `20261030014542`, `20261030014712` — repairs pinned to the DEV project/database identity
 - `20261030030705`, `20261030030741`, `20261030031128` — self-removal work that aborts unless the DEV database identity matches
 
+## Hosting check — closed by direct inspection
+
+The owner's Netlify screen shows only the variables the Supabase extension
+created (`SUPABASE_ANON_KEY`, `SUPABASE_DATABASE_URL`, `SUPABASE_JWT_SECRET`,
+`SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_PUBLISHABLE_KEY`) and no
+`IGNITE_LIVE_*` entries. That is the expected layout, not a gap:
+
+- The production database address is committed in `netlify.toml` under
+  `[context.production.environment]`
+  (`IGNITE_LIVE_SUPABASE_URL = https://yabcfiuntwqjwvschnji.supabase.co`), and
+  the DEV address likewise under `[context.main.environment]`. Neither needs a
+  UI variable, which is why the old branch always worked.
+- The public key comes from the connected Supabase extension
+  (`VITE_SUPABASE_PUBLISHABLE_KEY`), which `scripts/host-build-env.mjs` copies
+  into `IGNITE_LIVE_SUPABASE_ANON_KEY`.
+- `resolveHostBuildEnv()` refuses a production build unless the branch is
+  `prod`, every database address present matches `yabcfiuntwqjwvschnji`, and
+  every public key present is the same one. A DEV address or a mismatched key
+  stops the build rather than shipping.
+
+Evidence from the live site (read-only fetch, 30 Oct 2026 10:47 UTC):
+
+- `https://igniteclubhq.app/` serves `assets/index-EGVlsjdc.js`.
+- That bundle contains `https://yabcfiuntwqjwvschnji.supabase.co` (7 times) and
+  no occurrence of the DEV project reference.
+- The bundle contains neither `Sign in securely` nor `Sign in with email`,
+  confirming the new tabbed sign-in is not yet in production — consistent with
+  production still running the previously deployed release.
+
 ## Still outstanding
 
 - Query A: do the tables the guard and release touch all exist in production?
 - Query B: which of the five run-list versions are already recorded?
-- Netlify: production branch is `prod`, and `IGNITE_LIVE_SUPABASE_URL` /
-  `IGNITE_LIVE_SUPABASE_ANON_KEY` point at the production project
 - Post-release: real-account sign-in flows and real-phone notifications
