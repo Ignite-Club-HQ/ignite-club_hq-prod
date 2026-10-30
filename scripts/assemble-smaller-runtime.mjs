@@ -116,13 +116,12 @@ export function assembleSmallerRuntime({ productionSource, currentRoot = root })
   put(destination,'public/_redirects','/secure/* /secure-index.html 200\n/* /email-index.html 200\n');
   put(destination,'public/.well-known/ii-auth-callbacks',JSON.stringify({callbacks:['/secure/auth','/native-sign-in.html']})+'\n');
   put(destination,'public/secure/native-sign-in.html',readFileSync(path.join(currentRoot,'frontend/public/native-sign-in.html'),'utf8'));
-  // A legacy service worker may not supply its email shell for secure paths.
-  let sw = readFileSync(path.join(currentRoot,'frontend/public/sw.js'),'utf8');
-  if (sw.includes("self.addEventListener('fetch'")) {
-    sw = patchOnce(sw,"self.addEventListener('fetch', (event) => {", "self.addEventListener('fetch', (event) => {\n  if (new URL(event.request.url).pathname.startsWith('/secure/')) return;");
-  } else if (sw.includes('self.addEventListener("fetch"')) {
-    sw = patchOnce(sw,'self.addEventListener("fetch", (event) => {','self.addEventListener("fetch", (event) => {\n  if (new URL(event.request.url).pathname.startsWith("/secure/")) return;');
-  } else throw new Error('Service worker fetch anchor required');
+  // The exact legacy worker has no fetch handler or email-shell fallback.
+  // Do not replace its push lifecycle with the newer preview worker.
+  const sw = readFileSync(path.join(productionSource,'public/sw.js'),'utf8');
+  if (sw.includes("addEventListener('fetch'") || sw.includes('addEventListener("fetch"')) {
+    throw new Error('Legacy service worker navigation boundary requires re-review');
+  }
   put(destination,'public/sw.js',sw);
   put(destination,'vite.config.mjs',template('vite-runtime-config.mjs'));
   const emailAfter = filesAt(path.join(email, 'src'));

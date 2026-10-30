@@ -4,9 +4,7 @@ const root = process.cwd();
 export default defineConfig({
   envPrefix:['VITE_','IGNITE_LIVE_'], envDir:false, esbuild:{jsx:'automatic'},
   define:{'process.env.LOG_LEVEL':'undefined'},
-  resolve:{alias:[
-    {find:'@/integrations/supabase/client',replacement:path.join(root,'email/src/integrations/supabase/client.ts')},
-  ]},
+  resolve:{dedupe:['react','react-dom','react-router-dom','@tanstack/react-query']},
   plugins:[{
     name:'isolated-runtime-aliases', enforce:'pre',
     resolveId(source,importer) {
