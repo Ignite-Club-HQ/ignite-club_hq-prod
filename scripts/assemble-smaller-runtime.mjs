@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sha256 } from './prod-release-review.mjs';
-import { secureRequiredInventory } from './smaller-release-runtime.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const anchor = 'ea005b7178a6de9c207b744a2ea65cffde713b5f';
@@ -85,6 +84,47 @@ export function assembleSmallerRuntime({ productionSource, currentRoot = root })
   mode = patchOnce(mode, '  return mountedAuthProvider === "icp";', '  return true;');
   mode = patchOnce(mode, '  if (mountedAuthProvider === "icp") return false;', '  return false;');
   put(secure, 'src/live/authBackendMode.ts', mode);
+  // Hard-reload recoveries belong to the secure document, never legacy home.
+  for (const file of ['components/RouteErrorBoundary.tsx','components/ClubBackendEnforcement.tsx','lib/pushNotifications.ts']) {
+    const source = readFileSync(path.join(secure,'src',file),'utf8');
+    if (!source.includes('window.location.replace("/")')) throw new Error('Secure recovery anchor missing');
+    put(secure,'src/'+file, source.replaceAll('window.location.replace("/")','window.location.replace("/secure/")'));
+  }
+  let lazy = readFileSync(path.join(secure,'src/lib/lazyWithRetry.ts'),'utf8');
+  lazy = patchOnce(lazy, 'window.location.hash : "/",', 'window.location.hash : "/secure/",');
+  put(secure,'src/lib/lazyWithRetry.ts',lazy);
+  let notFound = readFileSync(path.join(secure,'src/pages/NotFound.tsx'),'utf8');
+  notFound = patchOnce(notFound,'href="/"','href="/secure/"');
+  put(secure,'src/pages/NotFound.tsx',notFound);
+  let denial = readFileSync(path.join(secure,'src/lib/emailSignupPolicy.ts'),'utf8');
+  denial = patchOnce(denial,'Email accounts are available by invitation for Bridgewater Soccer Club and Basket Range Cricket Club. For other clubs, continue with Internet Identity.',
+    'Email accounts are available by invitation. Otherwise, continue with Internet Identity.');
+  put(secure,'src/lib/emailSignupPolicy.ts',denial);
+  // Never mutate shared legacy invite/draft storage when secure renders.
+  // The retained email runtime keeps every original key and cleanup rule.
+  const privateKeys = ['redirectAfterAuth','inviteAuthContext','inviteFlowContext'];
+  for (const item of filesAt(path.join(secure,'src'))) {
+    if (!/\.(?:tsx?|jsx?)$/.test(item.file)) continue;
+    let text = readFileSync(path.join(secure,'src',item.file),'utf8');
+    const old = text;
+    for (const key of privateKeys) text = text.replaceAll('"'+key+'"','"ignite_secure_'+key+'"').replaceAll("'"+key+"'","'ignite_secure_"+key+"'");
+    if (text !== old) put(secure,'src/'+item.file,text);
+  }
+  const html = entry => `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ignite Club HQ</title><meta name="description" content="Your club, teams, events and conversations in Ignite Club HQ."></head><body><div id="root"></div><script type="module" src="${entry}"></script></body></html>`;
+  put(destination,'email-index.html',html('/email/src/main.tsx'));
+  put(destination,'secure-index.html',html('/secure/src/product-main.tsx'));
+  put(destination,'public/_redirects','/secure/* /secure-index.html 200\n/* /email-index.html 200\n');
+  put(destination,'public/.well-known/ii-auth-callbacks',JSON.stringify({callbacks:['/secure/auth','/native-sign-in.html']})+'\n');
+  put(destination,'public/secure/native-sign-in.html',readFileSync(path.join(currentRoot,'frontend/public/native-sign-in.html'),'utf8'));
+  // A legacy service worker may not supply its email shell for secure paths.
+  let sw = readFileSync(path.join(currentRoot,'frontend/public/sw.js'),'utf8');
+  if (sw.includes("self.addEventListener('fetch'")) {
+    sw = patchOnce(sw,"self.addEventListener('fetch', (event) => {", "self.addEventListener('fetch', (event) => {\n  if (new URL(event.request.url).pathname.startsWith('/secure/')) return;");
+  } else if (sw.includes('self.addEventListener("fetch"')) {
+    sw = patchOnce(sw,'self.addEventListener("fetch", (event) => {','self.addEventListener("fetch", (event) => {\n  if (new URL(event.request.url).pathname.startsWith("/secure/")) return;');
+  } else throw new Error('Service worker fetch anchor required');
+  put(destination,'public/sw.js',sw);
+  put(destination,'vite.config.mjs',template('vite-runtime-config.mjs'));
   const emailAfter = filesAt(path.join(email, 'src'));
   const changed = actual.filter(e => emailAfter.find(f => f.file === e.file)?.sha256 !== e.sha256);
   if (changed.map(f => f.file).sort().join('|') !== ['hooks/useAuth.tsx','pages/AppSettingsPage.tsx','pages/AuthPage.tsx'].join('|')) {
