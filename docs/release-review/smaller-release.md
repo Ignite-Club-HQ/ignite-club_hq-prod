@@ -37,3 +37,7 @@ Existing scores, History, media, Vault, push schedules, credentials and notifica
 5. Verify Netlify/Codemagic production context and exact-commit publication ordering. Check sign-in and existing push receipt/tap-through on release-candidate phones; do not alter scheduler activation to accomplish this.
 
 **Score work is not a remaining prerequisite for this smaller release.** The blockers above concern source isolation, safe sign-in adoption and hosted acceptance only. Preparation is not release authorization.
+
+## Verification
+
+25 release/signup safeguards and 80 focused frontend sign-in tests pass. The signup rehearsal ran in a disposable socket-only PostgreSQL cluster without inherited hosted credentials. These checks cover inventory rejection, original-file preservation, tab switching, invite validation, retained-email enforcement and redirect behaviour; they do not establish production activation or signed-in hosted acceptance.
