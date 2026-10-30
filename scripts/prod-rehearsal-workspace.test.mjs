@@ -9,9 +9,12 @@ const evidenceText = readFileSync(new URL('../docs/release-review/prod-evidence-
 const dispositionText = readFileSync(new URL('../docs/release-review/transition-dispositions-2026-10-30.json', import.meta.url), 'utf8');
 const policy = JSON.parse(readFileSync(new URL('./auth-release-policy.json', import.meta.url), 'utf8'));
 const dir = new URL('../supabase/migrations/', import.meta.url);
-const files = Object.fromEntries(readdirSync(dir).filter(f => f.endsWith('.sql')).map(f => [f, readFileSync(new URL(f, dir), 'utf8')]));
-const inputs = { evidenceText, dispositionText, policy, files };
 const record = JSON.parse(dispositionText);
+const currentFiles = Object.fromEntries(readdirSync(dir).filter(f => f.endsWith('.sql')).map(f => [f, readFileSync(new URL(f, dir), 'utf8')]));
+// Historical fixture only: production tooling must still reject the current 38-file
+// checkout against this archived 37-file review, never silently filter real inputs.
+const files = Object.fromEntries(record.migrations.map(e => [e.file, currentFiles[e.file]]));
+const inputs = { evidenceText, dispositionText, policy, files };
 const eligible = record.migrations.find(e => e.disposition === 'adapt');
 const candidate = { file: 'reviewed_adapter.sql', sql: 'SELECT 42;', sha256: sha256('SELECT 42;'), originals: [{ file: eligible.file, sha256: eligible.sha256 }] };
 
@@ -38,6 +41,7 @@ test('only explicitly supplied source-bound adaptations enter the disposable wor
   } finally { rmSync(result.directory, { recursive: true, force: true }); }
 });
 test('source drift, missing/extra files and reordered dispositions fail closed', () => {
+  assert.throws(() => stageProdRehearsal({ ...inputs, files: currentFiles }), /Complete ordered hash-matched source dispositions required/);
   for (const changed of [{ ...files, [eligible.file]: 'changed' }, Object.fromEntries(Object.entries(files).slice(1)), { ...files, '20261101000000_extra.sql': 'select 1;' }]) {
     assert.throws(() => stageProdRehearsal({ ...inputs, files: changed }));
   }
