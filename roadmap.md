@@ -5,6 +5,8 @@
 - [x] Bound the owner-supplied production CSV to a fingerprinted offline evidence record and fingerprinted all 37 pending files as held without editing applied files. Full semantic classification waits on target object definitions beyond the supplied profile/invitation schema.
 - [x] Prepared non-executing signup/access draft preserving production profile creation and both existing account triggers; no routing activation or deployment unlock. Helper/lifecycle acceptance remains required before adoption.
 - [x] Ran 15 focused release safeguards; remaining target-object, hosted and phone blockers recorded in docs/release-review/README.md. No production execution is authorized.
+- [x] Reconciled owner-supplied PROD object evidence (SHA-256 e1de59c0…3b69) against all 37 pending migrations: 2 already applied, 8 partially applied with divergent PROD implementations (forced signature conflicts on create_competition_event and can_invite_players_to_team; current frontend requires the new create_competition_event signature), 21 genuinely new, 6 PROD-excluded. Report: docs/release-review/reconciliation-2026-10-30.md. Read-only; no PROD changes.
+- [ ] Nine category-B per-object decisions (keep PROD behaviour vs adopt main's version), then the approved exact ledger-staging mechanism for already-applied files, then a complete ordered release plan. Hosted settings and phone testing remain external.
 - [ ] Complete semantic reconciliation and runner staging: needs additional approved target-object evidence and review of exact exclusions; hosted settings/credentials and real phones remain external blockers. All candidates stay held.
 
 ## Current request — exact competition-role self-removal (30 Oct 2026)
