@@ -842,6 +842,26 @@ export default function AuthPage() {
     ? 'border-border/50 bg-card/95'
     : 'border-border/50 bg-card/50 backdrop-blur-sm';
 
+  // Both sign-in systems are genuinely in play (the email allowlist names
+  // clubs that keep it, and secure sign-in is available), so ask which one
+  // this person is instead of burying one path under the other. An invite
+  // hand-off skips the picker: that link already says where they belong.
+  // Once a card is tapped the device remembers it and the picker steps aside.
+  const offerMethodChoice = !forceEmailAuth && !forceIcpAuth && !isInInviteFlow
+    && shouldOfferAuthMethodChoice() && readAuthChoice() === null;
+
+  if (offerMethodChoice) {
+    return (
+      <AuthMethodChoice
+        shellStyle={authShellStyle}
+        emailClubNames={authMethodEmailClubNames()}
+        online={isOnline}
+        onUseEmail={() => setAuthMethodChoice("supabase")}
+        onUseSecure={() => setAuthMethodChoice("icp")}
+      />
+    );
+  }
+
   if (useIcpLab) {
     return (
       <IcpSignInScreen
