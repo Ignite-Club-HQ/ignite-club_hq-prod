@@ -33,6 +33,7 @@
 - Transition evidence adds opt-in source-bound bucket/privacy, effective function ACL and exact named-schedule metadata; source dispositions remain a complete hash-bound held review, never a runner plan. Why: catalog exports must not authorize execution or leak scheduler credentials.
 - Release rehearsals bind held originals, candidate SQL and production definitions to hashes; feature/signup tests use disposable socket-only clusters without inherited credentials, and held score designs never compile into candidates. Why: synthetic acceptance cannot unlock deployment or authorize data transitions.
 - Offline score reconciliation requires explicit competition/match/team anchors, preserves zero/NULL and every source before-image, and holds divergent/orphaned orientations without timestamp precedence. Why: synthetic proposals must not silently discard History or authorize score clearing.
+- In-app score review sends bounded manual score-only records through a club-scoped server-authorized AI endpoint, never writes scores or treats AI as source authority; persisted provider blocks fail closed. Why: explanatory recommendations cannot authorize data reconciliation.
 
 <!-- ic-skills:managed:start -->
 <!-- state: configured (on-demand) -->
