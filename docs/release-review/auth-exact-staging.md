@@ -31,6 +31,8 @@ The exact baseline has Supabase auth, including Google sign-in machinery, but no
 
 ## Remaining gates
 
+Verification: **44 tests passed** across exact staging, source audit, complete release inventories, archived rehearsal packaging, socket-only signup lifecycle, auth preflight and restoration/publication safeguards. Historical tests now explicitly reject the current 38-file checkout against the old 37-file transition record, rather than failing positive fixtures before their intended validations. Latest preview status is build OK.
+
 The database draft packaging is prepared; selective secure-provider/post-login integration is not yet assembled or accepted. It is an engineering dependency, not another score-reconciliation prerequisite. Independently authorized current target inspection, hosted signup/confirmation/admin checks, Netlify/Codemagic settings and phone notification acceptance remain unavailable in this environment.
 
 No production merge, branch creation, publication, function deployment, permission change or scheduler action was performed. Score/AI work remains deferred.
