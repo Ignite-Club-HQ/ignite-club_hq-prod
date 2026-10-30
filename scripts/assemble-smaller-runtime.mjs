@@ -117,8 +117,13 @@ export function assembleSmallerRuntime({ productionSource, currentRoot = root })
   const html = entry => `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ignite Club HQ</title><meta name="description" content="Your club, teams, events and conversations in Ignite Club HQ."></head><body><div id="root"></div><script type="module" src="${entry}"></script></body></html>`;
   put(destination,'email-index.html',html('/email/src/main.tsx'));
   put(destination,'secure-index.html',html('/secure/src/product-main.tsx'));
+  const tailwind = readFileSync(path.join(currentRoot,'frontend/tailwind.config.ts'),'utf8')
+    .replace('"./src/**/*.{ts,tsx}"','"./email/src/**/*.{ts,tsx}", "./secure/src/**/*.{ts,tsx}"');
+  put(destination,'tailwind.config.ts',tailwind);
+  put(destination,'postcss.config.js',readFileSync(path.join(currentRoot,'frontend/postcss.config.js'),'utf8'));
   put(destination,'public/_redirects','/secure/* /secure-index.html 200\n/* /email-index.html 200\n');
-  put(destination,'public/.well-known/ii-auth-callbacks',JSON.stringify({callbacks:['/secure/auth','/native-sign-in.html']})+'\n');
+  // Local DEV callbacks only; host-specific PROD allowlists require verified origin.
+  put(destination,'public/.well-known/ii-auth-callbacks',JSON.stringify({callbacks:['http://localhost:8082/secure/auth']})+'\n');
   put(destination,'public/secure/native-sign-in.html',readFileSync(path.join(currentRoot,'frontend/public/native-sign-in.html'),'utf8'));
   // The exact legacy worker has no fetch handler or email-shell fallback.
   // Do not replace its push lifecycle with the newer preview worker.
@@ -138,6 +143,7 @@ export function assembleSmallerRuntime({ productionSource, currentRoot = root })
     mergeAuthorized:false, databaseExecutionAuthorized:false, sourceClosureAccepted:false,
     secureProductionReady:false, nativeAcceptance:false,
     beforeImages: actual, changedEmailFiles:changed, email:emailAfter, secure:filesAt(path.join(secure,'src')),
+    legacyWorkerSha256:sha256(sw), candidatePackageSha256:sha256(JSON.stringify(candidatePackage)),
     limitations:['Secure raw-link and native deep-link adaptation still requires acceptance',
       'Verified PROD canister inventory absent; hosted settings and authenticated acceptance unverified',
       'DEV rehearsal is not the approved production migration runner'] };
