@@ -4,7 +4,8 @@ import path from 'node:path';
 
 /** Conservative source-name inventory, not a SQL parser or release authorization. */
 export function collectPublicObjectNames(files) {
-  const names = new Set(['handle_new_user', 'auto_claim_eois_by_email', 'app_settings']);
+  const names = new Set(['handle_new_user', 'auto_claim_eois_by_email', 'app_settings',
+    'direct_conversations', 'direct_messages']);
   for (const sql of Object.values(files)) {
     if (typeof sql !== 'string') throw new Error('SQL source text required');
     for (const match of sql.matchAll(/\bpublic\s*\.\s*"?([a-z_][a-z0-9_]*)"?/gi)) names.add(match[1].toLowerCase());
