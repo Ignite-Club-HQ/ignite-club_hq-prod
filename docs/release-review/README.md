@@ -20,7 +20,7 @@ The separately supplied scheduler results show both reminder jobs active, refere
 
 ## Outstanding release blockers
 
-1. Reconcile each of the 37 files with target object definitions and immutable recovered source. The supplied schema only covers profile/invitation/team columns, not all affected competition/media/chat functions and policies. Additional bounded target evidence is required before semantic reconciliation can be completed.
+1. ~~Reconcile each of the 37 files with target object definitions~~ **Done 30 Oct**: `reconciliation-2026-10-30.md` classifies all 37 files from the owner-supplied object evidence (SHA-256 `e1de59c0…3b69`): 2 already applied (ledger-staging candidates), 8 partially applied with divergent PROD implementations needing per-object decisions (two forced signature conflicts: `create_competition_event`, `can_invite_players_to_team`), 21 genuinely new, 6 excluded from PROD. Next: the nine category-B decisions, then the approved staging mechanism.
 2. The old signup replacement, fixture test and DEV club activation cannot execute unchanged. Because they are already applied in DEV, do not modify them. Their exclusion requires a separately approved exact staging mechanism in the existing database runner, not invented ledger entries or a later corrective migration.
 3. Review the extracted invitation helper for malformed configuration, scope conflicts and usage bounds; test the new BEFORE trigger alongside both existing AFTER triggers on an isolated representative database before adopting the draft.
 4. Verify membership coverage, hosted sign-in/confirmation settings and the fresh routing configuration before separately approving activation of the verified production club IDs.

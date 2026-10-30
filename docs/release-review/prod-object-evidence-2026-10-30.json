@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-30",
+  "evidenceFile": "Supabase_Snippet_Schema_RLS_Introspection_for_Requested_Public_Objects.csv",
+  "evidenceSha256": "e1de59c00013c1a30bf62b3e085a75df012c6d4ed7e51b53c41939f87cc93b69",
+  "evidenceSource": "Owner-run read-only SQL Editor export (target-object-evidence.sql); connection identity owner-supplied, not independently verified by this workspace",
+  "deploymentAuthorized": false,
+  "sectionCounts": {
+    "columns": 757,
+    "constraints": 226,
+    "functions": 121,
+    "indexes": 261,
+    "policies": 233,
+    "relations and RLS state": 46,
+    "requested objects": 132,
+    "storage policies": 35,
+    "table grants": 966,
+    "triggers": 153,
+    "types": 48
+  },
+  "note": "Function definitions and defaults were reviewed for the comparison but are NOT stored here because they can embed secrets. Only names, presence and similarity scores are recorded.",
+  "keyFindings": {
+    "anonRoutingPolicyAbsent": true,
+    "handleNewUserIsIdOnly": true,
+    "newTablesAbsentInProd": [
+      "competition_event_operations",
+      "competition_pending_scores",
+      "competition_role_email_invites",
+      "club_invite_message_defaults",
+      "welcome_email_deliveries",
+      "welcome_email_settings",
+      "icp_welcome_email_deliveries",
+      "canister_memory_reports"
+    ],
+    "columnsAlreadyPresentInProd": [
+      "competitions.hide_ladder",
+      "events.duty_team_id",
+      "photos.competition_id",
+      "club_news.target_mini_league_id",
+      "club_news.target_competition_id",
+      "vault_folders.competition_id",
+      "vault_files.competition_id",
+      "competitions.hide_scores",
+      "competition_divisions.hide_scores"
+    ],
+    "columnsAbsentInProd": [
+      "profiles.country",
+      "clubs.home_country",
+      "events.duty_team_reminder_sent",
+      "events.history_competition_id",
+      "game_results.competition_id"
+    ],
+    "functionBodySimilarity": {
+      "get_competition_role_link_status": 0.995,
+      "accept_competition_role_link": 0.974,
+      "invite_competition_official": 0.995,
+      "claim_competition_role_invites_on_profile_create": 0.996,
+      "validate_event_duty_team": 0.326,
+      "create_competition_event": 0.102,
+      "is_competition_audience": 0.555,
+      "club_news_competition_ids": 0.789,
+      "can_invite_players_to_team": 0.097,
+      "guard_external_competition_match_edits": 0.404,
+      "sync_competition_match_events": 0.057
+    },
+    "signatureConflicts": [
+      "create_competition_event: PROD takes (p_type, p_event_date, p_end_time) and returns a notification count; pending migration takes (p_event_type, p_starts_at, p_ends_at, p_operation_id) with idempotency via competition_event_operations. Current frontend calls the NEW signature.",
+      "can_invite_players_to_team: PROD takes (_user_id, _team_id); pending migration takes (team_id) using auth.uid(). CREATE OR REPLACE would add an overload, not replace."
+    ],
+    "equivalentPoliciesUnderDifferentNames": [
+      "competition_role_links: PROD 'Competition admins create/view/revoke role links' vs migration '*_manager' names",
+      "team_invites/user_roles: PROD 'Comp admins and captains ...' vs migration 'competition_admin_team_invites_*' names",
+      "photos: PROD 'Competition members ...' vs migration 'photos_competition_scope_*' names"
+    ],
+    "dutyTriggerNameMismatch": "PROD has trg_validate_event_duty_team; migration creates events_validate_duty_team"
+  }
+}
