@@ -535,6 +535,15 @@ export function isEmailAuthAllowedForClubs(
 ): boolean {
   if (!isEmailAuthAllowlistActive(config)) return true;
   if (clubIds.length === 0) return true;
-  const allowed = new Set(config.emailAuthClubIds);
+  const allowed = new Set(config.emailAuthClubs.map(c => c.id));
   return clubIds.some(id => allowed.has(id.trim().toLowerCase()));
+}
+
+/**
+ * Club names to show on the sign-in choice screen, in allowlist order.
+ * A signed-out visitor cannot read club names from the database, so these come
+ * from the routing config itself rather than a lookup.
+ */
+export function emailAuthClubNames(config: BackendRoutingConfig): string[] {
+  return config.emailAuthClubs.map(c => c.name);
 }
