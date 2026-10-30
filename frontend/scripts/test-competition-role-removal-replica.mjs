@@ -11,7 +11,7 @@ const ok = r => { assert.ok('Ok' in r, r.Err); return r.Ok; };
 const server = await PocketIcServer.start();
 let pic;
 try {
-  pic = await PocketIc.create(server.getUrl(), { requestTimeoutMs: 180000 });
+  pic = await PocketIc.create(server.getUrl(), { processingTimeoutMs: 180000 });
   const { actor: c } = await pic.setupCanister({ idlFactory, wasm: process.env.COMPETITION_DOMAIN_WASM, sender: governor, controllers: [governor], arg: IDL.encode([IDL.Principal],[governor]) });
   c.setPrincipal(governor);
   for (const [user, role, cup, team] of [[self,'admin','cup',[]],[self,'committee','cup',[]],[self,'admin','cup',['team']],[self,'admin','other',[]],[self,'owner','owner-cup',[]],[other,'admin','cup',[]]]) ok(await c.grant_role(user,role,cup,team));
