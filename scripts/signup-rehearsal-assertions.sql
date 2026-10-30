@@ -58,7 +58,7 @@ DO $$ BEGIN
  IF public.email_signup_invite_allowed('team-one','invited@example.test') IS NOT FALSE THEN RAISE EXCEPTION 'Non-array config allowed'; END IF;
 END; $$;
 -- Unknown helper results must reject rather than silently allow account creation.
-CREATE OR REPLACE FUNCTION public.email_signup_invite_allowed(text,text) RETURNS boolean LANGUAGE sql AS 'SELECT NULL::boolean';
+CREATE OR REPLACE FUNCTION public.email_signup_invite_allowed(_token text,_email text) RETURNS boolean LANGUAGE sql AS 'SELECT NULL::boolean';
 DO $$ DECLARE rejected boolean := false; BEGIN
  BEGIN INSERT INTO auth.users VALUES(gen_random_uuid(),'null@example.test','{"provider":"email"}','{}');
  EXCEPTION WHEN SQLSTATE 'P0001' THEN rejected := true; END;
