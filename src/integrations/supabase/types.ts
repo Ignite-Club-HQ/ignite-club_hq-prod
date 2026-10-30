@@ -8971,6 +8971,30 @@ export type Database = {
           },
         ]
       }
+      score_review_ai_access: {
+        Row: {
+          blocked: boolean
+          id: string
+          message: string | null
+          status: number | null
+          updated_at: string
+        }
+        Insert: {
+          blocked?: boolean
+          id: string
+          message?: string | null
+          status?: number | null
+          updated_at?: string
+        }
+        Update: {
+          blocked?: boolean
+          id?: string
+          message?: string | null
+          status?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       seasons: {
         Row: {
           archived_at: string | null

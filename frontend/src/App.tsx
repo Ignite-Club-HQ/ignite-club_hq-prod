@@ -98,6 +98,7 @@ const MediaPage = lazyWithRetry(() => import("./pages/MediaPage"));
 const VaultPage = lazyWithRetry(() => import("./pages/VaultPage"));
 const ProfilePage = lazyWithRetry(() => import("./pages/ProfilePage"));
 const SettingsPage = lazyWithRetry(() => import("./pages/SettingsPage"));
+const ScoreHistoryReviewPage = lazyWithRetry(() => import("./pages/ScoreHistoryReviewPage"));
 const AccessibilitySettingsPage = lazyWithRetry(() => import("./pages/AccessibilitySettingsPage"));
 const AccountPage = lazyWithRetry(() => import("./pages/AccountPage"));
 const AdminPage = lazyWithRetry(() => import("./pages/AdminPage"));
@@ -607,6 +608,7 @@ const App = () => {
                   <Route path="/start" element={<StartPage />} />
                   <Route path="/teams/new" element={<StartTeamPage />} />
                   <Route path="/clubs/:id" element={<ClubDetailPage />} />
+                  <Route path="/clubs/:clubId/score-review" element={<ScoreHistoryReviewPage />} />
                   <Route path="/club-link/:linkId" element={<ClubLinkEmbedPage />} />
                   <Route path="/news" element={<ClubNewsPage />} />
                   <Route path="/news/:newsId" element={<ClubNewsPostPage />} />
