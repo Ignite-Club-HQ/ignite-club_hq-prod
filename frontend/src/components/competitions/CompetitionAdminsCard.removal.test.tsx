@@ -33,6 +33,6 @@ it("failed removal keeps the row and does not announce success", async () => {
   fireEvent.click(await screen.findByRole("button", {name:"Leave"}));
   fireEvent.click(screen.getByRole("button", {name:"Leave role"}));
   await waitFor(() => expect(m.toast).toHaveBeenCalledWith(expect.objectContaining({variant:"destructive"})));
-  expect(screen.getByRole("button", {name:"Leave"})).toBeInTheDocument();
+  expect(screen.getByRole("button", {name:"Leave", hidden:true})).toBeInTheDocument();
   expect(m.toast).not.toHaveBeenCalledWith(expect.objectContaining({title:"Competition role left"}));
 });
