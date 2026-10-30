@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — prepare compatible PROD release (30 Oct 2026)
+- [ ] Continue owner-approved source preparation: map all pending changes to a bounded, single-result read-only target catalog query; validate coverage and provide the copyable query for the owner. No target writes or release activation.
 - [x] Bound the owner-supplied production CSV to a fingerprinted offline evidence record and fingerprinted all 37 pending files as held without editing applied files. Full semantic classification waits on target object definitions beyond the supplied profile/invitation schema.
 - [x] Prepared non-executing signup/access draft preserving production profile creation and both existing account triggers; no routing activation or deployment unlock. Helper/lifecycle acceptance remains required before adoption.
 - [x] Ran 15 focused release safeguards; remaining target-object, hosted and phone blockers recorded in docs/release-review/README.md. No production execution is authorized.
