@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — smaller release without score changes
+- [x] Recorded owner's 07:19 UTC request for database-plan approval against the exact smaller-review hash; source inventory still matches. Scope intent recorded, but readiness not approved: no executable target staging plan or hosted acceptance exists. No release safeguards, migrations, runner or production changes.
 - [x] Prepared complete 38-file fingerprinted smaller-release review plus eight proposed sign-in/Placement Settings source entry points and two existing signup/access rehearsal drafts. All original migrations excluded from execution; score/History transitions, AI activation and unverified administrator capabilities deferred, not blockers. No main-to-prod merge, source cherry-pick, runner activation or publication.
 - [x] Passed 25 release/signup safeguards and 80 focused sign-in tests. Existing applied-file fingerprints preserved; synthetic signup rehearsal leaves production profile creation and account AFTER triggers intact. See docs/release-review/smaller-release.md.
 - [ ] Assemble and accept selective production source/dependency scope and exact approved target staging; blocked on independently verified current target/production-commit evidence and hosted settings access. Authenticated hosted/device acceptance needs owner testing; no external unmanaged session is available here. Score reconciliation and AI activation are not prerequisites for this release.
