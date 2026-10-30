@@ -35,6 +35,12 @@ relations AS (
 report(section, item) AS (
   SELECT 'requested objects', to_jsonb(r) FROM requested r
   UNION ALL
+  SELECT 'types', jsonb_build_object('name', t.typname, 'kind', t.typtype,
+    'enum_labels', (SELECT jsonb_agg(e.enumlabel ORDER BY e.enumsortorder)
+      FROM pg_enum e WHERE e.enumtypid = t.oid))
+  FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+  WHERE n.nspname = 'public' AND t.typname IN (SELECT name FROM requested)
+  UNION ALL
   SELECT 'relations and RLS state', to_jsonb(r) FROM relations r
   UNION ALL
   SELECT 'columns', jsonb_build_object('table', r.relname, 'column', a.attname,
@@ -54,6 +60,9 @@ report(section, item) AS (
   UNION ALL
   SELECT 'policies', to_jsonb(p) FROM pg_policies p
   WHERE p.schemaname = 'public' AND p.tablename IN (SELECT relname FROM relations)
+  UNION ALL
+  SELECT 'storage policies', to_jsonb(p) FROM pg_policies p
+  WHERE p.schemaname = 'storage' AND p.tablename IN ('objects', 'buckets')
   UNION ALL
   SELECT 'table grants', to_jsonb(g) FROM information_schema.role_table_grants g
   WHERE g.table_schema = 'public' AND g.table_name IN (SELECT relname FROM relations)
