@@ -33,6 +33,9 @@ export default function ScoreHistoryReviewPage() {
   const abort = useRef<AbortController>();
   useEffect(() => {
     let active = true;
+    abort.current?.abort();
+    setAnswer(""); setComparison(""); setSubmitted(undefined); setComplete(false); setConsent(false);
+    setRecords(initialRecords); setAnchors({ competitionId: "", matchId: "", homeTeamId: "", awayTeamId: "" });
     setAllowed(null);
     if (icp || !clubId || !user) { setAllowed(false); return; }
     supabase.from("user_roles").select("id").eq("user_id", user.id).eq("club_id", clubId).eq("role", "club_admin").limit(1).then(({ data, error }) => {
@@ -42,15 +45,17 @@ export default function ScoreHistoryReviewPage() {
   }, [clubId, user?.id, icp]);
   const updateRecord = (index: number, patch: Partial<ScoreReviewRecord>) => setRecords(prev => prev.map((r, i) => i === index ? { ...r, ...patch } : r));
   async function review() {
+    if (busy) return;
     setError(""); setAnswer(""); setComplete(false); setComparison("");
     try {
       if (!clubId || !allowed || !consent) return;
       if (Object.values(anchors).some(v => !v.trim() || v.trim().length > 128)) throw new Error("Provide all four identifiers, each up to 128 characters.");
       if (anchors.homeTeamId.trim() === anchors.awayTeamId.trim()) throw new Error("Home and away team identifiers must differ.");
       const body = { clubId, ...Object.fromEntries(Object.entries(anchors).map(([k,v]) => [k,v.trim()])), consent, records: prepareScoreRecords(records) };
+      setBusy(true);
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) throw new Error("Sign in again to review scores.");
-      setSubmitted(body); setBusy(true);
+      setSubmitted(body);
       const controller = new AbortController(); abort.current = controller;
       const target = getActiveSupabaseTarget();
       const response = await fetch(`${target.url}/functions/v1/score-history-review`, { method: "POST", headers: { Authorization: `Bearer ${session.session.access_token}`, apikey: target.anonKey, "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal });
@@ -77,6 +82,8 @@ export default function ScoreHistoryReviewPage() {
         if (!doneReceived) throw new Error("The review was interrupted. Any partial explanation is not a completed recommendation.");
       } finally { await reader.cancel(); }
     } catch (e) {
+      setComplete(false);
+      abort.current?.abort();
       setError(e instanceof Error && e.name === "AbortError" ? "Review stopped. No scores changed." : e instanceof Error ? e.message : "Review failed.");
     } finally { setBusy(false); abort.current = undefined; }
   }
