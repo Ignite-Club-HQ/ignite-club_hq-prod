@@ -196,6 +196,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
+      - name: Require database promotion for the checked out production commit
+        env:
+          PROD_RELEASE_READ_TOKEN: ${{ github.token }}
+        run: |
+          GITHUB_SHA="$(git rev-parse HEAD)" node scripts/prod-publication-gate.mjs --database-only
       - run: npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm --no-fund --no-audit
       - name: Build the PROD web app (PROD database + PROD canisters)
         working-directory: frontend

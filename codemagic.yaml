@@ -126,6 +126,8 @@ workflows:
         - android_signing
         - supabase_prod
     scripts:
+      - name: Require successful production promotions for this commit
+        script: node scripts/prod-publication-gate.mjs
       - name: Install frontend dependencies
         script: node scripts/ensure-frontend-deps.mjs
       - name: Build live web app
@@ -376,6 +378,8 @@ workflows:
         # Apple ID. Fill this in once the app record exists.
         APP_STORE_APP_ID: 6758928691
     scripts:
+      - name: Require successful production promotions for this commit
+        script: node scripts/prod-publication-gate.mjs
       - name: Install frontend dependencies
         script: node scripts/ensure-frontend-deps.mjs
       - name: Build live web app

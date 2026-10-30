@@ -2,6 +2,7 @@ import { ENVIRONMENTS, assertIsolated, loadIds } from './icp-environments.mjs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { verifyProdPublication } from './prod-publication-gate.mjs';
 
 export function resolveHostBuildEnv(env) {
   const branch = env.BRANCH || env.CM_BRANCH || env.GITHUB_REF_NAME;
@@ -26,6 +27,7 @@ export function resolveHostBuildEnv(env) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const env = resolveHostBuildEnv(process.env);
+    if (env.IGNITE_ICP_ENV === 'prod') await verifyProdPublication(env);
     env.IGNITE_LIVE_ICP_CANISTER_IDS_JSON = JSON.stringify(assertIsolated(env.IGNITE_ICP_ENV, loadIds(env.IGNITE_ICP_ENV)));
     const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
     for (const [command, args, cwd] of [

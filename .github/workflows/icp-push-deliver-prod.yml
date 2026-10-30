@@ -14,13 +14,21 @@ concurrency:
 
 jobs:
   deliver:
-    # Off until separately approved; the scheduled workflow must run from prod.
-    if: github.ref == 'refs/heads/prod' && vars.PROD_ICP_PUSH_ENABLED == 'true'
+    # Scheduling starts on main; execution and all credentials stay PROD-bound.
+    # Activation still requires separate approval of the repository variable.
+    if: vars.PROD_ICP_PUSH_ENABLED == 'true' && ((github.event_name == 'schedule' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/prod'))
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/heads/prod
+          persist-credentials: false
+      - name: Bind worker to the checked out production commit
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/prod)"
       - uses: actions/setup-node@v4
         with:
           node-version: "22.12.0"
@@ -35,4 +43,5 @@ jobs:
           PROD_ICP_PUSH_WORKER_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
           PROD_FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.PROD_FCM_SERVICE_ACCOUNT_JSON }}
           PUSH_WORKER_NODE_PATH: ${{ runner.temp }}/icp-push-deps/node_modules
-        run: node scripts/icp-push-deliver-prod.mjs
+        run: |
+          GITHUB_REF=refs/heads/prod GITHUB_REF_NAME=prod GITHUB_SHA="$(git rev-parse HEAD)" node scripts/icp-push-deliver-prod.mjs

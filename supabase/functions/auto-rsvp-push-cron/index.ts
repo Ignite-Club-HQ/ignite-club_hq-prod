@@ -10,11 +10,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { outboundBlockedResponse } from "../_shared/outboundGuard.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { requireReminderAuth } from "../_shared/reminder-auth.ts";
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 type Cadence = "t6d" | "t48h" | "t6h";
 
@@ -87,22 +84,18 @@ function formatWhen(eventDate: string, startTime: string | null): string {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const denied = requireReminderAuth(req, corsHeaders, Deno.env.get("AUTO_RSVP_DM_CRON_SECRET"));
+  if (denied) return denied;
+
   const __outboundBlocked = outboundBlockedResponse("auto-rsvp-push-cron");
   if (__outboundBlocked) return __outboundBlocked;
 
-  // Optional shared-secret auth (mirrors auto-rsvp-dm-cron).
-  const cronSecret = Deno.env.get("AUTO_RSVP_DM_CRON_SECRET");
-  const provided = req.headers.get("x-cron-secret") ?? new URL(req.url).searchParams.get("secret");
-  if (cronSecret && provided !== cronSecret) {
-    return new Response(JSON.stringify({ error: "Forbidden" }), {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) return new Response(JSON.stringify({ error: "Server misconfigured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    supabaseUrl,
+    serviceRoleKey,
   );
 
   // Overlap guard: 15-min cron with a TTL of 14 min so a stuck run can't stack.

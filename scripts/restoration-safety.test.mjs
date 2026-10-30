@@ -10,7 +10,11 @@ test('restored notification source matches the immutable backup exactly', () => 
   const provenance = JSON.parse(read('docs/main-backup-notification-provenance.json'));
   assert.equal(provenance.commit, '96642d0750e03d933b68957d61999de3ae983b9c');
   assert.equal(provenance.files.length, 77);
-  for (const entry of provenance.files) assert.equal(createHash('sha256').update(read(entry.file)).digest('hex'), entry.sha256, entry.file);
+  for (const entry of provenance.files) {
+    const archive = ['supabase/functions/auto-rsvp-push-cron/index.ts', 'supabase/functions/chat-photo-gallery-reminders/index.ts'].includes(entry.file)
+      ? `docs/recovery/main-backup/${entry.file}` : entry.file;
+    assert.equal(createHash('sha256').update(read(archive)).digest('hex'), entry.sha256, archive);
+  }
 });
 test('new ICP and welcome functions are preserved alongside restored senders', () => {
   for (const name of ['send-welcome-email', 'send-welcome-email-icp', 'verify-iap-receipt-icp', 'send-push-notification', 'send-fcm-notification', 'process-push-delivery-queue', 'send-email']) {

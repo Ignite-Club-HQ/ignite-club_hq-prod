@@ -1,9 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { requireReminderAuth } from "../_shared/reminder-auth.ts";
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const IGNITE_SUPPORT_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -20,8 +17,11 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const denied = requireReminderAuth(req, corsHeaders);
+  if (denied) return denied;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) return new Response(JSON.stringify({ error: "Server misconfigured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   // Overlap guard: hourly cron with a TTL of 50 min so a slow run can't stack.
