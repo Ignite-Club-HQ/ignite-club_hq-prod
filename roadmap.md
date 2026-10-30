@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — smaller release without score changes
+- [x] Fresh 07:28 UTC verification: review matches sources; 15 release/signup checks pass; DEV email/secure tabs switch directly with zero browser page errors. GitHub PROD remains at 21 Oct commit ea005b7; latest database promotion #511 and migration job succeeded for that old commit only. Published Lovable auth still shows old named-club cards. Report: docs/release-review/verification-2026-10-30.md. No authenticated hosted acceptance or production writes.
 - [x] Recorded owner's 07:19 UTC request for database-plan approval against the exact smaller-review hash; source inventory still matches. Scope intent recorded, but readiness not approved: no executable target staging plan or hosted acceptance exists. No release safeguards, migrations, runner or production changes.
 - [x] Prepared complete 38-file fingerprinted smaller-release review plus eight proposed sign-in/Placement Settings source entry points and two existing signup/access rehearsal drafts. All original migrations excluded from execution; score/History transitions, AI activation and unverified administrator capabilities deferred, not blockers. No main-to-prod merge, source cherry-pick, runner activation or publication.
 - [x] Passed 25 release/signup safeguards and 80 focused sign-in tests. Existing applied-file fingerprints preserved; synthetic signup rehearsal leaves production profile creation and account AFTER triggers intact. See docs/release-review/smaller-release.md.
