@@ -63,6 +63,17 @@ test('the settings write is a keyed upsert that only replaces the value', () => 
   assert.doesNotMatch(sql, /DELETE|TRUNCATE/i);
 });
 
+test('the owner-approved exception is scoped to exactly the routing-settings key', () => {
+  // Owner accepted this one row on 30 Oct 2026 11:04 UTC. The acceptance covers only
+  // this key and only the two retained clubs; anything wider must fail here.
+  const { sql } = runList.find((entry) => entry.file.startsWith(SETTINGS_FILE));
+  assert.match(sql, /INSERT\s+INTO\s+public\.app_settings[\s\S]{0,120}?VALUES\s*\(\s*'backend_routing_config'/i);
+  assert.match(sql, /"defaultBackend"\s*:\s*"supabase"/);
+  assert.match(sql, /966bdaec-ebf1-46da-b2b3-cc53bf05c422/);
+  assert.match(sql, /493ee2e3-c834-487d-93be-d1c8a0dbc4a8/);
+  assert.equal((sql.match(/"id"\s*:\s*"/g) || []).length, 2);
+});
+
 test('function bodies keep only the signup profile insert production already does', () => {
   const bodyWrites = [];
   for (const { file, sql } of runList) {
