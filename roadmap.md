@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — prepare compatible PROD release (30 Oct 2026)
+- [ ] Continue: consolidate remaining catalog, effective privilege, bucket and named-scheduler evidence into one read-only packet; record a hash-bound disposition for all 37 originals with every release hold intact.
 - [x] Continued: recorded all nine preserve/adapt recommendations and an ordered staging proposal in docs/release-review/transition-recommendations-2026-10-30.md; corrected legacy caller/ACL/DEV-guard overstatements and prepared a 66-name catalog-only follow-up query. 23 offline safeguards pass; all source fingerprints, runner and publication holds remain unchanged. No production changes.
 - [x] Continued source preparation: mapped all pending changes to a bounded single-result read-only target catalog query, including storage policies and trigger functions; 35 combined safeguards pass. Owner execution/export is needed for semantic reconciliation; no target writes or release activation.
 - [x] Bound the owner-supplied production CSV to a fingerprinted offline evidence record and fingerprinted all 37 pending files as held without editing applied files. Full semantic classification waits on target object definitions beyond the supplied profile/invitation schema.
