@@ -8,9 +8,10 @@ const entries = ['components/AuthMethodChoice.tsx', 'components/ClubBackendEnfor
   'live/backendRouting.ts', 'pages/AuthPage.tsx', 'pages/PlacementAdminSettingsPage.tsx',
   'hooks/useAuth.tsx', 'App.tsx'];
 
-function resolveImport(root, from, specifier) {
+function resolveImport(root, from, specifier, aliases) {
   if (!specifier.startsWith('@/') && !specifier.startsWith('.')) return null;
-  const base = specifier.startsWith('@/') ? path.join(root, specifier.slice(2)) : path.resolve(path.dirname(path.join(root, from)), specifier);
+  const base = aliases[specifier] ? path.join(root, aliases[specifier])
+    : specifier.startsWith('@/') ? path.join(root, specifier.slice(2)) : path.resolve(path.dirname(path.join(root, from)), specifier);
   if (!base.startsWith(`${root}${path.sep}`)) throw new Error('Import escapes source root');
   for (const p of [base, ...extensions.map(e => base + e), ...extensions.map(e => path.join(base, 'index' + e))]) {
     if (existsSync(p) && lstatSync(p).isFile() && !lstatSync(p).isSymbolicLink()) return path.relative(root, p);
@@ -19,7 +20,7 @@ function resolveImport(root, from, specifier) {
 }
 
 /** Conservative import discovery is an audit, never acceptance or a copy plan. */
-export function auditAuthSourceClosure({ currentRoot, productionRoot, productionCommit }) {
+export function auditAuthSourceClosure({ currentRoot, productionRoot, productionCommit, aliases = {} }) {
   if (productionCommit !== 'ea005b7178a6de9c207b744a2ea65cffde713b5f') throw new Error('Exact reviewed production anchor required');
   const root = path.resolve(currentRoot);
   const prod = path.resolve(productionRoot);
@@ -37,7 +38,7 @@ export function auditAuthSourceClosure({ currentRoot, productionRoot, production
     const before = existsSync(baseline) ? readFileSync(baseline, 'utf8') : null;
     const imports = [...source.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)["']([^"']+)["']/g)].map(m => m[1]);
     for (const specifier of imports) {
-      const dependency = resolveImport(root, file, specifier);
+      const dependency = resolveImport(root, file, specifier, aliases);
       if (dependency === null) packages.add(specifier);
       else if (dependency === undefined) unresolved.push({ file, specifier });
       else queue.push(dependency);
@@ -62,7 +63,7 @@ export function auditAuthSourceClosure({ currentRoot, productionRoot, production
   walk(prod);
   files.sort((a, b) => a.file.localeCompare(b.file));
   return { schemaVersion: 1, reviewOnly: true, mergeAuthorized: false, deploymentAuthorized: false,
-    sourceClosureAccepted: false, productionCommit, entryPoints: entries,
+    sourceClosureAccepted: false, productionCommit, entryPoints: entries, aliases,
     limitations: ['Conservative import scan; excludes runtime-computed imports and requires manual semantic review',
       'App/provider graph is diagnostic only, not an instruction to copy all dependencies',
       'Backend routing may affect scores without changing score file bytes'],
