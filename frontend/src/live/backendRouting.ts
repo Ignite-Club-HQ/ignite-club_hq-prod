@@ -45,6 +45,9 @@ export type ApprovedBackendTarget = {
   preparation?: DeploymentPreparation;
 };
 
+/** One club allowed to keep email sign-in, with the label shown on /auth. */
+export type EmailAuthClub = { id: string; name: string };
+
 export type BackendRoutingConfig = {
   defaultBackend: BackendProvider;
   /** ISO 3166-1 alpha-2 code -> which backend(s) that country may use. */
@@ -59,6 +62,18 @@ export type BackendRoutingConfig = {
    * screen); used to test ICP with one club at a time.
    */
   clubBackendOverrides: Record<string, BackendProvider>;
+  /**
+   * Clubs whose members may keep signing in with email (Supabase).
+   *
+   * Empty = the allowlist is off: email sign-in follows the country rules like
+   * every other backend. Non-empty = only these clubs' members may sign in
+   * with email; everyone else is directed to Internet Identity.
+   *
+   * Each entry carries its own label because a signed-out visitor cannot read
+   * club names from the database, and the sign-in screen needs a name to tell
+   * existing members which button is theirs.
+   */
+  emailAuthClubs: EmailAuthClub[];
 };
 
 export const DEFAULT_BACKEND_ROUTING_CONFIG: BackendRoutingConfig = {
@@ -67,6 +82,7 @@ export const DEFAULT_BACKEND_ROUTING_CONFIG: BackendRoutingConfig = {
   targets: [],
   countryTargets: {},
   clubBackendOverrides: {},
+  emailAuthClubs: [],
 };
 
 const ELIGIBILITIES: BackendEligibility[] = ["supabase", "icp", "both"];
@@ -110,6 +126,9 @@ export function validateApprovedTarget(target: Omit<ApprovedBackendTarget, "id">
 }
 
 const CANISTER_ID_RE = /^[a-z0-9]{5}(-[a-z0-9]{5}){3}-[a-z0-9]{3}$/;
+
+/** Club ids are Supabase UUIDs; the email allowlist only accepts these. */
+const CLUB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** True when a Cloud Engine target is enabled and has an address plus at least one canister. */
 export function isCloudEngineUsable(target: ApprovedBackendTarget): boolean {
@@ -254,7 +273,36 @@ export function parseBackendRoutingConfig(value: unknown): BackendRoutingConfig 
   // country. Any legacy "clubBackendOverrides" key in stored config is ignored.
   const clubBackendOverrides: Record<string, BackendProvider> = {};
 
-  return { defaultBackend: rawDefault, countryRules, targets, countryTargets, clubBackendOverrides };
+  // The email sign-in allowlist: clubs whose members keep email accounts.
+  // An absent or empty list leaves the switch off entirely. Entries carry
+  // their own label because a signed-out visitor cannot read club names.
+  const emailAuthClubs: EmailAuthClub[] = [];
+  const rawEmailClubs = record.emailAuthClubs;
+  if (rawEmailClubs !== null && rawEmailClubs !== undefined) {
+    if (!Array.isArray(rawEmailClubs)) {
+      throw new Error(`${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs must be an array.`);
+    }
+    for (const raw of rawEmailClubs) {
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        throw new Error(`${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs entries must be { id, name } objects.`);
+      }
+      const entry = raw as Record<string, unknown>;
+      const id = typeof entry.id === "string" ? entry.id.trim().toLowerCase() : "";
+      if (!CLUB_ID_RE.test(id)) {
+        throw new Error(`"${String(entry.id ?? "")}" in ${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs is not a club id.`);
+      }
+      const name = typeof entry.name === "string" ? entry.name.trim() : "";
+      if (!name) {
+        throw new Error(`Club ${id} in ${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs needs a name for the sign-in screen.`);
+      }
+      if (name.length > 80) {
+        throw new Error(`Name for club ${id} in ${BACKEND_ROUTING_CONFIG_KEY}.emailAuthClubs must be 80 characters or fewer.`);
+      }
+      if (!emailAuthClubs.some(c => c.id === id)) emailAuthClubs.push({ id, name });
+    }
+  }
+
+  return { defaultBackend: rawDefault, countryRules, targets, countryTargets, clubBackendOverrides, emailAuthClubs };
 }
 
 /** localStorage key holding the last successfully loaded routing config. */
@@ -295,17 +343,27 @@ export function readCachedBackendRoutingConfig(): BackendRoutingConfig | null {
 
 let activeConfig: BackendRoutingConfig | null = null;
 
-function copyConfig(config: BackendRoutingConfig): BackendRoutingConfig {
+/**
+ * A routing config as callers hand it in. `emailAuthClubs` is optional here so
+ * existing call sites (and stored configs written before the allowlist existed)
+ * keep working — an omitted list means the switch is off.
+ */
+export type BackendRoutingConfigInput = Omit<BackendRoutingConfig, "emailAuthClubs"> & {
+  emailAuthClubs?: EmailAuthClub[];
+};
+
+function copyConfig(config: BackendRoutingConfigInput): BackendRoutingConfig {
   return {
     defaultBackend: config.defaultBackend,
     countryRules: { ...config.countryRules },
     targets: config.targets.map(t => ({ ...t, ...(t.canisterIds ? { canisterIds: { ...t.canisterIds } } : {}), ...(t.preparation ? { preparation: { ...t.preparation, groupIds: [...t.preparation.groupIds] } } : {}) })),
     countryTargets: { ...config.countryTargets },
     clubBackendOverrides: { ...config.clubBackendOverrides },
+    emailAuthClubs: (config.emailAuthClubs ?? []).map(c => ({ ...c })),
   };
 }
 
-export function applyBackendRoutingConfig(config: BackendRoutingConfig | null): void {
+export function applyBackendRoutingConfig(config: BackendRoutingConfigInput | null): void {
   activeConfig = config ? copyConfig(config) : null;
 }
 
@@ -458,4 +516,43 @@ export function resolveTargetForCountry(
     if (pinned) return pinned;
   }
   return enabledForBackend[0];
+}
+
+/**
+ * True when the email sign-in allowlist is armed: at least one club is listed.
+ * While it is off, email sign-in follows the country rules exactly as before.
+ */
+export function isEmailAuthAllowlistActive(config: BackendRoutingConfig): boolean {
+  return config.emailAuthClubs.length > 0;
+}
+
+/**
+ * Pure: may an account whose club memberships are `clubIds` keep signing in
+ * with email?
+ *
+ * - Allowlist off -> always allowed (nothing has been diverted yet).
+ * - No known clubs -> allowed. App admins, a still-pending invite and a failed
+ *   membership lookup all land here; refusing them would lock people out of the
+ *   app over a lookup problem.
+ * - At least one allowlisted club -> allowed. A member of an email club *and* a
+ *   secure-sign-in club keeps their email login.
+ * - Every club outside the allowlist -> not allowed: secure sign-in only.
+ */
+export function isEmailAuthAllowedForClubs(
+  config: BackendRoutingConfig,
+  clubIds: readonly string[],
+): boolean {
+  if (!isEmailAuthAllowlistActive(config)) return true;
+  if (clubIds.length === 0) return true;
+  const allowed = new Set(config.emailAuthClubs.map(c => c.id));
+  return clubIds.some(id => allowed.has(id.trim().toLowerCase()));
+}
+
+/**
+ * Club names to show on the sign-in choice screen, in allowlist order.
+ * A signed-out visitor cannot read club names from the database, so these come
+ * from the routing config itself rather than a lookup.
+ */
+export function emailAuthClubNames(config: BackendRoutingConfig): string[] {
+  return config.emailAuthClubs.map(c => c.name);
 }

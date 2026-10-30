@@ -16,6 +16,10 @@ vi.mock("@/live/authBackendMode", () => ({
   isIcpAuthAvailable: () => true,
   isAuthChoiceOverrideOrigin: () => true,
   useIcpAuthScreen: () => false,
+  shouldOfferAuthMethodChoice: () => false,
+  authMethodEmailClubNames: () => [],
+  readAuthChoice: () => null,
+  setAuthMethodChoice: () => undefined,
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => useAuthMock() }));
 vi.mock("@/hooks/usePasskey", () => ({

@@ -13,6 +13,8 @@ import {
   deriveClubBackendsFromHomeCountries,
   getBackendRoutingConfig,
   isClubHomeCountryRoutingActive,
+  isEmailAuthAllowlistActive,
+  isEmailAuthAllowedForClubs,
   resolveBackendForUser,
   resolveClubBackendOverride,
   type BackendProvider,
@@ -86,7 +88,10 @@ async function fetchSupabaseMembership(
 }
 
 function hasClubPins(): boolean {
-  return isClubHomeCountryRoutingActive(getBackendRoutingConfig());
+  const config = getBackendRoutingConfig();
+  // The email allowlist can force a switch on its own, so the route tree must
+  // wait for its check exactly as it does for a country pin.
+  return isClubHomeCountryRoutingActive(config) || isEmailAuthAllowlistActive(config);
 }
 
 async function fetchSupabaseHomeCountries(clubIds: string[]): Promise<Record<string, string | null>> {
@@ -180,6 +185,41 @@ export function ClubBackendEnforcement({ children }: { children?: ReactNode }) {
         // A club's backend follows its home country, using the same country
         // rules as the sign-in screen.
         const config = getBackendRoutingConfig();
+
+        // The email allowlist outranks the country rules: an account whose
+        // clubs are all outside it no longer has an email home. Send them to
+        // secure sign-in, and forget this device's pick so the picker shows.
+        // An account with no known clubs is allowed through — refusing people
+        // over a failed lookup would lock them out of the app.
+        if (!isEmailAuthAllowedForClubs(config, clubIds)) {
+          if (sessionStorage.getItem(ENFORCED_KEY)) {
+            console.warn(
+              "[club-backend] Email allowlist excludes this account's clubs, but enforcement already ran — staying signed in to avoid a reload loop.",
+            );
+            toast({
+              title: "Sign-in method mismatch",
+              description:
+                "Your club uses secure sign-in, but we couldn't switch you automatically. Please sign out and sign back in with Internet Identity.",
+              variant: "destructive",
+            });
+            settle();
+            return;
+          }
+          sessionStorage.setItem(ENFORCED_KEY, "1");
+          try { localStorage.removeItem(VERIFIED_KEY); } catch { /* ignore */ }
+          toast({
+            title: "Switching sign-in method",
+            description:
+              "Your club uses secure sign-in. Signing you out so you can sign in with Internet Identity.",
+          });
+          await supabase.auth.signOut();
+          // Drop this device's pick so the sign-in picker offers both paths.
+          try { localStorage.removeItem("ignite.authChoice"); } catch { /* ignore */ }
+          // Reload the ROOT: published hosting has no SPA fallback, so a deep
+          // path would answer a plain "Not Found".
+          window.location.replace("/");
+          return;
+        }
         let homeCountries: Record<string, string | null> = {};
         try {
           homeCountries = await fetchSupabaseHomeCountries(clubIds);

@@ -18,10 +18,19 @@ import { InviteFlowProgress, getInviteFlowContext, clearInviteFlowContext } from
 import { Capacitor } from "@capacitor/core";
 import { Keyboard } from "@capacitor/keyboard";
 import { resolveKeyboardCssHeight } from "@/lib/keyboardCssHeight";
-import { isAuthChoiceOverrideOrigin, isIcpAuthAvailable, useIcpAuthScreen } from "@/live/authBackendMode";
+import {
+  authMethodEmailClubNames,
+  isAuthChoiceOverrideOrigin,
+  isIcpAuthAvailable,
+  readAuthChoice,
+  setAuthMethodChoice,
+  shouldOfferAuthMethodChoice,
+  useIcpAuthScreen,
+} from "@/live/authBackendMode";
 import { GOOGLE_SIGN_IN_ENABLED } from "@/lib/authProviderFlags";
 import { describeIcpSignInError } from "@/lib/internetIdentitySignInHelp";
 import { IcpSignInScreen } from "@/components/IcpSignInScreen";
+import { AuthMethodChoice } from "@/components/AuthMethodChoice";
 import { AuthLegalLinks } from "@/components/AuthLegalLinks";
 
 import { z } from "zod";
@@ -833,6 +842,29 @@ export default function AuthPage() {
     ? 'border-border/50 bg-card/95'
     : 'border-border/50 bg-card/50 backdrop-blur-sm';
 
+  // Both sign-in systems are genuinely in play (the email allowlist names
+  // clubs that keep it, and secure sign-in is available), so ask which one
+  // this person is instead of burying one path under the other. An invite
+  // hand-off skips the picker: that link already says where they belong.
+  // Once a card is tapped the device remembers it and the picker steps aside.
+  const offerMethodChoice = !forceEmailAuth && !forceIcpAuth && !isInInviteFlow
+    && shouldOfferAuthMethodChoice() && readAuthChoice() === null;
+  // True while both paths exist on this device — even after one was picked.
+  // This is what lets someone change their mind and return to the picker.
+  const canSwitchMethod = shouldOfferAuthMethodChoice();
+
+  if (offerMethodChoice) {
+    return (
+      <AuthMethodChoice
+        shellStyle={authShellStyle}
+        emailClubNames={authMethodEmailClubNames()}
+        online={isOnline}
+        onUseEmail={() => setAuthMethodChoice("supabase")}
+        onUseSecure={() => setAuthMethodChoice("icp")}
+      />
+    );
+  }
+
   if (useIcpLab) {
     return (
       <IcpSignInScreen
@@ -844,6 +876,9 @@ export default function AuthPage() {
         online={isOnline}
         error={authError}
         onUseEmail={() => {
+          // With both paths offered, forget the pick and show the picker
+          // again; otherwise use the URL override.
+          if (canSwitchMethod) { setAuthMethodChoice(null); return; }
           const params = new URLSearchParams(searchParams);
           params.set("auth", "email");
           setSearchParams(params, { replace: true });
@@ -1102,11 +1137,14 @@ export default function AuthPage() {
                       but the cached hint was lost, the screen defaults to
                       email — offer a way back to the Internet Identity
                       screen. Only shown when canisters are configured. */}
-                  {icpOverrideAllowed && (
+                  {(icpOverrideAllowed || canSwitchMethod) && (
                     <button
                       type="button"
                       className="w-full text-center text-xs text-muted-foreground hover:text-foreground hover:underline pt-1"
                       onClick={() => {
+                        // With both paths offered, forget the pick and show the
+                        // picker again; otherwise use the URL override.
+                        if (canSwitchMethod) { setAuthMethodChoice(null); return; }
                         const params = new URLSearchParams(searchParams);
                         params.set("auth", "icp");
                         setSearchParams(params, { replace: true });

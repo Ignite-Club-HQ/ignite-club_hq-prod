@@ -43,6 +43,7 @@ const icpConfig: BackendRoutingConfig = {
   ],
   countryTargets: {},
   clubBackendOverrides: {},
+  emailAuthClubs: [],
 };
 
 const supabaseConfig: BackendRoutingConfig = {
@@ -51,6 +52,7 @@ const supabaseConfig: BackendRoutingConfig = {
   targets: [],
   countryTargets: {},
   clubBackendOverrides: {},
+  emailAuthClubs: [],
 };
 
 beforeEach(() => {

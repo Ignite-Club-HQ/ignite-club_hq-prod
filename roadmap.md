@@ -1,5 +1,15 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Sign-in diversion — existing clubs keep email, new clubs go Internet Identity (30 Oct 2026)
+- [x] Built the split: `backend_routing_config.emailAuthClubs` names the clubs whose members keep email sign-in; everyone else is directed to Internet Identity. Empty list = switch off, email open to all exactly as before.
+- [x] `/auth` shows two equal-weight choice cards ("Sign in with email" naming the allowlisted clubs, "Sign in securely" for everyone else) whenever the allowlist is armed and secure sign-in is available. The tap is remembered per device; a "sign in the other way" control returns to the picker. Invite hand-offs skip the picker.
+- [x] After sign-in, an email account whose clubs are all outside the allowlist is signed out with an explanation and sent to secure sign-in; an account with no known clubs (app admin, failed lookup, pending invite) is never locked out.
+- [x] App-admin editor: Placement Settings → Country eligibility card → "Email sign-in is kept for" lists clubs and saves them with the routing config.
+- [x] Verification: 17 new tests (config parsing, allowlist rules, choice screen), 7 enforcement tests, 76 routing/auth test files (553 tests) pass; live preview flow checked end to end (picker → email form → remembered → back to picker → secure screen).
+- [ ] Not enabled yet: add the allowlist rows in Placement Settings (Bridgewater Soccer Club `966bdaec-ebf1-46da-b2b3-cc53bf05c422`, Basket Range Cricket Club `493ee2e3-c834-487d-93be-d1c8a0dbc4a8`) — owner decision on when to arm it.
+- [ ] Admin editor not visually verified in preview: this project's Supabase is externally managed, so no app-admin session could be minted here; it is covered by the routing tests only.
+- [ ] Not built (deliberately, awaiting direction): blocking *new* email sign-ups outside the allowlisted clubs, and club creation restricted to Internet Identity.
+
 ## Active scope — minimum Group 2 test opening (21 October 2026, 03:07 UTC)
 - [x] 29 Oct workflow names: every GitHub workflow display name now starts with exactly one tag — `[TEST]` (DEV/test canisters only), `[PROD]` (live canisters; only the promotion workflow), `[DB]` (database sweep, no canisters) or `[REPO]` (GitHub housekeeping). Names are quoted strings so YAML still parses; file paths are unchanged so run history and dispatch links survive. Runbook references in `docs/` and the legacy-deploy hint updated to the new names; convention documented in `docs/icp-prod-environment.md` and enforced by `scripts/workflow-env-names.test.mjs` (6 tests; 80 workflow/environment tests pass, build OK).
 - [x] 20:06 UTC owner report: **Open Group 2 to everyone succeeded** — Group 2 is registered, verified, snapshotted and open (accepting=true). Remaining follow-ups below.

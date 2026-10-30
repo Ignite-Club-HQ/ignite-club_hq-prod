@@ -216,6 +216,8 @@ export default function PlacementAdminSettingsPage() {
   const [countryRows, setCountryRows] = useState<CountryRuleRow[]>([]);
   const [targetRows, setTargetRows] = useState<TargetRow[]>([]);
   const [clubOverrideRows, setClubOverrideRows] = useState<ClubOverrideRow[]>([]);
+  // Clubs whose members keep email sign-in. Empty = the switch is off.
+  const [emailAuthClubRows, setEmailAuthClubRows] = useState<{ id: string; name: string }[]>([]);
   const [routingTouched, setRoutingTouched] = useState(false);
 
   const { data: clubs } = useQuery({
@@ -409,6 +411,7 @@ export default function PlacementAdminSettingsPage() {
     setClubOverrideRows(
       Object.entries(config.clubBackendOverrides).map(([clubId, backend]) => ({ clubId, backend })),
     );
+    setEmailAuthClubRows(config.emailAuthClubs.map(c => ({ ...c })));
   }, [savedRouting, routingTouched]);
 
   const icpRoutingSaveRef = useRef(false);
@@ -419,6 +422,7 @@ export default function PlacementAdminSettingsPage() {
       targets: ApprovedBackendTarget[];
       countryTargets: Record<string, string>;
       clubBackendOverrides: Record<string, BackendProvider>;
+      emailAuthClubs: { id: string; name: string }[];
     }) => {
       icpRoutingSaveRef.current = false;
       const stamped = { ...config, savedAtMs: Date.now() };
@@ -628,6 +632,16 @@ export default function PlacementAdminSettingsPage() {
         }
       }
       const clubBackendOverrides: Record<string, BackendProvider> = {};
+      // Validate the email sign-in list before saving: the parser that reads
+      // this config back is strict, so a half-filled row must fail here.
+      const emailAuthClubs: { id: string; name: string }[] = [];
+      for (const row of emailAuthClubRows) {
+        const id = row.id.trim().toLowerCase();
+        const name = row.name.trim();
+        if (!id || !name) throw new Error("Every club in the email sign-in list needs a club and a name.");
+        if (emailAuthClubs.some(c => c.id === id)) throw new Error(`${name} is listed twice in the email sign-in list.`);
+        emailAuthClubs.push({ id, name });
+      }
       if (engineWarnings.length > 0) {
         toast({
           title: "Cloud Engine not ready",
@@ -643,7 +657,7 @@ export default function PlacementAdminSettingsPage() {
       if (moved.length > 0 && !window.confirm(
         `Changing the ICP deployment for ${moved.map(countryName).join(", ")} does not move existing data. Existing clubs must retain their original group; engine activation is blocked pending verified new-club routing. Save preparation anyway?`,
       )) return;
-      routingMutation.mutate({ defaultBackend, countryRules, targets, countryTargets, clubBackendOverrides });
+      routingMutation.mutate({ defaultBackend, countryRules, targets, countryTargets, clubBackendOverrides, emailAuthClubs });
     } catch (error) {
       toast({ title: "Cannot save", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
@@ -1174,6 +1188,72 @@ export default function PlacementAdminSettingsPage() {
               Clubs are no longer pinned one by one — each club's backend follows its home country.
             </p>
 
+            <div className="border-t pt-4">
+              <Label className="text-sm font-medium">Email sign-in is kept for</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Clubs listed here keep email sign-in for their existing members. Every other club
+                signs in securely with Internet Identity only, and the sign-in screen asks which
+                path to use. Leave this empty to keep email sign-in open for everyone, exactly as
+                before.
+              </p>
+              <div className="mt-3 space-y-2">
+                {emailAuthClubRows.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No clubs listed — email sign-in is open to everyone.
+                  </p>
+                )}
+                {emailAuthClubRows.map((row, index) => (
+                  <div key={index} className="flex items-end gap-2">
+                    <div className="space-y-1 flex-1">
+                      <Label htmlFor={`email-club-${index}`}>Club</Label>
+                      <Select
+                        value={row.id}
+                        onValueChange={(v) => {
+                          const picked = (clubs ?? []).find(c => c.id === v);
+                          setRoutingTouched(true);
+                          setEmailAuthClubRows(current => current.map((r, i) =>
+                            i === index ? { id: v, name: picked?.name ?? r.name } : r));
+                        }}
+                      >
+                        <SelectTrigger id={`email-club-${index}`}>
+                          <SelectValue placeholder="Choose a club" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(clubs ?? []).map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setRoutingTouched(true);
+                        setEmailAuthClubRows(current => current.filter((_, i) => i !== index));
+                      }}
+                      aria-label="Remove club from email sign-in"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                className="mt-3"
+                onClick={() => {
+                  const suggestion = (clubs ?? []).find(c => !emailAuthClubRows.some(r => r.id === c.id));
+                  if (!suggestion) return;
+                  setRoutingTouched(true);
+                  setEmailAuthClubRows(current => [...current, { id: suggestion.id, name: suggestion.name }]);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add club
+              </Button>
+            </div>
+
             <div className="flex gap-2">
               <Button variant="outline" onClick={addCountryRow}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -1216,6 +1296,7 @@ export default function PlacementAdminSettingsPage() {
                 targets: [],
                 countryTargets: {},
                 clubBackendOverrides: {},
+                emailAuthClubs: [],
               };
               const currentTarget = tryActiveIcpTarget();
               return (
