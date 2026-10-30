@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { compileFeatureAdaptations,adaptVerifiedDefinition } from './feature-adaptation-review.mjs';
+import { sha256 } from './prod-release-review.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 test('nine drafts remain review-only and score transition is excluded from compiled rehearsal',()=>{
  const r=compileFeatureAdaptations(root);
@@ -24,6 +25,8 @@ test('every adaptation is bound to unchanged original migration hashes',()=>{
  assert.equal(manifest.adaptations.length,9);
  assert.equal(manifest.deploymentAuthorized,false);
  for(const draft of manifest.adaptations){
+  assert.equal(draft.sha256,sha256(readFileSync(`${root}/${draft.file}`)));
+  assert.ok(draft.originals.length>0);
   for(const original of draft.originals){
    const expected=held.migrations.find(e=>e.file===original.file);
    assert.equal(original.sha256,expected?.sha256);
