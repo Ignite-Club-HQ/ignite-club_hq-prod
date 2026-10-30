@@ -100,8 +100,19 @@ Consequences:
 PROD". That reason is stale — the migration file carries the production IDs —
 but the hold itself stays until the owner approves the release.
 
+## Owner decision — 30 Oct 2026, 11:05 UTC: hold
+
+The owner chose not to merge yet. No merge, no production migration run and no
+deployment occurred; production keeps serving the previously released version.
+
+The verified state above stays valid. Resuming needs only the owner's
+go-ahead: the run list is the five versions named in the curated
+pending-migration list, applied in filename order. Everything else is prepared
+— the candidate build succeeds with both sign-in entries, tab switching and
+secure refresh pass in the packaged copy, and the hosting settings were
+confirmed by direct inspection of the live site.
+
 ## Still outstanding
 
-- Owner approval to merge, and to run the five run-list migrations in
-  production.
+- Owner go-ahead to merge and run the five run-list migrations.
 - Post-release: real-account sign-in flows and real-phone notifications.
