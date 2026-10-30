@@ -37,6 +37,26 @@ export function buildProdReleaseReview(evidence, files, policy) {
   };
 }
 
+/** Dispositions are review notes only, never an executable or filtered runner plan. */
+export function buildProdTransitionReview(evidence, files, policy, dispositions) {
+  const review = buildProdReleaseReview(evidence, files, policy);
+  const expected = review.migrations;
+  const allowed = new Set(['verify-overlap', 'adapt', 'exclude-original', 'review-effects', 'defer-activation']);
+  if (!Array.isArray(dispositions) || dispositions.length !== expected.length
+      || dispositions.some((entry, index) => !entry || entry.file !== expected[index].file
+        || entry.sha256 !== expected[index].sha256 || !allowed.has(entry.disposition)
+        || typeof entry.reason !== 'string' || !entry.reason.trim())) {
+    throw new Error('Complete ordered hash-matched source dispositions required');
+  }
+  return {
+    ...review,
+    reviewOnly: true,
+    migrations: expected.map((entry, index) => ({ ...entry,
+      disposition: dispositions[index].disposition, transitionReason: dispositions[index].reason,
+    })),
+  };
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     if (!process.argv[2]) throw new Error('Provide the reviewed evidence JSON path; this tool never contacts a database');
