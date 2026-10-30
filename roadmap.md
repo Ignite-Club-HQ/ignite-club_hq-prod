@@ -1,9 +1,10 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — prepare compatible PROD release (30 Oct 2026)
-- [ ] Bind the owner-supplied production CSV to a fingerprinted offline evidence record; classify and fingerprint the complete pending migration inventory without editing applied files.
-- [ ] Prepare reviewed non-executing signup/access drafts preserving production profile creation and existing account triggers; retain the database/publication hold.
-- [ ] Run focused release safeguards and record remaining target-schema, hosted and phone acceptance blockers. No production execution is authorized.
+- [x] Bound the owner-supplied production CSV to a fingerprinted offline evidence record and fingerprinted all 37 pending files as held without editing applied files. Full semantic classification waits on target object definitions beyond the supplied profile/invitation schema.
+- [x] Prepared non-executing signup/access draft preserving production profile creation and both existing account triggers; no routing activation or deployment unlock. Helper/lifecycle acceptance remains required before adoption.
+- [x] Ran 15 focused release safeguards; remaining target-object, hosted and phone blockers recorded in docs/release-review/README.md. No production execution is authorized.
+- [ ] Complete semantic reconciliation and runner staging: needs additional approved target-object evidence and review of exact exclusions; hosted settings/credentials and real phones remain external blockers. All candidates stay held.
 
 ## Current request — exact competition-role self-removal (30 Oct 2026)
 - [x] Inspected actual frontend settings; added confirmed exact-role Leave, invoker/RLS DEV endpoint and owner guard, retained server chat triggers and removed blind browser official-chat deletion. 11 focused tests pass; ICP actor compiles; preview build OK. No PROD changes/deployment.

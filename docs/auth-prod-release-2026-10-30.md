@@ -4,6 +4,10 @@
 
 Repository preparation only. No PROD database, canister, credential, worker activation or release was performed. Existing applied migration files remain unchanged.
 
+### Owner-supplied evidence received
+
+The 30 October SQL Editor export is now recorded with its source fingerprint in `docs/release-review/`. It contains 1,137 applied versions; all 37 current migration versions are absent. It supplies the ID-only profile function, both existing account triggers, settings policies/grants and the retained clubs' IDs. These sections are no longer missing, but the connection identity is owner-attributed rather than independently verified. Complete target-object reconciliation, hosted settings and phone acceptance remain open. The separate signup/access draft preserves profile creation and does not activate routing or deployment.
+
 ## Completed locally
 
 - App administrators are exempted before the email-club restriction, using the role read authorized by Supabase. Both retained clubs' team-only parent paths have regression tests.
