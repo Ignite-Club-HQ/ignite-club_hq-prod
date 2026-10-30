@@ -41,3 +41,7 @@ Existing scores, History, media, Vault, push schedules, credentials and notifica
 ## Verification
 
 25 release/signup safeguards and 80 focused frontend sign-in tests pass. The signup rehearsal ran in a disposable socket-only PostgreSQL cluster without inherited hosted credentials. These checks cover inventory rejection, original-file preservation, tab switching, invite validation, retained-email enforcement and redirect behaviour; they do not establish production activation or signed-in hosted acceptance.
+
+## Owner approval request — 30 October 2026
+
+The owner requested database release-plan approval at 07:19 UTC. `smaller-release-owner-approval.json` records that intent against the exact review fingerprint, without pretending the review is an executable target plan. Scope approval is recorded; technical readiness and production execution are **not approved**. No workflow reads this record as an activation grant. The remaining conditions above must be established before the actual release can be certified safe.
