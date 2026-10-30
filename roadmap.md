@@ -1,6 +1,7 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — smaller release without score changes
+- [ ] Proceed 09:25 UTC: isolated legacy-email/current-ICP implementation awaits review of the concrete plan; missing verified PROD canister mappings and hosted/database/device acceptance block activation, not local preparation.
 - [x] Continue 09:12 UTC: fetched the exact current PROD source (fresh GitHub head unchanged), produced full source fingerprints and alias-resolved diagnostic dependency inventory; created a pinned two-draft auth-only offline workspace excluding all 38 originals, without altering runner, approval or production. See docs/release-review/auth-exact-staging.md.
 - [x] Passed 44 consolidated release safeguards, including isolated signup lifecycle and corrected historical 37-file fixtures that explicitly reject today's 38-file inventory. Preview build OK; no production changes.
 - [ ] Selective secure-provider/post-login integration remains unfinished: exact old PROD has no ICP application infrastructure; copying current auth/provider would also change score/push paths. Current public signup denial still names clubs; remove those names in the accepted selective patch. Fresh target reconciliation, hosted settings/access and authenticated/phone acceptance remain external prerequisites.
