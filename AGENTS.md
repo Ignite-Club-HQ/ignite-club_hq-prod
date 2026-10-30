@@ -29,6 +29,7 @@
 - Auth release preflight preserves fingerprinted applied migrations and blocks unreviewed pending target migrations; signup authorization should be a separate auth lifecycle trigger, never an unverified replacement of target profile creation. Why: later corrections cannot prevent an unsafe earlier migration or recover unknown trigger behavior.
 - Release-plan auditing checks every pending migration regardless of date and compares complete ordered filenames and hashes; evidence SQL remains bounded, read-only and manually approved. Why: a filtered plan or caller-supplied ledger alone cannot authorize production reconciliation.
 - Owner-supplied production exports feed the offline prod-release-review inventory with their source fingerprint and unverified connection provenance; every candidate remains held until independent target reconciliation. Why: uploaded catalog evidence must not become deployment authorization.
+- Remaining target catalog evidence uses prod-object-evidence with bounded source-derived names and trigger-function expansion, never application rows or scheduler commands. Why: migration version gaps need object comparison without exporting private records.
 
 <!-- ic-skills:managed:start -->
 <!-- state: configured (on-demand) -->

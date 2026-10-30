@@ -12,6 +12,8 @@ The separately supplied scheduler results show both reminder jobs active, refere
 
 ## Prepared source changes
 
+- `target-object-evidence.sql` returns the remaining catalog checks in one result table: affected public relations, columns, constraints, indexes, policies, grants, types, account/data triggers and their functions, plus storage policies. It reads no application records or scheduler commands. Run only in the owner-approved PROD SQL Editor; inspect definitions/defaults for embedded secrets before sharing. Conservative source-name extraction is not a complete SQL dependency parser; additional dependencies found during comparison require a follow-up scoped read.
+
 - `scripts/prod-release-review.mjs` generates a complete hash-bound held inventory from the recorded evidence; it contacts no service and grants no deployment authority.
 - `signup-access-draft.sql` separates the proposed signup trigger from profile creation and narrows anonymous access to the routing row. It is outside executable migrations, requires a reviewed helper, and does not activate the club list.
 - The restored database runner and all publication holds remain unchanged. No applied migration was edited, excluded, repaired or replayed.
