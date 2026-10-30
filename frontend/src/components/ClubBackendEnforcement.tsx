@@ -70,8 +70,8 @@ async function fetchSupabaseMembership(
     .select("club_id, team_id, role")
     .eq("user_id", userId);
   if (rolesError) throw rolesError;
-  const directClubIds = (roles ?? []).filter(r => r.club_id).map(r => r.club_id!);
-  const teamIds = (roles ?? []).filter(r => r.team_id).map(r => r.team_id!);
+  const directClubIds = (roles ?? []).map(r => r.club_id).filter((id): id is string => Boolean(id));
+  const teamIds = (roles ?? []).map(r => r.team_id).filter((id): id is string => Boolean(id));
   let teamClubIds: string[] = [];
   if (teamIds.length > 0) {
     const { data: teams, error: teamsError } = await supabase
@@ -186,6 +186,14 @@ export function ClubBackendEnforcement({ children }: { children?: ReactNode }) {
         // rules as the sign-in screen.
         const config = getBackendRoutingConfig();
 
+        // Server-authorized app administrators must retain access to placement
+        // settings even when all their club memberships use secure sign-in.
+        if (isAppAdmin) {
+          sessionStorage.removeItem(ENFORCED_KEY);
+          settle();
+          return;
+        }
+
         // The email allowlist outranks the country rules: an account whose
         // clubs are all outside it no longer has an email home. Send them to
         // secure sign-in, and forget this device's pick so the picker shows.
@@ -249,13 +257,6 @@ export function ClubBackendEnforcement({ children }: { children?: ReactNode }) {
         // (?auth=email): honour it — their data is read from Supabase.
         if (readAuthChoice() === "supabase") {
           sessionStorage.removeItem(ENFORCED_KEY);
-          settle();
-          return;
-        }
-        if (isAppAdmin) {
-          console.info(
-            `[club-backend] App admin signed in via ${provider} while a club pin requires ${required} — skipping enforcement so admin settings stay reachable.`,
-          );
           settle();
           return;
         }

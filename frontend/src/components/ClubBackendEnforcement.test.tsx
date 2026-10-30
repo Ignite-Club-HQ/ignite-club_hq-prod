@@ -27,6 +27,7 @@ import { getUserClubIds } from "@/live/userClubs";
 
 beforeEach(() => {
   localStorage.clear(); sessionStorage.clear(); vi.clearAllMocks();
+  state.user = { id: "principal:test-member", app_metadata: { provider: "icp" } };
   window.history.replaceState(null, "", "/auth");
   applyBackendRoutingConfig({ defaultBackend: "supabase", countryRules: { AU: "supabase", DE: "icp" }, targets: [], countryTargets: {}, clubBackendOverrides: {} });
   state.grants.mockResolvedValue([{ club: ["giddy-goat"], role: "parent" }]);
@@ -125,6 +126,36 @@ describe("email sign-in allowlist", () => {
     expect(state.authSignOut).not.toHaveBeenCalled();
     expect(state.toast).not.toHaveBeenCalled();
     expect(localStorage.getItem("ignite.authChoice")).toBe("supabase");
+  });
+
+  it("keeps an app administrator whose only club is outside the email allowlist", async () => {
+    emailUser(OTHER);
+    state.emailRead.mockImplementation((table: string) => query({
+      data: table === "user_roles" ? [
+        { club_id: OTHER, team_id: null, role: "player" },
+        { club_id: null, team_id: null, role: "app_admin" },
+      ] : [], error: null,
+    }));
+    render(<ClubBackendEnforcement><div>Signed-in club</div></ClubBackendEnforcement>);
+    await waitFor(() => expect(getUserClubIds()).toEqual([OTHER]));
+    expect(screen.getByText("Signed-in club")).toBeTruthy();
+    expect(state.authSignOut).not.toHaveBeenCalled();
+    expect(localStorage.getItem("ignite.authChoice")).toBe("supabase");
+  });
+
+  it.each([
+    [BRIDGE, "Bridgewater Soccer Club"],
+    ["493ee2e3-c834-487d-93be-d1c8a0dbc4a8", "Basket Range Cricket Club"],
+  ])("keeps team-only members of %s", async (clubId, name) => {
+    applyBackendRoutingConfig({ ...ALLOWLIST_CONFIG, emailAuthClubs: [{ id: clubId, name }] });
+    emailUser(null);
+    state.emailRead.mockImplementation((table: string) => query({
+      data: table === "user_roles" ? [{ club_id: null, team_id: "team-only", role: "parent" }]
+        : table === "teams" ? [{ club_id: clubId }] : [], error: null,
+    }));
+    render(<ClubBackendEnforcement><div>Signed-in club</div></ClubBackendEnforcement>);
+    await waitFor(() => expect(getUserClubIds()).toEqual([clubId]));
+    expect(state.authSignOut).not.toHaveBeenCalled();
   });
 
   it("does not sign out an email account whose membership lookup failed", async () => {

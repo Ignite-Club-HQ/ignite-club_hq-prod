@@ -17,7 +17,7 @@ says what a run is allowed to change:
 | Tag | Meaning |
 |---|---|
 | `[TEST]` | Only the DEV/test canisters (`deploy/mainnet`, `deploy/groups`, `deploy/frontend`) and the DEV database. Safe to run; never touches the live app. |
-| `[PROD]` | Only the live canisters (`deploy/prod`, `deploy/frontend-prod`) and the live database. `promote-icp-prod.yml` is the only one. |
+| `[PROD]` | Only the live canisters (`deploy/prod`, `deploy/frontend-prod`): promotion and the separately disabled PROD push delivery worker. |
 | `[DB]` | The club database the repo is wired to (per-repo secrets); no canisters. |
 | `[REPO]` | GitHub housekeeping (source checks, copying setup or branches between repos); no canisters and no club data. |
 
@@ -38,3 +38,4 @@ Merge `main` → `prod`. The workflow upgrades only the PROD canisters whose cod
 ## Not yet covered
 - PROD starts with one group (the base set). Adding PROD group 2 and signing a PROD routing snapshot for it come later. Until then, the PROD app keeps group 2 closed (fail closed).
 - Until provisioning, PROD builds carry an empty canister table, so live users stay on Supabase.
+- PROD push delivery remains disabled until separately approved and configured; its branch/default-branch scheduling and phone acceptance prerequisites are in `docs/auth-prod-release-2026-10-30.md`.
