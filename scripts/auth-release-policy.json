@@ -1,0 +1,40 @@
+{
+  "migrations": [
+    {
+      "file": "20261030013157_a1439afb-5a9f-4201-a09d-e526b83d604e.sql",
+      "sha256": "a30aac7dad2374e18027618083bbdcc31be9ce7c5d47d469a1e2425731416e7d",
+      "prodStatus": "blocked",
+      "reason": "Replaces production profile-creation function without verified before-image"
+    },
+    {
+      "file": "20261030013232_cefd7946-4844-4ca3-a963-68806c91ac15.sql",
+      "sha256": "dec4beb61ba2ff29e4e22171c2d4058121e296144d4e1842b26940abc329e051",
+      "prodStatus": "blocked",
+      "reason": "Depends on the unreviewed signup function replacement"
+    },
+    {
+      "file": "20261030013444_a16197e5-7012-4c32-aa1b-9ac182b17cb6.sql",
+      "sha256": "b314b168c2865bf915731684075198a6b36c2c5d93e8c1aeab947ef05bcf4ad4",
+      "prodStatus": "blocked",
+      "reason": "DEV rollback fixture test; must not execute in PROD"
+    },
+    {
+      "file": "20261030013735_7dc525a9-0b6d-4dd5-bea5-a28010ce65c8.sql",
+      "sha256": "603a91a91659cccdcaebd4285f6f122b537ecd13198a57801a9fc9afe832586b",
+      "prodStatus": "blocked",
+      "reason": "Activates DEV club IDs; must not execute in PROD"
+    },
+    {
+      "file": "20261030014542_9f9534c4-b9c4-4562-97bd-1a1e10644e02.sql",
+      "sha256": "04d631421598ea45087e8273d9be3c2f243efa1aadde12bcc93c4918ef424980",
+      "prodStatus": "blocked",
+      "reason": "DEV-only permission repair, not PROD activation"
+    },
+    {
+      "file": "20261030014712_0699d7db-b366-4657-9c34-e9b1b8ae3435.sql",
+      "sha256": "2473fbe32c64f366620256194adbd69592beb8849b3b231fb1a919964cd0cd3d",
+      "prodStatus": "blocked",
+      "reason": "DEV-only permission repair, not PROD activation"
+    }
+  ]
+}
