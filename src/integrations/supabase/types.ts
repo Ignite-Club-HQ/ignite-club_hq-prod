@@ -12001,6 +12001,10 @@ export type Database = {
         }
         Returns: string
       }
+      email_signup_invite_allowed: {
+        Args: { _email: string; _token: string }
+        Returns: boolean
+      }
       enable_ai_catch_up_for_all_club_members: {
         Args: { p_club_id: string }
         Returns: number

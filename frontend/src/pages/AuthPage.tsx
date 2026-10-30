@@ -32,6 +32,7 @@ import { describeIcpSignInError } from "@/lib/internetIdentitySignInHelp";
 import { IcpSignInScreen } from "@/components/IcpSignInScreen";
 import { AuthMethodChoice } from "@/components/AuthMethodChoice";
 import { AuthLegalLinks } from "@/components/AuthLegalLinks";
+import { EMAIL_SIGNUP_INVITE_REQUIRED, emailSignupRequiresInvite, readEmailSignupInviteToken } from "@/lib/emailSignupPolicy";
 
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
@@ -852,6 +853,7 @@ export default function AuthPage() {
   // True while both paths exist on this device — even after one was picked.
   // This is what lets someone change their mind and return to the picker.
   const canSwitchMethod = shouldOfferAuthMethodChoice();
+  const emailSignupBlocked = emailSignupRequiresInvite() && !readEmailSignupInviteToken(window.location.search);
 
   if (offerMethodChoice) {
     return (
@@ -1121,7 +1123,7 @@ export default function AuthPage() {
                   )}
 
                   {/* Sign up link */}
-                  {!inviteAuthContext && !isSignInKeyboardOpen && (
+                  {!emailSignupBlocked && !inviteAuthContext && !isSignInKeyboardOpen && (
                     <div className="text-center text-sm text-muted-foreground pt-2">
                       Don't have an account?{" "}
                       <button
@@ -1154,6 +1156,20 @@ export default function AuthPage() {
                     </button>
                   )}
                 </form>
+              </CardContent>
+            </>
+          ) : emailSignupBlocked ? (
+            <>
+              <CardHeader><h2 className="text-xl font-semibold text-center">Join with Internet Identity</h2></CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground" role="alert">{EMAIL_SIGNUP_INVITE_REQUIRED}</p>
+                <Button className="w-full gap-2" onClick={() => {
+                  const params = new URLSearchParams(searchParams);
+                  params.delete("auth");
+                  setSearchParams(params, { replace: true });
+                  setAuthMethodChoice("icp");
+                }} disabled={!isIcpAuthAvailable()}><Fingerprint className="h-4 w-4" />Continue with Internet Identity</Button>
+                <Button variant="outline" className="w-full" onClick={switchToSignIn}>Sign in with email</Button>
               </CardContent>
             </>
           ) : (
