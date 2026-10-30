@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), toast: vi.fn() }));
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "self" } }) }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "self" } }), useOptionalAuth: () => null }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: m.toast }) }));
 vi.mock("@/live/loadBackendRouting", () => ({ isFeatureRoutedToIcp: () => false }));
 vi.mock("@/live/featureRouter", () => ({ withFeatureBackend: (_: unknown, handlers: {supabase:()=>unknown}) => handlers.supabase() }));
