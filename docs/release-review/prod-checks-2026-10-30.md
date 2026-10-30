@@ -123,7 +123,7 @@ confirmed by direct inspection of the live site.
 
 The owner requires that the merge change **only structures** and that no production
 data be changed. The five run-list migrations were checked against that rule by
-`scripts/prod-release-no-data.test.mjs` (6 checks, all passing):
+`scripts/prod-release-no-data.test.mjs` (7 checks, all passing):
 
 | Version | What it changes | Rows written |
 | --- | --- | --- |
