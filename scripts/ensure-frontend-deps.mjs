@@ -127,6 +127,13 @@ export function ensureRehearsalDeps(directory) {
   const modules = path.join(candidate, 'node_modules');
   const lock = path.join(candidate, 'package-lock.json');
   const stamp = path.join(modules, '.ignite-rehearsal-stamp');
+  if (!existsSync(lock)) {
+    acquireLock();
+    try {
+      const resolve = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install','--package-lock-only','--ignore-scripts','--no-fund','--no-audit'], {cwd:candidate,stdio:'inherit'});
+      if (resolve.status !== 0) throw new Error('Candidate dependency lock resolution failed');
+    } finally { rmSync(lockDir,{recursive:true,force:true}); }
+  }
   const hash = createHash('sha256').update(readFileSync(lock)).update(process.version).digest('hex');
   if (existsSync(stamp) && readFileSync(stamp,'utf8').trim() === hash) return false;
   acquireLock();

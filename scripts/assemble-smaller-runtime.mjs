@@ -39,7 +39,11 @@ export function assembleSmallerRuntime({ productionSource, currentRoot = root })
   cpSync(path.join(currentRoot, 'frontend/src'), path.join(secure, 'src'), { recursive: true,
     filter: p => !p.split(path.sep).some(n => ['node_modules','.git','.env'].includes(n)) });
   cpSync(path.join(currentRoot, 'frontend/public'), path.join(destination, 'public'), { recursive: true });
-  cpSync(path.join(currentRoot, 'frontend/package.json'), path.join(destination, 'package.json'));
+  const currentPackage = JSON.parse(readFileSync(path.join(currentRoot,'frontend/package.json')));
+  const oldPackage = JSON.parse(readFileSync(path.join(productionSource,'package.json')));
+  // Keep current paired ICP SDK versions, recover missing legacy native plugins.
+  const candidatePackage = {...currentPackage, scripts:{}, dependencies:{...oldPackage.dependencies,...currentPackage.dependencies}};
+  writeFileSync(path.join(destination,'package.json'),JSON.stringify(candidatePackage,null,2)+'\n');
   const put = (base, relative, text) => { const p = path.join(base, relative); mkdirSync(path.dirname(p), {recursive:true}); writeFileSync(p, text); };
   const template = name => readFileSync(path.join(currentRoot, 'scripts/release-templates', name), 'utf8');
   const runtime = readFileSync(path.join(currentRoot, 'scripts/smaller-release-runtime.mjs'), 'utf8');
@@ -119,6 +123,7 @@ export function assembleSmallerRuntime({ productionSource, currentRoot = root })
   // The exact legacy worker has no fetch handler or email-shell fallback.
   // Do not replace its push lifecycle with the newer preview worker.
   const sw = readFileSync(path.join(productionSource,'public/sw.js'),'utf8');
+  if (sha256(sw) !== 'af2817ac3cd4d75517791830e3ff71d2125ed9d90c3dd0207e8817aae3df6fe5') throw new Error('Legacy service worker fingerprint changed');
   if (sw.includes("addEventListener('fetch'") || sw.includes('addEventListener("fetch"')) {
     throw new Error('Legacy service worker navigation boundary requires re-review');
   }
