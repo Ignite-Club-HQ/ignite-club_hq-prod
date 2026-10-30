@@ -12,6 +12,9 @@ The separately supplied scheduler results show both reminder jobs active, refere
 
 ## Prepared source changes
 
+- **Next owner action:** use `remaining-evidence.sql` in the production Supabase SQL Editor, export its single result as CSV and upload it. `remaining-evidence-instructions.md` explains safe sharing and visibility limits. This combines 73 source-derived catalog names, effective function access/default ACLs, bucket privacy and exact named schedule metadata without accounts, objects or scheduler commands.
+- `transition-dispositions-2026-10-30.json` records all 37 original hashes and review-only dispositions, including nine proposed original exclusions. It is not an executable plan, and all entries remain held. 28 offline safeguards pass; no deployment-policy approval was added.
+
 - `target-object-evidence.sql` returns the remaining catalog checks in one result table: affected public relations, columns, constraints, indexes, policies, grants, types, account/data triggers and their functions, plus storage policies. It reads no application records or scheduler commands. Run only in the owner-approved PROD SQL Editor; inspect definitions/defaults for embedded secrets before sharing. Conservative source-name extraction is not a complete SQL dependency parser; additional dependencies found during comparison require a follow-up scoped read.
 
 - `scripts/prod-release-review.mjs` generates a complete hash-bound held inventory from the recorded evidence; it contacts no service and grants no deployment authority.
