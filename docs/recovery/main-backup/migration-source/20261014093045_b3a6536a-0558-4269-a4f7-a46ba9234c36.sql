@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.can_read_general_chat_attachment(uuid, text) FROM authenticated;

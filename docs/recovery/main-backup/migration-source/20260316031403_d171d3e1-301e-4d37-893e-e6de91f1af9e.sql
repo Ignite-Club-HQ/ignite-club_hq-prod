@@ -1,0 +1,20 @@
+-- Add RSVPs for all 18 new players as 'going'
+INSERT INTO rsvps (event_id, mini_league_player_id, status) VALUES
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '88612943-ccb0-4de3-968d-dede374715d3', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '9976f591-0b02-40c8-8c86-6ec9e36e0eb3', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '1856ff35-d7f4-4f56-9ba0-51e47ae33c0b', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '6818b00d-126e-4f35-bb05-29b6185b2843', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', 'f490d328-1b60-4ebd-948a-0fdf31c01370', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '25ece253-d273-461d-a1e1-d00c1320bb5d', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '6d3d4cfc-e8b8-46f9-a100-68f0ab9ce717', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', 'c3f0c8d1-7e63-4c73-8dc2-4a0ed2504acb', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', 'a47f9a93-9b17-43b9-8bea-f3974815398b', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '1511ebcb-6d2f-4ef1-ad15-cd7bae775405', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', 'c6df5818-accc-415f-91a0-1c21961138d4', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', 'f8900a00-e831-4f33-a1b8-97a7d439c3a8', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', 'f3dcd6ae-a59f-4c8d-af17-dc6a6009f1e9', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '69d203fd-2ad0-455d-a4b6-da64906e39da', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '18b88bfe-03ab-48b4-aa29-2f96a62d010e', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '47042f41-e0bc-444d-ad82-e5d8172ede6c', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '4efd8c87-db79-4a51-9cff-12ce4e053f01', 'going'),
+  ('065db5e8-1af8-463b-b8b9-6cc24cb2e3a6', '05341cc3-79bb-472e-89f1-a7b00a2aec9b', 'going');

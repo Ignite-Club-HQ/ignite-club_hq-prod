@@ -1,0 +1,1 @@
+ALTER TABLE public.mini_leagues ADD COLUMN IF NOT EXISTS show_matches_to_members boolean NOT NULL DEFAULT false;

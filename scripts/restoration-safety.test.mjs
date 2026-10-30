@@ -17,6 +17,24 @@ test('new ICP and welcome functions are preserved alongside restored senders', (
     assert.ok(existsSync(path.join(root, `supabase/functions/${name}/index.ts`)));
   }
 });
+test('all original migration source blobs survive outside the executable migration folder', () => {
+  const provenance = JSON.parse(read('docs/recovery/main-backup/provenance.json'));
+  assert.equal(provenance.executable, false);
+  assert.equal(provenance.migrations.length, 1135);
+  for (const entry of provenance.migrations) {
+    assert.ok(entry.archivePath.startsWith('docs/recovery/main-backup/migration-source/'));
+    const bytes = readFileSync(path.join(root, entry.archivePath));
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), entry.sha256);
+    assert.equal(createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${bytes.length}\0`), bytes])).digest('hex'), entry.gitBlob);
+  }
+});
+test('native marketing version is recovered from original and last verified PROD source', () => {
+  const settings = JSON.parse(read('scripts/native-release-settings.json'));
+  const original = JSON.parse(read('docs/recovery/main-backup/package.json'));
+  assert.equal(settings.marketingVersion, '1.2.63');
+  assert.equal(settings.marketingVersion, original.version);
+  assert.equal(settings.appId, 'app.lovable.igniteteamhub');
+});
 test('recovered database runner cannot mutate production or repair its ledger', () => {
   const runner = read('.github/workflows/promote-to-prod.yml');
   assert.doesNotMatch(runner, /supabase (?:db push|migration repair|functions deploy)|cron\.(?:schedule|unschedule)|vault\.(?:create|update)_secret|DELETE FROM|psql|curl /i);

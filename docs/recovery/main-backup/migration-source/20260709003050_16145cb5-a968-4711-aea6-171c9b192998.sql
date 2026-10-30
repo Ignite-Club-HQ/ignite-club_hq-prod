@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS public._lovable_cli_marker;

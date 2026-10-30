@@ -232,7 +232,7 @@ workflows:
           # generated defaultConfig (replacing Capacitor's "versionCode 1") so
           # no second Gradle block can be ignored or overridden.
           # Next number after the latest Play build (pre-merge behaviour).
-          VC=$(node ../../../scripts/native-release-version.mjs android)
+          VC=$(node ../../scripts/native-release-version.mjs android)
           sed -i -E "s/versionCode[[:space:]]+[0-9]+/versionCode $VC/; s/versionName[[:space:]]+\"[^\"]*\"/versionName \"1.0.$VC\"/" app/build.gradle
           grep -q "versionCode $VC" app/build.gradle || { echo "Could not set versionCode in app/build.gradle"; grep -n "version" app/build.gradle; exit 1; }
           echo "Android versionCode set to $VC"
@@ -430,7 +430,7 @@ workflows:
         script: |
           set -euo pipefail
           NEXT_BUILD=$(node ../../../scripts/native-release-version.mjs ios)
-          APP_VERSION="${CM_APP_VERSION:?Set CM_APP_VERSION to the reviewed App Store marketing version}"
+          APP_VERSION=$(node -p "require('../../../scripts/native-release-settings.json').marketingVersion")
           case "$APP_VERSION" in *[!0-9.]*|'') echo 'Invalid marketing version'; exit 1;; esac
           agvtool new-marketing-version "$APP_VERSION"
           agvtool new-version -all "$NEXT_BUILD"

@@ -1,0 +1,10 @@
+CREATE INDEX IF NOT EXISTS idx_vault_drive_links_vault_folder ON public.vault_drive_links (vault_folder_id);
+CREATE INDEX IF NOT EXISTS idx_vault_drive_links_club ON public.vault_drive_links (club_id);
+CREATE INDEX IF NOT EXISTS idx_vault_drive_links_team ON public.vault_drive_links (team_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON public.push_subscriptions (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_passkeys_user ON public.user_passkeys (user_id);
+CREATE INDEX IF NOT EXISTS idx_reward_redemptions_user ON public.reward_redemptions (user_id);
+CREATE INDEX IF NOT EXISTS idx_reward_redemptions_child ON public.reward_redemptions (child_id);
+CREATE INDEX IF NOT EXISTS idx_chat_pinned_vault_scope ON public.chat_pinned_vault (chat_type, chat_id);
+CREATE INDEX IF NOT EXISTS idx_child_guardians_guardian ON public.child_guardians (guardian_id, child_id);
+CREATE INDEX IF NOT EXISTS idx_child_guardians_child ON public.child_guardians (child_id);

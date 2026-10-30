@@ -1,0 +1,2 @@
+UPDATE public.events SET arrival_minutes_before = NULL WHERE arrival_minutes_before IS NOT NULL;
+UPDATE public.teams SET default_match_arrival_minutes = NULL WHERE default_match_arrival_minutes IS NOT NULL;

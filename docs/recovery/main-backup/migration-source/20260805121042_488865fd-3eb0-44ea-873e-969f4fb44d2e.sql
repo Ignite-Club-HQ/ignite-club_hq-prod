@@ -1,0 +1,2 @@
+ALTER TABLE public.notification_preferences ALTER COLUMN show_message_preview SET DEFAULT true;
+UPDATE public.notification_preferences SET show_message_preview = true WHERE show_message_preview IS DISTINCT FROM true;

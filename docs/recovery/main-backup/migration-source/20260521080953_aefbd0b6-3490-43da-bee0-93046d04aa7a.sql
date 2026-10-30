@@ -1,0 +1,2 @@
+ALTER TABLE public.teams ALTER COLUMN default_rsvp_audience SET DEFAULT 'players_and_parents';
+UPDATE public.teams SET default_rsvp_audience = 'players_and_parents' WHERE default_rsvp_audience = 'players_only' OR default_rsvp_audience IS NULL;

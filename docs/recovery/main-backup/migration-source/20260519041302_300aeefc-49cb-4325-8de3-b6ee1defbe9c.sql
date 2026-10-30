@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Users can access mini league chats" ON public.chat_groups;

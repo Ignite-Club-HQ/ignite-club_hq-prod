@@ -1,0 +1,1 @@
+UPDATE clubs SET points_display_name = 'Reward Points' WHERE points_display_name = 'Ignite Points';

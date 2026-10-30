@@ -1,0 +1,1 @@
+UPDATE clubs SET sport = 'football' WHERE id = '3f2d97f5-f5c6-4309-b8b2-161641a4adb4';
