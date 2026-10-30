@@ -1,5 +1,9 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — exact competition-role self-removal (30 Oct 2026)
+- [ ] Inspect the actual Competition Settings admin/official lists and existing server owner/chat protections; add confirmed exact-role non-owner self-removal without affecting other roles or competitions.
+- [ ] Run focused authorization, preservation and failed-removal tests; signed-in DEV acceptance requires an authorized non-owner account. No PROD data changes or deployment.
+
 ## Current request — sign-in tabs (30 Oct 2026)
 - [x] Replaced public named-club choice cards with equal method tabs and an immediately open form; preserved existing provider, invitation and authorization flows. Both tabs and remembered selection verified on phone/desktop with no page errors; 25 focused tests pass and preview build OK. PROD unchanged.
 
