@@ -1838,6 +1838,8 @@ persistent actor class Main(governorInit : Principal) = this {
     do { let removalReply = await syncForCompetition(caller, competition_id); if (removalReceiver.denied(caller)) throw Error.reject("Account removal fenced after callback"); removalReply };
     if (compFenced(competition_id)) return #Err("Club is temporarily locked for a transfer");
     if (not canManageCompetition(caller, competition_id)) return #Err("Competition management forbidden");
+    if (role == "owner") return #Err("Owner roles cannot be removed");
+    if (not roles.any(func(item) = item.user.equal(principal) and item.role == role and item.competition_id == competition_id and item.team_id == team_id)) return #Err("Exact competition role not found");
     roles := roles.filter(func(item) = not (item.user.equal(principal) and item.role == role and item.competition_id == competition_id and item.team_id == team_id));
     #Ok
   
