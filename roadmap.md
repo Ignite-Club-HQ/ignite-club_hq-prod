@@ -1,8 +1,9 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — release inspections (30 Oct 2026)
+- [ ] Owner-authorized gap closure: guard both internal reminder handlers, repair narrow hosting permissions, correct the disabled PROD scheduler and add exact-commit publication checks; validate locally without production execution.
 - [x] Completed read-only source inspections and fresh GitHub GET checks; 43 release safeguards and 57 restored push tests pass. Report: `docs/release-inspection-2026-10-30.md`. Confirmed two internal-handler authorization gaps, map/ICP-download hosting-policy blocks, default-main versus prod-only scheduled worker conflict, deliberate nonfunctional DB release hold and no required checks in effective PROD rules. No implementation, database or hosted changes.
-- [ ] Inspection follow-up awaits repair authorization: two handler guards, narrow hosting policy and disabled PROD scheduler correction. Real DB promotion awaits authoritative PROD history/signup evidence; hosted settings and phone testing remain inaccessible here.
+- [ ] External closure: real DB promotion awaits authoritative PROD history/signup evidence; hosted settings, required branch checks and phone testing remain inaccessible here.
 
 ## Current request — main-backup release compatibility scan (30 Oct 2026)
 - [x] Compared verified `main-backup` commit `96642d0750e03d933b68957d61999de3ae983b9c` with current main: full file inventory, all 183 legacy Supabase function files, notification dependency closure, Codemagic/Firebase settings, migration filenames/versions and Netlify configuration. Report: `docs/main-backup-release-scan-2026-10-30.md`. 44 current release safeguards pass; no source restoration, database write, workflow activation or deployment.
