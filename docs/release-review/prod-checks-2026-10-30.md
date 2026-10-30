@@ -116,14 +116,14 @@ confirmed by direct inspection of the live site.
 
 - Owner go-ahead to merge and run the five run-list migrations.
 - Post-release: real-account sign-in flows and real-phone notifications.
-- Whether the single `backend_routing_config` settings row is acceptable, or should be
-  created outside the migration run so the release is purely structural.
+- Nothing outstanding on the release shape: the owner accepted the single
+  `backend_routing_config` settings row, so the run list stays exactly as listed.
 
 ## Owner rule — 30 Oct 2026, 11:02 UTC: structures only, no production data
 
 The owner requires that the merge change **only structures** and that no production
 data be changed. The five run-list migrations were checked against that rule by
-`scripts/prod-release-no-data.test.mjs` (6 checks, all passing):
+`scripts/prod-release-no-data.test.mjs` (7 checks, all passing):
 
 | Version | What it changes | Rows written |
 | --- | --- | --- |
@@ -146,7 +146,17 @@ excluded files stay out of production — `20261030013444` would have inserted
 throwaway invitation rows, and the five DEV-pinned repairs would abort rather than
 run.
 
-If the owner wants literally zero rows written, the settings row must be created
-another way (the SQL Editor by hand, or the admin settings screen); the run list
-would then be purely structural.
+### Owner decision — 30 Oct 2026, 11:04 UTC: the settings row is accepted
+
+The owner confirmed the single settings row may stay in the release, so it is a named
+and approved part of the plan rather than an open question. It is bounded by test
+(`scripts/prod-release-no-data.test.mjs`): a run-list migration may insert only the
+key `backend_routing_config`, may carry only the two retained club IDs with
+`defaultBackend` left as `supabase`, and may update only `value` and `updated_at`.
+Any other settings key, or any further row, fails the release check and needs a fresh
+owner decision.
+
+This approval covers the shape of the release only. It is not a go-ahead to merge:
+`docs/release-review/smaller-release-owner-approval.json` still records
+`mergeAuthorized: false`, and production remains on the previously deployed version.
 
