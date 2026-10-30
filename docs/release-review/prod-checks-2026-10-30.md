@@ -75,8 +75,33 @@ Evidence from the live site (read-only fetch, 30 Oct 2026 10:47 UTC):
   confirming the new tabbed sign-in is not yet in production — consistent with
   production still running the previously deployed release.
 
+## Final query results — closed 30 Oct 2026 11:00 UTC
+
+- Query A (tables the guard and release touch): all present in production.
+- Query B (which of the five run-list versions are already recorded):
+  **no rows**. None of `20261004045741`, `20261030013157`, `20261030013232`,
+  `20261030013735` or `20261030052009` is in production's migration history.
+
+Consequences:
+
+1. Nothing on the run list is partially applied, so there is no drift to
+   reconcile — all five still need to run.
+2. `20261004045741` is not a DEV-pinned repair: it is a plain
+   `GRANT SELECT ON public.app_settings TO anon` plus a policy restricted to
+   `key = 'backend_routing_config'`. It applies unchanged to production and is
+   the fix that lets a signed-out visitor load the tabbed sign-in screen.
+3. `20261030013735` carries the verified production club IDs
+   (`966bdaec…` Bridgewater, `493ee2e3…` Basket Range) and uses
+   `ON CONFLICT (key) DO UPDATE`, so it works whether or not the row exists —
+   production currently has none.
+
+`scripts/auth-release-policy.json` still holds `20261030013735` as
+`blocked` with the reason "Activates DEV club IDs; must not execute in
+PROD". That reason is stale — the migration file carries the production IDs —
+but the hold itself stays until the owner approves the release.
+
 ## Still outstanding
 
-- Query A: do the tables the guard and release touch all exist in production?
-- Query B: which of the five run-list versions are already recorded?
-- Post-release: real-account sign-in flows and real-phone notifications
+- Owner approval to merge, and to run the five run-list migrations in
+  production.
+- Post-release: real-account sign-in flows and real-phone notifications.
