@@ -12,6 +12,7 @@ The separately supplied scheduler results show both reminder jobs active, refere
 
 ## Prepared source changes
 
+- **Isolated rehearsal:** `isolated-rehearsal-2026-10-30.md` records offline candidate packaging and a disposable socket-only PostgreSQL signup rehearsal. 39 tests pass; private signup drafts preserve unarmed email behavior and reject unknown decisions. Synthetic lifecycle stand-ins are not production acceptance; all nine feature adaptations and hosted/device checks remain outstanding. Runner/publication holds and original hashes are unchanged.
 - **Follow-up evidence received:** the owner ran the combined 73-name query and uploaded the CSV. `prod-transition-evidence-2026-10-30.json` records its SHA-256 (`697d3bd4…02550f1d7`) and key facts: both legacy function contracts are the only ones present, all 19 requested tables have RLS enabled, the anonymous routing policy is still absent, all three buckets are private, both reminder schedules are active, and all ten genuinely-new objects are confirmed absent. See the addendum in `transition-recommendations-2026-10-30.md`.
 - `transition-dispositions-2026-10-30.json` records all 37 original hashes and review-only dispositions, including nine proposed original exclusions. It is not an executable plan, and all entries remain held. 28 offline safeguards pass; no deployment-policy approval was added.
 
