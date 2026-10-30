@@ -32,14 +32,17 @@ export async function validateEmailSignupInvite(
     client.rpc("get_team_invite_by_token", { _token: token }),
     client.rpc("get_club_invite_by_token", { _token: token }),
   ]);
-  if (results.some(result => result.error)) throw new Error("We couldn't verify your invitation. Please try again.");
+  if (results.some(result => !result || result.error || (result.data != null && !Array.isArray(result.data)))) throw new Error("We couldn't verify your invitation. Please try again.");
   const allowed = new Set(config.emailAuthClubs.map(club => club.id));
   const valid = results.some((result, index) => (result.data ?? []).some((row: any) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) return false;
     if (!allowed.has(String(row.club_id ?? "").toLowerCase())) return false;
     if (index === 0) return row.status === "pending" && typeof row.invited_email === "string"
       && row.invited_email.trim().toLowerCase() === email.trim().toLowerCase();
     if (row.expires_at != null && !(Date.parse(row.expires_at) > now)) return false;
-    return row.max_uses == null || (typeof row.uses_count === "number" && row.uses_count < row.max_uses);
+    if (row.uses_count != null && (!Number.isSafeInteger(row.uses_count) || row.uses_count < 0)) return false;
+    return row.max_uses == null || (Number.isSafeInteger(row.max_uses) && row.max_uses > 0
+      && Number.isSafeInteger(row.uses_count) && row.uses_count >= 0 && row.uses_count < row.max_uses);
   }));
   if (!valid) throw new Error(EMAIL_SIGNUP_INVITE_REQUIRED);
 }

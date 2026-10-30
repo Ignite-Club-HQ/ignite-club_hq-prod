@@ -43,6 +43,21 @@ describe("invitation-only email signup", () => {
   it("fails closed when an invitation lookup fails", async () => {
     await expect(validateEmailSignupInvite({ rpc: async () => ({ data: [], error: new Error("offline") }) }, "token", "new@example.test")).rejects.toThrow(/verify/);
   });
+  it.each([{}, "invalid", 42])("rejects a malformed lookup payload %s", async data => {
+    await expect(validateEmailSignupInvite({ rpc: async () => ({ data, error: null }) }, "token", "new@example.test")).rejects.toThrow(/verify/);
+  });
+  it.each([null, "invalid", 42, []])("rejects a malformed invitation row %s", async row => {
+    await expect(validateEmailSignupInvite({ rpc: async () => ({ data: [row], error: null }) }, "token", "new@example.test")).rejects.toThrow(/invitation/);
+  });
+  it.each([-1, 0.5, "1", NaN, Infinity])("rejects invalid usage count %s even without a use limit", async uses_count => {
+    await expect(validateEmailSignupInvite(clientFor("get_team_invite_by_token", { club_id: BRIDGE, max_uses: null, uses_count }), "token", "new@example.test")).rejects.toThrow(/invitation/);
+  });
+  it.each([-1, 0, 0.5, "2", NaN, Infinity])("rejects malformed use limit %s", async max_uses => {
+    await expect(validateEmailSignupInvite(clientFor("get_club_invite_by_token", { club_id: BASKET, max_uses, uses_count: 0 }), "token", "new@example.test")).rejects.toThrow(/invitation/);
+  });
+  it("allows an unlimited invitation with a valid usage count", async () => {
+    await expect(validateEmailSignupInvite(clientFor("get_team_invite_by_token", { club_id: BRIDGE, max_uses: null, uses_count: 3 }), "token", "new@example.test")).resolves.toBeUndefined();
+  });
   it("keeps the existing open-signup behavior while the switch is off", async () => {
     applyBackendRoutingConfig({ ...config, emailAuthClubs: [] });
     const client = clientFor("", {});
