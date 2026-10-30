@@ -350,7 +350,7 @@ function copyConfig(config: BackendRoutingConfig): BackendRoutingConfig {
     targets: config.targets.map(t => ({ ...t, ...(t.canisterIds ? { canisterIds: { ...t.canisterIds } } : {}), ...(t.preparation ? { preparation: { ...t.preparation, groupIds: [...t.preparation.groupIds] } } : {}) })),
     countryTargets: { ...config.countryTargets },
     clubBackendOverrides: { ...config.clubBackendOverrides },
-    emailAuthClubIds: [...config.emailAuthClubIds],
+    emailAuthClubs: config.emailAuthClubs.map(c => ({ ...c })),
   };
 }
 
@@ -514,7 +514,7 @@ export function resolveTargetForCountry(
  * While it is off, email sign-in follows the country rules exactly as before.
  */
 export function isEmailAuthAllowlistActive(config: BackendRoutingConfig): boolean {
-  return config.emailAuthClubIds.length > 0;
+  return config.emailAuthClubs.length > 0;
 }
 
 /**
