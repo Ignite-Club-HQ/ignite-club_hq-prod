@@ -13270,6 +13270,15 @@ export type Database = {
         Args: { _club_id: string; _user_id: string }
         Returns: Json
       }
+      remove_exact_competition_role: {
+        Args: {
+          p_competition_id: string
+          p_id: string
+          p_role: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       remove_team_member: {
         Args: { _team_id: string; _user_id: string }
         Returns: Json
