@@ -1,4 +1,10 @@
 project_id = "ecsdwrarzfexssxtrymj"
+[functions.score-history-review]
+enabled = true
+entrypoint = "./functions/score-history-review/index.ts"
+# This endpoint validates the caller with auth.getUser and exact club roles.
+verify_jwt = false
+
 [functions.verify-iap-receipt-icp]
 verify_jwt = false
 
