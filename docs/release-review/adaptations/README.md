@@ -1,0 +1,21 @@
+# Nine feature adaptations — review package
+
+These are source-bound **review drafts**, not production migrations. No deployment or ledger reconciliation is authorized. Original migrations and publication holds are unchanged.
+
+| Area | Prepared approach | Remaining acceptance |
+|---|---|---|
+| 1. Duty team | Keep deployed validator and sole trigger; verify presence. Historical unchanged assignment survives maintenance. | Full target trigger/state reconciliation; new shell/lifecycle exclusions deliberately deferred. |
+| 2. Competition events | Additional operation-key overload delegates once to the legacy canonical-event RPC; retains queued-person count, suppression and audience. Replay fingerprint uses UTC epoch timestamps. | Real target dependency/trigger rehearsal; lost-reply and concurrent replay acceptance; current client retry semantics. |
+| 3. Competition photos | Retain current policies, uploader/manager visibility, byte storage, mirrors and cleanup. No participant or restrictive-policy expansion. | Complete metadata/byte policy acceptance. This is preservation, not a new access implementation. |
+| 4. News discovery/read | Bind competition discovery to authenticated requested-club membership. Preserve existing officials/read audience and exclusive validator. | Full target read policies and publication rules, including notified officials. No second validator added. |
+| 5. News notifications | Add publication gating to the exact deployed unified notifier; two typed adapters delegate to it. Preserve author exclusion, own-club notification scopes, dedupe and push-off in-app notices. | Full target authorization/policies and cross-API concurrency acceptance. |
+| 6. Competition Vault | Add manager-only compatibility helpers matching current competition-admin/app-admin restriction. Preserve roots, mirrors, chat/restricted-role policies and existing storage. | Full target role/byte/helper acceptance; participant expansion, folder/file helpers and new bucket intentionally held. |
+| 7. Team invitations | Bind legacy two-argument helper to auth.uid(); new one-argument overload delegates. Keep accepted-only entries and existing invite policies. | Audit other server callers before caller binding adoption; existing RLS insert/delete and role acceptance. No registered/lifecycle expansion. |
+| 8. Official links/invites | Preserve current links, tokens, idempotent acceptance and claim triggers. Check expected contracts, avoid duplicate policies/schema. | Full target revoke/move/anonymous and repeat-claim acceptance; unrelated ACL tightening separately approved. |
+| 9. Scores/History | Non-mutating preservation check and ordered transition design; leave richer fixture sync and external override guard intact. | **SQL implementation incomplete:** source reconciliation, shadow storage/DTOs, deterministic backfill, verified coverage, all visibility paths and independently approved exact data transition. Never compile this check as completed privacy SQL. |
+
+`adaptation-definitions.json` contains only four reviewed benign deployed function definitions and SHA-256s, bound to owner evidence `697d3bd4…02550f1d7`. `feature-adaptations-manifest.json` binds each draft to original migration hashes and distinguishes preservation, adapters and held design. It is review-only, not a runner manifest.
+
+`scripts/feature-adaptation-review.mjs` makes exactly two source-bound transformations: caller identity in the legacy invite helper, and publication gating in the unified notifier. Any definition/hash or single-match mismatch fails. It compiles areas 1–8 for **local synthetic rehearsal only**; area 9 is excluded. Nothing is wired into the actual release runner or normal migration folder.
+
+Local tests exercise canonical event/replay counts, changed-request rejection, caller spoofing denial, member/outside-club discovery, manager/outsider Vault helpers, publication/dedupe/push-off/author exclusion, and historical/cross-club duty checks. Synthetic authorization helpers and trigger stand-ins do not prove production access or hosted Auth behavior. Photo/official preservation checks prove only expected object presence, not full semantics. No claim is made that all nine adaptations are implemented or production-ready.

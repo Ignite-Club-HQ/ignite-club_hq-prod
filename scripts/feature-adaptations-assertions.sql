@@ -27,4 +27,17 @@ DO $$ DECLARE n uuid:='00000000-0000-0000-0000-000000000201'; BEGIN
  IF NOT EXISTS(SELECT 1 FROM notifications WHERE related_id=n AND skip_push AND user_id='00000000-0000-0000-0000-000000000102') THEN RAISE EXCEPTION 'Push off lost in-app notification'; END IF;
  IF EXISTS(SELECT 1 FROM notifications WHERE related_id=n AND user_id='00000000-0000-0000-0000-000000000101') THEN RAISE EXCEPTION 'Author notified'; END IF;
 END; $$;
+-- Preserve historical duty assignments on unrelated updates, deny invalid new scopes.
+DO $$ DECLARE e uuid; denied boolean:=false; BEGIN
+ INSERT INTO events(club_id,duty_team_id,title) VALUES('00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000011','Duty') RETURNING id INTO e;
+ UPDATE teams SET is_archived=true WHERE id='00000000-0000-0000-0000-000000000011';
+ UPDATE events SET title='Historical duty retained' WHERE id=e;
+ BEGIN INSERT INTO events(club_id,duty_team_id) VALUES('00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000011');
+ EXCEPTION WHEN check_violation THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'Archived new assignment accepted'; END IF;
+ UPDATE teams SET is_archived=false WHERE id='00000000-0000-0000-0000-000000000011';denied:=false;
+ BEGIN UPDATE events SET club_id='00000000-0000-0000-0000-000000000099' WHERE id=e;
+ EXCEPTION WHEN check_violation THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'Cross-club duty accepted'; END IF;
+END; $$;
 SELECT 'PASS: canonical event replay, caller-bound invitations, scoped discovery, news dedupe/publication and manager Vault helpers' AS result;

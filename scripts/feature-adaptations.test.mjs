@@ -18,6 +18,18 @@ test('legacy definition drift cannot be silently adapted',()=>{
  const r=JSON.parse(readFileSync(`${root}/docs/release-review/adaptation-definitions.json`,'utf8'));
  assert.throws(()=>adaptVerifiedDefinition(r.definitions.invitations.sql+'changed',r.definitions.invitations.sha256,'invitations'));
 });
+test('every adaptation is bound to unchanged original migration hashes',()=>{
+ const manifest=JSON.parse(readFileSync(`${root}/docs/release-review/feature-adaptations-manifest.json`,'utf8'));
+ const held=JSON.parse(readFileSync(`${root}/docs/release-review/transition-dispositions-2026-10-30.json`,'utf8'));
+ assert.equal(manifest.adaptations.length,9);
+ assert.equal(manifest.deploymentAuthorized,false);
+ for(const draft of manifest.adaptations){
+  for(const original of draft.originals){
+   const expected=held.migrations.find(e=>e.file===original.file);
+   assert.equal(original.sha256,expected?.sha256);
+  }
+ }
+});
 test('feature adapters run only on disposable local PostgreSQL with synthetic records',()=>{
  const directory=mkdtempSync(path.join(tmpdir(),'ignite-features-local-'));
  const env={PATH:process.env.PATH,HOME:directory,LANG:'C.UTF-8'};
