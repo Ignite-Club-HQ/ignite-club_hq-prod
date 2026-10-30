@@ -375,7 +375,7 @@ export function CompetitionOfficialsCard({
                   <Badge variant="outline" className="shrink-0">
                     {ROLE_LABEL[r.role as OfficialRole] ?? r.role}
                   </Badge>
-                  {isSelf ? <Button variant="outline" size="sm" disabled={removeMutation.isPending} onClick={() => setRemoving(r)}><UserMinus className="h-4 w-4 mr-1" /> Leave</Button> : <Button
+                  {isSelf ? <Button variant="outline" size="sm" disabled={removeMutation.isPending || isIcp} title={isIcp ? "Secure role leaving is awaiting chat-access verification" : undefined} onClick={() => setRemoving(r)}><UserMinus className="h-4 w-4 mr-1" /> Leave</Button> : <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"

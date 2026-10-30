@@ -282,7 +282,7 @@ export function CompetitionAdminsCard({
                     <Badge variant="outline" className="shrink-0">Admin</Badge>
                   )}
                   {removable && (
-                    isSelf ? <Button variant="outline" size="sm" disabled={removeMutation.isPending} onClick={() => setRemoving(r)}>
+                    isSelf ? <Button variant="outline" size="sm" disabled={removeMutation.isPending || isIcp} title={isIcp ? "Secure role leaving is awaiting chat-access verification" : undefined} onClick={() => setRemoving(r)}>
                       <UserMinus className="h-4 w-4 mr-1" /> Leave
                     </Button> :
                     <Button

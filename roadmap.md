@@ -1,8 +1,8 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — exact competition-role self-removal (30 Oct 2026)
-- [ ] Inspect the actual Competition Settings admin/official lists and existing server owner/chat protections; add confirmed exact-role non-owner self-removal without affecting other roles or competitions.
-- [ ] Run focused authorization, preservation and failed-removal tests; signed-in DEV acceptance requires an authorized non-owner account. No PROD data changes or deployment.
+- [x] Inspected actual frontend settings; added confirmed exact-role Leave, invoker/RLS DEV endpoint and owner guard, retained server chat triggers and removed blind browser official-chat deletion. 11 focused tests pass; ICP actor compiles; preview build OK. No PROD changes/deployment.
+- [ ] Remaining: ICP entitlement-based chat sync and real actor rehearsal (PocketIC setup times out); own-role-only settings for non-manager officials; exceptional existing owner-repair preservation; authenticated DEV multi-role/organiser-admin/chat acceptance (external unmanaged session unavailable). Secure self-leave disabled until chat closure. Native display needs a bundled app update. See docs/competition-role-removal-2026-10-30.md.
 
 ## Current request — sign-in tabs (30 Oct 2026)
 - [x] Replaced public named-club choice cards with equal method tabs and an immediately open form; preserved existing provider, invitation and authorization flows. Both tabs and remembered selection verified on phone/desktop with no page errors; 25 focused tests pass and preview build OK. PROD unchanged.
