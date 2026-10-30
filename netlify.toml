@@ -26,6 +26,10 @@
 [functions]
   directory = "netlify/functions"
 
+[[edge_functions]]
+  function = "share"
+  path = "/share"
+
 [[redirects]]
   from = "/api/fetch-link-preview"
   to = "/.netlify/functions/fetch-link-preview"

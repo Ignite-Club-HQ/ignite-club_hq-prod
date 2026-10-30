@@ -422,7 +422,7 @@ workflows:
         script: |
           set -euo pipefail
           NEXT_BUILD=$(node ../../../scripts/native-release-version.mjs ios)
-          APP_VERSION=$(node -p "require('../../package.json').version")
+          APP_VERSION="${CM_APP_VERSION:?Set CM_APP_VERSION to the reviewed App Store marketing version}"
           case "$APP_VERSION" in *[!0-9.]*|'') echo 'Invalid marketing version'; exit 1;; esac
           agvtool new-marketing-version "$APP_VERSION"
           agvtool new-version -all "$NEXT_BUILD"
