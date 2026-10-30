@@ -45,6 +45,9 @@ export type ApprovedBackendTarget = {
   preparation?: DeploymentPreparation;
 };
 
+/** One club allowed to keep email sign-in, with the label shown on /auth. */
+export type EmailAuthClub = { id: string; name: string };
+
 export type BackendRoutingConfig = {
   defaultBackend: BackendProvider;
   /** ISO 3166-1 alpha-2 code -> which backend(s) that country may use. */
@@ -60,13 +63,17 @@ export type BackendRoutingConfig = {
    */
   clubBackendOverrides: Record<string, BackendProvider>;
   /**
-   * Club ids whose members may keep signing in with email (Supabase).
+   * Clubs whose members may keep signing in with email (Supabase).
    *
    * Empty = the allowlist is off: email sign-in follows the country rules like
    * every other backend. Non-empty = only these clubs' members may sign in
    * with email; everyone else is directed to Internet Identity.
+   *
+   * Each entry carries its own label because a signed-out visitor cannot read
+   * club names from the database, and the sign-in screen needs a name to tell
+   * existing members which button is theirs.
    */
-  emailAuthClubIds: string[];
+  emailAuthClubs: EmailAuthClub[];
 };
 
 export const DEFAULT_BACKEND_ROUTING_CONFIG: BackendRoutingConfig = {
