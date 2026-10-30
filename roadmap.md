@@ -2,7 +2,7 @@
 
 ## Current request — main-backup release compatibility scan (30 Oct 2026)
 - [x] Compared verified `main-backup` commit `96642d0750e03d933b68957d61999de3ae983b9c` with current main: full file inventory, all 183 legacy Supabase function files, notification dependency closure, Codemagic/Firebase settings, migration filenames/versions and Netlify configuration. Report: `docs/main-backup-release-scan-2026-10-30.md`. 44 current release safeguards pass; no source restoration, database write, workflow activation or deployment.
-- [ ] Restoration is not authorized by this scan: prepare a reviewed repository restoration/adaptation batch for legacy Supabase sources, preserved migration provenance, existing DB promotion runner, native presentation/signing/version checks and production hosting configuration. Hosted PROD ledger, Codemagic environment access and phone acceptance remain external prerequisites.
+- [ ] Owner approved repository restoration (30 Oct): restore legacy notification/email sources without replacing newer functions; recover the DB promotion path with fail-closed evidence checks and no ledger/cron/credential repairs; adapt native signing/presentation/version checks and hosting. No PROD execution or release is authorized. Hosted PROD ledger, Codemagic environment access and phone acceptance remain external prerequisites.
 
 ## Current request — pre-PROD release safety (30 Oct 2026)
 - [x] Owner approved proceeding with read-only PROD inspection. GitHub evidence identifies the existing `promote-to-prod.yml` runner and successful PROD run #511 (21 Oct); the workflow is absent from main. Recorded findings in `docs/auth-prod-runner-evidence-2026-10-30.md`; no live writes or workflow dispatches.
