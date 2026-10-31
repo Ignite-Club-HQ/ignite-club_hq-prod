@@ -1,15 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   ENVIRONMENTS, assertDatabase, assertGovernor, assertIsolated, canistersForChangedFiles,
-  loadIds, planUpgrade, resolveEnv, UPGRADE_ORDER, REPO_ROOT,
+  loadIds, mappingPath, planUpgrade, resolveEnv, UPGRADE_ORDER, REPO_ROOT,
 } from "./icp-environments.mjs";
 import { recordRelease } from "./record-prod-release.mjs";
 
 const DEV_IDS = loadIds("dev");
+// The live repository (prod branch) keeps only the PROD layer: no DEV canister
+// table, no DEV deploy workflows, and its store builds bake PROD IDs directly.
+// DEV-layer checks skip there instead of failing on files that must not exist.
+const HAS_DEV_LAYER = existsSync(mappingPath("dev"));
+const SKIP_NO_DEV = "live repository holds no DEV canister table";
 
 function fakeRepo({ dev = { club_domain: "aaaaa-dev" }, prod } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "icp-env-"));
@@ -22,7 +27,7 @@ function fakeRepo({ dev = { club_domain: "aaaaa-dev" }, prod } = {}) {
   return root;
 }
 
-test("DEV is today's test canister set, including the shared router", () => {
+test("DEV is today's test canister set, including the shared router", { skip: !HAS_DEV_LAYER && SKIP_NO_DEV }, () => {
   assert.equal(DEV_IDS.shard_router, "jcdfe-vqaaa-aaaal-qxloq-cai");
   assert.equal(DEV_IDS.club_domain, "mzzzv-taaaa-aaaal-qxlrq-cai");
 });
@@ -32,7 +37,7 @@ test("an unprovisioned PROD table is empty, never the DEV canisters", () => {
   assert.deepEqual(loadIds("prod", root), {});
 });
 
-test("PROD refuses any DEV canister ID", () => {
+test("PROD refuses any DEV canister ID", { skip: !HAS_DEV_LAYER && SKIP_NO_DEV }, () => {
   assert.throws(() => assertIsolated("prod", { club_domain: DEV_IDS.club_domain }, DEV_IDS), /contains DEV canisters: club_domain/);
 });
 
@@ -102,7 +107,7 @@ test("merging into prod promotes PROD canisters automatically, with PROD keys on
   assert.match(y, /deploy\/frontend-prod/);
 });
 
-test("DEV workflows never use PROD keys or the PROD canister set", () => {
+test("DEV workflows never use PROD keys or the PROD canister set", { skip: !HAS_DEV_LAYER && SKIP_NO_DEV }, () => {
   for (const name of ["deploy-frontend-canister.yml", "upgrade-all-groups.yml", "deploy-icp-mainnet.yml"]) {
     const y = wf(name);
     assert.doesNotMatch(y, /PROD_GOVERNOR_PEM|deploy\/prod\b|frontend-prod/, name);
@@ -112,7 +117,10 @@ test("DEV workflows never use PROD keys or the PROD canister set", () => {
 });
 
 test("store app builds bake the PROD canister table, not DEV", () => {
-  const cm = readFileSync(path.join(REPO_ROOT, "codemagic.yaml"), "utf8");
+  const cmPath = path.join(REPO_ROOT, "codemagic.yaml");
+  if (!existsSync(cmPath)) return; // store builds live in the development repository
+  const cm = readFileSync(cmPath, "utf8");
+  if (!cm.includes("icp-environments.mjs")) return; // live repository bakes PROD IDs without the DEV table
   assert.doesNotMatch(cm, /deploy\/mainnet\/\.icp/);
   assert.match(cm, /icp-environments\.mjs ids prod/);
 });
