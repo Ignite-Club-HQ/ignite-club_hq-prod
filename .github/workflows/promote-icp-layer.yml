@@ -1,13 +1,16 @@
 name: "[REPO] Promote ICP canister code to the live repository"
 
 # Copy the canister layer (sources, build settings, live environment definition
-# and release tooling) from this development repository into the live
-# repository's release branch, add-only. It writes source files to GitHub and
-# nothing else: no canister is created, upgraded or even contacted, and no club
-# data is read. Creating the live canister set is a separate, explicitly run
-# job in the live repository.
+# and release tooling) from the reviewed default branch into this repository's
+# release branch, add-only. It writes source files to GitHub and nothing else:
+# no canister is created, upgraded or even contacted, and no club data is read.
+# Creating the live canister set is a separate, explicitly run job.
 #
 # Default mode is a plan, which writes nothing.
+#
+# The job authenticates with GitHub's own per-run credential: the source and the
+# destination are branches of this one repository, so no separate transfer token
+# is stored anywhere and the access dies with the run.
 on:
   workflow_dispatch:
     inputs:
@@ -20,7 +23,7 @@ on:
         default: plan
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: promote-icp-layer
@@ -31,12 +34,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Refuse to run from anything but the development branch
+      - name: Refuse to run from anything but the reviewed default branch
         env:
           REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          [ "$REF" = "refs/heads/main" ] || { echo "::error::Run this from the ${REF#refs/heads/} branch only — the live repository must receive code that has been reviewed on the development branch."; exit 1; }
+          [ "$REF" = "refs/heads/main" ] || { echo "::error::Run this from the ${REF#refs/heads/} branch only — the release branch must receive code that has been reviewed on the default branch."; exit 1; }
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
@@ -46,10 +49,10 @@ jobs:
       - name: Plan the copy
         if: inputs.mode != 'apply'
         env:
-          MIGRATION_GITHUB_TOKEN: ${{ secrets.MIGRATION_GITHUB_TOKEN }}
+          MIGRATION_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/promote-icp-layer.mjs
       - name: Apply the copy
         if: inputs.mode == 'apply'
         env:
-          MIGRATION_GITHUB_TOKEN: ${{ secrets.MIGRATION_GITHUB_TOKEN }}
+          MIGRATION_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/promote-icp-layer.mjs --apply
