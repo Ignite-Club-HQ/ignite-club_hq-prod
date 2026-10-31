@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   ENVIRONMENTS, assertDatabase, assertGovernor, assertIsolated, canistersForChangedFiles,
-  loadIds, planUpgrade, resolveEnv, UPGRADE_ORDER, REPO_ROOT,
+  loadIds, mappingPath, planUpgrade, resolveEnv, UPGRADE_ORDER, REPO_ROOT,
 } from "./icp-environments.mjs";
 import { recordRelease } from "./record-prod-release.mjs";
 
