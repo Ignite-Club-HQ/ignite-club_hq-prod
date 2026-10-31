@@ -1,9 +1,9 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — read-only PROD connections/routing and DEV separation (31 Oct 2026)
-- [ ] Check the 18 recorded PROD services using declared query readers; distinguish verified links from governor-only or missing evidence.
-- [ ] Check router registration/approval and production-build ID isolation; keep this preview on DEV, with PROD IDs only in production after an approved release.
-- [ ] Record findings and specific next steps without deployments, routing writes, database changes or push activation.
+- [x] Checked all 18 PROD services' anonymous health and certified modules/controllers; verified public club→PII link. Other live links/approval need the GitHub-held governor identity; no update calls made.
+- [x] Checked initial router/placement state and DEV/PROD isolation: zero ID overlap, preview serves DEV defaults; production wrapper selects PROD, but runtime overrides/alternate target JSON lack final environment validation.
+- [x] Recorded evidence and canister-only next steps in docs/prod-canister-connection-audit-2026-10-31.md; no deployments, database/routing writes, publication or push activation.
 
 ## Current request — fund the live signing account by card and prepare the canister-code promotion (31 Oct 2026)
 - [x] Card path built: `scripts/prod-card-funding.mjs` + policy and `[PROD] Fund PROD signing account by card`; an order is signed by the live signing identity only, journaled before the order, and refuses a second open payment. 11 focused checks pass.
