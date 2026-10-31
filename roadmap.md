@@ -1,6 +1,14 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
-## Current request — smaller release without score changes
+## Current request — fund the live signing account by card and prepare the canister-code promotion (31 Oct 2026)
+- [x] Card path built: `scripts/prod-card-funding.mjs` + policy and `[PROD] Fund PROD signing account by card`; an order is signed by the live signing identity only, journaled before the order, and refuses a second open payment. 11 focused checks pass.
+- [x] Direct card link verified in a browser for the live signing principal (28.3T cycles for $40, fee included); payment happens only when the owner presses Pay. No order was created or paid here.
+- [x] Promotion prepared: add-only allowlisted copy of the canister layer (`scripts/icp-promotion-manifest.mjs`, `scripts/promote-icp-layer.mjs`, `[REPO] Promote ICP canister code to the live repository`). Plan from this checkout: 577 files / 4.8 MB, no manifest holes; 17 guards pass. The live release workflow now provisions in a repository without the web-app layer.
+- [ ] Owner: bring the development repository on GitHub up to date — its last commit is 29 Oct, so it lacks the live canister settings and release tooling the promotion needs; the run refuses a partial layer.
+- [ ] Owner: set `PROD_GOVERNOR_PRINCIPAL` as a repository *variable* in the live repository (it exists only as a secret today), then run the promotion plan, apply it, fund by card, and run provisioning.
+- [ ] Later, not a blocker: the photo-key upgrade gate (`frontend/scripts/media-key-deploy-*`) is outside this promotion, so live *upgrades* need it plus its library before the first upgrade.
+
+
 - [x] Proceed 09:25 UTC: approved plan; implemented isolated temporary dual-entry candidate, narrow email signup/tabs/settings templates and shared candidate installer. Verified styled tab switching both ways and secure refresh without page errors; 56 safeguards and 55 frontend regressions passed (3 skipped). All other legacy email source bytes and exact worker preserved. See docs/release-review/isolated-runtime-rehearsal-2026-10-30.md.
 - [x] 10:15 UTC: candidate production build succeeds (both entries); served built output with hosting redirects, email↔secure tab switching and secure refresh pass with zero page errors.
 - [x] 11:00 UTC: all read-only PROD checks closed — none of the five run-list versions recorded (nothing half-applied), every required table present, anonymous-read policy and routing row both absent, retained-club IDs confirmed against production, invitation/teams fields compatible; hosting settled by direct live-site inspection. See docs/release-review/prod-checks-2026-10-30.md.
