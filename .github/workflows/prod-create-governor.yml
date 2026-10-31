@@ -7,7 +7,9 @@
 #
 # Order of use (all in a browser):
 #   1. Settings → Secrets and variables → Actions → New repository secret
-#      create PROD_GOVERNOR_PASSPHRASE = a passphrase only you know.
+#      create PROD_GOVERNOR_PASSPHRASE = a passphrase only you know, at least
+#      16 characters (enforced below). Best is 32 generated characters from a
+#      password manager; five random words typed with spaces also works.
 #   2. Run this workflow (Actions → [PROD] Create production signing key
 #      → Run workflow), typing CREATE PROD KEY and choosing the prod branch.
 #   3. From the run summary: paste the block into repository secret
@@ -74,6 +76,14 @@ jobs:
             echo "Name PROD_GOVERNOR_PASSPHRASE, value a passphrase only you know."
             exit 1
           }
+          # A short passphrase makes the encrypted handoff block barely harder
+          # to crack than an unprotected key, so refuse before minting anything.
+          if [ "${#PASSPHRASE}" -lt 16 ]; then
+            echo "::error::PROD_GOVERNOR_PASSPHRASE is ${#PASSPHRASE} characters; at least 16 are needed to protect the key."
+            echo "Lengthen it: Settings → Secrets and variables → Actions → PROD_GOVERNOR_PASSPHRASE → Update."
+            echo "Easiest: a password manager's 32-character generator. Five random words separated by spaces also works."
+            exit 1
+          fi
 
       - uses: actions/setup-node@v4
         with:
