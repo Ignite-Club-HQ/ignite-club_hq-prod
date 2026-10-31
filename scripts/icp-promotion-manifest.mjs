@@ -34,11 +34,15 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-card-funding-policy.mjs',
   'scripts/prod-card-funding-policy.test.mjs',
   'scripts/prod-card-funding-workflow.test.mjs',
+  'scripts/prod-connection-check-policy.mjs',
+  'scripts/prod-connection-check.mjs',
+  'scripts/prod-connection-check.test.mjs',
   'scripts/media-card-funding-policy.mjs',
   'frontend/scripts/media-stage-two-github.mjs',
 
   '.github/workflows/promote-icp-prod.yml',
   '.github/workflows/fund-prod-canisters-by-card.yml',
+  '.github/workflows/check-prod-canister-connections.yml',
 ];
 
 /**

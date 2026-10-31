@@ -50,9 +50,10 @@ async function main() {
   mkdirSync(env.CHECK_REPORT_DIR, { recursive: true });
   const report = await runCheck({ ids, env, principal,
     invoke: args => {
-      // Hex decoding uses the local explicit return type; no interface fetch or
-      // generic method selection, and no credentials/management environments.
-      const a = [...args]; const at = a.indexOf('candid'); a[at] = 'hex';
+      // Configuration pairs use explicit local decoding; bounded router records
+      // use the deployed interface and Candid text for human review.
+      const a = [...args];
+      if (a[3] === 'read_group_opening_configuration') a[a.indexOf('candid')] = 'hex';
       return execFileSync('icp', a, { cwd: env.RUNNER_TEMP, encoding: 'utf8', timeout: 60000, maxBuffer: 524288, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
     },
     decode: (name, hex) => {
@@ -68,8 +69,6 @@ async function main() {
     },
     save: report => writeFileSync(output, JSON.stringify(report, null, 2)),
   });
-  // Router replies were requested as hex too; decoding is deliberately not
-  // guessed. Preserve bounded Candid bytes for review, not an activation verdict.
   const lines = ['### PROD connection check', '', '| Service | Check | Result |', '|---|---|---|',
     ...report.rows.map(r => `| ${r.name} | ${r.method} | ${r.verdict} |`), '',
     'No routing, canister configuration, DEV connection or database changes were made.',
