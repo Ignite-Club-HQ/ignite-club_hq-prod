@@ -72,6 +72,12 @@ jobs:
             echo "### PROD canisters not provisioned yet; promotion skipped" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Note whether this repository carries the web app
+        id: webapp
+        run: echo "present=$([ -f frontend/package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+
+
       - uses: actions/setup-node@v4
         if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
         with:
