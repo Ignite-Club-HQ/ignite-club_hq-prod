@@ -1,0 +1,116 @@
+# Ignite Club HQ — PROD signing account, funded by card.
+#
+# `provision` on '[PROD] Promote ICP canisters to live' needs cycles before any
+# PROD canister exists, and CyclePay's web page only pays into an existing
+# canister ID. This workflow creates the card order with the PROD governor as
+# the buyer, so the cycles land on that signing account's own balance instead —
+# no canister ID, no exchange, no ICP purchase.
+#
+# It creates ONE order, journals it before paying, waits for delivery, and
+# verifies the balance. It never creates, installs, tops up or upgrades a
+# canister: the live set is still only touched by the promotion workflow.
+name: "[PROD] Fund PROD signing account by card"
+
+on:
+  workflow_dispatch:
+    inputs:
+      payment_id:
+        description: 'Unique payment ID (reconcile: the same ID from the stuck run)'
+        required: true
+      target_t:
+        description: 'Cycles to hold, in trillions (2–20). Provisioning 18 canisters needs about 20T.'
+        required: true
+        default: '20'
+      mode:
+        description: 'fund = create one card order; reconcile = re-check a paid order, never reorder'
+        type: choice
+        required: true
+        default: fund
+        options: [fund, reconcile]
+      confirm:
+        description: 'Type CREATE CARD LINK to create one card order; nothing is charged until you pay at checkout'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+
+jobs:
+  funding:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 85
+    env:
+      ICP_HOME: ${{ runner.temp }}/prod-card-identity
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require the prod branch
+        run: test "$GITHUB_REF" = "refs/heads/prod" || { echo "::error::PROD funding is only available from the prod branch"; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      - name: Verify funding safeguards
+        run: node --test scripts/prod-card-funding-policy.test.mjs scripts/prod-card-funding-workflow.test.mjs
+
+      - name: Install pinned card-capable CLI
+        run: |
+          npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
+          icp cycles buy --help > /dev/null
+          icp cycles balance --help > /dev/null
+
+      - name: Restore the PROD governor, create one order, wait and verify (open this log)
+        env:
+          PROD_GOVERNOR_PEM: ${{ secrets.PROD_GOVERNOR_PEM }}
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          GH_TOKEN: ${{ github.token }}
+          PAYMENT_ID: ${{ inputs.payment_id }}
+          TARGET_T: ${{ inputs.target_t }}
+          FUNDING_MODE: ${{ inputs.mode }}
+          CARD_CONFIRM: ${{ inputs.confirm }}
+          FUNDING_REPORT_DIR: ${{ runner.temp }}/prod-card-report
+          DO_NOT_TRACK: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$PAYMENT_ID"
+          mkdir -p "$ICP_HOME/identity/keys"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          PEM="$ICP_HOME/identity/keys/ignite-prod-governor.pem"
+          if [ -n "${PROD_GOVERNOR_PEM_ENC:-}" ]; then
+            # The key was minted by '[PROD] Create production signing key' and
+            # only the owner's passphrase can open it.
+            test -n "${PROD_GOVERNOR_PASSPHRASE:-}" || { echo "::error::PROD_GOVERNOR_PASSPHRASE secret missing — without it PROD_GOVERNOR_PEM_ENC cannot be opened"; exit 1; }
+            printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/gov.enc"
+            printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+            openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/gov.enc" -out "$PEM" -pass file:"$ICP_HOME/pass"
+            rm -f "$ICP_HOME/gov.enc" "$ICP_HOME/pass"
+          else
+            test -n "${PROD_GOVERNOR_PEM:-}" || { echo "::error::No PROD signing key is stored. Run '[PROD] Create production signing key' first."; exit 1; }
+            printf '%s' "$PROD_GOVERNOR_PEM" | tr -d '\r' | sed 's/\\n/\n/g' | sed -n '/-----BEGIN/,/-----END/p' > "$PEM"
+          fi
+          grep -q -- '-----BEGIN' "$PEM" || { echo "::error::The stored PROD key did not open into a key file — wrong passphrase?"; exit 1; }
+          icp identity import --from-pem "$PEM" --storage plaintext ignite-prod-governor
+          icp identity default ignite-prod-governor
+          PRINCIPAL="$(icp identity principal)"
+          node --input-type=module -e "const m = await import('file://' + process.env.GITHUB_WORKSPACE + '/scripts/icp-environments.mjs'); m.assertGovernor('prod', process.argv[1]);" "$PRINCIPAL"
+          # Run outside the checkout so no project directory is picked up.
+          cd "$RUNNER_TEMP"
+          node "$GITHUB_WORKSPACE/scripts/prod-card-funding.mjs"
+
+      - name: Save funding evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-card-${{ inputs.payment_id }}
+          path: ${{ runner.temp }}/prod-card-report/
