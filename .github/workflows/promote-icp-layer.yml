@@ -1,0 +1,55 @@
+name: "[REPO] Promote ICP canister code to the live repository"
+
+# Copy the canister layer (sources, build settings, live environment definition
+# and release tooling) from this development repository into the live
+# repository's release branch, add-only. It writes source files to GitHub and
+# nothing else: no canister is created, upgraded or even contacted, and no club
+# data is read. Creating the live canister set is a separate, explicitly run
+# job in the live repository.
+#
+# Default mode is a plan, which writes nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Plan reports what would be copied; apply creates the commit"
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-icp-layer
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Refuse to run from anything but the development branch
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          [ "$REF" = "refs/heads/main" ] || { echo "::error::Run this from the ${REF#refs/heads/} branch only — the live repository must receive code that has been reviewed on the development branch."; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Plan the copy
+        if: inputs.mode != 'apply'
+        env:
+          MIGRATION_GITHUB_TOKEN: ${{ secrets.MIGRATION_GITHUB_TOKEN }}
+        run: node scripts/promote-icp-layer.mjs
+      - name: Apply the copy
+        if: inputs.mode == 'apply'
+        env:
+          MIGRATION_GITHUB_TOKEN: ${{ secrets.MIGRATION_GITHUB_TOKEN }}
+        run: node scripts/promote-icp-layer.mjs --apply
