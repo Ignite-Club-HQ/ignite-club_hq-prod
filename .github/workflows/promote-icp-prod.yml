@@ -44,6 +44,8 @@ jobs:
     timeout-minutes: 180
     outputs:
       provisioned: ${{ steps.state.outputs.provisioned }}
+      webapp: ${{ steps.webapp.outputs.present }}
+
     env:
       ICP_HOME: ${{ github.workspace }}/.icp-home
       ACTION: ${{ inputs.action || 'promote' }}
