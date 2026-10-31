@@ -4,7 +4,7 @@ Status: **HELD by owner.** Nothing merged, no PROD database or canister changes.
 
 ## Order of work
 1. **Set up PROD canisters first** (before any merge) — done in a browser, no terminal.
-   - Owner sets a passphrase only they know: Settings → Secrets and variables → Actions → New repository secret → `PROD_GOVERNOR_PASSPHRASE`.
+   - Owner sets a passphrase only they know, at least 16 characters (the workflow refuses shorter ones): Settings → Secrets and variables → Actions → New repository secret → `PROD_GOVERNOR_PASSPHRASE`. A password manager's 32-character generator is the easiest; five random words separated by spaces also works.
    - Run **[PROD] Create production signing key** (branch `prod`, typing `CREATE PROD KEY`). It mints a fresh PROD identity on a runner, encrypts the key with that passphrase, and prints the principal, the funding address and one copyable encrypted block; the plain key and seed phrase are deleted, and the run refuses if a PROD key is already stored.
    - Paste the block into repository secret `PROD_GOVERNOR_PEM_ENC`, set repository variable `PROD_GOVERNOR_PRINCIPAL`, and send ICP (about US$26 covers a first provisioning) to the printed funding address.
    - Run **[PROD] Promote ICP canisters to live** with action `provision`, confirmation `PROVISION PROD CANISTERS`.

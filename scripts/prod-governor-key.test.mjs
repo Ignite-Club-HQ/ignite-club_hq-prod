@@ -35,6 +35,16 @@ test('minting refuses to orphan a key that is already stored', () => {
   assert.match(MINT, /\[ -n "\$\{EXISTING_PEM:-\}" \] \|\| \[ -n "\$\{EXISTING_ENC:-\}" \]/);
 });
 
+test('a passphrase too short to protect the key is refused before anything is minted', () => {
+  assert.match(MINT, /\$\{#PASSPHRASE\}" -lt 16/);
+  assert.match(MINT, /at least 16/);
+  // The length gate must run in the guard step, before the CLI is installed,
+  // so a weak passphrase never reaches the point where a key exists.
+  const gate = MINT.indexOf('-lt 16');
+  const mint = MINT.indexOf('Mint the key and hand it over encrypted');
+  assert.ok(gate > -1 && mint > -1 && gate < mint, 'the length gate must precede minting');
+});
+
 test('the plain key and the seed phrase never leave the runner', () => {
   assert.match(MINT, /--output-seed "\$ICP_HOME\/seed"/);
   assert.match(MINT, /umask 077/);
