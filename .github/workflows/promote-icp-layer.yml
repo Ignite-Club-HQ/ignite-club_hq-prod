@@ -21,6 +21,10 @@ on:
           - plan
           - apply
         default: plan
+      allow_drift:
+        description: "Overwrite live files that differ (apply only; review the differing list first)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -55,4 +59,8 @@ jobs:
         if: inputs.mode == 'apply'
         env:
           MIGRATION_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/promote-icp-layer.mjs --apply
+        run: |
+          set -euo pipefail
+          FLAG=""
+          if [ "${{ inputs.allow_drift }}" = "true" ]; then FLAG="--allow-drift"; fi
+          node scripts/promote-icp-layer.mjs --apply $FLAG
