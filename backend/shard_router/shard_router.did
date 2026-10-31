@@ -1,0 +1,266 @@
+type AssignDomainRequest = record {
+  domain : text;
+  shard : principal;
+  expected_revision : nat64;
+  club_id : text;
+};
+type AssignDomainResult = record { revision : nat64; route : DomainRoute };
+type AssignRequest = record {
+  shard : principal;
+  expected_revision : nat64;
+  club_id : text;
+};
+type AssignResult = record { revision : nat64; route : Route };
+type DeletionLock = record { account_id : text; revision : nat64 };
+type DomainCanister = record { domain : text; canister : principal };
+type DomainMigration = record {
+  destination : principal;
+  domain : text;
+  source : principal;
+  route_revision : nat64;
+  club_id : text;
+  migration_revision : nat64;
+};
+type DomainPlacement = record {
+  domain : text;
+  subnet : principal;
+  canister : principal;
+};
+type DomainRoute = record {
+  domain : text;
+  shard : principal;
+  revision : nat64;
+  club_id : text;
+};
+type GroupAssignment = record {
+  group_id : text;
+  revision : nat64;
+  club_id : text;
+};
+type GroupPlacement = record {
+  host : text;
+  network_kind : text;
+  deployment_revision : nat64;
+  approved_subnets : vec principal;
+  additional_subnets_enabled : bool;
+  group_id : text;
+  domains : vec DomainPlacement;
+  deployment_id : text;
+  primary_subnet : principal;
+};
+type GroupRegistryPage = record {
+  groups : vec ShardGroup;
+  placements : vec GroupPlacement;
+  configuration_revision : opt nat64;
+  next_cursor : opt text;
+  revision : nat64;
+};
+type GroupRegistrySnapshot = record {
+  groups : vec ShardGroup;
+  placements : vec GroupPlacement;
+  revision : nat64;
+};
+type HttpRequest = record {
+  url : text;
+  method : text;
+  body : blob;
+  headers : vec record { text; text };
+};
+type HttpResponse = record {
+  body : blob;
+  headers : vec record { text; text };
+  status_code : nat16;
+};
+type Init = record { governor : principal };
+type MemoryStats = record {
+  memory_bytes : nat;
+  stable_bytes : nat;
+  heap_bytes : nat;
+};
+type Migration = record {
+  destination : principal;
+  source : principal;
+  route_revision : nat64;
+  club_id : text;
+  migration_revision : nat64;
+};
+type OwnerOpening = record {
+  accepting_new : bool;
+  approval : OwnerOpeningApproval;
+  opened_revision : nat64;
+};
+type OwnerOpeningApproval = record {
+  club_ids : vec text;
+  placement : GroupPlacement;
+  owner : principal;
+  group : ShardGroup;
+  expected_revision : nat64;
+  evidence_sha256 : text;
+};
+type Page = record { next : opt text; routes : vec Route; revision : nat64 };
+type PublicGroupPage = record {
+  groups : vec PublicGroupTarget;
+  configuration_revision : nat64;
+  next_cursor : opt text;
+};
+type PublicGroupTarget = record { id : text; domains : vec DomainCanister };
+type Result = variant { Ok : nat64; Err : text };
+type Result_1 = variant { Ok : DeletionLock; Err : text };
+type Result_10 = variant { Ok : opt GroupAssignment; Err : text };
+type Result_11 = variant { Ok : opt Migration; Err : text };
+type Result_12 = variant { Ok : opt Route; Err : text };
+type Result_13 = variant { Ok : vec ShardGroup; Err : text };
+type Result_14 = variant { Ok : Page; Err : text };
+type Result_15 = variant { Ok : OwnerOpening; Err : text };
+type Result_16 = variant { Ok : vec record { text; text }; Err : text };
+type Result_17 = variant { Ok : GroupRegistrySnapshot; Err : text };
+type Result_18 = variant { Ok : GroupRegistryPage; Err : text };
+type Result_19 = variant { Ok : vec GroupAssignment; Err : text };
+type Result_2 = variant { Ok; Err : text };
+type Result_20 = variant { Ok : opt OwnerOpening; Err : text };
+type Result_21 = variant { Ok : bool; Err : text };
+type Result_22 = variant { Ok : WriterReceipt; Err : text };
+type Result_23 = variant { Ok : PublicGroupPage; Err : text };
+type Result_24 = variant { Ok : opt RoutingApproval; Err : text };
+type Result_25 = variant { Ok : RoutingApproval; Err : text };
+type Result_3 = variant { Ok : AssignResult; Err : text };
+type Result_4 = variant { Ok : AssignDomainResult; Err : text };
+type Result_5 = variant { Ok : GroupAssignment; Err : text };
+type Result_6 = variant { Ok : DomainMigration; Err : text };
+type Result_7 = variant { Ok : Migration; Err : text };
+type Result_8 = variant { Ok : opt DomainMigration; Err : text };
+type Result_9 = variant { Ok : opt DomainRoute; Err : text };
+type Route = record { shard : principal; revision : nat64; club_id : text };
+type RoutingApproval = record {
+  // Exact configuration revision the governor verified.
+  configuration_revision : nat64;
+  removal_checked_at_ms : nat64;
+  // Lowercase hex SHA-256 of the canonical approved configuration text.
+  approved_configuration_sha256 : text;
+  target_alias : text;
+  // Every registered group for the target, all with verified removal wiring.
+  removal_wiring_group_ids : vec text;
+  // Lowercase hex SHA-256 of the full off-chain evidence report.
+  evidence_sha256 : text;
+};
+type ShardGroup = record {
+  id : text;
+  max_clubs : nat32;
+  observed_at_ns : nat64;
+  accepting : bool;
+  // The group's own photo store. Uploads for its clubs go only here, never
+  // to a shared store (whose single club authority belongs to another group).
+  photo_store : opt principal;
+  heap_budget_bytes : nat64;
+  cycles : nat64;
+  assigned_clubs : nat32;
+  domains : vec DomainCanister;
+  target_alias : text;
+  min_cycles : nat64;
+  heap_bytes : nat64;
+};
+type WriterReceipt = record {
+  active : nat;
+  request : WriterRequest;
+  sealed : bool;
+  closing : bool;
+  receiver : principal;
+};
+type WriterRequest = record {
+  inventory_digest : blob;
+  generation : nat64;
+  operation_id : text;
+};
+service : (Init) -> {
+  abort_domain_migration : (text, text, nat64) -> (Result);
+  abort_migration : (text, nat64) -> (Result);
+  acquire_deletion_lock : (text, nat64) -> (Result_1);
+  activate_private_name_preparation : (WriterRequest) -> (Result_2);
+  assign : (AssignRequest) -> (Result_3);
+  assign_domain : (AssignDomainRequest) -> (Result_4);
+  assign_new_club_group : (text, text, nat64) -> (Result_5);
+  begin_domain_migration : (text, text, principal, nat64) -> (Result_6);
+  begin_migration : (text, principal, nat64) -> (Result_7);
+  commit_domain_migration : (text, text, nat64) -> (Result_4);
+  commit_migration : (text, nat64) -> (Result_3);
+  configure_group_media_growth : (
+      text,
+      nat64,
+      nat64,
+      nat64,
+      vec record { text; nat64 },
+      nat64,
+    ) -> (Result_2);
+  configure_store_media_growth : (
+      text,
+      principal,
+      nat64,
+      nat64,
+      vec record { text; nat64 },
+      nat64,
+      nat64,
+    ) -> (Result_2);
+  // Public: remaining cycles (shown in admin settings).
+  cycles_balance : () -> (nat) query;
+  finish_private_name_preparation : (WriterRequest) -> (Result_2);
+  freeze_private_name_preparation : (WriterRequest) -> (Result_2);
+  get_domain_migration : (text, text) -> (Result_8) query;
+  get_domain_route : (text, text) -> (Result_9) query;
+  get_group_assignment : (text) -> (Result_10) query;
+  get_migration : (text) -> (Result_11) query;
+  get_route : (text) -> (Result_12) query;
+  // Public club-website resolver: redirects /club?id=..&scope=.. to the owning group.
+  http_request : (HttpRequest) -> (HttpResponse) query;
+  list_groups : () -> (Result_13) query;
+  list_routes : (opt text, nat16) -> (Result_14) query;
+  // Public: live memory reading for the admin health page.
+  memory_stats : () -> (MemoryStats) query;
+  // Explicit governor signature grants only bounded owner test placement, not
+  // global admission, membership, recovery release or general accepting status.
+  open_owner_test_group : (OwnerOpeningApproval) -> (Result_15);
+  open_private_name_writer_window : (WriterRequest) -> (Result_2);
+  // Any signed-in user creating a club asks for its group here; the router picks
+  // the healthiest accepting group. Capped per principal; retries are free.
+  place_my_new_club : (text, text) -> (Result_5);
+  read_group_opening_configuration : () -> (Result_16);
+  read_group_registry : (text) -> (Result_17);
+  read_group_registry_page : (text, opt nat64, opt text, nat32) -> (Result_18);
+  read_hosted_club_assignment : (text, text, nat64) -> (Result_5);
+  read_my_group_assignments : (vec text, text, nat64) -> (Result_19);
+  // Consensus creator receipt only; never grants club membership or data access.
+  read_my_new_club_placement : (text, text, nat64) -> (Result_5);
+  // Caller-scoped consensus discovery, including after stopping new placements.
+  read_my_owner_test_opening : (text) -> (Result_20);
+  // Only the registered destination club authority can check a creator receipt.
+  // This does not authorize private reads or grant cross-club membership.
+  read_new_club_creation_authorized : (principal, text, text, text) -> (
+      Result_21,
+    );
+  // No private approval data: admins deleting a different account still need
+  // the complete group inventory, even when they have no test-club membership.
+  read_owner_test_deletion_required : (text) -> (Result_21);
+  read_private_name_preparation : (WriterRequest) -> (Result_22);
+  read_private_name_writer_window : (WriterRequest) -> (Result_22);
+  // Anonymous infrastructure discovery only: never memberships, placements,
+  // controller details or a grant to read/write any destination resource.
+  read_public_group_targets : (text, opt nat64, opt text, nat32) -> (Result_23);
+  // Consensus read for signed-in clients; infrastructure metadata only.
+  read_routing_approval : (text) -> (Result_24);
+  record_group_health : (text, nat64, nat64, nat64) -> (Result);
+  // Governor-only. Binds the exact configuration revision and approved digest;
+  // any later group/placement/policy change makes clients fail closed again.
+  record_routing_approval : (RoutingApproval, nat64) -> (Result_25);
+  register_group : (ShardGroup, nat64) -> (Result);
+  register_group_placement : (GroupPlacement, nat64) -> (Result);
+  release_deletion_lock : (text, nat64) -> (Result_2);
+  reserve_group_media_growth : (text, text, text, nat64) -> (Result);
+  seal_private_name_writer_window : (WriterRequest) -> (Result_2);
+  set_deletion_authority : (principal) -> (Result_2);
+  // Governor-only: club_domain serving clubs that have no group assignment.
+  set_website_default_club_domain : (principal) -> (Result_2);
+  // Governor-only stop for general and trial admission. Never removes assignments
+  // or changes membership, service endpoints, media, or opening authorization.
+  stop_group_new_placements : (text, text, nat64) -> (Result);
+  stop_owner_test_group : (text, nat64) -> (Result_15);
+  version : () -> (nat64) query;
+}

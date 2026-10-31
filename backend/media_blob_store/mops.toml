@@ -1,0 +1,24 @@
+[moc]
+# 240 GiB stable page cap (3,932,160 x 64 KiB): above the 200 GiB app ceiling,
+# below the 256 GiB Motoko Region block table. Never raise to 256 GiB or more.
+args = ["--max-stable-pages", "3932160"]
+
+[dependencies]
+core = "2.6.1"
+sha2 = "0.2.5"
+
+[toolchain]
+moc = "1.16.1"
+pocket-ic = "15.0.0"
+
+[package]
+name = "media_blob_store"
+version = "0.1.0"
+
+[canisters.media_blob_store]
+main = "src/main.mo"
+candid = "media_blob_store.did"
+
+[canisters.media_blob_store.migrations]
+chain = "src/backend/migrations"
+check-limit = 1

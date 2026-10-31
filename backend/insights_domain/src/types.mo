@@ -1,0 +1,135 @@
+import Principal "mo:core/Principal";
+module {
+  public type RoleGrant = { user : Principal; role : Text; club_id : Text; team_id : ?Text };
+
+  public type WebVital = { id : Text; user : Principal; metric_name : Text; metric_value : Float; rating : Text; page_path : Text; created_at_ms : Nat64 };
+
+  // Generic perf sample covering home/inbox/chat/schedule/realtime/client_perf_log
+  // surfaces. `surface` mirrors the originating Supabase table name so
+  // aggregate queries can filter/group like the per-surface dashboards did.
+  public type PerfSample = { surface : Text; user : Principal; source : Text; duration_ms : Nat32; cache_hit : Bool; platform : Text; created_at_ms : Nat64 };
+
+  public type PerfAggregate = { surface : Text; source : Text; count : Nat32; avg_ms : Float; p50_ms : Nat32; p95_ms : Nat32 };
+
+  public type EngagementEventKind = { #Message; #Rsvp; #ActiveUser; #SponsorImpression; #SponsorClick };
+  // One row per (club, day, kind); active-user days additionally record the
+  // distinct member text-id set for that bucket.
+  public type EngagementCounter = { club_id : Text; day : Text; kind : EngagementEventKind; count : Nat32; activeUsers : [Text] };
+
+  public type EngagementTotals = { club_id : Text; messages : Nat32; rsvps : Nat32; active_users : Nat32; sponsor_impressions : Nat32; sponsor_clicks : Nat32 };
+  public type EngagementDayPoint = { day : Text; value : Nat32 };
+  public type EngagementBenchmarks = { club_id : Text; current : EngagementTotals; previous : EngagementTotals };
+
+  public type AlertStatus = { #Open; #Resolved };
+  public type AdminAlert = { id : Text; alert_type : Text; details : Text; status : AlertStatus; created_at_ms : Nat64; resolved_at_ms : ?Nat64; resolved_by : ?Principal };
+
+  public type AuditLog = { id : Text; action_type : Text; actor_id : Principal; target_user_id : ?Text; target_user_name : ?Text; details : Text; table_name : Text; created_at_ms : Nat64 };
+
+  public type FeedbackStatus = { #Open; #InProgress; #Resolved };
+  public type Feedback = { id : Text; user : Principal; kind : Text; title : ?Text; message : Text; page_url : ?Text; status : FeedbackStatus; admin_notes : ?Text; created_at_ms : Nat64; updated_at_ms : Nat64 };
+
+  // ---- Client perf log (clientPerfLog equivalent) ----
+  public type ClientPerfEntry = { path : Text; metric : Text; value_ms : Nat32; at_ms : Nat64; principal : Principal };
+  public type ClientPerfSample = { path : Text; metric : Text; value_ms : Nat32; at_ms : Nat64; user : Principal };
+  public type ClientPerfAggregate = { path : Text; count : Nat32; avg_ms : Float; p50_ms : Nat32; p95_ms : Nat32 };
+
+  // ---- Engagement benchmarks (admin-set target/reference values) ----
+  // Optional fields added for the engagement analytics UI (total club
+  // membership snapshot, daily/weekly/monthly active users, distinct
+  // posters, and read-rate) alongside the original metric_key/period/value
+  // reference-number shape; null on rows set before these fields existed.
+  public type Benchmark = {
+    metric_key : Text;
+    period : Text;
+    value : Float;
+    updated_at_ms : Nat64;
+    total_members : ?Nat32;
+    dau : ?Nat32;
+    wau : ?Nat32;
+    mau : ?Nat32;
+    posters : ?Nat32;
+    read_rate : ?Float;
+  };
+
+  // ---- Sponsor performance rollups ----
+  public type SponsorMetricCounter = { sponsor_id : Text; metric : Text; period : Text; value : Float };
+  public type SponsorPerformance = { sponsor_id : Text; period : Text; metrics : [{ metric : Text; value : Float }] };
+
+  // Per-(sponsor, day) distinct-reach set, mirroring EngagementCounter's
+  // activeUsers pattern: record_sponsor_metric appends account_id here when
+  // called with metric = "unique_reach" instead of accumulating a plain
+  // float delta, so repeated impressions by the same account count once.
+  public type SponsorReachCounter = { sponsor_id : Text; period : Text; accountIds : [Text] };
+
+  // Per-sponsor performance row for the engagement analytics UI: summed
+  // impressions/clicks over the requested period range, the distinct
+  // unique_reach count, and the derived click-through rate (0 when there
+  // were no impressions).
+  // Club-owned sponsor counters: same shape as the legacy sponsor-only rows
+  // but keyed by (club, sponsor) so each club's numbers move with the club
+  // during a group transfer. A sponsor shown by several clubs gets one row
+  // set per club; sponsor-wide totals are the sum across clubs.
+  public type ClubSponsorMetricCounter = { club_id : Text; sponsor_id : Text; metric : Text; period : Text; value : Float };
+  public type ClubSponsorReachCounter = { club_id : Text; sponsor_id : Text; period : Text; accountIds : [Text] };
+
+  public type SponsorBenchmarkRow = { sponsor_id : Text; impressions : Nat32; clicks : Nat32; unique_reach : Nat32; ctr : Float };
+
+  // ---- House ads (app_ad_settings / app_ads / app_ad_analytics) ----
+  public type AppAdSetting = { location : Text; is_enabled : Bool; override_sponsors : Bool; show_only_when_no_sponsors : Bool; updated_at_ms : Nat64 };
+  public type AppAd = {
+    id : Text; name : Text; ad_type : Text; image_url : ?Text; logo_url : ?Text;
+    link_url : ?Text; description : ?Text; headline : ?Text; subtext : ?Text;
+    cta_label : ?Text; bg_color : ?Text; text_color : ?Text;
+    is_active : Bool; display_order : Nat32; created_at_ms : Nat64; updated_at_ms : Nat64;
+  };
+  public type AppAdInput = {
+    name : Text; ad_type : Text; image_url : ?Text; logo_url : ?Text;
+    link_url : ?Text; description : ?Text; headline : ?Text; subtext : ?Text;
+    cta_label : ?Text; bg_color : ?Text; text_color : ?Text;
+  };
+  public type AdEvent = { id : Text; ad_id : Text; event_type : Text; context : Text; user : Principal; created_at_ms : Nat64 };
+  public type AdEventSummary = { ad_id : Text; context : Text; views : Nat32; clicks : Nat32 };
+
+  // ---- Photo counters (lightweight; media bytes stay in Supabase) ----
+  // One row per uploaded photo, used to count uploads within a club/time
+  // window (count_photos) without storing any media bytes here.
+  public type PhotoUpload = { photo_id : Text; club_id : Text; uploaded_at_ms : Nat64 };
+  public type PhotoEngagementKind = { #View; #Reaction; #Comment };
+  // One row per engagement event (view/reaction/comment) keyed by photo id;
+  // summed per-kind by photo_engagement_totals.
+  public type PhotoEngagementEvent = { photo_id : Text; kind : PhotoEngagementKind; created_at_ms : Nat64 };
+  public type PhotoEngagementTotal = { photo_id : Text; views : Nat; reactions : Nat; comments : Nat };
+
+  // ---- Per-session user activity log (page-view drill-down) ----
+  public type UserActivityEntry = {
+    user_id : Text;
+    club_id : ?Text;
+    page_path : Text;
+    page_label : Text;
+    session_id : Text;
+    started_at_ms : Nat64;
+    duration_seconds : Nat32;
+  };
+
+  public type State = {
+    var governor : Principal;
+    var roles : [RoleGrant];
+    var webVitals : [WebVital];
+    var perfSamples : [PerfSample];
+    var engagementCounters : [EngagementCounter];
+    var adminAlerts : [AdminAlert];
+    var auditLogs : [AuditLog];
+    var feedback : [Feedback];
+    var nextId : Nat64;
+    var clientPerfSamples : [ClientPerfSample];
+    var benchmarks : [Benchmark];
+    var sponsorMetrics : [SponsorMetricCounter];
+    var sponsorReach : [SponsorReachCounter];
+    var adSettings : [AppAdSetting];
+    var ads : [AppAd];
+    var adEvents : [AdEvent];
+    var photoUploads : [PhotoUpload];
+    var photoEngagementEvents : [PhotoEngagementEvent];
+    var userActivity : [UserActivityEntry];
+  };
+}

@@ -1,0 +1,18 @@
+[toolchain]
+moc = "1.16.1"
+
+[moc]
+args = [ "--default-persistent-actors" ]
+
+[dependencies]
+core = "2.6.1"
+ic = "4.2.0"
+json = "1.4.0"
+
+[canisters.events_domain]
+main = "src/main.mo"
+candid = "events_domain.did"
+
+[canisters.events_domain.migrations]
+chain = "src/backend/migrations"
+check-limit = 1
