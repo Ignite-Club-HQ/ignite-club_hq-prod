@@ -160,7 +160,9 @@ jobs:
           echo "Cycles: $(icp cycles balance -n ic 2>/dev/null || true)"
           if [ "${ACTION:-promote}" = provision ]; then
             # 18 canisters × 1T initial fuel + 0.1T creation fee each, spent from this account.
-            HAVE="$(icp cycles balance -n ic --json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(BigInt(String(JSON.parse(s).balance||"0").replace(/ cycles$/,"").replaceAll("_","")))}catch{console.log(0)}})')"
+            # Print plain digits: console.log(BigInt) appends "n", which bash's -ge rejects.
+            HAVE="$(icp cycles balance -n ic --json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(BigInt(String(JSON.parse(s).balance||"0").replace(/ cycles$/,"").replaceAll("_","")).toString())}catch{console.log("0")}})')"
+            [[ "${HAVE:-0}" =~ ^[0-9]+$ ]] || { echo "::error::Could not read the signing account's cycles balance (got '${HAVE:-}')."; exit 1; }
             [ "${HAVE:-0}" -ge 19800000000000 ] || { echo "::error::PROD provisioning needs at least 19.8T cycles but the signing account holds ${HAVE:-0}. Run '[PROD] Fund PROD signing account by card' first — it needs no canister ID."; exit 1; }
             echo "PROD fuel check passed: ${HAVE} cycles."
           fi
