@@ -29,6 +29,7 @@ import {
   promotionFiles,
   missingSourceEntries,
   assertPromotionTarget,
+  filesToWrite,
 
 } from './icp-promotion-manifest.mjs';
 
