@@ -28,6 +28,8 @@ import {
   SOURCE_BRANCH,
   promotionFiles,
   missingSourceEntries,
+  assertPromotionTarget,
+
 } from './icp-promotion-manifest.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -84,8 +86,8 @@ const chunks = (list, size) => Array.from({ length: Math.ceil(list.length / size
 
 async function main() {
   if (!token) die('MIGRATION_GITHUB_TOKEN is not set; nothing can be read or written.');
-  if (dest !== PROD_REPO) die(`Only the live repository ${PROD_REPO} may receive this layer; asked for ${dest}.`);
-  if (branch !== PROD_BRANCH) die(`Only the ${PROD_BRANCH} branch may receive this layer; asked for ${branch}.`);
+  try { assertPromotionTarget({ dest, branch }); } catch (error) { die(error.message); }
+
 
   const files = trackedFiles();
   const holes = missingSourceEntries(files);
