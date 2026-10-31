@@ -27,7 +27,7 @@ function fakeRepo({ dev = { club_domain: "aaaaa-dev" }, prod } = {}) {
   return root;
 }
 
-test("DEV is today's test canister set, including the shared router", () => {
+test("DEV is today's test canister set, including the shared router", { skip: !HAS_DEV_LAYER && SKIP_NO_DEV }, () => {
   assert.equal(DEV_IDS.shard_router, "jcdfe-vqaaa-aaaal-qxloq-cai");
   assert.equal(DEV_IDS.club_domain, "mzzzv-taaaa-aaaal-qxlrq-cai");
 });
@@ -37,7 +37,7 @@ test("an unprovisioned PROD table is empty, never the DEV canisters", () => {
   assert.deepEqual(loadIds("prod", root), {});
 });
 
-test("PROD refuses any DEV canister ID", () => {
+test("PROD refuses any DEV canister ID", { skip: !HAS_DEV_LAYER && SKIP_NO_DEV }, () => {
   assert.throws(() => assertIsolated("prod", { club_domain: DEV_IDS.club_domain }, DEV_IDS), /contains DEV canisters: club_domain/);
 });
 
@@ -107,7 +107,7 @@ test("merging into prod promotes PROD canisters automatically, with PROD keys on
   assert.match(y, /deploy\/frontend-prod/);
 });
 
-test("DEV workflows never use PROD keys or the PROD canister set", () => {
+test("DEV workflows never use PROD keys or the PROD canister set", { skip: !HAS_DEV_LAYER && SKIP_NO_DEV }, () => {
   for (const name of ["deploy-frontend-canister.yml", "upgrade-all-groups.yml", "deploy-icp-mainnet.yml"]) {
     const y = wf(name);
     assert.doesNotMatch(y, /PROD_GOVERNOR_PEM|deploy\/prod\b|frontend-prod/, name);
