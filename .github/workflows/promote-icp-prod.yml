@@ -87,13 +87,20 @@ jobs:
         run: |
           npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
           icp canister install --help | grep -q -- --wasm-memory-persistence
-          node scripts/ensure-frontend-deps.mjs
+          # The web-app dependency install only applies where the web-app layer
+          # lives in this repository; the live repository keeps its app at the root.
+          if [ -f frontend/package.json ]; then node scripts/ensure-frontend-deps.mjs; else echo "No web-app layer here — frontend dependency install skipped."; fi
+
 
       - name: Environment isolation tests and interface drift check
         if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
         run: |
           node --test scripts/icp-environments.test.mjs
-          node frontend/scripts/check-candid-drift.mjs
+          # The interface drift check compares canister interfaces against the
+          # web app's generated bindings; a repository without the web-app layer
+          # (the live repository keeps its app at the root) has nothing to drift.
+          if [ -f frontend/scripts/check-candid-drift.mjs ]; then node frontend/scripts/check-candid-drift.mjs; else echo "No web-app layer here — interface drift check skipped."; fi
+
 
       - name: Restore the PROD governor (never a DEV key)
         if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
