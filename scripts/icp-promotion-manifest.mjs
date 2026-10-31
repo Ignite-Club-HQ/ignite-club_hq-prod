@@ -98,6 +98,18 @@ export function missingSourceEntries(files) {
  * Only absent files are added; a file that exists with different content is a
  * conflict that stops the run, because overwriting live code is not promotion.
  */
+/**
+ * The files a copy run writes. Absent files are always added; files the live
+ * repository holds with different bytes are written only when the operator
+ * explicitly chose to overwrite them. Overwrite must never be a silent no-op:
+ * a run that reports success while skipping the files it was asked to replace
+ * leaves the live branch on the old bytes.
+ */
+export function filesToWrite({ add, differ, allowDrift }) {
+  if (differ.length && !allowDrift) return null; // the caller must stop
+  return [...new Set([...add, ...(allowDrift ? differ : [])])].sort();
+}
+
 export function planPromotion({ files, existing }) {
   const wanted = promotionFiles(files);
   const have = new Set(existing);

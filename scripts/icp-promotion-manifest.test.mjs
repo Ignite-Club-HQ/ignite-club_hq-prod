@@ -95,6 +95,16 @@ test('a copy run only adds files the live repository does not have', () => {
   assert.ok(plan.alreadyPresent.includes('mops.toml'), 'left-alone files must be reported');
 });
 
+test('ticking overwrite really writes the differing files', () => {
+  const write = filesToWrite({ add: ['a.mo'], differ: ['scripts/icp-environments.test.mjs'], allowDrift: true });
+  assert.deepEqual(write, ['a.mo', 'scripts/icp-environments.test.mjs']);
+});
+
+test('without overwrite, differing files stop the run', () => {
+  assert.equal(filesToWrite({ add: ['a.mo'], differ: ['x.mjs'], allowDrift: false }), null);
+  assert.deepEqual(filesToWrite({ add: ['a.mo'], differ: [], allowDrift: false }), ['a.mo']);
+});
+
 test('a promotion can only land on the live repository release branch', () => {
   assert.doesNotThrow(() => assertPromotionTarget({ dest: PROD_REPO, branch: PROD_BRANCH }));
   assert.throws(() => assertPromotionTarget({ dest: 'Ignite-Club-HQ/ignite-club-hybrid', branch: PROD_BRANCH }), /live repository/);

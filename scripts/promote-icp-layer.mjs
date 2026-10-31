@@ -123,19 +123,21 @@ async function main() {
     console.log('\nPlan only — nothing was written. Re-run with --apply to create the commit.');
     return;
   }
-  if (differ.length && !allowDrift) {
+  const write = filesToWrite({ add, differ, allowDrift });
+  if (!write) {
     die(`${differ.length} file(s) differ in the live repository. Copying would overwrite live code; review them, then re-run with --allow-drift if the development versions really should win.`);
   }
-  if (!add.length) return;
+  if (!write.length) return;
+  if (allowDrift && differ.length) console.log(`\nOverwriting ${differ.length} differing file(s) as requested:\n  ${differ.join('\n  ')}`);
 
   let treeSha = headSha;
-  for (const chunk of chunks(add, 100)) {
+  for (const chunk of chunks(write, 100)) {
     const tree = await api('POST', `/repos/${dest}/git/trees`, {
       base_tree: treeSha,
       tree: chunk.map((file) => ({ path: file, mode: '100644', type: 'blob', content: localContent(file) })),
     });
     treeSha = tree.sha;
-    console.log(`Staged ${Math.min(chunk.length, add.length)} file(s) (${treeSha.slice(0, 7)}).`);
+    console.log(`Staged ${chunk.length} file(s) (${treeSha.slice(0, 7)}).`);
   }
 
   const commit = await api('POST', `/repos/${dest}/git/commits`, {
@@ -146,7 +148,7 @@ async function main() {
   // force=false: if the live branch moved while this run was reading it, GitHub
   // rejects the update instead of dropping someone else's commit.
   const ref = await api('PATCH', `/repos/${dest}/git/refs/heads/${branch}`, { sha: commit.sha, force: false });
-  console.log(`\nAdded ${add.length} file(s) to ${dest}@${branch} as ${commit.sha}${ref.object.sha !== commit.sha ? ' (rejected: the live branch moved — re-run the plan)' : ''}.`);
+  console.log(`\nWrote ${write.length} file(s) (${add.length} added, ${write.length - add.length} overwritten) to ${dest}@${branch} as ${commit.sha}${ref.object.sha !== commit.sha ? ' (rejected: the live branch moved — re-run the plan)' : ''}.`);
   if (ref.object.sha !== commit.sha) process.exitCode = 1;
 }
 
