@@ -52,13 +52,22 @@ const NEVER_COPY = [
   /(^|\/)\.mops\//,
   /(^|\/)\.dfx\//,
   /(^|\/)\.icp\//,
+  /(^|\/)release\.json$/,
   /(^|\/)target\//,
+
   /(^|\/)node_modules\//,
   /(^|\/)dist\//,
   /(^|\/)\.git\//,
 ];
 
 const neverCopy = (file) => NEVER_COPY.some((pattern) => pattern.test(file));
+
+/** Where a promotion may land: the live repository's release branch, never anything else. */
+export function assertPromotionTarget({ dest = PROD_REPO, branch = PROD_BRANCH } = {}) {
+  if (dest !== PROD_REPO) throw new Error(`Only the live repository ${PROD_REPO} may receive this layer; asked for ${dest}.`);
+  if (branch !== PROD_BRANCH) throw new Error(`Only the ${PROD_BRANCH} branch may receive this layer; asked for ${branch}.`);
+}
+
 
 /** Every path the manifest allows, from a list of repository files. */
 export function promotionFiles(files) {
