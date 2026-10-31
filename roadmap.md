@@ -1,7 +1,8 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
 ## Current request — read-only PROD connections/routing and DEV separation (31 Oct 2026)
-- [ ] Prepare a manual signed PROD infrastructure check using the existing GitHub-held key, with no setters, routing activation, database work or DEV traffic.
+- [x] Prepared manual [PROD] Check PROD canister connections with the existing encrypted GitHub-held key, exact 18-service inventory, bounded infrastructure readers and evidence artifact; no setters, routing activation, database work or DEV traffic. Tests pass; live signed execution awaits the owner's GitHub run.
+- [ ] Owner: copy the new check tooling via the existing REPO promotion workflow, then run Check PROD canister connections from prod; GitHub holds the signing key, so signed live readback cannot execute in this sandbox.
 - [x] Checked all 18 PROD services' anonymous health and certified modules/controllers; verified public club→PII link. Other live links/approval need the GitHub-held governor identity; no update calls made.
 - [x] Checked initial router/placement state and DEV/PROD isolation: zero ID overlap, preview serves DEV defaults; production wrapper selects PROD, but runtime overrides/alternate target JSON lack final environment validation.
 - [x] Recorded evidence and canister-only next steps in docs/prod-canister-connection-audit-2026-10-31.md; no deployments, database/routing writes, publication or push activation.

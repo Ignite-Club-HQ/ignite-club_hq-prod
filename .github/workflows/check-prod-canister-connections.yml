@@ -33,7 +33,7 @@ jobs:
       - name: Install isolated pinned tools
         run: |
           npm install -g @icp-sdk/icp-cli@1.7.0 --no-fund --no-audit
-          npm install --prefix "$RUNNER_TEMP/prod-check-deps" @icp-sdk/core@6.4.1 --no-fund --no-audit
+          npm install --prefix "$RUNNER_TEMP/prod-check-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
       - name: Restore existing PROD key and read infrastructure only
         env:
           PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
@@ -45,6 +45,7 @@ jobs:
           export ICP_HOME="$RUNNER_TEMP/prod-check-identity"
           export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-check-deps"
           export CHECK_REPORT_DIR="$RUNNER_TEMP/prod-check-report"
+          export DO_NOT_TRACK=1
           trap 'rm -rf "$ICP_HOME"' EXIT
           test -n "${PROD_GOVERNOR_PEM_ENC:-}"
           test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
