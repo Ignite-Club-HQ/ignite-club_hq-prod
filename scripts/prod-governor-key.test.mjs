@@ -15,6 +15,13 @@ const read = (f) => readFileSync(path.join(ROOT, f), 'utf8');
 const MINT = read('.github/workflows/prod-create-governor.yml');
 const PROMOTE = read('.github/workflows/promote-icp-prod.yml');
 
+test('the signing directory is set at step runtime, not with an unavailable job context', () => {
+  const jobEnv = MINT.slice(MINT.indexOf('    env:'), MINT.indexOf('    steps:'));
+  assert.doesNotMatch(jobEnv, /runner\./);
+  assert.match(MINT, /printf 'ICP_HOME=%s\/prod-governor-key\\n' "\$RUNNER_TEMP" >> "\$GITHUB_ENV"/);
+  assert.ok(MINT.indexOf('Set the temporary signing directory') < MINT.indexOf('Require the prod branch'));
+});
+
 test('the minting workflow is PROD-tagged and gated on an explicit confirmation', () => {
   assert.match(MINT, /^name: "\[PROD\] /m);
   assert.match(MINT, /CREATE PROD KEY/);
