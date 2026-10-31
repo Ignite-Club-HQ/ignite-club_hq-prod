@@ -44,6 +44,8 @@ jobs:
     timeout-minutes: 180
     outputs:
       provisioned: ${{ steps.state.outputs.provisioned }}
+      webapp: ${{ steps.webapp.outputs.present }}
+
     env:
       ICP_HOME: ${{ github.workspace }}/.icp-home
       ACTION: ${{ inputs.action || 'promote' }}
@@ -72,6 +74,12 @@ jobs:
             echo "### PROD canisters not provisioned yet; promotion skipped" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Note whether this repository carries the web app
+        id: webapp
+        run: echo "present=$([ -f frontend/package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+
+
       - uses: actions/setup-node@v4
         if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
         with:
@@ -87,13 +95,20 @@ jobs:
         run: |
           npm install -g @icp-sdk/icp-cli@1.7.0 @icp-sdk/ic-wasm ic-mops --no-fund --no-audit
           icp canister install --help | grep -q -- --wasm-memory-persistence
-          node scripts/ensure-frontend-deps.mjs
+          # The web-app dependency install only applies where the web-app layer
+          # lives in this repository; the live repository keeps its app at the root.
+          if [ -f frontend/package.json ]; then node scripts/ensure-frontend-deps.mjs; else echo "No web-app layer here — frontend dependency install skipped."; fi
+
 
       - name: Environment isolation tests and interface drift check
         if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
         run: |
           node --test scripts/icp-environments.test.mjs
-          node frontend/scripts/check-candid-drift.mjs
+          # The interface drift check compares canister interfaces against the
+          # web app's generated bindings; a repository without the web-app layer
+          # (the live repository keeps its app at the root) has nothing to drift.
+          if [ -f frontend/scripts/check-candid-drift.mjs ]; then node frontend/scripts/check-candid-drift.mjs; else echo "No web-app layer here — interface drift check skipped."; fi
+
 
       - name: Restore the PROD governor (never a DEV key)
         if: env.ACTION == 'provision' || steps.state.outputs.provisioned == 'true'
@@ -200,7 +215,7 @@ jobs:
 
   frontend:
     needs: backend
-    if: needs.backend.result == 'success' && (needs.backend.outputs.provisioned == 'true' || inputs.action == 'provision')
+    if: needs.backend.result == 'success' && needs.backend.outputs.webapp == 'true' && (needs.backend.outputs.provisioned == 'true' || inputs.action == 'provision')
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 40
