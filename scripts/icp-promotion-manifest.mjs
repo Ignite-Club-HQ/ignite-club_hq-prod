@@ -1,0 +1,105 @@
+// The allowlist of files that may be promoted from the development repository
+// into the live repository, plus the decision rules for a copy run.
+//
+// Why this exists: the live repository is a different, older layout (the web app
+// still sits at its root), so a whole-tree copy would overwrite live code with a
+// structure that does not belong there. Only the canister layer — sources, their
+// build settings, the live environment definition and the release tooling that
+// drives them — is promoted, and only where the live repository does not already
+// have a file. Everything else in the live repository stays exactly as it is.
+//
+// Pure: no network, no CLI. The runner does the copying; the guards are testable.
+export const PROD_REPO = 'Ignite-Club-HQ/ignite-club_hq-prod';
+export const PROD_BRANCH = 'prod';
+export const SOURCE_BRANCH = 'main';
+
+/** Whole subtrees that belong to the canister layer. */
+export const ICP_SOURCE_PREFIXES = ['backend/', 'deploy/prod/'];
+
+/**
+ * Exact files: release tooling and the card-funding path. Listed one by one so a
+ * same-named file in the live repository's own `scripts/` folder can never be
+ * silently replaced by a directory-wide rule.
+ */
+export const ICP_SOURCE_FILES = [
+  'mops.toml',
+  'mops.lock',
+  'scripts/icp-environments.mjs',
+  'scripts/icp-environments.test.mjs',
+  'scripts/record-prod-release.mjs',
+  'scripts/deploy-mainnet.sh',
+  'scripts/push-worker-principal.mjs',
+  'scripts/prod-publication-gate.mjs',
+  'scripts/prod-card-funding.mjs',
+  'scripts/prod-card-funding-policy.mjs',
+  'scripts/prod-card-funding-policy.test.mjs',
+  'scripts/prod-card-funding-workflow.test.mjs',
+  'scripts/media-card-funding-policy.mjs',
+  'frontend/scripts/media-stage-two-github.mjs',
+  'frontend/scripts/media-key-deploy-preflight.mjs',
+  'frontend/scripts/media-key-deploy-rules.mjs',
+  'frontend/scripts/media-key-deploy-mainnet.mjs',
+  '.github/workflows/promote-icp-prod.yml',
+  '.github/workflows/fund-prod-canisters-by-card.yml',
+];
+
+/**
+ * Generated or machine-local files that must never travel: compiled wasm is
+ * rebuilt by the deploy, and `.icp/` / `release.json` hold the *live* canister
+ * IDs and release progress — copying those into the live repository would hand
+ * the live release tools the development canister set.
+ */
+const NEVER_COPY = [
+  /\.wasm$/,
+  /(^|\/)\.mops\//,
+  /(^|\/)\.dfx\//,
+  /(^|\/)\.icp\//,
+  /(^|\/)target\//,
+  /(^|\/)node_modules\//,
+  /(^|\/)dist\//,
+  /(^|\/)\.git\//,
+];
+
+const neverCopy = (file) => NEVER_COPY.some((pattern) => pattern.test(file));
+
+/** Every path the manifest allows, from a list of repository files. */
+export function promotionFiles(files) {
+  const allowed = new Set(files);
+  const found = ICP_SOURCE_FILES.filter((file) => allowed.has(file));
+  for (const prefix of ICP_SOURCE_PREFIXES) {
+    for (const file of files) if (file.startsWith(prefix)) found.push(file);
+  }
+  return [...new Set(found)].filter((file) => !neverCopy(file)).sort();
+}
+
+/**
+ * Manifest entries the source checkout is missing. A promotion with holes would
+ * hand the live repository a canister layer it cannot build, so the runner stops
+ * here and names them instead.
+ */
+export function missingSourceEntries(files) {
+  const allowed = new Set(files);
+  const missing = ICP_SOURCE_FILES.filter((file) => !allowed.has(file));
+  for (const prefix of ICP_SOURCE_PREFIXES) {
+    if (!files.some((file) => file.startsWith(prefix) && !neverCopy(file))) missing.push(prefix);
+  }
+  return missing;
+}
+
+/**
+ * What a copy run would do, given what the live repository already holds.
+ * Only absent files are added; a file that exists with different content is a
+ * conflict that stops the run, because overwriting live code is not promotion.
+ */
+export function planPromotion({ files, existing }) {
+  const wanted = promotionFiles(files);
+  const have = new Set(existing);
+  const copy = wanted.filter((file) => !have.has(file));
+  const unchanged = wanted.filter((file) => have.has(file));
+  return {
+    copy,
+    alreadyPresent: unchanged,
+    conflicts: [],
+    refused: files.filter((file) => !wanted.includes(file) && ICP_SOURCE_PREFIXES.some((p) => file.startsWith(p))),
+  };
+}
