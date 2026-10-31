@@ -200,7 +200,7 @@ jobs:
 
   frontend:
     needs: backend
-    if: needs.backend.result == 'success' && (needs.backend.outputs.provisioned == 'true' || inputs.action == 'provision')
+    if: needs.backend.result == 'success' && needs.backend.outputs.webapp == 'true' && (needs.backend.outputs.provisioned == 'true' || inputs.action == 'provision')
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 40
