@@ -22,6 +22,22 @@ test('the signing directory is set at step runtime, not with an unavailable job 
   assert.ok(MINT.indexOf('Set the temporary signing directory') < MINT.indexOf('Require the prod branch'));
 });
 
+test('no double-quoted echo in the mint step expands an unintended $-variable', () => {
+  // "US$26" inside double quotes made bash expand $2, which set -u rejects.
+  const runBlock = MINT.slice(MINT.indexOf('Mint the key and hand it over encrypted'));
+  for (const line of runBlock.split('\n')) {
+    if (!/echo "/.test(line)) continue;
+    const inner = line.replace(/^.*echo "/, '').replace(/"$/, '');
+    for (const m of inner.matchAll(/(?<!\\)\$([A-Za-z0-9_{(]?)/g)) {
+      const ch = m[1];
+      assert.ok(
+        ch === '' || /[A-Z_{(]/.test(ch),
+        `unexpected shell expansion in: ${line.trim()}`,
+      );
+    }
+  }
+});
+
 test('the minting workflow is PROD-tagged and gated on an explicit confirmation', () => {
   assert.match(MINT, /^name: "\[PROD\] /m);
   assert.match(MINT, /CREATE PROD KEY/);

@@ -130,7 +130,7 @@ jobs:
             echo "$BLOB"
             echo '```'
             echo ""
-            echo "**3. Send ICP** to this funding address (about US$26 covers a first provisioning):"
+            echo "**3. Send ICP** to this funding address (about US\$26 covers a first provisioning):"
             echo ""
             echo "    $ADDRESS"
             echo ""
