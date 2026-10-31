@@ -10,6 +10,11 @@ import {
 import { recordRelease } from "./record-prod-release.mjs";
 
 const DEV_IDS = loadIds("dev");
+// The live repository (prod branch) keeps only the PROD layer: no DEV canister
+// table, no DEV deploy workflows, and its store builds bake PROD IDs directly.
+// DEV-layer checks skip there instead of failing on files that must not exist.
+const HAS_DEV_LAYER = existsSync(mappingPath("dev"));
+const SKIP_NO_DEV = "live repository holds no DEV canister table";
 
 function fakeRepo({ dev = { club_domain: "aaaaa-dev" }, prod } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "icp-env-"));
