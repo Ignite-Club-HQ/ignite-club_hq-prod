@@ -28,9 +28,13 @@ test('the copy workflow defaults to a plan that writes nothing', () => {
   assert.match(copy, /node scripts\/promote-icp-layer\.mjs --apply/, 'apply must pass the flag explicitly');
 });
 
-test('the copy workflow needs the transfer credential and cannot write this repository', () => {
-  assert.match(copy, /MIGRATION_GITHUB_TOKEN: \$\{\{ secrets\.MIGRATION_GITHUB_TOKEN \}\}/);
-  assert.match(copy, /^permissions:\n  contents: read$/m, 'must not be able to write its own repository');
+test('the copy workflow authenticates with GitHub\'s own run credential', () => {
+  // Source and destination are branches of this one repository, so the job's
+  // per-run token is the right credential: no transfer token is stored here,
+  // and the access expires when the run ends.
+  assert.match(copy, /MIGRATION_GITHUB_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/, 'must authenticate with the per-run credential');
+  assert.doesNotMatch(copy, /secrets\.MIGRATION_GITHUB_TOKEN/, 'must not depend on a stored transfer token this repository does not hold');
+  assert.match(copy, /^permissions:\n  contents: write$/m, 'must be able to write the release branch of this repository');
 });
 
 test('the copy workflow only runs from the development branch', () => {
