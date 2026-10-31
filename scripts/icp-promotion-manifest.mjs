@@ -36,9 +36,7 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-card-funding-workflow.test.mjs',
   'scripts/media-card-funding-policy.mjs',
   'frontend/scripts/media-stage-two-github.mjs',
-  'frontend/scripts/media-key-deploy-preflight.mjs',
-  'frontend/scripts/media-key-deploy-rules.mjs',
-  'frontend/scripts/media-key-deploy-mainnet.mjs',
+
   '.github/workflows/promote-icp-prod.yml',
   '.github/workflows/fund-prod-canisters-by-card.yml',
 ];
