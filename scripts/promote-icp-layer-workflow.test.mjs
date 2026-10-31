@@ -28,6 +28,12 @@ test('the copy workflow defaults to a plan that writes nothing', () => {
   assert.match(copy, /node scripts\/promote-icp-layer\.mjs --apply/, 'apply must pass the flag explicitly');
 });
 
+test('overwriting differing live files needs an explicit drift choice', () => {
+  assert.match(copy, /allow_drift:\n\s+description:.*\n\s+type: boolean\n\s+default: false/, 'drift overwrite must be an opt-in boolean, off by default');
+  assert.match(copy, /if \[ "\$\{\{ inputs\.allow_drift \}\}" = "true" \]; then FLAG="--allow-drift"; fi/, 'the flag is passed only when the operator chose it');
+  assert.doesNotMatch(copy, /promote-icp-layer\.mjs --apply --allow-drift/, 'apply must never carry the drift flag unconditionally');
+});
+
 test('the copy workflow authenticates with GitHub\'s own run credential', () => {
   // Source and destination are branches of this one repository, so the job's
   // per-run token is the right credential: no transfer token is stored here,
