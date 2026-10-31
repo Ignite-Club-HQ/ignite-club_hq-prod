@@ -36,6 +36,8 @@ test('order intent is journaled before the order exists and the link is not rewr
 });
 
 test('funding never touches a canister: no create, no top-up, no deploy', () => {
+  // Prose may mention canisters; only CLI argument tokens count as an operation.
   assert.doesNotMatch(workflow, /icp deploy|canister create|top-up|--amount|deploy\/prod\/icp\.yaml/);
-  assert.doesNotMatch(runner, /'canister'|top-up|--amount|'deploy'|install/);
+  assert.doesNotMatch(runner, /'canister'|'--amount'|'deploy'|'top-up'|'--mode'|'--wasm'/);
 });
+
