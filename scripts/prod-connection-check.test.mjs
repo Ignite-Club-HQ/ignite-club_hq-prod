@@ -126,13 +126,21 @@ test('unpinned identity_access never establishes group readiness; the same refus
   assert.equal(other.complete, false);
 });
 
-test('governor PEM loads as the matching agent identity', async () => {
+test('governor PEM loads as the matching agent identity', async (t) => {
   const { generateKeyPairSync } = await import('node:crypto');
   const { identityFromPem } = await import('./prod-connection-check.mjs');
+  let ec, ed;
+  try {
+    ec = generateKeyPairSync('ec', { namedCurve: 'secp256k1' }).privateKey.export({ type: 'sec1', format: 'pem' });
+    ed = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' });
+  } catch (error) {
+    // Runtimes without secp256k1 support (some bundled OpenSSL builds) cannot
+    // mint the fixture key; the identity mapping itself stays untested here.
+    if (error?.code === 'ERR_OSSL_EC_UNKNOWN_GROUP') return t.skip();
+    throw error;
+  }
   const seen = [];
   const lib = { Secp256k1KeyIdentity: { fromSecretKey: k => (seen.push(['secp', k.length]), 'S') }, Ed25519KeyIdentity: { fromSecretKey: k => (seen.push(['ed', k.length]), 'E') } };
-  const ec = generateKeyPairSync('ec', { namedCurve: 'secp256k1' }).privateKey.export({ type: 'sec1', format: 'pem' });
-  const ed = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' });
   assert.equal(identityFromPem(ec, lib), 'S');
   assert.equal(identityFromPem(ed, lib), 'E');
   assert.deepEqual(seen, [['secp', 32], ['ed', 32]]);
