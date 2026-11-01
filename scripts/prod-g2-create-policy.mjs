@@ -189,7 +189,11 @@ export function assertReviewedG2Plan(plan, rawExpectedHash, currentPlan) {
 export async function runG2Creation({ plan, receipt, checkpoint, calls, nowNs }) {
   if (receipt.pending) throw new Error('Unresolved intent; reconcile without replay');
   const resumable = ['planned', 'creating', 'created', 'installed', 'configured', 'checked'];
-  if (!resumable.includes(receipt.phase) || receipt.planHash !== hashPlan(plan))
+  // Verify the stored receipt's own integrity: receipt.plan is the reviewed plan
+  // (assertReviewedG2Plan already matched it against the entered hash and compared
+  // the stable fields against the current run). Hashing the fresh `plan` here can
+  // never match, because it embeds the current balance and timestamp.
+  if (!resumable.includes(receipt.phase) || receipt.planHash !== hashPlan(receipt.plan))
     throw new Error('Reviewed g2 plan receipt required');
   if (receipt.phase === 'sized') throw new Error('Group already created; this tool never touches a completed group');
   const baseIds = new Set(Object.values(PROD_CHECK_IDS));
