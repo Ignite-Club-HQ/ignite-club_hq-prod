@@ -47,7 +47,8 @@ test('only explicitly allowlisted PROD setup, checks, promotion, funding and iso
   const prod = workflows.filter(({ name }) => name.startsWith('[PROD] '));
   assert.deepEqual(prod.map(({ file }) => file),
     ['check-prod-canister-connections.yml', 'create-prod-second-group.yml', 'fund-prod-canisters-by-card.yml', 'icp-push-deliver-prod.yml',
-      'plan-prod-second-group.yml', 'prod-create-governor.yml', 'prod-create-push-key.yml', 'promote-icp-prod.yml', 'setup-prod-base-group.yml']);
+      'plan-prod-second-group.yml', 'prod-create-governor.yml', 'prod-create-push-key.yml', 'promote-icp-prod.yml',
+      'register-prod-second-group.yml', 'setup-prod-base-group.yml']);
   for (const workflow of prod) {
     assert.match(workflow.text, /IGNITE_ICP_ENV:\s*prod/);
     assert.match(workflow.text, /refs\/heads\/prod/);
