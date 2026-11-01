@@ -182,7 +182,7 @@ export function planDeposits({ plan, liveBalances, accountBalance }) {
     if (live === undefined) throw new Error(`Live balance unreadable for ${key}; stop without replay`);
     const needed = BigInt(item.target) > BigInt(live) ? BigInt(item.target) - BigInt(live) : 0n;
     const amount = needed < BigInt(item.topUp) ? needed : BigInt(item.topUp);
-    if (amount > 0n) deposits.push({ group: item.group, name: item.name, id: item.id, amount: amount.toString() });
+    if (amount > 0n) deposits.push({ group: item.group, name: item.name, id: item.id, amount: amount.toString(), balanceAtBinding: live });
   }
   const total = deposits.reduce((sum, d) => sum + BigInt(d.amount), 0n);
   const feeBudget = DEPOSIT_FEE_BUDGET * BigInt(deposits.length);
