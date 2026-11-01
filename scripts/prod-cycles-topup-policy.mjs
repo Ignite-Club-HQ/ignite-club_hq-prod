@@ -232,16 +232,23 @@ export async function runCyclesTopup({ plan, receipt, checkpoint, calls, nowNs }
   }
   await save({ ...current, phase: 'verifying' });
 
-  for (const item of rows(plan.items)) {
-    if (!item.topUp || BigInt(item.topUp) === 0n) continue;
-    const balance = await calls.cyclesOf(item.id);
-    if (balance < BigInt(item.target))
-      throw new Error(`${item.group}/${item.name} did not reach the planned target; stop without replay`);
+  // Verify each deposit landed: balance >= binding-time balance + deposited
+  // amount. Balances drift down between planning and execution, so the stale
+  // plan target is not the bar; any canister still below target is reported.
+  const stillBelow = [];
+  for (const deposit of current.completed) {
+    const balance = await calls.cyclesOf(deposit.id);
+    if (balance < BigInt(deposit.balanceAtBinding) + BigInt(deposit.amount))
+      throw new Error(`${deposit.group}/${deposit.name} deposit did not land; stop without replay`);
+    const item = rows(plan.items).find(i => i.group === deposit.group && i.name === deposit.name);
+    if (item && balance < BigInt(item.target))
+      stillBelow.push({ service: `${deposit.group}/${deposit.name}`, balance: balance.toString(), target: item.target });
   }
   await save({ ...current, phase: 'fueled', pending: null });
   return { fueled: true, deposited: current.completed.length,
     totalDeposited: current.completed.reduce((sum, c) => sum + BigInt(c.amount), 0n).toString(),
     skipped: rows(plan.items).filter(i => i.topUp && BigInt(i.topUp) > 0n).length - current.completed.length,
+    stillBelowTarget: stillBelow,
     openingAuthorized: false, registrationAuthorized: false };
 }
 
