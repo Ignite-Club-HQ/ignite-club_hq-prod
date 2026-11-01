@@ -82,7 +82,10 @@ export function expectedServices(group, placement) {
   const store = rows(group?.photo_store)[0];
   const list = [...domains.map(d => ({ name: d.domain, id: d.canister })),
     ...(store ? [{ name: 'media_blob_store', id: store }] : [])];
-  return list.map(s => ({ ...s, subnet: rows(placement?.domains).find(p => p.domain === s.name && p.canister === s.id)?.subnet }));
+  // A placement lists only group domains, so the group-owned photo store is
+  // expected on the group's own primary subnet.
+  return list.map(s => ({ ...s, subnet: s.name === 'media_blob_store' ? placement?.primary_subnet
+    : rows(placement?.domains).find(p => p.domain === s.name && p.canister === s.id)?.subnet }));
 }
 
 /**
