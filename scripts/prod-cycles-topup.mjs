@@ -153,14 +153,15 @@ async function main() {
     cyclesOf: async id => Actor.createActor(cyclesService(IDL), { agent, canisterId: pid(id) }).cycles_balance(),
     accountBalance: () => ledger.icrc1_balance_of({ owner: pid(principal), subaccount: [] }),
     async deposit({ to, amount, createdAtNs }) {
-      // Top up via icrc1_transfer to the canister's ledger account (owner =
-      // canister id); the ledger's `deposit` method only accepts cycles
-      // attached to the call and traps from a plain agent.
-      const r = await ledger.icrc1_transfer({ from_subaccount: [], to: { owner: pid(to), subaccount: [] },
-        amount, fee: [], memo: [], created_at_time: [createdAtNs] });
+      // Real canister top-up: the ledger's `withdraw` moves cycles from the
+      // signing account into the canister's own cycle balance. (A plain
+      // icrc1_transfer to the canister principal does NOT fuel it.)
+      const r = await ledger.withdraw({ amount, from_subaccount: [], to: pid(to), created_at_time: [createdAtNs] });
       if ('Ok' in r) return { blockIndex: r.Ok.toString() };
       if ('Duplicate' in r.Err) return { duplicate: true, blockIndex: r.Err.Duplicate.duplicate_of.toString() };
-      throw new Error('Ledger transfer refused; inspect signed readback, never replay');
+      if ('FailedToWithdraw' in r.Err)
+        throw new Error('Ledger withdraw to canister rejected (refunded minus fee); stop without replay');
+      throw new Error('Ledger deposit refused; inspect signed readback, never replay');
     },
   };
 

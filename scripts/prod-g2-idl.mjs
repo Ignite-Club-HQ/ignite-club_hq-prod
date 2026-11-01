@@ -99,26 +99,29 @@ export function ledgerService(IDL) {
   });
 }
 
-/** Cycles ledger canister top-up via icrc1_transfer (dedup on created_at_time).
- * The ledger's own `deposit` method only moves cycles ATTACHED to the call
- * (inter-canister use) and takes no amount — from a plain agent it traps.
- * A canister's cycle balance is its ledger account (owner = canister id), so
- * an icrc1_transfer to that account tops the canister up with an exact
- * amount and ledger-level dedup. Signatures match the official
- * cycles-ledger.did (dfinity/cycles-ledger). */
-export function depositService(IDL) {
+/** Cycles ledger canister top-up via `withdraw` (dedup on created_at_time).
+ * `withdraw` burns cycles from the caller's ledger account and deposits them
+ * into the target canister's real cycle balance (deposit_cycles) — this is
+ * what `icp/dfx cycles top-up` uses. NEVER use icrc1_transfer to a canister
+ * principal: that only credits a ledger account the canister owns, which
+ * the canister's code would itself have to withdraw (no group service can).
+ * `deposit` is also wrong: it only moves cycles attached to an inter-canister
+ * call. Signatures match the official cycles-ledger.did (dfinity/cycles-ledger). */
+export function topupService(IDL) {
   const account = IDL.Record({ owner: IDL.Principal, subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)) });
+  const rejectionCode = IDL.Variant({ NoError: IDL.Null, CanisterError: IDL.Null, SysTransient: IDL.Null,
+    DestinationInvalid: IDL.Null, Unknown: IDL.Null, SysFatal: IDL.Null, CanisterReject: IDL.Null });
   const err = IDL.Variant({
-    BadFee: IDL.Record({ expected_fee: IDL.Nat }), BadBurn: IDL.Record({ min_burn_amount: IDL.Nat }),
-    InsufficientFunds: IDL.Record({ balance: IDL.Nat }), TooOld: IDL.Null,
-    CreatedInFuture: IDL.Record({ ledger_time: IDL.Nat64 }), TemporarilyUnavailable: IDL.Null,
-    Duplicate: IDL.Record({ duplicate_of: IDL.Nat }),
-    GenericError: IDL.Record({ message: IDL.Text, error_code: IDL.Nat }),
+    GenericError: IDL.Record({ message: IDL.Text, error_code: IDL.Nat }), TemporarilyUnavailable: IDL.Null,
+    FailedToWithdraw: IDL.Record({ fee_block: IDL.Opt(IDL.Nat), rejection_code: rejectionCode, rejection_reason: IDL.Text }),
+    Duplicate: IDL.Record({ duplicate_of: IDL.Nat }), BadFee: IDL.Record({ expected_fee: IDL.Nat }),
+    InvalidReceiver: IDL.Record({ receiver: IDL.Principal }), CreatedInFuture: IDL.Record({ ledger_time: IDL.Nat64 }),
+    TooOld: IDL.Null, InsufficientFunds: IDL.Record({ balance: IDL.Nat }),
   });
   return () => IDL.Service({
     icrc1_balance_of: IDL.Func([account], [IDL.Nat], ['query']),
-    icrc1_transfer: IDL.Func([IDL.Record({ from_subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)), to: account, amount: IDL.Nat,
-      fee: IDL.Opt(IDL.Nat), memo: IDL.Opt(IDL.Vec(IDL.Nat8)), created_at_time: IDL.Opt(IDL.Nat64) })],
+    withdraw: IDL.Func([IDL.Record({ amount: IDL.Nat, from_subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)),
+      to: IDL.Principal, created_at_time: IDL.Opt(IDL.Nat64) })],
       [IDL.Variant({ Ok: IDL.Nat, Err: err })], []),
   });
 }
