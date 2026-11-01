@@ -144,3 +144,132 @@ export function topupSummary(plan) {
     `Plan hash: \`${plan.planHash}\``);
   return lines.join('\n');
 }
+
+// ----- Confirmation-gated execution (topup-closed) -----
+
+/** Stable fields a later execution re-verifies: inventory, targets and planned
+ * amounts. Live balances and the observation time drift between plan and
+ * execution and are checked separately (balances may only drift down). */
+const stableTopupPlan = p => ({
+  kind: p.kind, reserveCycles: p.reserveCycles, groups: p.groups,
+  items: rows(p.items).map(i => ({ group: i.group, name: i.name, id: i.id, target: i.target, topUp: i.topUp })),
+  totalTopUp: p.totals?.totalTopUp,
+});
+
+export function assertReviewedTopupPlan(receiptPlan, rawExpectedHash, currentPlan) {
+  const expectedHash = normalizeReviewedHash(rawExpectedHash);
+  if (!/^[a-f0-9]{64}$/.test(expectedHash))
+    throw new Error('Reviewed plan hash required (64 lowercase hex characters)');
+  if (!receiptPlan || hashTopupPlan(receiptPlan) !== expectedHash)
+    throw new Error('Reviewed plan hash does not match the saved top-up receipt');
+  if (JSON.stringify(stableTopupPlan(receiptPlan)) !== JSON.stringify(stableTopupPlan(currentPlan)))
+    throw new Error('Live inventory, targets or amounts changed; re-plan');
+}
+
+/**
+ * Actual deposits from live balances, capped at the reviewed amounts. A
+ * canister that already reached its target is skipped; a canister that gained
+ * fuel since planning gets less; nothing ever gets more than reviewed. An
+ * unreadable live balance stops the run — never deposit blind.
+ * `liveBalances`: Map of `${group}/${name}` → decimal cycles string or null.
+ */
+export function planDeposits({ plan, liveBalances, accountBalance }) {
+  const deposits = [];
+  for (const item of rows(plan.items)) {
+    if (!item.topUp || BigInt(item.topUp) === 0n) continue;
+    const key = `${item.group}/${item.name}`;
+    const live = decimal(liveBalances?.get(key));
+    if (live === undefined) throw new Error(`Live balance unreadable for ${key}; stop without replay`);
+    const needed = BigInt(item.target) > BigInt(live) ? BigInt(item.target) - BigInt(live) : 0n;
+    const amount = needed < BigInt(item.topUp) ? needed : BigInt(item.topUp);
+    if (amount > 0n) deposits.push({ group: item.group, name: item.name, id: item.id, amount: amount.toString() });
+  }
+  const total = deposits.reduce((sum, d) => sum + BigInt(d.amount), 0n);
+  const feeBudget = DEPOSIT_FEE_BUDGET * BigInt(deposits.length);
+  const account = decimal(accountBalance);
+  if (account === undefined) throw new Error('Signing account balance unreadable; stop without replay');
+  if (BigInt(account) < total + feeBudget)
+    throw new Error('Signing account balance below the reviewed top-up requirement; fund before topping up');
+  return { deposits, totalCycles: total.toString(), feeBudget: feeBudget.toString() };
+}
+
+/**
+ * Checkpointed top-up state machine. Every deposit is preceded by a durable
+ * acknowledged intent carrying the ledger dedup timestamp, so a runner loss
+ * resumes the same deposit (ledger Duplicate = already landed) instead of
+ * paying twice. Deposits are bound into the receipt on first entry so a
+ * resume distributes exactly the same amounts.
+ */
+export async function runCyclesTopup({ plan, receipt, checkpoint, calls, nowNs }) {
+  if (receipt.pending) throw new Error('Unresolved intent; reconcile without replay');
+  if (!['planned', 'topping', 'verifying'].includes(receipt.phase) ||
+      receipt.planHash !== hashTopupPlan(receipt.plan))
+    throw new Error('Reviewed top-up plan receipt required');
+  if (receipt.phase === 'fueled') throw new Error('Top-up already completed; this tool never replays a finished run');
+
+  let current = { ...receipt, phase: 'topping', completed: receipt.completed ?? [], deposits: receipt.deposits ?? null };
+  const save = async next => { current = next; await checkpoint(current); };
+
+  if (!current.deposits) {
+    const live = new Map();
+    for (const item of rows(plan.items)) {
+      if (!item.topUp || BigInt(item.topUp) === 0n) continue;
+      live.set(`${item.group}/${item.name}`, (await calls.cyclesOf(item.id)).toString());
+    }
+    const account = await calls.accountBalance();
+    const planned = planDeposits({ plan, liveBalances: live, accountBalance: account.toString() });
+    await save({ ...current, deposits: planned.deposits, feeBudget: planned.feeBudget });
+  }
+
+  for (const deposit of current.deposits) {
+    const key = `${deposit.group}/${deposit.name}`;
+    if (current.completed.some(c => `${c.group}/${c.name}` === key)) continue;
+    const operation = nowNs().toString();
+    await save({ ...current, pending: { kind: 'deposit', service: key, operation } });
+    const result = await calls.deposit({ to: deposit.id, amount: BigInt(deposit.amount), createdAtNs: BigInt(operation) });
+    await save({ ...current, pending: null,
+      completed: [...current.completed, { ...deposit, blockIndex: result.blockIndex ?? null, duplicate: result.duplicate === true }] });
+  }
+  await save({ ...current, phase: 'verifying' });
+
+  for (const item of rows(plan.items)) {
+    if (!item.topUp || BigInt(item.topUp) === 0n) continue;
+    const balance = await calls.cyclesOf(item.id);
+    if (balance < BigInt(item.target))
+      throw new Error(`${item.group}/${item.name} did not reach the planned target; stop without replay`);
+  }
+  await save({ ...current, phase: 'fueled', pending: null });
+  return { fueled: true, deposited: current.completed.length,
+    totalDeposited: current.completed.reduce((sum, c) => sum + BigInt(c.amount), 0n).toString(),
+    skipped: rows(plan.items).filter(i => i.topUp && BigInt(i.topUp) > 0n).length - current.completed.length,
+    openingAuthorized: false, registrationAuthorized: false };
+}
+
+/**
+ * Resumes a single unresolved deposit intent through the idempotent ledger
+ * adapter: the recorded dedup timestamp is reused, so a deposit that already
+ * landed comes back as Duplicate and is recorded, never paid twice.
+ */
+export async function resumeTopupIntent({ receipt, checkpoint, calls, nowNs }) {
+  const pending = receipt.pending;
+  if (!pending) return receipt;
+  if (pending.kind !== 'deposit') throw new Error('Unknown pending intent; reconcile by hand');
+  const deposit = rows(receipt.deposits).find(d => `${d.group}/${d.name}` === pending.service);
+  if (!deposit) throw new Error('Deposit intent inconsistent with recorded deposits; reconcile by hand');
+  const createdAtNs = BigInt(pending.operation ?? '0');
+  if (nowNs() - createdAtNs > DEPOSIT_DEDUP_WINDOW_NS)
+    throw new Error('Deposit intent older than the ledger dedup window; reconcile by hand');
+  const result = await calls.deposit({ to: deposit.id, amount: BigInt(deposit.amount), createdAtNs });
+  const next = { ...receipt, pending: null,
+    completed: [...(receipt.completed ?? []), { ...deposit, blockIndex: result.blockIndex ?? null, duplicate: result.duplicate === true }] };
+  await checkpoint(next);
+  return next;
+}
+
+export function topupResultSummary(result) {
+  return ['### PROD cycles top-up completed (groups stay CLOSED)', '',
+    `Deposits executed: ${result.deposited}. Canisters already at target: ${result.skipped}.`,
+    `Total deposited: ${result.totalDeposited} cycles.`,
+    'Every deposit was verified against the reviewed plan and each canister was read back at or above its registered minimum.',
+    'No registration, opening, configuration, funding order, DEV or database change was made. Routing approval and admission remain separate reviewed steps.', ''].join('\n');
+}
