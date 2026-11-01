@@ -16,7 +16,9 @@ export function baseFailureReason(error) {
   const message = error instanceof Error ? error.message : '';
   const known = [
     'Live inventory, modules, controller, subnet or revision changed; re-plan',
-    'Reviewed plan hash required', 'Persisted reviewed plan required',
+    'Reviewed plan hash required (64 lowercase hex characters)',
+    'Reviewed plan hash does not match the saved plan receipt',
+    'Persisted reviewed plan required',
     'Existing receipt requires read-only reconciliation; no replay',
     'Initial closed base registration requires empty complete registry',
     'Journal acknowledgement mismatch; stop without replay',
