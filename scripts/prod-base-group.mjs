@@ -75,7 +75,7 @@ async function main() {
     const status = await CanisterStatus.request({ agent, canisterId: Principal.fromText(ids[name]), paths: ['controllers', 'module_hash', 'subnet'] });
     const module = status.get('module_hash');
     observations.push({ name, id: ids[name], moduleHash: typeof module === 'string' ? module : Buffer.from(module ?? []).toString('hex'),
-      controllers: (status.get('controllers') ?? []).map(p => p.toText()), subnet: status.get('subnet')?.subnetId?.toText() });
+      controllers: (status.get('controllers') ?? []).map(p => p.toText()), subnet: status.get('subnet')?.subnetId });
   }
   const page = await readRegistry();
   const plan = buildBasePlan({ ids, principal, sourceCommit: env.GITHUB_SHA, page, observations,

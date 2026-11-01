@@ -30,6 +30,7 @@ test('no setter, deployment, proxy, attached cycles or arbitrary method can run'
     assert.equal(spec.host, 'https://icp-api.io');
     assert.equal(Object.values(PROD_CHECK_IDS).includes(spec.canisterId), true);
     assert.equal('cycles' in spec, false);
+    if (spec.method === 'read_group_registry_page') assert.deepEqual(spec.args, ['mainnet', [], [], 64]);
   }
   assert.throws(() => readerSpec({ ...calls[0], method: 'set_club_domain_canister' }, PROD_CHECK_IDS), /approved infrastructure/);
   assert.throws(() => readerSpec({ ...calls[0], id: 'mzzzv-taaaa-aaaal-qxlrq-cai' }, PROD_CHECK_IDS), /approved infrastructure/);
