@@ -66,9 +66,15 @@ export function readerSpec(call, ids) {
 export const VARIANT_CONFIG_READERS = Object.freeze(['identity_access', 'timer_jobs', 'shard_router']);
 
 // JSON-safe evidence: bigints and principals become text.
+// Read the raw holder value: Principal.toJSON runs before a replacer and would
+// otherwise turn decoded principals into {"__principal__": ...} objects.
 export function evidenceText(value) {
-  return JSON.stringify(value, (_k, v) => typeof v === 'bigint' ? v.toString()
-    : v && typeof v === 'object' && typeof v.toText === 'function' && v._isPrincipal ? v.toText() : v);
+  return JSON.stringify(value, function (key, v) {
+    const raw = this[key];
+    if (typeof raw === 'bigint') return raw.toString();
+    if (raw && typeof raw === 'object' && raw._isPrincipal && typeof raw.toText === 'function') return raw.toText();
+    return v;
+  });
 }
 
 export const EXPECTED_LINKS = Object.freeze({
