@@ -1,35 +1,47 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import { createPrivateKey } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { assertCheckContext, callArguments, checkCalls, assessLinks, failureReason, hexReply, replyBytes, internalReason } from './prod-connection-check-policy.mjs';
+import { assertCheckContext, readerSpec, checkCalls, assessLinks, failureReason, internalReason, evidenceText } from './prod-connection-check-policy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export async function runCheck({ ids, env, principal, invoke, decode, save }) {
+// invoke(spec) returns the decoded reply. Configuration readers return the
+// [key, value] pairs (variant readers already unwrapped); router readers
+// return their raw variant for review.
+export async function runCheck({ ids, env, principal, invoke, save }) {
   assertCheckContext(ids, env, principal);
   const report = { checkedAt: new Date().toISOString(), commit: env.GITHUB_SHA,
     scope: 'PROD infrastructure readback only; no activation or business records', rows: [], complete: true };
   for (const call of checkCalls(ids)) {
     const row = { name: call.name, id: call.id, method: call.method, query: call.query };
     try {
-      const text = await invoke(callArguments(call, ids));
-      if (text.length > 262144) throw new Error('Infrastructure reply exceeded evidence bound');
+      const value = await invoke(readerSpec(call, ids));
       if (call.method === 'read_group_opening_configuration') {
-        const pairs = await decode(call.name, text);
-        row.configuration = pairs;
-        row.links = assessLinks(call.name, pairs, ids);
-        row.verdict = row.links.some(link => !link.matches) ? 'LINK_MISMATCH' : 'READBACK';
+        row.configuration = value;
+        row.links = assessLinks(call.name, value, ids);
+        const bad = row.links.filter(link => !link.matches);
+        row.verdict = bad.length ? 'LINK_MISMATCH' : 'READBACK';
+        row.reason = bad.length
+          ? bad.map(l => `${l.key}: ${l.observed.length ? l.observed.join(',') : 'not set'}`).join('; ').slice(0, 300)
+          : `${row.links.length} link(s) confirmed`;
       } else {
+        const text = evidenceText(value);
+        if (text.length > 262144) throw new Error('Infrastructure reply exceeded evidence bound');
         row.evidence = text;
-        row.verdict = /\bErr\b/.test(text) ? 'READER_DENIED' : 'REVIEW_ROUTING_EVIDENCE';
-        const err = text.match(/Err\s*=\s*"([^"\n]{1,160})"/);
-        if (err) row.reason = `Canister refused: ${err[1]}`;
+        if (value && typeof value === 'object' && 'Err' in value) {
+          row.verdict = 'READER_DENIED';
+          row.reason = `Canister refused: ${String(value.Err).slice(0, 160)}`;
+        } else {
+          row.verdict = 'REVIEW_ROUTING_EVIDENCE';
+          const ok = value?.Ok;
+          row.reason = Array.isArray(ok) ? `${ok.length} item(s)` : 'reply received';
+        }
       }
     } catch (error) {
-      // Raw subprocess output is never stored: only the bounded, redacted
-      // canister/CLI reason from failureReason explains the failure.
+      // Raw library output is never stored: only the bounded, redacted
+      // canister reason from failureReason explains the failure.
       row.verdict = 'UNREADABLE';
       row.reason = error?.stderr ? failureReason(error.stderr) : (internalReason(error) || failureReason(''));
     }
@@ -40,52 +52,84 @@ export async function runCheck({ ids, env, principal, invoke, decode, save }) {
   return report;
 }
 
+export function summaryLines(report) {
+  return ['### PROD connection check', '', '| Service | Check | Result | Reason |', '|---|---|---|---|',
+    ...report.rows.map(r => `| ${r.name} | ${r.method} | ${r.verdict} | ${String(r.reason ?? '').replace(/\|/g, '/')} |`), '',
+    report.complete ? 'All readable connections confirmed.' : 'Some connections need attention (see Result/Reason).',
+    'No routing, canister configuration, DEV connection or database changes were made.',
+    'Routing replies are evidence for review, not permission to open a group.'];
+}
+
+// Loads the decrypted governor PEM (secp256k1 or Ed25519) as an agent identity.
+export function identityFromPem(pem, lib) {
+  const jwk = createPrivateKey(pem).export({ format: 'jwk' });
+  const secret = Buffer.from(jwk.d, 'base64url');
+  if (jwk.kty === 'OKP' && jwk.crv === 'Ed25519') return lib.Ed25519KeyIdentity.fromSecretKey(new Uint8Array(secret));
+  if (jwk.kty === 'EC' && jwk.crv === 'secp256k1') return lib.Secp256k1KeyIdentity.fromSecretKey(new Uint8Array(secret));
+  throw new Error('Unsupported governor key type');
+}
+
 async function main() {
   const env = process.env;
   const ids = JSON.parse(readFileSync(path.join(ROOT, 'deploy/prod/.icp/data/mappings/ic.ids.json'), 'utf8'));
-  const principal = execFileSync('icp', ['identity', 'principal', '--identity', 'ignite-prod-governor'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   const require = createRequire(path.join(env.CHECK_DEPS_DIR, 'package.json'));
+  const { HttpAgent, Actor } = require('@icp-sdk/core/agent');
   const { IDL } = require('@icp-sdk/core/candid');
-  const pairsType = IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text));
-  const variantReaders = new Set(['identity_access', 'timer_jobs', 'shard_router']);
+  const { Ed25519KeyIdentity } = require('@icp-sdk/core/identity');
+  const { Secp256k1KeyIdentity } = require('@icp-sdk/core/identity/secp256k1');
+  const identity = identityFromPem(readFileSync(env.CHECK_KEY_PEM, 'utf8'), { Ed25519KeyIdentity, Secp256k1KeyIdentity });
+  const principal = identity.getPrincipal().toText();
+  console.log(`Signing as ${principal}`);
+
+  const Pairs = IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text));
+  const Result = ok => IDL.Variant({ Ok: ok, Err: IDL.Text });
+  const DomainCanister = IDL.Record({ domain: IDL.Text, canister: IDL.Principal });
+  const ShardGroup = IDL.Record({ id: IDL.Text, max_clubs: IDL.Nat32, observed_at_ns: IDL.Nat64, accepting: IDL.Bool,
+    photo_store: IDL.Opt(IDL.Principal), heap_budget_bytes: IDL.Nat64, cycles: IDL.Nat64, assigned_clubs: IDL.Nat32,
+    domains: IDL.Vec(DomainCanister), target_alias: IDL.Text, min_cycles: IDL.Nat64, heap_bytes: IDL.Nat64 });
+  const RoutingApproval = IDL.Record({ configuration_revision: IDL.Nat64, removal_checked_at_ms: IDL.Nat64,
+    approved_configuration_sha256: IDL.Text, target_alias: IDL.Text, removal_wiring_group_ids: IDL.Vec(IDL.Text), evidence_sha256: IDL.Text });
+  const signatures = {
+    read_group_opening_configuration: variant => IDL.Func([], [variant ? Result(Pairs) : Pairs], []),
+    list_groups: () => IDL.Func([], [Result(IDL.Vec(ShardGroup))], ['query']),
+    read_routing_approval: () => IDL.Func([IDL.Text], [Result(IDL.Opt(RoutingApproval))], []),
+  };
+
+  const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
   const output = path.join(env.CHECK_REPORT_DIR, 'prod-connections.json');
   mkdirSync(env.CHECK_REPORT_DIR, { recursive: true });
   const report = await runCheck({ ids, env, principal,
-    invoke: args => {
-      // Configuration pairs use explicit local decoding; bounded router records
-      // use the deployed interface and Candid text for human review.
-      const a = [...args];
-      if (a[3] === 'read_group_opening_configuration') a[a.indexOf('candid')] = 'hex';
-      return execFileSync('icp', a, { cwd: env.RUNNER_TEMP, encoding: 'utf8', timeout: 60000, maxBuffer: 524288, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-    },
-    decode: (name, reply) => {
-      const hex = hexReply(reply);
-      // A plain Uint8Array copy: @icp-sdk/core 6.x misreads pooled Node Buffers
-      // ("Wrong magic number"), which made every configuration read fail.
-      const bytes = replyBytes(hex);
-      const type = variantReaders.has(name) ? IDL.Variant({ Ok: pairsType, Err: IDL.Text }) : pairsType;
-      const [value] = IDL.decode([type], bytes);
-      if (variantReaders.has(name)) {
-        if (!value || !('Ok' in value)) {
-          const denied = new Error('Configuration reader denied');
-          denied.stderr = `Error: with message: '${String(value?.Err ?? 'denied').slice(0, 200)}'`;
-          throw denied;
-        }
-        return value.Ok;
+    invoke: async spec => {
+      const func = signatures[spec.method](spec.variant);
+      const actor = Actor.createActor(() => IDL.Service({ [spec.method]: func }), { agent, canisterId: spec.canisterId });
+      let value;
+      try {
+        value = await actor[spec.method](...spec.args);
+      } catch (error) {
+        const wrapped = new Error('Reader call failed');
+        wrapped.stderr = String(error?.message ?? error);
+        throw wrapped;
       }
-      return value;
+      if (spec.method !== 'read_group_opening_configuration') return value;
+      if (!spec.variant) return value;
+      if (value && 'Ok' in value) return value.Ok;
+      const denied = new Error('Configuration reader denied');
+      denied.stderr = `with message: '${String(value?.Err ?? 'denied').slice(0, 200)}'`;
+      throw denied;
     },
     save: report => writeFileSync(output, JSON.stringify(report, null, 2)),
   });
-  const lines = ['### PROD connection check', '', '| Service | Check | Result | Reason |', '|---|---|---|---|',
-    ...report.rows.map(r => `| ${r.name} | ${r.method} | ${r.verdict} | ${r.reason ?? ''} |`), '',
-    'No routing, canister configuration, DEV connection or database changes were made.',
-    'Routing replies are evidence for review, not permission to open a group.',
-    'Download prod-connection-check for full infrastructure evidence.'];
+  const lines = summaryLines(report);
+  // Printed to the log too, so the result is visible from the job screen.
+  console.log(lines.join('\n'));
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
   if (!report.complete) process.exitCode = 1;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(() => { console.error('PROD connection check stopped; no configuration changes were attempted.'); process.exitCode = 1; });
+  main().catch(error => {
+    const reason = internalReason(error) || (/^(Connection check requires|Unsupported governor key type|PROD governor|Governor)/.test(String(error?.message)) ? String(error.message).slice(0, 200) : failureReason(error?.stderr ?? ''));
+    console.error(`PROD connection check stopped before finishing: ${reason}. No configuration changes were attempted.`);
+    process.exitCode = 1;
+  });
 }
