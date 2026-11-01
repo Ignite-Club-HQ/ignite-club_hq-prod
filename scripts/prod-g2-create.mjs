@@ -13,7 +13,7 @@ import { evidenceText } from './prod-connection-check-policy.mjs';
 import { githubJournal } from './prod-base-group.mjs';
 import { groupContract } from './prod-group-contract.mjs';
 import { assertG2Context, buildG2CreationPlan, assertReviewedG2Plan, runG2Creation, resumeG2Intent,
-  g2PlanSummary, G2_CREATE_CONFIRMATION, G2_CYCLES_PER_CANISTER, G2_RECEIPT_PATH, G2_SERVICES } from './prod-g2-create-policy.mjs';
+  g2PlanSummary, G2_CREATE_CONFIRMATION, G2_CYCLES_PER_CANISTER, G2_RECEIPT_PATH, G2_SERVICES, CONFIGURATION_RECIPE } from './prod-g2-create-policy.mjs';
 import { setterService, blobStoreService, cyclesService, ledgerService, managementService } from './prod-g2-idl.mjs';
 import { hashPlan as planHashOf } from './prod-base-group-policy.mjs';
 
@@ -133,7 +133,7 @@ async function main() {
       configurationTotal: CONFIGURATION_RECIPE.length,
       sourceChanged: receipt?.plan?.sourceCommit !== env.GITHUB_SHA, creationAuthorized: false };
     writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-g2-inspection.json'), evidenceText(report));
-    const message = `### PROD g2 read-only inspection\n\nReceipt: ${report.receiptPhase}; pending: ${report.pending ? `${report.pending.kind} ${report.pending.domain ?? ''}` : 'none'}.\nCreated services: ${Object.keys(report.canisters).length}/13; installed: ${report.installedDomains.length}/13; configuration operations: ${report.configurationCompleted}/34.\nSource commit changed: ${report.sourceChanged ? 'yes' : 'no'}.\nNo journal or canister writes. The group stays CLOSED.\n`;
+    const message = `### PROD g2 read-only inspection\n\nReceipt: ${report.receiptPhase}; pending: ${report.pending ? `${report.pending.kind} ${report.pending.domain ?? ''}` : 'none'}.\nCreated services: ${Object.keys(report.canisters).length}/13; installed: ${report.installedDomains.length}/13; configuration operations: ${report.configurationCompleted}/${report.configurationTotal}.\nSource commit changed: ${report.sourceChanged ? 'yes' : 'no'}.\nNo journal or canister writes. The group stays CLOSED.\n`;
     console.log(message); if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
     return;
   }
