@@ -1,5 +1,10 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — PROD group parity with DEV (1 Nov 2026)
+- [x] Compared DEV group architecture and PROD provisioning: DEV records base + g2; PROD has 18 independent base services but registration/approval and identity registry binding remain incomplete. Zero-link audit rows do not prove group readiness.
+- [ ] Prepare a coherent PROD-only group setup path matching DEV architecture, preserving independent IDs, keys and data; do not activate or publish from a connection audit.
+- [ ] Execute signed PROD setup/readback only through owner-authorized GitHub runs; the governor key is held in GitHub, not this sandbox.
+
 ## Current request — read-only PROD connections/routing and DEV separation (31 Oct 2026)
 - [x] Prepared manual [PROD] Check PROD canister connections with the existing encrypted GitHub-held key, exact 18-service inventory, bounded infrastructure readers and evidence artifact; no setters, routing activation, database work or DEV traffic. Tests pass; live signed execution awaits the owner's GitHub run.
 - [ ] Owner: copy the new check tooling via the existing REPO promotion workflow, then run Check PROD canister connections from prod; GitHub holds the signing key, so signed live readback cannot execute in this sandbox.
