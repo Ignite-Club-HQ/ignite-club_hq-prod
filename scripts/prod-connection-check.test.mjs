@@ -95,7 +95,7 @@ test('fully wired PROD links read back complete; an unset link is named', async 
       : { Ok: [] } });
   assert.equal(ok.complete, true);
   const bad = await runCheck({ ids: PROD_CHECK_IDS, env, principal, save: () => {},
-    invoke: spec => spec.method === 'read_group_opening_configuration' ? [['club_domain', '']] : { Ok: [] } });
+    invoke: spec => spec.method === 'read_group_opening_configuration' ? [['club_domain', PROD_CHECK_IDS.club_domain]] : { Ok: [] } });
   const pts = bad.rows.find(r => r.name === 'club_points_domain');
   assert.equal(pts.verdict, 'READBACK');
   const blob = bad.rows.find(r => r.name === 'notification_queue');
