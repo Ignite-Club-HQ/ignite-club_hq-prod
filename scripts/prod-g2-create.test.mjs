@@ -273,3 +273,14 @@ test('setter IDL subsets match the generated bindings', async (t) => {
     }
   }
 });
+
+test('g2 workflow restores the signing key in the same step that uses it', async () => {
+  const { readFileSync } = await import('node:fs');
+  const wf = readFileSync(new URL('../.github/workflows/create-prod-second-group.yml', import.meta.url), 'utf8');
+  const steps = wf.split(/\n      - /);
+  const runStep = steps.find((s) => s.includes('node scripts/prod-g2-create.mjs'));
+  assert.ok(runStep, 'run step present');
+  assert.match(runStep, /openssl enc -d[^\n]*key\.pem/);
+  assert.match(runStep, /export CHECK_KEY_PEM="\$ICP_HOME\/key\.pem"/);
+  assert.ok(!steps.some((s) => s !== runStep && s.includes('key.pem')), 'no other step writes a key that would be deleted by its own trap');
+});
