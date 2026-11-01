@@ -1,19 +1,32 @@
-// Pure, read-only cycles top-up planner for PROD. It computes the exact
+// Pure cycles top-up policy for PROD. The planner computes the exact
 // per-canister amount needed to bring every group service to its registered
-// minimum (plus an explicit reserve), and nothing else: no deposit, no
-// funding order, no configuration change, no DEV access. An unreadable
-// balance is reported as unknown and excluded from totals — never treated
-// as zero and never turned into an inferred payment need.
+// minimum (plus an explicit reserve). The execution half distributes exactly
+// those reviewed amounts through the cycles ledger, checkpointed and
+// idempotent, and nothing else: no funding order, no configuration change,
+// no registration, no opening, no DEV access. An unreadable balance is
+// reported as unknown and excluded from totals — never treated as zero and
+// never turned into an inferred payment need.
 import { createHash } from 'node:crypto';
 import { assertCheckContext } from './prod-connection-check-policy.mjs';
 import { expectedServices } from './prod-routing-gate-policy.mjs';
+import { normalizeReviewedHash } from './prod-base-group-policy.mjs';
+import { CREATE_DEDUP_WINDOW_NS } from './prod-g2-create-policy.mjs';
+
+export const TOPUP_CONFIRMATION = 'TOP UP PROD CANISTERS';
+export const TOPUP_RECEIPT_PATH = 'prod-group-setup/cycles-topup.json';
+/** Conservative per-deposit ledger fee budget (actual cycles-ledger fee is 100M cycles). */
+export const DEPOSIT_FEE_BUDGET = 1_000_000_000n;
+export const DEPOSIT_DEDUP_WINDOW_NS = CREATE_DEDUP_WINDOW_NS;
 
 const decimal = n => /^(0|[1-9][0-9]*)$/.test(String(n)) ? String(n) : undefined;
 const rows = list => Array.isArray(list) ? list : [];
 
-export function assertTopupContext(ids, env, principal) {
+export function assertTopupContext(ids, env, principal, action = env.TOPUP_ACTION ?? 'plan') {
   assertCheckContext(ids, env, principal);
-  if (env.TOPUP_ACTION && env.TOPUP_ACTION !== 'plan') throw new Error('Only read-only plan is supported');
+  if (!['plan', 'topup-closed'].includes(action))
+    throw new Error('Only read-only plan or confirmation-gated topup-closed supported');
+  if (action === 'topup-closed' && env.CONFIRMATION?.trim() !== TOPUP_CONFIRMATION)
+    throw new Error(`Exact confirmation required: ${TOPUP_CONFIRMATION}`);
 }
 
 /** Canonical plan text: the volatile observation time is excluded, so the
