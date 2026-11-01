@@ -46,6 +46,14 @@ export async function runCheck({ ids, env, principal, invoke, save }) {
       // canister reason from failureReason explains the failure.
       row.verdict = 'UNREADABLE';
       row.reason = error?.stderr ? failureReason(error.stderr) : (internalReason(error) || failureReason(''));
+      // A fresh identity_access has no router pin until the separately
+      // approved opening step; it carries no expected links, so this exact
+      // refusal is the expected pre-opening state, not a wiring failure.
+      if (call.name === 'identity_access' && call.method === 'read_group_opening_configuration' &&
+          row.reason === 'Canister refused: Deletion registry not pinned') {
+        row.verdict = 'NOT_PINNED_YET';
+        row.reason = 'Router pin not set yet (expected before opening; separate approval)';
+      }
     }
     if (['UNREADABLE', 'READER_DENIED', 'LINK_MISMATCH'].includes(row.verdict)) report.complete = false;
     report.rows.push(row);
