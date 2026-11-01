@@ -7,6 +7,24 @@
     "balanceBefore": "2053715728031",
     "shortfallCycles": "5946284271969"
   },
-  "phase": "creating-order",
-  "createdAt": "2026-11-01T23:31:31.845Z"
+  "phase": "checkout-ready",
+  "createdAt": "2026-11-01T23:31:31.845Z",
+  "order": {
+    "order_id": "co-96-b824f1bd2b224a589f39d5bab8d157ca",
+    "checkout_url": "https://buy.stripe.com/6oU7sLg7t4ih4LtgwX3VC00?client_reference_id=o_co-96-b824f1bd2b224a589f39d5bab8d157ca&prefilled_amount=863",
+    "amount": {
+      "currency": "USD",
+      "value": "8.63"
+    },
+    "net": {
+      "currency": "USD",
+      "value": "8.08"
+    },
+    "fee": {
+      "currency": "USD",
+      "value": "0.55"
+    },
+    "estimated_cycles": "5947536474052",
+    "expires_at": "2026-11-03T00:31:35Z"
+  }
 }
