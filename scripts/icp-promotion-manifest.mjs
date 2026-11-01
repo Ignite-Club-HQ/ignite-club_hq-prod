@@ -43,6 +43,9 @@ export const ICP_SOURCE_FILES = [
   'scripts/prod-base-group-policy.mjs',
   'scripts/prod-base-group.mjs',
   'scripts/prod-base-group.test.mjs',
+  'scripts/prod-g2-plan-policy.mjs',
+  'scripts/prod-g2-plan.mjs',
+  'scripts/prod-g2-plan.test.mjs',
   'scripts/media-card-funding-policy.mjs',
   'frontend/scripts/media-stage-two-github.mjs',
 
@@ -50,6 +53,7 @@ export const ICP_SOURCE_FILES = [
   '.github/workflows/fund-prod-canisters-by-card.yml',
   '.github/workflows/check-prod-canister-connections.yml',
   '.github/workflows/setup-prod-base-group.yml',
+  '.github/workflows/plan-prod-second-group.yml',
 ];
 
 /**
