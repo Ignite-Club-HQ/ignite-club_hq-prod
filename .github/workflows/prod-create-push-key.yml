@@ -1,0 +1,50 @@
+name: "[PROD] Create notification signing key (delivery off)"
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type CREATE PROD PUSH KEY (no delivery, funding or canister changes)"
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      IGNITE_ICP_ENV: prod
+      ACTION_CONFIRM: ${{ inputs.confirmation }}
+      PASSPHRASE: ${{ secrets.PROD_ICP_PUSH_WORKER_PASSPHRASE }}
+      EXISTING_SEED: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED }}
+      EXISTING_ENC: ${{ secrets.PROD_ICP_PUSH_WORKER_SEED_ENC }}
+      EXISTING_PRINCIPAL: ${{ vars.PROD_ICP_PUSH_WORKER_PRINCIPAL }}
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_PUSH_WORKER_PRINCIPAL: ${{ vars.DEV_PUSH_WORKER_PRINCIPAL }}
+      PROD_ICP_PUSH_ENABLED: ${{ vars.PROD_ICP_PUSH_ENABLED }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require live repository prod branch
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test encrypted handover and no-replacement rules
+        run: node --test scripts/prod-push-key.test.mjs
+      - name: Install isolated pinned identity SDK
+        run: npm install --prefix "$RUNNER_TEMP/prod-push-key-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Mint once or recover the saved encrypted handover
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          export PUSH_WORKER_NODE_PATH="$RUNNER_TEMP/prod-push-key-deps/node_modules"
+          node scripts/prod-push-key.mjs
