@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { identityFromPem } from './prod-connection-check.mjs';
 import { evidenceText, internalReason, failureReason, VARIANT_CONFIG_READERS } from './prod-connection-check-policy.mjs';
-import { assertRoutingGateContext, reviewRoutingGate, routingGateSummary, gateFailureReason, expectedServices } from './prod-routing-gate-policy.mjs';
+import { assertRoutingGateContext, reviewRoutingGate, routingGateSummary, gateFailureReason, expectedServices, readFuelBalance } from './prod-routing-gate-policy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hex = bytes => Buffer.from(bytes ?? []).toString('hex');
@@ -47,6 +47,9 @@ async function main() {
   console.log(`Signing as ${principal}`);
 
   const agent = await HttpAgent.create({ host: 'https://icp-api.io', identity });
+  const publicAgent = await HttpAgent.create({ host: 'https://icp-api.io' });
+  const fuel = id => Actor.createActor(() => IDL.Service({ cycles_balance:
+    IDL.Func([], [IDL.Nat], ['query']) }), { agent: publicAgent, canisterId: id });
   const Pairs = IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text));
   const Result = ok => IDL.Variant({ Ok: ok, Err: IDL.Text });
   const DomainCanister = IDL.Record({ domain: IDL.Text, canister: IDL.Principal });
@@ -93,8 +96,9 @@ async function main() {
         running = !!status.status && 'running' in status.status;
         controllers = (status.settings?.controllers ?? []).map(p => p.toText());
         environment = status.settings?.environment_variables ?? [];
-        cycles = typeof status.cycles === 'bigint' ? status.cycles.toString() : String(status.cycles ?? '');
       } catch { /* unreadable service: the review reports it, never guesses it */ }
+      const balance = await readFuelBalance(() => fuel(item.id).cycles_balance());
+      cycles = balance.cycles;
       let subnet, moduleHash, heapBytes;
       try {
         const certified = await CanisterStatus.request({ agent, canisterId: Principal.fromText(item.id), paths: ['subnet', 'module_hash'] });
@@ -104,7 +108,8 @@ async function main() {
       } catch { /* certified read unavailable: reported as a gap */ }
       try { heapBytes = (await heap(item.id).memory_stats()).heap_bytes.toString(); } catch { /* reported as a gap */ }
       services.push({ group: group.id, name: item.name, id: item.id, running, controllers, cycles, environment,
-        subnet, moduleHash, heapBytes, configuration: await readConfig(item.id, VARIANT_CONFIG_READERS.includes(item.name)) });
+        balanceSource: 'anonymous cycles_balance query', subnet, moduleHash, heapBytes,
+        configuration: await readConfig(item.id, VARIANT_CONFIG_READERS.includes(item.name)) });
     }
   }
   const routerConfig = await readConfig(ids.shard_router, true);

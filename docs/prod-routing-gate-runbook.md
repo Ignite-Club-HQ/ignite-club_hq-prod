@@ -26,7 +26,8 @@ existing PROD governor:
 - the bounded group registry page (groups, placements, configuration revision),
   plus the recorded routing approval;
 - management `canister_status` for each of the twelve data services and the
-  group-owned photo store: running state, controllers, cycles and environment;
+  group-owned photo store: running state, controllers and environment;
+- each service's own anonymous `cycles_balance` query for execution fuel;
 - the certified subnet and installed module hash of each service;
 - each service's own `read_group_opening_configuration` rows;
 - the router's deletion authority and the account service's registry pin,
@@ -35,6 +36,14 @@ existing PROD governor:
 ## What it reports
 
 Every unverified item is listed, not just the first:
+
+The Summary and JSON include exact execution balances, the registered minimum
+and per-service shortfall. Unreadable balances are explicitly UNKNOWN, never
+zero or low fuel. The aggregate shortfall is withheld if any balance is unknown.
+These are not signing-account balances or a payment quote: fees, reserves and
+available signing-account funds must be checked separately before any funding.
+Settings diagnostics name expected public identities and missing/different
+comparisons only; arbitrary environment values are never exported.
 
 | Gap | Meaning |
 |---|---|

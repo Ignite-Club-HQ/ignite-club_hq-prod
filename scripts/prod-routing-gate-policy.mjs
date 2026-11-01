@@ -33,6 +33,15 @@ export const RECIPROCAL_LINKS = Object.freeze({
 const decimal = n => /^(0|[1-9][0-9]*)$/.test(String(n)) ? String(n) : undefined;
 const isHex64 = v => /^[a-f0-9]{64}$/.test(String(v ?? ''));
 
+// A failed balance query is unknown, never zero or an inferred payment need.
+export async function readFuelBalance(read) {
+  try {
+    const cycles = decimal(await read());
+    return cycles === undefined ? { cycles: null, balanceRead: 'unreadable' }
+      : { cycles, balanceRead: 'readback' };
+  } catch { return { cycles: null, balanceRead: 'unreadable' }; }
+}
+
 export function sha256Hex(value) { return createHash('sha256').update(value).digest('hex'); }
 
 export function assertRoutingGateContext(ids, env, principal) {
@@ -109,6 +118,7 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
   if (placements.size !== rows(page.placements).length) add('DUPLICATE_PLACEMENT', 'A group has more than one placement.');
   const observed = new Map(services.map(s => [`${s.group}/${s.name}`, s]));
   const moduleHashes = {};
+  const diagnostics = [];
 
   for (const group of groups) {
     const placement = placements.get(group.id);
@@ -132,7 +142,37 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
       if (!item.subnet || service.subnet !== item.subnet) add('SUBNET_MISMATCH', `${group.id}/${item.name}: certified subnet differs from the placement.`);
       if (!isHex64(service.moduleHash)) add('MODULE_HASH_MISSING', `${group.id}/${item.name}: installed module hash unreadable.`);
       const cycles = decimal(service.cycles), heap = decimal(service.heapBytes);
-      if (!cycles || !decimal(group.min_cycles) || BigInt(cycles) < BigInt(group.min_cycles))
+      const minimum = decimal(group.min_cycles);
+      const shortfall = cycles !== undefined && minimum !== undefined
+        ? (BigInt(cycles) < BigInt(minimum) ? BigInt(minimum) - BigInt(cycles) : 0n).toString() : null;
+      const bindings = [];
+      // Export only expected public identities and comparison states, never
+      // arbitrary environment values or unrecognised configuration rows.
+      const binding = (setting, expected, actual) => bindings.push({ setting, expected,
+        result: actual === undefined ? 'missing' : actual === expected ? 'matched' : 'different' });
+      const checksLifecycle = ADMISSION_DOMAINS.includes(item.name) || item.name === 'media_blob_store';
+      if (checksLifecycle) {
+        binding(ADMISSION_FLAG, '1', envValue(service.environment, ADMISSION_FLAG));
+        binding(ADMISSION_AUTHORITY, ids.identity_access, envValue(service.environment, ADMISSION_AUTHORITY));
+      }
+      if (item.name === 'club_domain') {
+        binding('identity_access', ids.identity_access, one(service.configuration, 'identity_access'));
+        for (const [key, target] of [['media_store', 'media_blob_store'], ['competition_authority', 'competition_domain']]) {
+          const expectedId = expected.find(e => e.name === target)?.id;
+          binding(key, expectedId, any(service.configuration, key, expectedId) ? expectedId : one(service.configuration, key));
+        }
+      }
+      if (item.name === 'notification_queue' || item.name === 'timer_jobs') {
+        const key = item.name === 'timer_jobs' ? 'worker:*' : 'worker';
+        binding(key, pushWorker ?? null, any(service.configuration, key, pushWorker) ? pushWorker : one(service.configuration, key));
+      }
+      diagnostics.push({ group: group.id, service: item.name, canisterId: item.id,
+        cycles: cycles ?? null, minimumCycles: minimum ?? null, shortfallCycles: shortfall,
+        balanceRead: cycles === undefined ? 'unreadable' : 'readback',
+        balanceSource: service.balanceSource ?? 'provided-evidence', bindings });
+      if (cycles === undefined) add('CYCLES_UNREADABLE', `${group.id}/${item.name}: balance unreadable; no funding amount can be inferred.`);
+      else if (minimum === undefined) add('CYCLES_MINIMUM_UNREADABLE', `${group.id}/${item.name}: group minimum unreadable.`);
+      else if (BigInt(cycles) < BigInt(minimum))
         add('CYCLES_BELOW_MINIMUM', `${group.id}/${item.name}: cycles below the group minimum.`);
       if (!heap || !decimal(group.heap_budget_bytes) || BigInt(heap) >= BigInt(group.heap_budget_bytes))
         add('HEAP_AT_BUDGET', `${group.id}/${item.name}: heap at or above the group budget.`);
@@ -209,9 +249,14 @@ export function reviewRoutingGate({ ids = PROD_CHECK_IDS, principal, pushWorker,
       approvedConfiguration: configText,
       removalWiring: { revision: configurationRevision, groupIds, checkedAtMs }, generatedAt: checkedAt };
     const evidenceSha256 = sha256Hex(JSON.stringify(evidence));
+    const completeBalances = diagnostics.length === groups.reduce((n, g) => n + expectedServices(g, placements.get(g.id)).length, 0)
+      && diagnostics.length > 0 && diagnostics.every(d => d.shortfallCycles !== null);
+    const fuelReview = { complete: completeBalances, totalShortfallCycles: completeBalances
+      ? diagnostics.reduce((sum, d) => sum + BigInt(d.shortfallCycles), 0n).toString() : null,
+      paymentAuthorized: false, note: 'Execution balances only; excludes signing-account funds, fees and reserves. Not a payment quote.' };
     const gateComplete = gaps.length === 0 && groups.length > 0 && groups.every(g => g.accepting === false);
     return { gateComplete, openingAuthorized: false, admissionAuthorized: false, approvalRecorded: false,
-      configurationRevision, groupIds, evidence, evidenceSha256, gaps,
+      configurationRevision, groupIds, evidence, evidenceSha256, gaps, diagnostics, fuelReview,
       approvalDraft: gateComplete && configText ? {
         target_alias: 'mainnet', configuration_revision: configurationRevision,
         approved_configuration_sha256: sha256Hex(configText), removal_wiring_group_ids: groupIds,
@@ -232,6 +277,15 @@ function safeConfig(groups, placements) {
 export function routingGateSummary(review) {
   return ['### PROD routing gate (read-only)', '',
     `Configuration revision: \`${review.configurationRevision ?? 'unreadable'}\` · groups: ${review.groupIds.join(', ') || 'none'}`, '',
+    '### Execution fuel (exact cycles)', '',
+    '| Group/service | Canister | Balance | Minimum | Shortfall |',
+    '|---|---|---|---|---|',
+    ...(review.diagnostics ?? []).map(d => `| ${d.group}/${d.service} | ${d.canisterId} | ${d.cycles ?? 'UNREADABLE'} | ${d.minimumCycles ?? 'UNREADABLE'} | ${d.shortfallCycles ?? 'UNKNOWN'} |`),
+    '', `Total execution shortfall: ${review.fuelReview?.totalShortfallCycles ?? 'UNKNOWN — incomplete balance evidence'} cycles.`,
+    'Not a payment quote: signing-account funds, fees and reserves are not included. Do not pay from this report alone.', '',
+    '### Missing or different settings', '',
+    ...(review.diagnostics ?? []).flatMap(d => d.bindings.filter(b => b.result !== 'matched')
+      .map(b => `- ${d.group}/${d.service}: ${b.setting} is ${b.result}; expected ${b.expected ?? 'a verified PROD identity'}.`)), '',
     ...(review.gaps.length ? review.gaps.map(g => `- ${g.code}: ${g.detail}`) : ['- All bounded wiring checks passed.']),
     '',
     review.approvalDraft ? `Approval a governor could record at revision ${review.approvalDraft.configuration_revision}: ` +

@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { PROD_CHECK_IDS } from './prod-connection-check-policy.mjs';
 import { GROUP_DOMAINS } from './prod-group-readiness.mjs';
 import { reviewRoutingGate, groupApprovalConfiguration, sha256Hex, assertRoutingGateContext,
-  expectedServices, ADMISSION_FLAG, ADMISSION_AUTHORITY, ADMISSION_DOMAINS, RECIPROCAL_LINKS } from './prod-routing-gate-policy.mjs';
+  expectedServices, ADMISSION_FLAG, ADMISSION_AUTHORITY, ADMISSION_DOMAINS, RECIPROCAL_LINKS, readFuelBalance } from './prod-routing-gate-policy.mjs';
 
 const governor = PROD_CHECK_IDS.club_domain.replace(/.$/, 'x');
 const worker = 'vnant-3snr2-22u5y-hpfoa-er3qu-h2z42-3qsfa-2ugcb-absre-jihnw-dqe';
@@ -195,4 +195,40 @@ test('the workflow is manual, read-only and cannot reach DEV, the database or an
   assert.match(w, /trap 'rm -rf "\$ICP_HOME"' EXIT/);
   assert.match(w, /@icp-sdk\/core@6\.1\.1/);
   assert.match(w, /node --test scripts\/prod-routing-gate\.test\.mjs/);
+});
+
+test('fuel diagnostics preserve exact balances, zero and shortfall without authorizing payment', () => {
+  const s = state();
+  s.services[0].cycles = '0';
+  s.services[1].cycles = '999';
+  const r = reviewRoutingGate(s);
+  assert.equal(r.diagnostics[0].cycles, '0');
+  assert.equal(r.diagnostics[0].shortfallCycles, '1000');
+  assert.equal(r.diagnostics[1].shortfallCycles, '1');
+  assert.equal(r.fuelReview.totalShortfallCycles, '1001');
+  assert.equal(r.fuelReview.paymentAuthorized, false);
+});
+
+test('unreadable fuel is not low fuel and never yields an aggregate funding amount', async () => {
+  assert.deepEqual(await readFuelBalance(async () => 900719925474099312345n),
+    { cycles: '900719925474099312345', balanceRead: 'readback' });
+  assert.deepEqual(await readFuelBalance(async () => { throw new Error('private detail'); }),
+    { cycles: null, balanceRead: 'unreadable' });
+  const s = state(); s.services[0].cycles = null;
+  const r = reviewRoutingGate(s);
+  assert.ok(codes(r).includes('CYCLES_UNREADABLE'));
+  assert.ok(!codes(r).includes('CYCLES_BELOW_MINIMUM'));
+  assert.equal(r.fuelReview.totalShortfallCycles, null);
+});
+
+test('setting diagnostics identify missing bindings without exporting unrelated environment values', () => {
+  const s = state();
+  s.services[0].environment = [{ name: 'PRIVATE_SECRET', value: 'do-not-export-this' }];
+  s.services[0].configuration = s.services[0].configuration.filter(r => r[0] !== 'media_store');
+  const r = reviewRoutingGate(s);
+  const bindings = r.diagnostics[0].bindings;
+  assert.deepEqual(bindings.find(b => b.setting === ADMISSION_AUTHORITY),
+    { setting: ADMISSION_AUTHORITY, expected: identity, result: 'missing' });
+  assert.equal(bindings.find(b => b.setting === 'media_store').result, 'missing');
+  assert.equal(JSON.stringify(r).includes('do-not-export-this'), false);
 });
