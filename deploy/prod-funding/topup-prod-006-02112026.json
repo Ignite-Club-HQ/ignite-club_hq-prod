@@ -1,0 +1,12 @@
+{
+  "plan": {
+    "paymentId": "topup-prod-006-02112026",
+    "principal": "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae",
+    "targetT": "8",
+    "targetCycles": "8000000000000",
+    "balanceBefore": "2053715728031",
+    "shortfallCycles": "5946284271969"
+  },
+  "phase": "creating-order",
+  "createdAt": "2026-11-01T23:31:31.845Z"
+}
