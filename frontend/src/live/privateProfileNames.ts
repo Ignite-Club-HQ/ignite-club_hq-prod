@@ -172,7 +172,7 @@ export async function refreshPrivateOwnClubNames(
   active();
   const supplied = [...await discoverClubs()];
   active();
-  if (supplied.length > 100 || supplied.some(club => typeof club !== 'string' || !club || club.length > 64 || /[\u001f/]/.test(club))) throw new Error('Bounded exact club names required.');
+  if (supplied.length > 100 || supplied.some(club => typeof club !== 'string' || !club || club.length > 64 || club.includes('\u001f') || club.includes('/'))) throw new Error('Bounded exact club names required.');
   const clubs = [...new Set(supplied)];
   if (!clubs.length) return;
   const { actor } = await connectLivePiiAccessControl(ctx.target, identity);
