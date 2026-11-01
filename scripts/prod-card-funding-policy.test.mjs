@@ -30,12 +30,12 @@ test('the order buys only the gap to the requested fuel target', () => {
   assert.equal(funded.shortfallCycles, '0');
 });
 
-test('a payment ID that is not a safe file name, or a target outside 2–20T, is refused', () => {
+test('a payment ID that is not a safe file name, or a target outside 2–22T, is refused', () => {
   for (const paymentId of ['x', 'PROD_FUEL', 'a'.repeat(49), '../escape', 'prod fuel']) {
     assert.throws(() => prodCardPlan({ paymentId, principal: G, expectedPrincipal: G,
       confirm: 'CREATE CARD LINK', balance: '0', targetT: '20' }), /payment ID/, `accepted ${paymentId}`);
   }
-  for (const targetT of ['1', '21', '2.5', 'abc']) {
+  for (const targetT of ['1', '23', '2.5', 'abc']) {
     assert.throws(() => prodCardPlan({ paymentId: 'prod-fuel-20261031-01', principal: G, expectedPrincipal: G,
       confirm: 'CREATE CARD LINK', balance: '0', targetT }), /fuel target/, `accepted ${targetT}`);
   }
