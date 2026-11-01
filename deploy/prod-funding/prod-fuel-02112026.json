@@ -1,0 +1,12 @@
+{
+  "plan": {
+    "paymentId": "prod-fuel-02112026",
+    "principal": "kydv5-mptl2-ip3ie-5zwd3-gc5en-4opnd-mytmr-gza6m-xh5t4-jz662-7ae",
+    "targetT": "9",
+    "targetCycles": "9000000000000",
+    "balanceBefore": "1503854437114",
+    "shortfallCycles": "7496145562886"
+  },
+  "phase": "creating-order",
+  "createdAt": "2026-11-01T22:11:58.311Z"
+}
