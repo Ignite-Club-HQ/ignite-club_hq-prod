@@ -23,13 +23,14 @@ test('all 18 exact PROD IDs and the expected key are required', () => {
 
 test('no setter, deployment, proxy, attached cycles or arbitrary method can run', () => {
   const calls = checkCalls(PROD_CHECK_IDS);
-  assert.equal(calls.length, 17);
-  assert.deepEqual([...new Set(calls.map(c => c.method))].sort(), ['list_groups', 'read_group_opening_configuration', 'read_routing_approval']);
+  assert.equal(calls.length, 18);
+  assert.deepEqual([...new Set(calls.map(c => c.method))].sort(), ['list_groups', 'read_group_opening_configuration', 'read_group_registry_page', 'read_routing_approval']);
   for (const call of calls) {
     const spec = readerSpec(call, PROD_CHECK_IDS);
     assert.equal(spec.host, 'https://icp-api.io');
     assert.equal(Object.values(PROD_CHECK_IDS).includes(spec.canisterId), true);
     assert.equal('cycles' in spec, false);
+    if (spec.method === 'read_group_registry_page') assert.deepEqual(spec.args, ['mainnet', [], [], 64]);
   }
   assert.throws(() => readerSpec({ ...calls[0], method: 'set_club_domain_canister' }, PROD_CHECK_IDS), /approved infrastructure/);
   assert.throws(() => readerSpec({ ...calls[0], id: 'mzzzv-taaaa-aaaal-qxlrq-cai' }, PROD_CHECK_IDS), /approved infrastructure/);
@@ -49,8 +50,8 @@ test('failed reads are recorded without diagnostic secrets and partial evidence 
   const report = await runCheck({ ids: PROD_CHECK_IDS, env, principal,
     invoke: () => { throw new Error('SECRET diagnostic'); }, save: r => saved.push(r.rows.length) });
   assert.equal(report.complete, false);
-  assert.equal(report.rows.length, 17);
-  assert.equal(saved.length, 17);
+  assert.equal(report.rows.length, 18);
+  assert.equal(saved.length, 18);
   assert.equal(JSON.stringify(report).includes('SECRET'), false);
 });
 
@@ -93,7 +94,9 @@ test('fully wired PROD links read back complete; an unset link is named', async 
     invoke: spec => spec.method === 'read_group_opening_configuration'
       ? pairs(Object.keys(PROD_CHECK_IDS).find(n => PROD_CHECK_IDS[n] === spec.canisterId))
       : { Ok: [] } });
-  assert.equal(ok.complete, true);
+  assert.equal(ok.connectionsComplete, true);
+  assert.equal(ok.complete, false);
+  assert.equal(ok.readiness.gaps.some(g => g.code === 'NO_GROUPS_REGISTERED'), true);
   const bad = await runCheck({ ids: PROD_CHECK_IDS, env, principal, save: () => {},
     invoke: spec => spec.method === 'read_group_opening_configuration' ? [['club_domain', PROD_CHECK_IDS.club_domain]] : { Ok: [] } });
   const pts = bad.rows.find(r => r.name === 'club_points_domain');
@@ -101,6 +104,26 @@ test('fully wired PROD links read back complete; an unset link is named', async 
   const blob = bad.rows.find(r => r.name === 'notification_queue');
   assert.equal(blob.verdict, 'LINK_MISMATCH');
   assert.match(blob.reason, /messaging_domain: not set/);
+});
+
+test('unpinned identity_access never establishes group readiness; the same refusal elsewhere also fails connections', async () => {
+  const { EXPECTED_LINKS } = await import('./prod-connection-check-policy.mjs');
+  const nameOf = id => Object.keys(PROD_CHECK_IDS).find(n => PROD_CHECK_IDS[n] === id);
+  const run = refuser => runCheck({ ids: PROD_CHECK_IDS, env, principal, save: () => {},
+    invoke: spec => {
+      if (spec.method !== 'read_group_opening_configuration') return { Ok: [] };
+      const name = nameOf(spec.canisterId);
+      if (name === refuser) { const e = new Error('x'); e.stderr = "with message: 'Deletion registry not pinned'"; throw e; }
+      return (EXPECTED_LINKS[name] || []).map(k => [k, PROD_CHECK_IDS[k]]);
+    } });
+  const fresh = await run('identity_access');
+  assert.equal(fresh.rows.find(r => r.name === 'identity_access').verdict, 'NOT_PINNED_YET');
+  assert.equal(fresh.connectionsComplete, true);
+  assert.equal(fresh.complete, false);
+  assert.equal(fresh.readiness.gaps.some(g => g.code === 'IDENTITY_REGISTRY_NOT_BOUND'), true);
+  const other = await run('club_domain');
+  assert.equal(other.rows.find(r => r.name === 'club_domain').verdict, 'UNREADABLE');
+  assert.equal(other.complete, false);
 });
 
 test('governor PEM loads as the matching agent identity', async () => {

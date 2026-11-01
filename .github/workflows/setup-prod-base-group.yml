@@ -1,0 +1,86 @@
+name: "[PROD] Prepare and register base group (closed)"
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "plan checks existing canisters; register-closed records the reviewed base inventory only"
+        type: choice
+        default: plan
+        options: [plan, register-closed]
+      reviewed_plan_hash:
+        description: "Hash from successful plan summary (registration only)"
+        required: false
+      confirmation:
+        description: "Registration only: REGISTER PROD BASE CLOSED"
+        required: false
+      max_clubs:
+        description: "Closed-group capacity ceiling; not opening authorization"
+        default: "100"
+      min_cycles:
+        description: "Future health floor in cycles; no deposit is performed"
+        default: "1000000000000"
+      heap_budget_bytes:
+        description: "Heap budget; maximum 3 GiB"
+        default: "3221225472"
+permissions:
+  contents: write
+concurrency:
+  group: ignite-prod-governor-deployment
+  cancel-in-progress: false
+jobs:
+  base:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    env:
+      IGNITE_ICP_ENV: prod
+      PROD_GOVERNOR_PRINCIPAL: ${{ vars.PROD_GOVERNOR_PRINCIPAL }}
+      DEV_DEPLOYER_PRINCIPAL: ${{ vars.DEV_DEPLOYER_PRINCIPAL }}
+      BASE_ACTION: ${{ inputs.action }}
+      BASE_PLAN_HASH: ${{ inputs.reviewed_plan_hash }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      BASE_MAX_CLUBS: ${{ inputs.max_clubs }}
+      BASE_MIN_CYCLES: ${{ inputs.min_cycles }}
+      BASE_HEAP_BYTES: ${{ inputs.heap_budget_bytes }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the live repository prod branch
+        run: |
+          test "$GITHUB_REPOSITORY" = 'Ignite-Club-HQ/ignite-club_hq-prod'
+          test "$GITHUB_REF" = 'refs/heads/prod'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Test closed-only setup and durable intent safeguards
+        run: node --test scripts/prod-base-group.test.mjs scripts/prod-group-readiness.test.mjs scripts/prod-connection-check.test.mjs
+      - name: Install isolated pinned SDK
+        run: npm install --prefix "$RUNNER_TEMP/prod-base-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
+      - name: Restore existing signing key and run selected closed-only action
+        env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          export ICP_HOME="$RUNNER_TEMP/prod-base-key"
+          export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-base-deps"
+          export CHECK_REPORT_DIR="$RUNNER_TEMP/prod-base-report"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          test -n "${PROD_GOVERNOR_PEM_ENC:-}"
+          test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
+          mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          export CHECK_KEY_PEM="$ICP_HOME/key.pem"
+          node scripts/prod-base-group.mjs
+      - name: Save closed setup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-base-group
+          path: ${{ runner.temp }}/prod-base-report/*.json
+          if-no-files-found: ignore
