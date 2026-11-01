@@ -3,15 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "inspect reads only; plan saves a proposal; register-closed records reviewed inventory"
+        description: "inspect reads only; plan saves a proposal; register-closed records reviewed inventory; reconcile-readback only confirms an interrupted registration"
         type: choice
         default: plan
-        options: [plan, inspect, register-closed]
+        options: [plan, inspect, register-closed, reconcile-readback]
       reviewed_plan_hash:
-        description: "Hash from successful plan summary (registration only)"
+        description: "Hash from successful plan summary (register-closed or reconcile-readback)"
         required: false
       confirmation:
-        description: "Registration only: REGISTER PROD BASE CLOSED"
+        description: "register-closed: REGISTER PROD BASE CLOSED; reconcile-readback: CONFIRM PROD BASE READBACK"
         required: false
       max_clubs:
         description: "Closed-group capacity ceiling; not opening authorization"

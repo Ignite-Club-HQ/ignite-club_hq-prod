@@ -3,6 +3,7 @@ import { PROD_CHECK_IDS, assertCheckContext, evidenceText } from './prod-connect
 import { GROUP_DOMAINS } from './prod-group-readiness.mjs';
 
 export const BASE_CONFIRMATION = 'REGISTER PROD BASE CLOSED';
+export const READBACK_CONFIRMATION = 'CONFIRM PROD BASE READBACK';
 export const RECEIPTS_BRANCH = 'prod-group-setup-receipts';
 export const RECEIPT_PATH = 'prod-group-setup/base.json';
 export const canonical = value => {
@@ -14,9 +15,12 @@ export const canonical = value => {
 export const hashPlan = plan => createHash('sha256').update(canonical(plan)).digest('hex');
 export function assertBaseContext(ids, env, principal, action) {
   assertCheckContext(ids, env, principal);
-  if (!['plan', 'inspect', 'register-closed'].includes(action)) throw new Error('Only plan, inspect or register-closed supported');
+  if (!['plan', 'inspect', 'register-closed', 'reconcile-readback'].includes(action))
+    throw new Error('Only plan, inspect, register-closed or reconcile-readback supported');
   if (action === 'register-closed' && env.CONFIRMATION?.trim() !== BASE_CONFIRMATION)
     throw new Error(`Exact confirmation required: ${BASE_CONFIRMATION}`);
+  if (action === 'reconcile-readback' && env.CONFIRMATION?.trim() !== READBACK_CONFIRMATION)
+    throw new Error(`Exact confirmation required: ${READBACK_CONFIRMATION}`);
 }
 const integer = (v, name) => {
   if (!/^(0|[1-9][0-9]*)$/.test(String(v))) throw new Error(`Invalid ${name}`);
@@ -92,12 +96,32 @@ export async function registerClosedBase({ plan, receipt, checkpoint, registerGr
   if (placedRevision !== groupRevision + 1n) throw new Error('Unexpected placement revision; stop without replay');
   current = { ...current, placementRevision: placedRevision.toString(), pending: 'readback' };
   await checkpoint(current);
-  const page = await readRegistry(placedRevision);
-  if (page.next_cursor?.length || String(page.revision) !== String(placedRevision) ||
+  assertClosedReadback(await readRegistry(placedRevision), plan, placedRevision);
+  await checkpoint({ ...current, pending: null, phase: 'registered-closed' });
+  return { registeredClosed: true, openingAuthorized: false, revision: placedRevision.toString() };
+}
+export function assertClosedReadback(page, plan, revision) {
+  if (page.next_cursor?.length || String(page.revision) !== String(revision) ||
       page.groups?.length !== 1 || page.placements?.length !== 1 ||
+      page.groups[0].accepting !== false ||
       canonical(page.groups[0]) !== canonical(plan.group) ||
       canonical(page.placements[0]) !== canonical(plan.placement))
     throw new Error('Closed registry readback mismatch; stop without replay');
-  await checkpoint({ ...current, pending: null, phase: 'registered-closed' });
-  return { registeredClosed: true, openingAuthorized: false, revision: placedRevision.toString() };
+}
+/** Completes only the final read-back checkpoint of an interrupted run. It
+ * never calls register_group/register_group_placement; any mismatch, other
+ * pending intent or unexpected revision stops without writing. */
+export async function reconcileClosedReadback({ receipt, expectedHash, readRegistry, checkpoint }) {
+  const hash = normalizeReviewedHash(expectedHash);
+  if (!receipt || receipt.phase !== 'planned' || receipt.pending !== 'readback' || !receipt.plan ||
+      !/^[a-f0-9]{64}$/.test(hash) || receipt.planHash !== hash || hashPlan(receipt.plan) !== hash ||
+      receipt.plan.group?.accepting !== false || receipt.plan.openingAuthorized !== false)
+    throw new Error('Pending readback receipt for the reviewed plan required');
+  const base = BigInt(receipt.plan.expectedRevision);
+  if (receipt.groupRevision !== (base + 1n).toString() || receipt.placementRevision !== (base + 2n).toString())
+    throw new Error('Pending readback receipt for the reviewed plan required');
+  const revision = BigInt(receipt.placementRevision);
+  assertClosedReadback(await readRegistry(revision), receipt.plan, revision);
+  await checkpoint({ ...receipt, pending: null, phase: 'registered-closed' });
+  return { registeredClosed: true, reconciled: true, openingAuthorized: false, revision: revision.toString() };
 }

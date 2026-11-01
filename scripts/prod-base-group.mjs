@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { identityFromPem } from './prod-connection-check.mjs';
 import { evidenceText } from './prod-connection-check-policy.mjs';
 import { groupContract } from './prod-group-contract.mjs';
-import { assertBaseContext, buildBasePlan, assertReviewedPlan, hashPlan, registerClosedBase, RECEIPTS_BRANCH, RECEIPT_PATH } from './prod-base-group-policy.mjs';
+import { assertBaseContext, buildBasePlan, assertReviewedPlan, hashPlan, registerClosedBase, reconcileClosedReadback, RECEIPTS_BRANCH, RECEIPT_PATH } from './prod-base-group-policy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const unwrap = r => { if ('Err' in r) throw new Error('Infrastructure operation refused; inspect signed readback, never replay'); return r.Ok; };
@@ -25,6 +25,7 @@ export function baseFailureReason(error) {
     'Journal readback failed; stop without replay',
     'Infrastructure operation refused; inspect signed readback, never replay',
     'Closed registry readback mismatch; stop without replay',
+    'Pending readback receipt for the reviewed plan required',
   ];
   if (known.includes(message)) return message;
   if (/^GitHub journal (GET|POST|PUT) failed \([0-9]{3}\); stop without replay$/.test(message)) return message;
@@ -125,6 +126,18 @@ async function main() {
       registry: page, observations, registrationAuthorized: false };
     writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-base-inspection.json'), evidenceText(report));
     const message = `### PROD base read-only inspection\n\nReceipt: ${report.receiptPhase}; pending: ${report.pending ?? 'none'}.\nSource commit changed: ${report.sourceChanged ? 'yes' : 'no'}.\nRegistry groups: ${page.groups.length}; placements: ${page.placements.length}.\nNo journal or canister configuration writes. Review evidence before registration.\n`;
+    console.log(message); if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
+    return;
+  }
+  if (action === 'reconcile-readback') {
+    stage = 'reconcile pending readback (no registration calls)';
+    const result = await reconcileClosedReadback({ receipt, expectedHash: env.BASE_PLAN_HASH, readRegistry, checkpoint: async r => {
+      stage = 'durable checkpoint: registered-closed';
+      await journal.save(r);
+      writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-base-receipt.json'), evidenceText(r));
+    } });
+    writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-base-result.json'), evidenceText(result));
+    const message = `### PROD base registration confirmed\n\nLive router read back revision ${result.revision}: one group "base", one placement, both exactly matching the reviewed plan. Group stays CLOSED.\nNo registration calls were repeated. Identity lifecycle, g2, routing approval and opening remain separate.\n`;
     console.log(message); if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
     return;
   }

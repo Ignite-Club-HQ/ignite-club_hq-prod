@@ -423,4 +423,5 @@ Validation budget: changed rules plus direct regressions per substantial batch; 
 - [x] ICP DEV/PROD split built (current canisters = DEV). Open: user adds PROD keys/variables and runs one-off provision (blocked on user)
 - [x] Auto-upgrade PROD canisters on push to prod (like DB migrations)
 - [x] PROD base group plan built and reviewed from certified live inventory (18 PROD services, closed, capacity 100); saved plan code recomputes exactly.
-- [ ] Register PROD base group closed — blocked: paste-safe registration fix must be copied to the live repo, then re-plan and register with the new code.
+- [x] PROD base group registered closed on the live router (revision 2; group + placement verified read-only against plan 534e80f0…). Run stopped only from a comparison bug, now fixed.
+- [ ] Owner: REPO apply, then base-group workflow action reconcile-readback (same hash, CONFIRM PROD BASE READBACK) to mark the saved receipt registered-closed.
