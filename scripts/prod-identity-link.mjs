@@ -11,7 +11,7 @@ import { identityFromPem } from './prod-connection-check.mjs';
 import { evidenceText } from './prod-connection-check-policy.mjs';
 import { githubJournal } from './prod-base-group.mjs';
 import { groupContract } from './prod-group-contract.mjs';
-import { RECEIPT_PATH } from './prod-base-group-policy.mjs';
+import { RECEIPT_PATH, hashPlan } from './prod-base-group-policy.mjs';
 import { G2_RECEIPT_PATH } from './prod-g2-create-policy.mjs';
 import { G2_REGISTRATION_RECEIPT_PATH } from './prod-g2-register-policy.mjs';
 import {
@@ -269,15 +269,6 @@ async function main() {
   const message = identityLinkSummary(receipt.plan, verified).map(line => `- ${line}`).join('\n');
   console.log(`PROD account service linked and independently read back. Routing approval, opening and admission remain separate gates.`);
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `## PROD account service link\n\n${message}\n`);
-}
-
-const planHash = plan => {
-  // Imported lazily so the failure path never depends on the hashing helpers.
-  return hashPlanNow(plan);
-};
-async function hashPlanNow(plan) {
-  const { hashPlan } = await import('./prod-base-group-policy.mjs');
-  return hashPlan(plan);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => {
