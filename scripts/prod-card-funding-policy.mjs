@@ -27,7 +27,7 @@ export function prodCardPlan({ paymentId, principal, expectedPrincipal, confirm,
   const expected = String(expectedPrincipal ?? '').trim();
   if (!expected) throw new Error('Repository variable PROD_GOVERNOR_PRINCIPAL is not set');
   if (principal !== expected) throw new Error('PROD signing identity mismatch; no card order created');
-  if (!/^(?:[2-9]|1[0-9]|20)$/.test(String(targetT))) throw new Error('Choose a 2–20T fuel target');
+  if (!/^(?:[2-9]|1[0-9]|2[0-2])$/.test(String(targetT))) throw new Error('Choose a 2–22T fuel target');
   const current = BigInt(balance);
   if (current < 0n) throw new Error('Invalid balance');
   const target = BigInt(targetT) * T;
