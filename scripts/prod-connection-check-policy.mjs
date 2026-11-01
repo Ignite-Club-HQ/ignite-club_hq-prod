@@ -103,3 +103,20 @@ export function hexReply(stdout) {
   if (!line) throw new Error('Unexpected hex reply');
   return line;
 }
+
+// Candid decoding needs a standalone Uint8Array; Node Buffers from the shared
+// pool start at a non-zero offset and fail the magic-number check.
+export function replyBytes(hex) {
+  return new Uint8Array(Buffer.from(String(hex).replace(/^0x/, ''), 'hex'));
+}
+
+// Failures raised inside the check (not by the CLI) map to fixed, secret-free
+// labels; arbitrary exception text is never copied into the report.
+export function internalReason(error) {
+  const message = String(error?.message ?? '');
+  if (/^Unexpected hex reply$/.test(message)) return 'Reply was not raw hex';
+  if (/^Infrastructure reply exceeded evidence bound$/.test(message)) return 'Reply too large';
+  if (/^Invalid bounded infrastructure configuration$/.test(message)) return 'Configuration reply out of bounds';
+  if (/magic number|IDL|decode|type/i.test(message)) return 'Reply could not be decoded';
+  return '';
+}
