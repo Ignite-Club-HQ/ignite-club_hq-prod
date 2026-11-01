@@ -10,6 +10,7 @@ import { identityFromPem } from './prod-connection-check.mjs';
 import { evidenceText } from './prod-connection-check-policy.mjs';
 import { groupContract } from './prod-group-contract.mjs';
 import { githubJournal } from './prod-base-group.mjs';
+import { hashPlan } from './prod-base-group-policy.mjs';
 import { G2_RECEIPT_PATH } from './prod-g2-create-policy.mjs';
 import {
   assertG2RegistrationContext, buildG2RegistrationPlan, assertReviewedG2RegistrationPlan,
@@ -144,7 +145,7 @@ async function main() {
     observations, budgets: { maxClubs: env.G2R_MAX_CLUBS, minCycles: env.G2R_MIN_CYCLES, heapBudgetBytes: env.G2R_HEAP_BYTES },
     checkedAt: new Date().toISOString() }), basePlan: baseReceipt.plan };
   if (action === 'plan') {
-    const planned = { version: 1, phase: 'planned', pending: null, planHash: hashPlanOf(plan), plan };
+    const planned = { version: 1, phase: 'planned', pending: null, planHash: hashPlan(plan), plan };
     await journal.save(planned);
     writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-g2-registration-plan.json'), evidenceText(planned));
     const message = `### PROD g2 closed registration plan\n\nReviewed-plan hash: \`${planned.planHash}\`\n\nOne NEW closed group "g2": 13 independent services plus the shared workload identity, on one approved subnet. The base group must still read exactly as its reviewed receipt.\nNo opening, admission, funding, DEV or database changes.\nPlan persisted; inspect before registration.\n`;
@@ -172,13 +173,6 @@ async function main() {
   writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-g2-registration-result.json'), evidenceText(result));
   const message = 'PROD g2 registered and independently read back CLOSED. Identity lifecycle, routing approval and opening remain separate. No funding, deployments, DEV or database changes.';
   console.log(message); if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, message);
-}
-const hashPlanOf = plan => createHash('sha256').update(canonicalOf(plan)).digest('hex');
-function canonicalOf(value) {
-  const plain = JSON.parse(evidenceText(value));
-  const ordered = v => Array.isArray(v) ? v.map(ordered) : v && typeof v === 'object'
-    ? Object.fromEntries(Object.keys(v).sort().map(k => [k, ordered(v[k])])) : v;
-  return JSON.stringify(ordered(plain));
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => {
   saveG2RegistrationFailure(process.env, error, stage);
