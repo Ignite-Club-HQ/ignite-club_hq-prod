@@ -1,5 +1,9 @@
 # Roadmap — ICP MCP / ChatGPT integration
 
+## Current request — clearer read-only PROD report
+- [x] Add exact anonymous execution balances/minimums/shortfalls and bounded missing-setting diagnostics; unknown balances never imply low fuel or a payment requirement. No PROD/DEV/database changes or funding.
+- [ ] Owner: promote the updated tooling, rerun the read-only routing check on prod and upload its artifact. Signed live verification requires the GitHub-held governor key; funding and configuration remain separately held.
+
 ## Current request — PROD group parity with DEV (1 Nov 2026)
 - [x] Fixed the false `UNREVIEWED_GROUP_INVENTORY: g2` flag in `[PROD] Check PROD canister connections`: the readiness audit never received the reviewed independent inventory, so g2 stayed flagged although registration had succeeded. The check now loads it from the acknowledged g2 registration receipt in the durable journal and only from there, printing the reason when it is unavailable; 3 new check tests and 1 receipt test.
 - [x] Built the read-only PROD routing gate: `scripts/prod-routing-gate-policy.mjs` / `prod-routing-gate.mjs` / `prod-routing-gate.test.mjs` + `[PROD] Check PROD routing gates (read-only)` workflow. It reads the registry, each group's twelve data services and photo store (management status/cycles/environment, certified subnet and module hash, own configuration rows), the router deletion authority and the account service's pin, bound-deletion and admission-release state, and reports every outstanding item plus the exact approval digest a governor could record — recording nothing, opening nothing, enabling no admission. The approved-configuration digest reuses the client-canonical form, so an approval can never be wider than what shipped clients enforce; 12 tests pass. Runbook: docs/prod-routing-gate-runbook.md.
