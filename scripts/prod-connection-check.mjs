@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs'
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { assertCheckContext, callArguments, checkCalls, assessLinks } from './prod-connection-check-policy.mjs';
+import { assertCheckContext, callArguments, checkCalls, assessLinks, failureReason, hexReply } from './prod-connection-check-policy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -25,11 +25,11 @@ export async function runCheck({ ids, env, principal, invoke, decode, save }) {
         row.evidence = text;
         row.verdict = /\bErr\b/.test(text) ? 'READER_DENIED' : 'REVIEW_ROUTING_EVIDENCE';
       }
-    } catch {
-      // Never include subprocess stderr: identity/library failures can contain
-      // unrelated environment diagnostics. Infrastructure-only successful replies
-      // are the sole contents of the report.
+    } catch (error) {
+      // Raw subprocess output is never stored: only the bounded, redacted
+      // canister/CLI reason from failureReason explains the failure.
       row.verdict = 'UNREADABLE';
+      row.reason = failureReason(error?.stderr);
     }
     if (['UNREADABLE', 'READER_DENIED', 'LINK_MISMATCH'].includes(row.verdict)) report.complete = false;
     report.rows.push(row);
@@ -56,21 +56,25 @@ async function main() {
       if (a[3] === 'read_group_opening_configuration') a[a.indexOf('candid')] = 'hex';
       return execFileSync('icp', a, { cwd: env.RUNNER_TEMP, encoding: 'utf8', timeout: 60000, maxBuffer: 524288, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
     },
-    decode: (name, hex) => {
-      if (!/^(?:0x)?[a-fA-F0-9]+$/.test(hex)) throw new Error('Unexpected hex reply');
+    decode: (name, reply) => {
+      const hex = hexReply(reply);
       const bytes = Buffer.from(hex.replace(/^0x/, ''), 'hex');
       const type = variantReaders.has(name) ? IDL.Variant({ Ok: pairsType, Err: IDL.Text }) : pairsType;
       const [value] = IDL.decode([type], bytes);
       if (variantReaders.has(name)) {
-        if (!value || !('Ok' in value)) throw new Error('Configuration reader denied');
+        if (!value || !('Ok' in value)) {
+          const denied = new Error('Configuration reader denied');
+          denied.stderr = `Error: with message: '${String(value?.Err ?? 'denied').slice(0, 200)}'`;
+          throw denied;
+        }
         return value.Ok;
       }
       return value;
     },
     save: report => writeFileSync(output, JSON.stringify(report, null, 2)),
   });
-  const lines = ['### PROD connection check', '', '| Service | Check | Result |', '|---|---|---|',
-    ...report.rows.map(r => `| ${r.name} | ${r.method} | ${r.verdict} |`), '',
+  const lines = ['### PROD connection check', '', '| Service | Check | Result | Reason |', '|---|---|---|---|',
+    ...report.rows.map(r => `| ${r.name} | ${r.method} | ${r.verdict} | ${r.reason ?? ''} |`), '',
     'No routing, canister configuration, DEV connection or database changes were made.',
     'Routing replies are evidence for review, not permission to open a group.',
     'Download prod-connection-check for full infrastructure evidence.'];
