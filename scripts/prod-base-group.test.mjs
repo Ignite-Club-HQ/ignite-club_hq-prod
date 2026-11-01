@@ -63,6 +63,15 @@ test('changed module invalidates reviewed plan', () => {
   const p = buildBasePlan(input()), i = input(); i.observations[0].moduleHash = 'c'.repeat(64);
   assert.throws(() => assertReviewedPlan(p, hashPlan(p), buildBasePlan(i)), /changed/);
 });
+test('pasted hash with surrounding line breaks is accepted, but any other change is not', () => {
+  const p = buildBasePlan(input()), h = hashPlan(p);
+  assert.doesNotThrow(() => assertReviewedPlan(p, `${h}\n`, buildBasePlan(input())));
+  assert.doesNotThrow(() => assertReviewedPlan(p, `  ${h}\r\n`, buildBasePlan(input())));
+  assert.throws(() => assertReviewedPlan(p, `${h.slice(0, 32)}\n${h.slice(32)}`, p), /64 lowercase hex/);
+  assert.throws(() => assertReviewedPlan(p, h.toUpperCase(), p), /64 lowercase hex/);
+  assert.throws(() => assertReviewedPlan(p, 'f'.repeat(64), p), /does not match the saved plan/);
+  assert.throws(() => assertReviewedPlan(p, '', p), /64 lowercase hex/);
+});
 test('partial certified inventory is rejected', () => {
   const i = input(); i.observations.pop();
   assert.throws(() => buildBasePlan(i), /18-service/);
