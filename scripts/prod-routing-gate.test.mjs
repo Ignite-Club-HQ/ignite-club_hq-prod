@@ -81,7 +81,7 @@ test('a fully wired closed PROD produces an approvable draft and never an openin
 });
 
 test('a missing or stale approval is named and yields no draft', () => {
-  assert.deepEqual(textOf(review({ approval: null })), ['ROUTING_APPROVAL_MISSING']);
+  assert.deepEqual(codes(review({ approval: null })), ['ROUTING_APPROVAL_MISSING']);
   assert.equal(review({ approval: null }).approvalDraft, null);
   assert.match(textOf(review({ approval: { ...state().approval, configuration_revision: '6' } })), /ROUTING_APPROVAL_STALE/);
   assert.match(textOf(review({ approval: { ...state().approval, approved_configuration_sha256: 'c'.repeat(64) } })), /ROUTING_APPROVAL_STALE/);
@@ -100,7 +100,7 @@ test('an open group is never approvable, however complete its wiring', () => {
 test('removal checks off, or bound to a foreign account service, blocks the gate', () => {
   const off = review({ services: [...servicesFor('base').map(s => s.name === 'vault_domain'
       ? { ...s, environment: [{ name: ADMISSION_AUTHORITY, value: identity }] } : s), ...servicesFor('g2')] });
-  assert.match(codes(off), /base\/vault_domain: account admission checks are off/);
+  assert.match(textOf(off), /base\/vault_domain: account admission checks are off/);
   const foreign = review({ services: [...servicesFor('base').map(s => s.name === 'vault_domain'
       ? { ...s, environment: [{ name: ADMISSION_FLAG, value: '1' }, { name: ADMISSION_AUTHORITY, value: PROD_CHECK_IDS.club_domain }] } : s),
     ...servicesFor('g2')] });
