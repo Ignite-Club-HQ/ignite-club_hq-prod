@@ -80,7 +80,7 @@ test('plan requires a valid push worker and sufficient balance', () => {
   assert.equal(p.registrationAuthorized, false);
   assert.equal(p.openingAuthorized, false);
   assert.equal(p.primarySubnet, SUBNET);
-  assert.equal(p.configurationRecipe.length, 34);
+  assert.equal(p.configurationRecipe.length, CONFIGURATION_RECIPE.length);
   assert.match(g2PlanSummary(p), /CLOSED/);
 });
 
@@ -97,7 +97,7 @@ test('configuration binding resolves 34 operations and rejects bad inventories',
   const p = plan();
   const canisters = Object.fromEntries(G2_SERVICES.map((n, i) => [n, NEW_ID(i)]));
   const ops = g2ConfigurationBinding(p, canisters);
-  assert.equal(ops.length, 34);
+  assert.equal(ops.length, CONFIGURATION_RECIPE.length);
   assert.equal(ops[0].name, 'media_blob_store.set_club_domain_canister');
   assert.deepEqual(ops[0].args, [canisters.club_domain]);
   const vaultStores = ops.find(o => o.name === 'vault_domain.set_vault_stores');
@@ -151,7 +151,8 @@ const HASHES_BY_WASM = wasm => {
 };
 
 const plannedReceipt = p => ({ version: 1, phase: 'planned', pending: null, planHash: hashPlan(p), plan: p });
-const now = () => 1_762_000_000n * 1_000_000_000n;
+let clock = 1_762_000_000n * 1_000_000_000n;
+const now = () => (clock += 1_000_000n);
 
 test('creation runs create, install, configure, health and photo sizing, closed only', async () => {
   const p = plan();
@@ -251,7 +252,7 @@ test('setter IDL subsets match the generated bindings', async (t) => {
     if (!Object.keys(methods).length) continue;
     const didPath = new URL(`${service}/declarations/${service}.did.js`, bindingsRoot);
     if (!existsSync(didPath)) return t.skip(`generated bindings for ${service} only exist in the development layout`);
-    const { idlFactory } = await import(pathToFileURL(didPath).href);
+    const { idlFactory } = await import(didPath.href);
     const real = idlFactory({ IDL });
     const subset = setterService(IDL, service)({ IDL });
     for (const method of Object.keys(methods)) {

@@ -130,6 +130,7 @@ async function main() {
     const report = { receiptPhase: receipt?.phase ?? 'missing', pending: receipt?.pending ?? null,
       canisters: receipt?.canisters ?? {}, installedDomains: receipt?.installedDomains ?? [],
       configurationCompleted: receipt?.configuration?.completed?.length ?? 0,
+      configurationTotal: CONFIGURATION_RECIPE.length,
       sourceChanged: receipt?.plan?.sourceCommit !== env.GITHUB_SHA, creationAuthorized: false };
     writeFileSync(path.join(env.CHECK_REPORT_DIR, 'prod-g2-inspection.json'), evidenceText(report));
     const message = `### PROD g2 read-only inspection\n\nReceipt: ${report.receiptPhase}; pending: ${report.pending ? `${report.pending.kind} ${report.pending.domain ?? ''}` : 'none'}.\nCreated services: ${Object.keys(report.canisters).length}/13; installed: ${report.installedDomains.length}/13; configuration operations: ${report.configurationCompleted}/34.\nSource commit changed: ${report.sourceChanged ? 'yes' : 'no'}.\nNo journal or canister writes. The group stays CLOSED.\n`;
