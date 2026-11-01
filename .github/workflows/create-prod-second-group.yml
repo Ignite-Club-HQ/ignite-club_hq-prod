@@ -50,24 +50,6 @@ jobs:
         run: node --test scripts/prod-g2-create.test.mjs scripts/prod-base-group.test.mjs scripts/prod-g2-plan.test.mjs
       - name: Install isolated pinned SDK
         run: npm install --prefix "$RUNNER_TEMP/prod-g2-deps" @icp-sdk/core@6.1.1 --no-fund --no-audit
-      - name: Restore existing signing key
-        env:
-          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
-          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          umask 077
-          export ICP_HOME="$RUNNER_TEMP/prod-g2-key"
-          trap 'rm -rf "$ICP_HOME"' EXIT
-          test -n "${PROD_GOVERNOR_PEM_ENC:-}"
-          test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
-          mkdir -p "$ICP_HOME"
-          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
-          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
-          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
-          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
-          echo "CHECK_KEY_PEM=$ICP_HOME/key.pem" >> "$GITHUB_ENV"
       - name: Bake the PROD governor into canister configs (this checkout only)
         run: |
           set -euo pipefail
@@ -93,9 +75,25 @@ jobs:
           node scripts/resolve-prod-push-worker.mjs
       - name: Run the selected closed-only action
         env:
+          PROD_GOVERNOR_PEM_ENC: ${{ secrets.PROD_GOVERNOR_PEM_ENC }}
+          PROD_GOVERNOR_PASSPHRASE: ${{ secrets.PROD_GOVERNOR_PASSPHRASE }}
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           set -euo pipefail
+          umask 077
+          # Restore the signing key inside this step: a trap in an earlier step
+          # deletes it before this one starts.
+          export ICP_HOME="$RUNNER_TEMP/prod-g2-key"
+          trap 'rm -rf "$ICP_HOME"' EXIT
+          test -n "${PROD_GOVERNOR_PEM_ENC:-}"
+          test -n "${PROD_GOVERNOR_PASSPHRASE:-}"
+          mkdir -p "$ICP_HOME"
+          printf '%s' "$PROD_GOVERNOR_PEM_ENC" | tr -d '\r\n ' | base64 -d > "$ICP_HOME/key.enc"
+          printf '%s' "$PROD_GOVERNOR_PASSPHRASE" > "$ICP_HOME/pass"
+          openssl enc -d -aes-256-cbc -pbkdf2 -in "$ICP_HOME/key.enc" -out "$ICP_HOME/key.pem" -pass file:"$ICP_HOME/pass"
+          rm -f "$ICP_HOME/key.enc" "$ICP_HOME/pass"
+          export CHECK_KEY_PEM="$ICP_HOME/key.pem"
           export CHECK_DEPS_DIR="$RUNNER_TEMP/prod-g2-deps"
           export CHECK_REPORT_DIR="$RUNNER_TEMP/prod-g2-report"
           export G2_WASM_DIR="$RUNNER_TEMP/g2-wasm"
