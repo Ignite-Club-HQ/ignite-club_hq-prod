@@ -78,3 +78,28 @@ export function assessLinks(name, pairs, ids) {
     return { key, expected: ids[key], observed: values, matches: values.length === 1 && values[0] === ids[key] };
   });
 }
+// Bounded, secret-free explanation of a failed read. Only the canister's own
+// reject/trap text or the CLI's first error line survives; paths, key material
+// and long encoded blobs are removed. Subprocess output is otherwise discarded.
+export function failureReason(stderr) {
+  const text = String(stderr ?? '').split(/Stack backtrace:/)[0];
+  if (/PRIVATE KEY|BEGIN [A-Z ]+-----/.test(text)) return 'Tool failed (details withheld)';
+  const trap = text.match(/with message: '([^'\n]{1,200})'/);
+  const reject = text.match(/was rejected: ([^\n]{1,300})/);
+  const first = text.split('\n').map(s => s.trim()).find(s => /^Error\b/i.test(s));
+  let reason = trap ? `Canister refused: ${trap[1]}` : reject ? `Rejected: ${reject[1]}` : first || '';
+  reason = reason
+    .replace(/(?:\/[\w.@-]+){2,}/g, '<path>')
+    .replace(/[A-Za-z0-9+/=_]{40,}/g, '<redacted>')
+    .replace(/[|`\r]/g, ' ')
+    .trim()
+    .slice(0, 160);
+  return reason || 'Tool failed (no details)';
+}
+
+// The CLI may print notices around a reply; keep only a pure hex line.
+export function hexReply(stdout) {
+  const line = String(stdout).split('\n').map(s => s.trim()).reverse().find(s => /^(?:0x)?[a-fA-F0-9]+$/.test(s));
+  if (!line) throw new Error('Unexpected hex reply');
+  return line;
+}
